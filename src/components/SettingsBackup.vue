@@ -1,0 +1,225 @@
+<script setup lang="ts">
+// Settings → Devices → Backup: export the whole Devdy configuration (settings, Skills/Rules
+// library, MCP + VPS servers, account metadata, notes/todos, Slack threads, projects) into one file and import it
+// on another machine. Secrets only travel when the user sets a password (sealed backend-side with
+// Argon2id + XChaCha20-Poly1305). Import merges by name and never deletes local items.
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { open, save } from '@tauri-apps/plugin-dialog'
+import { ArchiveRestore, Download, FileUp, KeyRound, Loader2, Upload } from 'lucide-vue-next'
+import { Button, Card, Input, ToggleSwitch } from '@/components/ui'
+import BackupContents from '@/components/BackupContents.vue'
+import BackupImportReport from '@/components/BackupImportReport.vue'
+import { useToast } from '@/composables/useToast'
+import { invoke } from '@/lib/tauri'
+import { formatExportedAt, type BackupInfo, type ImportReport } from '@/lib/settingsBackup'
+
+const MIN_PASSWORD = 8
+const FILE_EXT = 'devdy-backup'
+
+const { t } = useI18n()
+const { toast } = useToast()
+
+// ---- Export ----
+const includeSecrets = ref(false)
+const exportPassword = ref('')
+const exportPasswordConfirm = ref('')
+const exporting = ref(false)
+
+const exportError = computed(() => {
+  if (!includeSecrets.value) return ''
+  if (exportPassword.value.length < MIN_PASSWORD) return t('settings.backup.export.passwordTooShort', { n: MIN_PASSWORD })
+  if (exportPassword.value !== exportPasswordConfirm.value) return t('settings.backup.export.passwordMismatch')
+  return ''
+})
+
+async function runExport() {
+  if (exporting.value || exportError.value) return
+  const stamp = new Date().toISOString().slice(0, 10)
+  const path = await save({
+    defaultPath: `devdy-settings-${stamp}.${FILE_EXT}`,
+    filters: [{ name: 'Devdy backup', extensions: [FILE_EXT] }],
+  })
+  if (!path) return
+  exporting.value = true
+  try {
+    await invoke<BackupInfo>('export_settings_backup', {
+      path,
+      password: includeSecrets.value ? exportPassword.value : null,
+    })
+    exportPassword.value = ''
+    exportPasswordConfirm.value = ''
+    toast.success(t('settings.backup.export.done'))
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    exporting.value = false
+  }
+}
+
+// ---- Import ----
+const importPath = ref<string | null>(null)
+const importInfo = ref<BackupInfo | null>(null)
+const importPassword = ref('')
+const createMissingDirs = ref(true)
+const importing = ref(false)
+const report = ref<ImportReport | null>(null)
+
+async function chooseFile() {
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: 'Devdy backup', extensions: [FILE_EXT, 'json'] }],
+  })
+  if (!selected || Array.isArray(selected)) return
+  report.value = null
+  importPassword.value = ''
+  try {
+    importInfo.value = await invoke<BackupInfo>('inspect_settings_backup', { path: selected })
+    importPath.value = selected
+  } catch (e) {
+    importInfo.value = null
+    importPath.value = null
+    toast.error(String(e))
+  }
+}
+
+async function runImport() {
+  if (!importPath.value || importing.value) return
+  importing.value = true
+  try {
+    report.value = await invoke<ImportReport>('import_settings_backup', {
+      path: importPath.value,
+      password: importInfo.value?.hasSecrets && importPassword.value ? importPassword.value : null,
+      createMissingDirs: createMissingDirs.value,
+    })
+    importPassword.value = ''
+    importInfo.value = null
+    importPath.value = null
+    toast.success(t('settings.backup.import.done'))
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    importing.value = false
+  }
+}
+
+function cancelImport() {
+  importInfo.value = null
+  importPath.value = null
+  importPassword.value = ''
+}
+</script>
+
+<template>
+  <Card body-class="p-4 space-y-5">
+    <template #header>
+      <ArchiveRestore class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
+      <span class="text-xs font-semibold">{{ t('settings.backup.title') }}</span>
+    </template>
+
+    <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.help') }}</p>
+
+    <!-- Export -->
+    <section class="space-y-3">
+      <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        {{ t('settings.backup.export.title') }}
+      </label>
+
+      <div class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-foreground">{{ t('settings.backup.export.includeSecrets') }}</p>
+          <p class="mt-0.5 text-[11px] text-muted-foreground">{{ t('settings.backup.export.includeSecretsHint') }}</p>
+        </div>
+        <ToggleSwitch
+          size="md"
+          :checked="includeSecrets"
+          :label="t('settings.backup.export.includeSecrets')"
+          @toggle="includeSecrets = !includeSecrets"
+        />
+      </div>
+
+      <div v-if="includeSecrets" class="space-y-2">
+        <Input
+          v-model="exportPassword"
+          type="password"
+          autocomplete="new-password"
+          :placeholder="t('settings.backup.export.password')"
+        />
+        <Input
+          v-model="exportPasswordConfirm"
+          type="password"
+          autocomplete="new-password"
+          :placeholder="t('settings.backup.export.passwordConfirm')"
+        />
+        <p class="flex items-start gap-1.5 text-[11px] text-warning">
+          <KeyRound class="mt-px h-3 w-3 shrink-0" :stroke-width="1.75" />
+          {{ t('settings.backup.export.passwordWarning') }}
+        </p>
+        <p v-if="exportError && exportPassword" class="text-[11px] text-destructive">{{ exportError }}</p>
+      </div>
+      <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.backup.export.noSecretsHint') }}</p>
+
+      <Button size="sm" :disabled="exporting || !!exportError" @click="runExport">
+        <component :is="exporting ? Loader2 : Download" class="h-3.5 w-3.5" :class="{ 'animate-spin': exporting }" :stroke-width="1.75" />
+        {{ t('settings.backup.export.button') }}
+      </Button>
+    </section>
+
+    <div class="border-t border-border/60" />
+
+    <!-- Import -->
+    <section class="space-y-3">
+      <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        {{ t('settings.backup.import.title') }}
+      </label>
+      <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.help') }}</p>
+
+      <Button v-if="!importInfo" variant="outline" size="sm" @click="chooseFile">
+        <FileUp class="h-3.5 w-3.5" :stroke-width="1.75" />
+        {{ t('settings.backup.import.choose') }}
+      </Button>
+
+      <div v-else class="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+        <div class="text-[11px] text-muted-foreground space-y-0.5">
+          <div class="truncate font-mono" :title="importPath ?? ''">{{ importPath }}</div>
+          <div>
+            {{ t('settings.backup.import.exportedAt', { at: formatExportedAt(importInfo.exportedAt), version: importInfo.appVersion || '?' }) }}
+          </div>
+        </div>
+        <BackupContents :info="importInfo" />
+
+        <div v-if="importInfo.hasSecrets" class="space-y-1.5">
+          <Input
+            v-model="importPassword"
+            type="password"
+            autocomplete="off"
+            :placeholder="t('settings.backup.import.password')"
+          />
+          <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.passwordHint') }}</p>
+        </div>
+        <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.noSecrets') }}</p>
+
+        <label v-if="importInfo.counts.projects" class="flex items-start gap-2 text-xs">
+          <input v-model="createMissingDirs" type="checkbox" class="mt-0.5 accent-primary">
+          <span>
+            {{ t('settings.backup.import.createMissingDirs') }}
+            <span class="block text-[11px] text-muted-foreground">{{ t('settings.backup.import.createMissingDirsHint') }}</span>
+          </span>
+        </label>
+
+        <div class="flex items-center gap-2">
+          <Button size="sm" :disabled="importing" @click="runImport">
+            <component :is="importing ? Loader2 : Upload" class="h-3.5 w-3.5" :class="{ 'animate-spin': importing }" :stroke-width="1.75" />
+            {{ t('settings.backup.import.button') }}
+          </Button>
+          <Button variant="ghost" size="sm" :disabled="importing" @click="cancelImport">
+            {{ t('settings.backup.import.cancel') }}
+          </Button>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <BackupImportReport v-if="report" :report="report" />
+    </section>
+  </Card>
+</template>

@@ -1,0 +1,123 @@
+{
+  "list": {
+    "import": "Nhập",
+    "importing": "Đang nhập…",
+    "builtin": {
+      "active": "Tích hợp sẵn · hoạt động",
+      "disabled": "Tích hợp sẵn · đã tắt",
+      "description": "Tự động chèn vào mọi run. Cung cấp cho AI ghi chú của bạn, khả năng nhớ xuyên phiên, ngữ cảnh dự án (cây thư mục & git) và VPS được quản lý — dưới dạng các tool {tools}.",
+      "settings": "Cài đặt Google",
+      "needsClient": "Tích hợp sẵn · cần OAuth client",
+      "noAccount": "Tích hợp sẵn · chưa có tài khoản",
+      "googleDescription": "Drive (drive_*): liệt kê, tìm, đọc, tải lên, chia sẻ, xóa file. Sheets (sheets_*): đọc mọi tab, sửa từng ô, thêm dòng. Gmail (mail_*): tìm, đọc, tệp đính kèm, gửi, trả lời, nhãn. Calendar (cal_*): xem sự kiện, tìm giờ trống, tạo và cập nhật cuộc họp. Được chèn khi đã kết nối tài khoản Google — dưới dạng các tool {tools}."
+    },
+    "empty": {
+      "title": "Chưa có MCP server nào",
+      "hint": "Định nghĩa một MCP server một lần, sau đó bật cho từng dự án"
+    },
+    "claudeOnly": "Chỉ Claude",
+    "claudeOnlyTitle": "Transport SSE chỉ được Claude hỗ trợ. Các run Codex sẽ bỏ qua server này.",
+    "disable": "Tắt",
+    "enable": "Bật",
+    "exportTitle": "Xuất JSON (gồm cả secret)",
+    "recommended": "Server đề xuất",
+    "adding": "Đang thêm…",
+    "confirmDelete": {
+      "title": "Xóa MCP server",
+      "message": "Xóa MCP server \"{name}\"? Thao tác này cũng xóa các secret đã lưu. Không thể hoàn tác."
+    },
+    "toast": {
+      "added": "Đã thêm \"{name}\" — hoàn tất thiết lập tại đây",
+      "imported": "Đã nhập",
+      "exported": "Đã xuất",
+      "deleted": "Đã xóa",
+      "disabled": "Đã tắt",
+      "enabled": "Đã bật"
+    },
+    "searchPlaceholder": "Tìm theo tên, lệnh, URL…",
+    "groups": {
+      "builtin": "Tích hợp sẵn",
+      "stdio": "stdio · tiến trình cục bộ",
+      "http": "http · từ xa",
+      "sse": "sse · từ xa"
+    },
+    "noSelection": "Chọn một MCP server, hoặc tạo server mới",
+    "allTypes": "Tất cả loại",
+    "filterByType": "Lọc theo loại"
+  },
+  "editor": {
+    "newTitle": "MCP Server mới",
+    "enabled": "Đã bật",
+    "disabled": "Đã tắt",
+    "saving": "Đang lưu…",
+    "general": "Chung",
+    "name": "Tên",
+    "namePlaceholder": "my-mcp-server",
+    "description": "Mô tả",
+    "descriptionPlaceholder": "Server này cung cấp gì",
+    "transport": "Transport",
+    "sseWarning": "SSE chỉ dành cho Claude; các run Codex hỗ trợ stdio và streamable HTTP.",
+    "process": "Tiến trình",
+    "command": "Lệnh",
+    "commandPlaceholder": "npx",
+    "args": "Args (mỗi dòng một tham số)",
+    "environment": "Biến môi trường",
+    "noEnv": "Không có biến môi trường",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "giá trị",
+    "unchangedPlaceholder": "•••••• (giữ nguyên)",
+    "stored": "đã lưu",
+    "storedTitle": "Đã lưu một giá trị; để trống để giữ nguyên",
+    "endpoint": "Endpoint",
+    "url": "URL",
+    "urlPlaceholder": "https://example.com/mcp",
+    "headers": "Headers",
+    "noHeaders": "Không có header",
+    "authorizationPlaceholder": "Authorization",
+    "testConnection": "Kiểm tra kết nối",
+    "testing": "Đang kiểm tra…",
+    "validation": {
+      "nameRequired": "Tên là bắt buộc",
+      "nameFormat": "Tên chỉ được chứa chữ cái, số, dấu gạch ngang và gạch dưới",
+      "commandRequired": "Transport stdio cần một lệnh",
+      "urlRequired": "Transport {transport} cần một url",
+      "keyEmpty": "Khóa secret không được để trống",
+      "duplicateKey": "Khóa trùng \"{key}\""
+    },
+    "toast": {
+      "saved": "Đã lưu"
+    }
+  },
+  "detail": {
+    "addedOn": "Thêm ngày {date}",
+    "notSaved": "Chưa lưu",
+    "builtin": "Tích hợp sẵn",
+    "notAdded": "Đề xuất · chưa thêm",
+    "moreActions": "Thao tác khác",
+    "duplicate": "Nhân bản",
+    "duplicated": "Giá trị secret không được sao chép — hãy điền lại trước khi lưu",
+    "dismiss": "Đóng",
+    "about": "Giới thiệu",
+    "tools": "Tools",
+    "builtinHint": "Được chèn khi khởi chạy run, không lưu như một server — có thể tắt nhưng không xoá được.",
+    "perProject": "Theo project",
+    "perProjectHint": "Tắt riêng cho từng project trong tab MCP của project đó. Khi tắt ở đây thì mọi project đều tắt. Có hiệu lực từ run kế tiếp.",
+    "command": "Lệnh",
+    "secretsToFill": "Secret cần điền",
+    "noSecrets": "Không cần secret",
+    "addHint": "Thêm với giá trị secret rỗng; hoàn tất thiết lập tại đây.",
+    "generalHint": "Định nghĩa một MCP server một lần, sau đó bật cho từng dự án ở trang của dự án.",
+    "secretsHint": "Giá trị được lưu trong OS Keychain và không bao giờ hiển thị; để trống giá trị đã lưu để giữ nguyên.",
+    "confirmDiscard": {
+      "title": "Bỏ thay đổi?",
+      "message": "MCP server này có thay đổi chưa lưu. Bỏ các thay đổi đó?",
+      "confirm": "Bỏ"
+    },
+    "status": "Trạng thái",
+    "enabledHint": "Áp dụng ngay; tắt để không đưa vào các run mới.",
+    "enabledHintDraft": "Server có được bật sẵn sau khi lưu hay không.",
+    "test": "Kiểm tra",
+    "testHint": "Kiểm tra server với cấu hình hiện tại — không cần lưu trước.",
+    "saveHint": "Lưu (⌘/Ctrl+S)"
+  }
+}

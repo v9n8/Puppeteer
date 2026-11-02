@@ -1,0 +1,16 @@
+{
+  "name": "devdy-claude-sidecar",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Node sidecar hosting @anthropic-ai/claude-agent-sdk, bridged to the Devdy Rust broker over NDJSON (stdin/stdout).",
+  "main": "index.mjs",
+  "scripts": {
+    "preinstall": "npx only-allow npm",
+    "test:smoke": "node test-smoke.mjs",
+    "test:mocked": "node test-mocked.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.288"
+  }
+}

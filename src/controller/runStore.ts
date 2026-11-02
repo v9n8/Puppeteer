@@ -1,0 +1,577 @@
+/**
+ * Turns decrypted {@link StreamPayload}s into the `StreamEntry[]` that the
+ * reused {@link StreamLog} component renders (FR-004/005), plus the pending
+ * permission request the {@link PermissionPrompt} shows (FR-006).
+ *
+ * History vs live (FR-005/AC-07): the Host replays the full persisted log in
+ * `history` batches, then live events continue. The Controller only started
+ * receiving live frames *after* it joined, so there is no overlap — history is
+ * rebuilt from the batched raw NDJSON lines and live entries are appended after
+ * it. A reconnect re-requests history; we reset the run's entries and rebuild,
+ * so nothing is duplicated (FR-012/AC-15).
+ */
+import { reactive } from 'vue'
+import { i18n } from '@/i18n'
+import {
+  applyStreamEvent,
+  extractContextTokens,
+  extractTurnTotalTokens,
+  isCompactBoundary,
+  parseStreamLog,
+  type ImageAttachment,
+  type StreamEntry,
+  type StreamState,
+} from '@/lib/streamEvents'
+import type { RateLimitWindows } from '@/stores/liveRuns'
+import {
+  createSyncGate,
+  dequeuePending,
+  dropRun,
+  enqueuePending,
+  headOf,
+  retainPending,
+} from '@/lib/remoteInbox'
+import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
+import type {
+  ClaudeAccountChoice,
+  ClaudeAccountUsage,
+  EngineModelOption,
+  FetchedModel,
+  PlanBudget,
+  ProjectInfo,
+  RunInfo,
+  SlashCommand,
+  StreamPayload,
+} from './protocol'
+
+/** The bound run's per-turn usage badge (tokens + cost), from a `result` event. */
+export interface UsageInfo {
+  totalTokens?: number
+  costUsd?: number
+  costEstimated?: boolean
+}
+
+/** Live + replayed state for a single run the Controller is viewing. */
+interface RunView {
+  runId: string
+  /** Rendered entries (history first, then live) for StreamLog. */
+  entries: StreamEntry[]
+  toolIndex: Map<string, number>
+  /** Accumulating raw history NDJSON lines until the final batch arrives. */
+  historyBuffer: string[]
+  /** True once history has been received & folded in (so live can append). */
+  historyDone: boolean
+  status: string | null
+  /** Context-window occupancy (tokens), mirrors the desktop ContextMeter. */
+  contextTokens: number
+  /** Model id from `system.init` — resolves the context-window limit. */
+  model: string | null
+  /** True once a per-message `assistant` usage set contextTokens this turn. */
+  sawAssistantUsage: boolean
+  /** Real claude.ai subscription rate-limit windows, if reported. */
+  rateLimit: RateLimitWindows | null
+  /** Latest turn's usage (tokens + cost) for the usage badge. */
+  usage: UsageInfo | null
+}
+
+/** Coerce a claude.ai `resets_at` (ISO string or epoch secs/ms) to ISO. */
+function toIso(v: unknown): string | null {
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return new Date(v > 1e12 ? v : v * 1000).toISOString()
+  return null
+}
+
+/** Fold claude.ai rate-limit windows from a `system.init` / `rate_limit_event`
+ * (mirror of `liveRuns.captureRateLimit`). Claude subscription only. */
+function captureRateLimit(run: RunView, p: Record<string, unknown> | null): void {
+  if (!p) return
+  if (p.type === 'system' && p.subtype === 'init' && p.rate_limits && typeof p.rate_limits === 'object') {
+    const rl = p.rate_limits as Record<string, unknown>
+    const win = (k: string): RateLimitWindows['fiveHour'] | undefined => {
+      const w = rl[k] as Record<string, unknown> | null | undefined
+      if (!w) return undefined
+      return {
+        utilization: typeof w.utilization === 'number' ? w.utilization : null,
+        resetsAt: toIso(w.resets_at),
+      }
+    }
+    run.rateLimit = { fiveHour: win('five_hour'), sevenDay: win('seven_day') }
+  } else if (p.type === 'rate_limit_event' && p.rate_limit_info && typeof p.rate_limit_info === 'object') {
+    const info = p.rate_limit_info as Record<string, unknown>
+    const win = {
+      utilization: typeof info.utilization === 'number' ? info.utilization : null,
+      resetsAt: toIso(info.resetsAt),
+    }
+    const next: RateLimitWindows = { ...(run.rateLimit ?? {}) }
+    if (info.rateLimitType === 'five_hour') next.fiveHour = win
+    else if (typeof info.rateLimitType === 'string' && info.rateLimitType.startsWith('seven_day'))
+      next.sevenDay = win
+    run.rateLimit = next
+  }
+}
+
+/** Fold usage/context metrics from one stream event (mirror of the desktop
+ * liveRuns pipeline). Must run AFTER `applyStreamEvent` so a `result` entry is
+ * already in `run.entries`. */
+function foldMetrics(run: RunView, event: unknown): void {
+  const p = event && typeof event === 'object' ? (event as Record<string, unknown>) : null
+  if (p) {
+    if (p.type === 'system' && p.subtype === 'init' && typeof p.model === 'string') run.model = p.model
+    captureRateLimit(run, p)
+  }
+  // Context-window occupancy: use the LATEST per-message assistant usage (the
+  // newest message carries the full history as cache_read, so it is the true
+  // current window size — mirrors Claude's own context indicator). Fall back to
+  // the result cumulative total; reset on a compaction boundary.
+  if (isCompactBoundary(event)) {
+    run.contextTokens = 0
+    run.sawAssistantUsage = false
+  } else {
+    const ctx = extractContextTokens(event)
+    if (ctx !== null) {
+      run.contextTokens = ctx
+      run.sawAssistantUsage = true
+    } else if (!run.sawAssistantUsage) {
+      const total = extractTurnTotalTokens(event)
+      if (total !== null) run.contextTokens = total
+    }
+  }
+  // Usage badge from the just-folded `result` entry.
+  const last = run.entries[run.entries.length - 1]
+  if (last && last.kind === 'result') {
+    run.usage = {
+      totalTokens: last.total_tokens,
+      costUsd: last.cost_usd,
+      costEstimated: last.cost_estimated,
+    }
+  }
+}
+
+/** The reactive facade the UI binds to. */
+export interface RunStoreState {
+  /** Ordered run ids seen (newest activity last). */
+  runIds: string[]
+  /** Per-run views keyed by run id. */
+  runs: Record<string, RunView>
+  /** The run currently shown in the UI, or null (null → show the run browser). */
+  activeRunId: string | null
+  /** All runs the Host reports, newest activity first (the run browser). */
+  runList: RunInfo[]
+  /** Projects the runs belong to (groups the browser). */
+  projectList: ProjectInfo[]
+  /**
+   * Pending permission requests keyed by run id (FR-006).
+   *
+   * Keyed rather than a single slot because the Host forwards prompts for EVERY
+   * run once multi-run is negotiated: a prompt from a run the user is not
+   * watching must queue up as a badge, not overwrite the one they are looking at.
+   */
+  pendingByRun: Record<string, PermissionRequest>
+  /** Every open prompt per run, oldest first (`pendingByRun` is each head). A
+   * run may have several at once (parallel tool calls); the Inbox lists all. */
+  pendingQueues: Record<string, PermissionRequest[]>
+  /** request id → when this Controller first saw it (ms), for Inbox order. */
+  pendingSeenAt: Record<string, number>
+  /** Transient advisory from the Host (e.g. "already handled"). */
+  notice: string | null
+  /** Slash commands the Host advertises for the bound run (composer palette). */
+  slashCommands: SlashCommand[]
+  /** Engine/model options the Host offers (composer footer selectors). */
+  engineModelOptions: EngineModelOption[]
+  /** Codex models the Host discovered, which replace the composer's curated
+   * Codex table exactly as on the desktop. Claude needs no counterpart: its list
+   * is curated in the shared bundle both surfaces import. */
+  discoveredModels: { codex: FetchedModel[] }
+  /** Project file paths for the bound run (`@`-mention autocomplete). */
+  projectFiles: string[]
+  /** The bound run's live selection, mirrored from the Host (engine/model/mode). */
+  runMeta: { engine: string; model: string; permissionMode: string; claudeAccountId: string }
+  /** Managed Claude accounts the run may be switched to (run-settings menu). */
+  claudeAccountChoices: ClaudeAccountChoice[]
+  /** Subscription plan-usage badges, mirrored from the desktop `BudgetBadge`. */
+  claudeBudget: PlanBudget | null
+  codexBudget: PlanBudget | null
+  /** Label of the Claude account the focused run is using (null = global/legacy). */
+  claudeAccount: string | null
+  /** Every managed Claude account with its own usage — desktop badge parity.
+   * Empty from an older Host, or when no accounts are configured. */
+  claudeAccounts: ClaudeAccountUsage[]
+}
+
+/**
+ * A tiny reactive store. Not Pinia (the controller app is deliberately minimal
+ * and standalone) — a `reactive` object is enough and keeps the bundle small.
+ */
+export function createRunStore() {
+  const state = reactive<RunStoreState>({
+    runIds: [],
+    runs: {},
+    activeRunId: null,
+    runList: [],
+    projectList: [],
+    pendingByRun: {},
+    pendingQueues: {},
+    pendingSeenAt: {},
+    notice: null,
+    slashCommands: [],
+    engineModelOptions: [],
+    discoveredModels: { codex: [] },
+    projectFiles: [],
+    runMeta: { engine: '', model: '', permissionMode: '', claudeAccountId: '' },
+    claudeAccountChoices: [],
+    claudeBudget: null,
+    codexBudget: null,
+    claudeAccount: null,
+    claudeAccounts: [],
+  })
+
+  // Request ids re-sent since `beginPendingSync` (null when not syncing); the
+  // gate makes sure only that sync's own ack may prune the queues.
+  let resent: Set<string> | null = null
+  const syncGate = createSyncGate()
+
+  /** Replace the prompt queues and re-derive the per-run heads. */
+  function setQueues(next: Record<string, PermissionRequest[]>): void {
+    state.pendingQueues = next
+    state.pendingByRun = headOf(next)
+    const live = new Set(Object.values(next).flat().map((p) => p.request_id))
+    for (const id of Object.keys(state.pendingSeenAt)) {
+      if (!live.has(id)) delete state.pendingSeenAt[id]
+    }
+  }
+
+  function ensureRun(runId: string): RunView {
+    let run = state.runs[runId]
+    if (!run) {
+      run = {
+        runId,
+        entries: [],
+        toolIndex: new Map(),
+        historyBuffer: [],
+        historyDone: false,
+        status: null,
+        contextTokens: 0,
+        model: null,
+        sawAssistantUsage: false,
+        rateLimit: null,
+        usage: null,
+      }
+      state.runs[runId] = run
+      state.runIds.push(runId)
+    }
+    // NOTE: we do NOT auto-select the active run here. The user browses the run
+    // list and explicitly opens a run — a live event from any run must not hijack
+    // whatever the user is currently viewing.
+    return run
+  }
+
+  /** Fold a decrypted payload into the store. */
+  function apply(payload: StreamPayload): void {
+    switch (payload.kind) {
+      case 'history':
+        applyHistory(payload.run_id, payload.lines, payload.done)
+        break
+      case 'stream':
+        ensureRun(payload.run_id).status = 'running'
+        applyLiveEvent(payload.run_id, payload.event)
+        break
+      case 'output':
+        ensureRun(payload.run_id).status = 'running'
+        applyOutput(payload.run_id, payload.line, payload.is_stderr === true)
+        break
+      case 'output_batch':
+        // A batch is exactly the `output` frames it replaces — apply in order.
+        ensureRun(payload.run_id).status = 'running'
+        for (const l of payload.lines) {
+          applyOutput(payload.run_id, l.line, l.is_stderr === true)
+        }
+        break
+      case 'permission_request':
+        if (!(payload.request_id in state.pendingSeenAt)) {
+          state.pendingSeenAt[payload.request_id] = Date.now()
+        }
+        setQueues(
+          enqueuePending(state.pendingQueues, {
+            run_id: payload.run_id,
+            request_id: payload.request_id,
+            tool_name: payload.tool,
+            tool_input: payload.input,
+            cwd: payload.cwd ?? null,
+            once_only: payload.once_only === true,
+          }),
+        )
+        resent?.add(payload.request_id)
+        ensureRun(payload.run_id).status = 'running'
+        // Deliberately NOT stealing focus: with multi-run the Host forwards
+        // prompts from every run, and yanking the user out of what they are
+        // reading (or typing into) would be worse than a badge they can tap.
+        break
+      case 'done':
+        ensureRun(payload.run_id).status = payload.status
+        // Reflect the new status in the browse list too, if present.
+        {
+          const info = state.runList.find((r) => r.id === payload.run_id)
+          if (info) {
+            info.status = payload.status
+            // Stamp it so the Inbox's "since last visit" sees it finish now.
+            info.updated_at = new Date().toISOString()
+          }
+          // A finished run asks nothing any more.
+          if (state.pendingQueues[payload.run_id]) {
+            setQueues(dropRun(state.pendingQueues, payload.run_id))
+          }
+        }
+        break
+      case 'slash_command_list':
+        state.slashCommands = payload.commands
+        break
+      case 'engine_model_options':
+        state.engineModelOptions = payload.engines
+        state.discoveredModels = { codex: payload.codex_models ?? [] }
+        state.claudeAccountChoices = payload.claude_accounts ?? []
+        break
+      case 'project_file_list':
+        state.projectFiles = payload.files
+        break
+      case 'run_meta':
+        // Mirror the Host's live selection. Only overwrite a field the Host
+        // actually sent (null = "no opinion") so a partial push can't blank the
+        // others.
+        if (payload.engine != null) state.runMeta.engine = payload.engine
+        if (payload.model != null) state.runMeta.model = payload.model
+        if (payload.permission_mode != null) state.runMeta.permissionMode = payload.permission_mode
+        // '' is a real value here (the global ~/.claude), so only `null` — "not
+        // reported" — leaves the current selection alone.
+        if (payload.claude_account_id != null)
+          state.runMeta.claudeAccountId = payload.claude_account_id
+        break
+      case 'plan_usage':
+        // Mirror the desktop BudgetBadge (Claude + Codex). A provider may be null
+        // or `source==='disabled'` when no plan snapshot exists yet.
+        state.claudeBudget = payload.claude ?? null
+        state.codexBudget = payload.codex ?? null
+        state.claudeAccount = payload.claude_account ?? null
+        state.claudeAccounts = payload.claude_accounts ?? []
+        break
+      case 'run_list':
+        state.runList = payload.runs
+        for (const info of payload.runs) {
+          ensureRun(info.id).status = info.status
+        }
+        break
+      case 'project_list':
+        state.projectList = payload.projects
+        break
+      case 'session_token':
+      case 'auth_result':
+        // Transport-level auth signals — handled in `connection.ts`; ignore here.
+        break
+      case 'notice':
+        state.notice = payload.text
+        // A "notice" often means a permission was resolved elsewhere; clear the
+        // stale prompt so the Controller isn't stuck on a handled request.
+        if (/already handled/i.test(payload.text)) {
+          if (payload.run_id) {
+            setQueues(dropRun(state.pendingQueues, payload.run_id))
+          } else setQueues({})
+        }
+        break
+      case 'permission_resolved':
+        // Accepted means the Host delivered the decision. "already_handled"
+        // also resolves this exact stale prompt. A delivery failure stays
+        // visible so the user can retry.
+        if (payload.accepted || payload.reason === 'already_handled') {
+          setQueues(dequeuePending(state.pendingQueues, payload.run_id, payload.request_id))
+        }
+        if (!payload.accepted && payload.reason === 'delivery_failed') {
+          state.notice = 'Host chưa nhận được phản hồi permission — hãy thử lại.'
+        }
+        // This device answered, but the desktop (or a standing choice) was first.
+        if (!payload.accepted && payload.reason === 'already_handled') {
+          state.notice = i18n.global.t('controller.inbox.alreadyHandled')
+        }
+        if (!payload.accepted && payload.reason === 'remember_not_allowed') {
+          state.notice = i18n.global.t('controller.inbox.onceOnly')
+        }
+        if (payload.accepted && payload.remembered === false) {
+          state.notice = i18n.global.t('controller.inbox.notRemembered')
+        }
+        break
+      case 'command_ack':
+        // Transport correlation is consumed by connection.ts.
+        break
+    }
+  }
+
+  function applyHistory(runId: string, lines: string[], done: boolean): void {
+    const run = ensureRun(runId)
+    // A fresh history stream (first batch after a (re)connect) resets the run so
+    // a reconnect rebuilds cleanly without duplicating entries.
+    if (run.historyDone) {
+      run.entries = []
+      run.toolIndex = new Map()
+      run.historyBuffer = []
+      run.historyDone = false
+    }
+    run.historyBuffer.push(...lines)
+    if (!done) return
+    const buffered = run.historyBuffer
+    const parsed: StreamState | null = parseStreamLog(buffered.join('\n'))
+    if (parsed) {
+      run.entries = parsed.entries
+      run.toolIndex = parsed.toolIndex
+      // Context occupancy + model come folded from the parser.
+      run.contextTokens = parsed.contextTokens
+      run.model = parsed.model
+      run.sawAssistantUsage = parsed.contextTokens > 0
+      // Usage badge = the last result entry in history.
+      const lastResult = [...parsed.entries].reverse().find((e) => e.kind === 'result')
+      if (lastResult && lastResult.kind === 'result') {
+        run.usage = {
+          totalTokens: lastResult.total_tokens,
+          costUsd: lastResult.cost_usd,
+          costEstimated: lastResult.cost_estimated,
+        }
+      }
+      // Rate-limit windows aren't captured by parseStreamLog — scan raw lines.
+      for (const line of buffered) {
+        const t = line.trim()
+        if (!t.startsWith('{')) continue
+        try {
+          captureRateLimit(run, JSON.parse(t) as Record<string, unknown>)
+        } catch {
+          // ignore malformed history line
+        }
+      }
+    }
+    run.historyBuffer = []
+    run.historyDone = true
+  }
+
+  function applyLiveEvent(runId: string, event: unknown): void {
+    const run = ensureRun(runId)
+    applyStreamEvent(run, event)
+    foldMetrics(run, event)
+    // Do not steal focus: live events fold into their run's view silently; the
+    // user stays on whatever they opened.
+  }
+
+  function applyOutput(runId: string, line: string, isStderr: boolean): void {
+    const run = ensureRun(runId)
+    // A raw output line may itself be a JSON SDK event (NDJSON) — fold it in as
+    // a stream event when so; otherwise show it as a console log/error entry.
+    const trimmed = line.trim()
+    if (trimmed.startsWith('{')) {
+      try {
+        applyStreamEvent(run, JSON.parse(trimmed))
+        return
+      } catch {
+        // not JSON — fall through to a plain line
+      }
+    }
+    run.entries.push(
+      isStderr ? { kind: 'error', text: line } : { kind: 'log', level: 'info', text: line },
+    )
+  }
+
+  /** Open a run (from the browse list or the seen set). Creates its view if the
+   * run has not streamed anything yet, so history can be requested into it. */
+  function setActiveRun(runId: string): void {
+    ensureRun(runId)
+    state.activeRunId = runId
+  }
+
+  /** Return to the run browser (home). */
+  function clearActiveRun(): void {
+    state.activeRunId = null
+  }
+
+  /** Optimistically echo the user's own turn into the timeline. The live SDK
+   * stream does NOT replay our prompt, so — like the desktop `live.pushUser` —
+   * the controller must render it itself. A later history rebuild resets and
+   * replaces the entries (from the transcript), so this never duplicates. */
+  function pushUser(runId: string, text: string, images?: ImageAttachment[]): void {
+    const run = ensureRun(runId)
+    const t = text.trim()
+    if (!t && !(images && images.length)) return
+    run.entries.push({ kind: 'user', text: t, ...(images && images.length ? { images } : {}) })
+    run.status = 'running'
+  }
+
+  function clearPending(runId: string): void {
+    setQueues(dropRun(state.pendingQueues, runId))
+  }
+
+  /** A `list_pending` was just sent: collect the prompts the Host re-sends. */
+  /** Start a `list_pending` sync and return its token, or null while one is
+   * already in flight (that one's ack covers this request too; a lost ack is
+   * failed by the connection's timeout / link-down, which frees the slot). */
+  function beginPendingSync(): number | null {
+    const token = syncGate.begin()
+    if (token !== null) resent = new Set()
+    return token
+  }
+
+  /** Its ack arrived (after every re-sent prompt): drop prompts the Host no
+   * longer has — they were answered elsewhere while this device was away. A
+   * stale token (a sync abandoned by a reset) is ignored. Kept prompts keep
+   * their `pendingSeenAt`; only dropped ones lose it. */
+  function endPendingSync(token: number, accepted: boolean): void {
+    if (!syncGate.end(token)) return
+    if (accepted && resent) setQueues(retainPending(state.pendingQueues, resent))
+    resent = null
+  }
+
+  /** The prompt awaiting an answer for `runId`, if any. */
+  function pendingFor(runId: string | null): PermissionRequest | null {
+    return runId ? (state.pendingByRun[runId] ?? null) : null
+  }
+
+  /** Run ids waiting on an answer other than `exceptRunId` — the browser badge. */
+  function pendingElsewhere(exceptRunId: string | null): string[] {
+    return Object.keys(state.pendingByRun).filter((id) => id !== exceptRunId)
+  }
+
+  function clearNotice(): void {
+    state.notice = null
+  }
+
+  /** Drop everything (used when the connection is torn down / re-paired). */
+  function reset(): void {
+    state.runIds = []
+    state.runs = {}
+    state.activeRunId = null
+    state.runList = []
+    state.projectList = []
+    state.pendingByRun = {}
+    state.pendingQueues = {}
+    state.pendingSeenAt = {}
+    resent = null
+    syncGate.reset()
+    state.notice = null
+    state.slashCommands = []
+    state.engineModelOptions = []
+    state.discoveredModels = { codex: [] }
+    state.projectFiles = []
+    state.runMeta = { engine: '', model: '', permissionMode: '', claudeAccountId: '' }
+    state.claudeAccountChoices = []
+    state.claudeAccounts = []
+  }
+
+  return {
+    state,
+    apply,
+    pushUser,
+    setActiveRun,
+    clearActiveRun,
+    clearPending,
+    beginPendingSync,
+    endPendingSync,
+    pendingFor,
+    pendingElsewhere,
+    clearNotice,
+    reset,
+  }
+}
+
+export type RunStore = ReturnType<typeof createRunStore>

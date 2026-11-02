@@ -1,0 +1,894 @@
+//! Read-only Google Calendar access for the unified Calendar screen.
+//!
+//! Unlike the built-in `google` MCP server (which runs only during agent
+//! runs), the Calendar view is a dedicated UI screen that needs synchronous data.
+//! So we call the Google Calendar REST API directly from Rust: mint a short-lived
+//! access token from each account's stored `refresh_token` (same pattern as the
+//! token exchange in `google.rs`), list the account's calendars, then pull events
+//! in the requested time window.
+//!
+//! Errors from one account never fail the whole screen — they are collected into
+//! an `errors` array so the UI can flag accounts that need reconnecting (e.g. one
+//! connected before the `calendar.readonly` scope was added).
+
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+use futures_util::future::join_all;
+use serde::{Deserialize, Serialize};
+use tauri::State;
+use tokio::sync::Semaphore;
+
+use crate::db::Db;
+use crate::secrets;
+
+/// Cap on simultaneous in-flight Google API requests (across all accounts and
+/// calendars) so a user with many calendars doesn't trip Google's rate limits.
+const MAX_CONCURRENCY: usize = 8;
+
+const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
+const CALENDAR_LIST_ENDPOINT: &str =
+    "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+
+/// One calendar belonging to a connected account.
+#[derive(Serialize)]
+pub struct CalendarMeta {
+    pub account_id: String,
+    pub account_label: String,
+    pub calendar_id: String,
+    pub summary: String,
+    pub bg_color: Option<String>,
+    pub primary: bool,
+    /// Google `accessRole` for this calendar: "owner" | "writer" | "reader" |
+    /// "freeBusyReader". FE uses it to filter writable calendars.
+    pub access_role: Option<String>,
+}
+
+/// A single (flattened) calendar event across accounts/calendars.
+#[derive(Serialize)]
+pub struct CalEvent {
+    pub id: String,
+    pub account_id: String,
+    pub account_label: String,
+    pub calendar_id: String,
+    pub calendar_summary: String,
+    pub title: String,
+    /// RFC3339 datetime for timed events, or `YYYY-MM-DD` for all-day events.
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub location: Option<String>,
+    pub html_link: Option<String>,
+    pub color: Option<String>,
+    /// Raw description (may contain HTML) — sanitized on the frontend.
+    pub description: Option<String>,
+    /// Google Meet / video-conference join URL, if any.
+    pub meet_link: Option<String>,
+    pub attachments: Vec<CalAttachment>,
+}
+
+/// A Google Drive (or other) file attached to an event.
+#[derive(Serialize)]
+pub struct CalAttachment {
+    pub file_url: Option<String>,
+    pub title: Option<String>,
+    pub mime_type: Option<String>,
+    pub icon_link: Option<String>,
+}
+
+/// One account that could not be read (missing scope, revoked token, network…).
+#[derive(Serialize)]
+pub struct AccountError {
+    pub account_id: String,
+    pub account_label: String,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct CalendarListResult {
+    pub calendars: Vec<CalendarMeta>,
+    pub errors: Vec<AccountError>,
+}
+
+#[derive(Serialize)]
+pub struct EventsResult {
+    pub events: Vec<CalEvent>,
+    pub errors: Vec<AccountError>,
+}
+
+// ---- Google API response shapes -------------------------------------------
+
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
+}
+
+#[derive(Deserialize)]
+struct CalendarListResponse {
+    #[serde(default)]
+    items: Vec<CalendarListEntry>,
+}
+
+#[derive(Deserialize)]
+struct CalendarListEntry {
+    id: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default, rename = "backgroundColor")]
+    background_color: Option<String>,
+    #[serde(default)]
+    primary: bool,
+    /// Whether the user shows this calendar in the Google Calendar UI. Used to
+    /// skip subscribed/hidden calendars when fetching events (speed).
+    #[serde(default)]
+    selected: bool,
+    #[serde(default, rename = "accessRole")]
+    access_role: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct EventsResponse {
+    #[serde(default)]
+    items: Vec<EventEntry>,
+}
+
+#[derive(Deserialize)]
+struct EventEntry {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    summary: Option<String>,
+    #[serde(default)]
+    location: Option<String>,
+    #[serde(default, rename = "htmlLink")]
+    html_link: Option<String>,
+    #[serde(default)]
+    start: Option<EventDateTime>,
+    #[serde(default)]
+    end: Option<EventDateTime>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default, rename = "hangoutLink")]
+    hangout_link: Option<String>,
+    #[serde(default, rename = "conferenceData")]
+    conference_data: Option<ConferenceData>,
+    #[serde(default)]
+    attachments: Vec<AttachmentEntry>,
+}
+
+#[derive(Deserialize)]
+struct EventDateTime {
+    #[serde(default, rename = "dateTime")]
+    date_time: Option<String>,
+    #[serde(default)]
+    date: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConferenceData {
+    #[serde(default, rename = "entryPoints")]
+    entry_points: Vec<EntryPoint>,
+}
+
+#[derive(Deserialize)]
+struct EntryPoint {
+    #[serde(default, rename = "entryPointType")]
+    entry_point_type: Option<String>,
+    #[serde(default)]
+    uri: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct AttachmentEntry {
+    #[serde(default, rename = "fileUrl")]
+    file_url: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default, rename = "mimeType")]
+    mime_type: Option<String>,
+    #[serde(default, rename = "iconLink")]
+    icon_link: Option<String>,
+}
+
+// ---- Write payload DTOs (input from the frontend) --------------------------
+//
+// serde field names mirror the Google Calendar API v3 event resource so the
+// payload can be forwarded straight into the request body. Every field is
+// Option + `skip_serializing_if` so a PATCH (update) only sends the fields the
+// FE actually changed (AC-05).
+
+/// Create/update event payload.
+#[derive(Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EventPayload {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<EventDateTimePayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end: Option<EventDateTimePayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attendees: Option<Vec<Attendee>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminders: Option<Reminders>,
+    /// Each element is one RRULE/EXRULE/RDATE line
+    /// (e.g. "RRULE:FREQ=WEEKLY;BYDAY=MO").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence: Option<Vec<String>>,
+    /// When the FE wants a Google Meet, it sends `conferenceData.createRequest`.
+    /// Forwarded verbatim (backend stays decoupled from the Meet shape).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "conferenceData"
+    )]
+    pub conference_data: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EventDateTimePayload {
+    /// Timed event: RFC3339, e.g. "2026-08-11T09:00:00+07:00".
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "dateTime")]
+    pub date_time: Option<String>,
+    /// All-day: "YYYY-MM-DD" (end is exclusive per the Google API).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    /// IANA tz, e.g. "Asia/Ho_Chi_Minh". Timed events only.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "timeZone")]
+    pub time_zone: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Attendee {
+    pub email: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Reminders {
+    /// false when custom overrides are supplied; true to use calendar defaults.
+    pub use_default: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<ReminderOverride>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ReminderOverride {
+    /// "email" | "popup".
+    pub method: String,
+    /// Minutes before the event.
+    pub minutes: i64,
+}
+
+// ---- Token minting (cached) ------------------------------------------------
+
+/// Access-token cache keyed by account id → (token, expires_at). Google tokens
+/// live ~1h; caching avoids a token POST on every navigation/refetch.
+fn token_cache() -> &'static Mutex<HashMap<String, (String, Instant)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (String, Instant)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Mint (or reuse a cached) short-lived access token for one account.
+///
+/// `force_refresh` bypasses the cache and mints a fresh token — used after a
+/// Google API call comes back 401, which means the cached token is no longer
+/// valid even though our TTL still considers it live (the TTL is measured with a
+/// monotonic `Instant`, which on macOS does not advance while the machine is
+/// asleep, so a token can outlive its real ~1h expiry in cache after a sleep).
+pub(crate) async fn access_token_for(
+    client: &reqwest::Client,
+    account_id: &str,
+    force_refresh: bool,
+) -> Result<String, String> {
+    // Fast path: a still-valid cached token (unless the caller forces a refresh).
+    if !force_refresh {
+        if let Ok(cache) = token_cache().lock() {
+            if let Some((tok, exp)) = cache.get(account_id) {
+                if *exp > Instant::now() {
+                    return Ok(tok.clone());
+                }
+            }
+        }
+    }
+
+    let creds = secrets::get_google_client()
+        .ok_or_else(|| "No saved OAuth client credentials.".to_string())?;
+    let refresh_token = secrets::get_google_account_token(account_id)
+        .ok_or_else(|| "No stored token for this account.".to_string())?;
+
+    let token: TokenResponse = client
+        .post(TOKEN_ENDPOINT)
+        .form(&[
+            ("client_id", creds.client_id.as_str()),
+            ("client_secret", creds.client_secret.as_str()),
+            ("refresh_token", refresh_token.as_str()),
+            ("grant_type", "refresh_token"),
+        ])
+        .send()
+        .await
+        .map_err(|e| format!("Token refresh request failed: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("Token refresh rejected (reconnect the account?): {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse token response: {e}"))?;
+
+    // Cache for ~55 min (tokens are valid ~60).
+    if let Ok(mut cache) = token_cache().lock() {
+        cache.insert(
+            account_id.to_string(),
+            (token.access_token.clone(), Instant::now() + Duration::from_secs(55 * 60)),
+        );
+    }
+
+    Ok(token.access_token)
+}
+
+/// Send an authenticated Google API request, retrying ONCE with a force-refreshed
+/// access token when the first attempt returns 401. The `build` closure must
+/// (re)construct the full request from a bearer token so it can be sent twice; it
+/// is called with a cached token first, then with a freshly minted one on 401.
+///
+/// This is what keeps the Calendar screen working after the machine wakes from
+/// sleep: the cached token looks live to our monotonic-clock TTL but Google has
+/// already expired it, so the first call 401s and the retry succeeds. Without
+/// this the screen stayed broken for up to the full cache TTL (or an app restart).
+async fn send_authed<F>(
+    client: &reqwest::Client,
+    account_id: &str,
+    build: F,
+) -> Result<reqwest::Response, String>
+where
+    F: Fn(&str) -> reqwest::RequestBuilder,
+{
+    let token = access_token_for(client, account_id, false).await?;
+    let resp = build(&token)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if resp.status() != reqwest::StatusCode::UNAUTHORIZED {
+        return Ok(resp);
+    }
+    let token = access_token_for(client, account_id, true).await?;
+    build(&token)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))
+}
+
+async fn fetch_calendars(
+    client: &reqwest::Client,
+    account_id: &str,
+) -> Result<Vec<CalendarListEntry>, String> {
+    let resp: CalendarListResponse =
+        send_authed(client, account_id, |tok| {
+            client.get(CALENDAR_LIST_ENDPOINT).bearer_auth(tok)
+        })
+        .await
+        .map_err(|e| format!("calendarList request failed: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("calendarList rejected: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse calendarList: {e}"))?;
+    Ok(resp.items)
+}
+
+/// (id, label) of the accounts to query — all, or the given subset.
+async fn selected_accounts(
+    db: &Db,
+    account_ids: Option<Vec<String>>,
+) -> Result<Vec<(String, String)>, String> {
+    let rows: Vec<(String, String)> =
+        sqlx::query_as("SELECT id, label FROM google_accounts ORDER BY is_default DESC, label")
+            .fetch_all(db)
+            .await
+            .map_err(|e| e.to_string())?;
+    Ok(match account_ids {
+        Some(ids) if !ids.is_empty() => {
+            rows.into_iter().filter(|(id, _)| ids.contains(id)).collect()
+        }
+        _ => rows,
+    })
+}
+
+// ---- Commands --------------------------------------------------------------
+
+/// List every calendar of every (or the given) connected account.
+#[tauri::command]
+pub async fn list_google_calendars(
+    db: State<'_, Db>,
+    account_ids: Option<Vec<String>>,
+) -> Result<CalendarListResult, String> {
+    let accounts = selected_accounts(db.inner(), account_ids).await?;
+    let client = reqwest::Client::new();
+    let mut calendars = Vec::new();
+    let mut errors = Vec::new();
+
+    for (id, label) in accounts {
+        match fetch_calendars(&client, &id).await {
+            Ok(items) => {
+                for c in items {
+                    calendars.push(CalendarMeta {
+                        account_id: id.clone(),
+                        account_label: label.clone(),
+                        calendar_id: c.id,
+                        summary: c.summary,
+                        bg_color: c.background_color,
+                        primary: c.primary,
+                        access_role: c.access_role,
+                    });
+                }
+            }
+            Err(message) => errors.push(AccountError {
+                account_id: id,
+                account_label: label,
+                message,
+            }),
+        }
+    }
+
+    Ok(CalendarListResult { calendars, errors })
+}
+
+/// Fetch and map one calendar's events in `[time_min, time_max)`.
+async fn fetch_calendar_events(
+    client: &reqwest::Client,
+    account_id: &str,
+    cal: &CalendarListEntry,
+    account_label: &str,
+    time_min: &str,
+    time_max: &str,
+) -> Result<Vec<CalEvent>, String> {
+    let url = format!(
+        "https://www.googleapis.com/calendar/v3/calendars/{}/events",
+        urlencoding_component(&cal.id)
+    );
+    let resp: EventsResponse = send_authed(client, account_id, |tok| {
+        client.get(&url).bearer_auth(tok).query(&[
+            ("timeMin", time_min),
+            ("timeMax", time_max),
+            ("singleEvents", "true"),
+            ("orderBy", "startTime"),
+            ("maxResults", "2500"),
+        ])
+    })
+    .await
+    .map_err(|e| format!("events request failed for '{}': {e}", cal.summary))?
+    .error_for_status()
+    .map_err(|e| format!("events rejected for '{}': {e}", cal.summary))?
+    .json()
+    .await
+    .map_err(|e| format!("Failed to parse events for '{}': {e}", cal.summary))?;
+
+    let mut out = Vec::new();
+    for ev in resp.items {
+        if let Some(mapped) = map_event_entry(
+            ev,
+            account_id,
+            account_label,
+            &cal.id,
+            &cal.summary,
+            cal.background_color.clone(),
+        ) {
+            out.push(mapped);
+        }
+    }
+    Ok(out)
+}
+
+/// Map one Google event resource into a flattened `CalEvent`.
+///
+/// Shared by the read path (`fetch_calendar_events`) and the write path
+/// (create/update). Returns `None` for cancelled events or events without a
+/// usable start (unrenderable in a grid).
+fn map_event_entry(
+    ev: EventEntry,
+    account_id: &str,
+    account_label: &str,
+    calendar_id: &str,
+    calendar_summary: &str,
+    color: Option<String>,
+) -> Option<CalEvent> {
+    if ev.status.as_deref() == Some("cancelled") {
+        return None;
+    }
+    let (start, all_day_s) = normalize_dt(ev.start.as_ref());
+    let (end, _) = normalize_dt(ev.end.as_ref());
+    if start.is_empty() {
+        return None; // events without a start are unusable in a grid
+    }
+    // Prefer the convenience hangoutLink; otherwise pull the first "video"
+    // entry point from conferenceData.
+    let meet_link = ev.hangout_link.clone().or_else(|| {
+        ev.conference_data.as_ref().and_then(|c| {
+            c.entry_points
+                .iter()
+                .find(|e| e.entry_point_type.as_deref() == Some("video"))
+                .and_then(|e| e.uri.clone())
+        })
+    });
+    let attachments = ev
+        .attachments
+        .into_iter()
+        .map(|a| CalAttachment {
+            file_url: a.file_url,
+            title: a.title,
+            mime_type: a.mime_type,
+            icon_link: a.icon_link,
+        })
+        .collect();
+    Some(CalEvent {
+        id: ev.id,
+        account_id: account_id.to_string(),
+        account_label: account_label.to_string(),
+        calendar_id: calendar_id.to_string(),
+        calendar_summary: calendar_summary.to_string(),
+        title: ev.summary.unwrap_or_else(|| "(no title)".to_string()),
+        start,
+        end,
+        all_day: all_day_s,
+        location: ev.location,
+        html_link: ev.html_link,
+        color,
+        description: ev.description,
+        meet_link,
+        attachments,
+    })
+}
+
+/// Look up an account's display label (empty string if not found). Create/update
+/// need it to populate the returned `CalEvent`.
+async fn account_label_for(db: &Db, account_id: &str) -> String {
+    sqlx::query_scalar::<_, String>("SELECT label FROM google_accounts WHERE id = ?")
+        .bind(account_id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
+/// Fetch events in `[time_min, time_max)` (RFC3339) across the shown calendars of
+/// the selected accounts. Accounts and calendars are fetched CONCURRENTLY (capped
+/// at `MAX_CONCURRENCY`); per-account failures are collected in `errors`.
+#[tauri::command]
+pub async fn list_google_calendar_events(
+    db: State<'_, Db>,
+    account_ids: Option<Vec<String>>,
+    time_min: String,
+    time_max: String,
+) -> Result<EventsResult, String> {
+    let accounts = selected_accounts(db.inner(), account_ids).await?;
+    let client = reqwest::Client::new();
+    let sem = std::sync::Arc::new(Semaphore::new(MAX_CONCURRENCY));
+
+    let account_futs = accounts.into_iter().map(|(id, label)| {
+        let client = client.clone();
+        let sem = sem.clone();
+        let time_min = time_min.clone();
+        let time_max = time_max.clone();
+        async move {
+            let res = async {
+                let calendars = {
+                    let _permit = sem.acquire().await.unwrap();
+                    fetch_calendars(&client, &id).await?
+                };
+                // Only the calendars the user actually shows in Google (plus the
+                // primary one) — skips holiday/birthday/subscribed calendars.
+                let wanted: Vec<CalendarListEntry> = calendars
+                    .into_iter()
+                    .filter(|c| c.selected || c.primary)
+                    .collect();
+
+                let cal_futs = wanted.iter().map(|cal| {
+                    let client = client.clone();
+                    let sem = sem.clone();
+                    let id = id.clone();
+                    let label = label.clone();
+                    let time_min = time_min.clone();
+                    let time_max = time_max.clone();
+                    async move {
+                        let _permit = sem.acquire().await.unwrap();
+                        fetch_calendar_events(
+                            &client, &id, cal, &label, &time_min, &time_max,
+                        )
+                        .await
+                    }
+                });
+                let per_cal = join_all(cal_futs).await;
+                let mut out: Vec<CalEvent> = Vec::new();
+                for r in per_cal {
+                    out.extend(r?);
+                }
+                Ok::<Vec<CalEvent>, String>(out)
+            }
+            .await;
+            (id, label, res)
+        }
+    });
+
+    let results = join_all(account_futs).await;
+    let mut events = Vec::new();
+    let mut errors = Vec::new();
+    for (id, label, res) in results {
+        match res {
+            Ok(mut evs) => events.append(&mut evs),
+            Err(message) => errors.push(AccountError {
+                account_id: id,
+                account_label: label,
+                message,
+            }),
+        }
+    }
+
+    Ok(EventsResult { events, errors })
+}
+
+// ---- Write commands (create / update / delete) -----------------------------
+
+const EVENTS_BASE: &str = "https://www.googleapis.com/calendar/v3/calendars";
+
+/// Create an event on `calendar_id`. Supports timed (dateTime+timeZone) and
+/// all-day (date, end exclusive) events plus the FULL payload (attendees,
+/// custom reminders, recurrence, Google Meet via `conferenceData`). Always sends
+/// `conferenceDataVersion=1` and `sendUpdates=all`. Returns the created event
+/// mapped to `CalEvent`.
+#[tauri::command]
+pub async fn create_google_calendar_event(
+    db: State<'_, Db>,
+    account_id: String,
+    calendar_id: String,
+    payload: EventPayload,
+) -> Result<CalEvent, String> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{EVENTS_BASE}/{}/events",
+        urlencoding_component(&calendar_id)
+    );
+
+    let resp = send_authed(&client, &account_id, |tok| {
+        client
+            .post(&url)
+            .bearer_auth(tok)
+            .query(&[("conferenceDataVersion", "1"), ("sendUpdates", "all")])
+            .json(&payload)
+    })
+    .await
+    .map_err(|e| format!("Create event request failed: {e}"))?;
+
+    let ev = parse_event_response(resp, "Create").await?;
+    let label = account_label_for(db.inner(), &account_id).await;
+    map_event_entry(ev, &account_id, &label, &calendar_id, "", None)
+        .ok_or_else(|| "Created event has no usable start.".to_string())
+}
+
+/// Update an event with `PATCH` — only the fields present in `payload` are sent,
+/// so Google keeps every other field (AC-05). Same query flags as create.
+#[tauri::command]
+pub async fn update_google_calendar_event(
+    db: State<'_, Db>,
+    account_id: String,
+    calendar_id: String,
+    event_id: String,
+    payload: EventPayload,
+) -> Result<CalEvent, String> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{EVENTS_BASE}/{}/events/{}",
+        urlencoding_component(&calendar_id),
+        urlencoding_component(&event_id)
+    );
+
+    let resp = send_authed(&client, &account_id, |tok| {
+        client
+            .patch(&url)
+            .bearer_auth(tok)
+            .query(&[("conferenceDataVersion", "1"), ("sendUpdates", "all")])
+            .json(&payload)
+    })
+    .await
+    .map_err(|e| format!("Update event request failed: {e}"))?;
+
+    let ev = parse_event_response(resp, "Update").await?;
+    let label = account_label_for(db.inner(), &account_id).await;
+    map_event_entry(ev, &account_id, &label, &calendar_id, "", None)
+        .ok_or_else(|| "Updated event has no usable start.".to_string())
+}
+
+/// Delete an event. Idempotent: both `204 No Content` (deleted) and `410 Gone`
+/// (already deleted) count as success. Uses `sendUpdates=all`.
+#[tauri::command]
+pub async fn delete_google_calendar_event(
+    db: State<'_, Db>,
+    account_id: String,
+    calendar_id: String,
+    event_id: String,
+) -> Result<(), String> {
+    let _ = &db; // kept for signature symmetry with create/update
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{EVENTS_BASE}/{}/events/{}",
+        urlencoding_component(&calendar_id),
+        urlencoding_component(&event_id)
+    );
+
+    let resp = send_authed(&client, &account_id, |tok| {
+        client
+            .delete(&url)
+            .bearer_auth(tok)
+            .query(&[("sendUpdates", "all")])
+    })
+    .await
+    .map_err(|e| format!("Delete event request failed: {e}"))?;
+
+    let status = resp.status();
+    if status.is_success() || status == reqwest::StatusCode::GONE {
+        return Ok(());
+    }
+    let body = resp.text().await.unwrap_or_default();
+    Err(format!("Delete failed (HTTP {status}): {body}"))
+}
+
+/// Read a create/update response: on non-2xx, surface the HTTP status + body so
+/// the FE can react (e.g. map 403 → re-auth prompt). On success, parse the event
+/// resource into an `EventEntry`.
+async fn parse_event_response(
+    resp: reqwest::Response,
+    action: &str,
+) -> Result<EventEntry, String> {
+    let status = resp.status();
+    if !status.is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("{action} failed (HTTP {status}): {body}"));
+    }
+    resp.json::<EventEntry>()
+        .await
+        .map_err(|e| format!("Failed to parse {} response: {e}", action.to_lowercase()))
+}
+
+/// Normalize a Google event start/end into a string, returning `(value, all_day)`.
+fn normalize_dt(dt: Option<&EventDateTime>) -> (String, bool) {
+    match dt {
+        Some(d) => {
+            if let Some(dt) = &d.date_time {
+                (dt.clone(), false)
+            } else if let Some(date) = &d.date {
+                (date.clone(), true)
+            } else {
+                (String::new(), false)
+            }
+        }
+        None => (String::new(), false),
+    }
+}
+
+// ---- Busy time (Focus capacity, docs/focus-board-spec.md BR-08) ------------
+
+#[derive(Deserialize)]
+struct BusyEventsResponse {
+    #[serde(default)]
+    items: Vec<BusyEventEntry>,
+}
+
+#[derive(Deserialize)]
+struct BusyEventEntry {
+    #[serde(default)]
+    summary: Option<String>,
+    #[serde(default)]
+    start: Option<EventDateTime>,
+    #[serde(default)]
+    end: Option<EventDateTime>,
+    #[serde(default)]
+    status: Option<String>,
+    /// `transparent` = shows as free.
+    #[serde(default)]
+    transparency: Option<String>,
+    #[serde(default)]
+    attendees: Vec<BusyAttendee>,
+}
+
+#[derive(Deserialize)]
+struct BusyAttendee {
+    #[serde(default, rename = "self")]
+    is_self: bool,
+    #[serde(default, rename = "responseStatus")]
+    response_status: Option<String>,
+}
+
+/// One event of a calendar as the Focus capacity reads it. `start` / `end`
+/// are RFC3339 (`dateTime`) or `YYYY-MM-DD` for all-day events.
+#[derive(Debug, Clone)]
+pub(crate) struct BusyEvent {
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub title: String,
+    pub transparent: bool,
+    /// The account's own attendee entry declined it.
+    pub declined: bool,
+}
+
+/// The default Google account (`is_default`, else the first by label).
+pub(crate) async fn default_google_account(db: &Db) -> Option<String> {
+    selected_accounts(db, None)
+        .await
+        .ok()?
+        .into_iter()
+        .next()
+        .map(|(id, _)| id)
+}
+
+/// Events of `calendar_id` (`primary` allowed) in `[time_min, time_max)`,
+/// cancelled ones left out. Errors never carry the access token.
+pub(crate) async fn fetch_busy_events(
+    account_id: &str,
+    calendar_id: &str,
+    time_min: &str,
+    time_max: &str,
+) -> Result<Vec<BusyEvent>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let url = format!("{EVENTS_BASE}/{}/events", urlencoding_component(calendar_id));
+    let resp: BusyEventsResponse = send_authed(&client, account_id, |tok| {
+        client.get(&url).bearer_auth(tok).query(&[
+            ("timeMin", time_min),
+            ("timeMax", time_max),
+            ("singleEvents", "true"),
+            ("orderBy", "startTime"),
+            ("maxResults", "250"),
+        ])
+    })
+    .await
+    .map_err(|e| format!("events request failed for '{calendar_id}': {e}"))?
+    .error_for_status()
+    .map_err(|e| format!("events rejected for '{calendar_id}': {}", e.status().map(|s| s.to_string()).unwrap_or_default()))?
+    .json()
+    .await
+    .map_err(|e| format!("Failed to parse events for '{calendar_id}': {e}"))?;
+    Ok(resp
+        .items
+        .into_iter()
+        .filter(|e| e.status.as_deref() != Some("cancelled"))
+        .filter_map(|e| {
+            let (start, all_day) = normalize_dt(e.start.as_ref());
+            let (end, _) = normalize_dt(e.end.as_ref());
+            (!start.is_empty() && !end.is_empty()).then(|| BusyEvent {
+                start,
+                end,
+                all_day,
+                title: e.summary.unwrap_or_default(),
+                transparent: e.transparency.as_deref() == Some("transparent"),
+                declined: e
+                    .attendees
+                    .iter()
+                    .any(|a| a.is_self && a.response_status.as_deref() == Some("declined")),
+            })
+        })
+        .collect())
+}
+
+/// Percent-encode a path component (calendar ids can contain `@`, `#`, etc.).
+fn urlencoding_component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(*b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}

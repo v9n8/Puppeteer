@@ -1,0 +1,1151 @@
+// Devdy Codex sidecar.
+//
+// Drives `codex app-server` (JSON-RPC over stdio) and bridges it to the Devdy
+// Rust broker using the SAME protocol as the Claude sidecar, so `drain_sidecar`,
+// the frontend stream renderer, and the permission modal all work UNCHANGED:
+//
+//   stdout (to broker):
+//     - Claude-shaped stream-json messages (translated from codex notifications):
+//         {type:"system",subtype:"init",session_id,model,cwd,tools}
+//         {type:"assistant",message:{content:[{type:"text"|"thinking"|"tool_use",...}]}}
+//         {type:"user",message:{content:[{type:"tool_result",tool_use_id,content}]}}
+//         {type:"result",subtype:"success"}            ← ends the turn
+//     - control, namespaced `_devdy_*`:
+//         {type:"_devdy_ready"} / {type:"_devdy_done"} / {type:"_devdy_error",error}
+//         {type:"_devdy_closed",code,signal}   ← session over (signal ⇒ crash)
+//         {type:"_devdy_permission_request",requestId,tool_name,tool_input,title,description}
+//
+//   stdin (from broker): one JSON command per line
+//     {type:"prompt",text,options?}            → start a turn
+//     {type:"permission_response",requestId,decision}  ("allow" | "deny")
+//     {type:"interrupt"} / {type:"abort"}
+//
+// Auth: `codex app-server` reads the same ChatGPT login as the codex CLI, so
+// runs bill against the user's subscription — no API key.
+
+import { spawn, spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+
+// --- Orphan guard ------------------------------------------------------------
+// Devdy spawns this sidecar as the leader of its own process group and says so
+// with DEVDY_OWN_PROCESS_GROUP=1 (removed here so no child inherits it). If
+// Devdy dies without stopping us (crash, force quit), we are re-parented and
+// nobody reads our output any more: tear the whole group down (CLI, MCP
+// servers, tool processes) rather than letting a turn run on, burning tokens,
+// with nobody listening. Processes that left the group are listed by Devdy's
+// background-process view at its next launch.
+const OWN_GROUP = process.env.DEVDY_OWN_PROCESS_GROUP === '1'
+delete process.env.DEVDY_OWN_PROCESS_GROUP
+const PARENT_PID = process.ppid
+let orphaned = false
+function orphanTeardown() {
+  if (orphaned) return
+  orphaned = true
+  // Survive our own group-wide SIGTERM long enough to follow up with SIGKILL.
+  process.on('SIGTERM', () => {})
+  try { process.kill(-process.pid, 'SIGTERM') } catch {}
+  setTimeout(() => {
+    try { process.kill(-process.pid, 'SIGKILL') } catch {}
+    process.exit(1)
+  }, 2000)
+}
+const parentGone = () => process.ppid !== PARENT_PID
+if (OWN_GROUP && PARENT_PID > 1) {
+  const watch = setInterval(() => {
+    if (parentGone()) { clearInterval(watch); orphanTeardown() }
+  }, Math.max(50, Number(process.env.DEVDY_PARENT_WATCH_MS) || 2000))
+  watch.unref()
+}
+// A write to a closed stdout (EPIPE) is how the death of Devdy usually shows
+// first; the re-parenting follows right after. Re-check then: orphaned → tear
+// down, otherwise stop as before (the reader went away on purpose).
+process.stdout.on('error', (err) => {
+  if (err?.code !== 'EPIPE') throw err
+  setTimeout(() => {
+    if (OWN_GROUP && parentGone()) orphanTeardown()
+    else process.exit(1)
+  }, 300)
+})
+
+
+// A per-process nonce so permission `requestId`s are globally unique. Each Devdy
+// prompt spawns a FRESH sidecar (a new `codex app-server` whose JSON-RPC id
+// counter restarts at a low number), so a bare `codex-<rpcId>` would collide
+// across prompts within one remote session — and the Host's session-scoped
+// idempotency guard would reject the 2nd+ real approval as `duplicate_request`,
+// silently dropping the user's Allow/Deny. Prefixing with this nonce prevents
+// that collision (P0: remote Deny had no effect after the first turn).
+const PROC_NONCE = randomUUID().slice(0, 8)
+
+const CODEX_BIN = process.env.DEVDY_CODEX_PATH || 'codex'
+const RESUME_THREAD = process.env.DEVDY_RESUME_SESSION || null
+const PERMISSION_MODE = process.env.DEVDY_PERMISSION_MODE || 'default'
+const MODEL = process.env.DEVDY_CODEX_MODEL || null
+// Tool-less session (translation engine): the prompt carries UNTRUSTED text
+// (Slack messages, GitHub comments), so a prompt injection must not be able to
+// run anything. Forces a read-only sandbox, turns off codex's exec/app/plugin
+// features, disables every MCP server, and declines any approval request.
+const NO_TOOLS = process.env.DEVDY_CODEX_NO_TOOLS === '1'
+// Extra system framing (session orchestration prompt / a worker's role
+// instruction) for a NEW thread: sent as `developerInstructions` on
+// thread/start, after which it lives in the thread itself.
+const DEVELOPER_INSTRUCTIONS = process.env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS || null
+// One-time framing seed for a RESUMED thread that never got it at start. Codex
+// ignores developerInstructions on thread/resume, so the broker hands us a
+// ready-made <session-framing> block to prepend to this sidecar's first turn.
+let SEED_FRAMING = process.env.DEVDY_CODEX_SEED_FRAMING || null
+// Per-call MCP tool timeout. The broker sets MCP_TOOL_TIMEOUT (ms) above the
+// conductor's longest `session_wait`; Codex's own default (~60s) would cut a
+// blocking wait short. Applied to every server, matching Claude's global env.
+const MCP_TOOL_TIMEOUT_SEC = (() => {
+  const ms = Number(process.env.MCP_TOOL_TIMEOUT)
+  return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms / 1000) : null
+})()
+
+function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n') }
+function ctrl(type, extra = {}) { out({ type, ...extra }) }
+
+// --- Global safety net -------------------------------------------------------
+// Surface EVERY failure to the user as a friendly `_devdy_error` (which the
+// broker forwards to the run log as an error line) instead of letting Node
+// print a raw stack trace to stderr and exit — so the UI shows a clear message
+// rather than the process appearing to "crash".
+function reportFatal(err, context) {
+  const msg = String(err?.stack || err?.message || err)
+  try { ctrl('_devdy_error', { error: context ? `${context}: ${msg}` : msg }) } catch {}
+}
+process.on('uncaughtException', (err) => { reportFatal(err, 'Uncaught exception'); setTimeout(() => process.exit(1), 50) })
+process.on('unhandledRejection', (err) => { reportFatal(err, 'Unhandled rejection'); setTimeout(() => process.exit(1), 50) })
+
+// Liveness heartbeat ({type:"_devdy_heartbeat"} every 30s, declared in
+// `_devdy_ready.capabilities`), independent of any
+// codex work, so the broker can tell a long silent command (heartbeats keep
+// coming) from a dead or frozen bridge (they stop). unref: never keeps us alive.
+const HEARTBEAT_MS = Math.max(50, Number(process.env.DEVDY_SIDECAR_HEARTBEAT_MS) || 30_000)
+setInterval(() => ctrl('_devdy_heartbeat'), HEARTBEAT_MS).unref()
+
+// Reading the working directory can throw EPERM on macOS when the project folder
+// is in a TCC-protected location (Desktop/Documents/Downloads/iCloud), on a
+// network/removable volume the app can't access, or was deleted after opening.
+// Fall back to the path passed by the broker so the sidecar reports the problem
+// instead of crashing at startup with `uv_cwd`.
+function safeCwd() {
+  try {
+    return process.cwd()
+  } catch (e) {
+    const fallback = process.env.DEVDY_PROJECT_PATH || process.env.HOME || '/'
+    ctrl('_devdy_error', {
+      error:
+        `Không truy cập được thư mục làm việc (${e?.code || 'EPERM'}). ` +
+        `Thư mục dự án có thể nằm ở nơi macOS chặn quyền (Desktop/Documents/Downloads/iCloud), ` +
+        `trên ổ mạng/ổ ngoài chưa được cấp quyền, hoặc đã bị xóa/di chuyển. ` +
+        `Hãy cấp Full Disk Access cho Devdy trong System Settings → Privacy & Security, ` +
+        `hoặc chuyển dự án sang thư mục khác (ví dụ ~/Projects). Đang tạm dùng: ${fallback}`,
+    })
+    return fallback
+  }
+}
+const CWD = safeCwd()
+
+// Diagnostic log line (level: error|warn|info|debug|trace) — rendered as a muted
+// log entry in the UI, NOT as a system error. Use for codex tracing + sidecar notes.
+function note(text, level = 'info') { ctrl('_devdy_log', { level, text }) }
+
+// Forward a codex RateLimitSnapshot to the broker as the same `_devdy_usage`
+// control message the Claude sidecar emits, tagged `provider:"codex"`. The Rust
+// drain persists it as the latest Codex plan-usage state (the equivalent of
+// Claude's `/usage`). Best-effort — never throws into the RPC loop.
+function emitCodexRateLimits(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return
+  const rl = snapshot.rateLimits || snapshot.rateLimitsByLimitId?.codex || snapshot
+  if (!rl || typeof rl !== 'object') return
+  if (!rl.primary && !rl.secondary) return
+  out({ type: '_devdy_usage', usage: { provider: 'codex', rate_limits: rl } })
+}
+
+// codex app-server writes `tracing` records to stderr: ANSI-colored, timestamp-led,
+// e.g. "2026-…Z  ERROR codex_core::tools::router: error=…". Strip the ANSI/timestamp
+// and pull out the level so the UI can render it calmly instead of as a red error.
+const ANSI_RE = /\x1B\[[0-9;]*m/g
+const TRACE_RE = /^\s*\d{4}-\d\d-\d\dT[\d:.]+Z\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+([\s\S]*)$/
+let lastLogLevel = 'info'
+
+function classifyStderrLine(raw) {
+  const clean = raw.replace(ANSI_RE, '').replace(/\s+$/, '')
+  if (!clean.trim()) return
+  // Benign: the user just declined a command approval. codex echoes this as an
+  // ERROR in its tool router, but the rejected commandExecution item already
+  // renders as ✗ in the UI — drop the redundant internal trace entirely.
+  if (/rejected by user/i.test(clean)) return
+  const m = clean.match(TRACE_RE)
+  if (m) { lastLogLevel = m[1].toLowerCase(); note(m[2].trim(), lastLogLevel) }
+  // continuation / non-tracing line → keep the prior record's level (don't spike to error)
+  else note(clean.replace(/^\s+/, ''), lastLogLevel)
+}
+
+// ── centrally-managed MCP servers → codex `-c mcp_servers.*` overrides ─────
+// DEVDY_CODEX_MCP is the resolved Record<name, config>. Rust forwards stdio and
+// streamable HTTP servers to Codex. We turn each into TOML config override flags
+// placed BEFORE 'app-server'.
+//
+// The config carries no secrets (it ends up on codex's command line). An HTTP
+// server with secret headers comes with `devdy_headers_helper` — the argv of
+// sidecar-proxy/devdy-mcp-launch.mjs, which asks the credential broker for them.
+// Codex has no helper hook of its own, so we run it here and hand the values to
+// codex via env (`env_http_headers`), never via `-c` — so unlike on Claude,
+// those header values do sit in the codex process env. A server whose
+// credentials can't be fetched is left out (with a log line) rather than started
+// without them.
+
+/** Run a server's headers helper; null (server skipped) when it fails. */
+function helperHeaders(name, argv) {
+  if (!Array.isArray(argv) || !argv.length) return null
+  const r = spawnSync(argv[0], argv.slice(1), {
+    encoding: 'utf8', timeout: 15_000, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (r.status === 0) {
+    try {
+      const headers = JSON.parse(r.stdout)
+      if (headers && typeof headers === 'object') return headers
+    } catch { /* fall through */ }
+  }
+  // The helper's stderr names the reason (e.g. a broker denial) — never a secret.
+  note(`MCP server "${name}" skipped: could not get its credentials (${(r.stderr || '').trim() || r.error?.message || `exit ${r.status}`})`, 'warn')
+  return null
+}
+
+// Escape a string as a TOML basic string: wrap in double quotes, escape
+// backslash and double-quote (and control chars codex would choke on).
+function tomlString(s) {
+  const escaped = String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+  return `"${escaped}"`
+}
+
+function tomlKey(s) {
+  return tomlString(s)
+}
+
+// TOML array of strings: ["a","b"]
+function tomlStringArray(arr) {
+  return `[${arr.map(tomlString).join(',')}]`
+}
+
+// TOML inline table of string values: {KEY="val",KEY2="val2"}
+function tomlInlineTable(obj) {
+  const parts = Object.entries(obj).map(([k, v]) => `${tomlKey(k)}=${tomlString(v)}`)
+  return `{${parts.join(',')}}`
+}
+
+function envNamePart(s) {
+  const cleaned = String(s).replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '')
+  return (cleaned || 'SERVER').toUpperCase()
+}
+
+function buildMcpConfig() {
+  const raw = process.env.DEVDY_CODEX_MCP
+  const env = { ...process.env }
+  // Keep the resolved secret bundle in the Node sidecar only; Codex receives the
+  // specific config/env it needs below.
+  delete env.DEVDY_CODEX_MCP
+  delete env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS
+  delete env.DEVDY_CODEX_SEED_FRAMING
+  if (!raw) return { args: [], env }
+  let servers
+  try {
+    servers = JSON.parse(raw)
+  } catch {
+    return { args: [], env }
+  }
+  if (!servers || typeof servers !== 'object') return { args: [], env }
+  const args = []
+  let serverIndex = 0
+  for (const [name, cfg] of Object.entries(servers)) {
+    const currentServerIndex = serverIndex++
+    if (!cfg || typeof cfg !== 'object') continue
+    // Shared per-server knobs (only for transports we forward below).
+    const isHttp = (cfg.type === 'http' || cfg.type === 'streamable_http') && cfg.url
+    let headers = cfg.headers
+    if (isHttp && cfg.devdy_headers_helper) {
+      headers = helperHeaders(name, cfg.devdy_headers_helper)
+      if (!headers) continue
+    }
+    const forwarded = (cfg.type === 'stdio' && cfg.command) || isHttp
+    if (forwarded) {
+      const timeoutSec = Number(cfg.tool_timeout_sec) > 0 ? Number(cfg.tool_timeout_sec) : MCP_TOOL_TIMEOUT_SEC
+      if (timeoutSec) args.push('-c', `mcp_servers.${name}.tool_timeout_sec=${timeoutSec}`)
+      if (typeof cfg.default_tools_approval_mode === 'string' && cfg.default_tools_approval_mode) {
+        args.push('-c', `mcp_servers.${name}.default_tools_approval_mode=${tomlString(cfg.default_tools_approval_mode)}`)
+      }
+    }
+    if (cfg.type === 'stdio' && cfg.command) {
+      args.push('-c', `mcp_servers.${name}.command=${tomlString(cfg.command)}`)
+      if (Array.isArray(cfg.args) && cfg.args.length) {
+        args.push('-c', `mcp_servers.${name}.args=${tomlStringArray(cfg.args)}`)
+      }
+      if (cfg.env && typeof cfg.env === 'object' && Object.keys(cfg.env).length) {
+        args.push('-c', `mcp_servers.${name}.env=${tomlInlineTable(cfg.env)}`)
+      }
+      continue
+    }
+
+    if (isHttp) {
+      args.push('-c', `mcp_servers.${name}.url=${tomlString(cfg.url)}`)
+      if (headers && typeof headers === 'object' && Object.keys(headers).length) {
+        const headerEnvRefs = {}
+        let i = 0
+        for (const [header, value] of Object.entries(headers)) {
+          const envName = `DEVDY_MCP_HTTP_${envNamePart(name)}_${currentServerIndex}_${i++}`
+          env[envName] = String(value)
+          headerEnvRefs[header] = envName
+        }
+        args.push('-c', `mcp_servers.${name}.env_http_headers=${tomlInlineTable(headerEnvRefs)}`)
+      }
+    }
+  }
+  return { args, env }
+}
+
+// codex features that hand the model a way to act (exec, apps, plugins,
+// browser/computer use, sub-agents…). Unknown keys are ignored by codex, so
+// keys removed in a later version are harmless.
+const NO_TOOLS_FEATURES = [
+  'shell_tool', 'unified_exec', 'apps', 'plugins', 'remote_plugin', 'browser_use',
+  'browser_use_external', 'in_app_browser', 'computer_use', 'multi_agent',
+  'multi_agent_v2', 'image_generation', 'tool_suggest', 'skill_mcp_dependency_install',
+  'code_mode_host', 'in_app_local_automation', 'worktrees', 'view_image', 'guardian_approval',
+]
+
+// Names of the MCP servers configured in the user's codex config (they would
+// otherwise load into a tool-less session). Fail-closed: throws when the list
+// cannot be read, so the session never starts with servers left enabled.
+function configuredMcpServerNames() {
+  const r = spawnSync(CODEX_BIN, ['mcp', 'list', '--json'], {
+    cwd: CWD, encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  if (r.error) throw new Error(`codex mcp list failed: ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`codex mcp list exited with ${r.status ?? r.signal}`)
+  let list
+  try {
+    list = JSON.parse(r.stdout || '')
+  } catch {
+    throw new Error('codex mcp list printed no JSON')
+  }
+  if (!Array.isArray(list)) throw new Error('codex mcp list did not return a list')
+  return list.map((s) => s?.name).filter((n) => typeof n === 'string' && n)
+}
+
+// `-c` overrides that strip every tool source from a tool-less session.
+function noToolsArgs() {
+  const args = []
+  for (const f of NO_TOOLS_FEATURES) args.push('-c', `features.${f}=false`)
+  args.push('-c', 'web_search="disabled"')
+  // `-c` key paths split on dots and do not accept quoted segments; codex
+  // itself only allows [A-Za-z0-9_-] in server names.
+  for (const name of configuredMcpServerNames()) {
+    if (/^[A-Za-z0-9_-]+$/.test(name)) args.push('-c', `mcp_servers.${name}.enabled=false`)
+  }
+  return args
+}
+
+// The child env without the broker's MCP bundle / framing inputs.
+function noToolsEnv() {
+  const env = { ...process.env }
+  delete env.DEVDY_CODEX_MCP
+  delete env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS
+  delete env.DEVDY_CODEX_SEED_FRAMING
+  return env
+}
+
+// ── codex app-server JSON-RPC plumbing ────────────────────────────────────
+// A tool-less session never gets the broker's MCP servers either.
+let mcpConfig
+try {
+  mcpConfig = NO_TOOLS ? { args: noToolsArgs(), env: noToolsEnv() } : buildMcpConfig()
+} catch (e) {
+  // Never start a tool-less session we could not strip: report and stop.
+  // Written synchronously so the error is not lost on exit.
+  writeSync(1, JSON.stringify({
+    type: '_devdy_error',
+    error: `Refusing to start a tool-less codex session: ${e?.message || e}`,
+  }) + '\n')
+  process.exit(1)
+}
+// Agents never read the macOS Keychain through the `security` CLI: Devdy's item
+// holds PATs / tokens (and the sealed secret notes vault). Codex applies the
+// execpolicy rules under $CODEX_HOME/rules in every approval mode, bypass
+// included (verified with codex-cli 0.165), so keep Devdy's rule file there —
+// like the Claude sidecar's disallowedTools. User-level on purpose: a project's
+// `.codex/rules` would land in the user's repo. Best effort: a write failure is
+// reported, the session still starts.
+const KEYCHAIN_RULES_FILE = 'devdy-keychain.rules'
+const KEYCHAIN_RULES = `# Managed by Devdy: agents never read the macOS Keychain. Rewritten on every Devdy Codex session.
+prefix_rule(
+    pattern = ["security", ["find-generic-password", "find-internet-password", "dump-keychain", "export"]],
+    decision = "forbidden",
+    justification = "Devdy: agents never read the macOS Keychain",
+)
+`
+
+function ensureKeychainRules(env) {
+  const file = join(env.CODEX_HOME || join(homedir(), '.codex'), 'rules', KEYCHAIN_RULES_FILE)
+  try {
+    if (readFileSync(file, 'utf8') === KEYCHAIN_RULES) return
+  } catch { /* missing: write it */ }
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, KEYCHAIN_RULES)
+  } catch (e) {
+    note(`⚠ Could not install Devdy's Keychain rule for Codex (${file}): ${e?.message || e}`, 'warn')
+  }
+}
+ensureKeychainRules(mcpConfig.env || process.env)
+
+const codex = spawn(CODEX_BIN, [...mcpConfig.args, 'app-server'], { cwd: CWD, stdio: ['pipe', 'pipe', 'pipe'], env: mcpConfig.env })
+let rpcId = 1
+const pending = new Map() // request id → resolve
+function request(method, params) {
+  const id = rpcId++
+  return new Promise((resolve) => {
+    pending.set(id, resolve)
+    codex.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
+  })
+}
+
+function rpcResult(response, method) {
+  if (response?.error) {
+    const detail = response.error.message || JSON.stringify(response.error)
+    throw new Error(`${method} failed: ${detail}`)
+  }
+  if (!response || !('result' in response)) {
+    throw new Error(`${method} failed: missing JSON-RPC result`)
+  }
+  return response.result
+}
+
+function rpcNotify(method, params) {
+  codex.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n')
+}
+function rpcRespond(id, result) {
+  codex.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
+}
+function rpcError(id, message) {
+  codex.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code: -32601, message } }) + '\n')
+}
+
+// ── permission mode → codex policy/sandbox ────────────────────────────────
+function policyFor(mode) {
+  // Tool-less: read-only sandbox, and every command outside codex's safe
+  // allow-list asks — which emitPermission then declines. Env overrides are
+  // ignored so a stray tuning knob can't loosen it.
+  if (NO_TOOLS) return { approvalPolicy: 'untrusted', sandbox: 'read-only' }
+  let base
+  switch (mode) {
+    case 'plan':              base = { approvalPolicy: 'never',      sandbox: 'read-only' }; break
+    // "Ask via UI" (default) must genuinely gate tool calls so a remote/desktop
+    // `Deny` actually blocks execution. `on-request` lets Codex auto-run any
+    // command it deems safe (and only asks to escalate), so a denied escalation
+    // could still run in-sandbox — the P0 "Deny didn't block" bug. `untrusted`
+    // asks for every command outside Codex's safe read-only allow-list, and a
+    // `cancel`/`decline` on that prompt reliably prevents the command.
+    case 'default':           base = { approvalPolicy: 'untrusted',  sandbox: 'workspace-write' }; break
+    // Claude's `acceptEdits` has no one-to-one Codex policy. `on-request` with
+    // workspace-write is the closest equivalent: edits inside the workspace are
+    // sandboxed and allowed, while actions that need more access can still ask.
+    // Codex 0.144+ rejects the old `on-failure` value during thread/start.
+    case 'acceptEdits':       base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }; break
+    case 'bypassPermissions': base = { approvalPolicy: 'never',      sandbox: 'danger-full-access' }; break
+    // `auto` (classifier) / `dontAsk` / legacy: let Codex decide when to ask.
+    default:                  base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }
+  }
+  // Explicit overrides (tuning knob / tests).
+  if (process.env.DEVDY_CODEX_APPROVAL) base.approvalPolicy = process.env.DEVDY_CODEX_APPROVAL
+  if (process.env.DEVDY_CODEX_SANDBOX) base.sandbox = process.env.DEVDY_CODEX_SANDBOX
+  return base
+}
+
+// ── pending permission requests: codex rpc id ↔ devdy requestId ────────────
+const permWaiters = new Map() // requestId → { rpcId, command, kind, ... }
+// Commands the user denied — so the matching commandExecution item renders as
+// rejected (not as a succeeded run).
+const declinedCommands = new Set()
+const cmdKey = (c) => (Array.isArray(c) ? c.join(' ') : String(c ?? '')).trim()
+
+function emitPermission(rpcReqId, { tool_name, tool_input, title, description, display_name }, waiter = {}) {
+  const requestId = `codex-${PROC_NONCE}-${rpcReqId}`
+  permWaiters.set(requestId, { rpcId: rpcReqId, command: tool_input?.command, kind: 'approval', ...waiter })
+  if (NO_TOOLS) {
+    settleWaiter(requestId, false)
+    ctrl('_devdy_log', { level: 'warn', text: `⚠ ${tool_name} was denied: this session has no tool access.` })
+    return
+  }
+  if (inputClosed) {
+    // No answer can reach us any more: decline now instead of raising a prompt
+    // nobody could ever answer (the turn then winds down on its own).
+    settleWaiter(requestId, false)
+    ctrl('_devdy_log', { level: 'warn', text: `⚠ ${tool_name} was denied: the session can no longer receive permission answers.` })
+    return
+  }
+  ctrl('_devdy_permission_request', { requestId, tool_name, tool_input, title, description, display_name })
+}
+
+// Answer a pending codex approval / elicitation (from the user's response, or
+// declined by us when the input channel closed).
+function settleWaiter(requestId, accept, { answers, remember } = {}) {
+  const w = permWaiters.get(requestId)
+  if (!w) return false
+  permWaiters.delete(requestId)
+  if (!accept && w.command != null) declinedCommands.add(cmdKey(w.command))
+  if (w.kind === 'mcp_elicitation_form') {
+    const content = accept ? elicitationContentFromAnswers(answers, w.answerKeys) : null
+    emitMcpToolResult(w.toolUseId, accept)
+    rpcRespond(w.rpcId, { action: accept ? 'accept' : 'decline', content, _meta: null })
+    return true
+  }
+  if (w.kind === 'mcp_elicitation') {
+    emitMcpToolResult(w.toolUseId, accept)
+    rpcRespond(w.rpcId, { action: accept ? 'accept' : 'decline', content: null, _meta: null })
+    return true
+  }
+  // Fail closed on a deny. `cancel` both rejects the pending operation and
+  // interrupts the turn, preventing a command from racing ahead while the
+  // approval response propagates through the remote controller/host path.
+  // A later prompt can resume the same conversation normally.
+  //
+  // An "always" allow additionally opts into codex's OWN session-scoped
+  // approval cache (`acceptForSession`), so matching commands / file changes
+  // later in the session never come back as a prompt at all — Devdy's
+  // per-project list would auto-answer them, but only after a full
+  // sidecar → host → UI → sidecar round trip.
+  const allowDecision = remember
+    ? (w.legacy ? 'approved_for_session' : 'acceptForSession')
+    : (w.legacy ? 'approved' : 'accept')
+  rpcRespond(w.rpcId, { decision: accept ? allowDecision : 'cancel' })
+  return true
+}
+
+function enumOptions(schema) {
+  if (Array.isArray(schema?.enum)) {
+    return schema.enum.map((v) => ({ label: String(v), description: '' }))
+  }
+  if (Array.isArray(schema?.oneOf)) {
+    return schema.oneOf.map((opt) => ({
+      label: String(opt?.const ?? opt?.title ?? ''),
+      description: String(opt?.description ?? opt?.title ?? ''),
+    })).filter((opt) => opt.label)
+  }
+  return []
+}
+
+function elicitationQuestions(params) {
+  const schema = params?.requestedSchema
+  const props = schema?.properties && typeof schema.properties === 'object' ? schema.properties : {}
+  const required = new Set(Array.isArray(schema?.required) ? schema.required : [])
+  const questions = []
+  const answerKeys = {}
+
+  for (const [key, prop] of Object.entries(props)) {
+    if (!prop || typeof prop !== 'object') continue
+    const title = String(prop.title || key)
+    let question = title
+    if (answerKeys[question]) question = `${title} (${key})`
+    const options = enumOptions(prop)
+    if (prop.type === 'boolean' && !options.length) {
+      options.push(
+        { label: 'true', description: 'Yes' },
+        { label: 'false', description: 'No' },
+      )
+    }
+    questions.push({
+      header: `${params?.serverName || 'MCP'}${required.has(key) ? ' · required' : ''}`,
+      question,
+      multiSelect: prop.type === 'array',
+      options,
+    })
+    answerKeys[question] = { key, type: prop.type }
+  }
+  return { questions, answerKeys }
+}
+
+function coerceElicitationAnswer(value, type) {
+  if (type === 'boolean') return String(value).trim().toLowerCase() === 'true'
+  if (type === 'number' || type === 'integer') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : value
+  }
+  if (type === 'array') {
+    return String(value).split(',').map((v) => v.trim()).filter(Boolean)
+  }
+  return value
+}
+
+function elicitationContentFromAnswers(answers, answerKeys) {
+  const content = {}
+  for (const [question, value] of Object.entries(answers || {})) {
+    const meta = answerKeys?.[question]
+    if (!meta) continue
+    content[meta.key] = coerceElicitationAnswer(value, meta.type)
+  }
+  return content
+}
+
+function pickString(obj, keys) {
+  for (const key of keys) {
+    const value = obj?.[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function mcpToolUseId(rpcReqId) {
+  return `mcp_${String(rpcReqId).replace(/[^A-Za-z0-9_-]/g, '_')}`
+}
+
+function mcpDisplayName(params, fallback) {
+  return pickString(params, ['displayName', 'toolDisplayName', 'toolTitle', 'title', 'toolName', 'name']) || fallback
+}
+
+function mcpToolKeyPart(value, fallback) {
+  const clean = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80)
+  return clean || fallback
+}
+
+// Stable key for Devdy's "allow always" / "deny always" store. Codex's
+// `mcpServer/elicitation/request` carries only `serverName` — there is no
+// `toolName` in the app-server v2 protocol — so the finest grain we can offer
+// is PER SERVER (`mcp__pms`). Returning a bare `MCP` here is what used to make
+// the prompt unrememberable, so every MCP request asked again forever.
+// `toolName` is still honored when a future codex build starts sending it.
+function mcpPermissionToolName(params, server) {
+  const serverKey = mcpToolKeyPart(server, '')
+  if (!serverKey) return 'MCP'
+  const tool = pickString(params, ['toolName', 'name'])
+  if (!tool) return `mcp__${serverKey}`
+  return `mcp__${serverKey}__${mcpToolKeyPart(tool, 'request')}`
+}
+
+function mcpServerDisplayName(params, server) {
+  return pickString(params, ['serverDisplayName', 'serverTitle']) || server
+}
+
+function mcpTranscriptInput(params, server, questions = []) {
+  const schema = params?.requestedSchema
+  const fields = schema?.properties && typeof schema.properties === 'object'
+    ? Object.keys(schema.properties)
+    : []
+  return {
+    serverName: server,
+    mode: params?.mode,
+    message: params?.message,
+    url: params?.url,
+    toolName: pickString(params, ['toolName', 'name']) || undefined,
+    ...(fields.length ? { fields } : {}),
+    ...(questions.length
+      ? {
+          questions: questions.map((q) => ({
+            header: q.header,
+            question: q.question,
+            options: q.options.map((o) => o.label),
+          })),
+        }
+      : {}),
+  }
+}
+
+function emitMcpToolUse(rpcReqId, params, { displayName, input }) {
+  const id = mcpToolUseId(rpcReqId)
+  const server = input.serverName || params?.serverName || 'MCP server'
+  out({
+    type: 'assistant',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'tool_use', id, name: 'MCP', input }],
+    },
+    tool_use_meta: [{
+      id,
+      display_name: displayName,
+      server_display_name: mcpServerDisplayName(params, server),
+    }],
+  })
+  return id
+}
+
+function emitMcpToolResult(toolUseId, accepted) {
+  if (!toolUseId) return
+  out({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: toolUseId,
+        content: accepted ? 'Accepted by user.' : 'Denied by user.',
+        is_error: !accepted,
+      }],
+    },
+  })
+}
+
+function emitMcpElicitation(rpcReqId, params) {
+  const server = params?.serverName || 'MCP server'
+  if (params?.mode === 'form') {
+    const { questions, answerKeys } = elicitationQuestions(params)
+    if (questions.length) {
+      const toolUseId = emitMcpToolUse(rpcReqId, params, {
+        displayName: mcpDisplayName(params, 'MCP input'),
+        input: mcpTranscriptInput(params, server, questions),
+      })
+      emitPermission(rpcReqId, {
+        tool_name: 'AskUserQuestion',
+        tool_input: { questions, mcp: { serverName: server, message: params.message, mode: params.mode } },
+        title: `${server} requests input`,
+        description: params.message,
+        display_name: 'MCP input',
+      }, { kind: 'mcp_elicitation_form', answerKeys, toolUseId })
+      return
+    }
+  }
+
+  const toolUseId = emitMcpToolUse(rpcReqId, params, {
+    displayName: mcpDisplayName(params, 'MCP request'),
+    input: mcpTranscriptInput(params, server),
+  })
+  emitPermission(rpcReqId, {
+    tool_name: mcpPermissionToolName(params, server),
+    tool_input: {
+      serverName: server,
+      toolName: pickString(params, ['toolName', 'name']) || undefined,
+      mode: params?.mode,
+      message: params?.message,
+      url: params?.url,
+    },
+    title: `${server} requests permission`,
+    description: params?.message || 'Allow this MCP request to continue?',
+    display_name: 'MCP request',
+  }, { kind: 'mcp_elicitation', toolUseId })
+}
+
+// ── translate codex item → Claude-shaped stream-json ──────────────────────
+let threadId = RESUME_THREAD
+let modelName = null
+// Latest TokenUsageBreakdown for the current turn. The codex app-server reports
+// usage in a separate `thread/tokenUsage/updated` notification (not on
+// `turn/completed`), so we stash the `last` breakdown here and attach it to the
+// `result` event when the turn completes.
+let lastTokenBreakdown = null
+
+// Map a codex TokenUsageBreakdown onto the Claude `usage` shape that the Rust
+// drain reads. codex reports `inputTokens` INCLUDING the cached portion, plus a
+// separate `cachedInputTokens`; Claude keeps non-cached input and cache_read
+// separate, so we subtract to avoid double-counting. Field names vary between
+// codex versions (camelCase since the app-server v2 protocol, snake_case
+// before), so probe both. Returns null when nothing usable.
+function mapCodexUsage(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const u = raw.usage || raw.token_usage || raw.total_token_usage || raw
+  const num = (...keys) => {
+    for (const k of keys) if (typeof u[k] === 'number') return u[k]
+    return 0
+  }
+  const inputTotal = num('inputTokens', 'input_tokens')
+  const cached = num('cachedInputTokens', 'cached_input_tokens', 'cache_read_input_tokens')
+  const output = num('outputTokens', 'output_tokens') + num('reasoningOutputTokens', 'reasoning_output_tokens')
+  const usage = {
+    input_tokens: Math.max(inputTotal - cached, 0),
+    output_tokens: output,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: cached,
+  }
+  if (!usage.input_tokens && !usage.output_tokens && !usage.cache_read_input_tokens) return null
+  return usage
+}
+
+function emitItem(item) {
+  if (!item || typeof item !== 'object') return
+  switch (item.type) {
+    case 'agentMessage': {
+      const text = String(item.text ?? '')
+      if (text.trim()) out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+      break
+    }
+    case 'reasoning': {
+      // summaries are usually omitted; surface any text we do get.
+      const parts = []
+      for (const s of item.summary ?? []) if (typeof s === 'string') parts.push(s)
+      for (const c of item.content ?? []) if (c?.text) parts.push(c.text)
+      const text = parts.join('\n').trim()
+      if (text) out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: text }] } })
+      break
+    }
+    case 'commandExecution': {
+      out({ type: 'assistant', message: { role: 'assistant', content: [
+        { type: 'tool_use', id: item.id, name: 'Bash', input: { command: item.command, description: (item.commandActions?.[0]?.name) || undefined } },
+      ] } })
+      const rejected =
+        item.status === 'declined' ||
+        declinedCommands.delete(cmdKey(item.command))
+      const isError = rejected || (item.exitCode != null && item.exitCode !== 0)
+      const output = rejected
+        ? 'Rejected by user — command was not run.'
+        : (item.aggregatedOutput != null ? String(item.aggregatedOutput) : '')
+      out({ type: 'user', message: { role: 'user', content: [
+        { type: 'tool_result', tool_use_id: item.id, content: output, is_error: isError },
+      ] } })
+      break
+    }
+    case 'fileChange': {
+      // Map to an Edit-like tool_use so the frontend diff view can render it.
+      out({ type: 'assistant', message: { role: 'assistant', content: [
+        { type: 'tool_use', id: item.id, name: 'Edit', input: item },
+      ] } })
+      break
+    }
+    // userMessage: skip — the broker already logs the synthetic user entry.
+    default: break
+  }
+}
+
+// ── handle a message from codex app-server ────────────────────────────────
+function onServerMessage(msg) {
+  // server → client REQUEST (approval / elicitation)
+  if (msg.method && msg.id != null && !('result' in msg) && !('error' in msg)) {
+    const p = msg.params || {}
+    switch (msg.method) {
+      case 'item/commandExecution/requestApproval':
+        emitPermission(msg.id, { tool_name: 'Bash', tool_input: { command: p.command }, title: p.reason || 'Run a shell command', description: p.command })
+        return
+      case 'execCommandApproval':
+        emitPermission(msg.id, { tool_name: 'Bash', tool_input: { command: Array.isArray(p.command) ? p.command.join(' ') : p.command }, title: p.reason || 'Run a shell command' }, { legacy: true })
+        return
+      case 'item/fileChange/requestApproval':
+        emitPermission(msg.id, { tool_name: 'Edit', tool_input: p, title: p.reason || 'Apply a file change' })
+        return
+      case 'applyPatchApproval':
+        emitPermission(msg.id, { tool_name: 'Edit', tool_input: p, title: p.reason || 'Apply a patch' }, { legacy: true })
+        return
+      case 'mcpServer/elicitation/request':
+        if (process.env.DEVDY_CODEX_MCP_TRACE) {
+          note(`[codex] MCP elicitation from ${p.serverName ?? 'server'}: ${p.mode ?? 'unknown'}`, 'debug')
+        }
+        emitMcpElicitation(msg.id, p)
+        return
+      case 'item/tool/requestUserInput':
+        rpcRespond(msg.id, { answers: {} })
+        return
+      case 'item/permissions/requestApproval':
+        // Grant nothing this turn (≈ decline); per-command approvals still flow
+        // through item/commandExecution/requestApproval above.
+        rpcRespond(msg.id, { permissions: {}, scope: 'turn' })
+        return
+      // ---- requests we genuinely can't serve → JSON-RPC error (not malformed result) ----
+      case 'item/tool/call':
+      case 'account/chatgptAuthTokens/refresh':
+      case 'attestation/generate':
+      default:
+        note(`[codex] unsupported server request: ${msg.method}`, 'warn')
+        rpcError(msg.id, `unsupported by devdy sidecar: ${msg.method}`)
+        return
+    }
+  }
+
+  // response to one of our RPC requests
+  if (msg.id != null && ('result' in msg || 'error' in msg)) {
+    const resolve = pending.get(msg.id)
+    if (resolve) { pending.delete(msg.id); resolve(msg) }
+    return
+  }
+
+  // notification (streaming)
+  if (msg.method) {
+    const p = msg.params || {}
+    switch (msg.method) {
+      case 'item/completed':
+        emitItem(p.item)
+        break
+      // Usage arrives on its own notification (since the app-server v2 protocol);
+      // stash the per-turn (`last`) breakdown to attach at turn/completed.
+      case 'thread/tokenUsage/updated': {
+        const tu = p.tokenUsage || p
+        lastTokenBreakdown = tu?.last || tu?.total || tu
+        break
+      }
+      // Live plan rate-limit updates (5h + weekly windows). Forwarded so the
+      // budget badge / settings panel refresh mid-run, like Claude's /usage.
+      case 'account/rateLimits/updated':
+        emitCodexRateLimits(p)
+        break
+      case 'turn/completed': {
+        const result = { type: 'result', subtype: 'success', num_turns: 1 }
+        // Newer protocol: usage came via thread/tokenUsage/updated. Older
+        // protocol: it was carried on the turn/completed params themselves.
+        const usage = mapCodexUsage(lastTokenBreakdown) || mapCodexUsage(p)
+        if (usage) result.usage = usage
+        if (modelName) result.model = modelName
+        if (turnStartedAt != null) result.duration_ms = Date.now() - turnStartedAt
+        out(result)
+        ctrl('_devdy_done')
+        turnActive = false
+        turnCompleted = true
+        shutdown(0)
+        break
+      }
+      case 'error':
+        ctrl('_devdy_error', { error: typeof p === 'string' ? p : JSON.stringify(p) })
+        break
+      default: break // ignore deltas/status/etc for v1
+    }
+  }
+}
+
+// ── codex stdout framing (newline-delimited JSON) ─────────────────────────
+let rbuf = ''
+codex.stdout.on('data', (chunk) => {
+  rbuf += chunk.toString()
+  let nl
+  while ((nl = rbuf.indexOf('\n')) >= 0) {
+    const line = rbuf.slice(0, nl).trim()
+    rbuf = rbuf.slice(nl + 1)
+    if (!line) continue
+    let msg
+    try { msg = JSON.parse(line) } catch { continue }
+    try { onServerMessage(msg) } catch (e) { ctrl('_devdy_error', { error: String(e?.stack || e) }) }
+  }
+})
+let estderrBuf = ''
+codex.stderr.on('data', (d) => {
+  estderrBuf += d.toString()
+  let nl
+  while ((nl = estderrBuf.indexOf('\n')) >= 0) {
+    classifyStderrLine(estderrBuf.slice(0, nl))
+    estderrBuf = estderrBuf.slice(nl + 1)
+  }
+})
+// Report how the session ended. Node gives `code: null` when codex died by a
+// signal; that is a failure (exit non-zero). The one exception is OUR kill in
+// shutdown() (SIGTERM, or codex exiting on it) after a clean end — the turn
+// completed, or no turn was running — which is how a session normally ends.
+// Anything else (our kill mid-turn, another signal) reports what happened.
+codex.on('exit', (code, signal) => {
+  const ourKill = shutdownCode !== null && (signal === 'SIGTERM' || signal == null)
+  if (ourKill && (shutdownCode !== 0 || turnCompleted || !turnActive)) {
+    ctrl('_devdy_closed', { code: shutdownCode, signal: null })
+    process.exit(shutdownCode)
+  }
+  ctrl('_devdy_closed', { code, signal: signal ?? null })
+  process.exit(code ?? (signal ? 1 : 0))
+})
+
+// ── session bring-up ──────────────────────────────────────────────────────
+let ready = false
+let turnStartedAt = null
+// A turn was started and hasn't completed (turn/completed) yet.
+let turnActive = false
+// A turn/completed was observed: the session reached its terminal state.
+let turnCompleted = false
+// The broker closed our stdin: no prompt or permission answer can arrive.
+let inputClosed = false
+const promptQueue = []
+
+async function bringUp() {
+  rpcResult(await request('initialize', {
+    clientInfo: { name: 'devdy-codex', title: 'Devdy', version: '0.1.0' },
+    capabilities: { experimentalApi: true, requestAttestation: false },
+  }), 'initialize')
+  rpcNotify('initialized', undefined)
+
+  const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
+  if (RESUME_THREAD) {
+    // No developerInstructions here: Codex ignores them on resume (framing for a
+    // resumed thread arrives via SEED_FRAMING instead).
+    const result = rpcResult(
+      await request('thread/resume', { threadId: RESUME_THREAD }),
+      'thread/resume',
+    )
+    threadId = result?.thread?.id || RESUME_THREAD
+    modelName = result?.model || null
+  } else {
+    const startParams = { cwd: CWD, approvalPolicy, sandbox }
+    if (MODEL) startParams.model = MODEL
+    if (DEVELOPER_INSTRUCTIONS) startParams.developerInstructions = DEVELOPER_INSTRUCTIONS
+    const result = rpcResult(await request('thread/start', startParams), 'thread/start')
+    threadId = result?.thread?.id || null
+    modelName = result?.model || null
+    // The new thread carries the framing from now on; the broker persists this
+    // so a later resume doesn't seed it again.
+    if (threadId && DEVELOPER_INSTRUCTIONS) ctrl('_devdy_framing_seeded')
+  }
+
+  if (!threadId) throw new Error('Codex initialized without a thread id')
+
+  // system.init lets the broker capture session_id (= threadId) for resume.
+  out({ type: 'system', subtype: 'init', session_id: threadId, model: modelName, cwd: CWD, tools: NO_TOOLS ? [] : ['Bash', 'Edit'] })
+  ctrl('_devdy_ready', { threadId, capabilities: { heartbeat_ms: HEARTBEAT_MS } })
+
+  // Snapshot plan usage right away (cheap, no turn) so the badge is fresh from
+  // the start of the run. Fire-and-forget; failures are non-fatal.
+  request('account/rateLimits/read', undefined)
+    .then((r) => emitCodexRateLimits(r?.result))
+    .catch(() => {})
+
+  ready = true
+  for (const t of promptQueue.splice(0)) startTurn(t.text, t.images)
+}
+
+// Lightweight usage probe: initialize the app-server, read the account's plan
+// rate-limits WITHOUT starting a thread or running a turn (no quota spend), emit
+// them, then exit. Mirrors the Claude sidecar's `usage_probe`. Triggered by the
+// Rust `refresh_codex_plan_usage` command via DEVDY_CODEX_USAGE_PROBE=1.
+async function usageProbe() {
+  try {
+    rpcResult(await request('initialize', {
+      clientInfo: { name: 'devdy-codex', title: 'Devdy', version: '0.1.0' },
+      capabilities: { experimentalApi: true, requestAttestation: false },
+    }), 'initialize')
+    rpcNotify('initialized', undefined)
+    const result = rpcResult(
+      await request('account/rateLimits/read', undefined),
+      'account/rateLimits/read',
+    )
+    emitCodexRateLimits(result)
+    ctrl('_devdy_done')
+  } catch (e) {
+    ctrl('_devdy_error', { error: String(e?.stack || e) })
+  } finally {
+    shutdown(0)
+  }
+}
+
+// `images` is an array of { media_type, data(base64) }. Codex app-server takes
+// images as an `image` input item whose `url` is a base64 `data:` URL.
+// Map the thread/start `sandbox` string onto the turn/start `sandboxPolicy`
+// object shape (all variants only require `type`).
+function sandboxPolicyObject(sandbox) {
+  switch (sandbox) {
+    case 'read-only':          return { type: 'readOnly' }
+    case 'danger-full-access': return { type: 'dangerFullAccess' }
+    case 'workspace-write':
+    default:                   return { type: 'workspaceWrite' }
+  }
+}
+
+async function startTurn(text, images) {
+  if (!threadId) { ctrl('_devdy_error', { error: 'no thread' }); return }
+  turnActive = true
+  turnStartedAt = Date.now()
+  const input = []
+  // Prepend the one-time framing seed to the first turn of a resumed thread.
+  // Claimed up front so a second turn queued meanwhile can't seed it twice.
+  const seed = SEED_FRAMING
+  SEED_FRAMING = null
+  if (seed) text = text ? `${seed}\n\n${text}` : seed
+  if (text) input.push({ type: 'text', text, text_elements: [] })
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      input.push({ type: 'image', url: `data:${img.media_type};base64,${img.data}` })
+    }
+  }
+  if (!input.length) input.push({ type: 'text', text: '', text_elements: [] })
+  // Re-apply the permission policy on EVERY turn (it overrides "for this turn
+  // and subsequent turns"). This is essential for RESUMED threads: `thread/resume`
+  // does NOT accept a policy, so a resumed session would otherwise keep whatever
+  // policy it was first created with — the P0 where a remote `Deny` failed to
+  // block because the resumed run silently stayed on `on-request`.
+  const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
+  // Surface a rejected turn/start (e.g. bad input shape) instead of hanging: the
+  // turn outcome otherwise arrives only via the turn/completed notification.
+  const res = await request('turn/start', {
+    threadId,
+    input,
+    approvalPolicy,
+    sandboxPolicy: sandboxPolicyObject(sandbox),
+  })
+  if (res?.error) {
+    turnActive = false
+    ctrl('_devdy_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
+    if (inputClosed) shutdown(1)
+    if (seed) SEED_FRAMING = seed // not delivered — retry on the next turn
+  } else if (seed) {
+    // Accepted: the framing is now in the thread history. Seed only once.
+    ctrl('_devdy_framing_seeded')
+  }
+}
+
+// ── stdin from the broker ─────────────────────────────────────────────────
+let sbuf = ''
+process.stdin.on('data', (chunk) => {
+  sbuf += chunk.toString()
+  let nl
+  while ((nl = sbuf.indexOf('\n')) >= 0) {
+    const line = sbuf.slice(0, nl).trim()
+    sbuf = sbuf.slice(nl + 1)
+    if (!line) continue
+    let cmd
+    try { cmd = JSON.parse(line) } catch { continue }
+    handleCommand(cmd)
+  }
+})
+// stdin closed by the broker = no more input. That must NOT kill a turn in
+// flight (mirrors the Claude sidecar): decline the prompts nobody can answer
+// any more, let the turn finish, and shut down once it completed.
+process.stdin.on('end', () => {
+  inputClosed = true
+  for (const requestId of [...permWaiters.keys()]) {
+    if (settleWaiter(requestId, false)) {
+      ctrl('_devdy_permission_cancelled', {
+        requestId,
+        level: 'warn',
+        text: '⚠ An open permission request was denied: the session can no longer receive answers.',
+      })
+    }
+  }
+  if (!turnActive && !promptQueue.length) shutdown(0)
+})
+
+function handleCommand(cmd) {
+  switch (cmd.type) {
+    case 'prompt':
+      if (!ready) promptQueue.push({ text: cmd.text, images: cmd.images })
+      else startTurn(cmd.text, cmd.images)
+      break
+    case 'permission_response':
+      settleWaiter(cmd.requestId, cmd.decision === 'allow', { answers: cmd.answers, remember: cmd.remember })
+      break
+    case 'interrupt':
+      if (threadId) rpcNotify('turn/interrupt', { threadId }).catch?.(() => {})
+      break
+    case 'abort':
+      shutdown(0)
+      break
+    default: break
+  }
+}
+
+// Set once we are tearing the session down ourselves (the exit code we chose).
+// Whether codex dying from our kill() is "expected" also depends on the turn
+// state below (see the codex 'exit' handler).
+let shutdownCode = null
+
+function shutdown(code) {
+  if (shutdownCode === null) shutdownCode = code
+  if (estderrBuf.trim()) { classifyStderrLine(estderrBuf); estderrBuf = '' }
+  try { codex.kill() } catch {}
+  setTimeout(() => process.exit(code), 50)
+}
+
+if (process.env.DEVDY_CODEX_USAGE_PROBE === '1') {
+  usageProbe()
+} else {
+  bringUp().catch((e) => { ctrl('_devdy_error', { error: String(e?.stack || e) }); shutdown(1) })
+}

@@ -1,0 +1,32 @@
+{
+  "save": "Lưu",
+  "cancel": "Hủy",
+  "delete": "Xóa",
+  "edit": "Sửa",
+  "add": "Thêm",
+  "new": "Mới",
+  "close": "Đóng",
+  "clear": "Xóa hết",
+  "confirm": "Xác nhận",
+  "loading": "Đang tải…",
+  "search": "Tìm kiếm",
+  "noResults": "Không có kết quả phù hợp",
+  "refresh": "Làm mới",
+  "remove": "Gỡ bỏ",
+  "active": "Đang hoạt động",
+  "back": "Quay lại",
+  "date": {
+    "pick": "Chọn ngày",
+    "pickRange": "Chọn khoảng ngày",
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua"
+  },
+  "status": {
+    "running": "Đang chạy",
+    "done": "Xong",
+    "failed": "Lỗi",
+    "cancelled": "Đã hủy",
+    "fetched": "Đã tải",
+    "draft": "Nháp"
+  }
+}

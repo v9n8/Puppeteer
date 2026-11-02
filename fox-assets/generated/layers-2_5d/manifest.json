@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "source": "fox-assets/source.png",
+  "canvas": {
+    "width": 1024,
+    "height": 1024,
+    "origin": "top-left"
+  },
+  "layers": {
+    "body": {
+      "file": "body.webp",
+      "zIndex": 40,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.8867
+      }
+    },
+    "head": {
+      "file": "head.webp",
+      "zIndex": 50,
+      "pivot": {
+        "x": 0.4955,
+        "y": 0.5516
+      }
+    },
+    "earLeft": {
+      "file": "ear-left.webp",
+      "zIndex": 60,
+      "pivot": {
+        "x": 0.4063,
+        "y": 0.3099
+      }
+    },
+    "earRight": {
+      "file": "ear-right.webp",
+      "zIndex": 61,
+      "pivot": {
+        "x": 0.5968,
+        "y": 0.3045
+      }
+    },
+    "eyes": {
+      "fileByState": "eyes/<state>.webp",
+      "zIndex": 70,
+      "socket": {
+        "left": {
+          "cx": 0.4096,
+          "cy": 0.4306
+        },
+        "right": {
+          "cx": 0.5796,
+          "cy": 0.4306
+        }
+      },
+      "width": 0.07
+    },
+    "chest": {
+      "fileByState": "chest/<state>.webp",
+      "zIndex": 80,
+      "center": {
+        "x": 0.4993,
+        "y": 0.6713
+      },
+      "width": 0.15
+    }
+  },
+  "eyes": {
+    "idle": {
+      "file": "eyes/idle.webp"
+    },
+    "blink": {
+      "file": "eyes/blink.webp"
+    },
+    "processing-01": {
+      "file": "eyes/processing-01.webp"
+    },
+    "processing-02": {
+      "file": "eyes/processing-02.webp"
+    },
+    "processing-03": {
+      "file": "eyes/processing-03.webp"
+    },
+    "happy": {
+      "file": "eyes/happy.webp"
+    },
+    "error": {
+      "file": "eyes/error.webp"
+    }
+  },
+  "chest": {
+    "idle": {
+      "file": "chest/idle.webp"
+    }
+  },
+  "tails": {
+    "tailOrange": {
+      "base": "tail-orange.webp",
+      "glow": null,
+      "energy": null,
+      "pivot": {
+        "x": 0.4187,
+        "y": 0.6476
+      },
+      "restRotation": 0
+    },
+    "tailBlue": {
+      "base": "tail-blue.webp",
+      "glow": null,
+      "energy": null,
+      "pivot": {
+        "x": 0.5006,
+        "y": 0.6787
+      },
+      "restRotation": 0
+    }
+  },
+  "effects": {
+    "groundGlow": {
+      "file": "effects/ground-glow.webp",
+      "width": 256,
+      "height": 112,
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "recommendedPlacement": {
+        "x": 0.5,
+        "y": 0.9
+      }
+    }
+  },
+  "placement": {
+    "body": {
+      "wf": 0.42,
+      "cx": 0.5,
+      "cy": 0.69,
+      "rot": 0
+    },
+    "head": {
+      "wf": 0.44,
+      "cx": 0.5,
+      "cy": 0.395,
+      "rot": 0
+    },
+    "earLeft": {
+      "wf": 0.15,
+      "cx": 0.3879,
+      "cy": 0.2251,
+      "rot": 11
+    },
+    "earRight": {
+      "wf": 0.152,
+      "cx": 0.606,
+      "cy": 0.2216,
+      "rot": -13
+    },
+    "tailOrange": {
+      "wf": 0.215,
+      "cx": 0.7664,
+      "cy": 0.6616,
+      "rot": 34
+    },
+    "tailBlue": {
+      "wf": 0.235,
+      "cx": 0.2211,
+      "cy": 0.6106,
+      "rot": -26
+    },
+    "eyeLeft": {
+      "cx": 0.4096,
+      "cy": 0.4306,
+      "wf": 0.07,
+      "rot": 0
+    },
+    "eyeRight": {
+      "cx": 0.5796,
+      "cy": 0.4306,
+      "wf": 0.07,
+      "rot": 0
+    },
+    "chest": {
+      "wf": 0.15,
+      "cx": 0.4993,
+      "cy": 0.6713,
+      "rot": 0
+    }
+  }
+}

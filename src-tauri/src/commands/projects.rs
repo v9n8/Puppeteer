@@ -1,0 +1,1534 @@
+use crate::commands::rules::{ApplyAllOutcome, ApplyFailure};
+use crate::commands::skills::{
+    claude_skill_dir, legacy_codex_skill_dir, remove_skill_artifacts, write_skill_artifacts,
+};
+use crate::db::Db;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
+use tauri::{AppHandle, Manager, State};
+use uuid::Uuid;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub github_owner: Option<String>,
+    pub github_repo: Option<String>,
+    pub created_at: String,
+    pub github_account_id: Option<String>,
+    /// GitHub accounts enabled for the project (`github_account_id` is the
+    /// default among them). Runs may pick any of these per command.
+    #[serde(default)]
+    pub github_account_ids: Vec<String>,
+    /// GitLab accounts enabled for the project (`gitlab_account_id` = default).
+    #[serde(default)]
+    pub gitlab_account_ids: Vec<String>,
+    /// GĐ6: linked GitLab account (mirrors `github_account_id`). `None` when the
+    /// project has no GitLab account attached (backward-compatible default).
+    #[serde(default)]
+    pub gitlab_account_id: Option<String>,
+    /// Linked AWS account, mirroring the Git account model. `None` when the
+    /// project has no AWS account attached.
+    #[serde(default)]
+    pub aws_account_id: Option<String>,
+    /// Linked Azure account (isolated AZURE_CONFIG_DIR managed by Devdy).
+    /// `None` when the project has no Azure account attached.
+    #[serde(default)]
+    pub azure_account_id: Option<String>,
+    /// AWS / Azure accounts enabled for the project (`aws_account_id` /
+    /// `azure_account_id` = default). Runs may pick any of these per command.
+    #[serde(default)]
+    pub aws_account_ids: Vec<String>,
+    #[serde(default)]
+    pub azure_account_ids: Vec<String>,
+    /// Linked Claude account (isolated by CLAUDE_CONFIG_DIR). `None` = use the
+    /// default Claude account, or the global profile when none exists.
+    #[serde(default)]
+    pub claude_account_id: Option<String>,
+    /// GitHub Project V2 board URL for milestone/issue tracking (`None` = not linked).
+    #[serde(default)]
+    pub github_project_board_url: Option<String>,
+    /// JSON-encoded field mappings for the linked board (start/deadline/status field ids).
+    #[serde(default)]
+    pub github_project_field_mappings: Option<String>,
+    /// Number of runs recorded against this project (usage frequency).
+    #[serde(default)]
+    pub run_count: i64,
+    /// Timestamp of the most recent run, if any (recency).
+    #[serde(default)]
+    pub last_used_at: Option<String>,
+    /// Manual display order (ascending). Drag-and-drop reorder rewrites this.
+    #[serde(default)]
+    pub position: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppliedSkill {
+    pub skill_id: String,
+    pub skill_name: String,
+    pub skill_description: String,
+    pub target: String,
+    pub has_claude: bool,
+    pub has_codex: bool,
+    pub applied_at: String,
+    /// The user switched this skill on for the project directly.
+    pub manual: bool,
+    /// Some group the project has enabled contains this skill. Independent of `manual`: either
+    /// one on its own keeps the skill applied.
+    pub from_group: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddRepoPayload {
+    pub name: String,
+    pub path: String,
+    pub github_owner: Option<String>,
+    pub github_repo: Option<String>,
+    /// Git host provider: `github` (default) or `gitlab`.
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub gitlab_project_path: Option<String>,
+    #[serde(default)]
+    pub gitlab_project_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddProjectPayload {
+    pub path: String,
+    pub name: Option<String>,
+    pub repos: Option<Vec<AddRepoPayload>>,
+}
+
+/// Coordinates read off a repo's `origin` remote, mirroring the shapes the
+/// frontend URL parser accepts (see `src/lib/repoUrl.ts`).
+struct DetectedRemote {
+    provider: String,
+    github_owner: Option<String>,
+    github_repo: Option<String>,
+    gitlab_project_path: Option<String>,
+}
+
+/// Split a remote URL into host + path, accepting https/ssh/git schemes as well
+/// as scp-style `git@host:group/repo`.
+fn split_remote_host_path(raw: &str) -> Option<(String, String)> {
+    let trimmed = raw.trim().trim_end_matches('/');
+    let url = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+
+    // scp-style has no scheme but carries a colon before the path.
+    if !url.contains("://") {
+        if let Some((userhost, path)) = url.split_once(':') {
+            let host = userhost.rsplit('@').next().unwrap_or(userhost);
+            return Some((host.to_lowercase(), path.to_string()));
+        }
+    }
+
+    let no_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
+    let (host, path) = no_scheme.split_once('/')?;
+    // Strip userinfo (git@host) without eating an `@` that lives in the path.
+    let host = host.rsplit('@').next().unwrap_or(host);
+    Some((host.to_lowercase(), path.to_string()))
+}
+
+fn parse_remote_url(raw: &str) -> Option<DetectedRemote> {
+    let (host, path) = split_remote_host_path(raw)?;
+    let path = path.split(['?', '#']).next().unwrap_or(&path).to_string();
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    if segments.len() < 2 {
+        return None;
+    }
+    let name = segments[segments.len() - 1].to_string();
+
+    if host.contains("gitlab") {
+        return Some(DetectedRemote {
+            provider: "gitlab".to_string(),
+            github_owner: None,
+            github_repo: None,
+            gitlab_project_path: Some(segments.join("/")),
+        });
+    }
+    if host.contains("github") {
+        return Some(DetectedRemote {
+            provider: "github".to_string(),
+            github_owner: Some(segments[0].to_string()),
+            github_repo: Some(name),
+            gitlab_project_path: None,
+        });
+    }
+    None
+}
+
+fn detect_remote(project_path: &str) -> Option<DetectedRemote> {
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(project_path)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    parse_remote_url(&url)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Repo {
+    pub id: String,
+    pub project_id: String,
+    pub name: String,
+    pub path: String,
+    pub github_owner: Option<String>,
+    pub github_repo: Option<String>,
+    pub created_at: String,
+    /// Git host provider: `github` (default) or `gitlab` (BR-001).
+    #[serde(default = "default_provider")]
+    pub provider: String,
+    /// GitLab `namespace/project` path (display + fallback API id). None for GitHub.
+    #[serde(default)]
+    pub gitlab_project_path: Option<String>,
+    /// GitLab numeric project id (preferred API id). None for GitHub.
+    #[serde(default)]
+    pub gitlab_project_id: Option<i64>,
+}
+
+fn default_provider() -> String {
+    "github".to_string()
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct DetectedRepo {
+    pub name: String,
+    pub path: String,
+    pub github_owner: Option<String>,
+    pub github_repo: Option<String>,
+    /// Provider read off the `origin` remote; `github` when there's nothing to go on.
+    pub provider: String,
+    pub gitlab_project_path: Option<String>,
+}
+
+impl DetectedRepo {
+    fn from_remote(name: String, path: String, remote: Option<DetectedRemote>) -> Self {
+        Self {
+            name,
+            path,
+            github_owner: remote.as_ref().and_then(|r| r.github_owner.clone()),
+            github_repo: remote.as_ref().and_then(|r| r.github_repo.clone()),
+            provider: remote
+                .as_ref()
+                .map(|r| r.provider.clone())
+                .unwrap_or_else(default_provider),
+            gitlab_project_path: remote.as_ref().and_then(|r| r.gitlab_project_path.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectedProjectInfo {
+    pub name: String,
+    pub path: String,
+    pub repos: Vec<DetectedRepo>,
+}
+
+/// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
+#[tauri::command]
+pub async fn open_in_vscode(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    path: String,
+    file: Option<String>,
+) -> Result<(), String> {
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    let path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&path))?.to_string_lossy().into_owned();
+    let file = match file {
+        Some(f) => Some(crate::remote::fs_policy::read(policy.as_ref(), Path::new(&f))?.to_string_lossy().into_owned()),
+        None => None,
+    };
+    open_in_vscode_inner(path, file)
+}
+
+fn open_in_vscode_inner(path: String, file: Option<String>) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    // When a file is provided, open the project folder AND reveal that file
+    // (e.g. the most recently fetched issue/PR markdown).
+    let file = file.filter(|f| Path::new(f).exists());
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut cmd = std::process::Command::new("open");
+        cmd.args(["-a", "Visual Studio Code", &path]);
+        if let Some(ref f) = file {
+            cmd.arg(f);
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open VS Code: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", "code", &path]);
+        if let Some(ref f) = file {
+            cmd.arg(f);
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open VS Code: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut cmd = std::process::Command::new("code");
+        cmd.arg(&path);
+        if let Some(ref f) = file {
+            cmd.arg(f);
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open VS Code: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
+#[tauri::command]
+pub async fn open_in_chrome(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    path: String,
+) -> Result<(), String> {
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    let path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&path))?.to_string_lossy().into_owned();
+    open_in_chrome_inner(path)
+}
+
+fn open_in_chrome_inner(path: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Google Chrome", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open Chrome: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "chrome", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open Chrome: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("google-chrome")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open Chrome: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
+#[tauri::command]
+pub async fn open_in_folder(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    path: String,
+) -> Result<(), String> {
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    let path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&path))?.to_string_lossy().into_owned();
+    open_in_folder_inner(path)
+}
+
+fn open_in_folder_inner(path: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
+#[tauri::command]
+pub async fn open_in_terminal(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    path: String,
+    terminal_app: String,
+) -> Result<(), String> {
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    let path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&path))?.to_string_lossy().into_owned();
+    open_in_terminal_inner(path, terminal_app)
+}
+
+fn open_in_terminal_inner(path: String, terminal_app: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let use_iterm = terminal_app == "iterm";
+
+        // The canonical (symlink-resolved) path is what `lsof` reports as a
+        // process cwd, so match against that.
+        let target = std::fs::canonicalize(&path)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| path.clone());
+
+        // If a tab is already open on this project folder, just bring it to the
+        // front instead of spawning yet another tab/window.
+        let focused = if use_iterm {
+            focus_existing_iterm_tab(&target)
+        } else {
+            focus_existing_terminal_tab(&target)
+        };
+        if focused {
+            return Ok(());
+        }
+
+        // `open -a <App> <path>` launches the app with a new window/tab cd'd into `path`.
+        let app = if use_iterm { "iTerm" } else { "Terminal" };
+        std::process::Command::new("open")
+            .args(["-a", app, &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open {}: {}", app, e))?;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = terminal_app;
+        return Err("Open in terminal is only supported on macOS".to_string());
+    }
+
+    Ok(())
+}
+
+/// Run an AppleScript snippet via `osascript`, returning stdout on success.
+#[cfg(target_os = "macos")]
+fn run_osascript(script: &str) -> Result<String, String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let mut child = Command::new("osascript")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| "failed to open osascript stdin".to_string())?
+        .write_all(script.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).to_string());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+/// Working directories of the processes attached to a tty (e.g. `/dev/ttys001`).
+#[cfg(target_os = "macos")]
+fn cwds_for_tty(tty: &str) -> Vec<String> {
+    let short = tty.trim_start_matches("/dev/");
+    let mut cwds = Vec::new();
+    let pids = match std::process::Command::new("ps")
+        .args(["-t", short, "-o", "pid="])
+        .output()
+    {
+        Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
+        Err(_) => return cwds,
+    };
+    for pid in pids.split_whitespace() {
+        if let Ok(o) = std::process::Command::new("lsof")
+            .args(["-a", "-d", "cwd", "-p", pid, "-Fn"])
+            .output()
+        {
+            for line in String::from_utf8_lossy(&o.stdout).lines() {
+                if let Some(p) = line.strip_prefix('n') {
+                    cwds.push(p.to_string());
+                }
+            }
+        }
+    }
+    cwds
+}
+
+#[cfg(target_os = "macos")]
+fn paths_match(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
+}
+
+/// Focus an existing Terminal.app tab whose cwd is `target`. Returns true if found.
+#[cfg(target_os = "macos")]
+fn focus_existing_terminal_tab(target: &str) -> bool {
+    // `tab`/`linefeed` are shadowed by Terminal's own `tab` class inside a
+    // `tell` block, so build the field/record separators outside it.
+    let list_script = r#"
+tell application "System Events"
+    if not (exists process "Terminal") then return ""
+end tell
+set d to "|"
+set nl to linefeed
+set output to ""
+tell application "Terminal"
+    set winList to windows
+    repeat with wi from 1 to count of winList
+        set w to item wi of winList
+        set tabList to tabs of w
+        repeat with ti from 1 to count of tabList
+            set t to item ti of tabList
+            set output to output & ((id of w) as string) & d & ti & d & (tty of t) & nl
+        end repeat
+    end repeat
+end tell
+return output
+"#;
+    let listing = match run_osascript(list_script) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    for line in listing.lines() {
+        let parts: Vec<&str> = line.split('|').collect();
+        if parts.len() != 3 {
+            continue;
+        }
+        let (win_id, tab_idx, tty) = (parts[0], parts[1], parts[2]);
+        if cwds_for_tty(tty).iter().any(|c| paths_match(c, target)) {
+            let activate = format!(
+                r#"
+tell application "Terminal"
+    set w to (first window whose id is {win})
+    set index of w to 1
+    set selected tab of w to (item {tab} of tabs of w)
+    activate
+end tell
+"#,
+                win = win_id,
+                tab = tab_idx
+            );
+            let _ = run_osascript(&activate);
+            return true;
+        }
+    }
+    false
+}
+
+/// Focus an existing iTerm session whose cwd is `target`. Returns true if found.
+#[cfg(target_os = "macos")]
+fn focus_existing_iterm_tab(target: &str) -> bool {
+    let list_script = r#"
+tell application "System Events"
+    if not (exists process "iTerm2") then return ""
+end tell
+set d to "|"
+set nl to linefeed
+set output to ""
+tell application "iTerm"
+    repeat with w in windows
+        repeat with t in tabs of w
+            repeat with s in sessions of t
+                set output to output & ((id of s) as string) & d & (tty of s) & nl
+            end repeat
+        end repeat
+    end repeat
+end tell
+return output
+"#;
+    let listing = match run_osascript(list_script) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    for line in listing.lines() {
+        let parts: Vec<&str> = line.split('|').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let (session_id, tty) = (parts[0], parts[1]);
+        if cwds_for_tty(tty).iter().any(|c| paths_match(c, target)) {
+            let activate = format!(
+                r#"
+tell application "iTerm"
+    repeat with w in windows
+        repeat with t in tabs of w
+            repeat with s in sessions of t
+                if (id of s) is "{sid}" then
+                    select s
+                end if
+            end repeat
+        end repeat
+    end repeat
+    activate
+end tell
+"#,
+                sid = session_id
+            );
+            let _ = run_osascript(&activate);
+            return true;
+        }
+    }
+    false
+}
+
+#[tauri::command]
+pub async fn detect_project_info(webview: tauri::Webview, path: String) -> Result<DetectedProjectInfo, String> {
+    // Picking a NEW folder to add: outside every project by definition, so a
+    // remote desktop is only kept out of the credential stores here.
+    if crate::remote::guard::from_remote_bridge(&webview) {
+        use tauri::Manager;
+        crate::remote::guard::SecretPaths::for_app(webview.app_handle()).check(&path)?;
+    }
+    if !Path::new(&path).exists() {
+        return Err("Path does not exist".to_string());
+    }
+    let project_name = Path::new(&path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Project".to_string());
+
+    let mut repos: Vec<DetectedRepo> = Vec::new();
+
+    // Check root for .git
+    if Path::new(&path).join(".git").exists() {
+        repos.push(DetectedRepo::from_remote(
+            project_name.clone(),
+            path.clone(),
+            detect_remote(&path),
+        ));
+    }
+
+    // Scan immediate subdirectories for .git
+    if let Ok(entries) = std::fs::read_dir(&path) {
+        let mut subdirs: Vec<std::path::PathBuf> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_dir())
+            .map(|e| e.path())
+            .collect();
+        subdirs.sort();
+        for subdir in subdirs {
+            if subdir.join(".git").exists() {
+                let subdir_str = subdir.to_string_lossy().to_string();
+                let subdir_name = subdir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| subdir_str.clone());
+                let remote = detect_remote(&subdir_str);
+                repos.push(DetectedRepo::from_remote(subdir_name, subdir_str, remote));
+            }
+        }
+    }
+
+    Ok(DetectedProjectInfo {
+        name: project_name,
+        path,
+        repos,
+    })
+}
+
+/// `GROUP_CONCAT` of account ids → ids (account ids are UUIDs, no commas).
+fn split_ids(csv: Option<String>) -> Vec<String> {
+    csv.map(|s| s.split(',').map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn list_projects(db: State<'_, Db>) -> Result<Vec<Project>, String> {
+    use sqlx::Row;
+    // Manual order first (drag-and-drop), then usage frequency / recency / name
+    // as a stable tiebreaker for any projects sharing a position.
+    let rows = sqlx::query(
+        "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
+                p.github_project_board_url, p.github_project_field_mappings, p.position, \
+                COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
+         FROM projects p \
+         LEFT JOIN runs r ON r.project_id = p.id \
+         GROUP BY p.id \
+         ORDER BY p.position ASC, run_count DESC, last_used_at DESC, p.name COLLATE NOCASE ASC"
+    )
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let projects = rows
+        .iter()
+        .map(|row| Project {
+            id: row.get("id"),
+            name: row.get("name"),
+            path: row.get("path"),
+            github_owner: None,
+            github_repo: None,
+            created_at: row.get("created_at"),
+            github_account_id: row.get("github_account_id"),
+            github_account_ids: split_ids(row.get("github_account_ids")),
+            gitlab_account_ids: split_ids(row.get("gitlab_account_ids")),
+            gitlab_account_id: row.get("gitlab_account_id"),
+            aws_account_id: row.get("aws_account_id"),
+            azure_account_id: row.get("azure_account_id"),
+            aws_account_ids: split_ids(row.get("aws_account_ids")),
+            azure_account_ids: split_ids(row.get("azure_account_ids")),
+            claude_account_id: row.get("claude_account_id"),
+            github_project_board_url: row.get("github_project_board_url"),
+            github_project_field_mappings: row.get("github_project_field_mappings"),
+            run_count: row.get("run_count"),
+            last_used_at: row.get("last_used_at"),
+            position: row.get("position"),
+        })
+        .collect();
+
+    Ok(projects)
+}
+
+#[tauri::command]
+pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: AddProjectPayload) -> Result<Project, String> {
+    // A registered project becomes a writable root of the remote desktop: it
+    // may only register folders it already reaches (HOME, volumes, projects).
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    if let Some(policy) = &policy {
+        for path in std::iter::once(&payload.path).chain(payload.repos.iter().flatten().map(|r| &r.path)) {
+            policy.read(Path::new(path))?;
+        }
+    }
+    if !Path::new(&payload.path).exists() {
+        return Err("Project path does not exist".to_string());
+    }
+
+    let name = payload.name.unwrap_or_else(|| {
+        Path::new(&payload.path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Project".to_string())
+    });
+
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Append new projects to the end of the manual order.
+    use sqlx::Row;
+    let position: i64 = sqlx::query("SELECT COALESCE(MAX(position), -1) + 1 AS next FROM projects")
+        .fetch_one(db.inner())
+        .await
+        .map_err(|e| e.to_string())?
+        .get("next");
+
+    sqlx::query("INSERT INTO projects (id, name, path, created_at, position) VALUES (?, ?, ?, ?, ?)")
+        .bind(&id)
+        .bind(&name)
+        .bind(&payload.path)
+        .bind(&now)
+        .bind(position)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if let Some(repos) = payload.repos {
+        for repo in repos {
+            let repo_id = Uuid::new_v4().to_string();
+            let provider = repo
+                .provider
+                .filter(|p| !p.is_empty())
+                .unwrap_or_else(default_provider);
+            sqlx::query(
+                "INSERT INTO repos (id, project_id, name, path, github_owner, github_repo, created_at, provider, gitlab_project_path, gitlab_project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(&repo_id)
+            .bind(&id)
+            .bind(&repo.name)
+            .bind(&repo.path)
+            .bind(&repo.github_owner)
+            .bind(&repo.github_repo)
+            .bind(&now)
+            .bind(&provider)
+            .bind(&repo.gitlab_project_path)
+            .bind(repo.gitlab_project_id)
+            .execute(db.inner())
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(Project {
+        id,
+        name,
+        path: payload.path,
+        github_owner: None,
+        github_repo: None,
+        created_at: now,
+        github_account_id: None,
+        github_account_ids: Vec::new(),
+        gitlab_account_ids: Vec::new(),
+        gitlab_account_id: None,
+        aws_account_id: None,
+        azure_account_id: None,
+        aws_account_ids: Vec::new(),
+        azure_account_ids: Vec::new(),
+        claude_account_id: None,
+        github_project_board_url: None,
+        github_project_field_mappings: None,
+        run_count: 0,
+        last_used_at: None,
+        position,
+    })
+}
+
+#[tauri::command]
+pub async fn remove_project(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<(), String> {
+    // Session links of Slack threads / notes / todos: the project's runs cascade
+    // away below and the link tables have no FK to runs.
+    let unlinked = crate::slack_threads::run_links::delete_for_project(db.inner(), &id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let items_unlinked = crate::item_links::delete_for_project(db.inner(), &id)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM projects WHERE id = ?")
+        .bind(&id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    if unlinked > 0 {
+        crate::slack_threads::emit_all_changed(&app);
+    }
+    if items_unlinked > 0 {
+        crate::item_links::emit_changed(&app, None);
+    }
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        crate::aws_sandbox::remove_project_aws_config(&app_data_dir, &id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_project(
+    db: State<'_, Db>,
+    id: String,
+    name: String,
+    github_project_board_url: Option<String>,
+    github_project_field_mappings: Option<String>,
+) -> Result<Project, String> {
+    use sqlx::Row;
+    sqlx::query(
+        "UPDATE projects SET name = ?, github_project_board_url = ?, github_project_field_mappings = ? WHERE id = ?"
+    )
+        .bind(&name)
+        .bind(&github_project_board_url)
+        .bind(&github_project_field_mappings)
+        .bind(&id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let row = sqlx::query(
+        "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
+                p.github_project_board_url, p.github_project_field_mappings, p.position, \
+                COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
+         FROM projects p LEFT JOIN runs r ON r.project_id = p.id WHERE p.id = ? GROUP BY p.id"
+    )
+        .bind(&id)
+        .fetch_one(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Project {
+        id: row.get("id"),
+        name: row.get("name"),
+        path: row.get("path"),
+        github_owner: None,
+        github_repo: None,
+        created_at: row.get("created_at"),
+        github_account_id: row.get("github_account_id"),
+        github_account_ids: split_ids(row.get("github_account_ids")),
+        gitlab_account_ids: split_ids(row.get("gitlab_account_ids")),
+        gitlab_account_id: row.get("gitlab_account_id"),
+        aws_account_id: row.get("aws_account_id"),
+        azure_account_id: row.get("azure_account_id"),
+        aws_account_ids: split_ids(row.get("aws_account_ids")),
+        azure_account_ids: split_ids(row.get("azure_account_ids")),
+        claude_account_id: row.get("claude_account_id"),
+        github_project_board_url: row.get("github_project_board_url"),
+        github_project_field_mappings: row.get("github_project_field_mappings"),
+        run_count: row.get("run_count"),
+        last_used_at: row.get("last_used_at"),
+        position: row.get("position"),
+    })
+}
+
+/// Persist a new project order. The frontend sends the full list of ids
+/// top-to-bottom; each row's position becomes its index, so ordering is stable
+/// regardless of prior values. Done in one transaction to avoid partial writes.
+#[tauri::command]
+pub async fn reorder_projects(db: State<'_, Db>, ids: Vec<String>) -> Result<(), String> {
+    let mut tx = db.inner().begin().await.map_err(|e| e.to_string())?;
+    for (index, id) in ids.iter().enumerate() {
+        sqlx::query("UPDATE projects SET position = ? WHERE id = ?")
+            .bind(index as i64)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Map a `repos` row into a `Repo`, tolerating older rows that predate the
+/// provider/gitlab columns (NULL provider -> `github`, per BR-001).
+fn row_to_repo(row: &sqlx::sqlite::SqliteRow) -> Repo {
+    use sqlx::Row;
+    Repo {
+        id: row.get("id"),
+        project_id: row.get("project_id"),
+        name: row.get("name"),
+        path: row.get("path"),
+        github_owner: row.get("github_owner"),
+        github_repo: row.get("github_repo"),
+        created_at: row.get("created_at"),
+        provider: row
+            .get::<Option<String>, _>("provider")
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(default_provider),
+        gitlab_project_path: row.get("gitlab_project_path"),
+        gitlab_project_id: row.get("gitlab_project_id"),
+    }
+}
+
+const REPO_COLUMNS: &str = "id, project_id, name, path, github_owner, github_repo, created_at, provider, gitlab_project_path, gitlab_project_id";
+
+#[tauri::command]
+pub async fn list_repos(db: State<'_, Db>, project_id: String) -> Result<Vec<Repo>, String> {
+    let rows = sqlx::query(&format!(
+        "SELECT {REPO_COLUMNS} FROM repos WHERE project_id = ? ORDER BY name"
+    ))
+    .bind(&project_id)
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows.iter().map(row_to_repo).collect())
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn add_repo(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_id: String,
+    name: String,
+    path: String,
+    github_owner: Option<String>,
+    github_repo: Option<String>,
+    provider: Option<String>,
+    gitlab_project_path: Option<String>,
+    gitlab_project_id: Option<i64>,
+) -> Result<Repo, String> {
+    // As in `add_project`: a remote desktop registers only what it reaches.
+    let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
+    crate::remote::fs_policy::read(policy.as_ref(), Path::new(&path))?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let provider = provider
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(default_provider);
+    sqlx::query(
+        "INSERT INTO repos (id, project_id, name, path, github_owner, github_repo, created_at, provider, gitlab_project_path, gitlab_project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(&project_id)
+    .bind(&name)
+    .bind(&path)
+    .bind(&github_owner)
+    .bind(&github_repo)
+    .bind(&now)
+    .bind(&provider)
+    .bind(&gitlab_project_path)
+    .bind(gitlab_project_id)
+    .execute(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(Repo {
+        id,
+        project_id,
+        name,
+        path,
+        github_owner,
+        github_repo,
+        created_at: now,
+        provider,
+        gitlab_project_path,
+        gitlab_project_id,
+    })
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn update_repo(
+    db: State<'_, Db>,
+    id: String,
+    name: String,
+    github_owner: Option<String>,
+    github_repo: Option<String>,
+    provider: Option<String>,
+    gitlab_project_path: Option<String>,
+    gitlab_project_id: Option<i64>,
+) -> Result<Repo, String> {
+    // Preserve existing provider identity when the caller omits it — the current
+    // GitHub-only repo editor doesn't send these fields, and we must not silently
+    // downgrade a GitLab repo back to `github` (BR-001).
+    let provider = provider.filter(|p| !p.is_empty());
+    if provider.is_some() {
+        sqlx::query(
+            "UPDATE repos SET name = ?, github_owner = ?, github_repo = ?, provider = ?, gitlab_project_path = ?, gitlab_project_id = ? WHERE id = ?"
+        )
+        .bind(&name)
+        .bind(&github_owner)
+        .bind(&github_repo)
+        .bind(&provider)
+        .bind(&gitlab_project_path)
+        .bind(gitlab_project_id)
+        .bind(&id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    } else {
+        sqlx::query("UPDATE repos SET name = ?, github_owner = ?, github_repo = ? WHERE id = ?")
+            .bind(&name)
+            .bind(&github_owner)
+            .bind(&github_repo)
+            .bind(&id)
+            .execute(db.inner())
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    let row = sqlx::query(&format!("SELECT {REPO_COLUMNS} FROM repos WHERE id = ?"))
+        .bind(&id)
+        .fetch_one(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(row_to_repo(&row))
+}
+
+#[tauri::command]
+pub async fn remove_repo(db: State<'_, Db>, id: String) -> Result<(), String> {
+    sqlx::query("DELETE FROM repos WHERE id = ?")
+        .bind(&id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_applied_skills(
+    db: State<'_, Db>,
+    project_id: String,
+) -> Result<Vec<AppliedSkill>, String> {
+    use sqlx::Row;
+    let rows = sqlx::query(
+        "SELECT ps.skill_id, s.name as skill_name, s.description as skill_description,
+                ps.target, ps.synced_hash_claude, ps.synced_hash_codex, ps.applied_at, ps.manual,
+                (SELECT COUNT(*) FROM skill_group_members m
+                   JOIN project_skill_groups pg
+                     ON pg.group_id = m.group_id AND pg.project_id = ps.project_id
+                  WHERE m.skill_id = ps.skill_id) as group_count
+         FROM project_skills ps
+         JOIN skills s ON s.id = ps.skill_id
+         WHERE ps.project_id = ?
+         ORDER BY s.name",
+    )
+    .bind(&project_id)
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .iter()
+        .map(|row| {
+            let claude: Option<String> = row.get("synced_hash_claude");
+            let codex: Option<String> = row.get("synced_hash_codex");
+            let manual: i64 = row.get("manual");
+            let group_count: i64 = row.get("group_count");
+            AppliedSkill {
+                skill_id: row.get("skill_id"),
+                skill_name: row.get("skill_name"),
+                skill_description: row.get("skill_description"),
+                target: row.get("target"),
+                has_claude: claude.is_some(),
+                has_codex: codex.is_some(),
+                applied_at: row.get("applied_at"),
+                manual: manual != 0,
+                from_group: group_count > 0,
+            }
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn apply_skill(
+    db: State<'_, Db>,
+    project_id: String,
+    skill_id: String,
+) -> Result<(), String> {
+    apply_skill_to_project(db.inner(), &project_id, &skill_id, true).await
+}
+
+#[tauri::command]
+pub async fn apply_skill_to_all_projects(
+    db: State<'_, Db>,
+    skill_id: String,
+) -> Result<ApplyAllOutcome, String> {
+    use sqlx::Row;
+    let rows = sqlx::query("SELECT id, name FROM projects ORDER BY name")
+        .fetch_all(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut applied = 0;
+    let mut failures = Vec::new();
+    for row in &rows {
+        let project_id: String = row.get("id");
+        let project_name: String = row.get("name");
+        match apply_skill_to_project(db.inner(), &project_id, &skill_id, true).await {
+            Ok(()) => applied += 1,
+            Err(error) => failures.push(ApplyFailure {
+                project_id,
+                project_name,
+                error,
+            }),
+        }
+    }
+    Ok(ApplyAllOutcome { applied, failures })
+}
+
+/// Re-write a skill (or every skill when `skill_id` is None) into each project that already has it
+/// applied. Unlike auto-sync this overwrites local edits, so any open conflicts for the re-applied
+/// pairs are marked resolved. `manual` / group flags are left untouched.
+#[tauri::command]
+pub async fn reapply_skills(
+    db: State<'_, Db>,
+    skill_id: Option<String>,
+) -> Result<ApplyAllOutcome, String> {
+    use sqlx::Row;
+    let rows = sqlx::query(
+        "SELECT ps.project_id, ps.skill_id, p.name as project_name, p.path, s.name as skill_name
+         FROM project_skills ps
+         JOIN projects p ON p.id = ps.project_id
+         JOIN skills s ON s.id = ps.skill_id
+         WHERE ?1 IS NULL OR ps.skill_id = ?1
+         ORDER BY p.name, s.name",
+    )
+    .bind(&skill_id)
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut applied = 0;
+    let mut failures = Vec::new();
+    for row in &rows {
+        let project_id: String = row.get("project_id");
+        let sid: String = row.get("skill_id");
+        let project_name: String = row.get("project_name");
+        let project_path: String = row.get("path");
+        let skill_name: String = row.get("skill_name");
+        // Don't recreate a project folder that was moved or deleted on disk.
+        let result = if !std::path::Path::new(&project_path).is_dir() {
+            Err(format!("Project folder not found: {}", project_path))
+        } else {
+            apply_skill_to_project(db.inner(), &project_id, &sid, false).await
+        };
+        match result {
+            Ok(()) => {
+                applied += 1;
+                let _ = sqlx::query(
+                    "UPDATE sync_conflicts SET resolved = 1 WHERE project_id = ? AND skill_id = ? AND resolved = 0",
+                )
+                .bind(&project_id)
+                .bind(&sid)
+                .execute(db.inner())
+                .await;
+            }
+            Err(error) => failures.push(ApplyFailure {
+                project_id,
+                project_name,
+                error: format!("{}: {}", skill_name, error),
+            }),
+        }
+    }
+    Ok(ApplyAllOutcome { applied, failures })
+}
+
+/// Core apply logic shared by `apply_skill`, `apply_skill_to_all_projects` and group enablement.
+///
+/// `manual` marks who asked for it: `true` when the user flipped the skill on directly, `false`
+/// when a skill group brought it in. An existing manual row never gets downgraded, so disabling a
+/// group leaves hand-picked skills alone.
+pub async fn apply_skill_to_project(
+    db: &Db,
+    project_id: &str,
+    skill_id: &str,
+    manual: bool,
+) -> Result<(), String> {
+    use sqlx::Row;
+
+    let skill_row =
+        sqlx::query("SELECT name, target, source_path FROM skills WHERE id = ?")
+            .bind(skill_id)
+            .fetch_one(db)
+            .await
+            .map_err(|e| format!("Skill not found: {}", e))?;
+
+    let skill_name: String = skill_row.get("name");
+    let target: String = skill_row.get("target");
+    let source_path: String = skill_row.get("source_path");
+
+    let project_row = sqlx::query("SELECT path FROM projects WHERE id = ?")
+        .bind(project_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| format!("Project not found: {}", e))?;
+
+    let project_path: String = project_row.get("path");
+
+    let prev = sqlx::query(
+        "SELECT synced_hash_claude, synced_hash_codex FROM project_skills WHERE project_id = ? AND skill_id = ?",
+    )
+    .bind(project_id)
+    .bind(skill_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let prev_claude: Option<String> = prev.as_ref().and_then(|r| r.get("synced_hash_claude"));
+    let prev_codex: Option<String> = prev.as_ref().and_then(|r| r.get("synced_hash_codex"));
+
+    let (hash_claude, hash_codex) = write_skill_artifacts(
+        &project_path,
+        &skill_name,
+        &target,
+        &source_path,
+        prev_claude.as_deref(),
+        prev_codex.as_deref(),
+    )?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO project_skills
+         (project_id, skill_id, target, synced_hash_claude, synced_hash_codex, applied_at, manual)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(project_id, skill_id) DO UPDATE SET
+            target = excluded.target,
+            synced_hash_claude = excluded.synced_hash_claude,
+            synced_hash_codex = excluded.synced_hash_codex,
+            applied_at = excluded.applied_at,
+            manual = CASE WHEN excluded.manual = 1 THEN 1 ELSE project_skills.manual END",
+    )
+    .bind(project_id)
+    .bind(skill_id)
+    .bind(&target)
+    .bind(&hash_claude)
+    .bind(&hash_codex)
+    .bind(&now)
+    .bind(if manual { 1 } else { 0 })
+    .execute(db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+/// Drop the *direct* link between a project and a skill. The group link is separate: if some
+/// enabled group still contains the skill, it stays applied and only loses its `manual` flag —
+/// otherwise nothing is keeping it and the artifacts go.
+pub async fn remove_skill_from_project(
+    db: State<'_, Db>,
+    project_id: String,
+    skill_id: String,
+) -> Result<(), String> {
+    unlink_skill_from_project(db.inner(), &project_id, &skill_id).await
+}
+
+pub async fn unlink_skill_from_project(
+    db: &Db,
+    project_id: &str,
+    skill_id: &str,
+) -> Result<(), String> {
+    if crate::commands::groups::claimed_by_enabled_group(
+        db,
+        crate::commands::groups::GroupKind::Skill,
+        project_id,
+        skill_id,
+    )
+    .await?
+    {
+        sqlx::query("UPDATE project_skills SET manual = 0 WHERE project_id = ? AND skill_id = ?")
+            .bind(project_id)
+            .bind(skill_id)
+            .execute(db)
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    remove_skill_from_project_inner(db, project_id, skill_id).await
+}
+
+/// Core removal logic shared by the command above and group disablement.
+pub async fn remove_skill_from_project_inner(
+    db: &Db,
+    project_id: &str,
+    skill_id: &str,
+) -> Result<(), String> {
+    use sqlx::Row;
+
+    let skill_row = sqlx::query("SELECT name, source_path FROM skills WHERE id = ?")
+        .bind(skill_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let skill_name: String = skill_row.get("name");
+    let source_path: String = skill_row.get("source_path");
+
+    let project_row = sqlx::query("SELECT path FROM projects WHERE id = ?")
+        .bind(project_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let project_path: String = project_row.get("path");
+
+    let installed = sqlx::query(
+        "SELECT synced_hash_claude, synced_hash_codex FROM project_skills WHERE project_id = ? AND skill_id = ?",
+    )
+    .bind(project_id)
+    .bind(skill_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let prev_claude: Option<String> = installed.as_ref().and_then(|r| r.get("synced_hash_claude"));
+    let prev_codex: Option<String> = installed.as_ref().and_then(|r| r.get("synced_hash_codex"));
+    remove_skill_artifacts(&project_path, &skill_name, &source_path, prev_claude.as_deref(), prev_codex.as_deref())?;
+
+    sqlx::query("DELETE FROM project_skills WHERE project_id = ? AND skill_id = ?")
+        .bind(project_id)
+        .bind(skill_id)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct SyncConflict {
+    pub id: String,
+    pub project_id: String,
+    pub skill_id: String,
+    pub skill_name: String,
+    pub project_name: String,
+    pub engine: String,
+    pub detected_at: String,
+    pub local_hash: String,
+    pub source_hash: String,
+    pub resolved: bool,
+}
+
+#[tauri::command]
+pub async fn list_sync_conflicts(db: State<'_, Db>) -> Result<Vec<SyncConflict>, String> {
+    use sqlx::Row;
+    let rows = sqlx::query(
+        "SELECT sc.id, sc.project_id, sc.skill_id, s.name as skill_name, p.name as project_name,
+                sc.engine, sc.detected_at, sc.local_hash, sc.source_hash, sc.resolved
+         FROM sync_conflicts sc
+         JOIN skills s ON s.id = sc.skill_id
+         JOIN projects p ON p.id = sc.project_id
+         WHERE sc.resolved = 0
+         ORDER BY sc.detected_at DESC",
+    )
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .iter()
+        .map(|row| {
+            let resolved: i64 = row.get("resolved");
+            SyncConflict {
+                id: row.get("id"),
+                project_id: row.get("project_id"),
+                skill_id: row.get("skill_id"),
+                skill_name: row.get("skill_name"),
+                project_name: row.get("project_name"),
+                engine: row.get("engine"),
+                detected_at: row.get("detected_at"),
+                local_hash: row.get("local_hash"),
+                source_hash: row.get("source_hash"),
+                resolved: resolved != 0,
+            }
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn resolve_sync_conflict(
+    db: State<'_, Db>,
+    conflict_id: String,
+    overwrite: bool,
+) -> Result<(), String> {
+    use sqlx::Row;
+    if overwrite {
+        // Legacy conflicts (from the copy era). The user chose the central version, so the edited
+        // copy for that engine goes and the skill is re-linked from source. A conflict whose skill
+        // is no longer applied here has nothing left to overwrite.
+        let row = sqlx::query(
+            "SELECT sc.project_id, sc.skill_id, sc.engine, s.source_path, s.name as skill_name,
+                    s.target, p.path as project_path, ps.synced_hash_claude, ps.synced_hash_codex
+             FROM sync_conflicts sc
+             JOIN skills s ON s.id = sc.skill_id
+             JOIN projects p ON p.id = sc.project_id
+             JOIN project_skills ps ON ps.project_id = sc.project_id AND ps.skill_id = sc.skill_id
+             WHERE sc.id = ?",
+        )
+        .bind(&conflict_id)
+        .fetch_optional(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+        if let Some(row) = row {
+            let project_path: String = row.get("project_path");
+            let source_path: String = row.get("source_path");
+            let skill_name: String = row.get("skill_name");
+            let target: String = row.get("target");
+            let project_id: String = row.get("project_id");
+            let skill_id: String = row.get("skill_id");
+            let engine: String = row.get("engine");
+            let prev_claude: Option<String> = row.get("synced_hash_claude");
+            let prev_codex: Option<String> = row.get("synced_hash_codex");
+
+            // Only where the copy era wrote (`.codex/skills` for Codex, `.claude/skills` for
+            // Claude), through the same guard as every other removal so a symlinked parent folder
+            // is never followed. `known = true`: the user chose to discard this copy.
+            let copy = if engine == "codex" {
+                legacy_codex_skill_dir(&project_path, &skill_name)
+            } else {
+                claude_skill_dir(&project_path, &skill_name)
+            };
+            crate::commands::project_links::remove_installed(
+                std::path::Path::new(&project_path),
+                &copy,
+                std::path::Path::new(&source_path),
+                |_: &std::path::Path| true,
+            )?;
+
+            let (hash_claude, hash_codex) = write_skill_artifacts(
+                &project_path,
+                &skill_name,
+                &target,
+                &source_path,
+                prev_claude.as_deref(),
+                prev_codex.as_deref(),
+            )?;
+
+            sqlx::query(
+                "UPDATE project_skills SET synced_hash_claude = ?, synced_hash_codex = ? WHERE project_id = ? AND skill_id = ?",
+            )
+            .bind(&hash_claude)
+            .bind(&hash_codex)
+            .bind(&project_id)
+            .bind(&skill_id)
+            .execute(db.inner())
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    sqlx::query("UPDATE sync_conflicts SET resolved = 1 WHERE id = ?")
+        .bind(&conflict_id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_remote_url;
+
+    #[test]
+    fn parses_github_https_and_scp_remotes() {
+        let https = parse_remote_url("https://github.com/acme/widget.git").unwrap();
+        assert_eq!(https.provider, "github");
+        assert_eq!(https.github_owner.as_deref(), Some("acme"));
+        assert_eq!(https.github_repo.as_deref(), Some("widget"));
+
+        let scp = parse_remote_url("git@github.com:acme/widget.git").unwrap();
+        assert_eq!(scp.provider, "github");
+        assert_eq!(scp.github_owner.as_deref(), Some("acme"));
+        assert_eq!(scp.github_repo.as_deref(), Some("widget"));
+    }
+
+    #[test]
+    fn parses_gitlab_remotes_keeping_nested_groups() {
+        let https = parse_remote_url("https://gitlab.com/group/sub/widget.git").unwrap();
+        assert_eq!(https.provider, "gitlab");
+        assert_eq!(https.gitlab_project_path.as_deref(), Some("group/sub/widget"));
+        assert!(https.github_owner.is_none());
+
+        let scp = parse_remote_url("git@gitlab.example.com:group/widget.git").unwrap();
+        assert_eq!(scp.provider, "gitlab");
+        assert_eq!(scp.gitlab_project_path.as_deref(), Some("group/widget"));
+    }
+
+    #[test]
+    fn ignores_unknown_hosts_and_incomplete_urls() {
+        assert!(parse_remote_url("https://bitbucket.org/acme/widget.git").is_none());
+        assert!(parse_remote_url("https://github.com/acme").is_none());
+        assert!(parse_remote_url("").is_none());
+    }
+}

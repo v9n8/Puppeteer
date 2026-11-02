@@ -1,0 +1,306 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ChevronDown, Check } from 'lucide-vue-next'
+import { controlHeight, controlSize } from './ui/controlStyles'
+
+interface Option {
+  value: string
+  label: string
+  /** Optional dimmed second line shown under the label in the dropdown. */
+  description?: string
+  /** A non-selectable section header (e.g. "Claude" / "Codex"). Skipped by
+   * keyboard navigation and ignored by selection. */
+  header?: boolean
+}
+
+const props = withDefaults(defineProps<{
+  modelValue: string
+  options: Option[]
+  placeholder?: string
+  // Mirrors Input's sizing (see controlStyles). Default 'sm' so a bare
+  // <AppSelect> matches a bare <Input> on every screen. 'xs' sits in a row of
+  // xs buttons: its menu keeps the 'sm' rows and is at least 12rem wide.
+  size?: 'xs' | 'sm' | 'md'
+  // 'outline' matches Button's outline variant, for a select sitting in a row
+  // of chips (the detail windows' project chip): bordered, raised, clearly a control.
+  variant?: 'default' | 'ghost' | 'outline'
+  disabled?: boolean
+}>(), {
+  placeholder: 'Select…',
+  size: 'sm',
+  variant: 'default',
+  disabled: false,
+})
+
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+}>()
+
+const isOpen = ref(false)
+const highlightedIndex = ref(-1)
+const triggerRef = ref<HTMLButtonElement | null>(null)
+const listRef = ref<HTMLUListElement | null>(null)
+const containerRef = ref<HTMLDivElement | null>(null)
+
+// The dropdown is teleported to <body> so no ancestor's `overflow-hidden`
+// (e.g. the surrounding Card) can clip it. Position it with fixed coords
+// derived from the trigger's bounding rect, kept in sync while open.
+const dropdownStyle = ref<Record<string, string>>({})
+
+// Keep in sync with the list's max-height below.
+const MAX_DROPDOWN_HEIGHT = 240
+
+function updatePosition() {
+  const el = triggerRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+  // Flip the menu above the trigger when there isn't room below but there is
+  // above — so a composer pinned to the bottom of the screen isn't clipped.
+  const openUp = spaceBelow < MAX_DROPDOWN_HEIGHT && spaceAbove > spaceBelow
+  const available = Math.max(120, (openUp ? spaceAbove : spaceBelow) - 8)
+  dropdownStyle.value = openUp
+    ? {
+        position: 'fixed',
+        bottom: `${window.innerHeight - rect.top + 4}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        ...(props.size === 'xs' ? { minWidth: '12rem' } : {}),
+        maxHeight: `${Math.min(MAX_DROPDOWN_HEIGHT, available)}px`,
+      }
+    : {
+        position: 'fixed',
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        ...(props.size === 'xs' ? { minWidth: '12rem' } : {}),
+        maxHeight: `${Math.min(MAX_DROPDOWN_HEIGHT, available)}px`,
+      }
+}
+
+const selectedOption = computed(() =>
+  props.options.find(o => o.value === props.modelValue) ?? null
+)
+
+const displayLabel = computed(() =>
+  selectedOption.value?.label ?? props.placeholder
+)
+
+function isSelectable(i: number): boolean {
+  return !props.options[i]?.header
+}
+
+function open() {
+  if (props.disabled) return
+  isOpen.value = true
+  highlightedIndex.value = props.options.findIndex(o => !o.header && o.value === props.modelValue)
+  if (highlightedIndex.value < 0) highlightedIndex.value = props.options.findIndex(o => !o.header)
+  updatePosition()
+  nextTick(() => scrollHighlightedIntoView())
+}
+
+function close() {
+  isOpen.value = false
+  highlightedIndex.value = -1
+}
+
+function toggle() {
+  if (isOpen.value) close()
+  else open()
+}
+
+function select(value: string) {
+  emit('update:modelValue', value)
+  close()
+  triggerRef.value?.focus()
+}
+
+/** Step the highlight to the next selectable row, skipping header rows. */
+function moveHighlight(dir: 1 | -1) {
+  const n = props.options.length
+  let i = highlightedIndex.value
+  for (let step = 0; step < n; step++) {
+    i += dir
+    if (i < 0 || i >= n) return
+    if (isSelectable(i)) {
+      highlightedIndex.value = i
+      scrollHighlightedIntoView()
+      return
+    }
+  }
+}
+
+function scrollHighlightedIntoView() {
+  if (!listRef.value) return
+  const el = listRef.value.children[highlightedIndex.value] as HTMLElement | undefined
+  el?.scrollIntoView({ block: 'nearest' })
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (!isOpen.value) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      open()
+    }
+    return
+  }
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      moveHighlight(1)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      moveHighlight(-1)
+      break
+    case 'Enter':
+    case ' ':
+      e.preventDefault()
+      if (highlightedIndex.value >= 0 && isSelectable(highlightedIndex.value)) {
+        select(props.options[highlightedIndex.value].value)
+      }
+      break
+    case 'Escape':
+    case 'Tab':
+      close()
+      break
+  }
+}
+
+function onClickOutside(e: MouseEvent) {
+  const target = e.target as Node
+  const insideTrigger = containerRef.value?.contains(target)
+  const insideList = listRef.value?.contains(target)
+  if (!insideTrigger && !insideList) {
+    close()
+  }
+}
+
+function onReposition() {
+  if (isOpen.value) updatePosition()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onClickOutside)
+  // `true` (capture) so we catch scrolls on any ancestor scroll container.
+  window.addEventListener('scroll', onReposition, true)
+  window.addEventListener('resize', onReposition)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onClickOutside)
+  window.removeEventListener('scroll', onReposition, true)
+  window.removeEventListener('resize', onReposition)
+})
+
+watch(isOpen, (val) => {
+  if (!val) highlightedIndex.value = -1
+})
+</script>
+
+<template>
+  <div ref="containerRef" class="relative min-w-0">
+    <!-- Trigger -->
+    <button
+      ref="triggerRef"
+      type="button"
+      :disabled="disabled"
+      :aria-haspopup="'listbox'"
+      :aria-expanded="isOpen"
+      :aria-label="displayLabel"
+      class="flex w-full items-center gap-2 rounded-md border transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+      :class="[
+        controlSize[size],
+        // Same fixed height as Button / Input of this size.
+        controlHeight[size],
+        variant === 'ghost'
+          ? 'border-transparent bg-transparent hover:bg-accent hover:text-accent-foreground'
+          : variant === 'outline'
+            ? 'border-border bg-secondary shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-primary/40'
+            : 'border-border bg-background hover:bg-accent hover:text-accent-foreground',
+        isOpen && variant !== 'ghost' && 'border-ring ring-1 ring-ring',
+        isOpen && variant === 'ghost' && 'bg-accent text-accent-foreground',
+      ]"
+      @click="toggle"
+      @keydown="onKeydown"
+    >
+      <span class="flex flex-1 items-center gap-1.5 min-w-0">
+        <slot name="leading" />
+        <span
+          class="truncate min-w-0"
+          :class="selectedOption ? 'text-foreground' : 'text-muted-foreground'"
+        >{{ displayLabel }}</span>
+      </span>
+      <ChevronDown
+        class="shrink-0 text-muted-foreground transition-transform duration-200"
+        :class="[
+          isOpen && 'rotate-180',
+          size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3',
+        ]"
+        :stroke-width="2"
+      />
+    </button>
+
+    <!-- Dropdown — teleported to body so it isn't clipped by ancestor overflow. -->
+    <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0 translate-y-[-4px]"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-[-4px]"
+    >
+      <ul
+        v-if="isOpen"
+        ref="listRef"
+        data-app-select-dropdown
+        role="listbox"
+        class="z-50 min-w-32 overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg shadow-black/20 focus:outline-none"
+        :style="dropdownStyle"
+        tabindex="-1"
+        @keydown="onKeydown"
+      >
+        <template v-for="(option, i) in options" :key="option.value">
+          <!-- Non-selectable section header -->
+          <li
+            v-if="option.header"
+            role="presentation"
+            class="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground select-none"
+          >{{ option.label }}</li>
+          <li
+            v-else
+            role="option"
+            :aria-selected="option.value === modelValue"
+            class="relative flex items-start gap-2 cursor-pointer select-none transition-colors"
+            :class="[
+              size === 'md' ? controlSize.md : controlSize.sm,
+              highlightedIndex === i
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground',
+            ]"
+            @mouseenter="highlightedIndex = i"
+            @mouseleave="highlightedIndex = -1"
+            @mousedown.prevent="select(option.value)"
+          >
+            <Check
+              class="shrink-0 text-primary mt-0.5"
+              :class="[
+                option.value === modelValue ? 'opacity-100' : 'opacity-0',
+                size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3',
+              ]"
+              :stroke-width="2.5"
+            />
+            <span class="flex min-w-0 flex-col">
+              <span class="truncate">{{ option.label }}</span>
+              <span v-if="option.description" class="truncate text-[11px] leading-tight text-muted-foreground">
+                {{ option.description }}
+              </span>
+            </span>
+          </li>
+        </template>
+      </ul>
+    </Transition>
+    </Teleport>
+  </div>
+</template>

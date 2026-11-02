@@ -1,0 +1,1652 @@
+//! Credential broker (GĐ2).
+//!
+//! Tools served: `gh`/`glab`/`git` (tokens), `aws` (minted creds), `az` (the
+//! linked Azure account's config dir), `terraform` (AWS and/or Azure).
+//!
+//! A per-run Unix-socket server that receives `{project_id,tool,argv,host}`
+//! NDJSON requests from the (future GĐ3) `gh`/`glab`/git shim, applies the pure
+//! policy engine (`policy`), consults an injectable `Approver` on `Ask`, resolves
+//! the project's token fail-closed (`token`), and replies with
+//! `{decision,reason?,token?}`. Every request is audited without the token.
+//!
+//! GĐ2 scope: this module stands alone and is unit-tested. It is NOT wired into
+//! `runs.rs` — the run spawn path is unchanged (Hard Rule 8). GĐ3 will call
+//! `start_broker` and pass a modal-backed `Approver`.
+
+pub mod approver;
+pub mod audit;
+pub mod mcp_creds;
+pub mod policy;
+pub mod token;
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{UnixListener, UnixStream};
+
+use crate::db::Db;
+use approver::Approver;
+use async_trait::async_trait;
+use policy::PolicyDecision;
+use tauri::AppHandle;
+
+/// Request sent by the shim over the socket (one NDJSON line).
+#[derive(Debug, Deserialize)]
+pub struct BrokerRequest {
+    pub project_id: String,
+    pub tool: String,
+    pub argv: Vec<String>,
+    #[serde(default)]
+    pub host: Option<String>,
+    /// GĐ7: the run that issued this request. The app-wide singleton broker uses
+    /// it to route an `Ask` to the right run's permission modal. Optional for
+    /// backward-compat: absent → no live run to approve against, so any `Ask`
+    /// fail-closed denies (reads/allows are unaffected).
+    #[serde(default)]
+    pub run_id: Option<String>,
+    /// gh / glab / git: the account the command picked (`DEVDY_GIT_ACCOUNT`) —
+    /// label, username or id of one of the project's enabled accounts. Absent →
+    /// the default account.
+    #[serde(default)]
+    pub account: Option<String>,
+    /// git credential helper only: the username of the remote URL
+    /// (`https://<user>@host/...`). Selects that account when it is enabled.
+    #[serde(default)]
+    pub username: Option<String>,
+    /// aws / terraform: the AWS account the command picked (`DEVDY_AWS_ACCOUNT`)
+    /// — label, account id, profile name or id of an enabled account. Absent →
+    /// the default account.
+    #[serde(default)]
+    pub aws_account: Option<String>,
+    /// aws only: the `--profile` value the shim stripped from the command. Picks
+    /// that enabled account; with several enabled, an unknown one is denied.
+    #[serde(default)]
+    pub aws_profile: Option<String>,
+    /// az / terraform: the Azure account the command picked
+    /// (`DEVDY_AZURE_ACCOUNT`) — label, subscription or id of an enabled account.
+    /// Absent → the default account.
+    #[serde(default)]
+    pub azure_account: Option<String>,
+    /// terraform only: the shim found code in the config that runs outside
+    /// Terraform (`data "external"`, `local-exec`, `data "http"`), or could not
+    /// read the config (fail-closed). Absent → false (other shims never send it).
+    #[serde(default)]
+    pub tf_external_code: bool,
+    /// Up to a few `file:kind` labels backing `tf_external_code`, for the reason.
+    #[serde(default)]
+    pub tf_external_hits: Vec<String>,
+    /// mcp only: the MCP server whose env/headers are wanted — a user server's
+    /// id, or `@conductor` (see `mcp_creds`).
+    #[serde(default)]
+    pub server: Option<String>,
+    /// google only: mint a fresh access token instead of reusing the cached one
+    /// (the server got a 401).
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+/// Response returned to the shim (one NDJSON line). Secret fields are only
+/// present when the decision is `allow` and credentials were resolved.
+#[derive(Serialize, Default)]
+pub struct BrokerResponse {
+    pub decision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// GitHub/GitLab token for gh/glab/git. Secret.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    /// gh/glab: host of the account the token belongs to (not a secret). The glab
+    /// shim points glab at it (GITLAB_HOST) so the token only goes to that host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    /// Credential username for the git credential helper (NOT a secret). Only set
+    /// on the `git credential get` branch; `None` (and thus omitted from JSON) for
+    /// gh/glab so the existing shim contract is unchanged (backward-compat).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    /// AWS credential fields for the aws/terraform shims / credential_process
+    /// helper. `aws_secret_access_key` and `aws_session_token` are secrets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_access_key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_secret_access_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_session_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_region: Option<String>,
+    /// Label of the AWS account the creds belong to (not a secret), so the aws
+    /// shim can tell the agent which account a `--profile` resolved to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_account_label: Option<String>,
+    /// Azure fields for the az/terraform shims: the linked account's isolated
+    /// AZURE_CONFIG_DIR plus tenant/subscription ids. The path itself is not a
+    /// credential, but the dir holds a plaintext MSAL token cache (refresh
+    /// tokens) readable by the same OS user — the same limitation as AWS profile
+    /// mode's ~/.aws SSO cache. Never log the dir's contents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure_config_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure_tenant_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azure_subscription_id: Option<String>,
+    /// mcp: env a user stdio server is started with. Secret values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env: Option<std::collections::HashMap<String, String>>,
+    /// mcp: headers for an HTTP/SSE server (incl. the conductor's bearer). Secret values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<std::collections::HashMap<String, String>>,
+}
+
+impl BrokerResponse {
+    fn deny(reason: impl Into<String>) -> Self {
+        BrokerResponse {
+            decision: "deny".into(),
+            reason: Some(reason.into()),
+            ..Default::default()
+        }
+    }
+    fn allow_token(token: String, host: String) -> Self {
+        BrokerResponse {
+            decision: "allow".into(),
+            token: Some(token),
+            host: Some(host),
+            ..Default::default()
+        }
+    }
+    fn allow_mcp(
+        env: std::collections::HashMap<String, String>,
+        headers: std::collections::HashMap<String, String>,
+    ) -> Self {
+        BrokerResponse {
+            decision: "allow".into(),
+            env: Some(env),
+            headers: Some(headers),
+            ..Default::default()
+        }
+    }
+    fn allow_credential(token: String, username: String) -> Self {
+        BrokerResponse {
+            decision: "allow".into(),
+            token: Some(token),
+            username: Some(username),
+            ..Default::default()
+        }
+    }
+    fn allow_aws(creds: token::ResolvedAwsCredentials) -> Self {
+        Self::allow_cloud(Some(creds), None)
+    }
+    fn allow_azure(azure: token::ResolvedAzureAccount) -> Self {
+        Self::allow_cloud(None, Some(azure))
+    }
+    /// Allow carrying whichever cloud credentials resolved (terraform may need
+    /// AWS, Azure, or both).
+    fn allow_cloud(
+        aws: Option<token::ResolvedAwsCredentials>,
+        azure: Option<token::ResolvedAzureAccount>,
+    ) -> Self {
+        let mut resp = BrokerResponse {
+            decision: "allow".into(),
+            ..Default::default()
+        };
+        if let Some(creds) = aws {
+            resp.aws_access_key_id = creds.access_key_id;
+            resp.aws_secret_access_key = creds.secret_access_key;
+            resp.aws_session_token = creds.session_token;
+            resp.aws_profile = creds.profile_name;
+            resp.aws_region = Some(creds.region);
+            resp.aws_account_label = Some(creds.account_label);
+        }
+        if let Some(az) = azure {
+            resp.azure_config_dir = Some(az.config_dir);
+            resp.azure_tenant_id = az.tenant_id;
+            resp.azure_subscription_id = az.subscription_id;
+        }
+        resp
+    }
+}
+
+/// Resolves the right `Approver` for a request at serve time. The singleton
+/// broker serves many runs from one socket, so it cannot hold a single
+/// run-bound approver; instead it asks this resolver, per request, for the
+/// approver of `run_id`. Returning `None` means "no live run to approve
+/// against" → the caller fail-closed denies any `Ask`.
+#[async_trait]
+pub trait ApproverResolver: Send + Sync {
+    async fn resolve(&self, run_id: Option<&str>) -> Option<Arc<dyn Approver>>;
+
+    /// The project of live run `run_id` as registered when the run started —
+    /// not as claimed by the request. `None` (unknown / ended run) → deny.
+    fn run_project(&self, _run_id: &str) -> Option<String> {
+        None
+    }
+}
+
+/// Config for the app-wide singleton broker.
+pub struct BrokerConfig {
+    /// Label used for the socket file name (`<label>.sock`). One stable label
+    /// ("app") gives one long-lived socket shared by every run.
+    pub socket_label: String,
+    /// Per-request approver resolver (see `ApproverResolver`).
+    pub resolver: Arc<dyn ApproverResolver>,
+    /// App handle for user-facing side effects (e.g. an OS notification when an
+    /// AWS SSO session expires mid-run). `None` in unit tests — notifications are
+    /// then skipped, everything else is unchanged.
+    pub app: Option<AppHandle>,
+}
+
+/// Handle to a running broker. Dropping it aborts the accept loop and removes the
+/// socket file (best-effort — never panics if the file is already gone).
+pub struct BrokerHandle {
+    pub path: PathBuf,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl BrokerHandle {
+    /// Explicit stop: abort the loop and remove the socket file.
+    #[allow(dead_code)] // used once the broker is wired into the run path (GĐ3)
+    pub fn stop(self) {
+        // Dropping runs the same cleanup.
+        drop(self);
+    }
+}
+
+impl Drop for BrokerHandle {
+    fn drop(&mut self) {
+        self.task.abort();
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn socket_path(label: &str) -> PathBuf {
+    std::env::temp_dir()
+        .join("devdy-broker")
+        .join(format!("{label}.sock"))
+}
+
+/// Bind the app-wide Unix socket, spawn the accept loop, and return a handle.
+/// The socket path is `BrokerHandle.path`; pass it to every run's shim via env.
+/// Lives for the whole app lifetime (dropped only on app exit), so runs never
+/// race a per-run socket that appears/disappears with them.
+pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, String> {
+    let path = socket_path(&cfg.socket_label);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    // Remove any stale socket (e.g. from a previous app run) to avoid AddrInUse.
+    let _ = std::fs::remove_file(&path);
+
+    let listener = UnixListener::bind(&path).map_err(|e| e.to_string())?;
+
+    // Best-effort: restrict the socket to the owner.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(&path) {
+            let mut perm = meta.permissions();
+            perm.set_mode(0o600);
+            let _ = std::fs::set_permissions(&path, perm);
+        }
+    }
+
+    let resolver = cfg.resolver.clone();
+    let db_clone = db.clone();
+    let app = cfg.app.clone();
+
+    let task = tokio::spawn(async move {
+        loop {
+            match listener.accept().await {
+                Ok((stream, _addr)) => {
+                    let db = db_clone.clone();
+                    let resolver = resolver.clone();
+                    let app = app.clone();
+                    // One task per connection; a bad client must not kill the loop.
+                    tokio::spawn(async move {
+                        if let Err(e) = handle_connection(stream, &db, resolver, app).await {
+                            tracing::warn!(target: "devdy::broker", "connection error: {e}");
+                        }
+                    });
+                }
+                Err(e) => {
+                    // Transient accept error; log and continue — never panic.
+                    tracing::warn!(target: "devdy::broker", "accept error: {e}");
+                }
+            }
+        }
+    });
+
+    Ok(BrokerHandle { path, task })
+}
+
+/// Read NDJSON requests from one connection and reply to each. Loops until EOF.
+async fn handle_connection(
+    stream: UnixStream,
+    db: &Db,
+    resolver: Arc<dyn ApproverResolver>,
+    app: Option<AppHandle>,
+) -> Result<(), String> {
+    let (read_half, mut write_half) = stream.into_split();
+    let mut lines = BufReader::new(read_half).lines();
+    // Lines that arrived while a previous request was still being processed.
+    let mut queued: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+
+    loop {
+        let line = match queued.pop_front() {
+            Some(l) => l,
+            None => match lines.next_line().await.map_err(|e| e.to_string())? {
+                Some(l) => l,
+                None => break,
+            },
+        };
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Keep watching the peer while the request is processed: an `Ask` can
+        // wait a long time on the user, and if the shim goes away meanwhile (its
+        // Bash call timed out, the command was killed) nobody can use the answer.
+        // Dropping the processing future then withdraws its prompt (see
+        // `approver::PendingPromptGuard`). `next_line` is cancel-safe.
+        let processing = process_line(&line, db, resolver.as_ref(), app.as_ref());
+        tokio::pin!(processing);
+        let resp = loop {
+            tokio::select! {
+                resp = &mut processing => break Some(resp),
+                next = lines.next_line() => match next {
+                    Ok(Some(l)) => queued.push_back(l),
+                    // EOF or read error: the requester is gone.
+                    _ => break None,
+                },
+            }
+        };
+        let Some(resp) = resp else {
+            return Ok(());
+        };
+        let mut out = serde_json::to_string(&resp).map_err(|e| e.to_string())?;
+        out.push('\n');
+        write_half
+            .write_all(out.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
+        write_half.flush().await.map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Process a single request line into a response, auditing along the way.
+/// Never returns a token in any log or error path.
+async fn process_line(
+    line: &str,
+    db: &Db,
+    resolver: &dyn ApproverResolver,
+    app: Option<&AppHandle>,
+) -> BrokerResponse {
+    // 1. Parse — malformed → deny (fail-closed).
+    let req: BrokerRequest = match serde_json::from_str(line) {
+        Ok(r) => r,
+        Err(_) => {
+            audit::audit_request("?", "?", &[], "deny", Some("malformed request"));
+            return BrokerResponse::deny("malformed request");
+        }
+    };
+
+    // MCP credentials (Google access tokens, MCP server env/headers) are not
+    // command invocations; they have their own fail-closed path.
+    if mcp_creds::handles(&req.tool) {
+        return mcp_creds::process(&req, db, resolver, app).await;
+    }
+
+    // Audit under the run that issued the request (falls back to "?").
+    let run_id = req.run_id.as_deref().unwrap_or("?");
+
+    // 2. Pure policy.
+    let decision = policy::evaluate_policy(&req.tool, &req.argv);
+    let decision = match req.tool.as_str() {
+        "az" => az_subscription_guard(db, &req, decision).await,
+        "terraform" => policy::escalate_terraform_external_code(
+            decision,
+            &req.argv,
+            req.tf_external_code,
+            &req.tf_external_hits,
+        ),
+        _ => decision,
+    };
+
+    // gh / glab / git: settle which account the call uses before asking the
+    // user — an unknown DEVDY_GIT_ACCOUNT is denied up front, and an approval
+    // prompt names the account (it matters when several are enabled).
+    let sel = token::AccountSelect {
+        run_id: req.run_id.as_deref(),
+        account: req.account.as_deref(),
+        url_username: req.username.as_deref(),
+    };
+    let decision = if is_git_tool(&req.tool) && !matches!(decision, PolicyDecision::Deny { .. }) {
+        match token::pick_git_account(db, &req.project_id, &req.tool, req.host.as_deref(), sel).await {
+            Err(e) if e.starts_with(token::UNKNOWN_GIT_ACCOUNT) => {
+                // Lists enabled account labels/usernames only — no secret.
+                audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_GIT_ACCOUNT));
+                return BrokerResponse::deny(e);
+            }
+            Ok(Some(acct)) => match decision {
+                PolicyDecision::Ask { reason } => PolicyDecision::Ask {
+                    reason: format!("{reason} (as {} account {})", provider_name(acct.provider), acct.display()),
+                },
+                d => d,
+            },
+            // No account / DB error: the resolve step below denies.
+            _ => decision,
+        }
+    } else {
+        decision
+    };
+
+    // aws / az / terraform: likewise settle the cloud account(s) up front.
+    let (aws_sel, azure_sel) = match cloud_selectors(db, &req).await {
+        Ok(v) => v,
+        Err(e) => {
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_CLOUD_ACCOUNT));
+            return BrokerResponse::deny(e);
+        }
+    };
+    let decision = if is_cloud_tool(&req.tool) && !matches!(decision, PolicyDecision::Deny { .. }) {
+        match cloud_ask_suffix(db, &req, aws_sel.as_deref(), azure_sel.as_deref()).await {
+            Err(e) if e.starts_with(token::UNKNOWN_CLOUD_ACCOUNT) => {
+                // Lists enabled account labels/ids only — no secret.
+                audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_CLOUD_ACCOUNT));
+                return BrokerResponse::deny(e);
+            }
+            Ok(Some(suffix)) => match decision {
+                PolicyDecision::Ask { reason } => PolicyDecision::Ask {
+                    reason: format!("{reason} ({suffix})"),
+                },
+                d => d,
+            },
+            // No account / DB error: the resolve step below denies.
+            _ => decision,
+        }
+    } else {
+        decision
+    };
+
+    // 3. Resolve decision → whether we proceed to token resolution.
+    let (proceed, base_resp): (bool, Option<BrokerResponse>) = match &decision {
+        PolicyDecision::Deny { reason } => {
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+            (false, Some(BrokerResponse::deny(reason.clone())))
+        }
+        PolicyDecision::Ask { reason } => {
+            // Route the Ask to the issuing run's approver. No live run (ended, or
+            // no run_id) → fail-closed deny; we never auto-approve a write.
+            let approved = match resolver.resolve(req.run_id.as_deref()).await {
+                Some(approver) => approver.approve(&req, reason).await,
+                None => false,
+            };
+            if approved {
+                // Approved Ask → proceed like Allow.
+                (true, None)
+            } else {
+                // Rejected / no live run → fail-closed deny (plan §3.3 step 3).
+                audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+                (false, Some(BrokerResponse::deny(reason.clone())))
+            }
+        }
+        PolicyDecision::Allow => (true, None),
+    };
+
+    if !proceed {
+        // base_resp is always Some here.
+        return base_resp.unwrap_or_else(|| BrokerResponse::deny("denied"));
+    }
+
+    if req.tool == "aws" {
+        return match token::resolve_aws_credentials_for_project(db, &req.project_id, aws_sel.as_deref()).await {
+            Ok(Some(resolved)) => {
+                audit::audit_request(run_id, &req.tool, &req.argv, "allow", None);
+                BrokerResponse::allow_aws(resolved)
+            }
+            Ok(None) => {
+                let reason = "no AWS account linked for this project or credential unavailable";
+                audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+                BrokerResponse::deny(reason)
+            }
+            Err(e) => aws_resolve_error_deny(app, &req, run_id, &e),
+        };
+    }
+
+    if req.tool == "az" {
+        return match token::resolve_azure_for_project(db, &req.project_id, azure_sel.as_deref()).await {
+            Ok(Some(resolved)) => {
+                audit::audit_request(run_id, &req.tool, &req.argv, "allow", None);
+                BrokerResponse::allow_azure(resolved)
+            }
+            Ok(None) => {
+                let reason = "no Azure account linked for this project — link one in Devdy project settings";
+                audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+                BrokerResponse::deny(reason)
+            }
+            Err(e) => azure_resolve_error_deny(app, &req, run_id, &e),
+        };
+    }
+
+    // terraform rides on the project's linked cloud accounts: AWS (provider / S3
+    // backend via env creds) and/or Azure (azurerm via Azure CLI auth). Allowed
+    // when at least one is linked; every linked account must resolve.
+    if req.tool == "terraform" {
+        let aws = match token::resolve_aws_credentials_for_project(db, &req.project_id, aws_sel.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return aws_resolve_error_deny(app, &req, run_id, &e),
+        };
+        let azure = match token::resolve_azure_for_project(db, &req.project_id, azure_sel.as_deref()).await {
+            Ok(v) => v,
+            Err(e) => return azure_resolve_error_deny(app, &req, run_id, &e),
+        };
+        if aws.is_none() && azure.is_none() {
+            let reason = "no AWS or Azure account linked for this project or credential unavailable";
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+            return BrokerResponse::deny(reason);
+        }
+        audit::audit_request(run_id, &req.tool, &req.argv, "allow", None);
+        return BrokerResponse::allow_cloud(aws, azure);
+    }
+
+    // Is this a `git credential get` request? Only then do we return a username
+    // for the git credential helper (with a provider-appropriate fallback).
+    let is_credential = req.tool == "git"
+        && req
+            .argv
+            .first()
+            .map(|a| a.eq_ignore_ascii_case("credential"))
+            .unwrap_or(false);
+
+    // 4. Token resolution (fail-closed). The command may name one of the
+    // project's enabled accounts; otherwise the default (or the run's pin) is used.
+    let resolved =
+        token::resolve_token_for_project(db, &req.project_id, &req.tool, req.host.as_deref(), sel)
+            .await;
+    match resolved {
+        Ok(Some(resolved)) => {
+            audit::audit_request(run_id, &req.tool, &req.argv, "allow", None);
+            if is_credential {
+                // username = real account username if present; else a provider
+                // convention: github → `x-access-token`, gitlab → `oauth2`.
+                let username = resolved
+                    .username
+                    .clone()
+                    .unwrap_or_else(|| credential_username_fallback(&resolved.host));
+                BrokerResponse::allow_credential(resolved.token, username)
+            } else {
+                BrokerResponse::allow_token(resolved.token, resolved.host)
+            }
+        }
+        Ok(None) => {
+            // Allow policy but no token → fail-closed deny (plan §3.3 / OQ#3).
+            let reason = "no account linked for this project/host";
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+            BrokerResponse::deny(reason)
+        }
+        Err(e) if e.starts_with(token::UNKNOWN_GIT_ACCOUNT) => {
+            // Lists enabled account labels/usernames only — no secret.
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_GIT_ACCOUNT));
+            BrokerResponse::deny(e)
+        }
+        Err(_) => {
+            // Never surface the underlying error (may reference secrets).
+            let reason = "token resolve error";
+            audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+            BrokerResponse::deny(reason)
+        }
+    }
+}
+
+/// `az --subscription X` aimed at a subscription other than the linked
+/// account's default (compared case-insensitively against its id and name)
+/// upgrades an Allow to an Ask naming the target. The policy engine is pure, so
+/// this check lives here where the linked account is known. No linked account →
+/// unchanged (the resolve step denies anyway).
+async fn az_subscription_guard(
+    db: &Db,
+    req: &BrokerRequest,
+    decision: PolicyDecision,
+) -> PolicyDecision {
+    if matches!(decision, PolicyDecision::Deny { .. }) {
+        return decision;
+    }
+    let Some(target) = policy::az_subscription_arg(&req.argv) else {
+        return decision;
+    };
+    let Ok(Some(meta)) =
+        token::pick_azure_account(db, &req.project_id, req.azure_account.as_deref()).await
+    else {
+        return decision;
+    };
+    let target_trim = target.trim();
+    let is_default = [&meta.subscription_id, &meta.subscription_name]
+        .into_iter()
+        .flatten()
+        .any(|v| v.trim().eq_ignore_ascii_case(target_trim));
+    if is_default {
+        return decision;
+    }
+    let reason = format!(
+        "az targets subscription \"{target_trim}\", not the default subscription of Azure account \"{}\" — needs confirmation",
+        meta.account_label
+    );
+    match decision {
+        PolicyDecision::Ask { reason: r } => PolicyDecision::Ask {
+            reason: format!("{r}; {reason}"),
+        },
+        _ => PolicyDecision::Ask { reason },
+    }
+}
+
+/// Deny for a failed AWS credential resolve. An expired SSO session gets an
+/// actionable, machine-detectable reason plus a user notification.
+fn aws_resolve_error_deny(
+    app: Option<&AppHandle>,
+    req: &BrokerRequest,
+    run_id: &str,
+    err: &str,
+) -> BrokerResponse {
+    if err.starts_with(token::UNKNOWN_CLOUD_ACCOUNT) {
+        // Lists enabled account labels/ids only — no secret.
+        audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_CLOUD_ACCOUNT));
+        return BrokerResponse::deny(err);
+    }
+    if err == token::AWS_SSO_LOGIN_REQUIRED {
+        // Actionable, machine-detectable reason: the linked SSO session
+        // expired. The `aws_sso_login_required` prefix lets the UI offer
+        // an in-app `aws sso login`; the text guides a human in the run.
+        let reason = format!(
+            "{}: AWS SSO session expired — run `aws sso login` for the linked profile (Devdy can do this from AWS settings)",
+            token::AWS_SSO_LOGIN_REQUIRED
+        );
+        audit::audit_request(
+            run_id,
+            &req.tool,
+            &req.argv,
+            "deny",
+            Some(token::AWS_SSO_LOGIN_REQUIRED),
+        );
+        // Alert the user mid-run so they can re-login from AWS settings
+        // without hunting through the run output for the cause.
+        notify_sso_login_required(app, &req.project_id);
+        return BrokerResponse::deny(reason);
+    }
+    let reason = "AWS credential resolve error";
+    audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+    BrokerResponse::deny(reason)
+}
+
+/// Deny for a failed Azure account resolve. A dir without a signed-in session
+/// gets an actionable, machine-detectable reason plus a user notification.
+fn azure_resolve_error_deny(
+    app: Option<&AppHandle>,
+    req: &BrokerRequest,
+    run_id: &str,
+    err: &str,
+) -> BrokerResponse {
+    if err.starts_with(token::UNKNOWN_CLOUD_ACCOUNT) {
+        // Lists enabled account labels/ids only — no secret.
+        audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_CLOUD_ACCOUNT));
+        return BrokerResponse::deny(err);
+    }
+    if err == token::AZURE_LOGIN_REQUIRED {
+        let reason = format!(
+            "{}: the linked Azure account is not signed in — sign in again from Devdy → Settings → Azure",
+            token::AZURE_LOGIN_REQUIRED
+        );
+        audit::audit_request(
+            run_id,
+            &req.tool,
+            &req.argv,
+            "deny",
+            Some(token::AZURE_LOGIN_REQUIRED),
+        );
+        notify_login_required(
+            app,
+            &format!("azure:{}", req.project_id),
+            "Azure sign-in required",
+            "A run's Azure command was blocked. Open Devdy → Settings → Azure to sign in again.",
+        );
+        return BrokerResponse::deny(reason);
+    }
+    let reason = "Azure account resolve error";
+    audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
+    BrokerResponse::deny(reason)
+}
+
+/// Debounced OS notification prompting the user to refresh an expired AWS SSO
+/// session. Fires at most once per project per debounce window so a burst of
+/// failing `aws` calls in a run does not spam the user. No-op without an
+/// `AppHandle` (unit tests). Carries no secret — only a generic hint.
+fn notify_sso_login_required(app: Option<&AppHandle>, project_id: &str) {
+    notify_login_required(
+        app,
+        project_id,
+        "AWS SSO session expired",
+        "A run's aws command was blocked. Open Devdy → Settings → AWS to sign in again.",
+    );
+}
+
+/// Debounced (per `key`) OS notification for a cloud session that needs a new
+/// sign-in. No-op without an `AppHandle` (unit tests).
+fn notify_login_required(app: Option<&AppHandle>, key: &str, title: &str, body: &str) {
+    let Some(app) = app else {
+        return;
+    };
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    const DEBOUNCE: Duration = Duration::from_secs(60);
+    static LAST: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    let map = LAST.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let mut guard = match map.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let now = Instant::now();
+        if let Some(prev) = guard.get(key) {
+            if now.duration_since(*prev) < DEBOUNCE {
+                return;
+            }
+        }
+        guard.insert(key.to_string(), now);
+    }
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
+/// Tools whose credentials are AWS / Azure accounts.
+fn is_cloud_tool(tool: &str) -> bool {
+    matches!(tool, "aws" | "az" | "terraform")
+}
+
+/// The AWS / Azure account selectors of a cloud call. `aws --profile <p>`
+/// selects the enabled account it names; a profile naming none is ignored with
+/// a single enabled account (the old behavior) and denied with several, so a
+/// call never silently runs as the wrong account. `Err` = deny reason.
+async fn cloud_selectors(
+    db: &Db,
+    req: &BrokerRequest,
+) -> Result<(Option<String>, Option<String>), String> {
+    let trimmed = |v: &Option<String>| v.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+    let mut aws = match req.tool.as_str() {
+        "aws" | "terraform" => trimmed(&req.aws_account),
+        _ => None,
+    };
+    let azure = match req.tool.as_str() {
+        "az" | "terraform" => trimmed(&req.azure_account),
+        _ => None,
+    };
+    if req.tool == "aws" && aws.is_none() {
+        if let Some(profile) = trimmed(&req.aws_profile) {
+            match token::pick_aws_account(db, &req.project_id, Some(&profile)).await {
+                Ok(_) => aws = Some(profile),
+                Err(e) if e.starts_with(token::UNKNOWN_CLOUD_ACCOUNT) => {
+                    let several = token::aws_accounts_for(db, &req.project_id)
+                        .await
+                        .map(|a| a.len() > 1)
+                        .unwrap_or(true);
+                    if several {
+                        return Err(e);
+                    }
+                }
+                // DB error: the resolve step below fails closed.
+                Err(_) => {}
+            }
+        }
+    }
+    Ok((aws, azure))
+}
+
+/// `as AWS account "x"` (and/or Azure) for an approval prompt naming the
+/// account(s) the call uses. `Ok(None)` when no account applies.
+async fn cloud_ask_suffix(
+    db: &Db,
+    req: &BrokerRequest,
+    aws_sel: Option<&str>,
+    azure_sel: Option<&str>,
+) -> Result<Option<String>, String> {
+    let mut parts = Vec::new();
+    if matches!(req.tool.as_str(), "aws" | "terraform") {
+        if let Some(a) = token::pick_aws_account(db, &req.project_id, aws_sel).await? {
+            parts.push(format!("as AWS account {}", token::aws_display(&a)));
+        }
+    }
+    if matches!(req.tool.as_str(), "az" | "terraform") {
+        if let Some(a) = token::pick_azure_account(db, &req.project_id, azure_sel).await? {
+            parts.push(format!("as Azure account {}", token::azure_display(&a)));
+        }
+    }
+    Ok(if parts.is_empty() { None } else { Some(parts.join(", ")) })
+}
+
+/// Tools whose credentials are GitHub / GitLab accounts.
+fn is_git_tool(tool: &str) -> bool {
+    matches!(tool, "gh" | "github" | "glab" | "gitlab" | "git")
+}
+
+fn provider_name(provider: &str) -> &'static str {
+    if provider == "github" {
+        "GitHub"
+    } else {
+        "GitLab"
+    }
+}
+
+/// Provider-appropriate git credential username when the account has none stored.
+/// GitHub accepts any username with a PAT as password; the safe convention is
+/// `x-access-token`. GitLab accepts `oauth2` + PAT as password. Gitlab is
+/// detected by host (not github.com / api.github.com); everything else defaults
+/// to the GitHub convention.
+fn credential_username_fallback(host: &str) -> String {
+    let h = host.trim().to_ascii_lowercase();
+    if h == "github.com" || h == "api.github.com" || h.ends_with(".github.com") {
+        "x-access-token".to_string()
+    } else {
+        "oauth2".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::approver::{Approver, DenyAllApprover, FixedApprover};
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    /// Test resolver: always returns the same approver regardless of `run_id`,
+    /// so the existing round-trip tests exercise the approver branch directly.
+    struct StaticResolver(Arc<dyn Approver>);
+
+    #[async_trait]
+    impl ApproverResolver for StaticResolver {
+        async fn resolve(&self, _run_id: Option<&str>) -> Option<Arc<dyn Approver>> {
+            Some(self.0.clone())
+        }
+    }
+
+    async fn mem_db() -> Db {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE projects (id TEXT PRIMARY KEY, github_account_id TEXT, github_reviewer_account_id TEXT, gitlab_account_id TEXT, aws_account_id TEXT, azure_account_id TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE runs (id TEXT PRIMARY KEY, project_id TEXT, type TEXT, github_account_id TEXT, conductor_run_id TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE github_accounts (id TEXT PRIMARY KEY, label TEXT, username TEXT, email TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE gitlab_accounts (id TEXT PRIMARY KEY, label TEXT, host TEXT, username TEXT, email TEXT)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for t in ["project_github_accounts", "project_gitlab_accounts", "project_aws_accounts", "project_azure_accounts"] {
+            sqlx::query(&format!("CREATE TABLE {t} (project_id TEXT, account_id TEXT, created_at TEXT)"))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query(
+            "CREATE TABLE aws_accounts (id TEXT PRIMARY KEY, label TEXT, auth_method TEXT, account_id TEXT, arn TEXT, region TEXT, access_key_id TEXT, profile_name TEXT)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE azure_accounts (id TEXT PRIMARY KEY, label TEXT, tenant TEXT, tenant_id TEXT, subscription_id TEXT, subscription_name TEXT, user_name TEXT)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool
+    }
+
+    async fn round_trip(db: Db, approver: Arc<dyn Approver>, req_json: &str) -> BrokerResponse {
+        let socket_label = uuid::Uuid::new_v4().to_string();
+        let resolver: Arc<dyn ApproverResolver> = Arc::new(StaticResolver(approver));
+        let handle = start_broker(
+            db,
+            BrokerConfig {
+                socket_label,
+                resolver,
+                app: None,
+            },
+        )
+        .await
+        .unwrap();
+        let stream = UnixStream::connect(&handle.path).await.unwrap();
+        let (r, mut w) = stream.into_split();
+        let mut line = req_json.to_string();
+        line.push('\n');
+        w.write_all(line.as_bytes()).await.unwrap();
+        w.flush().await.unwrap();
+        let mut lines = BufReader::new(r).lines();
+        let resp_line = lines.next_line().await.unwrap().unwrap();
+        serde_json::from_str::<serde_json::Value>(&resp_line).unwrap();
+        // parse into typed for asserts
+        let v: serde_json::Value = serde_json::from_str(&resp_line).unwrap();
+        let field = |k: &str| v.get(k).and_then(|x| x.as_str()).map(|s| s.to_string());
+        BrokerResponse {
+            decision: v["decision"].as_str().unwrap().to_string(),
+            reason: field("reason"),
+            token: field("token"),
+            host: field("host"),
+            username: field("username"),
+            aws_access_key_id: field("aws_access_key_id"),
+            aws_secret_access_key: field("aws_secret_access_key"),
+            aws_session_token: field("aws_session_token"),
+            aws_profile: field("aws_profile"),
+            aws_region: field("aws_region"),
+            aws_account_label: field("aws_account_label"),
+            azure_config_dir: field("azure_config_dir"),
+            azure_tenant_id: field("azure_tenant_id"),
+            azure_subscription_id: field("azure_subscription_id"),
+            ..Default::default()
+        }
+    }
+
+    /// Register a test Azure account root (process-wide, first call wins) and
+    /// return it.
+    fn test_azure_root() -> std::path::PathBuf {
+        crate::azure_sandbox::init_accounts_root(
+            &std::env::temp_dir().join("devdy-broker-test-app"),
+        );
+        crate::azure_sandbox::registered_accounts_root()
+            .unwrap()
+            .to_path_buf()
+    }
+
+    /// Insert an Azure account linked to `project_id`; when `logged_in`, write a
+    /// signed-in `azureProfile.json` into its config dir. Returns the dir.
+    async fn link_azure(db: &Db, project_id: &str, logged_in: bool) -> std::path::PathBuf {
+        let account_id = uuid::Uuid::new_v4().to_string();
+        let dir = test_azure_root().join(&account_id);
+        let _ = std::fs::remove_dir_all(&dir);
+        if logged_in {
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("azureProfile.json"),
+                b"\xEF\xBB\xBF{\"subscriptions\": [{\"id\": \"sub-1\"}]}",
+            )
+            .unwrap();
+        }
+        sqlx::query("INSERT INTO azure_accounts (id, label, tenant_id, subscription_id, subscription_name) VALUES (?, 'Az', 'ten-1', 'sub-1', 'Dev')")
+            .bind(&account_id)
+            .execute(db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO projects (id, azure_account_id) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET azure_account_id = excluded.azure_account_id")
+            .bind(project_id)
+            .bind(&account_id)
+            .execute(db)
+            .await
+            .unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_no_account_is_deny() {
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO projects (id) VALUES ('p1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"az","argv":["account","show"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.reason.unwrap().contains("no Azure account linked"));
+        assert!(resp.azure_config_dir.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_not_logged_in_is_login_required() {
+        let db = mem_db().await;
+        link_azure(&db, "p1", false).await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp
+            .reason
+            .unwrap()
+            .starts_with(token::AZURE_LOGIN_REQUIRED));
+        assert!(resp.azure_config_dir.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_allow_returns_account_dir() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--resource-group","show"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        assert_eq!(resp.azure_config_dir.as_deref(), Some(dir.to_str().unwrap()));
+        assert_eq!(resp.azure_tenant_id.as_deref(), Some("ten-1"));
+        assert_eq!(resp.azure_subscription_id.as_deref(), Some("sub-1"));
+        assert!(resp.aws_access_key_id.is_none() && resp.token.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_policy_deny_before_resolve() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"az","argv":["account","get-access-token"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.azure_config_dir.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_other_subscription_asks() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        // Different subscription → Ask; the approver rejects → deny.
+        let resp = round_trip(
+            db.clone(),
+            Arc::new(FixedApprover(false)),
+            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.reason.unwrap().contains("other-sub"));
+        // Same subscription by id (case-insensitive) or by name → plain Allow,
+        // even with an approver that rejects everything.
+        for argv in [r#"["vm","list","--subscription","SUB-1"]"#, r#"["vm","list","--subscription=dev"]"#] {
+            let resp = round_trip(
+                db.clone(),
+                Arc::new(FixedApprover(false)),
+                &format!(r#"{{"project_id":"p1","tool":"az","argv":{argv}}}"#),
+            )
+            .await;
+            assert_eq!(resp.decision, "allow", "argv={argv}");
+        }
+        // Approved Ask proceeds and returns the account dir.
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_terraform_azure_only_is_allow() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        assert_eq!(resp.azure_config_dir.as_deref(), Some(dir.to_str().unwrap()));
+        assert_eq!(resp.azure_subscription_id.as_deref(), Some("sub-1"));
+        assert!(resp.aws_access_key_id.is_none());
+        assert!(resp.aws_region.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_terraform_external_code_asks() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        // Flag set → plan becomes Ask; a rejecting approver turns it into deny
+        // with the escalation reason and no credentials.
+        let resp = round_trip(
+            db.clone(),
+            Arc::new(FixedApprover(false)),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"],"tf_external_code":true,"tf_external_hits":["main.tf:data.external"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.reason.unwrap().contains("data.external in main.tf"));
+        assert!(resp.azure_config_dir.is_none());
+        // Approved → proceeds with credentials.
+        let resp = round_trip(
+            db.clone(),
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"],"tf_external_code":true}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        // Field absent (older shim) → plain Allow without asking.
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(false)),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_terraform_nothing_linked_is_deny() {
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO projects (id) VALUES ('p1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.azure_config_dir.is_none() && resp.aws_access_key_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_terraform_azure_not_logged_in_is_deny() {
+        let db = mem_db().await;
+        link_azure(&db, "p1", false).await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp
+            .reason
+            .unwrap()
+            .starts_with(token::AZURE_LOGIN_REQUIRED));
+    }
+
+    #[tokio::test]
+    async fn round_trip_deny_on_denylist() {
+        let db = mem_db().await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"gh","argv":["auth","token"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_ask_auto_denied() {
+        let db = mem_db().await;
+        // gh pr create → Ask; FixedApprover(false) → deny (no token).
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(false)),
+            r#"{"project_id":"p1","tool":"gh","argv":["pr","create"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+    }
+
+    // The shim hangs up while its `Ask` is still waiting on the user (e.g. the
+    // Bash call running it timed out): the pending approval must be abandoned
+    // (its future dropped → prompt withdrawn), not left waiting for hours.
+    #[tokio::test]
+    async fn ask_is_abandoned_when_requester_disconnects() {
+        struct Dropped(Arc<std::sync::atomic::AtomicBool>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        struct WaitForever(Arc<std::sync::atomic::AtomicBool>);
+        #[async_trait]
+        impl Approver for WaitForever {
+            async fn approve(&self, _req: &BrokerRequest, _reason: &str) -> bool {
+                let _flag = Dropped(self.0.clone());
+                std::future::pending::<()>().await;
+                true
+            }
+        }
+        let dropped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let db = mem_db().await;
+        let resolver: Arc<dyn ApproverResolver> =
+            Arc::new(StaticResolver(Arc::new(WaitForever(dropped.clone()))));
+        let handle = start_broker(
+            db,
+            BrokerConfig {
+                socket_label: uuid::Uuid::new_v4().to_string(),
+                resolver,
+                app: None,
+            },
+        )
+        .await
+        .unwrap();
+        let mut stream = UnixStream::connect(&handle.path).await.unwrap();
+        stream
+            .write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"pr\",\"create\"]}\n")
+            .await
+            .unwrap();
+        stream.flush().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(
+            !dropped.load(std::sync::atomic::Ordering::SeqCst),
+            "still waiting while connected"
+        );
+        drop(stream);
+        for _ in 0..50 {
+            if dropped.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        panic!("approval was not abandoned after the requester disconnected");
+    }
+
+    #[tokio::test]
+    async fn round_trip_ask_no_live_run_is_deny() {
+        // Resolver returns None (run ended / no run_id) → Ask must fail-closed
+        // deny WITHOUT consulting any approver. This is the singleton-broker
+        // guarantee: a write issued outside a live run is never auto-approved.
+        struct NoneResolver;
+        #[async_trait]
+        impl ApproverResolver for NoneResolver {
+            async fn resolve(&self, _run_id: Option<&str>) -> Option<Arc<dyn Approver>> {
+                None
+            }
+        }
+        let db = mem_db().await;
+        let socket_label = uuid::Uuid::new_v4().to_string();
+        let resolver: Arc<dyn ApproverResolver> = Arc::new(NoneResolver);
+        let handle = start_broker(
+            db,
+            BrokerConfig {
+                socket_label,
+                resolver,
+                app: None,
+            },
+        )
+        .await
+        .unwrap();
+        let stream = UnixStream::connect(&handle.path).await.unwrap();
+        let (r, mut w) = stream.into_split();
+        w.write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"issue\",\"comment\"]}\n")
+            .await
+            .unwrap();
+        w.flush().await.unwrap();
+        let mut lines = BufReader::new(r).lines();
+        let resp_line = lines.next_line().await.unwrap().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&resp_line).unwrap();
+        assert_eq!(v["decision"].as_str().unwrap(), "deny");
+        assert!(v.get("token").and_then(|x| x.as_str()).is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_allow_but_no_token_is_deny() {
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO projects (id) VALUES ('p1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        // gh pr list → Allow policy, but no account linked → fail-closed deny.
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"gh","argv":["pr","list"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_aws_profile_unresolvable_is_deny() {
+        // A `profile` account now mints fresh temporary credentials via the real
+        // `aws` CLI. A profile that does not exist on this machine cannot be
+        // resolved, so the broker fail-closed denies and leaks no secret fields.
+        // (Deterministic across environments: `aws` either is missing or cannot
+        // find the fake profile — both yield deny.)
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO aws_accounts (id, label, auth_method, account_id, arn, region, profile_name) VALUES ('aws1','Work','profile','123456789012','arn:aws:iam::123456789012:user/dev','ap-northeast-1','devdy-nonexistent-profile-xyz')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO projects (id, aws_account_id) VALUES ('p1','aws1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.aws_access_key_id.is_none());
+        assert!(resp.aws_secret_access_key.is_none());
+        assert!(resp.aws_session_token.is_none());
+        assert!(resp.token.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_malformed_is_deny() {
+        let db = mem_db().await;
+        let resp = round_trip(db, Arc::new(DenyAllApprover), "not json").await;
+        assert_eq!(resp.decision, "deny");
+    }
+
+    // ---- AC1/AC4: git credential get branch ----
+
+    #[test]
+    fn credential_username_fallback_by_provider() {
+        assert_eq!(credential_username_fallback("github.com"), "x-access-token");
+        assert_eq!(
+            credential_username_fallback("api.github.com"),
+            "x-access-token"
+        );
+        assert_eq!(credential_username_fallback("gitlab.com"), "oauth2");
+        assert_eq!(credential_username_fallback("gitlab.example.com"), "oauth2");
+    }
+
+    #[tokio::test]
+    async fn credential_get_no_account_is_deny_fail_closed() {
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO projects (id) VALUES ('p1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        // `credential get` is Allow by policy, but no linked account → fail-closed
+        // deny (helper then prints nothing → git auth fails, run survives).
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"git","argv":["credential","get"],"host":"github.com"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+        assert!(resp.username.is_none());
+    }
+
+    #[tokio::test]
+    async fn credential_get_spoofed_host_is_deny() {
+        let db = mem_db().await;
+        // Link a github account so a matching host would resolve — but spoofed
+        // host must be rejected at resolve_git (host allowlist), yielding deny.
+        sqlx::query(
+            "INSERT INTO github_accounts (id, label, username) VALUES ('gh1','work','ghuser')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO projects (id, github_account_id) VALUES ('p1','gh1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"git","argv":["credential","get"],"host":"github.attacker.io"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+    }
+
+    #[tokio::test]
+    async fn socket_cleaned_up_on_drop() {
+        let db = mem_db().await;
+        let socket_label = uuid::Uuid::new_v4().to_string();
+        let resolver: Arc<dyn ApproverResolver> =
+            Arc::new(StaticResolver(Arc::new(DenyAllApprover)));
+        let handle = start_broker(
+            db,
+            BrokerConfig {
+                socket_label,
+                resolver,
+                app: None,
+            },
+        )
+        .await
+        .unwrap();
+        let path = handle.path.clone();
+        assert!(path.exists());
+        drop(handle);
+        // Give the abort + remove a moment.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(!path.exists(), "socket file should be removed on drop");
+    }
+
+    // ---- several enabled git accounts ----
+
+    /// Approves and records each prompt's reason.
+    #[derive(Default)]
+    struct RecordingApprover(std::sync::Mutex<Vec<String>>);
+
+    #[async_trait]
+    impl Approver for RecordingApprover {
+        async fn approve(&self, _req: &BrokerRequest, reason: &str) -> bool {
+            self.0.lock().unwrap().push(reason.to_string());
+            true
+        }
+    }
+
+    async fn seed_two_github_accounts(db: &Db) {
+        for sql in [
+            "INSERT INTO github_accounts (id, label, username) VALUES ('gh1', 'main', 'author'), ('gh2', 'work', 'worker')",
+            "INSERT INTO projects (id, github_account_id) VALUES ('p1', 'gh1')",
+            "INSERT INTO project_github_accounts (project_id, account_id) VALUES ('p1', 'gh1'), ('p1', 'gh2')",
+        ] {
+            sqlx::query(sql).execute(db).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn unknown_git_account_is_denied_before_asking() {
+        let db = mem_db().await;
+        seed_two_github_accounts(&db).await;
+        let approver = Arc::new(RecordingApprover::default());
+        let resp = round_trip(
+            db,
+            approver.clone(),
+            r#"{"project_id":"p1","tool":"gh","argv":["pr","merge","1"],"account":"nobody"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        let reason = resp.reason.unwrap();
+        assert!(reason.starts_with(token::UNKNOWN_GIT_ACCOUNT), "{reason}");
+        assert!(reason.contains("\"work\" (@worker)"), "{reason}");
+        assert!(approver.0.lock().unwrap().is_empty(), "the user must not be asked");
+    }
+
+    #[tokio::test]
+    async fn ask_names_the_picked_account() {
+        let db = mem_db().await;
+        seed_two_github_accounts(&db).await;
+        let approver = Arc::new(RecordingApprover::default());
+        let _ = round_trip(
+            db,
+            approver.clone(),
+            r#"{"project_id":"p1","tool":"gh","argv":["pr","merge","1"],"account":"@worker"}"#,
+        )
+        .await;
+        let reasons = approver.0.lock().unwrap().clone();
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].ends_with("(as GitHub account \"work\" (@worker))"), "{reasons:?}");
+    }
+
+    // ---- several enabled cloud accounts ----
+
+    /// Link a second, signed-in Azure account ("Prod", sub-2) as an enabled,
+    /// non-default account of `project_id`. Returns its dir.
+    async fn enable_second_azure(db: &Db, project_id: &str) -> std::path::PathBuf {
+        let account_id = uuid::Uuid::new_v4().to_string();
+        let dir = test_azure_root().join(&account_id);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("azureProfile.json"), b"{\"subscriptions\": [{\"id\": \"sub-2\"}]}").unwrap();
+        sqlx::query("INSERT INTO azure_accounts (id, label, tenant_id, subscription_id, subscription_name) VALUES (?, 'Prod', 'ten-2', 'sub-2', 'Production')")
+            .bind(&account_id)
+            .execute(db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO project_azure_accounts (project_id, account_id) VALUES (?, ?)")
+            .bind(project_id)
+            .bind(&account_id)
+            .execute(db)
+            .await
+            .unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    async fn az_picks_the_named_azure_account() {
+        let db = mem_db().await;
+        let default_dir = link_azure(&db, "p1", true).await;
+        let prod_dir = enable_second_azure(&db, "p1").await;
+        let resp = round_trip(
+            db.clone(),
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"az","argv":["group","list"],"azure_account":"prod"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        assert_eq!(resp.azure_config_dir.as_deref(), Some(prod_dir.to_str().unwrap()));
+        assert_eq!(resp.azure_subscription_id.as_deref(), Some("sub-2"));
+        // The picked account's own subscription needs no confirmation.
+        let resp = round_trip(
+            db.clone(),
+            Arc::new(FixedApprover(false)),
+            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","sub-2"],"azure_account":"Prod"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "allow");
+        // No selector → the default account.
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+        )
+        .await;
+        assert_eq!(resp.azure_config_dir.as_deref(), Some(default_dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(default_dir);
+        let _ = std::fs::remove_dir_all(prod_dir);
+    }
+
+    #[tokio::test]
+    async fn unknown_azure_account_is_denied_before_asking() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        let approver = Arc::new(RecordingApprover::default());
+        let resp = round_trip(
+            db,
+            approver.clone(),
+            r#"{"project_id":"p1","tool":"terraform","argv":["apply"],"azure_account":"nobody"}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        let reason = resp.reason.unwrap();
+        assert!(reason.starts_with(token::UNKNOWN_CLOUD_ACCOUNT), "{reason}");
+        assert!(reason.contains("\"Az\" (Dev)"), "{reason}");
+        assert!(resp.azure_config_dir.is_none());
+        assert!(approver.0.lock().unwrap().is_empty(), "the user must not be asked");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    async fn seed_aws_accounts(db: &Db, n: usize) {
+        for (id, label, acct) in [("aws1", "main", "111111111111"), ("aws2", "prod", "222222222222")].into_iter().take(n) {
+            sqlx::query("INSERT INTO aws_accounts (id, label, auth_method, account_id, region, profile_name) VALUES (?, ?, 'keys', ?, 'ap-1', ?)")
+                .bind(id)
+                .bind(label)
+                .bind(acct)
+                .bind(format!("{label}-profile"))
+                .execute(db)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO project_aws_accounts (project_id, account_id) VALUES ('p1', ?)")
+                .bind(id)
+                .execute(db)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO projects (id, aws_account_id) VALUES ('p1', 'aws1')")
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn unknown_aws_account_is_denied_before_asking() {
+        let db = mem_db().await;
+        seed_aws_accounts(&db, 2).await;
+        for req in [
+            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"nobody"}"#,
+            // With several accounts, a --profile naming none is refused too.
+            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
+        ] {
+            let approver = Arc::new(RecordingApprover::default());
+            let resp = round_trip(db.clone(), approver.clone(), req).await;
+            assert_eq!(resp.decision, "deny");
+            let reason = resp.reason.unwrap();
+            assert!(reason.starts_with(token::UNKNOWN_CLOUD_ACCOUNT), "{reason}");
+            assert!(reason.contains("\"prod\" (222222222222)"), "{reason}");
+            assert!(approver.0.lock().unwrap().is_empty(), "the user must not be asked");
+        }
+    }
+
+    #[tokio::test]
+    async fn aws_ask_names_the_picked_account() {
+        let db = mem_db().await;
+        seed_aws_accounts(&db, 2).await;
+        for (req, want) in [
+            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"222222222222"}"#, "prod"),
+            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"prod-profile"}"#, "prod"),
+            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"]}"#, "main"),
+        ] {
+            let approver = Arc::new(RecordingApprover::default());
+            let _ = round_trip(db.clone(), approver.clone(), req).await;
+            let reasons = approver.0.lock().unwrap().clone();
+            assert_eq!(reasons.len(), 1, "{req}");
+            assert!(reasons[0].contains(&format!("(as AWS account \"{want}\"")), "{reasons:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn stray_aws_profile_is_ignored_with_one_account() {
+        let db = mem_db().await;
+        seed_aws_accounts(&db, 1).await;
+        let approver = Arc::new(RecordingApprover::default());
+        let _ = round_trip(
+            db,
+            approver.clone(),
+            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
+        )
+        .await;
+        let reasons = approver.0.lock().unwrap().clone();
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("(as AWS account \"main\""), "{reasons:?}");
+    }
+}

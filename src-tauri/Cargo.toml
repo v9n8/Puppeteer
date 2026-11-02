@@ -1,0 +1,82 @@
+[package]
+name = "devdy"
+version = "0.13.0"
+description = "AI coding agent for developers"
+authors = ["thainph"]
+edition = "2021"
+
+[lib]
+name = "devdy_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api", "tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.9"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "migrate", "macros"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+anyhow = "1"
+async-trait = "0.1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+sha2 = "0.10"
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+unicode-normalization = "0.1"
+notify = "6"
+notify-rust = "4"
+zip = "2"
+walkdir = "2"
+ignore = "0.4"
+# Move files to the OS trash (recoverable delete) for the file-tree context menu.
+trash = "5"
+octocrab = { version = "0.44", default-features = false, features = ["default-client", "rustls", "rustls-ring", "rustls-webpki-tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# Remote Control (C1): outbound WSS client to the relay + shared E2E crypto.
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+rand = "0.8"
+base64 = "0.22"
+# Remote Control Web Push: VAPID (ES256) signing + RFC 8291 aes128gcm payload
+# encryption, done with RustCrypto so the RFC test vector can pin the ephemeral key.
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa", "std"] }
+hkdf = "0.12"
+aes-gcm = "0.10"
+remote-e2e = { path = "../remote-e2e" }
+# Password-sealed secrets in settings backups (Argon2id + XChaCha20-Poly1305); same crate as remote-e2e.
+dryoc = "1.0"
+# Wipes the secret notes vault key from memory on lock (already a dryoc dependency).
+zeroize = "1"
+# Conductor: in-process localhost-only MCP server (Streamable HTTP) that lets a
+# conductor run drive worker runs via session_* tools. Bound to 127.0.0.1 only.
+axum = "0.7"
+drag = "2.1.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Secret notes: copy to the pasteboard (concealed, this Mac only) and clear it later.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+# Secret notes: lock the vault while the screen is locked.
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGSession"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDictionary", "CFString"] }
+
+[target.'cfg(unix)'.dependencies]
+# Process-group SIGKILL on app exit / cancel, so sidecar + CLI children don't
+# linger and burn API tokens after the app closes.
+libc = "0.2"

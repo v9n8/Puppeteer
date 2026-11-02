@@ -1,0 +1,938 @@
+import { defineStore } from 'pinia'
+import { reactive, computed } from 'vue'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import {
+  applyStreamEvent,
+  extractContextTokens,
+  extractTurnTotalTokens,
+  isCompactBoundary,
+  settlePartials,
+  type StreamEntry,
+  type ImageAttachment,
+} from '@/lib/streamEvents'
+import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
+import { useRunsStore } from './runs'
+import { useToolPermissionsStore } from './toolPermissions'
+import { useProjectsStore } from './projects'
+
+/** An assistant message calling a devdy MCP tool that creates projects / links repos. */
+function usesProjectWriteTool(p: Record<string, unknown> | null): boolean {
+  if (p?.type !== 'assistant') return false
+  const content = (p.message as { content?: unknown } | undefined)?.content
+  return (
+    Array.isArray(content) &&
+    content.some(
+      (b) =>
+        b?.type === 'tool_use' && typeof b.name === 'string' && /^mcp__devdy__(projects_create|repos_add|repos_remove)$/.test(b.name),
+    )
+  )
+}
+
+/**
+ * In-memory streaming state for a single run. Lives in this store (not in
+ * RunView) so it — and the Tauri event listeners that feed it — survive
+ * navigating away from the run screen and switching between runs. That lets
+ * several runs stream concurrently and keep accumulating output while the user
+ * is looking at a different run.
+ */
+export interface LiveSession {
+  runId: string
+  projectId: string
+  entries: StreamEntry[]
+  outputLines: { text: string; isStderr: boolean }[]
+  hasStreamEvents: boolean
+  status: string
+  sessionId: string | null
+  permissionQueue: PermissionRequest[]
+  /**
+   * Tool names the user chose to auto-allow. Seeded from the project's
+   * persisted "allow always" list and extended as the user grants more.
+   */
+  allowedTools: string[]
+  /**
+   * Tool names the user chose to auto-deny. Seeded from the project's
+   * persisted "deny always" list and extended as the user denies more.
+   */
+  deniedTools: string[]
+  /** Model id from `system.init` — used to resolve the context-window limit. */
+  model: string | null
+  /** Estimated tokens occupying the context window after the latest turn. */
+  contextTokens: number
+  /** True once a per-message `assistant` usage has set contextTokens this run. */
+  sawAssistantUsage: boolean
+  /** Slash commands advertised by the engine on `system.init` (Claude). */
+  slashCommands: string[]
+  /** Real claude.ai subscription rate-limit windows, when reported (Claude). */
+  rateLimit: RateLimitWindows | null
+  /** Set when a turn just tipped the global budget over — the next turn is blocked. */
+  budgetBlocked: boolean
+  /**
+   * True once the run has finished (run:done) but the user hasn't opened it
+   * since. Drives the "run finished" notification in the Active runs dock; it
+   * is cleared by `markSeen` when the user views the run. The finished status
+   * itself lives in `status` (done / failed / cancelled).
+   */
+  notifyDone: boolean
+  /**
+   * Non-destructive liveness notices from the backend watchdog (`run:attention`):
+   * the turn has been quiet for long, or a tool has been running for long. Shown
+   * as a banner with a stop action; never acted on automatically.
+   */
+  attention: RunAttention[]
+}
+
+/** One liveness notice, keyed so the backend can clear it when it resolves. */
+export interface RunAttention {
+  key: string
+  kind: string
+  /** English fallback text; the UI localizes by `kind` + `params` when it can. */
+  message: string
+  params: { mins?: number; secs?: number; tool?: string }
+}
+
+/** A single rate-limit window: percent used (0-100) and ISO reset time. */
+export interface RateLimitWindow {
+  utilization: number | null
+  resetsAt: string | null
+}
+export interface RateLimitWindows {
+  fiveHour?: RateLimitWindow
+  sevenDay?: RateLimitWindow
+}
+
+const SLASH_CACHE_KEY = 'devdy.slashCommands'
+
+/**
+ * Cap on `outputLines` (the raw stdout/stderr view). These are kept in ADDITION
+ * to `entries` — the same line is pushed to both — so an uncapped run holds the
+ * whole transcript twice in the heap. The raw view is a debugging aid where only
+ * the recent tail matters; the full text is always on disk in the run log.
+ */
+const MAX_OUTPUT_LINES = 2000
+/** Trim in chunks so a long run doesn't pay an array copy on every single line. */
+const OUTPUT_TRIM_SLACK = 500
+
+/**
+ * How many FINISHED sessions to keep in memory. Sessions were never evicted:
+ * `discard` is only called on explicit user actions, so every run opened during
+ * an app session stayed resident until the app closed. Running sessions are
+ * never counted or evicted — see `evictTerminalSessions` for the full guard list.
+ */
+const MAX_TERMINAL_SESSIONS = 5
+
+const TERMINAL_STATUSES = new Set(['done', 'failed', 'cancelled'])
+
+/** Append a raw output line, trimming the oldest once the cap is exceeded. */
+function pushOutputLine(s: LiveSession, text: string, isStderr: boolean) {
+  s.outputLines.push({ text, isStderr })
+  if (s.outputLines.length > MAX_OUTPUT_LINES + OUTPUT_TRIM_SLACK) {
+    s.outputLines.splice(0, s.outputLines.length - MAX_OUTPUT_LINES)
+  }
+}
+
+// Built-in slash commands each engine ships with, used to seed the palette on
+// the very first session (before any `system.init` has been observed and
+// cached). The live init list — which also includes project/user custom
+// commands and skills — replaces this as soon as a run starts.
+const BUILTIN_SLASH_COMMANDS: Record<string, string[]> = {
+  claude: ['compact', 'clear', 'context', 'init', 'review', 'security-review', 'usage', 'cost', 'help'],
+  codex: ['compact', 'clear', 'init', 'review'],
+}
+
+function loadSlashCache(): Record<string, string[]> {
+  try {
+    const raw = localStorage.getItem(SLASH_CACHE_KEY)
+    const obj = raw ? JSON.parse(raw) : {}
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch {
+    return {}
+  }
+}
+
+export const useLiveRunsStore = defineStore('liveRuns', () => {
+  // Reactive registry of streaming sessions, keyed by run id.
+  const sessions = reactive(new Map<string, LiveSession>())
+  // Side tables that don't need to be reactive (and shouldn't be proxied).
+  const toolIndexes = new Map<string, Map<string, number>>()
+  const unlisteners = new Map<string, UnlistenFn[]>()
+  // Subscribers notified when a run emits `run:done`. Kept across turns on
+  // purpose — a persistent run fires this on EVERY finished turn, and a
+  // subscriber can re-arm its listeners before the next turn.
+  const doneCallbacks = new Map<string, Set<(status: string) => void>>()
+  // App-wide subscribers notified on EVERY run's `run:done` (e.g. the native
+  // "session finished" notifier), regardless of which run it is.
+  const anyDoneCallbacks = new Set<(runId: string, projectId: string, status: string) => void>()
+  // Runs the backend has announced as live (`run:activated`) and that haven't
+  // emitted `run:done` since. This is the backend's view, independent of
+  // `s.status`, so a session can never be evicted — and lose its permission
+  // listener — while its sidecar is still running.
+  const activeRunIds = new Set<string>()
+  // Permission request ids already handled per run, so a request delivered both
+  // live and through `list_pending_permissions` recovery is processed once.
+  const seenPermissionIds = new Map<string, Set<string>>()
+  // Per-run handler for an incoming request (set while the run is listened), so
+  // a re-sync from the backend can feed recovered prompts through the same path.
+  const permissionHandlers = new Map<string, (req: PermissionRequest) => void>()
+  // Requests whose answer is in flight / was delivered. A request leaves the
+  // queue only once its answer reached the backend; these ids keep a re-sync
+  // from resurrecting a prompt the backend hasn't dropped yet.
+  const respondingIds = new Set<string>()
+  const answeredIds = new Set<string>()
+  // App-wide subscribers for "this prompt is still waiting" reminders (native
+  // notification re-fire, see PermissionNotifier).
+  const reminderCallbacks = new Set<(runId: string, projectId: string, request: PermissionRequest) => void>()
+
+  // Slash commands advertised by each engine on `system.init`, cached (and
+  // persisted) per engine so a brand-new session — which hasn't produced an
+  // init event yet — can still offer the palette from a prior session.
+  const slashCommandCache = reactive<Record<string, string[]>>(loadSlashCache())
+  function cacheSlashCommands(engine: string | undefined | null, cmds: string[]) {
+    if (!engine || !cmds.length) return
+    slashCommandCache[engine] = cmds
+    try {
+      localStorage.setItem(SLASH_CACHE_KEY, JSON.stringify(slashCommandCache))
+    } catch {
+      /* storage unavailable — in-memory cache still works for this session */
+    }
+  }
+  function cachedSlashCommands(engine: string | undefined | null): string[] {
+    if (!engine) return []
+    return slashCommandCache[engine] || BUILTIN_SLASH_COMMANDS[engine] || []
+  }
+
+  // Last time each session was created or looked at, for LRU eviction. Kept out
+  // of the session object so touching it never triggers a reactive re-render.
+  const lastTouched = new Map<string, number>()
+  function touch(runId: string) {
+    lastTouched.set(runId, Date.now())
+  }
+
+  /**
+   * Drop the least-recently-touched finished sessions once there are more than
+   * `MAX_TERMINAL_SESSIONS` of them.
+   *
+   * A session is only ever a candidate when ALL of these hold, because each one
+   * means something still depends on the in-memory state:
+   *  1. status is terminal — a running session is still accumulating output;
+   *  2. `permissionQueue` is empty — a pending prompt must survive even if the
+   *     status already went terminal (an abnormal combination, but dropping it
+   *     would strand a prompt the user can never answer);
+   *  3. `notifyDone` is false — the user hasn't acknowledged the finish yet, and
+   *     the Active runs dock still needs the row;
+   *  4. no `doneCallbacks` — a subscriber registered these and keeps them across
+   *     turns on purpose; evicting would break its relay mid-conversation;
+   *  5. the backend hasn't reported it live (`activeRunIds`) — a run resumed
+   *     from the backend (e.g. a conductor follow-up) can still carry a stale
+   *     terminal `status`, and evicting it drops the listener that answers its
+   *     permission prompts, hanging the run.
+   */
+  function evictTerminalSessions() {
+    const candidates: { runId: string; touched: number }[] = []
+    sessions.forEach((s, id) => {
+      if (!TERMINAL_STATUSES.has(s.status)) return
+      if (s.permissionQueue.length) return
+      if (s.notifyDone) return
+      if (doneCallbacks.get(id)?.size) return
+      if (activeRunIds.has(id)) return
+      candidates.push({ runId: id, touched: lastTouched.get(id) ?? 0 })
+    })
+    if (candidates.length <= MAX_TERMINAL_SESSIONS) return
+    candidates.sort((a, b) => a.touched - b.touched)
+    for (const c of candidates.slice(0, candidates.length - MAX_TERMINAL_SESSIONS)) {
+      discard(c.runId)
+    }
+  }
+
+  function get(runId: string): LiveSession | undefined {
+    const s = sessions.get(runId)
+    if (s) touch(runId)
+    return s
+  }
+
+  function ensure(runId: string, projectId: string): LiveSession {
+    let s = sessions.get(runId)
+    if (!s) {
+      s = reactive({
+        runId,
+        projectId,
+        entries: [] as StreamEntry[],
+        outputLines: [] as { text: string; isStderr: boolean }[],
+        hasStreamEvents: false,
+        status: 'running',
+        sessionId: null as string | null,
+        permissionQueue: [] as PermissionRequest[],
+        allowedTools: [] as string[],
+        deniedTools: [] as string[],
+        model: null as string | null,
+        contextTokens: 0,
+        sawAssistantUsage: false,
+        slashCommands: [] as string[],
+        rateLimit: null as RateLimitWindows | null,
+        budgetBlocked: false,
+        notifyDone: false,
+        attention: [] as RunAttention[],
+      }) as LiveSession
+      // Seed the per-run allow/deny lists with the standing choices the user
+      // made for this project in earlier runs, so they apply again here.
+      const perms = useToolPermissionsStore()
+      s.allowedTools = perms.getAllow(projectId)
+      s.deniedTools = perms.getDeny(projectId)
+      sessions.set(runId, s)
+      toolIndexes.set(runId, new Map())
+      // A new session arriving is the natural moment to reclaim old ones.
+      evictTerminalSessions()
+    }
+    touch(runId)
+    return s
+  }
+
+  /** Begin a fresh turn: drop any accumulated state and stop old listeners. */
+  function reset(runId: string, projectId: string): LiveSession {
+    discard(runId)
+    return ensure(runId, projectId)
+  }
+
+  function pushUser(
+    runId: string,
+    projectId: string,
+    text: string,
+    images?: ImageAttachment[],
+  ) {
+    const s = ensure(runId, projectId)
+    s.hasStreamEvents = true
+    s.entries.push({ kind: 'user', text, ...(images?.length ? { images } : {}) })
+  }
+
+  function setStatus(runId: string, status: string) {
+    const s = sessions.get(runId)
+    if (s) s.status = status
+  }
+
+  function isListening(runId: string): boolean {
+    return unlisteners.has(runId)
+  }
+
+  /** Normalize an epoch (s or ms) or ISO timestamp into an ISO string. */
+  function toIso(v: unknown): string | null {
+    if (typeof v === 'string') return v
+    if (typeof v === 'number') {
+      const ms = v > 1e12 ? v : v * 1000
+      return new Date(ms).toISOString()
+    }
+    return null
+  }
+
+  /** Fold claude.ai rate-limit info from system.init or rate_limit_event. */
+  function captureRateLimit(s: LiveSession, p: Record<string, unknown> | null) {
+    if (!p) return
+    if (p.type === 'system' && p.subtype === 'init' && p.rate_limits && typeof p.rate_limits === 'object') {
+      const rl = p.rate_limits as Record<string, unknown>
+      const win = (k: string): RateLimitWindow | undefined => {
+        const w = rl[k] as Record<string, unknown> | null | undefined
+        if (!w) return undefined
+        return {
+          utilization: typeof w.utilization === 'number' ? w.utilization : null,
+          resetsAt: toIso(w.resets_at),
+        }
+      }
+      s.rateLimit = { fiveHour: win('five_hour'), sevenDay: win('seven_day') }
+    } else if (p.type === 'rate_limit_event' && p.rate_limit_info && typeof p.rate_limit_info === 'object') {
+      const info = p.rate_limit_info as Record<string, unknown>
+      const win: RateLimitWindow = {
+        utilization: typeof info.utilization === 'number' ? info.utilization : null,
+        resetsAt: toIso(info.resetsAt),
+      }
+      const next: RateLimitWindows = { ...(s.rateLimit ?? {}) }
+      if (info.rateLimitType === 'five_hour') next.fiveHour = win
+      else if (typeof info.rateLimitType === 'string' && info.rateLimitType.startsWith('seven_day')) next.sevenDay = win
+      s.rateLimit = next
+    }
+  }
+
+  /**
+   * The backend announced this run as live (`run:activated`): a fresh start or
+   * a resume, possibly driven from outside this window (conductor follow-up,
+   * Remote Control). `startListening` is a no-op when listeners survived the
+   * previous turn, so reset the turn state here — otherwise the session keeps
+   * the terminal status from its last `run:done` and becomes evictable while
+   * running.
+   */
+  async function activate(runId: string, projectId: string) {
+    activeRunIds.add(runId)
+    const s = ensure(runId, projectId)
+    s.status = 'running'
+    s.notifyDone = false
+    await startListening(runId, projectId)
+  }
+
+  /**
+   * Attach the run's Tauri event listeners. Idempotent — calling it again for
+   * an already-listened run is a no-op, so it's safe to call on every view
+   * (re)load. Listeners stay attached until the run emits `run:done`.
+   */
+  async function startListening(runId: string, projectId: string) {
+    if (unlisteners.has(runId)) return
+    // Reserve the slot SYNCHRONOUSLY before the `await listen(...)` calls below.
+    // Two callers can fire in the same tick (e.g. RunView's `run:activated`
+    // handler and the Conductor workspace's watcher both starting the conductor
+    // run); without this reservation both pass the guard above before either
+    // reaches the final `unlisteners.set`, each registers a full listener set,
+    // and every `run:event` is then processed twice → duplicated chat entries.
+    unlisteners.set(runId, [])
+    const runsStore = useRunsStore()
+    const s = ensure(runId, projectId)
+    const toolIndex = toolIndexes.get(runId)!
+    const fns: UnlistenFn[] = []
+
+    fns.push(
+      await listen<{ run_id: string; line: string; is_stderr: boolean; level?: string }>(
+        `run:output:${runId}`,
+        (event) => {
+          const { line, is_stderr, level } = event.payload
+          pushOutputLine(s, line, is_stderr)
+          if (s.hasStreamEvents) {
+            if (level && level !== 'error') s.entries.push({ kind: 'log', level, text: line })
+            else if (is_stderr) s.entries.push({ kind: 'error', text: line })
+          }
+        },
+      ),
+    )
+
+    // ── Batched stream-event processing ─────────────────────────────────────
+    // Stream events arrive in rapid bursts (tool spam, or the flush released
+    // when a permission is allowed). Applying + re-rendering per event freezes
+    // the main thread. Buffer the raw payloads and drain them once per frame so
+    // the UI re-renders at most ~once/frame no matter how fast events land. A
+    // setTimeout fallback covers a hidden window (rAF is paused there) so a
+    // background run's state still advances.
+    let eventBuffer: unknown[] = []
+    let flushScheduled = false
+    // The devdy MCP sidecar writes projects/repos straight into the DB with no
+    // Tauri event: refetch once the tool's result comes back.
+    let projectsDirty = false
+    function flushEvents() {
+      flushScheduled = false
+      if (!eventBuffer.length) return
+      const batch = eventBuffer
+      eventBuffer = []
+      s.hasStreamEvents = true
+      for (const payload of batch) {
+        applyStreamEvent({ entries: s.entries, toolIndex }, payload)
+        const p = payload as Record<string, unknown> | null
+        if (usesProjectWriteTool(p)) projectsDirty = true
+        else if (projectsDirty && (p?.type === 'user' || p?.type === 'result')) {
+          projectsDirty = false
+          void useProjectsStore().fetchProjects()
+        }
+        // Capture slash commands advertised on system.init (Claude only).
+        if (p && p.type === 'system' && p.subtype === 'init' && Array.isArray(p.slash_commands)) {
+          s.slashCommands = (p.slash_commands as unknown[]).map((c) => String(c))
+          const engine = runsStore.runs.find((r) => r.id === runId)?.engine
+          cacheSlashCommands(engine, s.slashCommands)
+        }
+        // Capture real claude.ai rate-limit windows (Claude subscription only).
+        captureRateLimit(s, p)
+        // Track context-window occupancy from usage; reset on compaction.
+        // Use the LATEST per-message `assistant` usage (the whole prior history
+        // rides in as cache_read, so the newest message is the true current
+        // window size). A high-water max would pin the meter to an earlier spike
+        // and never fall after a compaction/resume shrinks the window — which is
+        // exactly what Claude's own context indicator reports. The `result`
+        // event's usage is a cumulative per-turn sum that over-counts, so it is
+        // only a fallback for engines that never emit per-message usage.
+        if (isCompactBoundary(payload)) {
+          s.contextTokens = 0
+          s.sawAssistantUsage = false
+        } else {
+          const ctx = extractContextTokens(payload)
+          if (ctx !== null) {
+            s.contextTokens = ctx
+            s.sawAssistantUsage = true
+          } else if (!s.sawAssistantUsage) {
+            const total = extractTurnTotalTokens(payload)
+            if (total !== null) s.contextTokens = total
+          }
+        }
+      }
+      // sessionId/model come from a system entry; scan once per flush, not per
+      // event (the earlier per-event O(n) scan grew costly on long sessions).
+      for (const e of s.entries) {
+        if (e.kind === 'system' && e.sessionId) s.sessionId = e.sessionId
+        if (e.kind === 'system' && e.model) s.model = e.model
+      }
+    }
+    const scheduleFlush = () => {
+      if (flushScheduled) return
+      flushScheduled = true
+      if (typeof document !== 'undefined' && document.hidden) setTimeout(flushEvents, 48)
+      else requestAnimationFrame(flushEvents)
+    }
+
+    fns.push(
+      await listen<unknown>(`run:event:${runId}`, (event) => {
+        eventBuffer.push(event.payload)
+        scheduleFlush()
+      }),
+    )
+
+    fns.push(
+      await listen<{ run_id: string; status: string }>(`run:done:${runId}`, (event) => {
+        flushEvents() // drain any events still buffered this frame before stopping
+        settlePartials(s.entries) // a sidecar that died mid-block sent no `result`
+        activeRunIds.delete(runId)
+        seenPermissionIds.delete(runId)
+        s.status = event.payload.status
+        s.permissionQueue = []
+        s.attention = []
+        for (const id of answeredIds) if (id.startsWith(`${runId}:`)) answeredIds.delete(id)
+        // Flag a "run finished" notification for the Active runs dock. It stays
+        // until the user opens this run (markSeen). If the run is already on
+        // screen, RunView acknowledges it immediately so nothing shows.
+        // Conductor workers never flag one: their conductor relays the result,
+        // so only the conductor's own finish is worth surfacing.
+        s.notifyDone = !runsStore.runMeta.get(runId)?.conductor_run_id
+        const r = runsStore.runs.find((x) => x.id === runId)
+        if (r) r.status = event.payload.status as typeof r.status
+        // Only refresh the shared run list when it actually belongs to this
+        // run's project. With multi-project tabs the foreground RunView may be
+        // showing a DIFFERENT project; refetching here would clobber its list
+        // (`currentRun` would vanish, popping panels open). The owning project's
+        // list refreshes on its own when its tab is next viewed (RunView mount),
+        // and the in-place `r.status` above keeps it correct if it is loaded.
+        if (runsStore.loadedProjectId === projectId) {
+          runsStore.fetchRuns(projectId).catch(() => {})
+        }
+        // Notify `run:done` subscribers AFTER state is settled, so a callback
+        // that reads `entries` sees the fully-drained turn.
+        const cbs = doneCallbacks.get(runId)
+        if (cbs) for (const cb of cbs) {
+          try { cb(event.payload.status) } catch { /* subscriber error must not break teardown */ }
+        }
+        for (const cb of anyDoneCallbacks) {
+          try { cb(runId, projectId, event.payload.status) } catch { /* subscriber error must not break teardown */ }
+        }
+        stopListening(runId)
+      }),
+    )
+
+    fns.push(
+      await listen<{ run_id: string; source: string; percent: number }>(
+        `run:budget_exceeded:${runId}`,
+        (event) => {
+          // A turn just tipped the global budget over. The backend will refuse
+          // the next turn; flag it so the UI can warn and disable quick-send.
+          s.budgetBlocked = true
+          const pct = event.payload.percent
+          const what = event.payload.source === 'plan' ? 'subscription plan' : 'token budget'
+          const line = `⚠ Budget reached: ${pct}% of the ${what} limit. New turns are blocked (override per turn to continue).`
+          pushOutputLine(s, line, true)
+          if (s.hasStreamEvents) s.entries.push({ kind: 'error', text: line })
+        },
+      ),
+    )
+
+    fns.push(
+      await listen<{
+        key: string
+        kind?: string
+        message?: string
+        params?: RunAttention['params']
+        active: boolean
+      }>(
+        `run:attention:${runId}`,
+        (event) => {
+          const { key, kind, message, params, active } = event.payload
+          const rest = s.attention.filter((a) => a.key !== key)
+          s.attention = active
+            ? [...rest, { key, kind: kind ?? '', message: message ?? '', params: params ?? {} }]
+            : rest
+        },
+      ),
+    )
+
+    const handlePermissionRequest = (req: PermissionRequest) => {
+      let seen = seenPermissionIds.get(runId)
+      if (!seen) {
+        seen = new Set()
+        seenPermissionIds.set(runId, seen)
+      }
+      if (seen.has(req.request_id)) return
+      seen.add(req.request_id)
+      // Standing allow/deny choices apply even while a paired phone watches
+      // this run: the phone sets them with the same Always buttons, and the
+      // Host tells it to drop a prompt answered here (`permission_resolved`),
+      // so asking again remotely would only undo the choice.
+      // AskUserQuestion must always reach the user — auto-deciding it would
+      // submit empty answers. Other tools honor the project's standing
+      // deny/allow choices (deny wins if both somehow apply).
+      if (req.tool_name !== 'AskUserQuestion') {
+        // A failed auto-answer falls back to a visible prompt (see respond).
+        if (s.deniedTools.includes(req.tool_name)) {
+          void respondPermission(runId, req, 'deny', { reason: 'Auto-denied for this project' })
+          return
+        }
+        if (s.allowedTools.includes(req.tool_name)) {
+          void respondPermission(runId, req, 'allow', {
+            reason: 'Auto-allowed for this session',
+            // The tool is already on the project's standing allow list, so
+            // let the engine cache it too (codex `acceptForSession`) rather
+            // than prompting through this path again for every call.
+            remember: true,
+          })
+          return
+        }
+      }
+      s.permissionQueue.push(req)
+    }
+
+    permissionHandlers.set(runId, handlePermissionRequest)
+
+    fns.push(
+      await listen<PermissionRequest>(`run:permission_request:${runId}`, (event) => {
+        handlePermissionRequest(event.payload)
+      }),
+    )
+
+    fns.push(
+      // The backend watchdog: a prompt has been waiting a long time. Make sure it
+      // is actually on screen (re-sync from the backend — the window may have
+      // been lost, e.g. across sleep) and let subscribers re-alert the user.
+      await listen<{ request_id: string }>(`run:permission_reminder:${runId}`, async (event) => {
+        await resyncPermissions(runId)
+        const req = s.permissionQueue.find((p) => p.request_id === event.payload.request_id)
+        if (!req) return
+        for (const cb of reminderCallbacks) {
+          try { cb(runId, projectId, req) } catch { /* subscriber error must not break others */ }
+        }
+      }),
+    )
+
+    fns.push(
+      // A remote Controller (or the broker) answered a permission request. The
+      // desktop's own reply path already shifts the queue, so this listener
+      // mainly covers the remote case: drop the still-pending prompt by
+      // request_id. Idempotent — a no-op if it was already removed.
+      // `remember` means the remote chose Always: store the standing choice the
+      // same way the desktop's own Always buttons do.
+      await listen<{ request_id: string; remember?: 'allow' | 'deny'; tool_name?: string }>(
+        `run:permission_resolved:${runId}`,
+        (event) => {
+          const { request_id, remember, tool_name } = event.payload
+          const i = s.permissionQueue.findIndex((p) => p.request_id === request_id)
+          // The Host names the tool with an Always, so the choice is kept even
+          // when this window never queued the prompt (or already dropped it).
+          const tool = tool_name ?? (i !== -1 ? s.permissionQueue[i].tool_name : null)
+          if (tool && tool !== 'MCP' && tool !== 'AskUserQuestion' && tool !== 'ExitPlanMode') {
+            if (remember === 'allow') rememberAllowedTool(runId, tool)
+            else if (remember === 'deny') rememberDeniedTool(runId, tool)
+          }
+          if (i !== -1) s.permissionQueue.splice(i, 1)
+        },
+      ),
+    )
+
+    // If stopListening ran while we were awaiting the listen() calls, its slot
+    // was deleted — honor that and tear down what we just created rather than
+    // resurrecting a stale listener set.
+    if (!unlisteners.has(runId)) {
+      fns.forEach((f) => f())
+      return
+    }
+    unlisteners.set(runId, fns)
+
+    // Recover prompts emitted before this listener existed (e.g. the session
+    // was evicted and re-created mid-run). Without this the sidecar stays
+    // blocked on a request no window ever received.
+    try {
+      const pending = await runsStore.listPendingPermissions(runId)
+      if (unlisteners.has(runId)) pending.forEach(handlePermissionRequest)
+    } catch {
+      /* run not live / backend unavailable — nothing to recover */
+    }
+  }
+
+  /**
+   * Re-sync a run's open prompts from the backend: anything the backend is still
+   * waiting on but the queue lost (a dropped window, a missed event, a failed
+   * answer) is shown again. Never re-adds a prompt whose answer is in flight.
+   */
+  async function resyncPermissions(runId: string) {
+    const handler = permissionHandlers.get(runId)
+    const s = sessions.get(runId)
+    if (!handler || !s) return
+    let pending: PermissionRequest[]
+    try {
+      pending = await useRunsStore().listPendingPermissions(runId)
+    } catch {
+      return
+    }
+    for (const req of pending) {
+      if (s.permissionQueue.some((p) => p.request_id === req.request_id)) continue
+      if (respondingIds.has(req.request_id) || answeredIds.has(`${runId}:${req.request_id}`)) continue
+      seenPermissionIds.get(runId)?.delete(req.request_id)
+      handler(req)
+    }
+  }
+
+  /** Re-sync every listened run (e.g. after the machine wakes up). */
+  function resyncAllPermissions() {
+    for (const runId of permissionHandlers.keys()) void resyncPermissions(runId)
+  }
+
+  /**
+   * Deliver the user's (or a standing rule's) answer to a prompt. The prompt
+   * leaves the queue only once the backend accepted the answer; on failure it
+   * stays (or, for an auto-answer, is shown) so the user can answer again.
+   */
+  async function respondPermission(
+    runId: string,
+    req: PermissionRequest,
+    decision: 'allow' | 'deny' | 'ask',
+    opts: { reason?: string; remember?: boolean; answers?: Record<string, string> } = {},
+  ): Promise<boolean> {
+    if (respondingIds.has(req.request_id)) return false
+    respondingIds.add(req.request_id)
+    try {
+      await useRunsStore().respondPermission(req.run_id, req.request_id, decision, opts.reason, {
+        remember: opts.remember,
+        answers: opts.answers,
+      })
+      answeredIds.add(`${runId}:${req.request_id}`)
+      const s = sessions.get(runId)
+      if (s) {
+        const i = s.permissionQueue.findIndex((p) => p.request_id === req.request_id)
+        if (i !== -1) s.permissionQueue.splice(i, 1)
+      }
+      return true
+    } catch (e) {
+      const s = sessions.get(runId)
+      if (s && !s.permissionQueue.some((p) => p.request_id === req.request_id)) s.permissionQueue.push(req)
+      const line = `⚠ Couldn't send the permission answer for ${req.tool_name}: ${String(e)}. The request is still open — answer it again to retry, or stop the session.`
+      if (s) {
+        pushOutputLine(s, line, true)
+        if (s.hasStreamEvents) s.entries.push({ kind: 'error', text: line })
+      }
+      return false
+    } finally {
+      respondingIds.delete(req.request_id)
+    }
+  }
+
+  /** Subscribe to "prompt still waiting" reminders. Returns an unsubscribe fn. */
+  function onPermissionReminder(
+    cb: (runId: string, projectId: string, request: PermissionRequest) => void,
+  ): () => void {
+    reminderCallbacks.add(cb)
+    return () => {
+      reminderCallbacks.delete(cb)
+    }
+  }
+
+  // A machine waking from sleep (or the app returning to the foreground) is
+  // exactly when a prompt window may have gone missing: re-sync them all.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) resyncAllPermissions()
+    })
+  }
+  if (typeof window !== 'undefined') window.addEventListener('focus', resyncAllPermissions)
+
+  function stopListening(runId: string) {
+    permissionHandlers.delete(runId)
+    const fns = unlisteners.get(runId)
+    if (fns) {
+      fns.forEach((f) => f())
+      unlisteners.delete(runId)
+    }
+  }
+
+  function rememberAllowedTool(runId: string, tool: string) {
+    const s = sessions.get(runId)
+    if (!s) return
+    if (!s.allowedTools.includes(tool)) s.allowedTools.push(tool)
+    const d = s.deniedTools.indexOf(tool)
+    if (d !== -1) s.deniedTools.splice(d, 1)
+    // Persist per project so "allow always" survives new runs and app restarts.
+    useToolPermissionsStore().allow(s.projectId, tool)
+  }
+
+  function rememberDeniedTool(runId: string, tool: string) {
+    const s = sessions.get(runId)
+    if (!s) return
+    if (!s.deniedTools.includes(tool)) s.deniedTools.push(tool)
+    const a = s.allowedTools.indexOf(tool)
+    if (a !== -1) s.allowedTools.splice(a, 1)
+    // Persist per project so "deny always" survives new runs and app restarts.
+    useToolPermissionsStore().deny(s.projectId, tool)
+  }
+
+  /**
+   * Re-seed the live allow/deny lists of every session in a project from the
+   * persisted store. Called after the user edits standing permissions so the
+   * change takes effect on runs that are already open (not just future ones).
+   */
+  function syncToolPermissions(projectId: string) {
+    const perms = useToolPermissionsStore()
+    sessions.forEach((s) => {
+      if (s.projectId === projectId) {
+        s.allowedTools = perms.getAllow(projectId)
+        s.deniedTools = perms.getDeny(projectId)
+      }
+    })
+  }
+
+  function shiftPermission(runId: string) {
+    sessions.get(runId)?.permissionQueue.shift()
+  }
+
+  /**
+   * Subscribe to a run's `run:done` events. Returns an unsubscribe function.
+   * Fires on every completed turn of the run (persistent sessions finish a turn
+   * without discarding the subscription). Safe to register before the run's
+   * listeners are attached.
+   */
+  function onDone(runId: string, cb: (status: string) => void): () => void {
+    let set = doneCallbacks.get(runId)
+    if (!set) {
+      set = new Set()
+      doneCallbacks.set(runId, set)
+    }
+    set.add(cb)
+    return () => {
+      const s = doneCallbacks.get(runId)
+      if (s) {
+        s.delete(cb)
+        if (!s.size) doneCallbacks.delete(runId)
+      }
+    }
+  }
+
+  /**
+   * Subscribe to `run:done` of ANY run (every finished turn). Returns an
+   * unsubscribe function.
+   */
+  function onAnyDone(cb: (runId: string, projectId: string, status: string) => void): () => void {
+    anyDoneCallbacks.add(cb)
+    return () => {
+      anyDoneCallbacks.delete(cb)
+    }
+  }
+
+  /**
+   * Append a line to a run's raw output view, honouring the cap. Callers outside
+   * the store (RunView's failure paths) must use this rather than pushing to
+   * `outputLines` directly, so the cap has no back door.
+   */
+  function appendOutput(runId: string, text: string, isStderr = true) {
+    const s = sessions.get(runId)
+    if (s) pushOutputLine(s, text, isStderr)
+  }
+
+  /** Clear the "run finished" notification once the user has viewed the run. */
+  function markSeen(runId: string) {
+    const s = sessions.get(runId)
+    if (s && s.notifyDone) s.notifyDone = false
+    touch(runId)
+    // Acknowledging the finish clears guard (3), so this session may now be
+    // evictable — and seeing it also makes it the most recent, so this only
+    // reclaims OTHER sessions the user acknowledged earlier.
+    evictTerminalSessions()
+  }
+
+  /** Drop a run's session entirely (stop listeners + free memory). */
+  function discard(runId: string) {
+    stopListening(runId)
+    sessions.delete(runId)
+    toolIndexes.delete(runId)
+    lastTouched.delete(runId)
+    activeRunIds.delete(runId)
+    seenPermissionIds.delete(runId)
+  }
+
+  // Sessions shown as running that the backend didn't report live on the last
+  // reconcile pass. A run gets one pass of grace: the UI flips to 'running'
+  // before `start_run` / `resume_run` registers the sidecar.
+  const staleRunning = new Set<string>()
+
+  /**
+   * Settle sessions stuck on 'running' whose sidecar is gone. That happens when
+   * `run:done` was missed — the run ended while `startListening` was still
+   * attaching listeners, or a start/resume call failed after the UI had already
+   * marked the run running. Without this they inflate the menu-bar count and the
+   * running list forever. A session is only settled after two consecutive passes
+   * miss it, so a run that is just starting is never touched.
+   */
+  async function reconcileRunning() {
+    const running: string[] = []
+    sessions.forEach((s, id) => {
+      if (s.status === 'running') running.push(id)
+    })
+    if (!running.length) {
+      staleRunning.clear()
+      return
+    }
+    const runsStore = useRunsStore()
+    let live: Set<string>
+    try {
+      live = new Set(await runsStore.listLiveRuns())
+    } catch {
+      return // backend unavailable — leave state alone
+    }
+    for (const id of [...staleRunning]) {
+      if (!running.includes(id) || live.has(id)) staleRunning.delete(id)
+    }
+    for (const id of running) {
+      if (live.has(id)) continue
+      if (!staleRunning.has(id)) {
+        staleRunning.add(id)
+        continue
+      }
+      staleRunning.delete(id)
+      const s = sessions.get(id)
+      if (!s || s.status !== 'running') continue
+      const dbStatus = runsStore.runs.find((r) => r.id === id)?.status ?? runsStore.runMeta.get(id)?.status
+      s.status = dbStatus && TERMINAL_STATUSES.has(dbStatus) ? dbStatus : 'done'
+      s.permissionQueue = []
+      activeRunIds.delete(id)
+      seenPermissionIds.delete(id)
+      stopListening(id)
+    }
+  }
+
+  /** Run ids that are currently streaming — for live status indicators. */
+  const runningIds = computed(() => {
+    const ids: string[] = []
+    sessions.forEach((s, id) => {
+      if (s.status === 'running') ids.push(id)
+    })
+    return ids
+  })
+
+  return {
+    sessions,
+    get,
+    ensure,
+    reset,
+    pushUser,
+    setStatus,
+    isListening,
+    activate,
+    startListening,
+    stopListening,
+    rememberAllowedTool,
+    rememberDeniedTool,
+    syncToolPermissions,
+    shiftPermission,
+    respondPermission,
+    resyncPermissions,
+    onPermissionReminder,
+    onDone,
+    onAnyDone,
+    markSeen,
+    appendOutput,
+    discard,
+    runningIds,
+    reconcileRunning,
+    cachedSlashCommands,
+  }
+})

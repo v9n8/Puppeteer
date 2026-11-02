@@ -1,0 +1,16 @@
+{
+  "copyMarkdown": "Sao chép markdown",
+  "markdownCopied": "Đã sao chép markdown",
+  "picker": {
+    "title": "Chèn thread Slack, ghi chú hoặc todo",
+    "search": "Tìm…",
+    "thisProject": "Project này",
+    "otherProjects": "Project khác",
+    "all": "Tất cả",
+    "slack": "Slack",
+    "empty": "Chưa có gì để chèn: thêm thread Slack bằng link, hoặc viết ghi chú / todo.",
+    "note": "Ghi chú",
+    "todo": "Todo",
+    "showDone": "Hiện cả todo đã xong"
+  }
+}

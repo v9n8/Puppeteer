@@ -1,0 +1,3541 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Google tag (gtag.js) -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-0LXRY3J0HX"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-0LXRY3J0HX");
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Devdy — Your AI dev team, on your own machine</title>
+    <meta
+      name="description"
+      content="Devdy is a macOS desktop app that runs Claude and Codex on the subscriptions you already have, orchestrates up to 100 parallel worker agents with Conductor, and keeps every secret in your Keychain — no AI API keys, no Devdy cloud."
+    />
+    <link rel="alternate" hreflang="en" href="index.html" />
+    <link rel="alternate" hreflang="vi" href="vi.html" />
+    <link rel="alternate" hreflang="x-default" href="index.html" />
+    <!-- TODO: add canonical, og:url and og:image once the production domain exists. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="vi_VN" />
+    <meta property="og:site_name" content="Devdy" />
+    <meta property="og:title" content="Devdy — Your AI dev team, on your own machine" />
+    <meta
+      property="og:description"
+      content="Claude and Codex on your existing subscriptions, up to 100 parallel worker agents from one goal, secrets kept in your Keychain."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Devdy — Your AI dev team, on your own machine" />
+    <meta
+      name="twitter:description"
+      content="Claude and Codex on your existing subscriptions, up to 100 parallel worker agents from one goal, secrets kept in your Keychain."
+    />
+    <style>
+      /* ----- tokens ----- */
+      :root {
+        --ground: #0c0b16;
+        --ground-2: #100e1d;
+        --surface: #16142480;
+        --line: #272240;
+        --line-soft: #1d1933;
+        --text: #e7e4f2;
+        --muted: #9a95b8;
+        --faint: #8a84aa; /* >= 4.8:1 on every section ground (WCAG AA) */
+        --accent: #6e5bf2;
+        --accent-bright: #8b7bff;
+        --accent-glow: #6e5bf24d;
+        --claude: #8e83ff;
+        --codex: #2fd08a;
+        --ok: #6fe3a8;
+
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Cascadia Code",
+          monospace;
+        --sans:
+          system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+
+        /* dark app window palette */
+        --w-bg: #0e0e13;
+        --w-panel: #121218;
+        --w-elev: #16161d;
+        --w-line: #262630;
+        --w-line2: #1e1e27;
+        --w-ink: #eaeaf0;
+        --w-ink2: #a2a2ae;
+        --w-ink3: #8a8a98;
+        --w-indigo: #6e5bf2;
+        --w-indigo-soft: #211d3f;
+        --w-green: #4ade80;
+        --w-green-bg: #15301e;
+        --w-amber: #e0a23a;
+        --w-amber-bg: #322614;
+        --w-red: #f26d6d;
+        --w-red-bg: #2a1620;
+        --w-red-line: #4a2630;
+        --w-diff: #67d89b;
+
+        --maxw: 1180px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 17px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        background-image:
+          radial-gradient(
+            1100px 600px at 80% -10%,
+            #1c1740 0%,
+            transparent 55%
+          ),
+          radial-gradient(900px 500px at -10% 20%, #15132c 0%, transparent 50%);
+        background-attachment: fixed;
+      }
+      ::selection {
+        background: var(--accent);
+        color: #fff;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 28px;
+      }
+
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--accent-bright);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .eyebrow::before {
+        content: "";
+        width: 22px;
+        height: 1px;
+        background: var(--accent);
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--accent-bright);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+
+      /* ----- nav ----- */
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(14px);
+        background: #0c0b16cc;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .nav-in {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 16px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 3px;
+        background: var(--accent);
+        box-shadow: 0 0 16px var(--accent-glow);
+      }
+      .brand-logo {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: block;
+        box-shadow: 0 0 18px -4px var(--accent-glow);
+      }
+      .brand .tld {
+        color: var(--faint);
+      }
+      .nav-links {
+        display: flex;
+        gap: 22px;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 13.5px;
+      }
+      .nav-links a {
+        white-space: nowrap;
+        color: var(--muted);
+        transition: color 0.18s;
+      }
+      .nav-links a:hover {
+        color: var(--text);
+      }
+      .nav-links .pill {
+        color: var(--text);
+        border: 1px solid var(--line);
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: var(--surface);
+        transition:
+          border-color 0.18s,
+          background 0.18s;
+      }
+      .nav-links .pill:hover {
+        border-color: var(--accent);
+        background: #1c1838;
+      }
+      .lang {
+        color: var(--faint);
+        border: 1px solid var(--line-soft);
+        padding: 8px 11px;
+        border-radius: 8px;
+        letter-spacing: 0.06em;
+      }
+      .lang:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      /* ----- buttons ----- */
+      .btn {
+        font-family: var(--mono);
+        font-size: 14px;
+        font-weight: 600;
+        padding: 14px 26px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition:
+          transform 0.12s ease,
+          box-shadow 0.2s,
+          background 0.2s,
+          border-color 0.2s;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 6px 30px -8px var(--accent);
+      }
+      .btn-primary:hover {
+        background: var(--accent-bright);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px -10px var(--accent);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--text);
+        border-color: var(--line);
+      }
+      .btn-ghost:hover {
+        border-color: var(--accent);
+        background: var(--surface);
+      }
+
+      /* ----- hero ----- */
+      header.hero {
+        padding: 70px 0 30px;
+      }
+      .hero-top {
+        max-width: 780px;
+      }
+      h1 {
+        font-family: var(--sans);
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        line-height: 1.02;
+        font-size: clamp(38px, 6vw, 70px);
+        margin: 22px 0 0;
+      }
+      h1 .grad {
+        background: linear-gradient(100deg, var(--accent-bright), var(--codex));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .lede {
+        color: var(--muted);
+        font-size: clamp(16px, 2vw, 19px);
+        max-width: 38em;
+        margin: 24px 0 0;
+      }
+      .lede b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .hero-cta {
+        display: flex;
+        gap: 14px;
+        margin-top: 32px;
+        flex-wrap: wrap;
+      }
+      .meta-chips {
+        display: flex;
+        gap: 22px;
+        margin-top: 30px;
+        flex-wrap: wrap;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--faint);
+      }
+      .meta-chips span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .meta-chips span::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      /* ----- DARK APP WINDOW ----- */
+      .win-stage {
+        margin-top: 54px;
+        position: relative;
+      }
+      .win-stage::before {
+        content: "";
+        position: absolute;
+        inset: -6% 8% 18%;
+        background: radial-gradient(
+          60% 60% at 50% 0%,
+          var(--accent-glow),
+          transparent 70%
+        );
+        filter: blur(34px);
+        z-index: 0;
+      }
+      .appwin {
+        position: relative;
+        z-index: 1;
+        background: var(--w-bg);
+        color: var(--w-ink);
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #ffffff12;
+        box-shadow:
+          0 50px 120px -45px #000,
+          0 0 0 1px #ffffff06;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .aw-bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 15px;
+        background: var(--w-elev);
+        border-bottom: 1px solid var(--w-line);
+      }
+      .aw-bar i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: block;
+      }
+      .aw-bar .ttl {
+        margin-left: 10px;
+        font-weight: 600;
+        color: var(--w-ink2);
+        font-size: 12px;
+      }
+
+      .aw-body {
+        display: grid;
+        grid-template-columns: 188px 1fr;
+        min-height: 560px;
+      }
+      .aw-side {
+        background: var(--w-bg);
+        border-right: 1px solid var(--w-line);
+        padding: 16px 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .aw-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 6px 16px;
+      }
+      .aw-logo-img {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: block;
+      }
+      .aw-logo b {
+        font-size: 14px;
+        color: var(--w-ink);
+        display: block;
+        line-height: 1.2;
+      }
+      .aw-logo span {
+        font-size: 10.5px;
+        color: var(--w-ink3);
+      }
+      .aw-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .aw-nav a {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 7px 11px;
+        border-radius: 9px;
+        color: var(--w-ink2);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .aw-nav hr {
+        border: 0;
+        border-top: 1px solid var(--w-line);
+        margin: 6px 10px;
+      }
+      .aw-nav a svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--w-ink3);
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .aw-nav a.on {
+        background: #1b1a2b;
+        color: #fff;
+        font-weight: 600;
+        box-shadow: inset 2px 0 0 var(--w-indigo);
+      }
+      .aw-nav a.on svg {
+        stroke: var(--accent-bright);
+      }
+      .aw-ver {
+        margin-top: auto;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--w-ink3);
+        padding: 8px 6px 0;
+      }
+
+      .aw-main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: var(--w-panel);
+      }
+      .aw-top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--w-line);
+      }
+      .aw-top .proj {
+        font-weight: 700;
+        color: var(--w-ink);
+        font-size: 13.5px;
+      }
+      .aw-top .etag {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink2);
+        background: #23232c;
+        border-radius: 5px;
+        padding: 2px 7px;
+      }
+      .aw-top .path {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--w-ink3);
+      }
+      .aw-top .acts {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+      }
+      .aw-top .acts span {
+        font-size: 11.5px;
+        color: var(--w-ink2);
+        border: 1px solid var(--w-line);
+        border-radius: 8px;
+        padding: 6px 11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+      }
+      @media (max-width: 1040px) {
+        .aw-top .acts {
+          display: none;
+        }
+      }
+
+      .aw-cols {
+        display: grid;
+        grid-template-columns: 248px 1fr;
+        flex: 1;
+        min-height: 0;
+      }
+      .aw-hist {
+        border-right: 1px solid var(--w-line);
+        padding: 14px;
+        overflow: hidden;
+      }
+      .aw-newbtn {
+        width: 100%;
+        background: var(--w-indigo);
+        color: #fff;
+        border: 0;
+        border-radius: 9px;
+        padding: 11px;
+        font-size: 13px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 4px 16px -5px var(--w-indigo);
+        cursor: default;
+      }
+      .aw-fetch {
+        margin-top: 10px;
+        border: 1px solid var(--w-line);
+        border-radius: 9px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        color: var(--w-ink2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .aw-fetch .chev {
+        margin-left: auto;
+        color: var(--w-ink3);
+      }
+      .aw-hl {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 18px 2px 10px;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        color: var(--w-ink3);
+        font-weight: 600;
+      }
+      .hist-item {
+        border-radius: 9px;
+        padding: 10px 11px;
+        margin-bottom: 6px;
+        border: 1px solid transparent;
+      }
+      .hist-item.on {
+        background: var(--w-elev);
+        border-color: var(--w-line);
+        box-shadow: inset 3px 0 0 var(--w-indigo);
+      }
+      .hist-item .h-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .hist-item .h-ttl {
+        color: var(--w-ink);
+        font-size: 12.5px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .badge {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
+      .badge.done {
+        background: var(--w-green-bg);
+        color: var(--w-green);
+      }
+      .badge.run {
+        background: var(--w-indigo-soft);
+        color: var(--accent-bright);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .badge.run::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent-bright);
+        animation: blink 1.5s infinite;
+      }
+      .badge.cancel {
+        background: var(--w-amber-bg);
+        color: var(--w-amber);
+      }
+      .hist-item .h-meta {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--w-ink3);
+        margin-top: 6px;
+      }
+      @media (max-width: 760px) {
+        .aw-cols {
+          grid-template-columns: 1fr;
+        }
+        .aw-hist {
+          display: none;
+        }
+      }
+
+      .aw-run {
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .usr {
+        align-self: flex-end;
+        background: var(--w-indigo-soft);
+        color: var(--w-ink);
+        border-radius: 12px;
+        padding: 9px 14px;
+        font-size: 13px;
+        max-width: 70%;
+      }
+      .sess {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        margin: 16px 0 4px;
+      }
+      .sess b {
+        color: var(--w-ink2);
+        font-weight: 600;
+      }
+      .think {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        color: var(--w-ink3);
+        font-weight: 600;
+        margin: 12px 0 10px;
+      }
+
+      .tool-run {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        border: 1px solid var(--w-red-line);
+        background: var(--w-red-bg);
+        border-radius: 9px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--w-ink2);
+      }
+      .tool-run b {
+        color: var(--w-red);
+      }
+      .tool-run .tr-path {
+        color: var(--w-ink3);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tool-run .tr-state {
+        margin-left: auto;
+        color: var(--w-red);
+        flex: 0 0 auto;
+      }
+
+      .perm {
+        border: 1px solid var(--w-line);
+        border-radius: 11px;
+        margin-top: 12px;
+        overflow: hidden;
+        background: var(--w-elev);
+        border-left: 3px solid var(--w-amber);
+      }
+      .perm-hd {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 13px 14px;
+      }
+      .perm-hd .perm-ic {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--w-amber-bg);
+        color: var(--w-amber);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        flex: 0 0 auto;
+      }
+      .perm-hd b {
+        color: var(--w-ink);
+        font-size: 13.5px;
+        display: block;
+      }
+      .perm-hd span {
+        color: var(--w-ink3);
+        font-size: 11.5px;
+        font-family: var(--mono);
+      }
+      .perm-tool {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        padding: 0 14px 10px;
+      }
+      .perm-tool b {
+        color: var(--accent-bright);
+      }
+      .diff {
+        font-family: var(--mono);
+        font-size: 11px;
+        background: #0c0c11;
+        border-top: 1px solid var(--w-line);
+        border-bottom: 1px solid var(--w-line);
+        padding: 10px 0;
+      }
+      .diff .dl {
+        display: flex;
+        gap: 12px;
+        padding: 1px 14px;
+        color: var(--w-diff);
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .diff .dl .g {
+        color: #3f7d5c;
+      }
+      .perm-foot {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 14px;
+      }
+      .perm-foot .hintkeys {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--w-ink3);
+        margin-right: auto;
+      }
+      @media (max-width: 920px) {
+        .perm-foot .hintkeys {
+          display: none;
+        }
+      }
+      .pbtn {
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 8px;
+        padding: 7px 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .pbtn.deny {
+        color: var(--w-red);
+        border: 1px solid var(--w-red-line);
+      }
+      .pbtn.allow2 {
+        color: var(--accent-bright);
+        border: 1px solid var(--accent);
+      }
+      .pbtn.allow {
+        background: var(--w-indigo);
+        color: #fff;
+      }
+
+      .aw-spacer {
+        flex: 1;
+        min-height: 14px;
+      }
+      .meter {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 14px 0 9px;
+      }
+      .meter .track {
+        flex: 1;
+        height: 4px;
+        border-radius: 4px;
+        background: #23232c;
+        overflow: hidden;
+      }
+      .meter .track i {
+        display: block;
+        height: 100%;
+        width: 12%;
+        background: var(--w-indigo);
+        border-radius: 4px;
+      }
+      .composer {
+        border: 1px solid var(--w-line);
+        border-radius: 11px;
+        padding: 11px 12px;
+        background: var(--w-elev);
+      }
+      .composer .ph {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--w-ink3);
+      }
+      .composer .crow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 11px;
+      }
+      .composer .ctl {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--w-ink2);
+        border: 1px solid var(--w-line);
+        border-radius: 8px;
+        padding: 6px 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .composer .ctl .k {
+        color: var(--w-ink3);
+      }
+      .composer .cancel {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--w-red);
+        border: 1px solid var(--w-red-line);
+        border-radius: 8px;
+        padding: 6px 12px;
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .composer .send {
+        background: var(--w-indigo);
+        color: #fff;
+        border-radius: 8px;
+        padding: 7px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .badge.run::before {
+          animation: none;
+        }
+      }
+      @media (max-width: 980px) {
+        .aw-body {
+          grid-template-columns: 1fr;
+        }
+        .aw-side {
+          display: none;
+        }
+      }
+
+      /* ----- generic section ----- */
+      section {
+        padding: 88px 0;
+        border-top: 1px solid var(--line-soft);
+      }
+      .sec-head {
+        max-width: 660px;
+        margin-bottom: 50px;
+      }
+      .sec-head h2 {
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.08;
+        font-size: clamp(28px, 4vw, 42px);
+        margin: 18px 0 0;
+      }
+      .sec-head p {
+        color: var(--muted);
+        margin: 16px 0 0;
+        font-size: 17px;
+      }
+      .sec-head b {
+        color: var(--text);
+      }
+
+      /* ----- bridge ----- */
+      .bridge {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        overflow: hidden;
+        background: var(--ground-2);
+      }
+      @media (max-width: 820px) {
+        .bridge {
+          grid-template-columns: 1fr;
+        }
+      }
+      .engine-col {
+        padding: 30px;
+      }
+      .engine-col .tag {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .engine-col .tag::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+      }
+      .engine-col.claude .tag {
+        color: var(--claude);
+      }
+      .engine-col.claude .tag::before {
+        background: var(--claude);
+      }
+      .engine-col.codex .tag {
+        color: var(--codex);
+      }
+      .engine-col.codex .tag::before {
+        background: var(--codex);
+      }
+      .engine-col h3 {
+        margin: 14px 0 6px;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .engine-col p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 0;
+      }
+      .core {
+        background: linear-gradient(180deg, #1b1740, #14122a);
+        padding: 30px 34px;
+        border-left: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-width: 220px;
+      }
+      @media (max-width: 820px) {
+        .core {
+          border: 0;
+          border-top: 1px solid var(--line);
+          border-bottom: 1px solid var(--line);
+        }
+      }
+      .core .badge2 {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 17px;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--text);
+      }
+      .core .badge2 .d {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--accent);
+        box-shadow: 0 0 16px var(--accent-glow);
+      }
+      .core .proto {
+        margin-top: 16px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--accent-bright);
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        padding: 6px 14px;
+        background: #1a1638;
+      }
+      .core p {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 16px 0 0;
+      }
+
+      /* ----- features bento ----- */
+      .bento {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 880px) {
+        .bento {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (max-width: 560px) {
+        .bento {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 26px;
+        background: linear-gradient(180deg, #14122270, #100e1c70);
+        transition:
+          border-color 0.2s,
+          transform 0.2s,
+          background 0.2s;
+      }
+      .card:hover {
+        border-color: var(--accent);
+        transform: translateY(-3px);
+        background: #16142a;
+      }
+      .card .num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .card h3 {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin: 12px 0 8px;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 0;
+      }
+      .card .ico {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: #1c1838;
+        border: 1px solid var(--line);
+        margin-bottom: 6px;
+      }
+      .card .ico svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--accent-bright);
+        fill: none;
+        stroke-width: 1.7;
+      }
+      .col-3 {
+        grid-column: span 3;
+      }
+      .col-2 {
+        grid-column: span 2;
+      }
+      @media (max-width: 880px) {
+        .col-3,
+        .col-2 {
+          grid-column: span 1;
+        }
+      }
+
+      /* ----- sync & parallel (dark app fragments) ----- */
+      .split2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 820px) {
+        .split2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .hl {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px;
+        background: linear-gradient(180deg, #14122270, #100e1c70);
+        display: flex;
+        flex-direction: column;
+      }
+      .hl .num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .hl h3 {
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        margin: 12px 0 8px;
+      }
+      .hl p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 0 0 22px;
+      }
+      .hl .viz {
+        margin-top: auto;
+      }
+      .screen {
+        background: var(--w-panel);
+        border: 1px solid var(--w-line);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 20px 50px -30px #000;
+      }
+      .screen .s-hd {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        color: var(--w-ink3);
+        font-weight: 600;
+        margin: 2px 2px 10px;
+      }
+      .row-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 10px;
+        border-radius: 9px;
+        border: 1px solid var(--w-line2);
+        margin-bottom: 7px;
+        background: var(--w-elev);
+      }
+      .row-item:last-child {
+        margin-bottom: 0;
+      }
+      .row-item .ri-ttl {
+        color: var(--w-ink);
+        font-size: 12.5px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row-item .origin {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--w-ink3);
+        background: #23232c;
+        border-radius: 5px;
+        padding: 2px 7px;
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
+      .eng-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        flex: 0 0 auto;
+      }
+      .eng-claude {
+        background: var(--w-indigo);
+      }
+      .eng-codex {
+        background: var(--w-green);
+      }
+      .prun {
+        border: 1px solid var(--w-line2);
+        border-radius: 10px;
+        padding: 11px 12px;
+        margin-bottom: 8px;
+        background: var(--w-elev);
+      }
+      .prun:last-child {
+        margin-bottom: 0;
+      }
+      .prun .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .prun .proj {
+        color: var(--w-ink);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .prun .kind {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        margin-left: auto;
+      }
+      .prun .bar {
+        position: relative;
+        height: 4px;
+        border-radius: 4px;
+        background: #23232c;
+        overflow: hidden;
+        margin-top: 10px;
+      }
+      .prun .bar i {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 38%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--w-indigo),
+          transparent
+        );
+        animation: flow 1.9s linear infinite;
+      }
+      .prun.p2 .bar i {
+        animation-delay: -0.7s;
+      }
+      .prun.p3 .bar i {
+        animation-delay: -1.3s;
+      }
+      .prun.p4 .bar i {
+        animation-delay: -0.4s;
+      }
+
+      /* ----- conductor (orchestrator + workers) ----- */
+      .prun.cond {
+        border-color: #3a3470;
+        background: #1b1a2b;
+      }
+      .prun.wk {
+        margin-left: 18px;
+        position: relative;
+      }
+      .prun.wk::before {
+        content: "";
+        position: absolute;
+        left: -12px;
+        top: -9px;
+        bottom: 50%;
+        width: 9px;
+        border-left: 1px solid var(--w-line2);
+        border-bottom: 1px solid var(--w-line2);
+        border-bottom-left-radius: 6px;
+      }
+      .prun .role {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--accent-bright);
+        background: #23213d;
+        border-radius: 5px;
+        padding: 2px 7px;
+      }
+      .prun .chip {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--w-ink3);
+        background: #23232c;
+        border-radius: 5px;
+        padding: 2px 6px;
+      }
+      .prun .st-idle {
+        color: var(--w-green);
+      }
+      .ticks {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .ticks li {
+        display: flex;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+      .ticks li::before {
+        content: "→";
+        color: var(--accent-bright);
+        font-family: var(--mono);
+        flex: 0 0 auto;
+      }
+      .ticks b {
+        color: var(--text);
+      }
+
+      /* ----- accounts & usage meters ----- */
+      .acct {
+        display: grid;
+        grid-template-columns: 124px 1fr 40px;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 9px;
+        border: 1px solid var(--w-line2);
+        background: var(--w-elev);
+        margin-bottom: 7px;
+      }
+      .acct:last-child {
+        margin-bottom: 0;
+      }
+      .acct .nm {
+        color: var(--w-ink);
+        font-size: 12.5px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .acct .def {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--accent-bright);
+        background: #23213d;
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+      .acct .meter2 {
+        position: relative;
+        height: 5px;
+        border-radius: 5px;
+        background: #23232c;
+        overflow: hidden;
+      }
+      .acct .meter2 i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 5px;
+        background: var(--w-indigo);
+      }
+      .acct .meter2 i.hot {
+        background: #f0a03c;
+      }
+      .acct .meter2 i.ok {
+        background: var(--w-green);
+      }
+      .acct .meter2 b {
+        position: absolute;
+        top: -2px;
+        bottom: -2px;
+        width: 2px;
+        background: #ff5f57;
+      }
+      .acct .pct {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        text-align: right;
+      }
+      .viz-note {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--w-ink3);
+        margin: 10px 2px 0;
+      }
+      .viz-note b {
+        color: var(--w-green);
+        font-weight: 600;
+      }
+      .viz-note b.warn {
+        color: #f0a03c;
+      }
+
+      /* ----- workspace tiles ----- */
+      .card .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 14px;
+      }
+      .card .tags span {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--faint);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      @keyframes flow {
+        0% {
+          left: -40%;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .prun .bar i {
+          animation: none;
+          left: 0;
+          width: 60%;
+        }
+      }
+
+      /* ----- trust ----- */
+      .trust-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+      @media (max-width: 820px) {
+        .trust-grid {
+          grid-template-columns: 1fr;
+          gap: 36px;
+        }
+      }
+      .trust-list {
+        list-style: none;
+        padding: 0;
+        margin: 28px 0 0;
+        display: grid;
+        gap: 16px;
+      }
+      .trust-list li {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+      }
+      .trust-list .chk {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        background: #1c1838;
+        border: 1px solid var(--line);
+      }
+      .trust-list .chk svg {
+        width: 15px;
+        height: 15px;
+        stroke: var(--ok);
+        fill: none;
+        stroke-width: 2.2;
+      }
+      .trust-list b {
+        color: var(--text);
+      }
+      .trust-list span {
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+      .keychip {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 26px;
+        background: var(--ground-2);
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .keychip .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 11px 0;
+        border-bottom: 1px dashed var(--line-soft);
+      }
+      .keychip .row:last-child {
+        border-bottom: 0;
+      }
+      .keychip .k {
+        color: var(--faint);
+      }
+      .keychip .v {
+        color: var(--text);
+      }
+      .keychip .v.lock {
+        color: var(--ok);
+      }
+
+      /* ----- final cta ----- */
+      .cta-final {
+        text-align: center;
+      }
+      .cta-final h2 {
+        font-size: clamp(30px, 5vw, 52px);
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+        margin: 18px 0 0;
+      }
+      .cta-final .grad {
+        background: linear-gradient(100deg, var(--accent-bright), var(--codex));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .cta-final p {
+        color: var(--muted);
+        max-width: 34em;
+        margin: 18px auto 0;
+      }
+      .cta-final .hero-cta {
+        justify-content: center;
+      }
+      .platform-note {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--faint);
+        margin-top: 22px;
+      }
+
+      /* ----- footer ----- */
+      footer {
+        border-top: 1px solid var(--line-soft);
+        padding: 40px 0;
+        color: var(--faint);
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .foot-in {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+
+      /* ----- skip link ----- */
+      .skip {
+        position: absolute;
+        left: 12px;
+        top: -60px;
+        z-index: 100;
+        background: var(--accent);
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 13px;
+        transition: top 0.15s;
+      }
+      .skip:focus {
+        top: 12px;
+      }
+
+      /* ----- mobile nav ----- */
+      .nav-mob {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 13.5px;
+      }
+      .nav-menu {
+        position: relative;
+      }
+      .nav-menu summary {
+        list-style: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text);
+        border: 1px solid var(--line);
+        padding: 8px 13px;
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .nav-menu summary::-webkit-details-marker {
+        display: none;
+      }
+      .nav-menu summary:focus-visible {
+        outline: 2px solid var(--accent-bright);
+        outline-offset: 3px;
+      }
+      .nav-menu summary svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+      .nav-panel {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 10px);
+        min-width: 230px;
+        display: grid;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #110f1f;
+        box-shadow: 0 24px 60px -20px #000;
+      }
+      .nav-panel a {
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: var(--muted);
+      }
+      .nav-panel a:hover,
+      .nav-panel a:focus-visible {
+        color: var(--text);
+        background: #1c1838;
+      }
+      .nav-panel .pill {
+        color: #fff;
+        background: var(--accent);
+        margin-top: 6px;
+        text-align: center;
+      }
+      /* Desktop nav has 10 items; below this width it collapses into the menu. */
+      @media (max-width: 1180px) {
+        .nav-desk {
+          display: none;
+        }
+        .nav-mob {
+          display: flex;
+        }
+      }
+
+      /* ----- small-screen app window ----- */
+      .composer .crow {
+        flex-wrap: wrap;
+      }
+      @media (max-width: 560px) {
+        .composer .ctl,
+        .aw-top .path {
+          display: none;
+        }
+      }
+
+      /* ----- stats strip ----- */
+      section.stats-sec {
+        padding: 34px 0 0;
+        border-top: 0;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--ground-2);
+        overflow: hidden;
+        margin: 0;
+      }
+      .stat {
+        padding: 24px 20px;
+        border-left: 1px solid var(--line-soft);
+        margin: 0;
+      }
+      .stat:first-child {
+        border-left: 0;
+      }
+      .stat dt {
+        font-weight: 800;
+        font-size: clamp(26px, 3vw, 34px);
+        letter-spacing: -0.03em;
+        line-height: 1;
+        background: linear-gradient(100deg, var(--accent-bright), var(--codex));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        width: fit-content;
+      }
+      .stat dd {
+        margin: 10px 0 0;
+        font-size: 13.5px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      @media (max-width: 980px) {
+        .stats {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .stat:nth-child(4) {
+          border-left: 0;
+        }
+        .stat:nth-child(n + 4) {
+          border-top: 1px solid var(--line-soft);
+        }
+      }
+      @media (max-width: 560px) {
+        .stats {
+          grid-template-columns: 1fr 1fr;
+        }
+        .stat:nth-child(4) {
+          border-left: 1px solid var(--line-soft);
+        }
+        .stat:nth-child(odd) {
+          border-left: 0;
+        }
+        .stat:nth-child(n + 3) {
+          border-top: 1px solid var(--line-soft);
+        }
+      }
+
+      /* ----- how it works ----- */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .step {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 26px;
+        background: linear-gradient(180deg, #14122270, #100e1c70);
+        display: flex;
+        flex-direction: column;
+      }
+      .step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        right: -14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent-bright);
+        background: var(--ground);
+        border: 1px solid var(--line);
+        z-index: 1;
+      }
+      .step .sn {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--faint);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step .sn b {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: #1c1838;
+        border: 1px solid var(--line);
+        color: var(--accent-bright);
+      }
+      .step h3 {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin: 14px 0 8px;
+      }
+      .step p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 0 0 18px;
+      }
+      .term {
+        margin-top: auto;
+        background: var(--w-panel);
+        border: 1px solid var(--w-line);
+        border-radius: 10px;
+        padding: 11px 13px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--w-ink2);
+        line-height: 1.85;
+        white-space: pre;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .term .ok {
+        color: var(--w-green);
+      }
+      .term .dim {
+        color: var(--w-ink3);
+      }
+      .term .acc {
+        color: var(--accent-bright);
+      }
+      .term .warn {
+        color: var(--w-amber);
+      }
+      @media (max-width: 880px) {
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        .step:not(:last-child)::after {
+          content: "↓";
+          right: auto;
+          left: 50%;
+          top: auto;
+          bottom: -14px;
+          transform: translateX(-50%);
+        }
+      }
+
+      /* ----- engine handoff ----- */
+      .handoff {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1.1fr;
+        gap: 28px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 26px 30px;
+        background: var(--ground-2);
+      }
+      .handoff .num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .handoff h3 {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin: 12px 0 6px;
+      }
+      .handoff p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 0;
+      }
+      .hflow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .hnode {
+        flex: 0 1 auto;
+        min-width: 0;
+        background: var(--w-panel);
+        border: 1px solid var(--w-line);
+        border-radius: 10px;
+        padding: 10px 13px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--w-ink3);
+        line-height: 1.6;
+      }
+      .hnode b {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--w-ink);
+        font-weight: 600;
+      }
+      .harrow {
+        flex: 1;
+        min-width: 70px;
+        position: relative;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--accent-bright);
+        padding-bottom: 12px;
+      }
+      .harrow::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 6px;
+        bottom: 4px;
+        height: 1px;
+        background: linear-gradient(90deg, var(--claude), var(--codex));
+      }
+      .harrow::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        border-top: 4.5px solid transparent;
+        border-bottom: 4.5px solid transparent;
+        border-left: 7px solid var(--codex);
+      }
+      .harrow i {
+        position: absolute;
+        bottom: 2px;
+        left: 0;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 8px var(--accent-bright);
+        animation: hop 2.4s ease-in-out infinite;
+      }
+      @keyframes hop {
+        0% {
+          left: 0;
+          opacity: 0;
+        }
+        15%,
+        85% {
+          opacity: 1;
+        }
+        100% {
+          left: calc(100% - 12px);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .harrow i {
+          animation: none;
+          display: none;
+        }
+      }
+      @media (max-width: 820px) {
+        .handoff {
+          grid-template-columns: 1fr;
+          padding: 24px;
+        }
+      }
+      @media (max-width: 480px) {
+        .hflow {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .harrow {
+          padding: 0;
+        }
+        .harrow::before,
+        .harrow::after,
+        .harrow i {
+          display: none;
+        }
+        .harrow span::before {
+          content: "↓ ";
+        }
+      }
+
+      /* ----- built-in agent tools ----- */
+      .toolbox {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 880px) {
+        .toolbox {
+          grid-template-columns: 1fr;
+        }
+      }
+      .tbox {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 26px;
+        background: linear-gradient(180deg, #14122270, #100e1c70);
+        min-width: 0;
+      }
+      .tbox-hd {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .tbox-hd h3 {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .tbox-hd .cnt {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent-bright);
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        padding: 3px 11px;
+        background: #1a1638;
+      }
+      .tbox > p {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin: 10px 0 14px;
+      }
+      .tgroup {
+        display: grid;
+        grid-template-columns: 132px 1fr;
+        gap: 10px;
+        padding: 10px 0;
+        border-top: 1px dashed var(--line-soft);
+      }
+      .tgroup .g {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text);
+        padding-top: 2px;
+      }
+      .tgroup .g span {
+        color: var(--faint);
+      }
+      .tgroup .tt {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+      }
+      .tgroup .tt code {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 7px;
+        background: #120f22;
+      }
+      @media (max-width: 480px) {
+        .tgroup {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+      }
+
+      /* ----- shared section h2 (trust block) ----- */
+      .trust-h2 {
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        font-size: clamp(28px, 4vw, 42px);
+        line-height: 1.08;
+        margin: 18px 0 0;
+      }
+      .trust-list a,
+      .platform-note a {
+        color: var(--text);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .keychip .row {
+        gap: 16px;
+      }
+      .keychip .v {
+        text-align: right;
+      }
+
+      /* ----- layout fixes ----- */
+      header.hero {
+        padding-left: 28px;
+        padding-right: 28px;
+      }
+      .core {
+        max-width: 320px;
+      }
+      @media (max-width: 820px) {
+        .core {
+          max-width: none;
+        }
+      }
+
+      /* ----- tools: summary + expandable full list ----- */
+      .tsum {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        margin: 0 0 16px;
+        padding: 0;
+        list-style: none;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text);
+      }
+      .tsum li span {
+        color: var(--faint);
+      }
+      .tex-label {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--faint);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .tex {
+        display: grid;
+        gap: 8px;
+        margin: 10px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .tex li {
+        display: grid;
+        grid-template-columns: minmax(0, 190px) 1fr;
+        gap: 12px;
+        align-items: baseline;
+        font-size: 13.5px;
+        color: var(--muted);
+      }
+      .tex code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--accent-bright);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 7px;
+        background: #120f22;
+        width: fit-content;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 480px) {
+        .tex li {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
+      .tall {
+        margin-top: 18px;
+        border-top: 1px solid var(--line-soft);
+        padding-top: 14px;
+      }
+      .tall summary {
+        cursor: pointer;
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--accent-bright);
+        border-radius: 6px;
+      }
+      .tall summary::-webkit-details-marker {
+        display: none;
+      }
+      .tall summary::before {
+        content: "▸";
+        transition: transform 0.15s;
+      }
+      .tall[open] summary::before {
+        transform: rotate(90deg);
+      }
+      .tall summary:hover {
+        color: var(--text);
+      }
+      .tall summary:focus-visible {
+        outline: 2px solid var(--accent-bright);
+        outline-offset: 3px;
+      }
+      .tall[open] summary {
+        margin-bottom: 8px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tall summary::before {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <nav class="topnav" aria-label="Primary">
+      <div class="nav-in">
+        <a class="brand" href="#top"
+          ><img class="brand-logo" src="logo.png" alt="" /><b>devdy</b></a
+        >
+        <div class="nav-links nav-desk">
+          <a href="#how">How it works</a>
+          <a href="#engines">Engines</a>
+          <a href="#conductor">Conductor</a>
+          <a href="#features">Features</a>
+          <a href="#tools">Agent tools</a>
+          <a href="#workspace">Workspace</a>
+          <a href="#accounts">Accounts</a>
+          <a href="#sync">History</a>
+          <a href="#local">Privacy</a>
+          <a class="pill" href="#download">Download</a>
+          <a class="lang" href="vi.html" hreflang="vi" lang="vi" aria-label="Tiếng Việt">VI</a>
+        </div>
+        <div class="nav-mob">
+          <a class="lang" href="vi.html" hreflang="vi" lang="vi" aria-label="Tiếng Việt">VI</a>
+          <details class="nav-menu">
+            <summary aria-label="Open menu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+              Menu
+            </summary>
+            <div class="nav-panel">
+              <a href="#how">How it works</a>
+              <a href="#engines">Engines</a>
+              <a href="#conductor">Conductor</a>
+              <a href="#features">Features</a>
+              <a href="#tools">Agent tools</a>
+              <a href="#workspace">Workspace</a>
+              <a href="#accounts">Accounts</a>
+              <a href="#sync">History</a>
+              <a href="#local">Privacy</a>
+              <a class="pill" href="#download">Download</a>
+            </div>
+          </details>
+        </div>
+      </div>
+    </nav>
+
+    <main id="main" tabindex="-1">
+    <header class="hero wrap" id="top">
+      <div class="hero-top">
+        <span class="eyebrow">Desktop app for developers · macOS</span>
+        <h1>Your AI dev team, <span class="grad">on your own machine.</span></h1>
+        <p class="lede">
+          Run <b>Claude</b> and <b>Codex</b> from one local-first desktop
+          workspace. Give <b>Conductor</b> a goal — and keep control of every
+          worker, account and permission.
+        </p>
+        <div class="hero-cta">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/thainph/devdy/releases/latest"
+            target="_blank"
+            rel="noopener"
+            >Download for macOS
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z" />
+            </svg>
+          </a>
+          <a class="btn btn-ghost" href="#how">How it works</a>
+        </div>
+        <div class="meta-chips">
+          <span>No AI API keys</span>
+          <span>Claude + Codex</span>
+          <span>Up to 100 parallel workers</span>
+          <span>Secrets in Keychain</span>
+          <span>No Devdy cloud</span>
+        </div>
+      </div>
+
+      <!-- faithful dark app window (illustrative data) -->
+      <div class="win-stage">
+        <div class="appwin" aria-hidden="true">
+          <div class="aw-bar">
+            <i style="background: #ff5f57"></i
+            ><i style="background: #febc2e"></i
+            ><i style="background: #28c840"></i>
+            <span class="ttl">Devdy</span>
+          </div>
+          <div class="aw-body">
+            <aside class="aw-side">
+              <div class="aw-logo">
+                <img class="aw-logo-img" src="logo.png" alt="" />
+                <span><b>Devdy</b><span>AI coding agent</span></span>
+              </div>
+              <div class="aw-nav">
+                <a class="on"
+                  ><svg viewBox="0 0 24 24">
+                    <path
+                      d="M3 7a1 1 0 0 1 1-1h4l2 2h9a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"
+                    /></svg
+                  >Projects</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <circle cx="6" cy="6" r="2.5" />
+                    <circle cx="6" cy="18" r="2.5" />
+                    <circle cx="18" cy="18" r="2.5" />
+                    <path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4" /></svg
+                  >PR Reviews</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <rect x="4" y="5" width="16" height="15" rx="2" />
+                    <path d="M4 10h16M9 3v4M15 3v4" /></svg
+                  >Calendar</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <path d="M4 5v15M8 7h7M10 12h8M7 17h6" /></svg
+                  >Gantt</a
+                >
+                <hr />
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+                    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+                    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+                    <rect x="13" y="13" width="7" height="7" rx="1.5" /></svg
+                  >Skills</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <path
+                      d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"
+                    /></svg
+                  >Rules</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <rect x="4" y="4" width="16" height="6" rx="1.5" />
+                    <rect x="4" y="14" width="16" height="6" rx="1.5" />
+                    <path d="M8 7h.01M8 17h.01" /></svg
+                  >MCP</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <path d="M4 14h16v5H4zM6 14l2-9h8l2 9M8 16.5h.01" /></svg
+                  >Servers</a
+                >
+                <hr />
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <path d="M4 19V5M4 19h16M9 16V9M14 16v-5M19 16V7" /></svg
+                  >Stats</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                      d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"
+                    /></svg
+                  >Settings</a
+                >
+                <a
+                  ><svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 11v5M12 7.6h.01" /></svg
+                  >About</a
+                >
+              </div>
+              <div class="aw-ver">v0.9.0</div>
+            </aside>
+
+            <div class="aw-main">
+              <div class="aw-top">
+                <span class="proj">demo-app</span>
+                <span class="etag">claude</span>
+                <span class="path">~/projects/demo-app</span>
+                <div class="acts">
+                  <span>&lt;/&gt; VS Code</span><span>&gt;_ Terminal</span
+                  ><span>⚙ Settings</span>
+                </div>
+              </div>
+
+              <div class="aw-cols">
+                <div class="aw-hist">
+                  <button class="aw-newbtn" type="button">
+                    ＋ New session
+                  </button>
+                  <div class="aw-fetch">
+                    ⤓ Fetch Issue / PR <span class="chev">▾</span>
+                  </div>
+                  <div class="aw-hl">
+                    <span>HISTORY</span
+                    ><span style="font-weight: 500; letter-spacing: 0"
+                      >Clear all</span
+                    >
+                  </div>
+
+                  <div class="hist-item on">
+                    <div class="h-row">
+                      <span class="h-ttl">Write the app's intro file</span
+                      ><span class="badge run">running</span>
+                    </div>
+                    <div class="h-meta">today · CLAUDE</div>
+                  </div>
+                  <div class="hist-item">
+                    <div class="h-row">
+                      <span class="h-ttl">Analyze issue #142 — auth flow</span
+                      ><span class="badge done">done</span>
+                    </div>
+                    <div class="h-meta">today · CLAUDE</div>
+                  </div>
+                  <div class="hist-item">
+                    <div class="h-row">
+                      <span class="h-ttl">Review PR #88 — refactor cache</span
+                      ><span class="badge done">done</span>
+                    </div>
+                    <div class="h-meta">today · CODEX</div>
+                  </div>
+                  <div class="hist-item">
+                    <div class="h-row">
+                      <span class="h-ttl">Update API docs</span
+                      ><span class="badge done">done</span>
+                    </div>
+                    <div class="h-meta">yesterday · CLAUDE</div>
+                  </div>
+                  <div class="hist-item">
+                    <div class="h-row">
+                      <span class="h-ttl">Fix flaky checkout test</span
+                      ><span class="badge cancel">cancelled</span>
+                    </div>
+                    <div class="h-meta">yesterday · CODEX</div>
+                  </div>
+                </div>
+
+                <div class="aw-run">
+                  <div class="usr">Write the app's intro file</div>
+                  <div class="sess">
+                    session · <b>claude · opus-5.5</b> · 32 tools
+                  </div>
+                  <div class="think">✷ THINKING</div>
+
+                  <div class="tool-run">
+                    <span>▷</span> <b>Write</b>
+                    <span class="tr-path"
+                      >~/projects/demo-app/INTRODUCTION.md</span
+                    ><span class="tr-state">running…</span>
+                  </div>
+
+                  <div class="perm">
+                    <div class="perm-hd">
+                      <span class="perm-ic">▤</span>
+                      <span
+                        ><b>Claude requests permission</b
+                        ><span>INTRODUCTION.md</span></span
+                      >
+                    </div>
+                    <div class="perm-tool">
+                      TOOL <b>Write</b> · INTRODUCTION.md
+                    </div>
+                    <div class="diff">
+                      <div class="dl">
+                        <span class="g">+</span><span># Devdy</span>
+                      </div>
+                      <div class="dl">
+                        <span class="g">+</span><span></span>
+                      </div>
+                      <div class="dl">
+                        <span class="g">+</span
+                        ><span
+                          >&gt; A local desktop app to manage AI
+                          Skills/Rules…</span
+                        >
+                      </div>
+                      <div class="dl">
+                        <span class="g">+</span><span></span>
+                      </div>
+                      <div class="dl">
+                        <span class="g">+</span><span>## What is Devdy?</span>
+                      </div>
+                    </div>
+                    <div class="perm-foot">
+                      <span class="hintkeys"
+                        >↵ Allow · ⇧↵ Always · Esc Deny</span
+                      >
+                      <span class="pbtn deny">✕ Deny</span>
+                      <span class="pbtn allow2">✓ Always</span>
+                      <span class="pbtn allow">✓ Allow</span>
+                    </div>
+                  </div>
+
+                  <div class="aw-spacer"></div>
+                  <div class="meter">
+                    24.2k / 200.0k <span class="track"><i></i></span> 12%
+                  </div>
+                  <div class="composer">
+                    <div class="ph">
+                      Send a follow-up to claude — Enter to send, Shift+Enter
+                      for newline
+                    </div>
+                    <div class="crow">
+                      <span class="ctl">🖼</span>
+                      <span class="ctl">⚙ claude ▾</span>
+                      <span class="ctl"
+                        ><span class="k">perm</span> Default ▾</span
+                      >
+                      <span class="cancel">■ Cancel</span>
+                      <span class="send">➤ Send</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- STATS -->
+    <section class="stats-sec" aria-label="Devdy in numbers">
+      <div class="wrap">
+        <dl class="stats">
+          <div class="stat"><dt>2</dt><dd>AI engines — Claude and Codex, one interface</dd></div>
+          <div class="stat"><dt>0</dt><dd>AI API keys to create or paste — uses your existing CLI sign-ins</dd></div>
+          <div class="stat"><dt>10→100</dt><dd>parallel workers per Conductor (default → max)</dd></div>
+          <div class="stat"><dt>88</dt><dd>built-in agent tools: 48 Devdy + 40 Google</dd></div>
+          <div class="stat"><dt>5</dt><dd>account types: Claude, GitHub, GitLab, AWS, Google</dd></div>
+          <div class="stat"><dt>3</dt><dd>MCP transports: stdio, HTTP, SSE</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section id="how">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">How it works</span>
+          <h2>From install to a working agent team in three steps.</h2>
+          <p>
+            No new AI accounts and no keys to paste — Devdy builds on the logins
+            and tools you already use.
+          </p>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <span class="sn"><b>1</b>Sign in</span>
+            <h3>Keep the logins you already have</h3>
+            <p>
+              Devdy drives the <code>claude</code> and <code>codex</code> CLIs
+              you're already signed in to — your Claude subscription and your
+              ChatGPT account.
+            </p>
+            <div class="term" aria-hidden="true"><span class="dim">$</span> claude   <span class="ok">✓ Claude subscription</span>
+<span class="dim">$</span> codex    <span class="ok">✓ ChatGPT login</span>
+<span class="dim">ai_api_key</span>  <span class="acc">— none —</span></div>
+          </li>
+          <li class="step">
+            <span class="sn"><b>2</b>Set up</span>
+            <h3>Add projects, link accounts</h3>
+            <p>
+              Point Devdy at a folder and it detects the repos inside. Link the
+              GitHub, GitLab or AWS account each project should use, then apply
+              your Skills, Rules and MCP servers.
+            </p>
+            <div class="term" aria-hidden="true"><span class="acc">demo-app/</span>
+├ github  <span class="dim">→</span> work
+├ skills  <span class="dim">→</span> claude + codex
+└ mcp     <span class="dim">→</span> <span class="ok">enabled</span></div>
+          </li>
+          <li class="step">
+            <span class="sn"><b>3</b>Delegate</span>
+            <h3>Hand over a goal</h3>
+            <p>
+              Fetch an issue or PR, or just describe what you want. The session
+              plans, spawns workers when the job is big, and stops for you at the
+              decisions that matter.
+            </p>
+            <div class="term" aria-hidden="true"><span class="dim">goal</span>  Ship checkout v2
+<span class="acc">→</span> spawn implementer · reviewer · qa
+<span class="warn">⏸</span> waiting for your approval</div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ENGINES -->
+    <section id="engines">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">Two engines, one place</span>
+          <h2>Claude and Codex, in the same app.</h2>
+          <p>
+            Set a default engine and model, then override either one per run —
+            the workflow and history stay exactly the same. You use the
+            subscriptions you already have, <b>no AI API keys</b>.
+          </p>
+        </div>
+        <div class="bridge">
+          <div class="engine-col claude">
+            <span class="tag">Claude</span>
+            <h3>Use your Claude subscription</h3>
+            <p>
+              Signed in to the <code>claude</code> CLI with your Claude account.
+              Pick opus, sonnet or haiku per task — add several Claude accounts
+              and Devdy can auto-balance the default by live usage.
+            </p>
+          </div>
+          <div class="core">
+            <span class="badge2"><span class="d"></span>devdy</span>
+            <span class="proto">one shared interface</span>
+            <p>
+              Same way to run, same history, same permission prompts — whichever
+              engine you choose.
+            </p>
+          </div>
+          <div class="engine-col codex">
+            <span class="tag">Codex</span>
+            <h3>Use your ChatGPT account</h3>
+            <p>
+              Signed in to the <code>codex</code> CLI with ChatGPT. Switch back
+              and forth with Claude with nothing new to learn.
+            </p>
+          </div>
+        </div>
+        <div class="handoff">
+          <div>
+            <div class="num">Handoff</div>
+            <h3>Switch engines mid-conversation</h3>
+            <p>
+              Want a second opinion, or a different model for the next step? Hand
+              the session to the other engine and it picks up with the full
+              conversation context.
+            </p>
+          </div>
+          <div class="hflow" aria-hidden="true">
+            <div class="hnode">
+              <b><span class="eng-dot eng-claude"></span>claude</b>opus · session
+            </div>
+            <div class="harrow"><span>full context</span><i></i></div>
+            <div class="hnode">
+              <b><span class="eng-dot eng-codex"></span>codex</b>continues the session
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONDUCTOR -->
+    <section id="conductor">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">Multi-agent orchestration</span>
+          <h2>Give one goal. Conductor runs the team.</h2>
+          <p>
+            Every session can act as a <b>conductor</b>: it splits a big task
+            into roles — implementer, reviewer, QA — spawns worker sessions to
+            run them in parallel, reads their results and iterates until the
+            goal is met. You only step in at the checkpoints that matter.
+          </p>
+        </div>
+
+        <div class="split2">
+          <div class="hl">
+            <div class="num">Live view</div>
+            <h3>See every worker at a glance</h3>
+            <p>
+              Workers are grouped under their conductor in History and in the
+              active-runs dock, sorted by latest activity, each tagged with the
+              account and model it runs on.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">CONDUCTOR · 3 WORKERS</div>
+                <div class="prun cond p1">
+                  <div class="top">
+                    <span class="eng-dot eng-claude"></span
+                    ><span class="proj">Ship checkout v2</span
+                    ><span class="kind">waiting on workers</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="prun wk p2">
+                  <div class="top">
+                    <span class="eng-dot eng-claude"></span
+                    ><span class="role">implementer</span
+                    ><span class="chip">work · opus</span
+                    ><span class="kind">running</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="prun wk p3">
+                  <div class="top">
+                    <span class="eng-dot eng-codex"></span
+                    ><span class="role">reviewer</span
+                    ><span class="chip">codex</span
+                    ><span class="kind">running</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="prun wk p4">
+                  <div class="top">
+                    <span class="eng-dot eng-claude"></span
+                    ><span class="role">qa</span
+                    ><span class="chip">personal · sonnet</span
+                    ><span class="kind st-idle">done</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hl">
+            <div class="num">Built for long runs</div>
+            <h3>Hands-off, but never out of control</h3>
+            <p>
+              Conductor keeps going on its own and comes back to you only when
+              a decision is genuinely yours.
+            </p>
+            <ul class="ticks">
+              <li>
+                <span
+                  ><b>Auto-resume.</b> The conductor wakes up the moment a
+                  worker finishes — no polling, no babysitting.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Scales up.</b> 10 parallel workers by default, adjustable
+                  up to 100, mixing Claude and Codex.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Clear permissions.</b> Every approval window shows which
+                  worker is asking, and lost prompts are recovered.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Open in place.</b> Jump into any worker, read its
+                  transcript or send it a follow-up while the panel stays
+                  live.</span
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="features">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">All in one app</span>
+          <h2>Manage AI context for every project.</h2>
+          <p>
+            Skills, Rules and MCP servers live in one central library, applied
+            to each project — Devdy flags it whenever a project's copy drifts.
+            Then put that context to work on issues, PRs and open-ended
+            sessions.
+          </p>
+        </div>
+        <div class="bento">
+          <div class="card col-3">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+            </div>
+            <div class="num">01 · Skill · Rule</div>
+            <h3>Write once, sync everywhere</h3>
+            <p>
+              Write a Skill or Rule once (or group them), target Claude, Codex or
+              both, then apply it to many projects. Edit the source and projects
+              sync; if a project's copy was hand-edited, Devdy raises a conflict
+              so you choose: use the source, keep local, or write a custom
+              version.
+            </p>
+            <div class="tags"><span>.claude/</span><span>.codex/</span><span>AGENTS.md</span></div>
+          </div>
+          <div class="card col-3">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="6" rx="1.5" />
+                <rect x="4" y="14" width="16" height="6" rx="1.5" />
+                <path d="M8 7h.01M8 17h.01" />
+              </svg>
+            </div>
+            <div class="num">02 · MCP servers</div>
+            <h3>One MCP library, enabled per project</h3>
+            <p>
+              Define a server once, test it with a real MCP handshake, then
+              switch it on per project — Devdy wires it into that project's runs. Env and
+              header secrets stay in the Keychain; definitions import and export
+              as JSON. SSE servers are Claude-only; Codex runs use stdio and
+              HTTP.
+            </p>
+            <div class="tags"><span>stdio</span><span>HTTP</span><span>SSE · Claude</span><span>test connection</span></div>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </div>
+            <div class="num">03 · Analyze issue</div>
+            <h3>Issue → detailed plan</h3>
+            <p>
+              Paste an issue number or URL — GitHub or GitLab. Devdy pulls the
+              content and discussion (skipping bots), then turns it into a
+              detailed plan that follows the Skills and Rules applied to the
+              project.
+            </p>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M6 3v12M6 21a3 3 0 100-6 3 3 0 000 6zM6 6a3 3 0 100-6 3 3 0 000 6zM18 9a3 3 0 100-6 3 3 0 000 6zm0 0c0 6-12 3-12 9"
+                />
+              </svg>
+            </div>
+            <div class="num">04 · Review PR / MR</div>
+            <h3>Review PRs and MRs</h3>
+            <p>
+              Fetch a GitHub PR or GitLab MR by number or URL. Devdy gathers the
+              diff and existing reviews — plus the linked issue on GitHub — and
+              reviews it by your conventions.
+            </p>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h16v11H4zM8 20h8M9 9l2 2-2 2M13 13h3" />
+              </svg>
+            </div>
+            <div class="num">05 · Free session</div>
+            <h3>Open-ended work sessions</h3>
+            <p>
+              Chat across turns inside a project: @mention files, drop in any
+              file or image, attach notes and todos, reuse saved prompts, jump
+              between prompts in long sessions and resume finished ones.
+            </p>
+          </div>
+          <div class="card col-3">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <div class="num">06 · Permission center</div>
+            <h3>Approve with full context</h3>
+            <p>
+              See a diff before an Edit or Write lands, answer the agent's
+              multiple-choice questions, review its plan before it starts, and
+              pop prompts out into their own window. Choose the mode per run —
+              ask (default), auto-accept edits, plan-only or bypass — and save
+              "always allow" decisions per project.
+            </p>
+            <div class="tags"><span>diff preview</span><span>AskUserQuestion</span><span>plan review</span><span>pop-out</span></div>
+          </div>
+          <div class="card col-3">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 19V5M4 19h16M8 16V9M13 16v-4M18 16v-9" />
+              </svg>
+            </div>
+            <div class="num">07 · Stats</div>
+            <h3>Token &amp; cost stats</h3>
+            <p>
+              Tokens and cost by engine, project, model (subagents included) and
+              day, plus real plan usage for each Claude account and your Codex
+              plan. Deleting old runs never loses the numbers.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BUILT-IN AGENT TOOLS -->
+    <section id="tools">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">Built-in agent tools</span>
+          <h2>Your agent can use Devdy, not just talk to it.</h2>
+          <p>
+            Devdy ships built-in MCP servers — <b>88 tools</b> in total. When
+            enabled, Devdy MCP (<b>48 tools</b>) is wired into each run; Google
+            MCP adds <b>40 tools</b> after you connect Google OAuth. Every call
+            follows the permission mode you set for the run.
+          </p>
+        </div>
+        <div class="toolbox">
+          <div class="tbox">
+            <div class="tbox-hd">
+              <h3>Devdy MCP</h3>
+              <span class="cnt">48 tools</span>
+            </div>
+            <p>
+              On by default (toggle on the MCP screen). A session can keep notes,
+              manage todos, edit your Skills and Rules, search past sessions,
+              read saved Slack threads and run commands on your servers.
+            </p>
+            <ul class="tsum"><li>notes <span>· 9</span></li><li>todos <span>· 8</span></li><li>skills <span>· 9</span></li><li>rules <span>· 5</span></li><li>sessions <span>· 3</span></li><li>slack threads <span>· 6</span></li><li>project &amp; git <span>· 6</span></li><li>vps <span>· 2</span></li></ul>
+            <span class="tex-label">e.g.</span>
+            <ul class="tex">
+              <li><code>sessions_search</code><span>find how a past session solved it</span></li>
+              <li><code>skills_write_file</code><span>update a Skill from inside a run</span></li>
+              <li><code>notes_append</code><span>log findings to a note</span></li>
+              <li><code>git_diff</code><span>inspect the working tree</span></li>
+              <li><code>vps_run</code><span>run a command on a registered server</span></li>
+            </ul>
+            <details class="tall">
+              <summary>Browse all 48 Devdy tools</summary>
+              <div class="tgroup"><div class="g">notes_* <span>· 9</span></div><div class="tt"><code>list</code><code>read</code><code>create</code><code>update</code><code>append</code><code>search</code><code>delete</code><code>set_project</code><code>reorder</code></div></div>
+              <div class="tgroup"><div class="g">todos_* <span>· 8</span></div><div class="tt"><code>list</code><code>add</code><code>done</code><code>update</code><code>delete</code><code>clear_done</code><code>set_project</code><code>reorder</code></div></div>
+              <div class="tgroup"><div class="g">skills_* <span>· 9</span></div><div class="tt"><code>list</code><code>read</code><code>create</code><code>update</code><code>delete</code><code>list_files</code><code>read_file</code><code>write_file</code><code>delete_file</code></div></div>
+              <div class="tgroup"><div class="g">rules_* <span>· 5</span></div><div class="tt"><code>list</code><code>read</code><code>create</code><code>update</code><code>delete</code></div></div>
+              <div class="tgroup"><div class="g">sessions <span>· 3</span></div><div class="tt"><code>sessions_recent</code><code>sessions_search</code><code>session_read</code></div></div>
+              <div class="tgroup"><div class="g">slack_threads_* <span>· 6</span></div><div class="tt"><code>list</code><code>read</code><code>search</code><code>rename</code><code>set_project</code><code>delete</code></div></div>
+              <div class="tgroup"><div class="g">project &amp; git <span>· 9</span></div><div class="tt"><code>project_info</code><code>projects_list</code><code>projects_create</code><code>repos_list</code><code>repos_add</code><code>repos_remove</code><code>file_tree</code><code>git_status</code><code>git_diff</code></div></div>
+              <div class="tgroup"><div class="g">vps_* <span>· 2</span></div><div class="tt"><code>list</code><code>run</code></div></div>
+            </details>
+          </div>
+          <div class="tbox">
+            <div class="tbox-hd">
+              <h3>Google MCP</h3>
+              <span class="cnt">40 tools</span>
+            </div>
+            <p>
+              Uses your own Google Cloud OAuth (Desktop app) credentials. Each
+              tool accepts an optional account, so one session can work across
+              your work and personal Google accounts.
+            </p>
+            <ul class="tsum"><li>mail <span>· 15</span></li><li>drive <span>· 15</span></li><li>calendar <span>· 9</span></li><li>accounts <span>· 1</span></li></ul>
+            <span class="tex-label">e.g.</span>
+            <ul class="tex">
+              <li><code>mail_search</code><span>find the thread you need</span></li>
+              <li><code>download_attachments</code><span>pull files from an email</span></li>
+              <li><code>drive_upload</code><span>put a report on Drive</span></li>
+              <li><code>cal_freebusy</code><span>check when people are free</span></li>
+              <li><code>cal_create_event</code><span>book the meeting</span></li>
+            </ul>
+            <details class="tall">
+              <summary>Browse all 40 Google tools</summary>
+              <div class="tgroup"><div class="g">mail_* <span>· 15</span></div><div class="tt"><code>list_messages</code><code>search</code><code>read_message</code><code>read_thread</code><code>list_labels</code><code>list_attachments</code><code>download_attachment</code><code>download_attachments</code><code>send</code><code>create_draft</code><code>reply</code><code>modify_labels</code><code>mark</code><code>trash</code><code>delete</code></div></div>
+              <div class="tgroup"><div class="g">drive_* <span>· 15</span></div><div class="tt"><code>list</code><code>search</code><code>get_metadata</code><code>read</code><code>download</code><code>mkdir</code><code>create</code><code>upload</code><code>update</code><code>rename</code><code>move</code><code>delete</code><code>share</code><code>get_permissions</code><code>unshare</code></div></div>
+              <div class="tgroup"><div class="g">cal_* <span>· 9</span></div><div class="tt"><code>list_calendars</code><code>list_events</code><code>search_events</code><code>get_event</code><code>freebusy</code><code>create_event</code><code>update_event</code><code>delete_event</code><code>respond_event</code></div></div>
+              <div class="tgroup"><div class="g">accounts <span>· 1</span></div><div class="tt"><code>list_accounts</code></div></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WORKSPACE -->
+    <section id="workspace">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">Your workday, beside the agent</span>
+          <h2>Mail, calendar, Slack, servers — one window.</h2>
+          <p>
+            Devdy connects the tools you already work in and hands them to the
+            agent — so a session can read the Slack thread, check your calendar
+            or SSH into staging without you copy-pasting a thing, under the same
+            permission mode as the rest of the run.
+          </p>
+        </div>
+        <div class="bento">
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="5" width="16" height="15" rx="2" />
+                <path d="M4 10h16M9 3v4M15 3v4" />
+              </svg>
+            </div>
+            <div class="num">Google</div>
+            <h3>Gmail, Drive &amp; Calendar</h3>
+            <p>
+              Connect one or more Google accounts with your own Google OAuth
+              Desktop-app credentials. A unified calendar (with a lunar overlay)
+              lets you create and edit events; the agent can search mail,
+              download attachments and work with Drive files.
+            </p>
+            <div class="tags"><span>mail_*</span><span>drive_*</span><span>cal_*</span></div>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 5h14v10H9l-4 4V5zM9 9h6M9 12h4" />
+              </svg>
+            </div>
+            <div class="num">Slack · translate</div>
+            <h3>Translated Slack threads</h3>
+            <p>
+              Save a thread by link or from the companion Chrome extension and
+              read it in a Slack-like viewer, translated into Vietnamese. Link
+              threads to sessions for full context — and highlight any text in a
+              session to translate it with a fast model.
+            </p>
+            <div class="tags"><span>→ Vietnamese</span><span>Inbox API</span><span>select to translate</span></div>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5v15M8 7h7M10 12h8M7 17h6" />
+              </svg>
+            </div>
+            <div class="num">GitHub</div>
+            <h3>PR inbox &amp; Gantt</h3>
+            <p>
+              Every GitHub PR waiting for your review, across all your GitHub
+              accounts, in one list. Plot a GitHub Project board on a Gantt to
+              spot overdue, at-risk and stalled issues.
+            </p>
+            <div class="tags"><span>review requests</span><span>Projects board</span></div>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 4h10l4 4v12H5zM9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <div class="num">Notes &amp; Todos</div>
+            <h3>Capture now, hand off later</h3>
+            <p>
+              Quick-capture notes and todos from anywhere in the app, pop them
+              out into their own window, link them to sessions and insert them
+              into a prompt. The agent can read and update them too.
+            </p>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 14h16v5H4zM6 14l2-9h8l2 9M8 16.5h.01" />
+              </svg>
+            </div>
+            <div class="num">Servers &amp; cloud</div>
+            <h3>VPS and AWS, pre-wired</h3>
+            <p>
+              Register your VPS once and the agent can <code>ssh</code> into it
+              with no secret in the prompt. AWS SSO profiles are refreshed
+              mid-session and scoped per project.
+            </p>
+            <div class="tags"><span>ssh</span><span>vps_run</span><span>AWS SSO</span></div>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 3h8l4 4v14H6zM9 12h6M9 16h6" />
+              </svg>
+            </div>
+            <div class="num">File viewer</div>
+            <h3>Read what the agent wrote</h3>
+            <p>
+              Code, Markdown, Mermaid, PDF, CSV/TSV and images with zoom &amp;
+              side-by-side compare. File paths in the chat become links —
+              <code>#L100</code> jumps to the line — and a panel tracks every
+              file the session read or edited.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ACCOUNTS & USAGE -->
+    <section id="accounts">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">Multi-account &amp; usage guard</span>
+          <h2>Every account you own. The right one for every project.</h2>
+          <p>
+            Add as many Claude, GitHub, GitLab, AWS and Google accounts as you
+            need and link them per project — work repos use the work account,
+            side projects use yours. Devdy spreads Claude usage across your
+            logins and <b>stops new runs before you hit your plan limit</b>.
+          </p>
+        </div>
+
+        <div class="split2">
+          <div class="hl">
+            <div class="num">Claude · auto-balance</div>
+            <h3>Many Claude logins, usage spread evenly</h3>
+            <p>
+              Each Claude account lives in its own isolated profile, so several
+              can run in parallel. Pin one to a project, switch account right
+              from the chat — or let Devdy auto-swap the default to the
+              least-used account based on live plan usage, with a configurable
+              threshold and cooldown. Running and resumed sessions keep their
+              account.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">CLAUDE ACCOUNTS · 5H USAGE</div>
+                <div class="acct">
+                  <span class="nm">work</span>
+                  <span class="meter2"><i class="hot" style="width: 78%"></i></span>
+                  <span class="pct">78%</span>
+                </div>
+                <div class="acct">
+                  <span class="nm">personal <span class="def">default</span></span>
+                  <span class="meter2"><i style="width: 21%"></i></span>
+                  <span class="pct">21%</span>
+                </div>
+                <div class="acct">
+                  <span class="nm">team</span>
+                  <span class="meter2"><i style="width: 46%"></i></span>
+                  <span class="pct">46%</span>
+                </div>
+                <div class="viz-note">
+                  auto-balance · default swapped work → <b>personal</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hl">
+            <div class="num">Usage budget</div>
+            <h3>Never blow through your plan limit</h3>
+            <p>
+              Set block thresholds on your real subscription windows — Claude's
+              rolling 5-hour and weekly windows; Codex usually reports only the
+              weekly one. Devdy checks before every run and follow-up, warns as
+              you approach the limit and blocks new runs once it's reached, with
+              a per-turn override when you really need it. A live context meter
+              warns before a session overflows its window.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">USAGE BUDGET · BLOCKS NEW RUNS</div>
+                <div class="acct">
+                  <span class="nm">5h window</span>
+                  <span class="meter2"
+                    ><i class="hot" style="width: 84%"></i
+                    ><b style="left: 90%"></b
+                  ></span>
+                  <span class="pct">84%</span>
+                </div>
+                <div class="acct">
+                  <span class="nm">weekly</span>
+                  <span class="meter2"
+                    ><i class="ok" style="width: 52%"></i
+                    ><b style="left: 95%"></b
+                  ></span>
+                  <span class="pct">52%</span>
+                </div>
+                <div class="acct">
+                  <span class="nm">context</span>
+                  <span class="meter2"><i style="width: 31%"></i></span>
+                  <span class="pct">31%</span>
+                </div>
+                <div class="viz-note">
+                  block at 90% / 95% · <b class="warn">warning: near 5h limit</b>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bento" style="margin-top: 16px">
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M6 3v12M6 21a3 3 0 100-6 3 3 0 000 6zM6 6a3 3 0 100-6 3 3 0 000 6zM18 9a3 3 0 100-6 3 3 0 000 6zm0 0c0 6-12 3-12 9"
+                />
+              </svg>
+            </div>
+            <div class="num">GitHub · GitLab</div>
+            <h3>One account per project</h3>
+            <p>
+              Multiple GitHub and GitLab (self-hosted too) accounts, scopes
+              validated. Each project's runs use only its linked account for
+              <code>gh</code>, <code>glab</code> and <code>git</code> — your
+              global login is never touched.
+            </p>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 18a4 4 0 0 1-.5-8 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 17 18z" />
+              </svg>
+            </div>
+            <div class="num">AWS</div>
+            <h3>Access keys or SSO, per project</h3>
+            <p>
+              Add accounts from access keys, <code>~/.aws</code> profiles or an
+              SSO picker. The linked account is brokered into
+              <code>aws</code> calls and refreshed mid-session; changing
+              credentials from a run is blocked.
+            </p>
+          </div>
+          <div class="card col-2">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.5" />
+                <path d="M5 20a7 7 0 0 1 14 0" />
+              </svg>
+            </div>
+            <div class="num">Google</div>
+            <h3>Work and personal, side by side</h3>
+            <p>
+              Connect several Google accounts with your own OAuth credentials; the
+              agent targets one per call (or the default). Refresh tokens stay in
+              the Keychain, and sends, shares and deletes go through the
+              permission prompt in Ask mode.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SYNC & PARALLEL -->
+    <section id="sync">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">History &amp; concurrency</span>
+          <h2>One unified history. Many runs in parallel.</h2>
+          <p>
+            Devdy gathers every session in one place — even the ones you started
+            from the terminal or VS Code — and lets you run many at once across
+            projects, with none blocking another.
+          </p>
+        </div>
+
+        <div class="split2">
+          <div class="hl">
+            <div class="num">Auto-mirror</div>
+            <h3>Session history from everywhere</h3>
+            <p>
+              Run claude or codex outside the app — in the terminal or VS Code?
+              Devdy automatically detects those sessions and gathers them into
+              your history, no need to open them through the app first.
+              Everything on one unified timeline.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">UNIFIED HISTORY</div>
+                <div class="row-item">
+                  <span class="eng-dot eng-claude"></span
+                  ><span class="ri-ttl">Refactor auth guard</span
+                  ><span class="origin">from Terminal</span>
+                </div>
+                <div class="row-item">
+                  <span class="eng-dot eng-codex"></span
+                  ><span class="ri-ttl">Review PR #88</span
+                  ><span class="origin">from VS Code</span>
+                </div>
+                <div class="row-item">
+                  <span class="eng-dot eng-claude"></span
+                  ><span class="ri-ttl">Analyze issue #142</span
+                  ><span class="origin">in Devdy</span>
+                </div>
+                <div class="row-item">
+                  <span class="eng-dot eng-claude"></span
+                  ><span class="ri-ttl">Try a new prompt</span
+                  ><span class="origin">from Terminal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hl">
+            <div class="num">Concurrent</div>
+            <h3>Many sessions, many projects, at once</h3>
+            <p>
+              Open a PR review in one project, an issue analysis in another and
+              a free session — all running at the same time, none waiting on
+              another, and they keep going when you switch screens. Pop any
+              session out into its own window.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">RUNNING · 3</div>
+                <div class="prun p1">
+                  <div class="top">
+                    <span class="eng-dot eng-codex"></span
+                    ><span class="proj">demo-app</span
+                    ><span class="kind">review_pr #88</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="prun p2">
+                  <div class="top">
+                    <span class="eng-dot eng-claude"></span
+                    ><span class="proj">api-gateway</span
+                    ><span class="kind">analyze_issue #142</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+                <div class="prun p3">
+                  <div class="top">
+                    <span class="eng-dot eng-claude"></span
+                    ><span class="proj">web-dash</span
+                    ><span class="kind">session</span>
+                  </div>
+                  <div class="bar"><i></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split2" style="margin-top: 16px">
+          <div class="hl">
+            <div class="num">Remote control</div>
+            <h3>Drive your sessions from your phone</h3>
+            <p>
+              Pair a phone or another device through your own self-hosted relay.
+              Browse runs by project, follow the stream, answer permission
+              prompts, switch account or model — the relay only ever sees
+              end-to-end encrypted traffic.
+            </p>
+            <div class="viz">
+              <div class="screen">
+                <div class="s-hd">REMOTE · E2E ENCRYPTED</div>
+                <div class="row-item">
+                  <span class="eng-dot eng-claude"></span
+                  ><span class="ri-ttl">Ship checkout v2</span
+                  ><span class="origin">needs permission</span>
+                </div>
+                <div class="row-item">
+                  <span class="eng-dot eng-codex"></span
+                  ><span class="ri-ttl">Review PR #88</span
+                  ><span class="origin">streaming</span>
+                </div>
+                <div class="row-item">
+                  <span class="eng-dot eng-claude"></span
+                  ><span class="ri-ttl">Analyze issue #142</span
+                  ><span class="origin">done</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hl">
+            <div class="num">Always within reach</div>
+            <h3>Menu bar, pop-outs &amp; notifications</h3>
+            <p>
+              Devdy stays out of the way until you need it.
+            </p>
+            <ul class="ticks">
+              <li>
+                <span
+                  ><b>Menu-bar switcher.</b> See the running-session count and
+                  jump to any running session from the tray.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Pop-out windows.</b> Sessions, todos, notes and permission
+                  prompts each in their own window.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Native notifications.</b> Know when a background session
+                  finishes or needs your approval.</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>Make it yours.</b> Light / dark themes, seasonal scenes,
+                  an English / Vietnamese UI and an optional Cyber Fox
+                  mascot.</span
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCAL FIRST -->
+    <section id="local">
+      <div class="wrap">
+        <div class="trust-grid">
+          <div>
+            <span class="eyebrow">Local-first &amp; privacy</span>
+            <h2 class="trust-h2">Everything Devdy stores stays on your machine.</h2>
+            <ul class="trust-list">
+              <li>
+                <span class="chk"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" /></svg></span
+                ><span
+                  ><b>No AI API keys.</b> Claude and Codex authenticate with your
+                  existing <code>claude</code> / <code>codex</code> CLI
+                  logins.</span
+                >
+              </li>
+              <li>
+                <span class="chk"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" /></svg></span
+                ><span
+                  ><b>Secrets stay in the Keychain.</b> GitHub/GitLab tokens, MCP
+                  credentials, Google logins and server passphrases live only in
+                  the OS Keychain — never in a file, a log or the engine's
+                  environment.</span
+                >
+              </li>
+              <li>
+                <span class="chk"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" /></svg></span
+                ><span
+                  ><b>Per-run credential broker.</b> Each run gets tokens only for
+                  the account linked to its project, on request, through a
+                  policy, approval and audit layer — and fails closed instead of
+                  falling back to your global login.</span
+                >
+              </li>
+              <li>
+                <span class="chk"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" /></svg></span
+                ><span
+                  ><b>No Devdy cloud.</b> Skills, rules, history and stats live in
+                  local SQLite and log files. Your prompts go to the engine you
+                  run (Anthropic or OpenAI), connected services such as GitHub or
+                  Google talk to their own APIs, and remote control goes through
+                  your own end-to-end encrypted relay.</span
+                >
+              </li>
+              <li>
+                <span class="chk"
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" /></svg></span
+                ><span
+                  ><b>You choose the permission mode.</b> By default Devdy asks
+                  before sensitive tool calls; per run you can switch to
+                  auto-accept edits, plan-only or bypass.</span
+                >
+              </li>
+            </ul>
+          </div>
+          <div class="keychip" aria-hidden="true">
+            <div class="row">
+              <span class="k">storage</span><span class="v">local SQLite + logs</span>
+            </div>
+            <div class="row">
+              <span class="k">secrets</span><span class="v lock">🔒 OS Keychain</span>
+            </div>
+            <div class="row">
+              <span class="k">credentials</span><span class="v">per-run broker · fail-closed</span>
+            </div>
+            <div class="row">
+              <span class="k">broker_audit</span><span class="v">policy · approval · audit</span>
+            </div>
+            <div class="row">
+              <span class="k">devdy_cloud</span><span class="v">— none —</span>
+            </div>
+            <div class="row">
+              <span class="k">ai_traffic</span><span class="v">the engine you run</span>
+            </div>
+            <div class="row">
+              <span class="k">remote_relay</span><span class="v">self-hosted · E2E</span>
+            </div>
+            <div class="row">
+              <span class="k">permission</span><span class="v">default · ask</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOWNLOAD -->
+    <section id="download">
+      <div class="wrap cta-final">
+        <span
+          class="eyebrow"
+          style="display: inline-flex; justify-content: center"
+          >Ready</span
+        >
+        <h2>
+          Your AI dev team,<br /><span class="grad">ready on your Mac</span>.
+        </h2>
+        <p>
+          Install Devdy, keep your <code>claude</code> and <code>codex</code>
+          CLI logins, connect the tools you already use — and hand over your
+          first goal.
+        </p>
+        <div class="hero-cta">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/thainph/devdy/releases/latest"
+            target="_blank"
+            rel="noopener"
+            >Download for macOS
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z" />
+            </svg>
+          </a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/thainph/devdy#requirements"
+            target="_blank"
+            rel="noopener"
+            >See requirements</a
+          >
+        </div>
+        <p class="platform-note">
+          macOS · v0.9.0 ·
+          <a href="https://github.com/thainph/devdy/releases" target="_blank" rel="noopener">all releases</a>
+        </p>
+      </div>
+    </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot-in">
+        <a class="brand" href="#top"
+          ><img class="brand-logo" src="logo.png" alt="" /><b>devdy</b>
+          <span class="tld">· vn.papay.devdy</span></a
+        >
+        <div>Local-first · no Devdy cloud · no AI API keys</div>
+      </div>
+    </footer>
+    <script>
+      // Close the mobile menu after a section is picked or on Escape.
+      (function () {
+        var menu = document.querySelector(".nav-menu");
+        if (!menu) return;
+        menu.querySelectorAll(".nav-panel a").forEach(function (a) {
+          a.addEventListener("click", function () {
+            menu.removeAttribute("open");
+          });
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && menu.open) {
+            menu.removeAttribute("open");
+            menu.querySelector("summary").focus();
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

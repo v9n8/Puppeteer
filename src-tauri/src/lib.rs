@@ -1,0 +1,852 @@
+mod aws_sandbox;
+mod azure_sandbox;
+mod commands;
+mod conductor;
+mod db;
+mod focus;
+mod github;
+mod gitlab;
+mod inbox_api;
+mod item_links;
+mod procs;
+mod remote;
+mod runs;
+mod secret_vault;
+mod secrets;
+mod slack_threads;
+
+use commands::app_menu::set_app_menu;
+use commands::tray::set_tray_menu;
+use commands::aws_accounts::{
+    aws_sso_login, create_aws_account, delete_aws_account, list_aws_accounts,
+    set_project_aws_account, update_aws_account, validate_aws_account,
+};
+use commands::aws_sso::{aws_sso_login_profile, list_aws_profiles};
+use commands::azure_accounts::{
+    azure_login, create_azure_account, delete_azure_account, list_azure_accounts,
+    list_azure_subscriptions, set_project_azure_account, update_azure_account,
+    validate_azure_account,
+};
+use commands::claude_accounts::{
+    create_claude_account, delete_claude_account, get_claude_balance, list_claude_accounts,
+    cancel_claude_account_login, login_claude_account, rename_claude_account,
+    submit_claude_login_code, set_default_claude_account,
+    set_project_claude_account, validate_claude_account, BalanceGuard,
+};
+use commands::codex_sessions::reconcile_codex_sessions;
+use commands::file_tree_watcher::{
+    set_file_tree_watch, stop_file_tree_watch, FileTreeWatchers,
+};
+use commands::files::{
+    copy_entry, create_dir, create_file, delete_entry, import_external_entries, list_dir,
+    list_project_files, move_entry, start_file_drag,
+    read_file_base64, read_project_file, rename_entry, write_project_file,
+};
+use commands::github::{
+    fetch_issue, fetch_pr, list_milestone_board, list_milestone_issues,
+    list_review_requested_prs, list_runs, refetch_run, resolve_project_board,
+};
+use commands::github_accounts::{
+    create_github_account, delete_github_account, list_github_accounts, set_project_github_account,
+    get_run_github_accounts, update_github_account, validate_github_account,
+};
+use commands::project_git_accounts::{set_project_cloud_account_enabled, set_project_git_account_enabled};
+use commands::gitlab_accounts::{
+    create_gitlab_account, delete_gitlab_account, list_gitlab_accounts, set_project_gitlab_account,
+    update_gitlab_account, validate_gitlab_account,
+};
+use commands::health::health_check;
+use commands::mascot_speak::{cancel_mascot_speak, mascot_speak, MascotSpeakState};
+use commands::mcp::{
+    create_mcp_server, delete_mcp_server, export_mcp_server, get_mcp_server, import_mcp_server,
+    list_mcp_servers, list_project_builtin_mcp, list_project_mcp_servers, set_builtin_mcp_enabled,
+    set_project_builtin_mcp_enabled, set_project_mcp_servers, test_mcp_connection, update_mcp_server,
+};
+use commands::gcalendar::{
+    create_google_calendar_event, delete_google_calendar_event, list_google_calendar_events,
+    list_google_calendars, update_google_calendar_event,
+};
+use commands::google::{
+    add_google_account, delete_google_account, google_client_status, google_forget_client,
+    list_google_accounts, reauth_google_account, rename_google_account,
+    set_default_google_account, validate_google_account,
+};
+use commands::groups::{
+    apply_group_to_all_projects, create_group, delete_group, disable_group_for_project,
+    enable_group_for_project, get_group_members, get_item_groups, get_project_groups, list_groups,
+    reorder_groups, set_group_members, update_group,
+};
+use commands::notifications::{
+    show_calendar_reminder, show_permission_notification, show_run_finished_notification,
+};
+use commands::projects::{
+    add_project, add_repo, apply_skill, apply_skill_to_all_projects, detect_project_info,
+    get_applied_skills, list_projects, list_repos, list_sync_conflicts, open_in_chrome,
+    open_in_folder, open_in_terminal, open_in_vscode, remove_project, remove_repo,
+    reapply_skills, remove_skill_from_project, reorder_projects,
+    resolve_sync_conflict, update_project, update_repo,
+};
+use commands::rules::{
+    apply_rule, apply_rule_to_all_projects, create_rule, delete_rule, export_rule,
+    get_applied_rules, get_rule, import_rule, list_rule_sync_conflicts, list_rules,
+    open_rules_folder, reapply_rules, remove_rule_from_project, resolve_rule_sync_conflict,
+    update_rule,
+};
+use commands::runs::{
+    cancel_run, create_handoff_run, create_session_run, delete_all_runs, delete_run, end_run_input,
+    get_run_log, get_run_log_forward, get_run_log_page, get_run_log_path, get_run_log_revision, get_run_tool_records, get_run_user_records, list_live_runs, list_pending_permissions, read_run_input, rename_run, rerun_run, respond_permission,
+    resume_run, send_user_message, set_run_claude_account, set_run_pinned, set_run_protected, start_run,
+};
+use commands::sessions::reconcile_claude_sessions;
+use commands::settings::{get_settings, update_setting};
+use commands::settings_backup::{
+    export_settings_backup, import_settings_backup, inspect_settings_backup,
+};
+use commands::skills::{
+    create_skill, delete_skill, export_skill_zip, get_skill, import_skill_zip, list_skills,
+    open_skill_folder, update_skill,
+};
+use commands::stats::{
+    backfill_usage, get_budget_status, get_claude_account_budget, get_codex_budget_status,
+    get_plan_usage, get_plan_usage_codex, get_run_budget, get_usage_stats,
+    refresh_codex_plan_usage, refresh_plan_usage, reset_usage_stats,
+};
+use commands::storage::get_storage_stats;
+use commands::instruction_checks::get_instruction_warnings;
+use commands::inbox_api::{get_inbox_api_info, regenerate_inbox_api_token, set_inbox_api_enabled};
+use commands::slack_threads::{
+    add_slack_thread, delete_slack_threads, get_slack_thread, get_slack_thread_prompt_text,
+    get_slack_token_status, link_slack_thread_run, list_run_slack_threads, list_slack_thread_runs,
+    list_slack_threads, mark_slack_thread_seen, post_slack_thread_reply, refresh_slack_thread,
+    rename_slack_thread, reorder_slack_threads, retranslate_slack_thread, set_slack_thread_project,
+    translate_slack_reply, unlink_slack_thread_run,
+};
+use commands::focus::{
+    focus_board, focus_refresh_calendar, focus_settings_get, focus_settings_set,
+    focus_take_open_todo,
+};
+use commands::focus_ai::{
+    focus_ai_analyze, focus_ai_cancel, focus_ai_plan_today, focus_ai_suggest, focus_day_plan_get,
+    focus_plan_to_calendar, focus_start_with_ai, focus_suggest_actual,
+};
+use commands::item_links::{link_item_run, list_item_runs, list_run_items, unlink_item_run};
+use commands::notes::{
+    add_note, delete_note, delete_notes, list_notes, reorder_notes, set_note_project, update_note,
+};
+use commands::secret_vault::{
+    rd_copy_secret, secret_note_copy, secret_note_create, secret_note_delete, secret_note_from_note, secret_note_reveal, secret_note_set_project,
+    secret_note_update, secret_notes_list, secret_notes_reorder, secret_vault_change_password, secret_vault_lock,
+    secret_vault_merge_old, secret_vault_setup, secret_vault_status, secret_vault_touch, secret_vault_unlock, secret_vault_unlock_recovery,
+};
+use commands::todos::{
+    add_todo, clear_completed_todos, delete_todo, delete_todos, list_todos, reorder_todos,
+    set_todo_due_date, set_todo_project, toggle_todo, update_todo, update_todo_fields,
+};
+use commands::vps_servers::{
+    create_vps_server, delete_vps_server, list_project_servers, list_vps_servers,
+    map_server_to_project, test_vps_connection, unmap_server, update_vps_server,
+};
+use commands::models::{get_model_caches, refresh_codex_models, validate_claude_models};
+use commands::translate::{cancel_translate, prewarm_translate, translate_text, TranslateState};
+use remote::commands::{
+    remote_clear_audit, remote_create_session_link, remote_disable, remote_enable,
+    remote_end_session, remote_get_audit, remote_kick_controller, remote_reveal_otp,
+    remote_set_config, remote_set_device_alias, remote_set_master_password, remote_status,
+};
+use remote::file_proxy::{rd_download_append, rd_download_create, rdfile_register, rdfile_respond};
+use remote::fs_bridge::{
+    remote_client_log, remote_fs_home, remote_fs_list, remote_fs_log_dir, remote_fs_read, remote_fs_stat,
+};
+use remote::ipc::{remote_bridge_batch, remote_bridge_ready};
+use remote::RemoteState;
+use runs::broker::approver::ModalApproverResolver;
+use runs::broker::{start_broker, ApproverResolver, BrokerConfig};
+use runs::{new_broker_approvals, new_broker_runs, new_registry, RunRegistry};
+use std::sync::Arc;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        // MUST be the first plugin: a second launch of the same build hands its
+        // args to the running instance and exits, instead of starting a rival
+        // process that would steal the broker's fixed Unix socket (start_broker
+        // unlinks + rebinds the same path), stranding the live runs' shims.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
+        // Remote desktop: files of the controlled Devdy as URLs in a
+        // remote-desktop window (see remote::file_proxy).
+        .register_asynchronous_uri_scheme_protocol(remote::file_proxy::SCHEME, remote::file_proxy::handle)
+        .manage(remote::file_proxy::FileProxy::default())
+        // The menu itself is installed by the frontend (see `set_app_menu`), so
+        // its labels follow the app language; this only routes clicks back.
+        .on_menu_event(commands::app_menu::on_menu_event)
+        .manage(commands::app_menu::AppMenuState::default())
+        .manage(commands::focus_ai::FocusAiState::default())
+        .setup(|app| {
+            use tauri::Manager;
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app data dir");
+            std::fs::create_dir_all(app_data_dir.join("skills"))
+                .expect("Failed to create skills dir");
+            std::fs::create_dir_all(app_data_dir.join("rules"))
+                .expect("Failed to create rules dir");
+            commands::project_links::set_backup_root(app_data_dir.join("legacy-backups"));
+            commands::mcp_packages::set_root(app_data_dir.join("mcp-packages"));
+            // Unfinished file-transfer writes and their temp files (both sides).
+            remote::upload::spawn_sweeper(app.handle().clone());
+
+            // Persist logs so the credential broker's audit trail and its
+            // "broker unreachable / accept error" warnings are actually recorded.
+            // Before this, no `tracing` subscriber was installed, so every
+            // `tracing::*` call (including `devdy::broker::audit`) was dropped and
+            // broker failures could not be diagnosed after the fact. Rolls daily;
+            // override verbosity with RUST_LOG. The non-blocking worker guard is
+            // parked in a process-lifetime static so the writer never shuts down
+            // early. SECURITY: broker audit is token-free by construction, so no
+            // secret reaches these files.
+            {
+                use std::sync::OnceLock;
+                use tracing_appender::non_blocking::WorkerGuard;
+                static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+                let logs_dir = app_data_dir.join("logs");
+                let _ = std::fs::create_dir_all(&logs_dir);
+                let file_appender = tracing_appender::rolling::daily(&logs_dir, "devdy.log");
+                let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+                let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+                let _ = tracing_subscriber::fmt()
+                    .with_env_filter(filter)
+                    .with_ansi(false)
+                    .with_writer(non_blocking)
+                    .try_init();
+                let _ = LOG_GUARD.set(guard);
+            }
+
+            let db_path = app_data_dir.join("data.db");
+            let db = tauri::async_runtime::block_on(db::init_db(&db_path))
+                .expect("Failed to initialize database");
+            // One-time, off the startup path: re-derive the usage ledger from
+            // run logs (reads every log, so it can take a while).
+            {
+                let db = db.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = runs::model_usage::rebuild_from_logs(&db).await {
+                        eprintln!("[usage] ledger rebuild from logs failed: {e}");
+                    }
+                });
+            }
+            // Background-process tracker: sweeps what a previous session left
+            // behind, then follows every process Devdy spawns from here on.
+            procs::commands::install(app, &app_data_dir);
+            // Watch the shared Claude transcript store so sessions created or
+            // continued outside Devdy (claude CLI / VS Code) mirror in live.
+            runs::session_watcher::start(db.clone(), app.handle().clone());
+
+            // Materialize per-project AWS sandboxes for already-linked projects
+            // and sweep the legacy per-run `aws-runs` dirs. Runs only read these
+            // files; they are written here and when AWS config changes, never by
+            // a run.
+            tauri::async_runtime::block_on(aws_sandbox::sync_all(&db, &app_data_dir));
+            // Azure: record the account-dir root for the broker and reset the
+            // shared empty AZURE_CONFIG_DIR every run's sidecar points at.
+            azure_sandbox::sync_all(&app_data_dir);
+
+            // App-wide singleton credential broker (GĐ7). One Unix socket serves
+            // every run for the whole app lifetime, so runs never race a per-run
+            // socket that appears/disappears with them (fixes the sporadic
+            // "broker unreachable" deny). Token isolation is unchanged: each
+            // request is still resolved by its own `project_id`, and an `Ask` is
+            // routed to the issuing run's modal (fail-closed if the run ended).
+            let approvals = new_broker_approvals();
+            let broker_runs = new_broker_runs();
+            let resolver: Arc<dyn ApproverResolver> = Arc::new(ModalApproverResolver::new(
+                app.handle().clone(),
+                approvals.clone(),
+                broker_runs.clone(),
+            ));
+            let broker_handle = tauri::async_runtime::block_on(start_broker(
+                db.clone(),
+                BrokerConfig {
+                    // Tách socket theo build để bản dev và bản đã cài không
+                    // giành chung /tmp/devdy-broker/app.sock (start_broker xoá
+                    // socket cũ khi khởi động; nếu trùng label sẽ kill broker
+                    // của bản kia khi chạy song song).
+                    socket_label: if cfg!(debug_assertions) { "app-dev" } else { "app" }.to_string(),
+                    resolver,
+                    app: Some(app.handle().clone()),
+                },
+            ))
+            .expect("Failed to start credential broker");
+
+            app.manage(db);
+            app.manage(FileTreeWatchers::default());
+            // One warm translation sidecar, shared by the UI and the Inbox API.
+            let translate_state = TranslateState::default();
+            app.manage(translate_state.clone());
+            // Slack Thread Translate: its own warm translation sidecar (so long
+            // thread jobs never block the popover / `/v1/translate`) and the
+            // fetch/translate job queue. Unfinished jobs resume after restart.
+            let slack_translate = slack_threads::SlackTranslateState::default();
+            app.manage(slack_translate.clone());
+            let slack_state = slack_threads::SlackThreadsState::for_app(
+                app.handle(),
+                app.state::<db::Db>().inner().clone(),
+                app_data_dir.clone(),
+                slack_translate,
+            );
+            app.manage(slack_state.clone());
+            {
+                let slack_state = slack_state.clone();
+                tauri::async_runtime::spawn({
+                    let slack_state = slack_state.clone();
+                    async move { slack_state.start_worker() }
+                });
+                // Re-queue threads a previous session left unfinished.
+                tauri::async_runtime::spawn(async move { slack_state.startup_recover().await });
+            }
+            // Focus reminders (focus::scheduler): a 60 s tick while the app runs.
+            focus::scheduler::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
+            commands::secret_vault::spawn_auto_lock(app.handle().clone());
+            app.manage(MascotSpeakState::default());
+            app.manage(BalanceGuard::default());
+            app.manage(new_registry());
+            app.manage(approvals);
+            app.manage(broker_runs);
+
+            // Conductor: managed registry + loopback MCP server (session_* tools).
+            // The server binds an ephemeral 127.0.0.1 port and records it in the
+            // state so conductor runs can point their `conductor` MCP server at it.
+            let conductor_state = conductor::ConductorState::new();
+            app.manage(conductor_state.clone());
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // Restore ownership of any conductor sessions still running from
+                    // before an app restart, then start the loopback MCP server.
+                    let db_for_conductor = app_handle.state::<db::Db>().inner().clone();
+                    // Single session type: upgrade any legacy plain top-level run
+                    // to a conductor first (idempotent), so reconnect registers it.
+                    if let Err(e) =
+                        conductor::commands::migrate_legacy_sessions(&db_for_conductor).await
+                    {
+                        tracing::error!(event = "conductor_legacy_migration_failed", error = %e);
+                    }
+                    conductor::commands::reconnect_running(&db_for_conductor, &conductor_state)
+                        .await;
+                    if let Err(e) =
+                        conductor::mcp_http::start(app_handle, conductor_state).await
+                    {
+                        tracing::error!(event = "conductor_mcp_start_failed", error = %e);
+                    }
+                });
+            }
+            // Web page captures were removed: drop their leftover files (the
+            // tables are dropped by migration 0042).
+            inbox_api::remove_legacy_web_pages(&app_data_dir);
+            // Inbox API: loopback HTTP API (127.0.0.1:47821..47830) the
+            // Chrome extension sends Slack links to. The token is loaded
+            // (or generated) synchronously so commands never see an empty one.
+            // Only started when enabled (`inbox_api_enabled`, default on).
+            {
+                let db_for_inbox = app.state::<db::Db>().inner().clone();
+                let inbox_state = inbox_api::InboxApiState::default();
+                match tauri::async_runtime::block_on(inbox_api::load_or_create_token(
+                    &db_for_inbox,
+                )) {
+                    Ok(token) => inbox_state.set_token(token),
+                    Err(e) => tracing::error!(event = "inbox_api_token_load_failed", error = %e),
+                }
+                let enabled =
+                    tauri::async_runtime::block_on(inbox_api::load_enabled(&db_for_inbox));
+                inbox_state.set_enabled(enabled);
+                app.manage(inbox_state.clone());
+                if enabled {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        inbox_api::server::start_server(
+                            app_handle,
+                            db_for_inbox,
+                            inbox_state,
+                            translate_state,
+                            slack_state,
+                        )
+                        .await;
+                    });
+                }
+            }
+            // Keep the broker alive for the whole app lifetime (Drop removes the
+            // socket on exit).
+            app.manage(broker_handle);
+
+            // Remote Control (C1): managed state + event bus. The `drain_sidecar`
+            // task publishes run events onto this bus (no-op when no room is
+            // ACTIVE). If the feature was left enabled, auto-start the outbound
+            // relay agent (FR-001 "app khởi động khi tính năng đang bật").
+            let remote_state = RemoteState::default();
+            // Register the RemoteBus as its own managed state so the run event
+            // tap in `sidecar.rs` (app.try_state::<RemoteBus>()) publishes onto
+            // the SAME bus the forwarder subscribes to. Without this the tap
+            // finds no bus and never forwards stream/permission events.
+            app.manage(remote_state.bus.clone());
+            app.manage(remote_state.clone());
+            // Shared engine/model/permission-mode selection store: the desktop
+            // composer + a remote controller both read/write it so their selectors
+            // stay in lock-step (realtime, both ways).
+            app.manage(remote::RunMetaStore::default());
+            {
+                let app_handle = app.handle().clone();
+                let db_for_remote = app_handle.state::<db::Db>().inner().clone();
+                let registry = app_handle.state::<RunRegistry>().inner().clone();
+                let approvals = app_handle
+                    .state::<runs::BrokerApprovals>()
+                    .inner()
+                    .clone();
+                tauri::async_runtime::spawn(async move {
+                    let enabled = remote::get_setting(&db_for_remote, remote::KEY_ENABLED)
+                        .await
+                        .map(|v| v == "true")
+                        .unwrap_or(false);
+                    if enabled {
+                        if let Err(e) = remote_state
+                            .start(&app_handle, &db_for_remote, &registry, &approvals)
+                            .await
+                        {
+                            tracing::warn!(event = "remote_autostart_failed", error = %e);
+                        }
+                    }
+                });
+            }
+
+            // macOS menu-bar icon: a quick switcher for open windows. The menu
+            // contents are pushed by the frontend (set_tray_menu); this only
+            // installs the icon so it appears immediately at launch.
+            if let Err(e) = commands::tray::init(app.handle()) {
+                tracing::warn!(event = "tray_init_failed", error = %e);
+            }
+
+            // Launch at login: keep the LaunchAgent pointing at this executable,
+            // and honour its "start minimized" flag.
+            commands::autostart::refresh(app.handle());
+            if commands::autostart::launched_minimized() {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.minimize();
+                }
+            }
+            Ok(())
+        })
+        // Refuse credential / security commands to the remote-desktop bridge.
+        .invoke_handler(remote::guard::gated(tauri::generate_handler![
+            health_check,
+            set_app_menu,
+            set_tray_menu,
+            commands::autostart::autostart_get,
+            commands::autostart::autostart_set,
+            get_settings,
+            update_setting,
+            export_settings_backup,
+            inspect_settings_backup,
+            import_settings_backup,
+            list_skills,
+            get_skill,
+            create_skill,
+            update_skill,
+            delete_skill,
+            export_skill_zip,
+            import_skill_zip,
+            open_skill_folder,
+            list_rules,
+            get_rule,
+            create_rule,
+            update_rule,
+            delete_rule,
+            export_rule,
+            import_rule,
+            open_rules_folder,
+            get_applied_rules,
+            apply_rule,
+            apply_rule_to_all_projects,
+            reapply_rules,
+            remove_rule_from_project,
+            list_rule_sync_conflicts,
+            resolve_rule_sync_conflict,
+            get_instruction_warnings,
+            list_groups,
+            create_group,
+            update_group,
+            delete_group,
+            reorder_groups,
+            get_group_members,
+            get_item_groups,
+            set_group_members,
+            get_project_groups,
+            enable_group_for_project,
+            disable_group_for_project,
+            apply_group_to_all_projects,
+            list_mcp_servers,
+            get_mcp_server,
+            create_mcp_server,
+            update_mcp_server,
+            delete_mcp_server,
+            list_project_mcp_servers,
+            set_project_mcp_servers,
+            list_project_builtin_mcp,
+            set_project_builtin_mcp_enabled,
+            set_builtin_mcp_enabled,
+            test_mcp_connection,
+            export_mcp_server,
+            import_mcp_server,
+            list_google_accounts,
+            add_google_account,
+            delete_google_account,
+            rename_google_account,
+            set_default_google_account,
+            validate_google_account,
+            reauth_google_account,
+            google_client_status,
+            google_forget_client,
+            list_claude_accounts,
+            create_claude_account,
+            rename_claude_account,
+            delete_claude_account,
+            set_default_claude_account,
+            login_claude_account,
+            submit_claude_login_code,
+            cancel_claude_account_login,
+            validate_claude_account,
+            set_project_claude_account,
+            get_claude_balance,
+            list_google_calendars,
+            list_google_calendar_events,
+            create_google_calendar_event,
+            update_google_calendar_event,
+            delete_google_calendar_event,
+            list_vps_servers,
+            create_vps_server,
+            update_vps_server,
+            delete_vps_server,
+            test_vps_connection,
+            list_project_servers,
+            map_server_to_project,
+            unmap_server,
+            detect_project_info,
+            list_projects,
+            add_project,
+            remove_project,
+            update_project,
+            reorder_projects,
+            list_github_accounts,
+            create_github_account,
+            update_github_account,
+            delete_github_account,
+            validate_github_account,
+            set_project_github_account,
+            get_run_github_accounts,
+            set_project_git_account_enabled,
+            set_project_cloud_account_enabled,
+            list_gitlab_accounts,
+            create_gitlab_account,
+            update_gitlab_account,
+            delete_gitlab_account,
+            validate_gitlab_account,
+            set_project_gitlab_account,
+            list_aws_accounts,
+            create_aws_account,
+            update_aws_account,
+            delete_aws_account,
+            validate_aws_account,
+            aws_sso_login,
+            list_aws_profiles,
+            aws_sso_login_profile,
+            set_project_aws_account,
+            list_azure_accounts,
+            create_azure_account,
+            update_azure_account,
+            delete_azure_account,
+            validate_azure_account,
+            azure_login,
+            list_azure_subscriptions,
+            set_project_azure_account,
+            get_applied_skills,
+            apply_skill,
+            apply_skill_to_all_projects,
+            reapply_skills,
+            remove_skill_from_project,
+            list_sync_conflicts,
+            resolve_sync_conflict,
+            list_repos,
+            add_repo,
+            update_repo,
+            remove_repo,
+            open_in_vscode,
+            open_in_chrome,
+            open_in_folder,
+            open_in_terminal,
+            fetch_issue,
+            fetch_pr,
+            refetch_run,
+            list_review_requested_prs,
+            resolve_project_board,
+            list_milestone_board,
+            list_milestone_issues,
+            list_runs,
+            start_run,
+            cancel_run,
+            get_run_log,
+            get_run_log_forward,
+            get_run_log_page,
+            get_run_log_path,
+            get_run_log_revision,
+            get_run_tool_records,
+            get_run_user_records,
+            rerun_run,
+            respond_permission,
+            list_pending_permissions,
+            list_live_runs,
+            send_user_message,
+            end_run_input,
+            read_run_input,
+            resume_run,
+            delete_run,
+            delete_all_runs,
+            rename_run,
+            set_run_claude_account,
+            set_run_pinned,
+            set_run_protected,
+            list_project_files,
+            list_dir,
+            set_file_tree_watch,
+            stop_file_tree_watch,
+            read_project_file,
+            write_project_file,
+            read_file_base64,
+            create_dir,
+            create_file,
+            rename_entry,
+            delete_entry,
+            copy_entry,
+            move_entry,
+            import_external_entries,
+            start_file_drag,
+            create_handoff_run,
+            create_session_run,
+            conductor::commands::start_conductor,
+            conductor::commands::convert_run_to_conductor,
+            conductor::commands::get_conductor_detail,
+            conductor::commands::set_conductor_max_workers,
+            get_usage_stats,
+            translate_text,
+            cancel_translate,
+            prewarm_translate,
+            mascot_speak,
+            cancel_mascot_speak,
+            validate_claude_models,
+            refresh_codex_models,
+            get_model_caches,
+            backfill_usage,
+            reset_usage_stats,
+            get_budget_status,
+            get_codex_budget_status,
+            get_claude_account_budget,
+            get_run_budget,
+            get_plan_usage,
+            get_plan_usage_codex,
+            refresh_plan_usage,
+            refresh_codex_plan_usage,
+            reconcile_claude_sessions,
+            reconcile_codex_sessions,
+            get_storage_stats,
+            list_todos,
+            add_todo,
+            toggle_todo,
+            update_todo,
+            update_todo_fields,
+            focus_board,
+            focus_settings_get,
+            focus_settings_set,
+            focus_refresh_calendar,
+            focus_take_open_todo,
+            focus_ai_suggest,
+            focus_ai_analyze,
+            focus_ai_plan_today,
+            focus_day_plan_get,
+            focus_plan_to_calendar,
+            focus_ai_cancel,
+            focus_start_with_ai,
+            focus_suggest_actual,
+            delete_todo,
+            delete_todos,
+            clear_completed_todos,
+            reorder_todos,
+            set_todo_project,
+            set_todo_due_date,
+            list_notes,
+            add_note,
+            update_note,
+            set_note_project,
+            delete_note,
+            delete_notes,
+            reorder_notes,
+            secret_vault_status,
+            secret_vault_setup,
+            secret_vault_unlock,
+            secret_vault_unlock_recovery,
+            secret_vault_lock,
+            secret_vault_touch,
+            secret_vault_change_password,
+            secret_vault_merge_old,
+            secret_notes_list,
+            secret_note_reveal,
+            secret_note_copy,
+            secret_note_create,
+            secret_note_update,
+            secret_note_set_project,
+            secret_note_delete,
+            secret_notes_reorder,
+            secret_note_from_note,
+            rd_copy_secret,
+            get_inbox_api_info,
+            regenerate_inbox_api_token,
+            set_inbox_api_enabled,
+            add_slack_thread,
+            list_slack_threads,
+            get_slack_thread,
+            refresh_slack_thread,
+            retranslate_slack_thread,
+            translate_slack_reply,
+            post_slack_thread_reply,
+            mark_slack_thread_seen,
+            rename_slack_thread,
+            set_slack_thread_project,
+            reorder_slack_threads,
+            delete_slack_threads,
+            get_slack_token_status,
+            get_slack_thread_prompt_text,
+            link_slack_thread_run,
+            unlink_slack_thread_run,
+            list_slack_thread_runs,
+            list_run_slack_threads,
+            link_item_run,
+            unlink_item_run,
+            list_item_runs,
+            list_run_items,
+            show_permission_notification,
+            show_run_finished_notification,
+            show_calendar_reminder,
+            remote_set_config,
+            remote_enable,
+            remote_disable,
+            remote_create_session_link,
+            remote_end_session,
+            remote_kick_controller,
+            remote_reveal_otp,
+            remote_set_master_password,
+            remote_set_device_alias,
+            remote_get_audit,
+            remote_clear_audit,
+            remote_status,
+            remote::push::commands::remote_push_overview,
+            remote::push::commands::remote_push_remove,
+            remote::push::commands::remote_push_set_events,
+            remote::push::commands::remote_push_test,
+            remote_bridge_ready,
+            remote_bridge_batch,
+            remote_fs_list,
+            remote_fs_stat,
+            remote_fs_read,
+            remote_fs_home,
+            remote_fs_log_dir,
+            remote_client_log,
+            rdfile_register,
+            rdfile_respond,
+            rd_download_create,
+            rd_download_append,
+            remote::meta::set_run_meta,
+            remote::upload::remote_upload_begin,
+            remote::upload::remote_upload_chunk,
+            remote::upload::remote_upload_finish,
+            remote::upload::remote_upload_abort,
+            remote::upload::stat_local_files,
+            remote::upload::read_local_file_chunk,
+            remote::fs_bridge::remote_fs_mkdir,
+            remote::fs_bridge::remote_fs_rename,
+            remote::fs_bridge::remote_fs_delete,
+            remote::fs_bridge::remote_fs_walk,
+            remote::fs_bridge::remote_fs_hash,
+            remote::transfer::local_fs_home,
+            remote::transfer::local_fs_list,
+            remote::transfer::local_fs_mkdir,
+            remote::transfer::local_fs_rename,
+            remote::transfer::local_fs_delete,
+            remote::transfer::local_fs_walk,
+            remote::transfer::local_fs_hash,
+            remote::transfer::local_fs_write_begin,
+            remote::transfer::local_fs_write_chunk,
+            remote::transfer::local_fs_write_finish,
+            remote::transfer::local_fs_write_abort,
+            procs::commands::list_background_processes,
+            procs::commands::stop_background_processes,
+            procs::commands::kill_background_process,
+            procs::quit::resolve_quit,
+        ]))
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            match event {
+                // Closing the MAIN window quits the whole app. On macOS this would
+                // otherwise leave the process alive because the frameless,
+                // always-on-top mascot pet (and any quick-create / gantt / file
+                // pop-outs) keep running — so the hidden sidecars never get killed.
+                // Ask first when work is still running (see `procs::quit`), then
+                // close every auxiliary window and exit.
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::CloseRequested { api, .. },
+                    ..
+                } if label == "main" => {
+                    use tauri::Manager;
+                    if !procs::quit::request_quit(app_handle) {
+                        api.prevent_close();
+                        return;
+                    }
+                    for (lbl, win) in app_handle.webview_windows() {
+                        if lbl != "main" {
+                            let _ = win.close();
+                        }
+                    }
+                    app_handle.exit(0);
+                }
+                // `app.exit()` and the last window closing: same question and
+                // cleanup. (Cmd+Q is a custom menu item that closes the main
+                // window, see `app_menu::QUIT_ITEM_ID`.)
+                tauri::RunEvent::ExitRequested { api, .. }
+                    if !procs::quit::request_quit(app_handle) =>
+                {
+                    api.prevent_exit();
+                }
+                // Exits that bypass the question (macOS Dock Quit, logout) still
+                // get the cleanup; a second run after a confirmed quit is cheap.
+                // A File Transfer window closed mid-copy: drop its partial files.
+                tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } => {
+                    remote::transfer::on_webview_destroyed(&label);
+                }
+                tauri::RunEvent::Exit => {
+                    procs::quit::on_exit(app_handle);
+                    remote::upload::abort_all_writes();
+                }
+                _ => {}
+            }
+        });
+}

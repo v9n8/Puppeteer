@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+// Deterministic JSON-RPC fixture for test-deny.mjs.
+import { writeFileSync, appendFileSync } from 'node:fs'
+
+// `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
+// or — DEVDY_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer.
+if (process.argv.includes('mcp')) {
+  const mode = process.env.DEVDY_FIXTURE_MCP_LIST
+  if (mode === 'fail') {
+    process.stderr.write('boom')
+    process.exit(2)
+  }
+  if (mode === 'garbage') process.stdout.write('not json')
+  else if (mode === 'object') process.stdout.write('{"servers":[]}')
+  else process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true }]))
+  process.exit(0)
+}
+// When set, record argv and every client request as JSON lines.
+const fixtureLog = process.env.DEVDY_FIXTURE_LOG
+if (fixtureLog) appendFileSync(fixtureLog, JSON.stringify({ argv: process.argv.slice(2) }) + '\n')
+
+const marker = process.env.DEVDY_DENY_TEST_MARKER
+const mcpMode = process.env.DEVDY_MCP_PERMISSION_KEY_TEST === '1'
+// Codex's real app-server v2 elicitation has no `toolName` field; this mode
+// reproduces that so the per-server permission key stays covered.
+const mcpOmitToolName = process.env.DEVDY_MCP_OMIT_TOOLNAME === '1'
+// When set, record the approval decision the sidecar sent so a test can assert
+// it (e.g. `acceptForSession` for an "always" allow).
+const decisionOut = process.env.DEVDY_DECISION_OUT
+let buffer = ''
+
+function send(message) {
+  process.stdout.write(JSON.stringify(message) + '\n')
+}
+
+process.stdin.on('data', (chunk) => {
+  buffer += chunk.toString()
+  let newline
+  while ((newline = buffer.indexOf('\n')) >= 0) {
+    const line = buffer.slice(0, newline).trim()
+    buffer = buffer.slice(newline + 1)
+    if (!line) continue
+    let message
+    try { message = JSON.parse(line) } catch { continue }
+    if (fixtureLog && message.method) appendFileSync(fixtureLog, JSON.stringify({ method: message.method, params: message.params }) + '\n')
+
+    if (message.method === 'initialize') {
+      send({ jsonrpc: '2.0', id: message.id, result: {} })
+    } else if (message.method === 'thread/start') {
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: { thread: { id: 'fixture-thread' }, model: 'fixture' },
+      })
+    } else if (message.method === 'account/rateLimits/read') {
+      send({ jsonrpc: '2.0', id: message.id, result: {} })
+    } else if (message.method === 'turn/start') {
+      send({ jsonrpc: '2.0', id: message.id, result: { turn: { id: 'fixture-turn' } } })
+      if (mcpMode) {
+        send({
+          jsonrpc: '2.0',
+          id: 92,
+          method: 'mcpServer/elicitation/request',
+          params: {
+            serverName: 'Google Drive',
+            ...(mcpOmitToolName ? {} : { toolName: 'list_files' }),
+            mode: 'permission',
+            message: 'Allow listing Drive files?',
+          },
+        })
+        continue
+      }
+      send({
+        jsonrpc: '2.0',
+        id: 91,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: `touch ${marker}`, reason: 'fixture approval' },
+      })
+    } else if (message.id === 91 && message.result) {
+      const decision = message.result.decision
+      if (decisionOut) writeFileSync(decisionOut, String(decision))
+      const denied = decision === 'cancel' || decision === 'decline'
+      if (!denied && marker) writeFileSync(marker, 'executed')
+      send({
+        jsonrpc: '2.0',
+        method: 'item/completed',
+        params: {
+          item: {
+            id: 'fixture-command',
+            type: 'commandExecution',
+            command: `touch ${marker}`,
+            status: denied ? 'declined' : 'completed',
+            exitCode: denied ? null : 0,
+            aggregatedOutput: '',
+          },
+        },
+      })
+      send({
+        jsonrpc: '2.0',
+        method: 'turn/completed',
+        params: { turn: { id: 'fixture-turn', status: 'completed' } },
+      })
+    } else if (message.id === 92 && message.result) {
+      send({
+        jsonrpc: '2.0',
+        method: 'turn/completed',
+        params: { turn: { id: 'fixture-turn', status: 'completed' } },
+      })
+    }
+  }
+})

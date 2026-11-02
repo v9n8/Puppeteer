@@ -1,0 +1,620 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { openGanttWindow } from '@/lib/ganttWindow'
+import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
+import { useGithubAccountsStore } from '@/stores/githubAccounts'
+import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
+import { useServersStore, type ProjectServer } from '@/stores/servers'
+import { useAwsAccountsStore } from '@/stores/awsAccounts'
+import { useAzureAccountsStore } from '@/stores/azureAccounts'
+import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@/lib/tauri'
+import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
+import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, SquareTerminal, Code2, Settings, HardDrive, Cloud, CloudCog, GanttChartSquare, GripVertical } from 'lucide-vue-next'
+import { Button, Input, Badge, Modal, Card, PageHeader, Banner } from '@/components/ui'
+import { useConfirm } from '@/composables/useConfirm'
+import { useToast } from '@/composables/useToast'
+import { useDragSort } from '@/composables/useDragSort'
+
+const { t } = useI18n()
+const router = useRouter()
+const store = useProjectsStore()
+const ghStore = useGithubAccountsStore()
+const glStore = useGitlabAccountsStore()
+const serversStore = useServersStore()
+const awsStore = useAwsAccountsStore()
+const azureStore = useAzureAccountsStore()
+const { confirm } = useConfirm()
+const { toast } = useToast()
+const adding = ref(false)
+const detecting = ref(false)
+
+function accountLabel(accountId: string | null): string | null {
+  if (!accountId) return null
+  return ghStore.accounts.find(a => a.id === accountId)?.label ?? t('projects.unknownAccount')
+}
+
+function gitlabAccountLabel(accountId: string | null): string | null {
+  if (!accountId) return null
+  return glStore.accounts.find(a => a.id === accountId)?.label ?? t('projects.unknownAccount')
+}
+
+// The AWS account linked to a project (label + region shown on its chip).
+function awsAccount(accountId: string | null) {
+  if (!accountId) return null
+  return awsStore.accounts.find(a => a.id === accountId) ?? null
+}
+
+// The Azure account linked to a project (label + subscription in its chip tooltip).
+function azureAccount(accountId: string | null) {
+  if (!accountId) return null
+  return azureStore.accounts.find(a => a.id === accountId) ?? null
+}
+
+// Mapped VPS servers per project (project_servers has no bulk endpoint, so we
+// fan out list_project_servers once after the projects load).
+const MAX_SERVER_CHIPS = 2
+type SrvTone = 'success' | 'error' | 'neutral'
+const projectServers = ref<Record<string, ProjectServer[]>>({})
+async function loadProjectServers() {
+  const entries = await Promise.all(
+    store.projects.map(async (p): Promise<[string, ProjectServer[]]> => {
+      try {
+        return [p.id, await serversStore.listForProject(p.id)]
+      } catch {
+        return [p.id, []]
+      }
+    }),
+  )
+  projectServers.value = Object.fromEntries(entries)
+}
+
+// Decorate each project's servers into header-style chips (tone by status,
+// collapsing the overflow into a single "+N").
+const projectChips = computed(() => {
+  const map: Record<string, {
+    visible: { key: string; label: string; tone: SrvTone; title: string }[]
+    hiddenCount: number
+    hiddenTitle: string
+  }> = {}
+  for (const p of store.projects) {
+    const chips = (projectServers.value[p.id] ?? []).map((s) => {
+      const tone: SrvTone = s.status === 'online' ? 'success' : s.status === 'offline' ? 'error' : 'neutral'
+      const status = s.status ? ` · ${s.status}` : ''
+      return {
+        key: `${s.id}-${s.role}`,
+        label: s.label,
+        tone,
+        title: `${s.role}: ${s.username}@${s.host}:${s.port}${status}`,
+      }
+    })
+    map[p.id] = {
+      visible: chips.slice(0, MAX_SERVER_CHIPS),
+      hiddenCount: Math.max(0, chips.length - MAX_SERVER_CHIPS),
+      hiddenTitle: chips.slice(MAX_SERVER_CHIPS).map((c) => c.label).join('\n'),
+    }
+  }
+  return map
+})
+
+// --- Drag & drop reorder ------------------------------------------------------
+// Only the grip handle starts a drag — the card itself is a big click target
+// that navigates into the project. The dragged card follows the cursor and the
+// others slide to the slot they'd take once it's gone; see useDragSort.
+const gridRef = ref<HTMLElement | null>(null)
+const { dragFrom, start: startDrag, itemStyle: cardStyle, clickWasDrag } = useDragSort({
+  container: gridRef,
+  onDrop: (from, to) => store.reorder(from, to),
+})
+
+/** A click landing after a drag is the drop, not a request to open the card. */
+function onCardClick(projectId: string) {
+  if (clickWasDrag()) return
+  router.push(`/projects/${projectId}`)
+}
+
+interface PendingRepo extends DetectedRepo {
+  _key: number
+}
+
+let _keyCounter = 0
+
+const pending = ref<DetectedProjectInfo | null>(null)
+const pendingName = ref('')
+const pendingRepos = ref<PendingRepo[]>([])
+
+// Adding a repo mirrors project settings: paste a link, we parse it — no manual
+// provider / owner / repo fields.
+const newRepoUrl = ref('')
+const parsedRepo = computed(() => parseRepoUrl(newRepoUrl.value))
+
+// URL typed but not yet a valid repo link — used to show a gentle hint.
+const repoUrlInvalid = computed(() => !!newRepoUrl.value.trim() && !parsedRepo.value)
+
+// The repo being entered is already on the list (auto-detected or just pasted).
+const isDuplicateRepo = computed(() => {
+  const parsed = parsedRepo.value
+  if (!parsed) return false
+  const key = repoKey(parsed)
+  return pendingRepos.value.some(r => repoKey(r) === key)
+})
+
+const canAddRepo = computed(() => !!parsedRepo.value && !isDuplicateRepo.value)
+
+// Second line of a repo row: its provider coordinates, or the path when the
+// folder has no recognised remote.
+function repoCoords(repo: PendingRepo): string {
+  if (repo.provider === 'gitlab') return repo.gitlab_project_path || repo.path
+  return repo.github_owner && repo.github_repo
+    ? `${repo.github_owner}/${repo.github_repo}`
+    : repo.path
+}
+
+onMounted(async () => {
+  await store.fetchProjects()
+  if (ghStore.accounts.length === 0) ghStore.fetch()
+  if (glStore.accounts.length === 0) glStore.fetch()
+  if (awsStore.accounts.length === 0) awsStore.fetch()
+  if (azureStore.accounts.length === 0) azureStore.fetch()
+  loadProjectServers()
+})
+
+async function handleAdd() {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: t('projects.selectFolderTitle'),
+  })
+  if (!selected) return
+  detecting.value = true
+  try {
+    const info = await store.detectProjectInfo(selected)
+    pending.value = info
+    pendingName.value = info.name
+    pendingRepos.value = info.repos.map(r => ({ ...r, _key: _keyCounter++ }))
+    newRepoUrl.value = ''
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    detecting.value = false
+  }
+}
+
+function addRepoFromUrl() {
+  const parsed = parsedRepo.value
+  if (!parsed || isDuplicateRepo.value) return
+  pendingRepos.value.push({
+    name: parsed.name,
+    path: pending.value?.path ?? '',
+    provider: parsed.provider,
+    github_owner: parsed.github_owner || null,
+    github_repo: parsed.github_repo || null,
+    gitlab_project_path: parsed.gitlab_project_path || null,
+    _key: _keyCounter++,
+  })
+  newRepoUrl.value = ''
+}
+
+function removeRepoRow(key: number) {
+  pendingRepos.value = pendingRepos.value.filter(r => r._key !== key)
+}
+
+function cancelAdd() {
+  pending.value = null
+  pendingRepos.value = []
+  newRepoUrl.value = ''
+}
+
+async function confirmAdd() {
+  if (!pending.value) return
+  adding.value = true
+  try {
+    const repos = pendingRepos.value
+      .filter(r => r.name.trim())
+      .map(r => ({
+        name: r.name.trim(),
+        path: r.path,
+        provider: r.provider,
+        github_owner: r.github_owner || undefined,
+        github_repo: r.github_repo || undefined,
+        gitlab_project_path: r.gitlab_project_path || null,
+      }))
+
+    const project = await store.addProject({
+      path: pending.value.path,
+      name: pendingName.value || undefined,
+      repos: repos.length > 0 ? repos : undefined,
+    })
+    pending.value = null
+    pendingRepos.value = []
+    newRepoUrl.value = ''
+    toast.success(t('projects.toastAdded'))
+    router.push(`/projects/${project.id}`)
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    adding.value = false
+  }
+}
+
+async function handleRemove(project: { id: string; name: string }) {
+  if (!(await confirm({
+    title: t('projects.confirmRemoveTitle'),
+    message: t('projects.confirmRemoveMessage', { name: project.name }),
+    confirmLabel: t('common.remove'),
+  }))) return
+  try {
+    await store.removeProject(project.id)
+    toast.success(t('projects.toastDeleted'))
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
+async function handleOpenInTerminal(project: { path: string }) {
+  try {
+    const settings = await invoke<{ terminal_app: string }>('get_settings')
+    await store.openInTerminal(project.path, settings.terminal_app)
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
+async function handleOpenInVscode(project: { path: string }) {
+  try {
+    await store.openInVscode(project.path)
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
+async function handleOpenInFolder(project: { path: string }) {
+  try {
+    await store.openInFolder(project.path)
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+</script>
+
+<template>
+  <div class="flex flex-col h-full">
+    <!-- Header -->
+    <PageHeader
+      :title="t('projects.title')"
+      :count="!store.loading && store.projects.length > 0 ? store.projects.length : null"
+    >
+      <template #actions>
+        <Button
+          :disabled="adding || detecting"
+          @click="handleAdd"
+        >
+          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ detecting ? t('projects.detecting') : adding ? t('projects.adding') : t('projects.addProject') }}
+        </Button>
+      </template>
+    </PageHeader>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-auto p-6">
+      <div v-if="store.loading" class="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <div v-for="i in 8" :key="i" class="h-32 rounded-xl border border-border bg-card animate-pulse" />
+      </div>
+
+      <Banner v-else-if="store.error" tone="destructive">
+        {{ store.error }}
+      </Banner>
+
+      <div v-else-if="store.projects.length === 0" class="flex flex-col items-center justify-center h-full min-h-80 text-center">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted mb-4">
+          <FolderOpen class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
+        </div>
+        <p class="text-sm font-medium">{{ t('projects.emptyTitle') }}</p>
+        <p class="text-xs text-muted-foreground mt-1 max-w-50">{{ t('projects.emptyHint') }}</p>
+        <Button
+          class="mt-4"
+          @click="handleAdd"
+        >
+          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ t('projects.addProject') }}
+        </Button>
+      </div>
+
+      <div v-else ref="gridRef" class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
+        <Card
+          v-for="(project, index) in store.projects"
+          :key="project.id"
+          :data-drag-index="index"
+          class="group relative flex flex-col cursor-pointer hover:border-primary/40 hover:shadow-[0_1px_3px_0_rgb(0_0_0/0.08)]"
+          :class="dragFrom === index
+            ? 'shadow-xl ring-1 ring-primary/40 cursor-grabbing'
+            : 'transition-all duration-150 hover:-translate-y-0.5'"
+          :style="cardStyle(index)"
+          body-class="flex flex-col flex-1 p-4"
+          @click="onCardClick(project.id)"
+        >
+          <!-- hover accent line -->
+          <span class="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-linear-to-r from-primary to-primary/30 transition-transform duration-200 group-hover:scale-x-100" />
+
+          <!-- Drag handle: appears on hover, starts a pointer-based reorder -->
+          <button
+            class="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent group-hover:opacity-100 transition-all cursor-grab active:cursor-grabbing touch-none"
+            :class="dragFrom === index ? 'opacity-100 text-foreground' : 'opacity-0'"
+            :title="t('projects.dragToReorder')"
+            @click.stop
+            @pointerdown="startDrag(index, $event)"
+          >
+            <GripVertical class="h-4 w-4" :stroke-width="2" />
+          </button>
+
+          <!-- Icon + name/path -->
+          <div class="flex items-start gap-3 mb-3">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/15 text-primary transition-colors group-hover:bg-primary/15 group-hover:border-primary/25">
+              <FolderOpen class="h-4.5 w-4.5" :stroke-width="1.75" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <p class="text-sm font-semibold truncate leading-tight">{{ project.name }}</p>
+              </div>
+              <p class="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed font-mono break-all">{{ project.path }}</p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex items-start justify-between gap-2 pt-2.5 border-t border-border/60 mt-auto">
+            <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+              <Badge v-if="project.github_account_id" tone="info" class="max-w-[9rem]">
+                <Github class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
+                <span class="truncate">{{ accountLabel(project.github_account_id) }}</span>
+                <span v-if="project.github_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.github_account_ids.length - 1 }}</span>
+              </Badge>
+              <Badge v-if="project.gitlab_account_id" tone="warning" class="max-w-[9rem]">
+                <Gitlab class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
+                <span class="truncate">{{ gitlabAccountLabel(project.gitlab_account_id) }}</span>
+                <span v-if="project.gitlab_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.gitlab_account_ids.length - 1 }}</span>
+              </Badge>
+              <!-- Mapped VPS servers (tone by connection status). -->
+              <Badge
+                v-for="chip in projectChips[project.id]?.visible"
+                :key="chip.key"
+                :tone="chip.tone"
+                :title="chip.title"
+                class="max-w-[9rem]"
+              >
+                <HardDrive class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
+                <span class="truncate">{{ chip.label }}</span>
+              </Badge>
+              <Badge
+                v-if="projectChips[project.id]?.hiddenCount"
+                tone="neutral"
+                :title="projectChips[project.id]?.hiddenTitle"
+              >
+                <HardDrive class="h-2.5 w-2.5" :stroke-width="2" />
+                +{{ projectChips[project.id].hiddenCount }}
+              </Badge>
+              <!-- Default AWS account (+N other enabled). -->
+              <Badge
+                v-if="awsAccount(project.aws_account_id)"
+                tone="primary"
+                class="max-w-[9rem]"
+                :title="t('projects.awsChipTitle', { label: awsAccount(project.aws_account_id)!.label, region: awsAccount(project.aws_account_id)!.region })"
+              >
+                <Cloud class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
+                <span class="truncate">{{ awsAccount(project.aws_account_id)!.label }}</span>
+                <span v-if="project.aws_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.aws_account_ids.length - 1 }}</span>
+              </Badge>
+              <!-- Default Azure account (+N other enabled). -->
+              <Badge
+                v-if="azureAccount(project.azure_account_id)"
+                tone="primary"
+                class="max-w-[9rem]"
+                :title="t('projects.azureChipTitle', {
+                  label: azureAccount(project.azure_account_id)!.label,
+                  subscription: azureAccount(project.azure_account_id)!.subscription_name
+                    ?? azureAccount(project.azure_account_id)!.subscription_id ?? '—',
+                })"
+              >
+                <CloudCog class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
+                <span class="truncate">{{ azureAccount(project.azure_account_id)!.label }}</span>
+                <span v-if="project.azure_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.azure_account_ids.length - 1 }}</span>
+              </Badge>
+            </div>
+            <!-- Actions on hover: grouped into a segmented toolbar for a crisper, cohesive look -->
+            <div
+              class="flex items-center gap-0.5 rounded-lg border border-border/70 bg-card/80 p-0.5 shadow-sm opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150"
+              @click.stop
+            >
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('projects.openInVscode')"
+                @click="handleOpenInVscode(project)"
+              >
+                <Code2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('projects.openFolder')"
+                @click="handleOpenInFolder(project)"
+              >
+                <FolderOpen class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('projects.openInTerminal')"
+                @click="handleOpenInTerminal(project)"
+              >
+                <SquareTerminal class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <span class="mx-0.5 h-4 w-px bg-border/70" />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('projects.gantt')"
+                @click="openGanttWindow(project.id)"
+              >
+                <GanttChartSquare class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('projects.projectSettings')"
+                @click="router.push(`/projects/${project.id}/settings`)"
+              >
+                <Settings class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="destructive-ghost"
+                size="icon-sm"
+                :title="t('projects.removeProject')"
+                @click="handleRemove(project)"
+              >
+                <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+
+    <!-- Add project modal -->
+    <Modal :open="!!pending" size="md" scroll-body :title="t('projects.addProject')" @close="cancelAdd">
+      <template v-if="pending">
+          <div class="px-5 py-5 flex flex-col gap-4">
+            <!-- Path (read-only) -->
+            <div>
+              <label class="block text-xs text-muted-foreground mb-1.5">{{ t('projects.path') }}</label>
+              <div class="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border/60 rounded-md">
+                <FolderOpen class="h-3.5 w-3.5 text-muted-foreground shrink-0" :stroke-width="1.5" />
+                <span class="text-xs font-mono text-muted-foreground truncate">{{ pending.path }}</span>
+              </div>
+            </div>
+
+            <!-- Name -->
+            <div>
+              <label class="block text-xs text-muted-foreground mb-1.5">{{ t('projects.projectName') }}</label>
+              <Input
+                v-model="pendingName"
+                :placeholder="t('projects.projectNamePlaceholder')"
+              />
+            </div>
+
+            <!-- Repos — same paste-a-URL flow as project settings -->
+            <div>
+              <div class="flex items-center gap-1.5 mb-2">
+                <label class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <GitBranch class="h-3 w-3" :stroke-width="1.5" />
+                  {{ t('projects.repositories') }}
+                </label>
+                <span
+                  v-if="pendingRepos.length"
+                  class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                >{{ pendingRepos.length }}</span>
+                <span v-if="pending.repos.length > 0" class="text-[10px] text-success font-medium">
+                  {{ t('projects.autoDetected', { count: pending.repos.length }) }}
+                </span>
+              </div>
+
+              <!-- Add new repo — paste a URL, no manual fields -->
+              <div class="space-y-2">
+                <div class="flex gap-2">
+                  <div class="relative flex-1">
+                    <GitBranch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" :stroke-width="1.5" />
+                    <Input
+                      v-model="newRepoUrl"
+                      type="text"
+                      size="sm"
+                      class="pl-8"
+                      :placeholder="t('projects.repoUrlPlaceholder')"
+                      @keydown.enter="addRepoFromUrl"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    :disabled="!canAddRepo"
+                    @click="addRepoFromUrl"
+                  >
+                    <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+                    {{ t('common.add') }}
+                  </Button>
+                </div>
+
+                <!-- Parsed preview: what will be added -->
+                <div
+                  v-if="parsedRepo"
+                  class="flex items-center gap-1.5 flex-wrap text-[11px] px-0.5"
+                >
+                  <Badge :tone="parsedRepo.provider === 'gitlab' ? 'warning' : 'info'" size="xs">
+                    <component :is="parsedRepo.provider === 'gitlab' ? Gitlab : Github" class="h-2.5 w-2.5" :stroke-width="2" />
+                    {{ parsedRepo.provider === 'gitlab' ? 'GitLab' : 'GitHub' }}
+                  </Badge>
+                  <span class="font-mono text-muted-foreground truncate">
+                    {{ parsedRepo.provider === 'gitlab' ? parsedRepo.gitlab_project_path : `${parsedRepo.github_owner}/${parsedRepo.github_repo}` }}
+                  </span>
+                  <span v-if="isDuplicateRepo" class="flex items-center gap-1 text-warning font-medium">
+                    <AlertTriangle class="h-2.5 w-2.5" :stroke-width="2" />
+                    {{ t('projects.alreadyAdded') }}
+                  </span>
+                </div>
+
+                <!-- Invalid URL hint -->
+                <p v-else-if="repoUrlInvalid" class="text-[11px] text-muted-foreground px-0.5">
+                  {{ t('projects.repoUrlHint') }}
+                </p>
+              </div>
+
+              <!-- Repos to create with the project (remove to change) -->
+              <div v-if="pendingRepos.length" class="border-t border-border/60 pt-3 mt-3 space-y-1.5">
+                <div
+                  v-for="repo in pendingRepos"
+                  :key="repo._key"
+                  class="flex items-center gap-2 border border-border rounded-md px-3 py-2"
+                >
+                  <component
+                    :is="repo.provider === 'gitlab' ? Gitlab : Github"
+                    class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    :stroke-width="1.75"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-xs font-medium truncate">{{ repo.name }}</p>
+                    <p class="text-[11px] text-muted-foreground font-mono truncate">{{ repoCoords(repo) }}</p>
+                  </div>
+                  <Button
+                    variant="destructive-ghost"
+                    size="icon-sm"
+                    class="shrink-0"
+                    :title="t('projects.removeRepo')"
+                    @click="removeRepoRow(repo._key)"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+                  </Button>
+                </div>
+              </div>
+
+              <p v-else class="text-[11px] text-muted-foreground text-center py-2">
+                {{ t('projects.noReposHint') }}
+              </p>
+            </div>
+          </div>
+
+      </template>
+
+      <template #footer>
+        <Button variant="ghost" @click="cancelAdd">
+          {{ t('common.cancel') }}
+        </Button>
+        <Button
+          :disabled="adding || !pendingName.trim()"
+          @click="confirmAdd"
+        >
+          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ adding ? t('projects.adding') : t('projects.addProject') }}
+        </Button>
+      </template>
+    </Modal>
+  </div>
+</template>

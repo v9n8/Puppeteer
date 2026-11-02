@@ -1,0 +1,11 @@
+{
+  "bubble": {
+    "busy": "Đang xử lý…",
+    "permission": "Đang chờ bạn cấp quyền",
+    "success": "Đã xong!",
+    "error": "Có lỗi xảy ra",
+    "dismiss": "Đóng",
+    "levelUp": "Đột phá! {realm} · Tầng {tier}",
+    "rebirth": "Chuyển sinh! Vòng luân hồi mới {stars}"
+  }
+}

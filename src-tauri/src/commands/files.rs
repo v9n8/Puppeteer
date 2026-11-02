@@ -1,0 +1,969 @@
+//! Project file listing for the chat composer's `@`-mention autocomplete.
+//!
+//! Walks the project directory honoring `.gitignore` (via the `ignore` crate),
+//! returning relative POSIX-style paths the frontend can fuzzy-search. Claude
+//! reads any mentioned path through its Read tool since the run's cwd is the
+//! project root, so we only need to surface paths — not file contents.
+
+use ignore::WalkBuilder;
+use serde::Serialize;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+use crate::db::Db;
+use crate::remote::fs_policy::{self, RemoteFs};
+use tauri::State;
+
+/// Hard ceiling so huge repos can't flood the IPC channel or the picker.
+/// Paths are tiny (just relative strings), so this can be generous — the old
+/// 8k cap silently dropped files in larger monorepos, making the `@`-mention
+/// picker look like it "couldn't find" perfectly real files.
+const MAX_ENTRIES: usize = 50000;
+
+/// Cap a single file read so a huge/binary file can't flood the IPC channel.
+const MAX_FILE_BYTES: usize = 2 * 1024 * 1024; // 2 MiB
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ProjectEntry {
+    /// Relative POSIX path from the project root.
+    pub path: String,
+    /// True for directories (mentionable too — Claude can ls/glob inside).
+    pub is_dir: bool,
+}
+
+#[tauri::command]
+pub async fn list_project_files(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+) -> Result<Vec<ProjectEntry>, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    let root = fs_policy::read(policy.as_ref(), Path::new(&project_path))?;
+    // Walking the tree is blocking IO; keep it off the async runtime threads.
+    tokio::task::spawn_blocking(move || walk(&root.to_string_lossy()))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Contents of a single project file, for the RunView file viewer.
+#[derive(Debug, Serialize, Clone)]
+pub struct FileContent {
+    /// Relative POSIX path from the project root (what the UI shows).
+    pub path: String,
+    pub content: String,
+    /// True when the file was longer than MAX_FILE_BYTES and got cut off.
+    pub truncated: bool,
+}
+
+/// Read a file referenced by the AI (tool call or prose mention) so the UI can
+/// preview it. `file_path` may be absolute or relative to the project root; the
+/// resolved path must land inside the project or one of the allowed outside
+/// roots (see [`preview_allows`]) — anything else (`/etc`, another user's home,
+/// …) is refused. A remote desktop (the bridge webview) gets its own rules
+/// instead ([`RemoteFs`]).
+#[tauri::command]
+pub async fn read_project_file(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    file_path: String,
+) -> Result<FileContent, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || read_within(&project_path, &file_path, policy.as_ref()))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+/// True when `path` lives under one of the shared AI transcript stores
+/// (`~/.claude` or `~/.codex`). These hold the session logs Devdy mirrors, so
+/// the file viewer is allowed to read them even though they sit outside any
+/// project directory.
+fn transcript_root_allows(path: &Path) -> bool {
+    let Ok(home) = std::env::var("HOME") else {
+        return false;
+    };
+    let home = Path::new(&home);
+    [".claude", ".codex"].iter().any(|sub| {
+        home.join(sub)
+            .canonicalize()
+            .map(|root| path.starts_with(&root))
+            .unwrap_or(false)
+    })
+}
+
+/// True when `path` lives anywhere under the user's HOME directory. Files
+/// dragged into the composer (e.g. from `~/Downloads`) sit outside any project,
+/// but they're the user's own files and the viewer is a read-only preview, so we
+/// allow previewing them. Keeps system directories (`/etc`, `/var`, …) off-limits.
+fn home_allows(path: &Path) -> bool {
+    let Ok(home) = std::env::var("HOME") else {
+        return false;
+    };
+    Path::new(&home)
+        .canonicalize()
+        .map(|root| path.starts_with(&root))
+        .unwrap_or(false)
+}
+
+/// True when `path` lives under a system scratch directory. The AI routinely
+/// writes working files outside the project (`/tmp/commitment.md`, `$TMPDIR/…`)
+/// and then links them in the stream, so the viewer must be able to open what it
+/// just offered as a link. On macOS `/tmp` is a symlink to `/private/tmp`, hence
+/// canonicalizing each candidate root before comparing.
+fn temp_root_allows(path: &Path) -> bool {
+    let mut roots = vec![std::env::temp_dir()];
+    roots.push(PathBuf::from("/tmp"));
+    roots.push(PathBuf::from("/var/tmp"));
+    roots.iter().any(|root| {
+        root.canonicalize()
+            .map(|root| path.starts_with(&root))
+            .unwrap_or(false)
+    })
+}
+
+/// Path-confinement shared by the viewer's read / write / list paths: inside the
+/// project root, or one of the allowed outside roots (AI transcripts, HOME,
+/// system temp).
+fn preview_allows(root: &Path, path: &Path) -> bool {
+    path.starts_with(root)
+        || transcript_root_allows(path)
+        || home_allows(path)
+        || temp_root_allows(path)
+}
+
+fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -> Result<FileContent, String> {
+    let root = Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))?;
+
+    // Resolve the requested path: absolute as-is, relative against the root.
+    let requested = Path::new(file_path);
+    let joined: PathBuf = if requested.is_absolute() {
+        requested.to_path_buf()
+    } else {
+        root.join(requested)
+    };
+
+    let canonical = joined
+        .canonicalize()
+        .map_err(|_| format!("File not found: {file_path}"))?;
+
+    // Allow the project root plus the shared AI transcript stores, HOME and the
+    // system temp dirs. Session logs Devdy mirrors live under `~/.claude` /
+    // `~/.codex`, and AI scratch files land in `/tmp`, so the file viewer must be
+    // able to read them even though they sit outside any project.
+    // A remote desktop: its own allowlist, in place of the roots above.
+    match policy {
+        Some(p) => {
+            p.read(&canonical)?;
+        }
+        None if !preview_allows(&root, &canonical) => {
+            return Err("Refusing to read a file outside the project".to_string());
+        }
+        None => {}
+    }
+    if canonical.is_dir() {
+        return Err(format!("{file_path} is a directory, not a file"));
+    }
+
+    let bytes = std::fs::read(&canonical).map_err(|e| format!("read {file_path}: {e}"))?;
+    // Reject binary files (NUL byte heuristic) — the viewer renders text only.
+    if bytes.iter().take(8000).any(|&b| b == 0) {
+        return Err("Binary file — cannot preview".to_string());
+    }
+    let truncated = bytes.len() > MAX_FILE_BYTES;
+    let slice = if truncated { &bytes[..MAX_FILE_BYTES] } else { &bytes[..] };
+    let content = String::from_utf8_lossy(slice).into_owned();
+
+    // Display path relative to the root when possible, else the original input.
+    let rel = canonical
+        .strip_prefix(&root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| file_path.to_string());
+
+    Ok(FileContent { path: rel, content, truncated })
+}
+
+/// Overwrite a project text file with new contents from the in-app editor.
+///
+/// Shares [`read_project_file`]'s path-confinement rules: `file_path` may be
+/// absolute or relative to the project root, but the resolved path must stay
+/// inside the project (or the allowed transcript / HOME roots). The file must
+/// already exist and be a regular file — the editor edits, it does not create.
+#[tauri::command]
+pub async fn write_project_file(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || write_within(&project_path, &file_path, &content, policy.as_ref()))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+fn write_within(
+    project_path: &str,
+    file_path: &str,
+    content: &str,
+    policy: Option<&RemoteFs>,
+) -> Result<(), String> {
+    let root = Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))?;
+
+    let requested = Path::new(file_path);
+    let joined: PathBuf = if requested.is_absolute() {
+        requested.to_path_buf()
+    } else {
+        root.join(requested)
+    };
+
+    // The file must already exist — canonicalize resolves it and lets us reuse
+    // the same confinement check as reads (no creating files outside a project).
+    let canonical = joined
+        .canonicalize()
+        .map_err(|_| format!("File not found: {file_path}"))?;
+
+    match policy {
+        Some(p) => {
+            p.write(&canonical)?;
+        }
+        None if !preview_allows(&root, &canonical) => {
+            return Err("Refusing to write a file outside the project".to_string());
+        }
+        None => {}
+    }
+    if canonical.is_dir() {
+        return Err(format!("{file_path} is a directory, not a file"));
+    }
+
+    std::fs::write(&canonical, content).map_err(|e| format!("write {file_path}: {e}"))?;
+    Ok(())
+}
+
+/// A single entry (one level) of a directory, for the RunView file-tree panel.
+#[derive(Debug, Serialize, Clone)]
+pub struct DirEntry {
+    /// Display name (basename).
+    pub name: String,
+    /// Relative POSIX path from the project root.
+    pub path: String,
+    pub is_dir: bool,
+    /// True when `.gitignore` (or a global/exclude rule) covers this entry. It is
+    /// still listed — the UI just dims it, the way VSCode marks ignored files.
+    pub ignored: bool,
+}
+
+/// List exactly one level of `rel_dir` (relative to the project root, `""` = root)
+/// for the VSCode-style file tree. Lists *everything* on disk — dotfiles and
+/// `.gitignore`d entries (`node_modules`, build output, `.env`, …) included, each
+/// flagged via `ignored` — so the tree mirrors Finder rather than `git ls-files`.
+/// Only `.git` itself stays hidden (repo plumbing, not project content). The
+/// resolved path is confined to the project root to block traversal.
+#[tauri::command]
+pub async fn list_dir(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    rel_dir: String,
+) -> Result<Vec<DirEntry>, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || list_dir_inner(&project_path, &rel_dir, policy.as_ref()))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+fn list_dir_inner(project_path: &str, rel_dir: &str, policy: Option<&RemoteFs>) -> Result<Vec<DirEntry>, String> {
+    let root = Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))?;
+
+    // Resolve the requested directory and confine it to the project root.
+    let target = if rel_dir.is_empty() {
+        root.clone()
+    } else {
+        root.join(rel_dir)
+            .canonicalize()
+            .map_err(|_| format!("Directory not found: {rel_dir}"))?
+    };
+    if !target.starts_with(&root) {
+        return Err("Refusing to list a directory outside the project".to_string());
+    }
+    fs_policy::read(policy, &target)?;
+    if !target.is_dir() {
+        return Err(format!("{rel_dir} is not a directory"));
+    }
+
+    // Names git would keep at this level, used only to tag the rest as ignored.
+    // A separate pass is the cheap way to get that flag: the listing walker below
+    // has every ignore source switched off, so it can't report it itself.
+    let mut tracked: HashSet<String> = HashSet::new();
+    let tracked_walker = WalkBuilder::new(&target)
+        .max_depth(Some(1))
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .parents(true)
+        .build();
+    for entry in tracked_walker.flatten() {
+        if entry.depth() == 0 {
+            continue;
+        }
+        tracked.insert(entry.file_name().to_string_lossy().into_owned());
+    }
+
+    // One level only: max_depth(1) yields the target itself plus its direct
+    // children. Every ignore source is off so nothing is silently dropped.
+    let mut entries: Vec<DirEntry> = Vec::new();
+    let walker = WalkBuilder::new(&target)
+        .max_depth(Some(1))
+        .hidden(false) // dotfiles
+        .ignore(false) // .ignore files
+        .git_ignore(false)
+        .git_global(false)
+        .git_exclude(false)
+        .parents(false)
+        .filter_entry(|e| e.file_name() != ".git")
+        .build();
+
+    for result in walker {
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        // Skip the target directory itself (depth 0) — only its direct children
+        // (depth 1) are listed. Without this, listing a subdir returns the subdir
+        // as a child of itself → an infinite same-named-folder loop in the tree.
+        if entry.depth() == 0 {
+            continue;
+        }
+        let rel = match entry.path().strip_prefix(&root) {
+            Ok(r) if !r.as_os_str().is_empty() => r,
+            _ => continue,
+        };
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = rel.to_string_lossy().replace('\\', "/");
+        let ignored = !tracked.contains(&name);
+        entries.push(DirEntry { name, path, is_dir, ignored });
+    }
+
+    // Directories first, then files; case-insensitive by name (VSCode order).
+    entries.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
+fn walk(root: &str) -> Result<Vec<ProjectEntry>, String> {
+    let root_path = Path::new(root);
+    if !root_path.is_dir() {
+        return Err(format!("not a directory: {root}"));
+    }
+
+    let mut entries: Vec<ProjectEntry> = Vec::new();
+
+    let walker = WalkBuilder::new(root_path)
+        .hidden(false) // surface dotfiles; .gitignore still applies
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .parents(true)
+        .filter_entry(|e| e.file_name() != ".git")
+        .build();
+
+    for result in walker {
+        if entries.len() >= MAX_ENTRIES {
+            break;
+        }
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        // Skip the root itself.
+        let rel = match entry.path().strip_prefix(root_path) {
+            Ok(r) if !r.as_os_str().is_empty() => r,
+            _ => continue,
+        };
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let path = rel.to_string_lossy().replace('\\', "/");
+        entries.push(ProjectEntry { path, is_dir });
+    }
+
+    // Files before dirs is unnecessary; sort by path for a stable picker order.
+    entries.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(entries)
+}
+
+/// An image read from anywhere on disk, encoded as raw base64 for the composer's
+/// drag-and-drop flow. Non-image files are referenced by path (no read), so this
+/// is used only for image attachments dropped from outside the project.
+#[derive(Debug, Serialize, Clone)]
+pub struct FileBase64 {
+    /// e.g. "image/png". Derived from the file extension.
+    pub media_type: String,
+    /// Raw base64 (no `data:` prefix), matching the image attachment format the
+    /// sidecars expect.
+    pub data: String,
+}
+
+/// Ceiling for a single dropped image — mirrors the frontend's 10 MiB limit and
+/// keeps the base64 payload off the IPC channel from getting unbounded.
+const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+
+// ── File-tree mutations (context-menu actions) ───────────────────────────────
+//
+// New file / folder, rename, delete (to OS trash), copy, and move. Every command
+// re-derives the canonical project root and confines the resolved target inside
+// it, mirroring the read/write path-traversal guards above. Names are validated
+// as single path segments (no separators, no `.`/`..`, no control chars).
+
+/// Reject anything that isn't a safe single path segment. Returns the trimmed
+/// name on success.
+fn validate_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Name cannot be empty".to_string());
+    }
+    if trimmed == "." || trimmed == ".." {
+        return Err("Invalid name".to_string());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("Name cannot contain slashes".to_string());
+    }
+    if trimmed.chars().any(|c| c.is_control()) {
+        return Err("Name contains invalid characters".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+/// Canonical project root, or an error string for the UI.
+fn canonical_root(project_path: &str) -> Result<PathBuf, String> {
+    Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))
+}
+
+/// Relative POSIX path of `target` under `root` (empty string if it *is* root).
+fn rel_of(root: &Path, target: &Path) -> String {
+    target
+        .strip_prefix(root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default()
+}
+
+/// Resolve an EXISTING entry (`rel_path`) confined to the project root.
+fn resolve_existing(root: &Path, rel_path: &str) -> Result<PathBuf, String> {
+    if rel_path.is_empty() {
+        return Err("Cannot operate on the project root".to_string());
+    }
+    let canonical = root
+        .join(rel_path)
+        .canonicalize()
+        .map_err(|_| format!("Not found: {rel_path}"))?;
+    if !canonical.starts_with(root) {
+        return Err("Path is outside the project".to_string());
+    }
+    Ok(canonical)
+}
+
+/// Resolve a directory (`rel_dir`, `""` = root) that must already exist.
+fn resolve_dir(root: &Path, rel_dir: &str) -> Result<PathBuf, String> {
+    let dir = if rel_dir.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(rel_dir)
+            .canonicalize()
+            .map_err(|_| format!("Directory not found: {rel_dir}"))?
+    };
+    if !dir.starts_with(root) {
+        return Err("Directory is outside the project".to_string());
+    }
+    if !dir.is_dir() {
+        return Err(format!("{rel_dir} is not a directory"));
+    }
+    Ok(dir)
+}
+
+/// A destination path in `dir` for `name` that doesn't clobber an existing entry.
+/// On collision, appends " copy", " copy 2", … before the extension (VSCode-style).
+fn unique_dest(dir: &Path, name: &str) -> PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let p = Path::new(name);
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string());
+    let ext = p
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    for i in 1..=1000 {
+        let suffix = if i == 1 {
+            " copy".to_string()
+        } else {
+            format!(" copy {i}")
+        };
+        let cand = dir.join(format!("{stem}{suffix}{ext}"));
+        if !cand.exists() {
+            return cand;
+        }
+    }
+    dir.join(format!("{stem} copy{ext}"))
+}
+
+/// Recursively copy a file or directory tree.
+fn copy_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    if src.is_dir() {
+        std::fs::create_dir(dest).map_err(|e| format!("create directory: {e}"))?;
+        for entry in std::fs::read_dir(src).map_err(|e| format!("read directory: {e}"))? {
+            let entry = entry.map_err(|e| format!("read directory: {e}"))?;
+            copy_recursive(&entry.path(), &dest.join(entry.file_name()))?;
+        }
+    } else {
+        std::fs::copy(src, dest).map_err(|e| format!("copy file: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Create an empty directory `name` inside `rel_dir`. Returns the new rel path.
+#[tauri::command]
+pub async fn create_dir(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    rel_dir: String,
+    name: String,
+) -> Result<String, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let name = validate_name(&name)?;
+        let parent = resolve_dir(&root, &rel_dir)?;
+        let target = parent.join(&name);
+        fs_policy::write(policy.as_ref(), &target)?;
+        if target.exists() {
+            return Err(format!("\"{name}\" already exists"));
+        }
+        std::fs::create_dir(&target).map_err(|e| format!("create directory: {e}"))?;
+        Ok(rel_of(&root, &target))
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Create an empty file `name` inside `rel_dir`. Returns the new rel path.
+#[tauri::command]
+pub async fn create_file(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    rel_dir: String,
+    name: String,
+) -> Result<String, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let name = validate_name(&name)?;
+        let parent = resolve_dir(&root, &rel_dir)?;
+        let target = parent.join(&name);
+        fs_policy::write(policy.as_ref(), &target)?;
+        // create_new fails if the file already exists — no clobber.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    format!("\"{name}\" already exists")
+                } else {
+                    format!("create file: {e}")
+                }
+            })?;
+        Ok(rel_of(&root, &target))
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Rename an entry in place (same parent). Returns the new rel path.
+#[tauri::command]
+pub async fn rename_entry(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    rel_path: String,
+    new_name: String,
+) -> Result<String, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let new_name = validate_name(&new_name)?;
+        let src = resolve_existing(&root, &rel_path)?;
+        let parent = src
+            .parent()
+            .ok_or_else(|| "Could not determine parent directory".to_string())?;
+        let dest = parent.join(&new_name);
+        fs_policy::change(policy.as_ref(), &src)?;
+        fs_policy::write(policy.as_ref(), &dest)?;
+        if dest == src {
+            return Ok(rel_of(&root, &dest));
+        }
+        if dest.exists() {
+            return Err(format!("\"{new_name}\" already exists"));
+        }
+        std::fs::rename(&src, &dest).map_err(|e| format!("rename: {e}"))?;
+        Ok(rel_of(&root, &dest))
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Move an entry to the OS trash (recoverable) rather than deleting permanently.
+#[tauri::command]
+pub async fn delete_entry(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    rel_path: String,
+) -> Result<(), String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let target = resolve_existing(&root, &rel_path)?;
+        fs_policy::change(policy.as_ref(), &target)?;
+        if target == root {
+            return Err("Cannot delete the project root".to_string());
+        }
+        trash::delete(&target).map_err(|e| format!("Delete failed: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Copy an entry into `dest_dir` (auto-renames on collision). Returns new rel path.
+#[tauri::command]
+pub async fn copy_entry(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    src_rel: String,
+    dest_dir: String,
+) -> Result<String, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let src = resolve_existing(&root, &src_rel)?;
+        let dir = resolve_dir(&root, &dest_dir)?;
+        if src.is_dir() && dir.starts_with(&src) {
+            return Err("Cannot copy a folder into itself".to_string());
+        }
+        let name = src
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .ok_or_else(|| "Invalid source name".to_string())?;
+        let dest = unique_dest(&dir, &name);
+        if let Some(p) = policy.as_ref() {
+            p.read(&src)?;
+            p.tree(&src)?;
+            p.write(&dest)?;
+        }
+        copy_recursive(&src, &dest)?;
+        Ok(rel_of(&root, &dest))
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Move an entry into `dest_dir`. Returns the new rel path.
+#[tauri::command]
+pub async fn move_entry(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    src_rel: String,
+    dest_dir: String,
+) -> Result<String, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let src = resolve_existing(&root, &src_rel)?;
+        let dir = resolve_dir(&root, &dest_dir)?;
+        if src.is_dir() && dir.starts_with(&src) {
+            return Err("Cannot move a folder into itself".to_string());
+        }
+        let name = src
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .ok_or_else(|| "Invalid source name".to_string())?;
+        let dest = dir.join(&name);
+        if let Some(p) = policy.as_ref() {
+            p.change(&src)?;
+            p.tree(&src)?;
+            p.write(&dest)?;
+        }
+        if dest == src {
+            return Ok(rel_of(&root, &src)); // already there
+        }
+        if dest.exists() {
+            return Err(format!("\"{name}\" already exists in the destination"));
+        }
+        std::fs::rename(&src, &dest).map_err(|e| format!("move: {e}"))?;
+        Ok(rel_of(&root, &dest))
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Copy entries dropped from outside the app (absolute paths from Finder etc.)
+/// into `dest_dir`, auto-renaming on collision. Returns the new rel paths.
+#[tauri::command]
+pub async fn import_external_entries(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    src_paths: Vec<String>,
+    dest_dir: String,
+) -> Result<Vec<String>, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || {
+        let root = canonical_root(&project_path)?;
+        let dir = resolve_dir(&root, &dest_dir)?;
+        let mut out = Vec::with_capacity(src_paths.len());
+        for raw in &src_paths {
+            let src = Path::new(raw)
+                .canonicalize()
+                .map_err(|_| format!("Not found: {raw}"))?;
+            if src.is_dir() && dir.starts_with(&src) {
+                return Err("Cannot copy a folder into itself".to_string());
+            }
+            let name = src
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .ok_or_else(|| format!("Invalid source name: {raw}"))?;
+            let dest = unique_dest(&dir, &name);
+            if let Some(p) = policy.as_ref() {
+                p.read(&src)?;
+                p.tree(&src)?;
+                p.write(&dest)?;
+            }
+            copy_recursive(&src, &dest)?;
+            out.push(rel_of(&root, &dest));
+        }
+        Ok(out)
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+}
+
+/// Start a native OS drag of project entries out of the window (to Finder,
+/// Desktop, another app…). Always a copy — the source files stay in place.
+/// Resolves once the drag ends: "dropped" or "cancelled".
+#[tauri::command]
+pub async fn start_file_drag(
+    window: tauri::Window,
+    project_path: String,
+    rel_paths: Vec<String>,
+) -> Result<String, String> {
+    let root = canonical_root(&project_path)?;
+    let paths = rel_paths
+        .iter()
+        .map(|p| resolve_existing(&root, p))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
+    // The drop callback is `Fn`, the sender is single-use.
+    let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+    let send = move |res: Result<String, String>| {
+        if let Some(tx) = tx.lock().ok().and_then(|mut g| g.take()) {
+            let _ = tx.send(res);
+        }
+    };
+
+    // AppKit/Win32 drag sessions must start on the UI thread.
+    let w = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let on_drop = {
+                let send = send.clone();
+                move |result: drag::DragResult, _pos: drag::CursorPosition| {
+                    let s = match result {
+                        drag::DragResult::Dropped => "dropped",
+                        drag::DragResult::Cancel => "cancelled",
+                    };
+                    send(Ok(s.to_string()));
+                }
+            };
+            let icon = drag::Image::Raw(include_bytes!("../../icons/64x64.png").to_vec());
+            if let Err(e) = drag::start_drag(
+                &w,
+                drag::DragItem::Files(paths),
+                icon,
+                on_drop,
+                drag::Options::default(),
+            ) {
+                send(Err(format!("Drag failed: {e}")));
+            }
+        })
+        .map_err(|e| format!("Drag failed: {e}"))?;
+
+    rx.await.map_err(|_| "Drag ended unexpectedly".to_string())?
+}
+
+/// Read an image at an arbitrary absolute path and return it as base64.
+///
+/// The frontend `plugin-fs` scope is deliberately narrow (app dirs only), so
+/// reading an image dropped from Finder/Desktop must go through the backend,
+/// which has full filesystem access. We validate that the path is an image by
+/// extension and cap the size.
+#[tauri::command]
+pub async fn read_file_base64(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    path: String,
+) -> Result<FileBase64, String> {
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    let path = fs_policy::read(policy.as_ref(), Path::new(&path))?.to_string_lossy().into_owned();
+    tokio::task::spawn_blocking(move || read_file_base64_inner(&path))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+fn read_file_base64_inner(path: &str) -> Result<FileBase64, String> {
+    let p = Path::new(path);
+    let media_type = image_media_type(p)
+        .ok_or_else(|| "Not a supported image file".to_string())?;
+    let meta = std::fs::metadata(p).map_err(|e| format!("stat {path}: {e}"))?;
+    if meta.len() as usize > MAX_IMAGE_BYTES {
+        return Err(format!(
+            "Ảnh quá lớn (tối đa {}MB).",
+            MAX_IMAGE_BYTES / 1024 / 1024
+        ));
+    }
+    let bytes = std::fs::read(p).map_err(|e| format!("read {path}: {e}"))?;
+    Ok(FileBase64 { media_type, data: base64_encode(&bytes) })
+}
+
+/// Map an image file extension to its MIME type. Returns `None` for anything we
+/// don't treat as an inline image (those go through the path-reference flow).
+fn image_media_type(path: &Path) -> Option<String> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    let mime = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    Some(mime.to_string())
+}
+
+/// Minimal standard-alphabet base64 encoder (no padding-free / URL-safe quirks),
+/// avoiding a new crate dependency for this single use.
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((n >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((n >> 12) & 0x3f) as usize] as char);
+        out.push(if chunk.len() > 1 { TABLE[((n >> 6) & 0x3f) as usize] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[(n & 0x3f) as usize] as char } else { '=' });
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file the AI dropped in the system temp dir (`/tmp/commitment.md`) must
+    /// open in the viewer even though it lives outside every project root.
+    #[test]
+    fn reads_a_file_from_the_temp_dir() {
+        let path = std::env::temp_dir().join(format!("devdy-viewer-{}.md", std::process::id()));
+        std::fs::write(&path, "# commitment\n").unwrap();
+
+        let project = env!("CARGO_MANIFEST_DIR");
+        let res = read_within(project, path.to_str().unwrap(), None);
+        let _ = std::fs::remove_file(&path);
+
+        let res = res.expect("temp-dir file should be readable");
+        assert_eq!(res.content, "# commitment\n");
+    }
+
+    /// `/tmp` is a symlink to `/private/tmp` on macOS — the literal path the AI
+    /// prints must resolve through it.
+    #[cfg(unix)]
+    #[test]
+    fn reads_a_file_via_the_slash_tmp_symlink() {
+        let name = format!("devdy-viewer-tmp-{}.md", std::process::id());
+        let path = Path::new("/tmp").join(&name);
+        std::fs::write(&path, "ok\n").unwrap();
+
+        let res = read_within(env!("CARGO_MANIFEST_DIR"), path.to_str().unwrap(), None);
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(res.expect("/tmp file should be readable").content, "ok\n");
+    }
+
+    /// System directories stay off-limits.
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_system_file() {
+        let err = read_within(env!("CARGO_MANIFEST_DIR"), "/etc/hosts", None).unwrap_err();
+        assert!(err.contains("outside the project"), "unexpected error: {err}");
+    }
+
+    /// A remote desktop only reaches its allowlist: HOME (and projects), never
+    /// a credential store nor anything outside — whatever `..`, links or
+    /// `project_path` it passes.
+    #[cfg(unix)]
+    #[test]
+    fn a_remote_caller_is_held_to_its_allowlist() {
+        use crate::remote::fs_policy::Roots;
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-viewer-sec-{}", uuid::Uuid::new_v4()));
+        let home = base.join("home");
+        std::fs::create_dir_all(home.join(".ssh")).unwrap();
+        std::fs::create_dir_all(home.join("proj")).unwrap();
+        std::fs::create_dir_all(base.join("outside")).unwrap();
+        std::fs::write(home.join(".ssh/id_rsa"), "KEY").unwrap();
+        std::fs::write(home.join("proj/a.txt"), "ok").unwrap();
+        std::fs::write(home.join("notes.txt"), "mine").unwrap();
+        std::fs::write(base.join("outside/x.txt"), "other").unwrap();
+        std::os::unix::fs::symlink(home.join(".ssh/id_rsa"), home.join("proj/link")).unwrap();
+        let roots = Roots { writable: vec![home.join("proj"), home.clone()], ..Roots::default() };
+        let policy = RemoteFs::new(roots, Some(&home), crate::remote::guard::SecretPaths::new(Some(&home), None));
+        let proj = home.join("proj");
+        let proj = proj.to_str().unwrap();
+        let home_s = home.to_str().unwrap();
+
+        assert_eq!(read_within(proj, "a.txt", Some(&policy)).unwrap().content, "ok");
+        assert!(write_within(proj, "a.txt", "edited", Some(&policy)).is_ok());
+        // HOME is reachable, its credential stores are not.
+        assert_eq!(read_within(home_s, "notes.txt", Some(&policy)).unwrap().content, "mine");
+        assert!(list_dir_inner(home_s, "", Some(&policy)).is_ok());
+        for f in ["../.ssh/id_rsa", "link", "../../outside/x.txt"] {
+            assert!(read_within(proj, f, Some(&policy)).unwrap_err().contains("remote desktop"), "{f}");
+            assert!(write_within(proj, f, "PWNED", Some(&policy)).is_err(), "{f}");
+        }
+        assert!(read_within(home_s, ".ssh/id_rsa", Some(&policy)).is_err());
+        // The local UI is unaffected.
+        assert_eq!(read_within(home_s, ".ssh/id_rsa", None).unwrap().content, "KEY");
+        assert_eq!(std::fs::read_to_string(home.join(".ssh/id_rsa")).unwrap(), "KEY");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}

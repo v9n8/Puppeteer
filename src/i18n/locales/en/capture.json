@@ -1,0 +1,16 @@
+{
+  "copyMarkdown": "Copy markdown",
+  "markdownCopied": "Markdown copied",
+  "picker": {
+    "title": "Insert a Slack thread, note or todo",
+    "search": "Search…",
+    "thisProject": "This project",
+    "otherProjects": "Other projects",
+    "all": "All",
+    "slack": "Slack",
+    "empty": "Nothing to insert yet: add a Slack thread by link, or write a note or todo.",
+    "note": "Note",
+    "todo": "Todo",
+    "showDone": "Show done todos"
+  }
+}

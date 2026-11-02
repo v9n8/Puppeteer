@@ -1,0 +1,228 @@
+//! Approver abstraction for the broker (GĐ2 + GĐ3).
+//!
+//! When policy returns `Ask`, the socket handler consults an injectable
+//! `Approver`. GĐ2 shipped the trait plus fail-closed / test implementations;
+//! GĐ3 adds `ModalApprover`, which bridges an `Ask` to the existing permission
+//! modal WITHOUT touching the broker core (that is why `start_broker` takes
+//! `Arc<dyn Approver>`).
+//!
+//! The trait is async (GĐ3): `ModalApprover` must `await` a oneshot resolved by
+//! `respond_permission`. The GĐ2 fail-closed / test impls are trivially async.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::{ApproverResolver, BrokerRequest};
+use crate::runs::permission::PermissionRequestEvent;
+use crate::runs::{BrokerApprovals, BrokerRuns};
+use tauri::{AppHandle, Emitter};
+
+/// Decides whether an `Ask` request should proceed. Must be `Send + Sync` so it
+/// can be shared across the accept loop's spawned tasks via `Arc`.
+#[async_trait]
+pub trait Approver: Send + Sync {
+    /// Return `true` to allow the asked operation, `false` to deny it.
+    async fn approve(&self, req: &BrokerRequest, reason: &str) -> bool;
+}
+
+/// GĐ2 default: deny every `Ask` (fail-closed). Used when no modal is wired.
+#[allow(dead_code)] // default approver, selected once the broker is wired (GĐ3)
+pub struct DenyAllApprover;
+
+#[async_trait]
+impl Approver for DenyAllApprover {
+    async fn approve(&self, _req: &BrokerRequest, _reason: &str) -> bool {
+        false
+    }
+}
+
+/// Test-only fixed-decision approver, used to exercise both branches of the
+/// socket round-trip.
+#[allow(dead_code)]
+pub struct FixedApprover(pub bool);
+
+#[async_trait]
+impl Approver for FixedApprover {
+    async fn approve(&self, _req: &BrokerRequest, _reason: &str) -> bool {
+        self.0
+    }
+}
+
+/// GĐ3 modal approver: on `Ask`, emit the existing `PermissionRequestEvent` to
+/// the frontend and await the user's decision. The decision arrives back through
+/// the unchanged `respond_permission` command, which resolves the oneshot we
+/// register in `BrokerApprovals` (keyed by a fresh `request_id`).
+///
+/// Reuses the modal end-to-end: same event topic, same payload shape, same
+/// frontend handler. No new command / modal is introduced.
+pub struct ModalApprover {
+    app: AppHandle,
+    run_id: String,
+    approvals: BrokerApprovals,
+    /// Project path, surfaced as the request's `cwd` for the modal.
+    cwd: Option<String>,
+}
+
+impl ModalApprover {
+    pub fn new(
+        app: AppHandle,
+        run_id: String,
+        approvals: BrokerApprovals,
+        cwd: Option<String>,
+    ) -> Self {
+        Self { app, run_id, approvals, cwd }
+    }
+}
+
+#[async_trait]
+impl Approver for ModalApprover {
+    async fn approve(&self, req: &BrokerRequest, reason: &str) -> bool {
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+
+        // 1. Register the pending approval so respond_permission can resolve it.
+        {
+            let mut pending = self.approvals.lock().await;
+            pending.insert(request_id.clone(), tx);
+        }
+
+        // 2. Emit the SAME event the sidecar permission flow uses. The frontend
+        //    cannot tell the source apart; the modal renders identically.
+        let cmd_display = format!("{} {}", req.tool, req.argv.join(" "));
+        let evt = PermissionRequestEvent {
+            run_id: self.run_id.clone(),
+            request_id: request_id.clone(),
+            tool_name: req.tool.clone(),
+            tool_input: serde_json::json!({ "command": cmd_display.trim() }),
+            session_id: None,
+            cwd: self.cwd.clone(),
+            title: Some(format!("Cho phép `{}`?", cmd_display.trim())),
+            description: Some(reason.to_string()),
+            display_name: Some(format!("{} command", req.tool)),
+            once_only: true,
+        };
+        let topic = format!("run:permission_request:{}", self.run_id);
+        // Track it like a sidecar request: the emit is lost when no webview
+        // listener is attached yet, and a (re)attached listener recovers it from
+        // the pending store instead of the prompt never showing up. It also puts
+        // the prompt under the run watchdog's "still waiting" reminders.
+        crate::runs::permission::track_pending(evt.clone());
+        // From here on, however this future ends — answered, expired, or DROPPED
+        // because the shim hung up (e.g. its Bash call timed out) — the prompt is
+        // withdrawn everywhere. Never leave a prompt nobody can act on.
+        let _guard = PendingPromptGuard {
+            app: self.app.clone(),
+            run_id: self.run_id.clone(),
+            request_id: request_id.clone(),
+            approvals: self.approvals.clone(),
+        };
+        // A paired phone may answer it too (full-trust model, once only): put it
+        // on the bus like a sidecar prompt.
+        publish_remote(
+            &self.app,
+            crate::remote::RemoteRunEvent::PermissionRequest {
+                run_id: self.run_id.clone(),
+                request_id: request_id.clone(),
+                tool: evt.tool_name.clone(),
+                input: evt.tool_input.clone(),
+                cwd: evt.cwd.clone(),
+                once_only: true,
+            },
+        );
+        if self.app.emit(&topic, evt).is_err() {
+            // Emit failed → fail-closed deny (the guard cleans up).
+            return false;
+        }
+
+        // 3. Await the user's decision — with no deadline. The prompt stays
+        //    visible (the run watchdog re-alerts the user while it waits) until
+        //    the user answers, the run ends (sender dropped → deny), or the shim
+        //    disconnects (the broker drops this future; the guard withdraws the
+        //    prompt). The shim's own lifetime is bounded by its caller (e.g. the
+        //    Bash tool timeout), so nothing waits forever unseen.
+        rx.await.unwrap_or(false)
+    }
+}
+
+/// Tap an event to a paired Controller; a no-op with Remote Control off.
+fn publish_remote(app: &AppHandle, ev: crate::remote::RemoteRunEvent) {
+    use tauri::Manager;
+    if let Some(bus) = app.try_state::<crate::remote::RemoteBus>() {
+        bus.publish(ev);
+    }
+}
+
+/// Withdraws a broker prompt when its `approve` future ends for any reason,
+/// including being dropped mid-await (the shim's connection closed). Drop must
+/// be synchronous, so the async approvals map is cleaned up on a spawned task.
+struct PendingPromptGuard {
+    app: AppHandle,
+    run_id: String,
+    request_id: String,
+    approvals: BrokerApprovals,
+}
+
+impl Drop for PendingPromptGuard {
+    fn drop(&mut self) {
+        // Only while it is still pending: once the run has ended its teardown
+        // cleared the store, and nothing may be emitted for it after `run:done`.
+        if crate::runs::permission::resolve_pending(&self.run_id, &self.request_id) {
+            let _ = self.app.emit(
+                &format!("run:permission_resolved:{}", self.run_id),
+                serde_json::json!({ "request_id": self.request_id }),
+            );
+            publish_remote(
+                &self.app,
+                crate::remote::RemoteRunEvent::PermissionResolved {
+                    run_id: self.run_id.clone(),
+                    request_id: self.request_id.clone(),
+                },
+            );
+        }
+        let approvals = self.approvals.clone();
+        let request_id = std::mem::take(&mut self.request_id);
+        tauri::async_runtime::spawn(async move {
+            approvals.lock().await.remove(&request_id);
+        });
+    }
+}
+
+/// GĐ7 resolver for the app-wide singleton broker. Given a request's `run_id`,
+/// it looks the run up in `BrokerRuns`; if the run is alive it builds a
+/// `ModalApprover` bound to that run (with its cwd for the modal), otherwise it
+/// returns `None` so the broker fail-closed denies the `Ask`.
+///
+/// Reuses the exact same modal machinery as before — only the *lifetime* of the
+/// broker changed (one socket for the whole app, not one per run).
+pub struct ModalApproverResolver {
+    app: AppHandle,
+    approvals: BrokerApprovals,
+    runs: BrokerRuns,
+}
+
+impl ModalApproverResolver {
+    pub fn new(app: AppHandle, approvals: BrokerApprovals, runs: BrokerRuns) -> Self {
+        Self { app, approvals, runs }
+    }
+}
+
+#[async_trait]
+impl ApproverResolver for ModalApproverResolver {
+    async fn resolve(&self, run_id: Option<&str>) -> Option<Arc<dyn Approver>> {
+        let run_id = run_id?;
+        // Copy the run's context out under a short synchronous lock; None (run
+        // not registered / already ended) → caller fail-closed denies.
+        let ctx = self.runs.lock().ok()?.get(run_id)?.clone();
+        Some(Arc::new(ModalApprover::new(
+            self.app.clone(),
+            run_id.to_string(),
+            self.approvals.clone(),
+            ctx.cwd,
+        )))
+    }
+
+    fn run_project(&self, run_id: &str) -> Option<String> {
+        self.runs.lock().ok()?.get(run_id)?.project_id.clone()
+    }
+}

@@ -1,0 +1,53 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Globe } from 'lucide-vue-next'
+import { Badge, PageHeader } from '@/components/ui'
+import { getVersion } from '@tauri-apps/api/app'
+
+const { t } = useI18n()
+
+// Read from Tauri so it always matches the packaged build (tauri.conf.json).
+const appVersion = ref('')
+onMounted(async () => {
+  try {
+    appVersion.value = await getVersion()
+  } catch {
+    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
+  }
+})
+</script>
+
+<template>
+  <div class="flex flex-col h-full">
+    <PageHeader :title="t('about.title')" />
+
+    <div class="flex-1 flex items-center justify-center p-6">
+      <div class="flex flex-col items-center text-center max-w-xs">
+        <!-- Logo -->
+        <img src="/logo.png" alt="Devdy" class="h-14 w-14 rounded-2xl mb-5" />
+
+        <h2 class="text-xl font-bold tracking-tight">Devdy</h2>
+        <p class="text-sm text-muted-foreground mt-1">{{ t('about.tagline') }}</p>
+        <Badge v-if="appVersion" class="mt-2 px-2 py-0.5 text-[10px] font-mono font-medium">
+          v{{ appVersion }}
+        </Badge>
+
+        <p class="mt-6 text-xs text-muted-foreground leading-relaxed">
+          {{ t('about.description') }}
+        </p>
+
+        <div class="mt-8 flex items-center gap-3 text-xs text-muted-foreground">
+          <span class="flex items-center gap-1">
+            <Globe class="h-3 w-3" :stroke-width="1.5" />
+            Tauri 2
+          </span>
+          <span class="h-1 w-1 rounded-full bg-border" />
+          <span>Vue 3</span>
+          <span class="h-1 w-1 rounded-full bg-border" />
+          <span>Rust</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

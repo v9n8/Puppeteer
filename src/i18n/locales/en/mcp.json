@@ -1,0 +1,123 @@
+{
+  "list": {
+    "import": "Import",
+    "importing": "Importing…",
+    "builtin": {
+      "active": "Built-in · active",
+      "disabled": "Built-in · disabled",
+      "description": "Auto-injected into every run. Gives the AI your notes, cross-session recall, project context (file tree & git) and managed VPS — as {tools} tools.",
+      "settings": "Google settings",
+      "needsClient": "Built-in · needs OAuth client",
+      "noAccount": "Built-in · no account",
+      "googleDescription": "Drive (drive_*): list, search, read, upload, share, delete files. Sheets (sheets_*): read any tab, edit individual cells, append rows. Gmail (mail_*): search, read, attachments, send, reply, labels. Calendar (cal_*): view events, check free slots, create and update meetings. Injected when a Google account is connected — as {tools} tools."
+    },
+    "empty": {
+      "title": "No MCP servers yet",
+      "hint": "Define an MCP server once, then enable it per project"
+    },
+    "claudeOnly": "Claude only",
+    "claudeOnlyTitle": "SSE transport is only supported by Claude. Codex runs will skip this server.",
+    "disable": "Disable",
+    "enable": "Enable",
+    "exportTitle": "Export JSON (includes secrets)",
+    "recommended": "Recommended servers",
+    "adding": "Adding…",
+    "confirmDelete": {
+      "title": "Delete MCP server",
+      "message": "Delete MCP server \"{name}\"? This also removes its stored secrets. This cannot be undone."
+    },
+    "toast": {
+      "added": "Added \"{name}\" — finish its setup here",
+      "imported": "Imported",
+      "exported": "Exported",
+      "deleted": "Deleted",
+      "disabled": "Disabled",
+      "enabled": "Enabled"
+    },
+    "searchPlaceholder": "Search name, command, URL…",
+    "groups": {
+      "builtin": "Built-in",
+      "stdio": "stdio · local process",
+      "http": "http · remote",
+      "sse": "sse · remote"
+    },
+    "noSelection": "Select an MCP server, or create a new one",
+    "allTypes": "All types",
+    "filterByType": "Filter by type"
+  },
+  "editor": {
+    "newTitle": "New MCP Server",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "saving": "Saving…",
+    "general": "General",
+    "name": "Name",
+    "namePlaceholder": "my-mcp-server",
+    "description": "Description",
+    "descriptionPlaceholder": "What this server provides",
+    "transport": "Transport",
+    "sseWarning": "SSE is Claude-only; Codex runs support stdio and streamable HTTP.",
+    "process": "Process",
+    "command": "Command",
+    "commandPlaceholder": "npx",
+    "args": "Args (one per line)",
+    "environment": "Environment",
+    "noEnv": "No environment variables",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "value",
+    "unchangedPlaceholder": "•••••• (unchanged)",
+    "stored": "stored",
+    "storedTitle": "A value is stored; leave blank to keep it",
+    "endpoint": "Endpoint",
+    "url": "URL",
+    "urlPlaceholder": "https://example.com/mcp",
+    "headers": "Headers",
+    "noHeaders": "No headers",
+    "authorizationPlaceholder": "Authorization",
+    "testConnection": "Test connection",
+    "testing": "Testing…",
+    "validation": {
+      "nameRequired": "Name is required",
+      "nameFormat": "Name may only contain letters, numbers, hyphens, and underscores",
+      "commandRequired": "stdio transport requires a command",
+      "urlRequired": "{transport} transport requires a url",
+      "keyEmpty": "Secret key cannot be empty",
+      "duplicateKey": "Duplicate key \"{key}\""
+    },
+    "toast": {
+      "saved": "Saved"
+    }
+  },
+  "detail": {
+    "addedOn": "Added {date}",
+    "notSaved": "Not saved yet",
+    "builtin": "Built-in",
+    "notAdded": "Recommended · not added",
+    "moreActions": "More actions",
+    "duplicate": "Duplicate",
+    "duplicated": "Secret values aren't copied — fill them in before saving",
+    "dismiss": "Dismiss",
+    "about": "About",
+    "tools": "Tools",
+    "builtinHint": "Injected at run launch, not stored as a server — it can be turned off but not deleted.",
+    "perProject": "Per project",
+    "perProjectHint": "Turn it off for a single project in that project's MCP tab. When it is off here, it is off for every project. Takes effect on the next run.",
+    "command": "Command",
+    "secretsToFill": "Secrets to fill in",
+    "noSecrets": "No secrets needed",
+    "addHint": "Adds it with empty secret values; finish the setup here.",
+    "generalHint": "Define an MCP server once, then enable it per project from the project's page.",
+    "secretsHint": "Values live in the OS Keychain and are never shown; leave a stored one blank to keep it.",
+    "confirmDiscard": {
+      "title": "Discard changes?",
+      "message": "This MCP server has unsaved changes. Discard them?",
+      "confirm": "Discard"
+    },
+    "status": "Status",
+    "enabledHint": "Applies right away; turn it off to keep it out of every new run.",
+    "enabledHintDraft": "Whether the server starts enabled once saved.",
+    "test": "Test",
+    "testHint": "Checks the server with the settings above — no need to save first.",
+    "saveHint": "Save (⌘/Ctrl+S)"
+  }
+}
