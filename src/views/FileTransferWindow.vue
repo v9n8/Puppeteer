@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // THE File Transfer window (opened via lib/fileTransferWindow, `?fileTransferWindow=1`,
-// remote set only): this machine on the left, the controlled Devdy on the
+// remote set only): this machine on the left, the controlled Puppeteer on the
 // right, a transfer queue below. Copy with the middle buttons, by dragging rows
 // to the other pane, or by dropping files from Finder onto the right pane.
 //

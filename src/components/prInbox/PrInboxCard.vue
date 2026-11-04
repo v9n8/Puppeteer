@@ -54,9 +54,9 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   review: [item: PrInboxItem]
   'open-run': [item: PrInboxItem]
-  /** "Add to devdy" on an unmapped PR — the host decides how to navigate
+  /** "Add to puppeteer" on an unmapped PR — the host decides how to navigate
    * (router in the main window, a request to it from the PR Inbox window). */
-  'add-to-devdy': []
+  'add-to-puppeteer': []
   /** Open the card menu at a viewport point (⋯ button or right-click). */
   menu: [item: PrInboxItem, x: number, y: number]
 }>()
@@ -311,17 +311,17 @@ function relativeTime(iso: string): string {
           <span :class="actionLabelClass">{{ reviewLabel }}</span>
         </Button>
       </template>
-      <!-- Not tracked in devdy: the add action is the whole story -->
+      <!-- Not tracked in puppeteer: the add action is the whole story -->
       <Button
         v-else
         variant="ghost"
         :size="compact ? 'icon-sm' : 'sm'"
-        :title="t('prInbox.addToDevdy')"
-        :aria-label="t('prInbox.addToDevdy')"
-        @click="emit('add-to-devdy')"
+        :title="t('prInbox.addToPuppeteer')"
+        :aria-label="t('prInbox.addToPuppeteer')"
+        @click="emit('add-to-puppeteer')"
       >
         <FolderPlus class="h-3.5 w-3.5" :stroke-width="2" />
-        <span v-if="!compact" class="hidden @[36rem]/list:inline">{{ t('prInbox.addToDevdy') }}</span>
+        <span v-if="!compact" class="hidden @[36rem]/list:inline">{{ t('prInbox.addToPuppeteer') }}</span>
       </Button>
       <AddTodoButton
         :prefill="todoPrefill"

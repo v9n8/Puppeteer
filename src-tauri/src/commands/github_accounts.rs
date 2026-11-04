@@ -50,7 +50,7 @@ async fn validate_token(pat: &str) -> Result<PatValidation, String> {
     let resp = client
         .get("https://api.github.com/user")
         .header("Authorization", format!("Bearer {}", pat))
-        .header("User-Agent", "devdy/0.1")
+        .header("User-Agent", "puppeteer/0.1")
         .send()
         .await
         .map_err(|e| e.to_string())?;

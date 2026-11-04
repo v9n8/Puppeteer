@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A message's files, Slack style: downloaded images as inline thumbnails (click →
 // lightbox), other downloaded files as cards opening with the OS default app, and
-// files Devdy could not download (error / too large / unavailable / pending) as
+// files Puppeteer could not download (error / too large / unavailable / pending) as
 // dimmed cards with the reason + "Open in Slack" (permalink).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

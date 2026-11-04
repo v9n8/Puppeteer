@@ -6,16 +6,13 @@ import { invoke } from '@/lib/tauri'
 import {
   Cpu, Palette, FileText, ShieldAlert, Sparkles, Github, Gitlab, Cloud, CloudCog,
   CheckCircle2, AlertTriangle, Trash2, Plus, Pencil, Gauge, Radio,
-  RefreshCw, Loader2, BadgeCheck, HardDrive, Bot, RotateCcw, UserCircle,
+  RefreshCw, Loader2, BadgeCheck, HardDrive, UserCircle,
   LogIn, Star, ChevronDown, ArrowRightLeft, Inbox, GripVertical, Target,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { Banner, Button, Input, Textarea, Card, AppSelect, PageHeader, ToggleSwitch } from '@/components/ui'
-import CyberFox from '@/components/CyberFoxCanvas.vue'
-import MascotStars from '@/components/MascotStars.vue'
-import MascotBubble from '@/components/MascotBubble.vue'
 import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.vue'
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
@@ -32,11 +29,6 @@ import { applySystemAccent } from '@/lib/systemAccent'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
-import { useMascotLevelStore } from '@/stores/mascotLevel'
-import { type MascotBubbleVariant, type MascotBubbleMessage } from '@/composables/useMascotBubble'
-import { pickMascotVoice } from '@/composables/mascotVoiceLines'
-import { useMascotSpeech, useVoiceList, speechSupported } from '@/composables/useMascotSpeech'
-import { useMascotSpeaking } from '@/composables/useMascotSpeaking'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
@@ -44,7 +36,7 @@ import {
   type SavedPrompt, newPromptId, parseSavedPrompts, serializeSavedPrompts, promptLabel,
 } from '@/lib/savedPrompts'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const appSettings = useAppSettingsStore()
 const budget = useBudgetStore()
 const modelCatalog = useModelCatalogStore()
@@ -83,18 +75,6 @@ interface AppSettings {
   translate_model: string
   translate_target_lang: string
   translate_style: string
-  cyber_fox_enabled: string
-  cyber_fox_size: string
-  cyber_fox_mode: string
-  cyber_fox_sound: string
-  mascot_speech_enabled: string
-  mascot_speech_engine: string
-  mascot_speech_model: string
-  cyber_fox_lite: string
-  cyber_fox_voice_vi: string
-  cyber_fox_voice_en: string
-  cyber_fox_voice_rate: string
-  cyber_fox_voice_pitch: string
   quit_background_policy: string
 }
 
@@ -123,251 +103,8 @@ const settings = ref<AppSettings>({
   translate_model: '',
   translate_target_lang: 'vi',
   translate_style: 'natural',
-  cyber_fox_enabled: 'false',
-  cyber_fox_size: 'md',
-  cyber_fox_mode: 'in-app',
-  cyber_fox_sound: 'true',
-  mascot_speech_enabled: 'false',
-  mascot_speech_engine: '',
-  mascot_speech_model: '',
-  cyber_fox_lite: 'auto',
-  cyber_fox_voice_vi: '',
-  cyber_fox_voice_en: '',
-  cyber_fox_voice_rate: '1',
-  cyber_fox_voice_pitch: '1.15',
   quit_background_policy: 'ask',
 })
-
-type CyberFoxPreviewState =
-  | 'idle'
-  | 'thinking'
-  | 'loading'
-  | 'success'
-  | 'error'
-  | 'permission'
-
-// Only the states the live mascot actually reaches (see CyberFoxFloating).
-const CYBER_FOX_STATES: { id: CyberFoxPreviewState; labelKey: string }[] = [
-  { id: 'idle', labelKey: 'settings.mascot.states.idle' },
-  { id: 'thinking', labelKey: 'settings.mascot.states.thinking' },
-  { id: 'loading', labelKey: 'settings.mascot.states.loading' },
-  { id: 'success', labelKey: 'settings.mascot.states.success' },
-  { id: 'error', labelKey: 'settings.mascot.states.error' },
-  { id: 'permission', labelKey: 'settings.mascot.states.permission' },
-]
-const cyberFoxPreviewState = ref<CyberFoxPreviewState>('idle')
-// Breakthrough VFX demo trigger for the preview (bump = replay the pillar) +
-// a matching speech bubble so the preview mirrors a real level-up.
-const previewLevelUpAt = ref(0)
-function demoLevelUp() {
-  previewLevelUpAt.value = Date.now()
-  const text = t('mascot.bubble.levelUp', {
-    realm: t(selectedPetRealm.value.labelKey),
-    tier: selectedPetTier.value,
-  })
-  previewBubble.value = {
-    id: ++previewBubbleSeq,
-    text,
-    variant: 'success',
-    duration: 4000,
-  }
-  beginSpeaking(1600)
-  if (settings.value.cyber_fox_sound === 'true' && speechSupported()) {
-    speakMascot(text, String(locale.value), {
-      voiceName:
-        locale.value === 'vi'
-          ? settings.value.cyber_fox_voice_vi
-          : settings.value.cyber_fox_voice_en,
-      rate: parseFloat(settings.value.cyber_fox_voice_rate) || 1,
-      pitch: parseFloat(settings.value.cyber_fox_voice_pitch) || 1.15,
-    })
-  }
-}
-
-const PET_REALMS = [
-  {
-    id: 'luyen_khi',
-    labelKey: 'settings.mascot.levels.realms.luyenKhi',
-    accentClass: 'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-200',
-    barClass: 'bg-sky-500',
-  },
-  {
-    id: 'truc_co',
-    labelKey: 'settings.mascot.levels.realms.trucCo',
-    accentClass: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
-    barClass: 'bg-emerald-500',
-  },
-  {
-    id: 'kim_dan',
-    labelKey: 'settings.mascot.levels.realms.kimDan',
-    accentClass: 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-200',
-    barClass: 'bg-amber-500',
-  },
-  {
-    id: 'nguyen_anh',
-    labelKey: 'settings.mascot.levels.realms.nguyenAnh',
-    accentClass: 'border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-200',
-    barClass: 'bg-violet-500',
-  },
-  {
-    id: 'hoa_than',
-    labelKey: 'settings.mascot.levels.realms.hoaThan',
-    accentClass: 'border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-200',
-    barClass: 'bg-rose-500',
-  },
-  {
-    id: 'anh_bien',
-    labelKey: 'settings.mascot.levels.realms.anhBien',
-    accentClass: 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200',
-    barClass: 'bg-cyan-500',
-  },
-  {
-    id: 'van_dinh',
-    labelKey: 'settings.mascot.levels.realms.vanDinh',
-    accentClass: 'border-fuchsia-500/50 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-200',
-    barClass: 'bg-fuchsia-500',
-  },
-] as const
-type PetRealm = (typeof PET_REALMS)[number]
-type PetRealmId = PetRealm['id']
-const PET_TIERS = [1, 2, 3, 4, 5] as const
-type PetTier = (typeof PET_TIERS)[number]
-const PET_TIER_COUNT = PET_TIERS.length
-const selectedPetRealmId = ref<PetRealmId>('luyen_khi')
-const selectedPetTier = ref<PetTier>(1)
-const selectedPetRealm = computed<PetRealm>(() =>
-  PET_REALMS.find((realm) => realm.id === selectedPetRealmId.value) ?? PET_REALMS[0],
-)
-const selectedPetRealmIndex = computed(() =>
-  Math.max(0, PET_REALMS.findIndex((realm) => realm.id === selectedPetRealmId.value)),
-)
-const selectedPetLevel = computed(() =>
-  selectedPetRealmIndex.value * PET_TIER_COUNT + selectedPetTier.value,
-)
-const selectedPetProgress = computed(() =>
-  Math.round((selectedPetTier.value / PET_TIER_COUNT) * 100),
-)
-
-function selectPetRealm(realm: PetRealm) {
-  selectedPetRealmId.value = realm.id
-}
-
-function selectPetTier(tier: PetTier) {
-  selectedPetTier.value = tier
-}
-
-function petRealmRange(index: number) {
-  const from = index * PET_TIER_COUNT + 1
-  const to = from + PET_TIER_COUNT - 1
-  return t('settings.mascot.levels.levelRange', { from, to })
-}
-
-// Earned mascot level — auto-derived from cumulative token usage (read-only).
-const mascotLevelStore = useMascotLevelStore()
-mascotLevelStore.ensureLoaded()
-const earned = computed(() => mascotLevelStore.info)
-const earnedRealm = computed<PetRealm>(
-  () => PET_REALMS.find((r) => r.id === earned.value.realmId) ?? PET_REALMS[0],
-)
-function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(Math.round(n))
-}
-// Default the explorer selection to the fox's real realm/tier once usage loads.
-watch(
-  () => mascotLevelStore.loaded,
-  (ok) => {
-    if (!ok) return
-    selectedPetRealmId.value = earned.value.realmId
-    selectedPetTier.value = earned.value.tier as PetTier
-  },
-  { immediate: true },
-)
-
-const MASCOT_POSITION_STORAGE_KEY = 'devdy.cyberFox.position.v1'
-const cyberFoxEnabledOptions = computed(() => [
-  { value: 'true', label: t('settings.general.on') },
-  { value: 'false', label: t('settings.general.off') },
-])
-const cyberFoxSoundOptions = computed(() => [
-  { value: 'true', label: t('settings.general.on') },
-  { value: 'false', label: t('settings.general.off') },
-])
-const cyberFoxLiteOptions = computed(() => [
-  { value: 'auto', label: t('settings.mascot.liteAuto') },
-  { value: 'false', label: t('settings.general.off') },
-  { value: 'true', label: t('settings.general.on') },
-])
-const cyberFoxSizeOptions = computed(() => [
-  { value: 'sm', label: t('settings.mascot.sizeSmall') },
-  { value: 'md', label: t('settings.mascot.sizeMedium') },
-  { value: 'lg', label: t('settings.mascot.sizeLarge') },
-])
-const cyberFoxModeOptions = computed(() => [
-  { value: 'in-app', label: t('settings.mascot.modeInApp') },
-  { value: 'desktop', label: t('settings.mascot.modeDesktop') },
-])
-// Installed TTS voices → dropdown options ("" = auto-pick first for the language).
-const viVoices = useVoiceList('vi')
-const enVoices = useVoiceList('en')
-const cyberFoxVoiceOptions = computed(() => [
-  { value: '', label: t('settings.mascot.voiceAuto') },
-  ...viVoices.value.map((v) => ({ value: v.name, label: `${v.name} (${v.lang})` })),
-])
-const cyberFoxVoiceEnOptions = computed(() => [
-  { value: '', label: t('settings.mascot.voiceAuto') },
-  ...enVoices.value.map((v) => ({ value: v.name, label: `${v.name} (${v.lang})` })),
-])
-
-// Which speech-bubble variant each preview state should speak in.
-const PREVIEW_STATE_VARIANT: Record<CyberFoxPreviewState, MascotBubbleVariant> = {
-  idle: 'info',
-  thinking: 'thinking',
-  loading: 'thinking',
-  success: 'success',
-  error: 'error',
-  permission: 'permission',
-}
-
-// Unified preview: selecting a state swaps the animation AND speaks its line +
-// plays the matching clip, all inside the preview card. The bubble is kept in a
-// LOCAL slot (not the global mascot channel) so testing never disturbs the live
-// fox floating elsewhere in the app.
-const previewBubble = ref<MascotBubbleMessage | null>(null)
-const { speak: speakMascot } = useMascotSpeech()
-const { beginSpeaking } = useMascotSpeaking()
-let previewBubbleSeq = 0
-
-function selectPreviewState(state: CyberFoxPreviewState) {
-  cyberFoxPreviewState.value = state
-  const variant = PREVIEW_STATE_VARIANT[state]
-  // Pick the line for the current language so the bubble text matches the voice.
-  const lang = String(locale.value)
-  const line = pickMascotVoice(variant, lang)
-  const text = line?.text ?? t('settings.mascot.testBubbleSample')
-  previewBubble.value = {
-    id: ++previewBubbleSeq,
-    text,
-    variant,
-    duration: 4000,
-  }
-  // Always demo the mouth flap so the preview reliably shows the effect on every
-  // click — even when sound is muted, or when a previous voice is still playing
-  // (both players drop overlapping requests). If sound is on and audio actually
-  // starts, its own events re-arm the flag to the real clip/utterance length.
-  beginSpeaking(1600)
-  if (settings.value.cyber_fox_sound === 'true' && speechSupported()) {
-    // Both languages speak via browser TTS; if Web Speech isn't available the
-    // preview just shows the mouth flap above without any voice.
-    speakMascot(text, lang, {
-      voiceName:
-        lang === 'vi' ? settings.value.cyber_fox_voice_vi : settings.value.cyber_fox_voice_en,
-      rate: parseFloat(settings.value.cyber_fox_voice_rate) || 1,
-      pitch: parseFloat(settings.value.cyber_fox_voice_pitch) || 1.15,
-    })
-  }
-}
 
 // Claude model choices = the pinned table, annotated with the last validation
 // sweep, plus whatever is already saved (so an id dropped from the table — or a
@@ -476,7 +213,6 @@ async function setLaunchAtLogin(mode: LaunchAtLogin) {
 
 const SECTIONS = [
   { id: 'general', labelKey: 'settings.sections.general', icon: Palette },
-  { id: 'mascot', labelKey: 'settings.sections.mascot', icon: Bot },
   { id: 'focus', labelKey: 'settings.sections.focus', icon: Target },
   { id: 'github', labelKey: 'settings.sections.github', icon: Github },
   { id: 'gitlab', labelKey: 'settings.sections.gitlab', icon: Gitlab },
@@ -1223,16 +959,6 @@ function applyColorTheme(theme: string) {
   applySystemAccent(t)
 }
 
-function resetCyberFoxPosition() {
-  try {
-    localStorage.removeItem(MASCOT_POSITION_STORAGE_KEY)
-    window.dispatchEvent(new CustomEvent('devdy:cyber-fox-reset-position'))
-    toast.success(t('settings.mascot.positionReset'))
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
 // ── Saved prompt library ──────────────────────────────────────────────────
 // Edited as a list here, stored as a JSON string in the `saved_prompts` setting.
 // The generic auto-save below waits 400ms, which is far too eager while typing a
@@ -1380,7 +1106,7 @@ watch(() => settings.value.language, (v) => {
           <div v-for="i in 3" :key="i" class="h-28 bg-card rounded-lg border border-border animate-pulse" />
         </div>
 
-        <div v-else :class="activeSection === 'mascot' ? 'max-w-4xl' : 'max-w-lg'">
+        <div v-else class="max-w-lg">
 
         <!-- General section -->
         <Card v-show="activeSection === 'general'" body-class="p-4 space-y-4">
@@ -1459,333 +1185,6 @@ watch(() => settings.value.language, (v) => {
               />
               <p class="text-[11px] text-muted-foreground">{{ t('settings.general.launchAtLoginHint') }}</p>
             </div>
-        </Card>
-
-        <!-- DY Mascot section -->
-        <Card v-show="activeSection === 'mascot'" body-class="p-4 space-y-5">
-          <template #header>
-            <Bot class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-            <span class="text-xs font-semibold">{{ t('settings.mascot.title') }}</span>
-          </template>
-
-          <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-            <!-- LEFT column. Visual order via `order-*`: the realm/level preview
-                 sits at the TOP (next to the live fox on the right), the config
-                 controls drop below the divider. -->
-            <div class="flex flex-col gap-4 min-w-0">
-          <div class="order-3 grid gap-x-4 gap-y-3 sm:grid-cols-2">
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.enabled') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_enabled" :options="cyberFoxEnabledOptions" />
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ t('settings.mascot.enabledHint') }}
-              </p>
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.mode') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_mode" :options="cyberFoxModeOptions" />
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ t('settings.mascot.modeHint') }}
-              </p>
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.sound') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_sound" :options="cyberFoxSoundOptions" />
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ t('settings.mascot.soundHint') }}
-              </p>
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.agentSpeech') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.mascot_speech_enabled" :options="cyberFoxSoundOptions" />
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ t('settings.mascot.agentSpeechHint') }}
-              </p>
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.lite') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_lite" :options="cyberFoxLiteOptions" />
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ t('settings.mascot.liteHint') }}
-              </p>
-            </div>
-
-            <div class="sm:col-span-2 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-              <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  {{ t('settings.mascot.size') }}
-                </label>
-                <AppSelect size="sm" v-model="settings.cyber_fox_size" :options="cyberFoxSizeOptions" />
-              </div>
-              <Button variant="outline" size="sm" @click="resetCyberFoxPosition">
-                <RotateCcw class="h-3.5 w-3.5" :stroke-width="1.75" />
-                {{ t('settings.mascot.resetPosition') }}
-              </Button>
-            </div>
-
-            <!-- TTS voices — the fox speaks the bubble text with the system voice
-                 matching the app language (English or Vietnamese). -->
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.voiceEn') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_voice_en" :options="cyberFoxVoiceEnOptions" />
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.voice') }}
-              </label>
-              <AppSelect size="sm" v-model="settings.cyber_fox_voice_vi" :options="cyberFoxVoiceOptions" />
-            </div>
-
-            <p class="sm:col-span-2 -mt-1 text-[11px] text-muted-foreground leading-relaxed">
-              {{ t('settings.mascot.voiceHint') }}
-            </p>
-
-            <div class="space-y-1.5">
-              <label class="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                <span>{{ t('settings.mascot.voiceRate') }}</span>
-                <span class="tabular-nums normal-case">{{ Number(settings.cyber_fox_voice_rate).toFixed(2) }}×</span>
-              </label>
-              <Input
-                type="range"
-                min="0.5"
-                max="1.8"
-                step="0.05"
-                v-model="settings.cyber_fox_voice_rate"
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                <span>{{ t('settings.mascot.voicePitch') }}</span>
-                <span class="tabular-nums normal-case">{{ Number(settings.cyber_fox_voice_pitch).toFixed(2) }}</span>
-              </label>
-              <Input
-                type="range"
-                min="0.5"
-                max="1.8"
-                step="0.05"
-                v-model="settings.cyber_fox_voice_pitch"
-              />
-            </div>
-          </div>
-
-          <div class="order-2 h-px bg-border" />
-
-          <!-- Unified preview: realm/level explorer + state buttons. Ordered
-               first so the "cultivation realm" info leads the panel. Inner
-               `order-*`: earned level → realm explorer → animation states. -->
-          <div class="order-1 flex flex-col gap-3">
-            <!-- Animation-state buttons (drive the live fox pose on the right). -->
-            <div class="order-3 space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {{ t('settings.mascot.previewState') }}
-              </label>
-              <div class="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                <button
-                  v-for="state in CYBER_FOX_STATES"
-                  :key="state.id"
-                  type="button"
-                  class="rounded-md border px-2.5 py-2 text-[11px] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  :class="cyberFoxPreviewState === state.id
-                    ? 'border-primary/60 bg-accent text-foreground'
-                    : 'border-border/70 bg-background/70 text-muted-foreground hover:border-primary/50 hover:bg-accent/50 hover:text-foreground'"
-                  :aria-pressed="cyberFoxPreviewState === state.id"
-                  @click="selectPreviewState(state.id)"
-                >
-                  {{ t(state.labelKey) }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Current earned level — auto-derived from cumulative token usage. -->
-            <div class="order-1 rounded-md border p-3" :class="earnedRealm.accentClass">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-semibold uppercase tracking-wider">
-                  {{ t('settings.mascot.levels.current') }}
-                </span>
-                <span class="flex items-center gap-1.5 text-[10px] font-medium tabular-nums opacity-80">
-                  <MascotStars
-                    v-if="earned.stars > 0"
-                    :count="earned.stars"
-                    :size="11"
-                    :label="t('settings.mascot.levels.stars', { count: earned.stars })"
-                  />
-                  {{ t('settings.mascot.levels.levelNumber', { level: earned.level }) }}
-                </span>
-              </div>
-              <div class="mt-1 text-sm font-semibold">
-                {{ t('settings.mascot.levels.levelTitle', {
-                  realm: t(earnedRealm.labelKey),
-                  tier: earned.tier,
-                }) }}
-              </div>
-              <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-background/40">
-                <div
-                  class="h-full rounded-full transition-all"
-                  :class="earnedRealm.barClass"
-                  :style="{ width: `${earned.progress}%` }"
-                />
-              </div>
-              <div class="mt-1 flex items-center justify-between gap-2 text-[10px] opacity-80">
-                <span>{{ t('settings.mascot.levels.tokensUsed', { tokens: formatTokenCount(earned.totalTokens) }) }}</span>
-                <span>
-                  {{ earned.isMax
-                    ? t('settings.mascot.levels.maxed')
-                    : t('settings.mascot.levels.toNext', { percent: earned.progress }) }}
-                </span>
-              </div>
-              <p class="mt-2 text-[10px] leading-relaxed opacity-70">
-                {{ t('settings.mascot.levels.currentHint') }}
-              </p>
-            </div>
-
-            <div class="order-2 rounded-md border border-border/70 bg-background/70 p-3 space-y-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    {{ t('settings.mascot.levels.previewTitle') }}
-                  </div>
-                  <div class="mt-1 flex flex-wrap items-center gap-2">
-                    <span class="text-sm font-semibold text-foreground">
-                      {{ t('settings.mascot.levels.levelTitle', {
-                        realm: t(selectedPetRealm.labelKey),
-                        tier: selectedPetTier,
-                      }) }}
-                    </span>
-                    <span class="rounded border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {{ t('settings.mascot.levels.levelNumber', { level: selectedPetLevel }) }}
-                    </span>
-                  </div>
-                </div>
-                <div class="shrink-0 rounded-md border px-2 py-1 text-[10px] font-medium" :class="selectedPetRealm.accentClass">
-                  {{ selectedPetProgress }}%
-                </div>
-              </div>
-
-              <p class="text-[11px] leading-relaxed text-muted-foreground">
-                {{ t('settings.mascot.levels.previewHint') }}
-              </p>
-
-              <div class="space-y-1.5">
-                <div class="flex items-center justify-between gap-2 text-[10px] font-medium text-muted-foreground">
-                  <span>{{ t('settings.mascot.levels.tierProgress') }}</span>
-                  <span>{{ t('settings.mascot.levels.breakthrough') }}</span>
-                </div>
-                <div class="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    class="h-full rounded-full transition-all"
-                    :class="selectedPetRealm.barClass"
-                    :style="{ width: `${selectedPetProgress}%` }"
-                  />
-                </div>
-              </div>
-
-              <div class="grid grid-cols-5 gap-1.5">
-                <button
-                  v-for="tier in PET_TIERS"
-                  :key="tier"
-                  type="button"
-                  class="min-h-9 rounded-md border px-1 text-[11px] font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  :class="selectedPetTier === tier
-                    ? selectedPetRealm.accentClass
-                    : 'border-border/70 bg-muted/30 text-muted-foreground hover:border-primary/40 hover:bg-accent/40 hover:text-foreground'"
-                  :aria-pressed="selectedPetTier === tier"
-                  @click="selectPetTier(tier)"
-                >
-                  {{ t('settings.mascot.levels.tierShort', { tier }) }}
-                </button>
-              </div>
-
-              <div class="grid gap-2 grid-cols-2 sm:grid-cols-3">
-                <button
-                  v-for="(realm, index) in PET_REALMS"
-                  :key="realm.id"
-                  type="button"
-                  class="rounded-md border p-2 text-left transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  :class="selectedPetRealmId === realm.id
-                    ? realm.accentClass
-                    : 'border-border/70 bg-muted/20 text-muted-foreground hover:border-primary/40 hover:bg-accent/40 hover:text-foreground'"
-                  :aria-pressed="selectedPetRealmId === realm.id"
-                  @click="selectPetRealm(realm)"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-medium truncate">{{ t(realm.labelKey) }}</span>
-                    <span class="text-[10px] tabular-nums opacity-70">{{ petRealmRange(index) }}</span>
-                  </div>
-                  <div class="mt-2 grid grid-cols-5 gap-1">
-                    <span
-                      v-for="tier in PET_TIERS"
-                      :key="tier"
-                      class="h-1 rounded-full"
-                      :class="selectedPetRealmId === realm.id && tier <= selectedPetTier
-                        ? realm.barClass
-                        : 'bg-muted-foreground/20'"
-                    />
-                  </div>
-                </button>
-              </div>
-
-              <div class="rounded-md border border-border/60 bg-muted/25 p-2.5">
-                <div class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                  {{ t('settings.mascot.levels.visualChange') }}
-                </div>
-                <p class="mt-1 text-[11px] leading-relaxed text-foreground/80">
-                  {{ t(`settings.mascot.levels.changes.tier${selectedPetTier}`) }}
-                </p>
-              </div>
-              </div>
-            </div>
-            </div>
-            <!-- /left column -->
-
-            <!-- RIGHT: live preview (its own sticky column) -->
-            <div class="lg:sticky lg:top-4">
-              <div class="rounded-md border border-border/70 bg-muted/20 p-4">
-                <div class="flex min-h-[340px] flex-col items-center justify-end gap-3 pt-20">
-                  <div class="relative">
-                    <MascotBubble :message="previewBubble" />
-                    <CyberFox
-                      :state="cyberFoxPreviewState"
-                      :size="280"
-                      :label="t('settings.mascot.previewLabel')"
-                      :evolution-realm="selectedPetRealmId"
-                      :evolution-tier="selectedPetTier"
-                      :lite="settings.cyber_fox_lite === 'true'"
-                      :level-up-at="previewLevelUpAt"
-                    />
-                  </div>
-                  <div
-                    class="flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[11px] font-medium shadow-sm"
-                    :class="selectedPetRealm.accentClass"
-                  >
-                    <span>{{ t(selectedPetRealm.labelKey) }}</span>
-                    <span class="opacity-70">·</span>
-                    <span>{{ t('settings.mascot.levels.tierShort', { tier: selectedPetTier }) }}</span>
-                  </div>
-                  <Button variant="outline" size="sm" @click="demoLevelUp">
-                    {{ t('settings.mascot.previewBreakthrough') }}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
         </Card>
 
         <!-- Google Account section (Drive + Gmail) -->

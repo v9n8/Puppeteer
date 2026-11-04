@@ -75,7 +75,7 @@ export async function openSessionWindow(
   const params = new URLSearchParams({ sessionWindow: '1', projectId, runId })
   const win = new WebviewWindow(label, {
     url: popoutUrl(`index.html?${params.toString()}`),
-    title: 'Session — Devdy',
+    title: 'Session — Puppeteer',
     width: 1000,
     height: 720,
     minWidth: 600,

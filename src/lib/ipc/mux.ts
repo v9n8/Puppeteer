@@ -1,7 +1,7 @@
 /**
  * One relay connection for every remote-desktop window of this machine.
  *
- * The controlled Devdy accepts ONE controller per session (the newest join
+ * The controlled Puppeteer accepts ONE controller per session (the newest join
  * wins), so pop-outs opened from a remote-desktop window (session, file viewer,
  * todo / note lists… — see ./windows.ts) must not open connections of their
  * own: they would keep kicking each other off. Instead the main remote-desktop

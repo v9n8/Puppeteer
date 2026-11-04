@@ -1,6 +1,6 @@
 // Opens THE Slack threads window (views/SlackThreadsWindow.vue,
 // `?slackWindow=1[&id=][&add=1][&projectId=]`): a Slack-like two-pane reader of
-// the threads Devdy fetched and translated. There is only ever ONE such window
+// the threads Puppeteer fetched and translated. There is only ever ONE such window
 // (fixed label); opening it again focuses it and re-points it at the requested
 // thread / opens the add dialog.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -96,7 +96,7 @@ export async function openSlackWindow(
   const height = 760
   const win = new WebviewWindow(popoutLabel(SLACK_WINDOW_LABEL), {
     url: popoutUrl(`index.html?${params.toString()}`),
-    title: 'Slack threads — Devdy',
+    title: 'Slack threads — Puppeteer',
     width,
     height,
     minWidth: 820,

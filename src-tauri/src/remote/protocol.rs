@@ -392,7 +392,7 @@ pub enum StreamPayload {
         mcp_servers: Vec<ToggleItem>,
         skills: Vec<ToggleItem>,
         rules: Vec<ToggleItem>,
-        builtin_devdy: BuiltinToggle,
+        builtin_puppeteer: BuiltinToggle,
         /// VPS servers (by label).
         #[serde(default)]
         servers: Vec<ToggleItem>,
@@ -494,7 +494,7 @@ pub struct ClaudeAccountToggle {
     pub is_default: bool,
 }
 
-/// The built-in `devdy` MCP server switch. `global` is true while the setting
+/// The built-in `puppeteer` MCP server switch. `global` is true while the setting
 /// is app-wide (it is today): flipping it affects every project.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BuiltinToggle {

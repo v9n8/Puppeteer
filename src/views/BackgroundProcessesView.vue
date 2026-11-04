@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Background processes manager: every process Devdy tracks (sessions, its own
+// Background processes manager: every process Puppeteer tracks (sessions, its own
 // helpers, and processes left behind by ended sessions or a previous app run),
 // with graceful stop / force kill per entry or per process and bulk cleanup.
 //

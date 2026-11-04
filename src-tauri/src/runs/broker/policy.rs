@@ -459,13 +459,13 @@ fn evaluate_az(argv: &[String]) -> PolicyDecision {
     // Checked first so no flag placement can soften a Deny into an Ask/Allow.
     match p.as_slice() {
         ["login", ..] | ["logout", ..] => {
-            return deny("`az login`/`az logout` — the Azure session is managed by Devdy")
+            return deny("`az login`/`az logout` — the Azure session is managed by Puppeteer")
         }
         ["account", "get-access-token", ..] => {
             return deny("`az account get-access-token` prints a credential")
         }
         ["account", "set", ..] | ["account", "clear", ..] => {
-            return deny("the Azure default subscription is managed by Devdy for this project")
+            return deny("the Azure default subscription is managed by Puppeteer for this project")
         }
         ["ad", "sp", "credential", "reset", ..] | ["ad", "app", "credential", "reset", ..] => {
             return deny("Azure AD credential reset mints a secret and is blocked")

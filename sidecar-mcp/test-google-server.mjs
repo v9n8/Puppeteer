@@ -34,7 +34,7 @@ function drive(frames, env = {}) {
     // Empty GOOGLE_ACCOUNTS: the server must still advertise its tools; only the
     // handlers need credentials.
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, GOOGLE_ACCOUNTS: '[]', DEVDY_BROKER_SOCK: '', ...env },
+      env: { ...process.env, GOOGLE_ACCOUNTS: '[]', PUPPETEER_BROKER_SOCK: '', ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';

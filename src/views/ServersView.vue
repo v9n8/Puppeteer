@@ -256,7 +256,7 @@ async function handleDelete(server: VpsServer) {
       v-model:search="search"
       :groups="groups"
       :selected-id="selectedId"
-      collapse-key="devdy.servers.collapsedGroups"
+      collapse-key="puppeteer.servers.collapsedGroups"
       :search-placeholder="t('servers.list.searchPlaceholder')"
       :loading="store.loading && !loaded"
       :error="store.error"

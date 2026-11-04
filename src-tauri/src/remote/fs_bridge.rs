@@ -1,5 +1,5 @@
 //! Remote desktop: this machine's file system as seen by a remote-desktop
-//! window on another Devdy.
+//! window on another Puppeteer.
 //!
 //! The remote window's UI holds this machine's paths (project dirs, Slack
 //! downloads, images in a run…), but native features act on the disk of the
@@ -9,7 +9,7 @@
 //! [`remote_fs_read`]. They are ordinary app commands, so a remote window
 //! reaches them through the IPC bridge like any other `invoke`.
 //!
-//! Listing shows names anywhere except inside credential stores (Devdy's app
+//! Listing shows names anywhere except inside credential stores (Puppeteer's app
 //! data, `~/.ssh`, cloud CLI logins, …, [`crate::remote::guard::SecretPaths`]).
 //! Reading is held to the remote desktop's allowlist (HOME, mounted volumes,
 //! projects, uploads, [`crate::remote::fs_policy::RemoteFs`]): never a
@@ -362,9 +362,9 @@ pub fn remote_client_log(level: String, source: String, message: String) {
     }
     let source: String = source.chars().take(80).collect();
     match level.as_str() {
-        "error" => tracing::error!(target: "devdy::remote_client", source = %source, "{message}"),
-        "warn" => tracing::warn!(target: "devdy::remote_client", source = %source, "{message}"),
-        _ => tracing::info!(target: "devdy::remote_client", source = %source, "{message}"),
+        "error" => tracing::error!(target: "puppeteer::remote_client", source = %source, "{message}"),
+        "warn" => tracing::warn!(target: "puppeteer::remote_client", source = %source, "{message}"),
+        _ => tracing::info!(target: "puppeteer::remote_client", source = %source, "{message}"),
     }
 }
 
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn transfer_changes_stay_inside_the_writable_roots() {
         use crate::remote::fs_policy::Roots;
-        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-fsb-{}", uuid::Uuid::new_v4()));
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-fsb-{}", uuid::Uuid::new_v4()));
         let (home, proj) = (base.join("home"), base.join("home/proj"));
         fs::create_dir_all(proj.join(".git")).unwrap();
         fs::create_dir_all(home.join("other")).unwrap();
@@ -428,9 +428,9 @@ mod tests {
     #[test]
     fn renaming_or_deleting_a_folder_holding_credentials_is_refused() {
         use crate::remote::fs_policy::Roots;
-        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-fsb-{}", uuid::Uuid::new_v4()));
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-fsb-{}", uuid::Uuid::new_v4()));
         let home = base.join("home");
-        let app = home.join("Library/Application Support/vn.papay.devdy");
+        let app = home.join("Library/Application Support/io.github.v9n8.puppeteer");
         fs::create_dir_all(home.join(".claude")).unwrap();
         fs::create_dir_all(app.join("server-keys")).unwrap();
         fs::create_dir_all(home.join("Documents")).unwrap();
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn lists_stats_and_reads_a_real_dir() {
-        let dir = std::env::temp_dir().join(format!("devdy-fsb-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-fsb-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(dir.join("sub")).unwrap();
         fs::write(dir.join(".dot"), b"hello world").unwrap();
         let d = dir.to_string_lossy().into_owned();

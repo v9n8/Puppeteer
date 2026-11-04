@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Devdy built-in MCP server: Google (stdio, JSON-RPC 2.0).
+// Puppeteer built-in MCP server: Google (stdio, JSON-RPC 2.0).
 //
 // One server covering Drive, Sheets, Gmail and Calendar. All of them share the same gate
 // (an OAuth client + at least one connected account), the same credentials and

@@ -4,7 +4,7 @@
 //! subscribes to the in-process [`RemoteBus`], seals each run event with the E2E
 //! session key and pushes an envelope onto the room's outbound channel. Only the
 //! single BOUND run's events are forwarded (single-session redesign); events for
-//! other runs are dropped. Replay reads the persisted `.devdy/runs/<run_id>.log` and
+//! other runs are dropped. Replay reads the persisted `.puppeteer/runs/<run_id>.log` and
 //! sends it in bounded batches before live stream continues (FR-005/AC-07),
 //! capped at [`REPLAY_MAX_LINES`].
 
@@ -684,7 +684,7 @@ pub async fn send_appearance(
 }
 
 /// List files under the bound run's project path (bounded, relative paths). Skips
-/// dot-directories (e.g. `.git`, `.devdy`) and caps the result to keep the link
+/// dot-directories (e.g. `.git`, `.puppeteer`) and caps the result to keep the link
 /// light. Used for @mention completion in the controller composer.
 pub async fn send_project_file_list(
     db: &Db,
@@ -735,7 +735,7 @@ fn list_project_files(root: &str) -> Vec<String> {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             if name.starts_with('.') {
-                continue; // skip .git / .devdy / dotfiles
+                continue; // skip .git / .puppeteer / dotfiles
             }
             let Ok(ft) = entry.file_type() else { continue };
             if ft.is_dir() {
@@ -786,7 +786,7 @@ pub async fn send_project_list(
 /// The conventional log path for a run inside a project (INT-004).
 pub fn run_log_path(project_path: &str, run_id: &str) -> PathBuf {
     PathBuf::from(project_path)
-        .join(".devdy")
+        .join(".puppeteer")
         .join("runs")
         .join(format!("{run_id}.log"))
 }
@@ -924,7 +924,7 @@ mod tests {
     fn temp_log(tag: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
         p.push(format!(
-            "devdy-remote-test-{}-{}.log",
+            "puppeteer-remote-test-{}-{}.log",
             tag,
             uuid::Uuid::new_v4().simple()
         ));

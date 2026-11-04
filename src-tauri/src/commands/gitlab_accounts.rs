@@ -69,7 +69,7 @@ async fn validate_token(host: &str, pat: &str) -> Result<PatValidation, String> 
     let resp = client
         .get(format!("{}/api/v4/user", host))
         .header("PRIVATE-TOKEN", pat)
-        .header("User-Agent", "devdy/0.1")
+        .header("User-Agent", "puppeteer/0.1")
         .send()
         .await
         .map_err(|e| e.to_string())?;

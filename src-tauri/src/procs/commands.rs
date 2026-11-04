@@ -221,7 +221,7 @@ pub async fn kill_background_process(
     refresh(&app, tracker.inner()).await;
     let (_, start) = tracker
         .owner_of(pid)
-        .ok_or_else(|| format!("Process {pid} is not tracked by Devdy"))?;
+        .ok_or_else(|| format!("Process {pid} is not tracked by Puppeteer"))?;
     terminate(
         vec![(pid, start)],
         Vec::new(),

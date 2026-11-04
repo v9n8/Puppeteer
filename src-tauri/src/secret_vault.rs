@@ -209,15 +209,15 @@ fn open(key: &Key, nonce: &str, cipher: &str, aad: &[u8]) -> Result<Option<Zeroi
 }
 
 fn header_aad(vault_id: &str) -> Vec<u8> {
-    format!("devdy-secret-vault:v1:{vault_id}").into_bytes()
+    format!("puppeteer-secret-vault:v1:{vault_id}").into_bytes()
 }
 
 fn recovery_aad(vault_id: &str) -> Vec<u8> {
-    format!("devdy-secret-vault-recovery:v1:{vault_id}").into_bytes()
+    format!("puppeteer-secret-vault-recovery:v1:{vault_id}").into_bytes()
 }
 
 fn note_aad(vault_id: &str, note_id: &str) -> Vec<u8> {
-    format!("devdy-secret-note:v1:{vault_id}:{note_id}").into_bytes()
+    format!("puppeteer-secret-note:v1:{vault_id}:{note_id}").into_bytes()
 }
 
 fn as_key(bytes: &[u8]) -> Result<Zeroizing<Key>, String> {

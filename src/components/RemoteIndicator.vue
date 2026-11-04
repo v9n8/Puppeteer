@@ -20,7 +20,7 @@ import RemoteSessionModal from '@/components/remote/RemoteSessionModal.vue'
  * again), "Pair a device…" and a Settings link.
  *
  * `floating`: the bare dot pinned to a corner while the sidebar is hidden, shown only
- * while a Controller (another Devdy or a phone / web) drives this one, so that warning
+ * while a Controller (another Puppeteer or a phone / web) drives this one, so that warning
  * is never invisible. The relay admits one Controller at a time, so the popover shows
  * one of the two.
  *

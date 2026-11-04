@@ -34,20 +34,8 @@ export interface AppSettings {
   translate_model: string
   translate_target_lang: string
   translate_style: string
-  mcp_builtin_devdy_enabled: string
+  mcp_builtin_puppeteer_enabled: string
   mcp_builtin_google_enabled: string
-  cyber_fox_enabled: string
-  cyber_fox_size: string
-  cyber_fox_mode: string
-  cyber_fox_sound: string
-  mascot_speech_enabled: string
-  mascot_speech_engine: string
-  mascot_speech_model: string
-  cyber_fox_lite: string
-  cyber_fox_voice_vi: string
-  cyber_fox_voice_en: string
-  cyber_fox_voice_rate: string
-  cyber_fox_voice_pitch: string
   /** What quitting does with running sessions / leftover processes: 'ask' | 'stop_all' | 'keep_leftovers'. */
   quit_background_policy: string
 }

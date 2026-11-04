@@ -46,7 +46,7 @@ pub struct BrokerRequest {
     /// fail-closed denies (reads/allows are unaffected).
     #[serde(default)]
     pub run_id: Option<String>,
-    /// gh / glab / git: the account the command picked (`DEVDY_GIT_ACCOUNT`) —
+    /// gh / glab / git: the account the command picked (`PUPPETEER_GIT_ACCOUNT`) —
     /// label, username or id of one of the project's enabled accounts. Absent →
     /// the default account.
     #[serde(default)]
@@ -55,7 +55,7 @@ pub struct BrokerRequest {
     /// (`https://<user>@host/...`). Selects that account when it is enabled.
     #[serde(default)]
     pub username: Option<String>,
-    /// aws / terraform: the AWS account the command picked (`DEVDY_AWS_ACCOUNT`)
+    /// aws / terraform: the AWS account the command picked (`PUPPETEER_AWS_ACCOUNT`)
     /// — label, account id, profile name or id of an enabled account. Absent →
     /// the default account.
     #[serde(default)]
@@ -65,7 +65,7 @@ pub struct BrokerRequest {
     #[serde(default)]
     pub aws_profile: Option<String>,
     /// az / terraform: the Azure account the command picked
-    /// (`DEVDY_AZURE_ACCOUNT`) — label, subscription or id of an enabled account.
+    /// (`PUPPETEER_AZURE_ACCOUNT`) — label, subscription or id of an enabled account.
     /// Absent → the default account.
     #[serde(default)]
     pub azure_account: Option<String>,
@@ -263,7 +263,7 @@ impl Drop for BrokerHandle {
 
 fn socket_path(label: &str) -> PathBuf {
     std::env::temp_dir()
-        .join("devdy-broker")
+        .join("puppeteer-broker")
         .join(format!("{label}.sock"))
 }
 
@@ -306,13 +306,13 @@ pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, Str
                     // One task per connection; a bad client must not kill the loop.
                     tokio::spawn(async move {
                         if let Err(e) = handle_connection(stream, &db, resolver, app).await {
-                            tracing::warn!(target: "devdy::broker", "connection error: {e}");
+                            tracing::warn!(target: "puppeteer::broker", "connection error: {e}");
                         }
                     });
                 }
                 Err(e) => {
                     // Transient accept error; log and continue — never panic.
-                    tracing::warn!(target: "devdy::broker", "accept error: {e}");
+                    tracing::warn!(target: "puppeteer::broker", "accept error: {e}");
                 }
             }
         }
@@ -415,7 +415,7 @@ async fn process_line(
     };
 
     // gh / glab / git: settle which account the call uses before asking the
-    // user — an unknown DEVDY_GIT_ACCOUNT is denied up front, and an approval
+    // user — an unknown PUPPETEER_GIT_ACCOUNT is denied up front, and an approval
     // prompt names the account (it matters when several are enabled).
     let sel = token::AccountSelect {
         run_id: req.run_id.as_deref(),
@@ -522,7 +522,7 @@ async fn process_line(
                 BrokerResponse::allow_azure(resolved)
             }
             Ok(None) => {
-                let reason = "no Azure account linked for this project — link one in Devdy project settings";
+                let reason = "no Azure account linked for this project — link one in Puppeteer project settings";
                 audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(reason));
                 BrokerResponse::deny(reason)
             }
@@ -659,7 +659,7 @@ fn aws_resolve_error_deny(
         // expired. The `aws_sso_login_required` prefix lets the UI offer
         // an in-app `aws sso login`; the text guides a human in the run.
         let reason = format!(
-            "{}: AWS SSO session expired — run `aws sso login` for the linked profile (Devdy can do this from AWS settings)",
+            "{}: AWS SSO session expired — run `aws sso login` for the linked profile (Puppeteer can do this from AWS settings)",
             token::AWS_SSO_LOGIN_REQUIRED
         );
         audit::audit_request(
@@ -694,7 +694,7 @@ fn azure_resolve_error_deny(
     }
     if err == token::AZURE_LOGIN_REQUIRED {
         let reason = format!(
-            "{}: the linked Azure account is not signed in — sign in again from Devdy → Settings → Azure",
+            "{}: the linked Azure account is not signed in — sign in again from Puppeteer → Settings → Azure",
             token::AZURE_LOGIN_REQUIRED
         );
         audit::audit_request(
@@ -708,7 +708,7 @@ fn azure_resolve_error_deny(
             app,
             &format!("azure:{}", req.project_id),
             "Azure sign-in required",
-            "A run's Azure command was blocked. Open Devdy → Settings → Azure to sign in again.",
+            "A run's Azure command was blocked. Open Puppeteer → Settings → Azure to sign in again.",
         );
         return BrokerResponse::deny(reason);
     }
@@ -726,7 +726,7 @@ fn notify_sso_login_required(app: Option<&AppHandle>, project_id: &str) {
         app,
         project_id,
         "AWS SSO session expired",
-        "A run's aws command was blocked. Open Devdy → Settings → AWS to sign in again.",
+        "A run's aws command was blocked. Open Puppeteer → Settings → AWS to sign in again.",
     );
 }
 
@@ -912,8 +912,14 @@ mod tests {
         pool
     }
 
+    /// Unique socket label for a test broker. Short on purpose: macOS caps a Unix
+    /// socket path at 103 bytes, and `$TMPDIR/puppeteer-broker/<uuid>.sock` is over it.
+    fn test_socket_label() -> String {
+        uuid::Uuid::new_v4().simple().to_string()[..12].to_string()
+    }
+
     async fn round_trip(db: Db, approver: Arc<dyn Approver>, req_json: &str) -> BrokerResponse {
-        let socket_label = uuid::Uuid::new_v4().to_string();
+        let socket_label = test_socket_label();
         let resolver: Arc<dyn ApproverResolver> = Arc::new(StaticResolver(approver));
         let handle = start_broker(
             db,
@@ -960,7 +966,7 @@ mod tests {
     /// return it.
     fn test_azure_root() -> std::path::PathBuf {
         crate::azure_sandbox::init_accounts_root(
-            &std::env::temp_dir().join("devdy-broker-test-app"),
+            &std::env::temp_dir().join("puppeteer-broker-test-app"),
         );
         crate::azure_sandbox::registered_accounts_root()
             .unwrap()
@@ -1239,7 +1245,7 @@ mod tests {
         let handle = start_broker(
             db,
             BrokerConfig {
-                socket_label: uuid::Uuid::new_v4().to_string(),
+                socket_label: test_socket_label(),
                 resolver,
                 app: None,
             },
@@ -1280,7 +1286,7 @@ mod tests {
             }
         }
         let db = mem_db().await;
-        let socket_label = uuid::Uuid::new_v4().to_string();
+        let socket_label = test_socket_label();
         let resolver: Arc<dyn ApproverResolver> = Arc::new(NoneResolver);
         let handle = start_broker(
             db,
@@ -1331,7 +1337,7 @@ mod tests {
         // (Deterministic across environments: `aws` either is missing or cannot
         // find the fake profile — both yield deny.)
         let db = mem_db().await;
-        sqlx::query("INSERT INTO aws_accounts (id, label, auth_method, account_id, arn, region, profile_name) VALUES ('aws1','Work','profile','123456789012','arn:aws:iam::123456789012:user/dev','ap-northeast-1','devdy-nonexistent-profile-xyz')")
+        sqlx::query("INSERT INTO aws_accounts (id, label, auth_method, account_id, arn, region, profile_name) VALUES ('aws1','Work','profile','123456789012','arn:aws:iam::123456789012:user/dev','ap-northeast-1','puppeteer-nonexistent-profile-xyz')")
             .execute(&db)
             .await
             .unwrap();
@@ -1420,7 +1426,7 @@ mod tests {
     #[tokio::test]
     async fn socket_cleaned_up_on_drop() {
         let db = mem_db().await;
-        let socket_label = uuid::Uuid::new_v4().to_string();
+        let socket_label = test_socket_label();
         let resolver: Arc<dyn ApproverResolver> =
             Arc::new(StaticResolver(Arc::new(DenyAllApprover)));
         let handle = start_broker(

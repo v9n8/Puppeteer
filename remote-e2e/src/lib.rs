@@ -1,7 +1,7 @@
-//! Devdy Remote Control — E2E crypto contract (spec: `docs/remote-e2e-spec.md`).
+//! Puppeteer Remote Control — E2E crypto contract (spec: `docs/remote-e2e-spec.md`).
 //!
 //! Provides the shared, cross-compatible (Rust ↔ TS) encryption layer between a
-//! Devdy Host and a Controller. The relay only ever sees the base64 `cipher`
+//! Puppeteer Host and a Controller. The relay only ever sees the base64 `cipher`
 //! produced here (SRS SEC-006 / CON-04 / AC-19). We NEVER implement crypto
 //! primitives by hand — everything routes through `dryoc` (libsodium-compatible):
 //!
@@ -26,11 +26,11 @@ use dryoc::rng::copy_randombytes;
 /// Wire format version carried as the first byte of every frame (spec §2).
 pub const E2E_VERSION: u8 = 0x01;
 /// Domain-separation label mixed into the session-key KDF (spec §3).
-pub const CONTEXT: &[u8] = b"devdy-remote-e2e/v1";
+pub const CONTEXT: &[u8] = b"puppeteer-remote-e2e/v1";
 /// Domain-separation label for the host fingerprint (spec §3).
-pub const FP_CONTEXT: &[u8] = b"devdy-host-fp/v1";
+pub const FP_CONTEXT: &[u8] = b"puppeteer-host-fp/v1";
 /// Domain-separation label for the two-layer (link_secret + OTP) psk KDF.
-pub const OTP_KDF_CONTEXT: &[u8] = b"devdy-remote-otp/v1";
+pub const OTP_KDF_CONTEXT: &[u8] = b"puppeteer-remote-otp/v1";
 
 /// X25519 / AEAD key length.
 pub const KEY_LEN: usize = 32;

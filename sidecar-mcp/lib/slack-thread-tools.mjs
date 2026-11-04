@@ -1,6 +1,6 @@
 // Tool definitions for Slack threads (docs/srs-slack-thread-translate.md §14).
 //
-// Threads are fetched from Slack and translated to Vietnamese by the Devdy app;
+// Threads are fetched from Slack and translated to Vietnamese by the Puppeteer app;
 // these tools only read them (Vietnamese by default, original on request),
 // search, rename, re-link and delete. There is deliberately no update / append /
 // reorder / read_attachment: content belongs to Slack, ordering to the UI, and
@@ -176,7 +176,7 @@ export function slackThreadTools({ snippetAround }) {
   return {
     slack_threads_list: {
       description:
-        'List Slack threads saved in Devdy (fetched from Slack by link and translated to Vietnamese by the app). Defaults to the current project; pass scope="all" for every project. Each line: id, title, #channel, workspace, fetch status (pending|fetching|translating|ready|error), reply count, last reply time, plus error code / legacy marker / linked session (run) ids when relevant.',
+        'List Slack threads saved in Puppeteer (fetched from Slack by link and translated to Vietnamese by the app). Defaults to the current project; pass scope="all" for every project. Each line: id, title, #channel, workspace, fetch status (pending|fetching|translating|ready|error), reply count, last reply time, plus error code / legacy marker / linked session (run) ids when relevant.',
       inputSchema: {
         type: 'object',
         properties: {

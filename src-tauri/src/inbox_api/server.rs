@@ -1,4 +1,4 @@
-//! Loopback HTTP server for the Devdy inbox (axum, 127.0.0.1 only): Slack
+//! Loopback HTTP server for the Puppeteer inbox (axum, 127.0.0.1 only): Slack
 //! thread links, translation and grammar check.
 //!
 //! Security layers, in order: `Host` must be `127.0.0.1:<port>` /
@@ -43,10 +43,10 @@ use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
 /// Ports tried in order; the first free one wins.
 pub const PORT_RANGE: RangeInclusive<u16> = 47821..=47830;
 const API_VERSION: u32 = 1;
-/// `X-Devdy-Project-Id` / `X-Devdy-Title` are ignored by every route but stay
+/// `X-Puppeteer-Project-Id` / `X-Puppeteer-Title` are ignored by every route but stay
 /// allowed, so an old extension still sending them gets a real response (e.g.
 /// 415 with a hint) instead of an opaque CORS failure.
-const ALLOWED_HEADERS: &str = "Authorization, Content-Type, X-Devdy-Project-Id, X-Devdy-Title";
+const ALLOWED_HEADERS: &str = "Authorization, Content-Type, X-Puppeteer-Project-Id, X-Puppeteer-Title";
 
 /// `/v1/slack-threads` request body cap.
 pub const MAX_SLACK_BODY_BYTES: usize = 16 * 1024;
@@ -428,7 +428,7 @@ async fn not_found() -> Response {
 
 async fn health(State(state): State<HttpState>) -> Response {
     Json(json!({
-        "app": "devdy",
+        "app": "puppeteer",
         "version": state.version,
         "api": API_VERSION,
         "features": ["translate", "grammar", "slack-thread-link"],
@@ -463,7 +463,7 @@ fn coded_error(status: StatusCode, code: &str, msg: &str) -> Response {
 
 /// `POST /v1/slack-threads`: JSON `{url, projectId?, title?}` → `202`; the
 /// thread is fetched and translated in the background. Headers
-/// `X-Devdy-Project-Id` / `X-Devdy-Title` are ignored here.
+/// `X-Puppeteer-Project-Id` / `X-Puppeteer-Title` are ignored here.
 async fn post_slack_thread(State(state): State<HttpState>, req: Request) -> Response {
     let headers = req.headers().clone();
     if let Some(r) = check_auth(&state, &headers) {
@@ -1037,7 +1037,7 @@ mod tests {
         let api = InboxApiState::default();
         api.set_token(token.clone());
         let app_data = std::env::temp_dir().join(format!(
-            "devdy-inbox-http-{}-{}",
+            "puppeteer-inbox-http-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -1105,7 +1105,7 @@ mod tests {
         let r = h.client.get(format!("{}/health", h.base)).send().await.unwrap();
         assert_eq!(r.status(), 200);
         let v: serde_json::Value = r.json().await.unwrap();
-        assert_eq!(v["app"], "devdy");
+        assert_eq!(v["app"], "puppeteer");
         assert_eq!(v["api"], 1);
         assert_eq!(
             v["features"],
@@ -1185,8 +1185,8 @@ mod tests {
         for h in [
             "Authorization",
             "Content-Type",
-            "X-Devdy-Project-Id",
-            "X-Devdy-Title",
+            "X-Puppeteer-Project-Id",
+            "X-Puppeteer-Title",
         ] {
             assert!(allowed.contains(h), "{allowed}");
         }
@@ -1198,8 +1198,8 @@ mod tests {
             .bearer_auth(&h.token)
             .header("Origin", "chrome-extension://abc")
             .header("Content-Type", "application/zip")
-            .header("X-Devdy-Project-Id", "p1")
-            .header("X-Devdy-Title", "Old")
+            .header("X-Puppeteer-Project-Id", "p1")
+            .header("X-Puppeteer-Title", "Old")
             .body("zip")
             .send()
             .await

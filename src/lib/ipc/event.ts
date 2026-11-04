@@ -1,7 +1,7 @@
 /**
  * `@tauri-apps/api/event` as the app sees it (Vite alias). Identical to the real
  * module, except in a remote-desktop window (see ./remote.ts):
- * - app events are subscribed on the controlled Devdy, AND on the local bus the
+ * - app events are subscribed on the controlled Puppeteer, AND on the local bus the
  *   remote windows of this machine use among themselves;
  * - `emit` / `emitTo` (window-to-window messages: "open this run", "re-point
  *   the list"…) go on that local bus, so they reach the other remote windows
@@ -29,7 +29,7 @@ function isRemoteEvent(event: EventName, options?: Options): boolean {
   return !String(event).startsWith('tauri://') && options?.target === undefined
 }
 
-/** Subscribe on the controlled Devdy and on the local remote-window bus. */
+/** Subscribe on the controlled Puppeteer and on the local remote-window bus. */
 async function listenBoth<T>(event: string, handler: EventCallback<T>): Promise<UnlistenFn> {
   const remote = remoteIpc()!
   const [r, b] = await Promise.allSettled([

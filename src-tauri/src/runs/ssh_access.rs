@@ -83,7 +83,7 @@ pub fn slugify_alias(label: &str, existing: &mut HashSet<String>) -> String {
 }
 
 /// Render the full per-run ssh config from an already-aliased server list.
-/// Empty input → `""` (no-op: caller writes no file, sets no `DEVDY_SSH_CONFIG`
+/// Empty input → `""` (no-op: caller writes no file, sets no `PUPPETEER_SSH_CONFIG`
 /// — AC-305). One `Host` block per server; `IdentityFile` is emitted ONLY for
 /// `auth_method="key"` with a non-empty path. Always sets `BatchMode yes` +
 /// `StrictHostKeyChecking accept-new` + `IdentitiesOnly yes` so ssh never
@@ -94,7 +94,7 @@ pub fn slugify_alias(label: &str, existing: &mut HashSet<String>) -> String {
 /// the RIGHT ssh-agent even though the child process's ambient `SSH_AUTH_SOCK`
 /// points at the per-run agent (SRS §3.3):
 ///   - `auth_method="key"`  → the per-run agent (`per_run_sock`, when present),
-///     which holds the keys Devdy `ssh-add`ed (passphrase-protected included).
+///     which holds the keys Puppeteer `ssh-add`ed (passphrase-protected included).
 ///   - `auth_method="agent"` → the USER's own agent (`user_sock`, when the user
 ///     has one), so a server that relies on the user's already-loaded keys still
 ///     authenticates instead of failing against an empty per-run agent. When the
@@ -139,7 +139,7 @@ pub fn build_ssh_config(
     out
 }
 
-/// Quote an ssh_config value when it contains whitespace. Devdy keeps keys and
+/// Quote an ssh_config value when it contains whitespace. Puppeteer keeps keys and
 /// agent sockets under `~/Library/Application Support/…`, and an unquoted space
 /// makes ssh reject the WHOLE config ("extra arguments at end of line"), which
 /// breaks every server in the run, not just this one.
@@ -161,7 +161,7 @@ pub fn build_ssh_context(servers: &[MappedServer]) -> String {
     }
     let mut out = String::new();
     out.push_str(
-        "This project has managed VPS servers pre-wired for transparent SSH by Devdy. \
+        "This project has managed VPS servers pre-wired for transparent SSH by Puppeteer. \
          You can connect to them without entering any secret (auth is already \
          configured on this run):\n",
     );
@@ -283,14 +283,14 @@ impl Drop for SshAccessGuard {
 /// Prepare transparent SSH for one Claude run of `project_id`.
 ///
 /// Returns `Ok(None)` when the project maps no server (AC-305 no-op): no config
-/// is written, `DEVDY_SSH_CONFIG` is not set, no agent is spawned. Otherwise it:
+/// is written, `PUPPETEER_SSH_CONFIG` is not set, no agent is spawned. Otherwise it:
 ///   - writes `<app_data>/ssh-runs/<run_id>/config` (dir 0700, file 0600) from
 ///     `build_ssh_config`,
 ///   - spawns a per-run `ssh-agent -a <dir>/agent.sock`,
 ///   - for each `key` server with a stored passphrase, runs `ssh-add <key>` with
-///     the passphrase supplied via `DEVDY_ASKPASS_PASS` on the ssh-add child env
+///     the passphrase supplied via `PUPPETEER_ASKPASS_PASS` on the ssh-add child env
 ///     + `SSH_ASKPASS`/`SSH_ASKPASS_REQUIRE=force` (SEC-301: never argv/file/log),
-///   - sets `DEVDY_SSH_CONFIG` + `SSH_AUTH_SOCK` on `cmd` (the shim dir is already
+///   - sets `PUPPETEER_SSH_CONFIG` + `SSH_AUTH_SOCK` on `cmd` (the shim dir is already
 ///     on PATH via `prepend_shim_path` in `wire_broker`),
 ///   - returns an `SshAccessGuard` to store in `RunHandles`.
 ///
@@ -368,7 +368,7 @@ pub async fn prepare_ssh_access(
     }
 
     // Point the sidecar (and the ssh/scp shim) at this run's config + agent.
-    cmd.env("DEVDY_SSH_CONFIG", &config_path);
+    cmd.env("PUPPETEER_SSH_CONFIG", &config_path);
     if agent_pid.is_some() {
         cmd.env("SSH_AUTH_SOCK", &sock_path);
     }
@@ -404,7 +404,7 @@ async fn spawn_agent(sock_path: &std::path::Path) -> Option<u32> {
             parse_agent_pid(&text)
         }
         Ok(_) | Err(_) => {
-            eprintln!("devdy: ssh-agent failed to start for run (transparent ssh degraded)");
+            eprintln!("puppeteer: ssh-agent failed to start for run (transparent ssh degraded)");
             None
         }
     }
@@ -424,7 +424,7 @@ fn parse_agent_pid(text: &str) -> Option<u32> {
 }
 
 /// Run `ssh-add <key>` against the per-run agent, supplying the passphrase via
-/// the child's `DEVDY_ASKPASS_PASS` env + the devdy-askpass helper (SEC-301: the
+/// the child's `PUPPETEER_ASKPASS_PASS` env + the puppeteer-askpass helper (SEC-301: the
 /// passphrase is never on argv, never in a file, never logged). Fail-soft.
 async fn add_key(app: &AppHandle, _db: &Db, sock_path: &std::path::Path, server_id: &str, key_path: &str) {
     // Read the passphrase from the Keychain-backed store at the last moment.
@@ -436,7 +436,7 @@ async fn add_key(app: &AppHandle, _db: &Db, sock_path: &std::path::Path, server_
     let askpass = match resolve_askpass(app) {
         Some(p) => p,
         None => {
-            eprintln!("devdy: askpass helper not found; key with passphrase not loaded");
+            eprintln!("puppeteer: askpass helper not found; key with passphrase not loaded");
             return;
         }
     };
@@ -449,29 +449,29 @@ async fn add_key(app: &AppHandle, _db: &Db, sock_path: &std::path::Path, server_
         .env("SSH_ASKPASS_REQUIRE", "force")
         .env("DISPLAY", ":0")
         // The passphrase travels ONLY on this child process's env (SEC-301).
-        .env("DEVDY_ASKPASS_PASS", &passphrase)
+        .env("PUPPETEER_ASKPASS_PASS", &passphrase)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
     match cmd.status().await {
         Ok(s) if s.success() => {}
         // NEVER log the passphrase; only that the add failed.
-        _ => eprintln!("devdy: ssh-add failed for a mapped key (transparent ssh degraded)"),
+        _ => eprintln!("puppeteer: ssh-add failed for a mapped key (transparent ssh degraded)"),
     }
 }
 
-/// Resolve the devdy-askpass helper next to the sidecar shims. Mirrors
-/// `resolve_shim_dir` resolution order: DEVDY_SHIM_DIR → bundled resource dir →
+/// Resolve the puppeteer-askpass helper next to the sidecar shims. Mirrors
+/// `resolve_shim_dir` resolution order: PUPPETEER_SHIM_DIR → bundled resource dir →
 /// dev fallback.
 fn resolve_askpass(app: &AppHandle) -> Option<PathBuf> {
-    if let Ok(p) = std::env::var("DEVDY_SHIM_DIR") {
-        let cand = PathBuf::from(p).join("devdy-askpass");
+    if let Ok(p) = std::env::var("PUPPETEER_SHIM_DIR") {
+        let cand = PathBuf::from(p).join("puppeteer-askpass");
         if cand.exists() {
             return Some(cand);
         }
     }
     if let Ok(res) = app.path().resource_dir() {
-        let cand = res.join("sidecar-proxy").join("devdy-askpass");
+        let cand = res.join("sidecar-proxy").join("puppeteer-askpass");
         if cand.exists() {
             return Some(cand);
         }
@@ -479,7 +479,7 @@ fn resolve_askpass(app: &AppHandle) -> Option<PathBuf> {
     let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("sidecar-proxy")
-        .join("devdy-askpass");
+        .join("puppeteer-askpass");
     if dev.exists() {
         Some(dev)
     } else {

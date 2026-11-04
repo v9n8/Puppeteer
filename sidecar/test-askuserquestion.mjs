@@ -19,7 +19,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const testDir = join(os.tmpdir(), 'devdy-sidecar-auq-test')
+const testDir = join(os.tmpdir(), 'puppeteer-sidecar-auq-test')
 fs.mkdirSync(testDir, { recursive: true })
 
 const SENTINEL = 'magenta-sentinel-42'
@@ -85,7 +85,7 @@ child.stdout.on('data', (chunk) => {
 
 function handle(msg) {
   switch (msg.type) {
-    case '_devdy_ready':
+    case '_puppeteer_ready':
       console.log('[ready] sending prompt…')
       sendCmd({
         type: 'prompt',
@@ -96,7 +96,7 @@ function handle(msg) {
         options: { cwd: testDir, permissionMode: 'default' },
       })
       break
-    case '_devdy_permission_request':
+    case '_puppeteer_permission_request':
       if (msg.tool_name === 'AskUserQuestion') {
         askFired = true
         // Build the answers map keyed by each question's text → the sentinel label.
@@ -111,10 +111,10 @@ function handle(msg) {
         sendCmd({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
       }
       break
-    case '_devdy_error':
+    case '_puppeteer_error':
       console.error('[sidecar_error]', msg.error)
       break
-    case '_devdy_closed':
+    case '_puppeteer_closed':
       finish()
       break
     default: {

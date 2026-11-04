@@ -12,22 +12,22 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const work = process.env.TEST_CWD || mkdtempSync(join(tmpdir(), 'devdy-codex-denylat-'))
+const work = process.env.TEST_CWD || mkdtempSync(join(tmpdir(), 'puppeteer-codex-denylat-'))
 const marker = join(tmpdir(), `RC_DENY_LATENCY_${process.pid}`)
 try { rmSync(marker) } catch {}
 const DELAY_MS = Number(process.env.DENY_DELAY_MS || '12000')
 
-// Strip ambient Devdy runtime vars (e.g. DEVDY_RESUME_SESSION) so the sidecar
+// Strip ambient Puppeteer runtime vars (e.g. PUPPETEER_RESUME_SESSION) so the sidecar
 // starts a fresh thread instead of trying to resume the caller's session.
 const childEnv = { ...process.env }
-delete childEnv.DEVDY_RESUME_SESSION
+delete childEnv.PUPPETEER_RESUME_SESSION
 // Optionally resume a SPECIFIC existing thread (to reproduce the live case of a
 // thread created by an older app build).
-if (process.env.RESUME_THREAD_ID) childEnv.DEVDY_RESUME_SESSION = process.env.RESUME_THREAD_ID
+if (process.env.RESUME_THREAD_ID) childEnv.PUPPETEER_RESUME_SESSION = process.env.RESUME_THREAD_ID
 const child = spawn('node', [join(here, 'index.mjs')], {
   cwd: work,
   stdio: ['pipe', 'pipe', 'pipe'],
-  env: { DEVDY_PERMISSION_MODE: 'default', ...childEnv },
+  env: { PUPPETEER_PERMISSION_MODE: 'default', ...childEnv },
 })
 
 let buffer = ''
@@ -55,7 +55,7 @@ child.stdout.on('data', (chunk) => {
     if (!line) continue
     let m
     try { m = JSON.parse(line) } catch { continue }
-    if (m.type === '_devdy_permission_request' && !sawPermission) {
+    if (m.type === '_puppeteer_permission_request' && !sawPermission) {
       sawPermission = true
       console.error(`[test] permission request seen; waiting ${DELAY_MS}ms before deny`)
       setTimeout(() => {
@@ -64,8 +64,8 @@ child.stdout.on('data', (chunk) => {
         child.stdin.write(JSON.stringify({ type: 'permission_response', requestId: m.requestId, decision: 'deny' }) + '\n')
       }, DELAY_MS)
     }
-    if (m.type === '_devdy_error') console.error('[sidecar error]', m.error)
-    if (m.type === '_devdy_log') console.error('[sidecar log]', m.text)
+    if (m.type === '_puppeteer_error') console.error('[sidecar error]', m.error)
+    if (m.type === '_puppeteer_log') console.error('[sidecar log]', m.text)
     if (m.type === 'result') setTimeout(() => finish(0), 500)
   }
 })

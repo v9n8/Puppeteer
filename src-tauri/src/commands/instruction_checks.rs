@@ -1,8 +1,8 @@
 //! Read-only checks on how Claude Code and Codex will load a project's instructions.
 //!
-//! Devdy installs Claude artifacts under `.claude/` and Codex artifacts under `AGENTS.md` /
+//! Puppeteer installs Claude artifacts under `.claude/` and Codex artifacts under `AGENTS.md` /
 //! `.agents/skills/`. These checks flag setups where one engine also reads the other's files
-//! (duplicated context), where Codex silently truncates AGENTS.md, or where Devdy's symlinks
+//! (duplicated context), where Codex silently truncates AGENTS.md, or where Puppeteer's symlinks
 //! could be committed. They only warn — nothing here changes the project.
 
 use crate::db::Db;
@@ -18,7 +18,7 @@ const CODEX_DEFAULT_MAX_BYTES: u64 = 32 * 1024;
 /// File names Claude Code treats as a project's own CLAUDE.md.
 const CLAUDE_MD_NAMES: [&str; 3] = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"];
 
-/// Directories Devdy links skills/rules into.
+/// Directories Puppeteer links skills/rules into.
 const LINK_DIRS: [&str; 3] = [".claude/skills", ".claude/rules", ".agents/skills"];
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -32,12 +32,12 @@ pub enum InstructionWarning {
     ClaudeMdImportsAgentsMd { path: String },
     /// Codex config lists CLAUDE.md as a fallback instructions file.
     CodexReadsClaudeMd { config: String },
-    /// Devdy's symlinks in this directory are not git-ignored; committed, they break elsewhere.
+    /// Puppeteer's symlinks in this directory are not git-ignored; committed, they break elsewhere.
     LinksNotIgnored { dir: String },
-    /// Old copies Devdy couldn't vouch for were moved here instead of being deleted. Shown until
+    /// Old copies Puppeteer couldn't vouch for were moved here instead of being deleted. Shown until
     /// the user reviews and removes the folder.
     LegacyCopiesBackedUp { dir: String, batches: usize },
-    /// The repo commits its own files where Devdy would install these skills/rules; Devdy leaves
+    /// The repo commits its own files where Puppeteer would install these skills/rules; Puppeteer leaves
     /// them alone, so the repo's version is what the engines load.
     TrackedByGit { paths: Vec<String> },
 }
@@ -58,7 +58,7 @@ pub async fn get_instruction_warnings(
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut warnings = check_project(Path::new(&path), codex_home.as_deref(), home.as_deref());
 
-    // Every place Devdy would install this project's skills/rules.
+    // Every place Puppeteer would install this project's skills/rules.
     let names = sqlx::query(
         "SELECT 'skill' AS kind, s.name FROM project_skills ps JOIN skills s ON s.id = ps.skill_id WHERE ps.project_id = ?1
          UNION ALL
@@ -243,7 +243,7 @@ mod tests {
     use super::*;
 
     fn tmp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-checks-{}-{}", name, uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-checks-{}-{}", name, uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

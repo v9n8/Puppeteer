@@ -1,4 +1,4 @@
-# nginx reverse proxy for the Devdy relay (Topology B, INT-002).
+# nginx reverse proxy for the Puppeteer relay (Topology B, INT-002).
 #
 # TLS is terminated here (SEC-009 / CON-03: WSS only to the Internet); the relay
 # itself listens on 127.0.0.1:8787 and never holds a certificate.

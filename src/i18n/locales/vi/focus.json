@@ -10,7 +10,7 @@
   "retry": "Thử lại",
   "empty": {
     "title": "Chưa có việc nào",
-    "hint": "Tạo todo tại đây, hoặc bấm “+ Todo” ở Slack thread, issue, PR hay session. Devdy xếp thứ tự theo hạn, estimate và ưu tiên.",
+    "hint": "Tạo todo tại đây, hoặc bấm “+ Todo” ở Slack thread, issue, PR hay session. Puppeteer xếp thứ tự theo hạn, estimate và ưu tiên.",
     "filtered": "Không có todo nào khớp bộ lọc."
   },
   "buckets": {
@@ -215,7 +215,7 @@
     "noDays": "Chọn ít nhất một ngày làm việc.",
     "reminders": {
       "title": "Nhắc việc",
-      "hint": "Thông báo macOS khi Devdy đang chạy; nhiều thông báo cùng lúc được gộp làm một. Bấm vào sẽ mở Focus tại todo đó.",
+      "hint": "Thông báo macOS khi Puppeteer đang chạy; nhiều thông báo cùng lúc được gộp làm một. Bấm vào sẽ mở Focus tại todo đó.",
       "morningTime": "Tóm tắt buổi sáng lúc",
       "invalidMorning": "Giờ tóm tắt buổi sáng phải có dạng HH:MM.",
       "workHoursOnly": "Ngoài giờ làm việc và ngày nghỉ chỉ gửi các nhắc nhở do bạn tự đặt.",

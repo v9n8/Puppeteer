@@ -61,16 +61,16 @@ test('azureMfaRequired spots Entra / ARM MFA rejections only', () => {
   assert.ok(!azureMfaRequired('ERROR: (ResourceNotFound) not found'))
 })
 
-test('gitAccountSelector: trimmed DEVDY_GIT_ACCOUNT, blank/unset → default', () => {
-  assert.equal(gitAccountSelector({ DEVDY_GIT_ACCOUNT: ' work ' }), 'work')
-  assert.equal(gitAccountSelector({ DEVDY_GIT_ACCOUNT: '  ' }), null)
+test('gitAccountSelector: trimmed PUPPETEER_GIT_ACCOUNT, blank/unset → default', () => {
+  assert.equal(gitAccountSelector({ PUPPETEER_GIT_ACCOUNT: ' work ' }), 'work')
+  assert.equal(gitAccountSelector({ PUPPETEER_GIT_ACCOUNT: '  ' }), null)
   assert.equal(gitAccountSelector({}), null)
 })
 
-test('cloudAccountSelector: trimmed DEVDY_AWS_ACCOUNT / DEVDY_AZURE_ACCOUNT, blank/unset → default', () => {
-  assert.equal(cloudAccountSelector({ DEVDY_AWS_ACCOUNT: ' prod ' }, 'DEVDY_AWS_ACCOUNT'), 'prod')
-  assert.equal(cloudAccountSelector({ DEVDY_AWS_ACCOUNT: 'prod' }, 'DEVDY_AZURE_ACCOUNT'), null)
-  assert.equal(cloudAccountSelector({ DEVDY_AZURE_ACCOUNT: ' ' }, 'DEVDY_AZURE_ACCOUNT'), null)
+test('cloudAccountSelector: trimmed PUPPETEER_AWS_ACCOUNT / PUPPETEER_AZURE_ACCOUNT, blank/unset → default', () => {
+  assert.equal(cloudAccountSelector({ PUPPETEER_AWS_ACCOUNT: ' prod ' }, 'PUPPETEER_AWS_ACCOUNT'), 'prod')
+  assert.equal(cloudAccountSelector({ PUPPETEER_AWS_ACCOUNT: 'prod' }, 'PUPPETEER_AZURE_ACCOUNT'), null)
+  assert.equal(cloudAccountSelector({ PUPPETEER_AZURE_ACCOUNT: ' ' }, 'PUPPETEER_AZURE_ACCOUNT'), null)
 })
 
 test('stripAwsProfileArgs: drops --profile and reports its value', () => {

@@ -17,7 +17,7 @@ export interface RemoteDotStatus {
  * - `offline`: agent running, relay socket not up (connecting or reconnecting)
  * - `online`: connected to the relay, nobody attached
  * - `phone`: a phone / web controller is signed in
- * - `desktop`: another Devdy is driving this one (wins over `phone`)
+ * - `desktop`: another Puppeteer is driving this one (wins over `phone`)
  */
 export type RemoteTone = 'off' | 'error' | 'offline' | 'online' | 'phone' | 'desktop'
 
@@ -43,7 +43,7 @@ export function isControlled(tone: RemoteTone): boolean {
   return tone === 'phone' || tone === 'desktop'
 }
 
-/** Whether a phone / web controller (not another Devdy) is signed in. The bound
+/** Whether a phone / web controller (not another Puppeteer) is signed in. The bound
  * session is authenticated for either kind; the relay admits one Controller at
  * a time, so a remote desktop attached means the phone is not. */
 export function phoneControlled(s: RemoteDotStatus | null | undefined): boolean {
@@ -51,7 +51,7 @@ export function phoneControlled(s: RemoteDotStatus | null | undefined): boolean 
 }
 
 // ── Controlling side ────────────────────────────────────────────────────────
-// A remote-desktop window shows its own link to the controlled Devdy in the
+// A remote-desktop window shows its own link to the controlled Puppeteer in the
 // same sidebar spot (components/remote/RemoteDesktopIndicator.vue).
 
 /** The `RemoteIpcState` values the controlling-side dot reads (lib/ipc/remote.ts). */
@@ -62,7 +62,7 @@ export interface DesktopLinkState {
 }
 
 /**
- * - `connected`: signed in to the controlled Devdy
+ * - `connected`: signed in to the controlled Puppeteer
  * - `connecting`: joining / reconnecting
  * - `failed`: signed out by the host, or a connection error
  * - `superseded`: another device took the session over (the relay admits one

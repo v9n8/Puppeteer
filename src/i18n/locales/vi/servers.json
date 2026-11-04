@@ -45,7 +45,7 @@
     "change": "Đổi",
     "choose": "Chọn",
     "clearSelectedKey": "Xóa khóa đã chọn",
-    "keyCopiedHint": "Khóa đã chọn sẽ được sao chép vào dữ liệu ứng dụng Devdy khi lưu.",
+    "keyCopiedHint": "Khóa đã chọn sẽ được sao chép vào dữ liệu ứng dụng Puppeteer khi lưu.",
     "passphrase": "Passphrase",
     "passphraseUnchanged": "•••••• (giữ nguyên)",
     "passphraseOptional": "tùy chọn",

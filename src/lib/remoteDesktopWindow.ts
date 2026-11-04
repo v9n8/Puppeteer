@@ -1,5 +1,5 @@
-// Opens THE remote-desktop window (`?remote=1`): the normal Devdy UI, but its
-// invoke/listen drive ANOTHER Devdy over the relay (see lib/ipc/remote.ts and
+// Opens THE remote-desktop window (`?remote=1`): the normal Puppeteer UI, but its
+// invoke/listen drive ANOTHER Puppeteer over the relay (see lib/ipc/remote.ts and
 // the remote boot in main.ts). There is only ever ONE such window (fixed
 // label); opening it again focuses it. Mirrors lib/prInboxWindow.ts.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -55,7 +55,7 @@ async function createRemoteDesktopWindow(): Promise<WebviewWindow> {
   const height = 860
   const win = new WebviewWindow(REMOTE_DESKTOP_WINDOW_LABEL, {
     url: 'index.html?remote=1',
-    title: 'Remote Devdy',
+    title: 'Remote Puppeteer',
     width,
     height,
     minWidth: 900,

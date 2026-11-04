@@ -45,7 +45,7 @@
     "change": "Change",
     "choose": "Choose",
     "clearSelectedKey": "Clear selected key",
-    "keyCopiedHint": "The selected key is copied into Devdy app data on save.",
+    "keyCopiedHint": "The selected key is copied into Puppeteer app data on save.",
     "passphrase": "Passphrase",
     "passphraseUnchanged": "•••••• (unchanged)",
     "passphraseOptional": "optional",

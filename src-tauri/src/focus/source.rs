@@ -6,7 +6,7 @@
 //! | Slack thread link (a reply resolves to its root)   | `slack`  | `slack:<team>/<channel>/<ts>`    |
 //! | `github.com/<o>/<r>/issues/<n>` · `/pull/<n>` · `<o>/<r>#<n>` | `github` | `github:<o>/<r>#<n>` (lowercase) |
 //! | `<host>/<path>/-/issues/<n>` · `/-/merge_requests/<n>` | `gitlab` | `gitlab:<path>#<n>` · `!<n>`     |
-//! | `run:<id>` · `devdy://run/<id>`                    | `run`    | `run:<id>`                       |
+//! | `run:<id>` · `puppeteer://run/<id>`                    | `run`    | `run:<id>`                       |
 //! | any other http(s) URL                              | `url`    | none                             |
 //!
 //! The URL is kept as given (trimmed, `<…>` unwrapped); anything else is an
@@ -129,8 +129,8 @@ pub fn normalize(input: &str) -> Result<Option<TodoSource>, String> {
 
     let run_id = s
         .strip_prefix("run:")
-        .or_else(|| s.strip_prefix("devdy://run/"))
-        .or_else(|| s.strip_prefix("devdy://runs/"))
+        .or_else(|| s.strip_prefix("puppeteer://run/"))
+        .or_else(|| s.strip_prefix("puppeteer://runs/"))
         .map(|r| r.trim_end_matches('/'));
     if let Some(id) = run_id {
         return if is_run_id(id) {

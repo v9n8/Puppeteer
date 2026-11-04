@@ -1,25 +1,24 @@
 {
   "title": "Tiến trình nền",
-  "subtitle": "Mọi thứ Devdy đã khởi chạy và vẫn đang chạy: phiên làm việc, dịch vụ của ứng dụng và các tiến trình còn sót lại.",
+  "subtitle": "Mọi thứ Puppeteer đã khởi chạy và vẫn đang chạy: phiên làm việc, dịch vụ của ứng dụng và các tiến trình còn sót lại.",
   "refresh": "Làm mới",
   "stopAllLeftovers": "Dừng mọi tiến trình sót",
   "stopAll": "Dừng tất cả",
   "processCount": "{n} tiến trình | {n} tiến trình",
   "sections": {
     "orphan": "Sót lại từ phiên trước",
-    "orphanHint": "Do Devdy khởi chạy trước lần thoát gần nhất. Hiện không còn ai quản lý.",
+    "orphanHint": "Do Puppeteer khởi chạy trước lần thoát gần nhất. Hiện không còn ai quản lý.",
     "leftover": "Còn sót lại",
     "leftoverHint": "Phiên đã kết thúc nhưng các tiến trình nó khởi chạy vẫn còn sống.",
     "sessions": "Phiên làm việc",
     "services": "Dịch vụ ứng dụng",
-    "servicesHint": "Các tiến trình hỗ trợ của Devdy (dịch, mascot, kiểm tra model, kiểm tra MCP, ssh-agent)."
+    "servicesHint": "Các tiến trình hỗ trợ của Puppeteer (dịch, kiểm tra model, kiểm tra MCP, ssh-agent)."
   },
   "kind": {
     "run": "Phiên",
     "translate": "Dịch",
     "slack_translate": "Dịch Slack",
     "focus_ai": "AI Focus",
-    "mascot": "Mascot",
     "probe": "Kiểm tra model",
     "mcp_test": "Kiểm tra MCP",
     "ssh_agent": "ssh-agent"
@@ -47,7 +46,7 @@
     "stopLeftoversTitle": "Dừng mọi tiến trình sót?",
     "stopLeftoversMessage": "{n} tiến trình còn sót sẽ bị dừng. | {n} tiến trình còn sót sẽ bị dừng.",
     "stopAllTitle": "Dừng tất cả?",
-    "stopAllMessage": "Thao tác này dừng mọi tiến trình đang theo dõi ({n}), kể cả các phiên đang chạy và dịch vụ của Devdy. Các phiên đang chạy sẽ bị huỷ.",
+    "stopAllMessage": "Thao tác này dừng mọi tiến trình đang theo dõi ({n}), kể cả các phiên đang chạy và dịch vụ của Puppeteer. Các phiên đang chạy sẽ bị huỷ.",
     "forceTitle": "Buộc dừng?",
     "forceMessage": "\"{label}\" sẽ bị dừng ngay, không có cơ hội dọn dẹp.",
     "stopSessionTitle": "Dừng phiên này?",
@@ -60,7 +59,7 @@
   },
   "empty": {
     "title": "Không có gì chạy nền",
-    "hint": "Phiên làm việc, dev server và tiến trình hỗ trợ do Devdy khởi chạy sẽ hiện ở đây khi đang chạy."
+    "hint": "Phiên làm việc, dev server và tiến trình hỗ trợ do Puppeteer khởi chạy sẽ hiện ở đây khi đang chạy."
   },
   "dock": {
     "label": "{n} tiến trình nền | {n} tiến trình nền",
@@ -68,16 +67,16 @@
   },
   "orphanPrompt": {
     "title": "{n} tiến trình từ phiên trước vẫn đang chạy | {n} tiến trình từ phiên trước vẫn đang chạy",
-    "message": "Devdy đã thoát khi chúng còn chạy. Chúng vẫn chiếm CPU và bộ nhớ cho tới khi bị dừng.",
+    "message": "Puppeteer đã thoát khi chúng còn chạy. Chúng vẫn chiếm CPU và bộ nhớ cho tới khi bị dừng.",
     "stopAll": "Dừng tất cả",
     "viewDetails": "Xem chi tiết",
     "leaveRunning": "Để chạy tiếp"
   },
   "quit": {
-    "title": "Thoát Devdy?",
+    "title": "Thoát Puppeteer?",
     "sessions": "Phiên đang chạy (sẽ bị dừng)",
     "stray": "Tiến trình nền",
-    "strayHint": "Tiến trình còn sót có thể tiếp tục chạy sau khi Devdy thoát; lần mở sau chúng sẽ hiện là tiến trình sót.",
+    "strayHint": "Tiến trình còn sót có thể tiếp tục chạy sau khi Puppeteer thoát; lần mở sau chúng sẽ hiện là tiến trình sót.",
     "stopAllQuit": "Dừng tất cả & thoát",
     "keepQuit": "Thoát, giữ tiến trình nền",
     "cancel": "Huỷ",

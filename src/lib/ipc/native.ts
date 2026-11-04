@@ -3,7 +3,7 @@
  *
  * Plugin commands and `convertFileSrc` stay on this machine (./core.ts), but in
  * a remote-desktop window every path the UI holds belongs to the controlled
- * Devdy. Rule: behave as the user sitting there would see it, rendered here.
+ * Puppeteer. Rule: behave as the user sitting there would see it, rendered here.
  *
  * - `plugin:dialog|open` / `save` → an in-app browser of the controlled
  *   machine (RemoteFileDialog.vue) that resolves exactly like the plugin:

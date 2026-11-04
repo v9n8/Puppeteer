@@ -5,7 +5,7 @@
 //
 // Full CRUD + sharing: list/search/read/download/mkdir/upload/create/update/
 // rename/move/delete (permanent — QĐ)/share/permissions. Destructive tools still
-// go through Devdy's per-tool permission prompt on the AI side.
+// go through Puppeteer's per-tool permission prompt on the AI side.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -196,7 +196,7 @@ export const tools = {
     },
     handler: async (a) => {
       const mime = a.mime_type || 'text/plain';
-      const boundary = `devdy${process.pid}${Date.now()}`;
+      const boundary = `puppeteer${process.pid}${Date.now()}`;
       const metadata = { name: a.name, ...(a.parent_id ? { parents: [a.parent_id] } : {}) };
       const body = multipartBody(metadata, Buffer.from(a.content, 'utf8'), mime, boundary);
       const f = await gapi(`${UPLOAD}?uploadType=multipart&fields=${FILE_FIELDS}&${SHARED}`, {
@@ -224,7 +224,7 @@ export const tools = {
       const data = await readFile(a.local_path);
       const name = a.name || basename(a.local_path);
       const mime = a.mime_type || 'application/octet-stream';
-      const boundary = `devdy${process.pid}${Date.now()}`;
+      const boundary = `puppeteer${process.pid}${Date.now()}`;
       const metadata = { name, ...(a.parent_id ? { parents: [a.parent_id] } : {}) };
       const body = multipartBody(metadata, data, mime, boundary);
       const f = await gapi(`${UPLOAD}?uploadType=multipart&fields=${FILE_FIELDS}&${SHARED}`, {

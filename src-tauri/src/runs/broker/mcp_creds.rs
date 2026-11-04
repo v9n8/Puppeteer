@@ -10,7 +10,7 @@
 //! - `google`: the built-in Google server asks for a short-lived access token for
 //!   one connected account. Refresh tokens and the OAuth client secret never
 //!   leave this process.
-//! - `mcp`: `sidecar-proxy/devdy-mcp-launch.mjs` asks for a user MCP server's
+//! - `mcp`: `sidecar-proxy/puppeteer-mcp-launch.mjs` asks for a user MCP server's
 //!   env (before starting a stdio server) or headers (Claude's `headersHelper`,
 //!   the Codex sidecar's header resolution). `server` is the server's id, or
 //!   [`CONDUCTOR_SERVER`] for the loopback conductor's bearer token.

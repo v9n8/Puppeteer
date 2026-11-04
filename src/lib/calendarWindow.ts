@@ -99,7 +99,7 @@ async function createCalendarWindow(): Promise<WebviewWindow> {
   const height = 820
   const win = new WebviewWindow(popoutLabel(CALENDAR_WINDOW_LABEL), {
     url: popoutUrl('index.html?calendarWindow=1'),
-    title: 'Calendar — Devdy',
+    title: 'Calendar — Puppeteer',
     width,
     height,
     minWidth: 760,

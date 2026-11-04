@@ -54,7 +54,7 @@ pub fn vapid_subject(contact: Option<&str>, relay_url: Option<&str>) -> String {
             }
         }
     }
-    "mailto:devdy-remote@users.noreply.github.com".to_string()
+    "mailto:puppeteer-remote@users.noreply.github.com".to_string()
 }
 
 /// What the push service said.
@@ -104,7 +104,7 @@ pub async fn send(client: &reqwest::Client, vapid: &SecretKey, subject: &str, su
         .header("Urgency", urgency);
     if send_topic {
         // A queued, undelivered notification is replaced by the next one.
-        req = req.header("Topic", "devdy");
+        req = req.header("Topic", "puppeteer");
     }
     let res = req
         .header("Content-Encoding", "aes128gcm")
@@ -233,8 +233,8 @@ mod tests {
     fn subject_prefers_contact_then_relay_origin() {
         assert_eq!(vapid_subject(Some("mailto:me@x.io"), Some("wss://r.x.io/ws")), "mailto:me@x.io");
         assert_eq!(vapid_subject(Some("bogus"), Some("wss://r.x.io/ws")), "https://r.x.io");
-        assert_eq!(vapid_subject(None, Some("ws://10.0.0.2:8080/ws")), "mailto:devdy-remote@users.noreply.github.com");
-        assert_eq!(vapid_subject(None, None), "mailto:devdy-remote@users.noreply.github.com");
+        assert_eq!(vapid_subject(None, Some("ws://10.0.0.2:8080/ws")), "mailto:puppeteer-remote@users.noreply.github.com");
+        assert_eq!(vapid_subject(None, None), "mailto:puppeteer-remote@users.noreply.github.com");
     }
 
     #[test]

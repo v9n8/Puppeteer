@@ -7,9 +7,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useGoogleCalendarStore, CALENDAR_EVENTS_CHANGED, type CalEvent } from '@/stores/googleCalendar'
 import { openCalendarWindow } from '@/lib/calendarWindow'
 import { parseEventTime } from '@/lib/calendar'
-import { useMascotBubble } from '@/composables/useMascotBubble'
-import { useMascotState } from '@/composables/useMascotState'
-import { useAppSettingsStore } from '@/stores/appSettings'
 
 /**
  * Headless, app-wide calendar reminder scheduler. Renders nothing. It keeps a
@@ -20,11 +17,6 @@ import { useAppSettingsStore } from '@/stores/appSettings'
  */
 
 const store = useGoogleCalendarStore()
-const { push: pushBubble } = useMascotBubble()
-const appSettings = useAppSettingsStore()
-// When the mascot is on it speaks the reminder in its bubble, so the duplicate
-// native OS notification is suppressed.
-const { enabled: mascotEnabled } = useMascotState()
 
 const FETCH_INTERVAL_MS = 15 * 60 * 1000 // re-pull the reminder window every 15 min
 const SAFETY_MARGIN_MS = 5 * 60 * 1000 // extra buffer so a late/failed fetch can't miss a reminder
@@ -73,9 +65,7 @@ async function refresh() {
 
 /** Fire notifications for every event currently within the lead window. */
 function fireDue() {
-  // The mascot bubble can deliver reminders even without OS-notification
-  // permission, so allow firing when the mascot is on OR permission is granted.
-  if (!store.reminderEnabled || !(permissionGranted || mascotEnabled.value)) return
+  if (!store.reminderEnabled || !permissionGranted) return
   const now = Date.now()
   const leadMs = Math.max(0, store.reminderLeadMin) * 60 * 1000
   for (const ev of store.reminderEvents) {
@@ -90,25 +80,18 @@ function fireDue() {
     const mins = Math.max(0, Math.round((startMs - now) / 60000))
     const when = mins <= 0 ? 'starting now' : `starts in ${mins} min`
     const body = `${fmtTime(start)} · ${when}${ev.account_label ? ` · ${ev.account_label}` : ''}`
-    // Mascot off → use the native OS notification; mascot on → the bubble below
-    // is the sole surface (no duplicate native notification).
-    if (!mascotEnabled.value) {
-      invoke('show_calendar_reminder', {
-        title: ev.title || 'Event',
-        body,
-        eventId: ev.id,
-      }).catch(() => { /* ignore — best-effort */ })
-    }
-
-    // Also surface it in the DY mascot's speech bubble.
-    pushBubble(`${ev.title || 'Event'} · ${body}`, 'info', 8000)
+    invoke('show_calendar_reminder', {
+      title: ev.title || 'Event',
+      body,
+      eventId: ev.id,
+    }).catch(() => { /* ignore — best-effort */ })
   }
 }
 
 /** Delay (ms) until the soonest not-yet-notified event enters its lead window,
  *  or null when there's nothing left to remind. */
 function nextDelayMs(): number | null {
-  if (!store.reminderEnabled || !(permissionGranted || mascotEnabled.value)) return null
+  if (!store.reminderEnabled || !permissionGranted) return null
   const now = Date.now()
   const leadMs = Math.max(0, store.reminderLeadMin) * 60 * 1000
   let soonest = Infinity
@@ -142,7 +125,6 @@ function scheduleNext() {
 }
 
 onMounted(async () => {
-  appSettings.ensureLoaded().catch(() => {})
   try {
     permissionGranted = await isPermissionGranted()
     if (!permissionGranted) permissionGranted = (await requestPermission()) === 'granted'
@@ -210,10 +192,6 @@ watch(
 
 // Lead time affects the fetch window and trigger points → refetch + reschedule.
 watch(() => store.reminderLeadMin, () => void refresh())
-
-// Toggling the mascot flips who delivers reminders (bubble vs native) and can
-// enable firing without OS permission → reschedule the next due timer.
-watch(mascotEnabled, () => scheduleNext())
 </script>
 
 <template>

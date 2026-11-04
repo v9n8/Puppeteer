@@ -8,7 +8,7 @@ import path from 'node:path'
 import { scanTerraformExternalCode, terraformWorkDir } from './terraform-scan.mjs'
 
 function fixture(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devdy-tfscan-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'puppeteer-tfscan-'))
   for (const [rel, content] of Object.entries(files)) {
     const p = path.join(root, rel)
     fs.mkdirSync(path.dirname(p), { recursive: true })
@@ -76,7 +76,7 @@ test('-chdir handling', () => {
 })
 
 test('unreadable or missing dir/file → detected (fail-closed)', () => {
-  const missing = scanTerraformExternalCode(path.join(os.tmpdir(), 'devdy-tfscan-missing-xyz'))
+  const missing = scanTerraformExternalCode(path.join(os.tmpdir(), 'puppeteer-tfscan-missing-xyz'))
   assert.equal(missing.detected, true)
   const root = fixture({ 'main.tf': 'resource "x" "y" {}\n' })
   fs.chmodSync(path.join(root, 'main.tf'), 0o000)

@@ -75,7 +75,7 @@ pub async fn read_project_file(
 }
 
 /// True when `path` lives under one of the shared AI transcript stores
-/// (`~/.claude` or `~/.codex`). These hold the session logs Devdy mirrors, so
+/// (`~/.claude` or `~/.codex`). These hold the session logs Puppeteer mirrors, so
 /// the file viewer is allowed to read them even though they sit outside any
 /// project directory.
 fn transcript_root_allows(path: &Path) -> bool {
@@ -149,7 +149,7 @@ fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -
         .map_err(|_| format!("File not found: {file_path}"))?;
 
     // Allow the project root plus the shared AI transcript stores, HOME and the
-    // system temp dirs. Session logs Devdy mirrors live under `~/.claude` /
+    // system temp dirs. Session logs Puppeteer mirrors live under `~/.claude` /
     // `~/.codex`, and AI scratch files land in `/tmp`, so the file viewer must be
     // able to read them even though they sit outside any project.
     // A remote desktop: its own allowlist, in place of the roots above.
@@ -894,7 +894,7 @@ mod tests {
     /// open in the viewer even though it lives outside every project root.
     #[test]
     fn reads_a_file_from_the_temp_dir() {
-        let path = std::env::temp_dir().join(format!("devdy-viewer-{}.md", std::process::id()));
+        let path = std::env::temp_dir().join(format!("puppeteer-viewer-{}.md", std::process::id()));
         std::fs::write(&path, "# commitment\n").unwrap();
 
         let project = env!("CARGO_MANIFEST_DIR");
@@ -910,7 +910,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn reads_a_file_via_the_slash_tmp_symlink() {
-        let name = format!("devdy-viewer-tmp-{}.md", std::process::id());
+        let name = format!("puppeteer-viewer-tmp-{}.md", std::process::id());
         let path = Path::new("/tmp").join(&name);
         std::fs::write(&path, "ok\n").unwrap();
 
@@ -935,7 +935,7 @@ mod tests {
     #[test]
     fn a_remote_caller_is_held_to_its_allowlist() {
         use crate::remote::fs_policy::Roots;
-        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-viewer-sec-{}", uuid::Uuid::new_v4()));
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-viewer-sec-{}", uuid::Uuid::new_v4()));
         let home = base.join("home");
         std::fs::create_dir_all(home.join(".ssh")).unwrap();
         std::fs::create_dir_all(home.join("proj")).unwrap();

@@ -101,7 +101,7 @@ test('a refused switch re-fetches only while that project is still shown', async
   const data = createDataStore(send, (r) => `err:${r}`)
   const toggles = (pid) => ({
     kind: 'project_toggles', project_id: pid, mcp_servers: [], skills: [{ id: 's1', name: 's', enabled: false }],
-    rules: [], builtin_devdy: { enabled: true, global: true },
+    rules: [], builtin_puppeteer: { enabled: true, global: true },
   })
   data.loadToggles('p1')
   data.apply(toggles('p1'))
@@ -117,7 +117,7 @@ test('a refused switch re-fetches only while that project is still shown', async
 test('project_toggles carries servers + accounts; an older Host sends none', () => {
   const p = parseStreamPayload({
     kind: 'project_toggles', project_id: 'p1', mcp_servers: [], skills: [], rules: [],
-    builtin_devdy: { enabled: true, global: true },
+    builtin_puppeteer: { enabled: true, global: true },
     servers: [{ id: 'v1', name: 'prod', enabled: true }],
     github_accounts: [{ id: 'g1', name: 'work', enabled: false }, { id: 'bad' }],
     claude_accounts: [{ id: 'c1', name: 'main', enabled: false, is_default: true }],
@@ -126,7 +126,7 @@ test('project_toggles carries servers + accounts; an older Host sends none', () 
   assert.deepEqual(p.github_accounts.map((a) => a.id), ['g1'])
   assert.deepEqual(p.claude_accounts, [{ id: 'c1', name: 'main', enabled: false, is_default: true }])
   const old = parseStreamPayload({
-    kind: 'project_toggles', project_id: 'p1', mcp_servers: [], skills: [], rules: [], builtin_devdy: {},
+    kind: 'project_toggles', project_id: 'p1', mcp_servers: [], skills: [], rules: [], builtin_puppeteer: {},
   })
   for (const k of ['servers', 'github_accounts', 'gitlab_accounts', 'aws_accounts', 'azure_accounts', 'claude_accounts']) {
     assert.deepEqual(old[k], [], k)
@@ -138,7 +138,7 @@ test('switching a Claude account on switches the others off', () => {
   const data = createDataStore(send, (r) => `err:${r}`)
   data.loadToggles('p1')
   data.apply(parseStreamPayload({
-    kind: 'project_toggles', project_id: 'p1', mcp_servers: [], skills: [], rules: [], builtin_devdy: {},
+    kind: 'project_toggles', project_id: 'p1', mcp_servers: [], skills: [], rules: [], builtin_puppeteer: {},
     servers: [{ id: 'v1', name: 'prod', enabled: false }],
     claude_accounts: [
       { id: 'c1', name: 'main', enabled: true, is_default: true },

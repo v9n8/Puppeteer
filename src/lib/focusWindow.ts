@@ -56,7 +56,7 @@ async function createFocusWindow(): Promise<WebviewWindow> {
   const height = 780
   const win = new WebviewWindow(popoutLabel(FOCUS_WINDOW_LABEL), {
     url: popoutUrl('index.html?focusWindow=1'),
-    title: 'Focus — Devdy',
+    title: 'Focus — Puppeteer',
     width,
     height,
     minWidth: 720,

@@ -20,7 +20,7 @@ const { t } = useI18n()
 const isGanttWindow = new URLSearchParams(window.location.search).get('ganttWindow') === '1'
 
 const DAY = 86_400_000
-const LAST_KEY = 'devdy:ganttProjectId'
+const LAST_KEY = 'puppeteer:ganttProjectId'
 const selectedProjectId = ref<string>('')
 const selectedRepos = ref<Set<string>>(new Set())
 

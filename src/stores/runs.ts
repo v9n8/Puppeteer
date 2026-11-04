@@ -8,8 +8,8 @@ import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
  * Fingerprint of the file(s) backing a run's log, from `get_run_log_revision`.
  *
  * `transcript_*` matters for mirrored Claude/Codex sessions: those can be
- * continued outside Devdy (the CLI, the IDE extension), and the conventional
- * `.devdy/runs/<id>.log` would NOT change when that happens. Watching only the
+ * continued outside Puppeteer (the CLI, the IDE extension), and the conventional
+ * `.puppeteer/runs/<id>.log` would NOT change when that happens. Watching only the
  * target file's own size/mtime would silently serve a stale log.
  */
 export interface RunLogRevision {
@@ -72,7 +72,7 @@ export interface RunRecord {
   created_at: string
   /**
    * Last time the session was worked on — start/resume, a follow-up turn, a
-   * finished turn, or a transcript touched by the CLI outside Devdy. `list_runs`
+   * finished turn, or a transcript touched by the CLI outside Puppeteer. `list_runs`
    * always fills it (COALESCE on the backend); the single-run endpoints may
    * return null, so read it through `runActivityAt`.
    */
@@ -410,7 +410,7 @@ export const useRunsStore = defineStore('runs', () => {
     return invoke<RunLogPage>('get_run_log_page', { runId: run_id, before, limit })
   }
 
-  // Absolute path of the log file backing a run/session (`.devdy/runs/<id>.log`
+  // Absolute path of the log file backing a run/session (`.puppeteer/runs/<id>.log`
   // or the mirrored Claude/Codex transcript). Null when no log file exists yet.
   async function getRunLogPath(run_id: string): Promise<string | null> {
     const result = await invoke<{ path: string | null }>('get_run_log_path', { runId: run_id })

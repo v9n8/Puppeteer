@@ -123,7 +123,7 @@ export async function openItemCreateWindow(
 
   const win = new WebviewWindow(popoutLabel(CREATE_WINDOW_LABEL), {
     url: popoutUrl(`index.html?${params.toString()}`),
-    title: 'New — Devdy',
+    title: 'New — Puppeteer',
     width: 420,
     height: 600,
     minWidth: 340,

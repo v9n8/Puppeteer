@@ -1,4 +1,4 @@
-// Terraform config scanner for the Devdy terraform shim.
+// Terraform config scanner for the Puppeteer terraform shim.
 //
 // Before a terraform call is sent to the broker, the shim scans the config for
 // code that runs OUTSIDE Terraform — `data "external"`, `provisioner

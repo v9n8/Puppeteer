@@ -157,11 +157,11 @@ struct ProbeEnv {
 
 /// Probe one model id by running the shortest possible real turn THROUGH THE
 /// SIDECAR — the same Agent SDK path a run uses, so the binary the SDK resolves
-/// (its bundled CLI, or `DEVDY_CLAUDE_PATH` when the user set a custom one) is
+/// (its bundled CLI, or `PUPPETEER_CLAUDE_PATH` when the user set a custom one) is
 /// exactly the one a real run would use. A direct `claude --model` spawn can hit
 /// a different binary and give a false verdict; it also can't see that the SDK
 /// silently falls back to a default when the id is unrecognized. The sidecar
-/// resolves both cases and replies `_devdy_valid` / `_devdy_invalid`.
+/// resolves both cases and replies `_puppeteer_valid` / `_puppeteer_invalid`.
 async fn probe_claude_model(env: ProbeEnv, model: String) -> ModelValidation {
     let cwd = std::env::temp_dir();
     let mut cmd = tokio::process::Command::new(&env.node_bin);
@@ -170,7 +170,7 @@ async fn probe_claude_model(env: ProbeEnv, model: String) -> ModelValidation {
     // Match a real run: only pin the binary when a custom path is configured,
     // otherwise let the SDK use its bundled CLI (see commands/runs.rs).
     if env.claude_path != "claude" && !env.claude_path.trim().is_empty() {
-        cmd.env("DEVDY_CLAUDE_PATH", &env.claude_path);
+        cmd.env("PUPPETEER_CLAUDE_PATH", &env.claude_path);
     }
     apply_claude_config_dir(&mut cmd, env.config_dir.as_deref());
     cmd.stdin(std::process::Stdio::piped())
@@ -223,8 +223,8 @@ async fn probe_claude_model(env: ProbeEnv, model: String) -> ModelValidation {
                 continue;
             };
             match v.get("type").and_then(|x| x.as_str()) {
-                Some("_devdy_valid") => return ModelValidation { model: model.clone(), ok: true, error: None },
-                Some("_devdy_invalid") | Some("_devdy_error") => {
+                Some("_puppeteer_valid") => return ModelValidation { model: model.clone(), ok: true, error: None },
+                Some("_puppeteer_invalid") | Some("_puppeteer_error") => {
                     let msg = v
                         .get("error")
                         .and_then(|e| e.as_str())
@@ -540,7 +540,7 @@ async fn persist_entry(
 }
 
 /// Refresh the Codex model list via `codex debug models` and persist it under the
-/// `default` account key. Codex has no multi-account concept in Devdy yet, so the
+/// `default` account key. Codex has no multi-account concept in Puppeteer yet, so the
 /// key is fixed for now but the schema is already account-scoped.
 #[tauri::command]
 pub async fn refresh_codex_models(

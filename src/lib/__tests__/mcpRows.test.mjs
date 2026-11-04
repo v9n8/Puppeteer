@@ -76,9 +76,9 @@ test('matchesMcpRow searches name/line/description', () => {
 })
 
 test('builtin rows count as enabled only when active', () => {
-  const active = builtinRow({ name: 'devdy', tools: 'mcp__devdy__*', tone: 'success' }, 'd')
+  const active = builtinRow({ name: 'puppeteer', tools: 'mcp__puppeteer__*', tone: 'success' }, 'd')
   const setup = builtinRow({ name: 'google', tools: 'mcp__google__*', tone: 'warning' }, 'g')
-  assert.equal(active.id, 'builtin:devdy')
+  assert.equal(active.id, 'builtin:puppeteer')
   assert.equal(active.enabled, true)
   assert.equal(setup.enabled, false)
 })
@@ -90,12 +90,12 @@ test('groupMcpRows: built-in first, transports in fixed order, catalog last', ()
     sse,
     serverRow(remote),
     serverRow(fs),
-    builtinRow({ name: 'devdy', tools: 'mcp__devdy__*', tone: 'success' }, ''),
+    builtinRow({ name: 'puppeteer', tools: 'mcp__puppeteer__*', tone: 'success' }, ''),
   ]
   assert.deepEqual(
     groupMcpRows(rows, labels).map((g) => [g.key, g.label, g.rows.map((r) => r.id)]),
     [
-      [GROUP_BUILTIN, 'Built-in', ['builtin:devdy']],
+      [GROUP_BUILTIN, 'Built-in', ['builtin:puppeteer']],
       ['stdio', 'STDIO', ['a1']],
       ['http', 'HTTP', ['b2']],
       ['sse', 'SSE', ['c3']],
@@ -178,7 +178,7 @@ test('formSnapshot tracks edits and optionally the enabled switch', () => {
 })
 
 test('mcpRowType maps rows to their sidebar folder', () => {
-  const builtin = { id: 'builtin:devdy', kind: 'builtin', transport: 'stdio' }
+  const builtin = { id: 'builtin:puppeteer', kind: 'builtin', transport: 'stdio' }
   const catalog = { id: 'catalog:x', kind: 'catalog', transport: 'http' }
   const server = { id: 's1', kind: 'server', transport: 'sse' }
   assert.deepEqual([builtin, catalog, server].map(mcpRowType), ['builtin', 'catalog', 'sse'])

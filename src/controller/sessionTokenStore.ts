@@ -20,7 +20,7 @@
  * The OTP itself is NEVER stored.
  */
 
-const STORAGE_KEY = 'devdy.controller.session.v1'
+const STORAGE_KEY = 'puppeteer.controller.session.v1'
 
 /** Sliding idle window: 7 days (mirrors the Host `IDLE_TTL_SECS`). */
 export const IDLE_TTL_MS = 7 * 24 * 60 * 60 * 1000

@@ -6,13 +6,13 @@
 //!
 //! - HOME, read + write;
 //! - a mounted volume (`/Volumes/*`, macOS), read + write;
-//! - a registered Devdy project or repo root (from the DB) and the remote upload
+//! - a registered Puppeteer project or repo root (from the DB) and the remote upload
 //!   dir, read + write — they may live outside HOME;
-//! - Devdy's log folder and Slack thread downloads, read only: the log is the
+//! - Puppeteer's log folder and Slack thread downloads, read only: the log is the
 //!   trace a Controller must not erase;
 //!
 //! and, inside those, never a credential store ([`SecretPaths`]: `~/.ssh`,
-//! cloud CLI logins, Devdy's app data, …). Exports may land anywhere writable.
+//! cloud CLI logins, Puppeteer's app data, …). Exports may land anywhere writable.
 //!
 //! A paired remote desktop has full control (it runs agents, edits settings
 //! and accounts), so the files a tool executes or loads as config (`.git/hooks`,
@@ -27,7 +27,7 @@
 //! — is ignored.
 //!
 //! Renaming or deleting ([`RemoteFs::change`]) is held to more: never a root,
-//! a mount point, nor a folder holding a credential store, Devdy's app data
+//! a mount point, nor a folder holding a credential store, Puppeteer's app data
 //! or the log folder (`~/.claude`, `~/.config`, `~/Library/…`) — moving those
 //! away would take them out of the name-based checks, deleting them would
 //! wipe them.
@@ -277,11 +277,11 @@ mod tests {
     }
 
     fn fx() -> Fx {
-        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-rfs-{}", uuid::Uuid::new_v4()));
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-rfs-{}", uuid::Uuid::new_v4()));
         let home = base.join("home");
         let proj = home.join("work/proj");
         let volumes = base.join("Volumes");
-        let app_data = home.join("Library/Application Support/vn.papay.devdy");
+        let app_data = home.join("Library/Application Support/io.github.v9n8.puppeteer");
         for d in [
             home.join(".config/gh"),
             proj.join("src"),
@@ -311,8 +311,8 @@ mod tests {
             ".netrc",
             ".claude/.credentials.json",
             ".config/gh/hosts.yml",
-            "Library/Application Support/vn.papay.devdy/logs/devdy.log",
-            "Library/Application Support/vn.papay.devdy/server-keys/k",
+            "Library/Application Support/io.github.v9n8.puppeteer/logs/puppeteer.log",
+            "Library/Application Support/io.github.v9n8.puppeteer/server-keys/k",
         ] {
             fs::write(home.join(f), b"x").unwrap();
         }
@@ -349,7 +349,7 @@ mod tests {
             f.home.join(".ssh/id_rsa"),
             f.home.join(".ssh"),
             f.home.join(".netrc"),
-            f.home.join("Library/Application Support/vn.papay.devdy/server-keys/k"),
+            f.home.join("Library/Application Support/io.github.v9n8.puppeteer/server-keys/k"),
         ] {
             assert!(f.fs.read(&p).unwrap_err().starts_with("permission denied"), "{}", p.display());
             assert!(f.fs.write(&p).is_err(), "{}", p.display());
@@ -394,8 +394,8 @@ mod tests {
             f.home.join(".ssh"),
             f.home.join("Library"),
             f.home.join("Library/Application Support"),
-            f.home.join("Library/Application Support/vn.papay.devdy"),
-            f.home.join("Library/Application Support/vn.papay.devdy/logs"),
+            f.home.join("Library/Application Support/io.github.v9n8.puppeteer"),
+            f.home.join("Library/Application Support/io.github.v9n8.puppeteer/logs"),
         ] {
             assert!(f.fs.change(&p).unwrap_err().starts_with("permission denied"), "{}", p.display());
         }
@@ -407,7 +407,7 @@ mod tests {
 
     #[test]
     fn wide_project_roots_are_ignored() {
-        let home = std::env::temp_dir().canonicalize().unwrap().join(format!("devdy-rfs-wide-{}", uuid::Uuid::new_v4()));
+        let home = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-rfs-wide-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&home).unwrap();
         let mut projects = vec![PathBuf::from("/"), home.parent().unwrap().to_path_buf()];
         projects.push(PathBuf::from(DATA_VOLUME));
@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn the_log_folder_stays_read_only() {
         let f = fx();
-        let log = f.home.join("Library/Application Support/vn.papay.devdy/logs/devdy.log");
+        let log = f.home.join("Library/Application Support/io.github.v9n8.puppeteer/logs/puppeteer.log");
         assert!(f.fs.read(&log).is_ok());
         assert!(f.fs.write(&log).unwrap_err().contains("read only"));
         assert!(f.fs.write(&log.with_file_name("new.log")).is_err());

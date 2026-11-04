@@ -1,13 +1,13 @@
-// Devdy gh/glab/aws/az/terraform shim core (GĐ3).
+// Puppeteer gh/glab/aws/az/terraform shim core (GĐ3).
 //
 // A tiny wrapper placed at the FRONT of the sidecar PATH under the names
-// `gh`/`glab`/`aws`/`az`/`terraform`. Every invocation asks the Devdy broker (over
+// `gh`/`glab`/`aws`/`az`/`terraform`. Every invocation asks the Puppeteer broker (over
 // a per-run Unix socket) whether the call is allowed and, if so, receives
 // credentials for the project's linked account. The real binary is then executed
 // with credentials injected ONLY into that child process's environment.
 //
 // Azure: the broker returns the linked account's isolated AZURE_CONFIG_DIR (the
-// Devdy-managed az session, incl. its plaintext token cache, lives there) plus
+// Puppeteer-managed az session, incl. its plaintext token cache, lives there) plus
 // tenant/subscription ids; the
 // sidecar itself only ever sees an empty AZURE_CONFIG_DIR. terraform gets AWS
 // and/or Azure (azurerm uses Azure CLI auth) depending on what is linked.
@@ -18,7 +18,7 @@
 //     binary is NOT run.
 //   - Self-exclude the shim dir from PATH when resolving the real binary so the
 //     shim never re-invokes itself (infinite recursion).
-//   - Strip DEVDY_BROKER_SOCK / DEVDY_PROJECT_ID from the child env so the
+//   - Strip PUPPETEER_BROKER_SOCK / PUPPETEER_PROJECT_ID from the child env so the
 //     socket path never leaks to child tools.
 
 import net from 'node:net'
@@ -197,17 +197,17 @@ export function stripAwsProfileArgs(argv) {
  * @param {string} tool
  */
 export async function run(tool) {
-  const sock = process.env.DEVDY_BROKER_SOCK
-  const projectId = process.env.DEVDY_PROJECT_ID
+  const sock = process.env.PUPPETEER_BROKER_SOCK
+  const projectId = process.env.PUPPETEER_PROJECT_ID
   // GĐ7: the app-wide broker serves many runs from one socket; run_id tells it
   // which run's modal to route an `Ask` to. Absent → broker fail-closed denies
   // any `Ask` (reads/allows still work).
-  const runId = process.env.DEVDY_RUN_ID || null
+  const runId = process.env.PUPPETEER_RUN_ID || null
   const argv = process.argv.slice(2) // drop [node, shimPath]
 
   if (!sock || !projectId) {
     process.stderr.write(
-      `devdy: broker not configured — ${tool} unavailable in this run\n`,
+      `puppeteer: broker not configured — ${tool} unavailable in this run\n`,
     )
     process.exit(EXIT_NOT_CONFIGURED)
   }
@@ -221,21 +221,21 @@ export async function run(tool) {
   }
   if (tool === 'gh' || tool === 'glab') {
     // The command may pick one of the project's enabled accounts
-    // (`DEVDY_GIT_ACCOUNT=work gh ...`); unset → the default account.
+    // (`PUPPETEER_GIT_ACCOUNT=work gh ...`); unset → the default account.
     req.account = gitAccountSelector(process.env)
   }
   if (tool === 'aws' || tool === 'terraform') {
     // The command may pick one of the project's enabled AWS accounts
-    // (`DEVDY_AWS_ACCOUNT=prod aws ...`, or `aws --profile <label|profile>`).
-    req.aws_account = cloudAccountSelector(process.env, 'DEVDY_AWS_ACCOUNT')
+    // (`PUPPETEER_AWS_ACCOUNT=prod aws ...`, or `aws --profile <label|profile>`).
+    req.aws_account = cloudAccountSelector(process.env, 'PUPPETEER_AWS_ACCOUNT')
     if (tool === 'aws') {
       const profile = stripAwsProfileArgs(argv).profile
       if (profile && profile.trim()) req.aws_profile = profile.trim()
     }
   }
   if (tool === 'az' || tool === 'terraform') {
-    // Likewise for Azure (`DEVDY_AZURE_ACCOUNT=prod az ...`).
-    req.azure_account = cloudAccountSelector(process.env, 'DEVDY_AZURE_ACCOUNT')
+    // Likewise for Azure (`PUPPETEER_AZURE_ACCOUNT=prod az ...`).
+    req.azure_account = cloudAccountSelector(process.env, 'PUPPETEER_AZURE_ACCOUNT')
   }
   if (tool === 'glab') {
     // The host glab will talk to, so the broker only hands out a token of an
@@ -261,21 +261,21 @@ export async function run(tool) {
     resp = await ask(sock, req)
   } catch {
     process.stderr.write(
-      `devdy: broker unreachable — ${tool} denied (fail-closed)\n`,
+      `puppeteer: broker unreachable — ${tool} denied (fail-closed)\n`,
     )
     process.exit(EXIT_BROKER_UNREACHABLE)
   }
 
   if (!resp || resp.decision !== 'allow') {
     const reason = (resp && resp.reason) || 'denied by policy'
-    process.stderr.write(`devdy: ${tool} — ${reason}\n`)
+    process.stderr.write(`puppeteer: ${tool} — ${reason}\n`)
     process.exit(EXIT_DENIED)
   }
 
   const realBin = resolveReal(tool)
   if (!realBin) {
     process.stderr.write(
-      `devdy: real ${tool} not found on PATH (install it to use this run)\n`,
+      `puppeteer: real ${tool} not found on PATH (install it to use this run)\n`,
     )
     process.exit(EXIT_REAL_NOT_FOUND)
   }
@@ -283,38 +283,38 @@ export async function run(tool) {
   // Credentials go ONLY into the child env. Never logged, never persisted.
   const childEnv = { ...process.env }
   let execArgv = argv
-  const originalAwsConfigFile = childEnv.DEVDY_ORIGINAL_AWS_CONFIG_FILE
-  const originalAwsCredentialsFile = childEnv.DEVDY_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE
-  delete childEnv.DEVDY_BROKER_SOCK
-  delete childEnv.DEVDY_PROJECT_ID
-  delete childEnv.DEVDY_RUN_ID
-  delete childEnv.DEVDY_AWS_ACCOUNT
-  delete childEnv.DEVDY_AZURE_ACCOUNT
-  delete childEnv.DEVDY_ORIGINAL_AWS_CONFIG_FILE
-  delete childEnv.DEVDY_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE
+  const originalAwsConfigFile = childEnv.PUPPETEER_ORIGINAL_AWS_CONFIG_FILE
+  const originalAwsCredentialsFile = childEnv.PUPPETEER_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE
+  delete childEnv.PUPPETEER_BROKER_SOCK
+  delete childEnv.PUPPETEER_PROJECT_ID
+  delete childEnv.PUPPETEER_RUN_ID
+  delete childEnv.PUPPETEER_AWS_ACCOUNT
+  delete childEnv.PUPPETEER_AZURE_ACCOUNT
+  delete childEnv.PUPPETEER_ORIGINAL_AWS_CONFIG_FILE
+  delete childEnv.PUPPETEER_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE
 
   const hasAws = Boolean(
     (resp.aws_access_key_id && resp.aws_secret_access_key) || resp.aws_profile,
   )
   const hasAzure = Boolean(resp.azure_config_dir)
 
-  // The sidecar's AZURE_CONFIG_DIR is Devdy's empty sandbox; keep it for a
+  // The sidecar's AZURE_CONFIG_DIR is Puppeteer's empty sandbox; keep it for a
   // terraform child without a linked Azure account so azurerm never falls back
   // to ~/.azure.
   const sandboxAzureConfigDir = childEnv.AZURE_CONFIG_DIR
   scrubCloudEnv(childEnv, tool)
 
   if (tool === 'terraform' && !hasAws && !hasAzure) {
-    process.stderr.write(`devdy: ${tool} — credential unavailable\n`)
+    process.stderr.write(`puppeteer: ${tool} — credential unavailable\n`)
     process.exit(EXIT_DENIED)
   }
 
   if (tool === 'az') {
     if (!hasAzure) {
-      process.stderr.write(`devdy: ${tool} — credential unavailable\n`)
+      process.stderr.write(`puppeteer: ${tool} — credential unavailable\n`)
       process.exit(EXIT_DENIED)
     }
-    // The account dir holds the Devdy-managed az session with the project's
+    // The account dir holds the Puppeteer-managed az session with the project's
     // default subscription; nothing else is needed.
     childEnv.AZURE_CONFIG_DIR = resp.azure_config_dir
   } else if (tool === 'aws' || tool === 'terraform') {
@@ -325,7 +325,7 @@ export async function run(tool) {
       const sanitized = stripAwsProfileArgs(argv)
       if (sanitized.stripped && resp.aws_account_label) {
         process.stderr.write(
-          `devdy: aws — using the project's AWS account "${resp.aws_account_label}" (--profile handled by Devdy)\n`,
+          `puppeteer: aws — using the project's AWS account "${resp.aws_account_label}" (--profile handled by Puppeteer)\n`,
         )
       }
       execArgv = sanitized.argv
@@ -356,7 +356,7 @@ export async function run(tool) {
         delete childEnv.AWS_SECRET_ACCESS_KEY
         delete childEnv.AWS_SESSION_TOKEN
       } else {
-        process.stderr.write(`devdy: ${tool} — credential unavailable\n`)
+        process.stderr.write(`puppeteer: ${tool} — credential unavailable\n`)
         process.exit(EXIT_DENIED)
       }
     }
@@ -390,7 +390,7 @@ export async function run(tool) {
 
   // az / terraform(azurerm): tee stderr so an Azure "MFA required" rejection
   // can be explained — the real CLI's advice (`az logout`/`az login`) does not
-  // apply inside a run, whose login lives in Devdy's managed account dir.
+  // apply inside a run, whose login lives in Puppeteer's managed account dir.
   const watchMfa = hasAzure && (tool === 'az' || tool === 'terraform')
   const child = spawn(realBin, execArgv, {
     stdio: watchMfa ? ['inherit', 'inherit', 'pipe'] : 'inherit',
@@ -407,7 +407,7 @@ export async function run(tool) {
     })
   }
   child.on('error', () => {
-    process.stderr.write(`devdy: failed to exec ${tool}\n`)
+    process.stderr.write(`puppeteer: failed to exec ${tool}\n`)
     process.exit(EXIT_EXEC_FAILED)
   })
   // 'close' (not 'exit') so the piped stderr is fully drained first.
@@ -419,19 +419,19 @@ export async function run(tool) {
 }
 
 /**
- * The account a command picked via DEVDY_GIT_ACCOUNT (label, username or id of
+ * The account a command picked via PUPPETEER_GIT_ACCOUNT (label, username or id of
  * an enabled account), or null for the default. Pure.
  * @param {Record<string, string|undefined>} env
  * @returns {string|null}
  */
 export function gitAccountSelector(env) {
-  const v = (env.DEVDY_GIT_ACCOUNT || '').trim()
+  const v = (env.PUPPETEER_GIT_ACCOUNT || '').trim()
   return v === '' ? null : v
 }
 
 /**
- * The cloud account a command picked via `envName` (DEVDY_AWS_ACCOUNT /
- * DEVDY_AZURE_ACCOUNT), or null for the default. Pure.
+ * The cloud account a command picked via `envName` (PUPPETEER_AWS_ACCOUNT /
+ * PUPPETEER_AZURE_ACCOUNT), or null for the default. Pure.
  * @param {Record<string, string|undefined>} env
  * @param {string} envName
  * @returns {string|null}
@@ -500,9 +500,9 @@ function originRemoteUrl(cwd) {
 }
 
 export const AZURE_MFA_HINT =
-  'devdy: az — Azure requires multi-factor authentication (MFA) for this operation, ' +
+  'puppeteer: az — Azure requires multi-factor authentication (MFA) for this operation, ' +
   'but the linked Azure account session was signed in without MFA. Do NOT run ' +
-  '`az logout`/`az login` here: ask the user to open Devdy → Settings → Azure and ' +
+  '`az logout`/`az login` here: ask the user to open Puppeteer → Settings → Azure and ' +
   'click "Sign in" on the linked account (it now forces MFA), then retry.\n'
 
 /**

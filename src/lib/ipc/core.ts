@@ -1,6 +1,6 @@
 /**
  * `@tauri-apps/api/core` as the app sees it (Vite alias). Identical to the real
- * module, except `invoke` is routed to the controlled Devdy when this window is
+ * module, except `invoke` is routed to the controlled Puppeteer when this window is
  * a remote-desktop window (see ./remote.ts). Plugin commands (`plugin:*`:
  * windows, webviews, dialogs, opener…) stay local, except the few that act on
  * the controlled machine's paths, and `convertFileSrc` serves that machine's
@@ -19,13 +19,11 @@ export * from '@tauri-real/core'
 
 /**
  * App commands that act on the machine the user is SITTING at, not on the
- * controlled one: notifications and the mascot's voice belong on A's screen.
+ * controlled one: notifications belong on A's screen.
  */
 const SEAT_LOCAL_COMMANDS = new Set([
   'show_permission_notification',
   'show_run_finished_notification',
-  'mascot_speak',
-  'cancel_mascot_speak',
 ])
 /**
  * App commands a remote window must not run at all (they resolve `undefined`):

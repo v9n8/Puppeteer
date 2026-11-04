@@ -82,7 +82,7 @@
     "project": "Project"
   },
   "remoteDesktopHost": {
-    "hint": "Another Devdy is driving this app through Remote Control. Disconnecting cuts it off now and signs it out: it has to sign in again with the master password or a pairing code. To keep it out, change the master password.",
+    "hint": "Another Puppeteer is driving this app through Remote Control. Disconnecting cuts it off now and signs it out: it has to sign in again with the master password or a pairing code. To keep it out, change the master password.",
     "disconnect": "Disconnect and sign out",
     "disconnectFailed": "Could not disconnect: {error}"
   },
@@ -94,7 +94,7 @@
     "relayOffline": "Relay offline",
     "relayReconnecting": "Reconnecting to the relay…",
     "agentStopped": "Not running — check the relay settings",
-    "desktopSince": "Another Devdy since {time}",
+    "desktopSince": "Another Puppeteer since {time}",
     "controller": "A phone / web controller is signed in",
     "nobody": "No controller connected",
     "pair": "Pair a device…",

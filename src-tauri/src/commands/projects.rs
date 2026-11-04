@@ -33,7 +33,7 @@ pub struct Project {
     /// project has no AWS account attached.
     #[serde(default)]
     pub aws_account_id: Option<String>,
-    /// Linked Azure account (isolated AZURE_CONFIG_DIR managed by Devdy).
+    /// Linked Azure account (isolated AZURE_CONFIG_DIR managed by Puppeteer).
     /// `None` when the project has no Azure account attached.
     #[serde(default)]
     pub azure_account_id: Option<String>,

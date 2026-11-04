@@ -34,7 +34,7 @@ pub fn audit_request(
     reason: Option<&str>,
 ) {
     let line = format_audit_line(run_id, tool, argv, decision, reason);
-    tracing::info!(target: "devdy::broker::audit", "{line}");
+    tracing::info!(target: "puppeteer::broker::audit", "{line}");
 }
 
 #[cfg(test)]

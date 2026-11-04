@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Standalone smoke test for the Devdy Claude sidecar.
+// Standalone smoke test for the Puppeteer Claude sidecar.
 //
 // Verifies end-to-end WITHOUT Tauri:
 //   1. The Agent SDK runs on the current login (subscription via Keychain) —
@@ -17,7 +17,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const testDir = join(os.tmpdir(), 'devdy-sidecar-test')
+const testDir = join(os.tmpdir(), 'puppeteer-sidecar-test')
 const outFile = join(testDir, 'out.txt')
 
 fs.rmSync(testDir, { recursive: true, force: true })
@@ -78,31 +78,31 @@ child.stdout.on('data', (chunk) => {
 
 function handle(msg) {
   switch (msg.type) {
-    case '_devdy_ready':
+    case '_puppeteer_ready':
       console.log('[ready] sending prompt…')
       sendCmd({
         type: 'prompt',
         text:
-          'Create a file named out.txt containing exactly the text devdy-sidecar-ok ' +
+          'Create a file named out.txt containing exactly the text puppeteer-sidecar-ok ' +
           'in the current working directory, then stop. Do not ask for confirmation.',
         options: { cwd: testDir, permissionMode: 'default' },
       })
       break
-    case '_devdy_permission_request':
+    case '_puppeteer_permission_request':
       permissionFired = true
       console.log(`[permission] ${msg.tool_name} — ${msg.title ?? ''} → ALLOW`)
       sendCmd({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
       break
-    case '_devdy_stderr':
+    case '_puppeteer_stderr':
       // SDK/CLI stderr — keep quiet unless debugging
       break
-    case '_devdy_error':
+    case '_puppeteer_error':
       console.error('[sidecar_error]', msg.error)
       break
-    case '_devdy_done':
+    case '_puppeteer_done':
       console.log('[done]')
       break
-    case '_devdy_closed':
+    case '_puppeteer_closed':
       console.log('[closed]')
       finish(0)
       break

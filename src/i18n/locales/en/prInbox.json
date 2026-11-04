@@ -7,7 +7,7 @@
   "viewReview": "View review",
   "opening": "Opening…",
   "aiReview": "AI Review",
-  "addToDevdy": "Add to devdy",
+  "addToPuppeteer": "Add to puppeteer",
   "partialFailTitle": "{count} account failed to load review requests | {count} accounts failed to load review requests",
   "partialFailBody": "some PRs may be missing. Try refreshing.",
   "justNow": "just now",
@@ -23,7 +23,7 @@
     "reviewer_account": "Reviewer account"
   },
   "hideBots": "Hide bots",
-  "notInDevdyGroup": "Not in devdy",
+  "notInPuppeteerGroup": "Not in puppeteer",
   "botsGroup": "Bots",
   "botsHidden": "{count} PR from bots hidden | {count} PRs from bots hidden",
   "showBots": "Show",
@@ -51,7 +51,7 @@
     "not_reviewed": "Not reviewed",
     "running": "Reviewing",
     "reviewed": "Reviewed",
-    "unmapped": "Not in devdy"
+    "unmapped": "Not in puppeteer"
   },
   "density": {
     "label": "Density",

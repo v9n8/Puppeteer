@@ -17,8 +17,8 @@ import {
 
 export type { Appearance, AppearanceOverride }
 
-const STORAGE_KEY = 'devdy.controller.appearance'
-const OVERRIDE_KEY = 'devdy.controller.appearanceOverride'
+const STORAGE_KEY = 'puppeteer.controller.appearance'
+const OVERRIDE_KEY = 'puppeteer.controller.appearanceOverride'
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
 let followSystem = false

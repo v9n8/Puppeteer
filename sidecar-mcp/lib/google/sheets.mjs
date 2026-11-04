@@ -84,7 +84,7 @@ async function sheetsApi(url, opts) {
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     if (/SERVICE_DISABLED|has not been used|is disabled/i.test(msg)) {
-      throw new Error(`${msg}\nEnable the Google Sheets API in the Google Cloud project that owns Devdy's OAuth client, then retry.`);
+      throw new Error(`${msg}\nEnable the Google Sheets API in the Google Cloud project that owns Puppeteer's OAuth client, then retry.`);
     }
     throw e;
   }

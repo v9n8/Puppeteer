@@ -1,6 +1,6 @@
 //! Remote Control (C1) — Host agent (U3).
 //!
-//! Backend that lets a Controller device drive a running Devdy session over a
+//! Backend that lets a Controller device drive a running Puppeteer session over a
 //! self-hosted Cloud Relay, end-to-end encrypted (SRS-RC-C1). This module owns:
 //!   - the outbound WSS client to the relay ([`agent`]),
 //!   - the per-session bound model + link/OTP/session-secret generation ([`session`]),
@@ -68,7 +68,7 @@ pub const KEY_RELAY_URL: &str = "remote_relay_url";
 pub const KEY_ENABLED: &str = "remote_enabled";
 pub const KEY_DEVICE_ID: &str = "remote_device_id";
 /// Optional short name of this device; selects its password-login code so
-/// several Devdy hosts can share one relay (see `login::login_code`).
+/// several Puppeteer hosts can share one relay (see `login::login_code`).
 pub const KEY_DEVICE_ALIAS: &str = "remote_device_alias";
 
 /// Live control handle for the running agent task.
@@ -101,7 +101,7 @@ pub struct RemoteState {
     pub subscriptions: RunSubscriptions,
     /// The run the Controller is currently viewing.
     pub focus_run_id: FocusRun,
-    /// Remote-desktop IPC routing (another Devdy driving this one).
+    /// Remote-desktop IPC routing (another Puppeteer driving this one).
     pub ipc: ipc::IpcHub,
     /// Web Push to subscribed phones; its dispatcher runs with the agent.
     pub push: push::PushHub,

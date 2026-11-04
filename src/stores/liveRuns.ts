@@ -15,7 +15,7 @@ import { useRunsStore } from './runs'
 import { useToolPermissionsStore } from './toolPermissions'
 import { useProjectsStore } from './projects'
 
-/** An assistant message calling a devdy MCP tool that creates projects / links repos. */
+/** An assistant message calling a puppeteer MCP tool that creates projects / links repos. */
 function usesProjectWriteTool(p: Record<string, unknown> | null): boolean {
   if (p?.type !== 'assistant') return false
   const content = (p.message as { content?: unknown } | undefined)?.content
@@ -23,7 +23,7 @@ function usesProjectWriteTool(p: Record<string, unknown> | null): boolean {
     Array.isArray(content) &&
     content.some(
       (b) =>
-        b?.type === 'tool_use' && typeof b.name === 'string' && /^mcp__devdy__(projects_create|repos_add|repos_remove)$/.test(b.name),
+        b?.type === 'tool_use' && typeof b.name === 'string' && /^mcp__puppeteer__(projects_create|repos_add|repos_remove)$/.test(b.name),
     )
   )
 }
@@ -100,7 +100,7 @@ export interface RateLimitWindows {
   sevenDay?: RateLimitWindow
 }
 
-const SLASH_CACHE_KEY = 'devdy.slashCommands'
+const SLASH_CACHE_KEY = 'puppeteer.slashCommands'
 
 /**
  * Cap on `outputLines` (the raw stdout/stderr view). These are kept in ADDITION
@@ -407,7 +407,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     // background run's state still advances.
     let eventBuffer: unknown[] = []
     let flushScheduled = false
-    // The devdy MCP sidecar writes projects/repos straight into the DB with no
+    // The puppeteer MCP sidecar writes projects/repos straight into the DB with no
     // Tauri event: refetch once the tool's result comes back.
     let projectsDirty = false
     function flushEvents() {

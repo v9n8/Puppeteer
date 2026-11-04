@@ -111,7 +111,7 @@ const canSave = computed(() => dirty.value && !saving.value)
 
 defineExpose({ dirty })
 
-// Outside edits (another window, the AI via the devdy MCP tools) refresh a
+// Outside edits (another window, the AI via the puppeteer MCP tools) refresh a
 // pane with nothing unsaved, so the next save doesn't overwrite them.
 watch(
   () => props.server,

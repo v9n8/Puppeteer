@@ -165,7 +165,7 @@ const togglingMcpId = ref<string | null>(null)
 // Codex, which supports stdio + streamable HTTP MCP.
 const defaultIsCodex = computed(() => appSettings.settings?.default_engine === 'codex')
 
-// Built-in servers (devdy, google): on by default, switched off per project.
+// Built-in servers (puppeteer, google): on by default, switched off per project.
 const builtinMcp = ref<ProjectBuiltinMcp[]>([])
 const togglingBuiltin = ref<string | null>(null)
 

@@ -169,7 +169,7 @@ fn query_param(query: &str, key: &str) -> Option<String> {
 /// Minimal HTML shown in the browser after the redirect lands.
 fn done_page(ok: bool) -> String {
     let (title, body) = if ok {
-        ("Connected", "Google account connected. You can close this tab and return to Devdy.")
+        ("Connected", "Google account connected. You can close this tab and return to Puppeteer.")
     } else {
         ("Failed", "Authorization failed or was cancelled. You can close this tab.")
     };
@@ -302,7 +302,7 @@ async fn run_oauth(
         .refresh_token
         .filter(|t| !t.is_empty())
         .ok_or_else(|| {
-            "Google did not return a refresh_token. Revoke Devdy's access in your Google account \
+            "Google did not return a refresh_token. Revoke Puppeteer's access in your Google account \
              and reconnect (consent must re-prompt)."
                 .to_string()
         })?;
@@ -340,50 +340,9 @@ fn row_to_account(row: &sqlx::sqlite::SqliteRow) -> GoogleAccount {
     }
 }
 
-/// One-time migration: an account connected under the old single-account design
-/// is moved into the `google_accounts` table + Keychain map. No-op otherwise.
-async fn migrate_legacy(db: &Db) {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM google_accounts")
-        .fetch_one(db)
-        .await
-        .unwrap_or(0);
-    if count > 0 {
-        return;
-    }
-    if let Some(legacy) = secrets::take_legacy_google() {
-        // Ensure the shared client is saved (older builds stored it per-account).
-        if secrets::get_google_client().is_none() {
-            let _ = secrets::set_google_client(&legacy.client_id, &legacy.client_secret);
-        }
-        let id = Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
-        let label = if legacy.email.is_empty() {
-            "default".to_string()
-        } else {
-            legacy.email.clone()
-        };
-        if sqlx::query(
-            "INSERT INTO google_accounts (id, label, email, scope, is_default, created_at) \
-             VALUES (?, ?, ?, ?, 1, ?)",
-        )
-        .bind(&id)
-        .bind(&label)
-        .bind(&legacy.email)
-        .bind(&legacy.scope)
-        .bind(&now)
-        .execute(db)
-        .await
-        .is_ok()
-        {
-            let _ = secrets::set_google_account_token(&id, &legacy.refresh_token);
-        }
-    }
-}
-
-/// List connected Google accounts (migrating any legacy single account first).
+/// List connected Google accounts.
 #[tauri::command]
 pub async fn list_google_accounts(db: State<'_, Db>) -> Result<Vec<GoogleAccount>, String> {
-    migrate_legacy(db.inner()).await;
     let rows = sqlx::query(
         "SELECT id, label, email, scope, is_default, created_at FROM google_accounts \
          ORDER BY is_default DESC, label",

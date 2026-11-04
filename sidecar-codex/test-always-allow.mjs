@@ -1,6 +1,6 @@
 // Regression test for "allow always" under codex.
 //
-// Two things used to make Devdy re-ask forever where Claude asks once:
+// Two things used to make Puppeteer re-ask forever where Claude asks once:
 //   1. An MCP elicitation has no `toolName` in the codex app-server v2 protocol,
 //      so the permission key collapsed to the bare string `MCP` — which the
 //      prompt deliberately refuses to remember. It must be `mcp__<server>`.
@@ -18,13 +18,13 @@ const fixture = join(here, 'test-fixture-app-server.mjs')
 
 function runCase({ env, onPermission, done }) {
   return new Promise((resolve) => {
-    const work = mkdtempSync(join(tmpdir(), 'devdy-codex-always-'))
+    const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-always-'))
     const childEnv = { ...process.env }
-    delete childEnv.DEVDY_RESUME_SESSION
+    delete childEnv.PUPPETEER_RESUME_SESSION
     const child = spawn('node', [join(here, 'index.mjs')], {
       cwd: work,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...childEnv, DEVDY_PERMISSION_MODE: 'default', DEVDY_CODEX_PATH: fixture, ...env },
+      env: { ...childEnv, PUPPETEER_PERMISSION_MODE: 'default', PUPPETEER_CODEX_PATH: fixture, ...env },
     })
 
     let buffer = ''
@@ -45,8 +45,8 @@ function runCase({ env, onPermission, done }) {
         if (!line) continue
         let message
         try { message = JSON.parse(line) } catch { continue }
-        if (message.type === '_devdy_permission_request') onPermission(message, child)
-        if (message.type === 'result' || message.type === '_devdy_error') {
+        if (message.type === '_puppeteer_permission_request') onPermission(message, child)
+        if (message.type === 'result' || message.type === '_puppeteer_error') {
           // Give the fixture a beat to flush its side effects before asserting.
           setTimeout(finish, 150)
         }
@@ -61,7 +61,7 @@ function runCase({ env, onPermission, done }) {
 // ── Case 1: MCP elicitation WITHOUT a toolName → per-server key ────────────
 let mcpToolName = null
 await runCase({
-  env: { DEVDY_MCP_PERMISSION_KEY_TEST: '1', DEVDY_MCP_OMIT_TOOLNAME: '1' },
+  env: { PUPPETEER_MCP_PERMISSION_KEY_TEST: '1', PUPPETEER_MCP_OMIT_TOOLNAME: '1' },
   onPermission: (msg, child) => {
     mcpToolName = msg.tool_name
     child.stdin.write(JSON.stringify({
@@ -72,9 +72,9 @@ await runCase({
 })
 
 // ── Case 2: an "always" allow reaches codex as `acceptForSession` ──────────
-const decisionFile = join(mkdtempSync(join(tmpdir(), 'devdy-codex-decision-')), 'decision')
+const decisionFile = join(mkdtempSync(join(tmpdir(), 'puppeteer-codex-decision-')), 'decision')
 await runCase({
-  env: { DEVDY_DENY_TEST_MARKER: join(tmpdir(), 'devdy-always-marker'), DEVDY_DECISION_OUT: decisionFile },
+  env: { PUPPETEER_DENY_TEST_MARKER: join(tmpdir(), 'puppeteer-always-marker'), PUPPETEER_DECISION_OUT: decisionFile },
   onPermission: (msg, child) => {
     child.stdin.write(JSON.stringify({
       type: 'permission_response', requestId: msg.requestId, decision: 'allow', remember: true,

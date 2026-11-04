@@ -7,7 +7,7 @@
   "viewReview": "Xem review",
   "opening": "Đang mở…",
   "aiReview": "AI Review",
-  "addToDevdy": "Thêm vào devdy",
+  "addToPuppeteer": "Thêm vào puppeteer",
   "partialFailTitle": "{count} account tải review request thất bại",
   "partialFailBody": "một số PR có thể bị thiếu. Thử refresh lại.",
   "justNow": "vừa xong",
@@ -23,7 +23,7 @@
     "reviewer_account": "Tài khoản review"
   },
   "hideBots": "Ẩn bot",
-  "notInDevdyGroup": "Chưa có trong devdy",
+  "notInPuppeteerGroup": "Chưa có trong puppeteer",
   "botsGroup": "Bot",
   "botsHidden": "Đã ẩn {count} PR từ bot",
   "showBots": "Hiện",
@@ -51,7 +51,7 @@
     "not_reviewed": "Chưa review",
     "running": "Đang review",
     "reviewed": "Đã review",
-    "unmapped": "Chưa có trong devdy"
+    "unmapped": "Chưa có trong puppeteer"
   },
   "density": {
     "label": "Mật độ",

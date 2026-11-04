@@ -10,8 +10,7 @@
 //
 // The menu lists every open window: the main window first, then each pop-out
 // (session, gantt, file viewer, item editor). Clicking a row focuses that window;
-// Rust maps the item id (the window label) back to the window. The mascot pet is
-// skipped — it isn't a window you'd "switch to".
+// Rust maps the item id (the window label) back to the window.
 //
 // Below the windows, the main window adds every running session (streaming or
 // awaiting a permission). A conductor with active workers becomes a submenu so a
@@ -84,20 +83,20 @@ function t(key: string, named?: Record<string, unknown>): string {
   return named ? i18n.global.t(key, named) : i18n.global.t(key)
 }
 
-// Windows that are never useful "switch to" targets: the always-on desktop pet
-// and the transient permission modal (it pops in and auto-dismisses, so listing
+// Windows that are never useful "switch to" targets: the transient permission
+// modal (it pops in and auto-dismisses, so listing
 // it would just make a row flicker), and the invisible remote-desktop bridge
 // (src/bridge/main.ts) — focusing it would only surface a blank page. Everything
 // else is listed.
-const HIDDEN_WINDOW_LABELS = new Set(['mascot', 'permission-prompt', 'remote-bridge'])
+const HIDDEN_WINDOW_LABELS = new Set(['permission-prompt', 'remote-bridge'])
 
 // The label shown for a window in the switcher. Some window kinds carry a
 // genuinely meaningful OS title — a session (the run name), a file viewer (the
 // file's basename), a todo/note editor ("Task: …" / "Note: …"), and the create
 // and list windows ("New Task" / "Todos" …, following their active tab) — so
 // those use the live title, falling back to a generic name. Every other kind gets a fixed, localized
-// name keyed off its label prefix. Creation-time placeholders ("Devdy",
-// "Task — Devdy") never count as meaningful: they only show until the window sets
+// name keyed off its label prefix. Creation-time placeholders ("Puppeteer",
+// "Task — Puppeteer") never count as meaningful: they only show until the window sets
 // its real title.
 function labelFor(windowLabel: string, osTitle: string): string {
   return clip(rawLabelFor(windowLabel, osTitle))
@@ -110,7 +109,7 @@ function rawLabelFor(windowLabel: string, osTitle: string): string {
     return t('tray.remoteWindow', { name: rawLabelFor(fromRemoteLabel(windowLabel), osTitle) })
   }
   const title = osTitle.trim()
-  const meaningful = title && title !== 'Devdy' && !title.endsWith('— Devdy') ? title : ''
+  const meaningful = title && title !== 'Puppeteer' && !title.endsWith('— Puppeteer') ? title : ''
 
   if (windowLabel === 'main') return t('tray.mainWindow')
   if (windowLabel.startsWith('session-')) return meaningful || t('tray.untitledSession')
@@ -301,7 +300,7 @@ export async function refreshTray(): Promise<void> {
     const wins = await getAllWebviewWindows()
     const items: TrayItem[] = [{ kind: 'header', label: t('tray.windows') }]
 
-    // Main window pinned first; every other Devdy window follows (except the
+    // Main window pinned first; every other Puppeteer window follows (except the
     // hidden ones above), sorted by label so the order stays stable across
     // refreshes rather than following getAllWebviewWindows' arbitrary order.
     if (wins.some((w) => w.label === 'main')) {
@@ -352,7 +351,7 @@ export async function refreshTray(): Promise<void> {
     }
 
     // The tray is this machine's: a remote-desktop window must not send its
-    // window list to the controlled Devdy.
+    // window list to the controlled Puppeteer.
     if (isRemoteMode()) await localInvoke('set_tray_menu', { spec })
     else await invoke('set_tray_menu', { spec })
   } catch {

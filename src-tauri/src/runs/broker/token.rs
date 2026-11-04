@@ -47,7 +47,7 @@ pub struct CommitIdentity {
 /// Metadata for a project's linked AWS account. Contains no secret and is safe
 /// for prompts/per-run env setup.
 pub struct AwsRuntimeMetadata {
-    /// Devdy's account id (`aws_accounts.id`).
+    /// Puppeteer's account id (`aws_accounts.id`).
     pub id: String,
     pub account_label: String,
     pub auth_method: String,
@@ -658,12 +658,12 @@ pub fn aws_display(a: &AwsRuntimeMetadata) -> String {
 pub const UNKNOWN_CLOUD_ACCOUNT: &str = "unknown_cloud_account";
 
 /// Env var a command sets to pick one of the project's enabled AWS accounts
-/// (`DEVDY_AWS_ACCOUNT=prod aws s3 ls`). Read by the aws / terraform shims.
-pub const AWS_ACCOUNT_ENV: &str = "DEVDY_AWS_ACCOUNT";
+/// (`PUPPETEER_AWS_ACCOUNT=prod aws s3 ls`). Read by the aws / terraform shims.
+pub const AWS_ACCOUNT_ENV: &str = "PUPPETEER_AWS_ACCOUNT";
 
 /// Env var a command sets to pick one of the project's enabled Azure accounts
-/// (`DEVDY_AZURE_ACCOUNT=prod az group list`). Read by the az / terraform shims.
-pub const AZURE_ACCOUNT_ENV: &str = "DEVDY_AZURE_ACCOUNT";
+/// (`PUPPETEER_AZURE_ACCOUNT=prod az group list`). Read by the az / terraform shims.
+pub const AZURE_ACCOUNT_ENV: &str = "PUPPETEER_AZURE_ACCOUNT";
 
 /// Index of the account one call uses: the one `selector` names (`id` exact,
 /// else any of `names` case-insensitively), else `default`, else the first.
@@ -715,7 +715,7 @@ fn unknown_cloud_account_reason(
 // ============================================================================
 // Azure: isolated per-account AZURE_CONFIG_DIR.
 //
-// An Azure account is an Azure CLI config dir managed by Devdy (see
+// An Azure account is an Azure CLI config dir managed by Puppeteer (see
 // `azure_sandbox`). There is no secret to mint here: the broker hands the shim
 // the dir path plus tenant/subscription ids, gated per call by the policy engine
 // exactly like the AWS path. HONEST LIMITATION: the dir holds az's plaintext
@@ -842,9 +842,9 @@ pub async fn resolve_azure_for_project(
 pub const UNKNOWN_GIT_ACCOUNT: &str = "unknown_git_account";
 
 /// Env var a command sets to pick one of the project's enabled git accounts
-/// (`DEVDY_GIT_ACCOUNT=work gh pr list`). Read by the gh/glab shims and the git
+/// (`PUPPETEER_GIT_ACCOUNT=work gh pr list`). Read by the gh/glab shims and the git
 /// credential helper.
-pub const GIT_ACCOUNT_ENV: &str = "DEVDY_GIT_ACCOUNT";
+pub const GIT_ACCOUNT_ENV: &str = "PUPPETEER_GIT_ACCOUNT";
 
 /// One GitHub/GitLab account a project may use. Metadata only — no secret.
 #[derive(Debug, Clone)]
@@ -1355,7 +1355,7 @@ pub async fn build_account_context(
              the project's default account (set through GIT_AUTHOR_* / GIT_COMMITTER_*); to \
              commit as another one, override those variables for the command: \
              `GIT_AUTHOR_NAME=<username> GIT_AUTHOR_EMAIL=<email> GIT_COMMITTER_NAME=<username> \
-             GIT_COMMITTER_EMAIL=<email> git commit ...`. The devdy MCP tool \
+             GIT_COMMITTER_EMAIL=<email> git commit ...`. The puppeteer MCP tool \
              `git_accounts_list` lists these accounts again."
         ));
     }
@@ -1377,7 +1377,7 @@ pub async fn build_account_context(
     }
 
     let account_block = format!(
-        "This project is configured with pre-attached credentials managed by Devdy:\n\
+        "This project is configured with pre-attached credentials managed by Puppeteer:\n\
          {}\n\n\
          Use gh / glab / git / aws / az / terraform as normal — the correct project account is already wired, \
          you do NOT need to login or provide a token/credential. Some credential-touching \
@@ -1476,7 +1476,7 @@ async fn cloud_account_lines(db: &Db, project_id: &str) -> Vec<String> {
     }
     if multi_aws || multi_azure {
         lines.push(
-            "Choose the cloud account that owns the resources you are working on. The devdy MCP \
+            "Choose the cloud account that owns the resources you are working on. The puppeteer MCP \
              tool `cloud_accounts_list` lists these accounts again."
                 .to_string(),
         );
@@ -2361,7 +2361,7 @@ mod tests {
             "{ctx}"
         );
         assert!(ctx.contains("- GitHub: account \"work\" (@worker) on github.com — email worker@x.io"), "{ctx}");
-        assert!(ctx.contains("DEVDY_GIT_ACCOUNT=work gh pr list"), "{ctx}");
+        assert!(ctx.contains("PUPPETEER_GIT_ACCOUNT=work gh pr list"), "{ctx}");
         // A pinned run defaults to its pin.
         let ctx = build_account_context(&db, "p1", Some("run-inbox")).await.unwrap();
         assert!(
@@ -2393,7 +2393,7 @@ mod tests {
         let ctx = build_account_context(&db, "p1", None).await.unwrap();
         assert!(ctx.contains("- AWS: account \"main\" (111111111111) in ap-1 via profile main-sso\n"), "{ctx}");
         assert!(ctx.contains("- AWS: account \"prod\" (222222222222) in us-1 via profile prod-sso — default\n"), "{ctx}");
-        assert!(ctx.contains("DEVDY_AWS_ACCOUNT=prod aws s3 ls"), "{ctx}");
+        assert!(ctx.contains("PUPPETEER_AWS_ACCOUNT=prod aws s3 ls"), "{ctx}");
         // A single Azure account is listed without a default marker or selector hint.
         assert!(ctx.contains("- Azure: account \"Az\" with default subscription \"Dev\" (sub-1) in tenant ten-1\n"), "{ctx}");
         assert!(!ctx.contains(AZURE_ACCOUNT_ENV), "{ctx}");

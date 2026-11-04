@@ -9,7 +9,7 @@
  * A project uses at most one Claude account: switching one on moves the link
  * there, switching it off returns the project to the default account.
  *
- * The built-in `devdy` MCP server is an app-wide setting today; while the Host
+ * The built-in `puppeteer` MCP server is an app-wide setting today; while the Host
  * reports it `global`, its row says so, since flipping it changes every project.
  */
 import { computed, watch } from 'vue'
@@ -154,7 +154,7 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
                   <p class="truncate text-sm font-medium">{{ t('controller.projectToggles.builtin') }}</p>
                   <p class="truncate text-[11px] text-muted-foreground">
                     {{
-                      current.builtin_devdy.global
+                      current.builtin_puppeteer.global
                         ? t('controller.projectToggles.builtinGlobal')
                         : t('controller.projectToggles.builtinHint')
                     }}
@@ -163,19 +163,19 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
                 <button
                   type="button"
                   role="switch"
-                  :aria-checked="current.builtin_devdy.enabled"
+                  :aria-checked="current.builtin_puppeteer.enabled"
                   :aria-label="
-                    current.builtin_devdy.enabled
+                    current.builtin_puppeteer.enabled
                       ? t('controller.projectToggles.disable', { name: t('controller.projectToggles.builtin') })
                       : t('controller.projectToggles.enable', { name: t('controller.projectToggles.builtin') })
                   "
                   class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  :class="current.builtin_devdy.enabled ? 'bg-success' : 'bg-muted'"
-                  @click="emit('set', 'builtin_mcp', null, !current.builtin_devdy.enabled)"
+                  :class="current.builtin_puppeteer.enabled ? 'bg-success' : 'bg-muted'"
+                  @click="emit('set', 'builtin_mcp', null, !current.builtin_puppeteer.enabled)"
                 >
                   <span
                     class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                    :class="current.builtin_devdy.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'"
+                    :class="current.builtin_puppeteer.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'"
                   />
                 </button>
               </div>

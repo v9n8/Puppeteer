@@ -1,6 +1,6 @@
 {
-  "mainWindow": "Devdy — Cửa sổ chính",
-  "quit": "Thoát Devdy",
+  "mainWindow": "Puppeteer — Cửa sổ chính",
+  "quit": "Thoát Puppeteer",
   "untitledSession": "Phiên chưa đặt tên",
   "fileWindow": "Trình xem tệp",
   "ganttWindow": "Gantt",
@@ -11,7 +11,7 @@
   "runningSessions": "Phiên đang chạy ({count})",
   "noRunningSessions": "Không có phiên nào đang chạy",
   "backgroundProcesses": "Tiến trình nền ({count})",
-  "remoteDesktopWindow": "Devdy từ xa",
+  "remoteDesktopWindow": "Puppeteer từ xa",
   "remoteWindow": "{name} (từ xa)",
   "focus": "Focus",
   "focusOverdue": "Focus — {count} việc quá hạn"

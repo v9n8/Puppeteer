@@ -55,15 +55,15 @@
   },
   "otp": {
     "title": "Nhập mật khẩu hoặc mã",
-    "subtitle": "Nhập mật khẩu master từ xa của bạn, hoặc mã một lần hiển thị trên host Devdy, để hoàn tất kết nối.",
+    "subtitle": "Nhập mật khẩu master từ xa của bạn, hoặc mã một lần hiển thị trên host Puppeteer, để hoàn tất kết nối.",
     "host": "host {fp}…",
     "placeholder": "Mật khẩu hoặc mã",
     "connecting": "Đang kết nối…",
     "connect": "Kết nối"
   },
   "link": {
-    "title": "Devdy Remote",
-    "subtitle": "Mở remote link từ Devdy (quét QR hoặc dán bên dưới) để điều khiển phiên này một cách an toàn.",
+    "title": "Puppeteer Remote",
+    "subtitle": "Mở remote link từ Puppeteer (quét QR hoặc dán bên dưới) để điều khiển phiên này một cách an toàn.",
     "connectingFromScan": "Đang kết nối từ link đã quét…",
     "controllerLink": "Controller link",
     "linkPlaceholder": "Dán controller link (https://…/controller.html#…) vào đây",
@@ -76,9 +76,9 @@
     "passwordLogin": "Đăng nhập",
     "passwordWorking": "Đang đăng nhập…",
     "passwordFirst": "Nhập mật khẩu trước đã.",
-    "passwordHint": "Mất link? Master password đặt trong Devdy (Settings → Remote Control) kết nối thẳng tới host. Sai 5 lần sẽ bị khóa 5 phút.",
+    "passwordHint": "Mất link? Master password đặt trong Puppeteer (Settings → Remote Control) kết nối thẳng tới host. Sai 5 lần sẽ bị khóa 5 phút.",
     "loginWrongPassword": "Sai mật khẩu (hoặc thử quá nhiều lần — đợi vài phút).",
-    "loginHostOffline": "Không kết nối được tới Devdy: kiểm tra app đang chạy, đã bật Remote Control và đặt master password.",
+    "loginHostOffline": "Không kết nối được tới Puppeteer: kiểm tra app đang chạy, đã bật Remote Control và đặt master password.",
     "loginNetwork": "Không kết nối được tới relay. Kiểm tra mạng rồi thử lại.",
     "deviceLabel": "Thiết bị",
     "devicePlaceholder": "Tên thiết bị (không bắt buộc)",
@@ -144,7 +144,7 @@
       "not_found": "Mục này không còn trên host (đã bị xoá ở nơi khác?).",
       "malformed": "Host từ chối thay đổi (dữ liệu không hợp lệ).",
       "rate_limited": "Thay đổi quá nhanh — đợi một chút rồi thử lại.",
-      "action_not_allowed": "Host chưa hỗ trợ chức năng này — hãy cập nhật Devdy trên máy tính.",
+      "action_not_allowed": "Host chưa hỗ trợ chức năng này — hãy cập nhật Puppeteer trên máy tính.",
       "failed": "Host không lưu được thay đổi.",
       "generic": "Host từ chối thay đổi: {reason}",
       "load_timeout": "Host không phản hồi — hãy thử tải lại."
@@ -220,7 +220,7 @@
     "mcp": "MCP server",
     "skills": "Skill",
     "rules": "Rule",
-    "builtin": "devdy (built-in)",
+    "builtin": "puppeteer (built-in)",
     "builtinHint": "Notes, todos, sessions…",
     "builtinGlobal": "Áp dụng cho mọi project",
     "none": "Chưa cài mục nào.",
@@ -243,14 +243,14 @@
       "on": "Đang bật — điện thoại sẽ báo khi có việc cần duyệt hoặc phiên chạy xong.",
       "off": "Đang tắt — bật để nhận thông báo cả khi khoá máy.",
       "loading": "Đang kiểm tra…",
-      "denied": "Thông báo của Devdy đang bị chặn. Cho phép lại trong cài đặt trình duyệt hoặc hệ thống rồi quay lại đây.",
+      "denied": "Thông báo của Puppeteer đang bị chặn. Cho phép lại trong cài đặt trình duyệt hoặc hệ thống rồi quay lại đây.",
       "unsupported": "Trình duyệt này không nhận được thông báo đẩy.",
-      "needs_install": "Trên iPhone/iPad, thông báo chỉ hoạt động khi Devdy đã được thêm vào Màn hình chính:"
+      "needs_install": "Trên iPhone/iPad, thông báo chỉ hoạt động khi Puppeteer đã được thêm vào Màn hình chính:"
     },
     "install": {
       "share": "Trong Safari, bấm nút Chia sẻ",
       "add": "Chọn “Thêm vào MH chính”",
-      "open": "Mở Devdy từ Màn hình chính, đăng nhập rồi bật thông báo tại đây"
+      "open": "Mở Puppeteer từ Màn hình chính, đăng nhập rồi bật thông báo tại đây"
     },
     "kinds": {
       "pending": "việc cần duyệt",

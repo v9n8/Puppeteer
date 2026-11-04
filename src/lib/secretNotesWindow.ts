@@ -5,7 +5,7 @@
 //
 // The vault commands (src-tauri/src/commands/secret_vault.rs) refuse every other
 // local webview. From a remote-desktop window it opens as `remote-secret-notes`,
-// driving the controlled Devdy's vault through its bridge.
+// driving the controlled Puppeteer's vault through its bridge.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
@@ -62,7 +62,7 @@ export async function openSecretNotesWindow(
   const height = 720
   const win = new WebviewWindow(label, {
     url: popoutUrl(`index.html?${params.toString()}`),
-    title: 'Secret notes — Devdy',
+    title: 'Secret notes — Puppeteer',
     width,
     height,
     minWidth: 760,

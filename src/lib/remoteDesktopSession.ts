@@ -1,11 +1,11 @@
 /**
  * The remote-desktop window's sign-in record: the session link + token the
- * controlled Devdy granted on password login, kept in this machine's webview
+ * controlled Puppeteer granted on password login, kept in this machine's webview
  * localStorage so the window reconnects without asking again.
  */
 import type { SessionLinkPayload } from '@/controller/protocol'
 
-export const REMOTE_DESKTOP_STORAGE_KEY = 'devdy.remoteDesktop.v1'
+export const REMOTE_DESKTOP_STORAGE_KEY = 'puppeteer.remoteDesktop.v1'
 
 export interface RemoteDesktopSession {
   link: SessionLinkPayload

@@ -13,7 +13,7 @@ export default defineConfig(async () => ({
   resolve: {
     // Remote desktop: every `invoke` / `listen` the UI makes goes through the
     // IPC shim (src/lib/ipc), which talks to the local backend or — in a
-    // remote-desktop window — to another Devdy over the relay. The shim reaches
+    // remote-desktop window — to another Puppeteer over the relay. The shim reaches
     // the real modules through the `@tauri-real/*` aliases. Tauri's own modules
     // import each other relatively, so they always get the real ones.
     alias: [
@@ -39,7 +39,6 @@ export default defineConfig(async () => ({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         controller: fileURLToPath(new URL('./controller.html', import.meta.url)),
-        mascot: fileURLToPath(new URL('./mascot.html', import.meta.url)),
         bridge: fileURLToPath(new URL('./bridge.html', import.meta.url)),
       },
     },

@@ -1,7 +1,7 @@
 //! Background process tracker.
 //!
-//! Every long-lived process Devdy spawns (run sidecars, warm translate / Focus AI
-//! sessions, mascot, probes, MCP tests, per-run ssh-agents) is registered here.
+//! Every long-lived process Puppeteer spawns (run sidecars, warm translate / Focus AI
+//! sessions, probes, MCP tests, per-run ssh-agents) is registered here.
 //! A periodic `ps` sample follows each one's whole tree — its process group plus
 //! every descendant by parent link, so children that `setsid()` out of the group
 //! are still found — and the list is persisted, so processes that outlive their
@@ -37,7 +37,6 @@ pub enum ProcKind {
     /// One-shot Focus AI engine (P3); was the Pulse digest engine.
     #[serde(alias = "pulse_digest")]
     FocusAi,
-    Mascot,
     Probe,
     McpTest,
     SshAgent,
@@ -744,7 +743,7 @@ mod tests {
     #[test]
     fn recycled_pid_is_not_ours() {
         let t = ProcTracker::default();
-        let g = t.register(ProcSpec::new(ProcKind::Mascot, "m"), 300);
+        let g = t.register(ProcSpec::new(ProcKind::Probe, "m"), 300);
         t.apply_sample(&[row(300, 1, 300)]);
         drop(g);
         let mut other = row(300, 1, 300);
@@ -764,7 +763,7 @@ mod tests {
 
     #[test]
     fn persisted_entries_become_orphans() {
-        let dir = std::env::temp_dir().join(format!("devdy-procs-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-procs-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("procs.json");
         {
@@ -784,7 +783,7 @@ mod tests {
 
     #[test]
     fn unstamped_pid_from_a_previous_session_is_not_trusted() {
-        let dir = std::env::temp_dir().join(format!("devdy-procs-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-procs-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("procs.json");
         {

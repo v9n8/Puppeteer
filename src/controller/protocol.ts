@@ -1,5 +1,5 @@
 /**
- * Devdy Remote Control — Controller wire protocol (SRS §5).
+ * Puppeteer Remote Control — Controller wire protocol (SRS §5).
  *
  * Byte-for-byte mirror of the relay's `relay/src/protocol.rs` and the Host's
  * `src-tauri/src/remote/protocol.rs`. The Controller is a relay *client*: it
@@ -465,7 +465,7 @@ export interface ToggleItem {
   enabled: boolean
 }
 
-/** The built-in `devdy` MCP server switch; `global` while it is app-wide. */
+/** The built-in `puppeteer` MCP server switch; `global` while it is app-wide. */
 export interface BuiltinToggle {
   enabled: boolean
   global: boolean
@@ -485,7 +485,7 @@ export interface ProjectTogglesKind {
   mcp_servers: ToggleItem[]
   skills: ToggleItem[]
   rules: ToggleItem[]
-  builtin_devdy: BuiltinToggle
+  builtin_puppeteer: BuiltinToggle
   servers: ToggleItem[]
   github_accounts: ToggleItem[]
   gitlab_accounts: ToggleItem[]
@@ -797,14 +797,14 @@ export function parseStreamPayload(json: unknown): StreamPayload | null {
           name: i.name,
           enabled: i.enabled,
         }))
-      const b = (o.builtin_devdy ?? {}) as Record<string, unknown>
+      const b = (o.builtin_puppeteer ?? {}) as Record<string, unknown>
       return {
         kind: 'project_toggles',
         project_id: o.project_id,
         mcp_servers: items(o.mcp_servers),
         skills: items(o.skills),
         rules: items(o.rules),
-        builtin_devdy: { enabled: b.enabled !== false, global: b.global !== false },
+        builtin_puppeteer: { enabled: b.enabled !== false, global: b.global !== false },
         servers: items(o.servers),
         github_accounts: items(o.github_accounts),
         gitlab_accounts: items(o.gitlab_accounts),
@@ -1067,7 +1067,7 @@ export interface NotePatchWire {
   project_id?: string | null
 }
 
-/** `project_toggle_set` kinds; `builtin_mcp` is the app-wide `devdy` server. */
+/** `project_toggle_set` kinds; `builtin_mcp` is the app-wide `puppeteer` server. */
 export type ToggleKind =
   | 'skill'
   | 'rule'
@@ -1090,7 +1090,7 @@ export const FEATURE_OUTPUT_BATCH = 'output_batch'
  */
 export const FEATURE_MULTI_RUN = 'multi_run'
 
-/** Advertise a remote-desktop Controller: the normal Devdy UI whose
+/** Advertise a remote-desktop Controller: the normal Puppeteer UI whose
  * `invoke` / `listen` run on the Host (`ipc_*` commands). Sent alone — such a
  * Controller understands none of the run-streaming payloads. */
 export const FEATURE_IPC = 'ipc'

@@ -91,7 +91,7 @@ export function runStatusDot(status: string): string {
 const REF_TAG: Record<LinkKind, string> = { slack: 'Slack', note: 'Note', todo: 'Todo' }
 
 /**
- * The one-line composer reference the AI resolves through the devdy MCP tools:
+ * The one-line composer reference the AI resolves through the puppeteer MCP tools:
  * `[Slack] <title> (id: …)`, `[Note] <title> (id: …)`, `[Todo] (id: …)`.
  */
 export function linkReference(kind: LinkKind, id: string, title?: string): string {

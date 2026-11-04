@@ -15,8 +15,8 @@ try { rmSync(marker) } catch {}
 
 function baseEnv(mode, extra) {
   const e = { ...process.env }
-  delete e.DEVDY_RESUME_SESSION
-  return { ...e, DEVDY_PERMISSION_MODE: mode || 'default', ...extra }
+  delete e.PUPPETEER_RESUME_SESSION
+  return { ...e, PUPPETEER_PERMISSION_MODE: mode || 'default', ...extra }
 }
 // Phase 1 can create the thread under a DIFFERENT policy (e.g. the legacy
 // on-request default) to prove that resuming under `default` (untrusted) and
@@ -53,7 +53,7 @@ function phase1() {
     const finish = () => { if (done) return; done = true; try { child.kill() } catch {}; resolve(threadId) }
     readLines(child, (m) => {
       if (m.type === 'system' && m.subtype === 'init' && m.session_id) threadId = m.session_id
-      if (m.type === '_devdy_error') console.error('[p1 error]', m.error)
+      if (m.type === '_puppeteer_error') console.error('[p1 error]', m.error)
       if (m.type === 'result') setTimeout(finish, 300)
     })
     child.on('exit', finish)
@@ -65,7 +65,7 @@ function phase1() {
 // ── Phase 2: resume the thread, deny a marker write ────────────────────────
 function phase2(threadId) {
   return new Promise((resolve) => {
-    const child = spawnSidecar(baseEnv('default', { DEVDY_RESUME_SESSION: threadId }))
+    const child = spawnSidecar(baseEnv('default', { PUPPETEER_RESUME_SESSION: threadId }))
     let sawPermission = false, sentDeny = false, done = false
     const finish = () => {
       if (done) return; done = true; try { child.kill() } catch {}
@@ -74,11 +74,11 @@ function phase2(threadId) {
       resolve({ threadId, sawPermission, sentDeny, commandRan, pass: sawPermission && sentDeny && !commandRan })
     }
     readLines(child, (m) => {
-      if (m.type === '_devdy_permission_request' && !sawPermission) {
+      if (m.type === '_puppeteer_permission_request' && !sawPermission) {
         sawPermission = true; sentDeny = true
         child.stdin.write(JSON.stringify({ type: 'permission_response', requestId: m.requestId, decision: 'deny' }) + '\n')
       }
-      if (m.type === '_devdy_error') console.error('[p2 error]', m.error)
+      if (m.type === '_puppeteer_error') console.error('[p2 error]', m.error)
       if (m.type === 'result') setTimeout(finish, 500)
     })
     child.on('exit', finish)

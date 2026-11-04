@@ -143,7 +143,7 @@ watch(
 // ── Preview ─────────────────────────────────────────────────────────────────
 
 type ViewMode = 'edit' | 'split' | 'preview'
-const VIEW_KEY = 'devdy.rules.view'
+const VIEW_KEY = 'puppeteer.rules.view'
 const viewMode = ref<ViewMode>(readViewMode())
 const viewModes = computed(() => [
   { value: 'edit' as const, label: t('rules.detail.markdown'), icon: Pencil },

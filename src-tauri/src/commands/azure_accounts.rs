@@ -1,6 +1,6 @@
 //! Azure account management.
 //!
-//! Each Devdy Azure account is an isolated Azure CLI config dir
+//! Each Puppeteer Azure account is an isolated Azure CLI config dir
 //! (`AZURE_CONFIG_DIR`, see `azure_sandbox`). Sign-in happens in-app via
 //! `az login` (browser flow) INTO that dir, and the chosen subscription is set as the dir's default
 //! there with `az account set`. The user's own `~/.azure` is never touched.
@@ -26,7 +26,7 @@ pub(crate) const AZURE_LOGIN_REQUIRED: &str = "AZURE_LOGIN_REQUIRED";
 
 /// Inherited Azure / azurerm credential env that must never leak into an `az`
 /// invocation (app-side) or a run's sidecar: each would let the CLI or an SDK
-/// authenticate as something other than the Devdy-managed account.
+/// authenticate as something other than the Puppeteer-managed account.
 pub(crate) const AZURE_CREDENTIAL_ENV: &[&str] = &[
     "AZURE_CLIENT_ID",
     "AZURE_CLIENT_SECRET",
@@ -786,7 +786,7 @@ mod tests {
                 base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(c)
             )
         };
-        let dir = std::env::temp_dir().join(format!("devdy-az-mfa-{}", Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-az-mfa-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let cache = serde_json::json!({ "AccessToken": {
             "old": { "target": "https://management.core.windows.net//.default", "cached_at": "100", "secret": enc(r#"{"amr":["mfa"]}"#) },

@@ -29,7 +29,7 @@ export interface SessionScrollMemo {
   updatedAt: number
 }
 
-const STORAGE_KEY = 'devdy.sessionScroll'
+const STORAGE_KEY = 'puppeteer.sessionScroll'
 /** Most recent sessions remembered per project. */
 const MAX_PER_PROJECT = 10
 const MAX_TOTAL = 300

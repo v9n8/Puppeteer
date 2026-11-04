@@ -694,7 +694,7 @@ pub async fn focus_day_plan_get(
     load_plan(db.inner(), &date).await
 }
 
-/// Create a Google Calendar event `[Devdy] <todo>` per block of `date` (all,
+/// Create a Google Calendar event `[Puppeteer] <todo>` per block of `date` (all,
 /// or `block_ids`) not pushed yet, on the primary calendar of the Focus
 /// account (Settings → Focus) or else the default Google account.
 /// Dates whose plan is being pushed to Calendar.
@@ -787,7 +787,7 @@ pub async fn focus_plan_to_calendar(
             }
         };
         let payload = crate::commands::gcalendar::EventPayload {
-            summary: Some(format!("[Devdy] {title}")),
+            summary: Some(format!("[Puppeteer] {title}")),
             description: (!b.note.is_empty()).then(|| b.note.clone()),
             start: Some(crate::commands::gcalendar::EventDateTimePayload {
                 date_time: Some(start),

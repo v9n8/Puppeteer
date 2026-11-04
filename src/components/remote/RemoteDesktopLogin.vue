@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Sign-in screen of the remote-desktop window (`?remote=1`) when no session is
- * stored yet: the controlled Devdy's device name + its master password, over
+ * stored yet: the controlled Puppeteer's device name + its master password, over
  * the relay THIS machine is configured with. On success the granted link +
  * token are stored and the window reloads into the remote app.
  */
@@ -17,7 +17,7 @@ import { saveRemoteDesktopSession } from '@/lib/remoteDesktopSession'
 const { t } = useI18n()
 
 /** Last device signed in to, prefilled next time. */
-const LAST_DEVICE_KEY = 'devdy.remoteDesktop.lastDevice'
+const LAST_DEVICE_KEY = 'puppeteer.remoteDesktop.lastDevice'
 
 const device = ref(readLastDevice())
 const password = ref('')

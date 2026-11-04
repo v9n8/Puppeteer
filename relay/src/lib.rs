@@ -1,4 +1,4 @@
-//! Devdy Remote Control Relay — library crate.
+//! Puppeteer Remote Control Relay — library crate.
 //!
 //! A WebSocket bridge (SRS-RC-C1, Unit U1) that routes opaque, E2E-encrypted
 //! envelopes between a Host and a single Controller by `room_id`. The relay

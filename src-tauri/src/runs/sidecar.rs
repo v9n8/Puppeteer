@@ -6,12 +6,12 @@
 //!
 //! - Raw stream-json SDK messages are emitted verbatim → parsed exactly like the
 //!   old CLI output and forwarded on `run:event:<run_id>`.
-//! - Control messages are namespaced `_devdy_*`:
-//!     `_devdy_permission_request` → emitted on `run:permission_request:<run_id>`;
+//! - Control messages are namespaced `_puppeteer_*`:
+//!     `_puppeteer_permission_request` → emitted on `run:permission_request:<run_id>`;
 //!         the frontend answers via `respond_permission`, which writes a
 //!         `permission_response` line back to the sidecar's stdin.
-//!     `_devdy_stderr` / `_devdy_error` → surfaced on `run:output:<run_id>`.
-//!     `_devdy_ready` / `_devdy_done` / `_devdy_closed` → lifecycle, swallowed.
+//!     `_puppeteer_stderr` / `_puppeteer_error` → surfaced on `run:output:<run_id>`.
+//!     `_puppeteer_ready` / `_puppeteer_done` / `_puppeteer_closed` → lifecycle, swallowed.
 //!
 //! Auth: the SDK uses its bundled CLI, which reads the same macOS Keychain login
 //! as `claude` — so runs bill against the user's subscription, no API key.
@@ -36,10 +36,10 @@ const CLAUDE_AUTH_OVERRIDE_ENV: &[&str] = &[
     "ANTHROPIC_PROFILE",
 ];
 
-/// Apply a Devdy-managed Claude profile to a spawned sidecar/CLI.
+/// Apply a Puppeteer-managed Claude profile to a spawned sidecar/CLI.
 ///
 /// We only clear auth override env vars when a managed profile is selected, so
-/// legacy installs that intentionally launch Devdy with global env auth keep the
+/// legacy installs that intentionally launch Puppeteer with global env auth keep the
 /// old behavior until they opt into Claude accounts.
 pub fn apply_claude_config_dir(cmd: &mut tokio::process::Command, config_dir: Option<&str>) {
     let Some(config_dir) = config_dir.map(str::trim).filter(|v| !v.is_empty()) else {
@@ -64,7 +64,7 @@ pub fn apply_mcp_tool_timeout(cmd: &mut tokio::process::Command) {
     }
 }
 
-/// Map a Devdy permission mode onto a permission mode the Agent SDK accepts.
+/// Map a Puppeteer permission mode onto a permission mode the Agent SDK accepts.
 /// Unknown/legacy modes (`auto`, `dontAsk`) fall back to `default`.
 pub fn sdk_permission_mode(mode: &str) -> &'static str {
     match mode {
@@ -78,23 +78,23 @@ pub fn sdk_permission_mode(mode: &str) -> &'static str {
 /// Resolve the Node binary and the sidecar entry script.
 ///
 /// Resolution order for the script: explicit `sidecar_override` setting →
-/// `DEVDY_SIDECAR_PATH` env → bundled `<resource_dir>/sidecar/index.mjs` →
+/// `PUPPETEER_SIDECAR_PATH` env → bundled `<resource_dir>/sidecar/index.mjs` →
 /// dev fallback `<crate>/../sidecar/index.mjs`.
 pub fn resolve_sidecar(
     app: &AppHandle,
     node_path: &str,
     sidecar_override: &str,
 ) -> Result<(String, PathBuf), String> {
-    resolve_sidecar_script(app, node_path, sidecar_override, "DEVDY_SIDECAR_PATH", "sidecar", "Claude")
+    resolve_sidecar_script(app, node_path, sidecar_override, "PUPPETEER_SIDECAR_PATH", "sidecar", "Claude")
 }
 
-/// Best-effort path to the built-in `devdy` MCP server script
+/// Best-effort path to the built-in `puppeteer` MCP server script
 /// (`sidecar-mcp/index.mjs`). Mirrors `resolve_sidecar_script` resolution
-/// (`DEVDY_MCP_SIDECAR_PATH` env → bundled resource → dev fallback) but never
+/// (`PUPPETEER_MCP_SIDECAR_PATH` env → bundled resource → dev fallback) but never
 /// errors: the caller skips injecting the built-in server when the file is
 /// absent, so a missing script degrades gracefully instead of failing a run.
 pub fn resolve_mcp_sidecar_script(app: &AppHandle) -> PathBuf {
-    if let Ok(p) = std::env::var("DEVDY_MCP_SIDECAR_PATH") {
+    if let Ok(p) = std::env::var("PUPPETEER_MCP_SIDECAR_PATH") {
         return PathBuf::from(p);
     }
     let bundled = app
@@ -113,11 +113,11 @@ pub fn resolve_mcp_sidecar_script(app: &AppHandle) -> PathBuf {
 
 /// Best-effort path to a sibling built-in MCP server script inside the bundled
 /// `sidecar-mcp/` directory (e.g. `google.mjs`). Same resolution as
-/// [`resolve_mcp_sidecar_script`] (`DEVDY_MCP_SIDECAR_DIR` env → bundled resource
+/// [`resolve_mcp_sidecar_script`] (`PUPPETEER_MCP_SIDECAR_DIR` env → bundled resource
 /// → dev fallback); never errors — callers skip injection when the file is
 /// absent.
 pub fn resolve_mcp_script(app: &AppHandle, filename: &str) -> PathBuf {
-    if let Ok(dir) = std::env::var("DEVDY_MCP_SIDECAR_DIR") {
+    if let Ok(dir) = std::env::var("PUPPETEER_MCP_SIDECAR_DIR") {
         return PathBuf::from(dir).join(filename);
     }
     let bundled = app
@@ -134,7 +134,7 @@ pub fn resolve_mcp_script(app: &AppHandle, filename: &str) -> PathBuf {
     })
 }
 
-/// Path to Devdy's SQLite store (`<app_data_dir>/data.db`), passed to the
+/// Path to Puppeteer's SQLite store (`<app_data_dir>/data.db`), passed to the
 /// built-in MCP server so it can read notes/sessions. Falls back to a bare
 /// `data.db` if the app data dir can't be resolved (the MCP tools then error
 /// out cleanly rather than the run failing).
@@ -156,7 +156,7 @@ pub fn resolve_codex_sidecar(
         app,
         node_path,
         sidecar_override,
-        "DEVDY_CODEX_SIDECAR_PATH",
+        "PUPPETEER_CODEX_SIDECAR_PATH",
         "sidecar-codex",
         "Codex",
     )
@@ -218,9 +218,9 @@ fn probe_shell_env() -> &'static (Option<String>, Option<String>) {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         // -l (login) + -i (interactive) so profile AND rc files (nvm/fnm shims)
         // are sourced. Markers bracket the values so rc-file noise is ignored.
-        let script = "printf '__DEVDY_NODE__:'; \
+        let script = "printf '__PUPPETEER_NODE__:'; \
              node -e 'process.stdout.write(process.execPath)' 2>/dev/null; \
-             printf '\\n__DEVDY_PATH__:%s\\n' \"$PATH\"";
+             printf '\\n__PUPPETEER_PATH__:%s\\n' \"$PATH\"";
         let out = std::process::Command::new(&shell)
             .args(["-lic", script])
             .output()
@@ -235,7 +235,7 @@ fn probe_shell_env() -> &'static (Option<String>, Option<String>) {
             let line = s[idx..].lines().next().unwrap_or("").trim();
             (!line.is_empty()).then(|| line.to_string())
         };
-        (extract("__DEVDY_NODE__:"), extract("__DEVDY_PATH__:"))
+        (extract("__PUPPETEER_NODE__:"), extract("__PUPPETEER_PATH__:"))
     })
 }
 
@@ -308,13 +308,13 @@ pub fn detach_process_group(cmd: &mut tokio::process::Command) {
     }
 }
 
-/// [`detach_process_group`] for a Devdy Node sidecar (`sidecar/index.mjs`,
+/// [`detach_process_group`] for a Puppeteer Node sidecar (`sidecar/index.mjs`,
 /// `sidecar-codex/index.mjs`): also tells it that it leads its own group, so it
-/// tears the group down if Devdy dies (see the orphan guard there). The sidecar
+/// tears the group down if Puppeteer dies (see the orphan guard there). The sidecar
 /// removes the variable from its env before spawning anything.
 pub fn detach_sidecar_process_group(cmd: &mut tokio::process::Command) {
     detach_process_group(cmd);
-    cmd.env("DEVDY_OWN_PROCESS_GROUP", "1");
+    cmd.env("PUPPETEER_OWN_PROCESS_GROUP", "1");
 }
 
 /// Best-effort SIGKILL of the entire process group led by `pid` (Unix). Used on
@@ -548,16 +548,16 @@ pub async fn drain_sidecar(
     // Watchdog: nothing may wait forever silently, and nothing is stopped or
     // answered on suspicion. Policy lives in `runs::liveness` (notices only);
     // the drain itself only tears down on definitive evidence (process exited,
-    // stdout EOF, `_devdy_closed`).
+    // stdout EOF, `_puppeteer_closed`).
     let mut liveness = Liveness::new(tokio::time::Instant::now());
     let mut watchdog_tick = tokio::time::interval(WATCHDOG_TICK);
     watchdog_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    // Armed once the session is provably over (`_devdy_closed`, or the sidecar
+    // Armed once the session is provably over (`_puppeteer_closed`, or the sidecar
     // process exited). If stdout hasn't reached EOF by then, a descendant holds
     // it: we stop waiting and finish the run (descendants are left running —
     // they may be legitimate — and reported), instead of waiting forever.
     let mut exit_deadline: Option<tokio::time::Instant> = None;
-    // The exit code the sidecar reported with `_devdy_closed` (codex: the
+    // The exit code the sidecar reported with `_puppeteer_closed` (codex: the
     // app-server's code; claude: whether the session loop failed).
     let mut closed_code: Option<i64> = None;
     // …and the signal, when the engine was killed by one (codex: `code` is
@@ -567,7 +567,7 @@ pub async fn drain_sidecar(
     // We stopped reading because the session was over but its output pipes were
     // still held open by descendants.
     let mut detached = false;
-    // The sidecar reported a fatal `_devdy_error` that no later successful turn
+    // The sidecar reported a fatal `_puppeteer_error` that no later successful turn
     // superseded → the run ends `failed`.
     let mut unresolved_error = false;
 
@@ -695,7 +695,7 @@ pub async fn drain_sidecar(
                     }
                 }
             }
-            // The session is provably over (`_devdy_closed`, or the sidecar process
+            // The session is provably over (`_puppeteer_closed`, or the sidecar process
             // exited) yet stdout is still open: something it started inherited
             // the pipe. Nothing more can come from the session, so stop waiting
             // and finish the run. The descendants are NOT killed (they may be
@@ -721,12 +721,12 @@ pub async fn drain_sidecar(
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
 
-                        // Liveness bookkeeping: `_devdy_*` lines prove the sidecar
+                        // Liveness bookkeeping: `_puppeteer_*` lines prove the sidecar
                         // alive; anything else is the engine making progress.
                         let now = tokio::time::Instant::now();
                         let actions = match (parsed.as_ref(), kind) {
-                            (Some(_), "_devdy_heartbeat") => liveness.on_heartbeat(now),
-                            (Some(v), "_devdy_ready") => {
+                            (Some(_), "_puppeteer_heartbeat") => liveness.on_heartbeat(now),
+                            (Some(v), "_puppeteer_ready") => {
                                 let heartbeat = ready_declares_heartbeat(v);
                                 if !heartbeat {
                                     watchdog_line(
@@ -737,13 +737,13 @@ pub async fn drain_sidecar(
                                 }
                                 liveness.on_ready(now, heartbeat)
                             }
-                            (Some(_), k) if k.starts_with("_devdy_") => liveness.on_output(now),
+                            (Some(_), k) if k.starts_with("_puppeteer_") => liveness.on_output(now),
                             (Some(v), _) => liveness.on_engine_event(now, v),
                             (None, _) => liveness.on_output(now),
                         };
                         apply_liveness(actions, &app, &log_buf, &remote_bus, &run_id).await;
                         match (parsed.as_ref(), kind) {
-                            (Some(_), "_devdy_error") => unresolved_error = true,
+                            (Some(_), "_puppeteer_error") => unresolved_error = true,
                             (Some(v), "result") if v.get("subtype").and_then(|x| x.as_str()) == Some("success") => {
                                 unresolved_error = false;
                             }
@@ -752,12 +752,12 @@ pub async fn drain_sidecar(
 
                         match (parsed.as_ref(), kind) {
                             // ---- control: sidecar heartbeat (liveness only) -----
-                            (Some(_), "_devdy_heartbeat") => {}
+                            (Some(_), "_puppeteer_heartbeat") => {}
                             // ---- control: permission request withdrawn ----------
                             // The sidecar settled a request itself (the CLI cancelled
                             // the tool, or its input channel closed so no answer could
                             // ever arrive). Drop the prompt everywhere.
-                            (Some(v), "_devdy_permission_cancelled") => {
+                            (Some(v), "_puppeteer_permission_cancelled") => {
                                 let request_id = v.get("requestId").and_then(|x| x.as_str()).unwrap_or_default().to_string();
                                 let was_pending = crate::runs::permission::resolve_pending(&run_id, &request_id);
                                 // A paired phone holds the prompt too (its Inbox
@@ -780,7 +780,7 @@ pub async fn drain_sidecar(
                                 }
                             }
                             // ---- control: permission request --------------------
-                            (Some(v), "_devdy_permission_request") => {
+                            (Some(v), "_puppeteer_permission_request") => {
                                 let session_id = session_id_arc.lock().await.clone();
                                 let evt = PermissionRequestEvent {
                                     run_id: run_id.clone(),
@@ -821,7 +821,7 @@ pub async fn drain_sidecar(
                             // ---- control: diagnostic log (codex tracing / notes) -
                             // Carries a level so the UI renders it calmly, not as a
                             // system error. Only `error` level counts as stderr.
-                            (Some(v), "_devdy_log") => {
+                            (Some(v), "_puppeteer_log") => {
                                 let text = v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string();
                                 let level = v.get("level").and_then(|x| x.as_str()).unwrap_or("info").to_string();
                                 let is_err = level == "error";
@@ -839,7 +839,7 @@ pub async fn drain_sidecar(
                                 );
                             }
                             // ---- control: sidecar stderr / errors ---------------
-                            (Some(v), "_devdy_stderr") | (Some(v), "_devdy_error") => {
+                            (Some(v), "_puppeteer_stderr") | (Some(v), "_puppeteer_error") => {
                                 let text = v.get("text").or_else(|| v.get("error"))
                                     .and_then(|x| x.as_str()).unwrap_or("").to_string();
                                 append_log(&log_buf, &format!("[stderr] {}\n", text)).await;
@@ -860,7 +860,7 @@ pub async fn drain_sidecar(
                             // windows from the live session. Persisted as the
                             // latest-known plan-usage state and broadcast so the
                             // budget badge / settings panel refresh.
-                            (Some(v), "_devdy_usage") => {
+                            (Some(v), "_puppeteer_usage") => {
                                 if let Some(usage) = v.get("usage") {
                                     // Codex sidecar tags its snapshot `provider:"codex"`
                                     // and carries `rate_limits` directly; route it to
@@ -888,16 +888,16 @@ pub async fn drain_sidecar(
                             // (thread/start developer instructions, or a one-time
                             // <session-framing> seed on a resumed turn). Persisted so
                             // later resumes don't seed it again.
-                            (Some(_), "_devdy_framing_seeded") => {
+                            (Some(_), "_puppeteer_framing_seeded") => {
                                 crate::conductor::commands::mark_framing_seeded(&db_pool, &run_id).await;
                             }
                             // ---- control: lifecycle (swallow) -------------------
-                            (Some(_), "_devdy_ready") | (Some(_), "_devdy_done") => {}
+                            (Some(_), "_puppeteer_ready") | (Some(_), "_puppeteer_done") => {}
                             // The session is torn down for good (finished, or the
                             // engine died). Release stdin so the sidecar can exit,
                             // and make sure it does: a sidecar lingering here would
                             // keep the run "running" and silently swallow follow-ups.
-                            (Some(v), "_devdy_closed") => {
+                            (Some(v), "_puppeteer_closed") => {
                                 closed_code = v.get("code").and_then(|c| c.as_i64());
                                 closed_signal = v
                                     .get("signal")
@@ -1297,13 +1297,13 @@ fn detach_notice(pgid: Option<u32>) -> String {
         Some(pgid) => format!(
             "⚠ The session has ended, but process(es) it started are still running (process group {pgid}) and kept its output open. They were left running and are listed under Background processes, where you can stop them (or run `kill -TERM -{pgid}`)."
         ),
-        None => "⚠ The session has ended, but a process it started (outside its process group) is still holding its output open. Devdy stopped waiting for it and left it running; it is listed under Background processes.".to_string(),
+        None => "⚠ The session has ended, but a process it started (outside its process group) is still holding its output open. Puppeteer stopped waiting for it and left it running; it is listed under Background processes.".to_string(),
     }
 }
 
 /// Final status of a run whose sidecar is gone. `cancelled` wins (the user
 /// stopped it); otherwise `failed` when the session ended on an unresolved
-/// `_devdy_error`, reported a non-zero code or a signal with `_devdy_closed`, or
+/// `_puppeteer_error`, reported a non-zero code or a signal with `_puppeteer_closed`, or
 /// the process exited unsuccessfully. An unknown exit status (not reaped yet,
 /// or left running when we stopped waiting) counts as success.
 fn final_run_status(
@@ -1325,7 +1325,7 @@ fn final_run_status(
     }
 }
 
-/// Does this `_devdy_ready` declare the sidecar's liveness heartbeat?
+/// Does this `_puppeteer_ready` declare the sidecar's liveness heartbeat?
 fn ready_declares_heartbeat(ready: &Value) -> bool {
     ready
         .pointer("/capabilities/heartbeat_ms")
@@ -1883,7 +1883,7 @@ mod log_flusher_tests {
     use super::{ends_with_newline, LogFlusher};
 
     fn tmp(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-log-flush-{}", uuid::Uuid::new_v4().simple()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-log-flush-{}", uuid::Uuid::new_v4().simple()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.join(name)
     }
@@ -2198,7 +2198,7 @@ mod turn_end_tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn detach_notice_when_holder_left_the_group() {
-        let pid_file = std::env::temp_dir().join(format!("devdy-setsid-{}", uuid::Uuid::new_v4()));
+        let pid_file = std::env::temp_dir().join(format!("puppeteer-setsid-{}", uuid::Uuid::new_v4()));
         let mut cmd = tokio::process::Command::new("sh");
         // The holder starts a new session, so it is no longer in our process
         // group (perl's POSIX::setsid is a portable setsid), records its pid,
@@ -2266,14 +2266,14 @@ mod turn_end_tests {
             final_run_status(false, false, None, None, sigkill),
             "failed"
         );
-        // `_devdy_closed { code: 1 }` (e.g. codex app-server exited 1): failed even
+        // `_puppeteer_closed { code: 1 }` (e.g. codex app-server exited 1): failed even
         // when the process itself exited cleanly or was left running (detached).
         assert_eq!(final_run_status(false, false, Some(1), None, ok), "failed");
         assert_eq!(
             final_run_status(false, false, Some(1), None, None),
             "failed"
         );
-        // `_devdy_closed { code: null, signal: "SIGTERM" }` (codex killed by a
+        // `_puppeteer_closed { code: null, signal: "SIGTERM" }` (codex killed by a
         // signal): failed, even if the process exit itself looked clean.
         assert_eq!(
             final_run_status(false, false, None, Some("SIGTERM"), ok),
@@ -2292,10 +2292,10 @@ mod turn_end_tests {
 
     #[test]
     fn ready_capability_detection() {
-        let ready = serde_json::json!({ "type": "_devdy_ready", "capabilities": { "heartbeat_ms": 30000 } });
+        let ready = serde_json::json!({ "type": "_puppeteer_ready", "capabilities": { "heartbeat_ms": 30000 } });
         assert!(ready_declares_heartbeat(&ready));
         assert!(!ready_declares_heartbeat(
-            &serde_json::json!({ "type": "_devdy_ready" })
+            &serde_json::json!({ "type": "_puppeteer_ready" })
         ));
     }
 

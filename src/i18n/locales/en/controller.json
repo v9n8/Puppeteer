@@ -55,15 +55,15 @@
   },
   "otp": {
     "title": "Enter password or code",
-    "subtitle": "Type your remote master password, or the one-time code shown on your Devdy host, to finish connecting.",
+    "subtitle": "Type your remote master password, or the one-time code shown on your Puppeteer host, to finish connecting.",
     "host": "host {fp}…",
     "placeholder": "Password or code",
     "connecting": "Connecting…",
     "connect": "Connect"
   },
   "link": {
-    "title": "Devdy Remote",
-    "subtitle": "Open the remote link from Devdy (scan the QR or paste it below) to control this session securely.",
+    "title": "Puppeteer Remote",
+    "subtitle": "Open the remote link from Puppeteer (scan the QR or paste it below) to control this session securely.",
     "connectingFromScan": "Connecting from the scanned link…",
     "controllerLink": "Controller link",
     "linkPlaceholder": "Paste the controller link (https://…/controller.html#…) here",
@@ -76,9 +76,9 @@
     "passwordLogin": "Sign in",
     "passwordWorking": "Signing in…",
     "passwordFirst": "Enter the password first.",
-    "passwordHint": "Lost the link? The master password set in Devdy (Settings → Remote Control) reaches your host directly. 5 wrong tries lock it for 5 minutes.",
+    "passwordHint": "Lost the link? The master password set in Puppeteer (Settings → Remote Control) reaches your host directly. 5 wrong tries lock it for 5 minutes.",
     "loginWrongPassword": "Wrong password (or too many tries — wait a few minutes).",
-    "loginHostOffline": "Devdy is not reachable: make sure it is running with Remote Control on and a master password set.",
+    "loginHostOffline": "Puppeteer is not reachable: make sure it is running with Remote Control on and a master password set.",
     "loginNetwork": "Could not reach the relay. Check your connection and try again.",
     "deviceLabel": "Device",
     "devicePlaceholder": "Device name (optional)",
@@ -144,7 +144,7 @@
       "not_found": "It no longer exists on the host (deleted elsewhere?).",
       "malformed": "The host refused the change (invalid input).",
       "rate_limited": "Too many changes — wait a moment and try again.",
-      "action_not_allowed": "This host does not support this yet — update Devdy on the desktop.",
+      "action_not_allowed": "This host does not support this yet — update Puppeteer on the desktop.",
       "failed": "The host could not save the change.",
       "generic": "The host refused the change: {reason}",
       "load_timeout": "The host did not answer — pull to refresh or try again."
@@ -220,7 +220,7 @@
     "mcp": "MCP server",
     "skills": "Skill",
     "rules": "Rule",
-    "builtin": "devdy (built-in)",
+    "builtin": "puppeteer (built-in)",
     "builtinHint": "Notes, todos, sessions…",
     "builtinGlobal": "Applies to every project",
     "none": "None installed.",
@@ -243,14 +243,14 @@
       "on": "On — this phone is notified when something needs you or a run finishes.",
       "off": "Off — turn on to get notified while the phone is locked.",
       "loading": "Checking…",
-      "denied": "Notifications are blocked for Devdy. Allow them in the browser or system settings, then come back.",
+      "denied": "Notifications are blocked for Puppeteer. Allow them in the browser or system settings, then come back.",
       "unsupported": "This browser cannot receive push notifications.",
-      "needs_install": "On iPhone and iPad, notifications only work once Devdy is on your Home Screen:"
+      "needs_install": "On iPhone and iPad, notifications only work once Puppeteer is on your Home Screen:"
     },
     "install": {
       "share": "In Safari, tap Share",
       "add": "Choose “Add to Home Screen”",
-      "open": "Open Devdy from the Home Screen, sign in, and turn notifications on here"
+      "open": "Open Puppeteer from the Home Screen, sign in, and turn notifications on here"
     },
     "kinds": {
       "pending": "approvals",

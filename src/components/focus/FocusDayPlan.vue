@@ -4,7 +4,7 @@
 // could not validate are dropped and counted), lists what it deferred, and the
 // plan is kept per day (`focus_day_plans`, re-planning overwrites it). Blocks
 // can be pushed to Google Calendar one by one or all at once as
-// `[Devdy] <todo>` events. Clicking a block opens its todo.
+// `[Puppeteer] <todo>` events. Clicking a block opens its todo.
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarCheck, CalendarPlus, Loader2, RefreshCw, Sparkles, X } from 'lucide-vue-next'

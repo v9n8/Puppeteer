@@ -1,6 +1,6 @@
 {
-  "mainWindow": "Devdy — Main Window",
-  "quit": "Quit Devdy",
+  "mainWindow": "Puppeteer — Main Window",
+  "quit": "Quit Puppeteer",
   "untitledSession": "Untitled Session",
   "fileWindow": "File Viewer",
   "ganttWindow": "Gantt",
@@ -11,7 +11,7 @@
   "runningSessions": "Running Sessions ({count})",
   "noRunningSessions": "No running sessions",
   "backgroundProcesses": "Background Processes ({count})",
-  "remoteDesktopWindow": "Remote Devdy",
+  "remoteDesktopWindow": "Remote Puppeteer",
   "remoteWindow": "{name} (remote)",
   "focus": "Focus",
   "focusOverdue": "Focus — {count} overdue"

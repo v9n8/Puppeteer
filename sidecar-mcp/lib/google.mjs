@@ -1,13 +1,13 @@
 // Shared plumbing for the built-in `google` MCP server (Drive / Gmail / Calendar).
 //
-// - OAuth: asks Devdy's credential broker (DEVDY_BROKER_SOCK, the socket the
+// - OAuth: asks Puppeteer's credential broker (PUPPETEER_BROKER_SOCK, the socket the
 //   gh shim uses) for a short-lived access token per account, so long runs keep
 //   working. Refresh tokens and the OAuth client
 //   secret never reach this process: its env and command line are readable by
 //   any process of the same user, the agent's own shell included.
 // - `gapi()`: thin authenticated fetch wrapper over the Google REST APIs.
 // - `runServer()`: hand-rolled JSON-RPC 2.0 stdio loop (async handlers), matching
-//   the built-in devdy server's protocol. Only JSON frames go to stdout; logs to
+//   the built-in puppeteer server's protocol. Only JSON frames go to stdout; logs to
 //   stderr. Zero runtime dependencies (Node 18+ global fetch).
 
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -38,7 +38,7 @@ const tokenCache = new Map(); // label → { accessToken, expiresAt }
 /** Resolve which account to use for the current call. */
 function resolveAccount(label) {
   if (!ACCOUNTS.length) {
-    throw new Error('No Google account connected. Add one in Devdy Settings → Google Account.');
+    throw new Error('No Google account connected. Add one in Puppeteer Settings → Google Account.');
   }
   if (label) {
     const found = ACCOUNTS.find((a) => a.label === label || a.email === label);
@@ -57,9 +57,9 @@ export function listAccounts() {
 
 /** One NDJSON request/response over the broker socket. */
 function askBroker(req) {
-  const sock = process.env.DEVDY_BROKER_SOCK;
-  if (!sock || !process.env.DEVDY_PROJECT_ID) {
-    return Promise.reject(new Error('Devdy credential broker not configured for this server.'));
+  const sock = process.env.PUPPETEER_BROKER_SOCK;
+  if (!sock || !process.env.PUPPETEER_PROJECT_ID) {
+    return Promise.reject(new Error('Puppeteer credential broker not configured for this server.'));
   }
   return new Promise((resolve, reject) => {
     const conn = net.createConnection(sock);
@@ -95,8 +95,8 @@ export async function getAccessToken({ refresh = false } = {}) {
   const cached = tokenCache.get(account.label);
   if (!refresh && cached && Date.now() < cached.expiresAt) return cached.accessToken;
   const resp = await askBroker({
-    project_id: process.env.DEVDY_PROJECT_ID,
-    run_id: process.env.DEVDY_RUN_ID || null,
+    project_id: process.env.PUPPETEER_PROJECT_ID,
+    run_id: process.env.PUPPETEER_RUN_ID || null,
     tool: 'google',
     argv: [],
     host: null,

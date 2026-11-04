@@ -278,7 +278,7 @@ export const useGoogleCalendarStore = defineStore('googleCalendar', () => {
   }
 
   // ── Lunar calendar overlay ────────────────────────────────────────────────
-  const LS_LUNAR = 'devdy.calendar.lunarEnabled'
+  const LS_LUNAR = 'puppeteer.calendar.lunarEnabled'
   const lunarEnabled = ref<boolean>(localStorage.getItem(LS_LUNAR) === '1')
   function setLunarEnabled(v: boolean) {
     lunarEnabled.value = v
@@ -286,8 +286,8 @@ export const useGoogleCalendarStore = defineStore('googleCalendar', () => {
   }
 
   // ── Reminders (app-wide; see CalendarReminder.vue) ────────────────────────
-  const LS_ENABLED = 'devdy.calendar.reminderEnabled'
-  const LS_LEAD = 'devdy.calendar.reminderLeadMin'
+  const LS_ENABLED = 'puppeteer.calendar.reminderEnabled'
+  const LS_LEAD = 'puppeteer.calendar.reminderLeadMin'
   const reminderEnabled = ref<boolean>(localStorage.getItem(LS_ENABLED) !== '0')
   const reminderLeadMin = ref<number>(Number(localStorage.getItem(LS_LEAD)) || 10)
   /** Events in the near-term window used to fire reminders (independent of the

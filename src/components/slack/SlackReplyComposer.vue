@@ -32,7 +32,7 @@ const props = defineProps<{ threadId: string }>()
 
 /** Typing pause before the draft is translated. */
 const TRANSLATE_DELAY_MS = 900
-const AUTO_TRANSLATE_KEY = 'devdy.slackReply.autoTranslate'
+const AUTO_TRANSLATE_KEY = 'puppeteer.slackReply.autoTranslate'
 
 const { t } = useI18n()
 const { toast } = useToast()

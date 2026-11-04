@@ -273,7 +273,7 @@ fn import_private_key_file(
     Ok(dest.to_string_lossy().into_owned())
 }
 
-/// Whether `path` is a private key Devdy copied into its own key store (as opposed to a user path
+/// Whether `path` is a private key Puppeteer copied into its own key store (as opposed to a user path
 /// such as `~/.ssh/id_ed25519`, which is portable as a plain path).
 pub(crate) fn is_managed_key_path(app: &AppHandle, path: &str) -> bool {
     app.path()
@@ -562,7 +562,7 @@ const SSH_TIMEOUT: Duration = Duration::from_secs(12);
 ///
 /// Command: `ssh -o BatchMode=yes -o ConnectTimeout=10 -o
 /// StrictHostKeyChecking=accept-new -p <port> [-i <key>] <user>@<host> echo
-/// devdy-ok`. `ok` requires exit 0 AND stdout containing `devdy-ok`. The result
+/// puppeteer-ok`. `ok` requires exit 0 AND stdout containing `puppeteer-ok`. The result
 /// (`online`/`offline`) plus `last_checked_at` is written back to the row. Never
 /// logs the passphrase or raw ssh stdout.
 #[tauri::command]
@@ -609,7 +609,7 @@ async fn run_ssh_probe(server: &VpsServer) -> TestConnectionResult {
     }
     cmd.arg(format!("{}@{}", server.username, server.host))
         .arg("echo")
-        .arg("devdy-ok");
+        .arg("puppeteer-ok");
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -631,7 +631,7 @@ async fn run_ssh_probe(server: &VpsServer) -> TestConnectionResult {
     };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    if output.status.success() && stdout.contains("devdy-ok") {
+    if output.status.success() && stdout.contains("puppeteer-ok") {
         TestConnectionResult {
             ok: true,
             message: "Connection succeeded".to_string(),

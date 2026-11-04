@@ -49,9 +49,9 @@ const projects = useProjectsStore()
 const { span } = useFocusText()
 
 // ── View + filters (remembered) ──
-const VIEW_KEY = 'devdy:focusView'
-const OPEN_KEY = 'devdy:focusOpenBuckets'
-const FILTER_KEY = 'devdy:focusFilter'
+const VIEW_KEY = 'puppeteer:focusView'
+const OPEN_KEY = 'puppeteer:focusOpenBuckets'
+const FILTER_KEY = 'puppeteer:focusFilter'
 
 const VIEWS: FocusViewMode[] = ['time', 'project', 'week']
 const view = ref<FocusViewMode>(VIEWS.find((v) => v === localStorage.getItem(VIEW_KEY)) ?? 'time')

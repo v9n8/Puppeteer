@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Settings → "Azure Accounts": each account is an isolated `az login` managed by
-// Devdy (its own Azure CLI config dir), so several tenants/identities can coexist.
+// Puppeteer (its own Azure CLI config dir), so several tenants/identities can coexist.
 // Mirrors the AWS section: validate, sign in again, edit (label, tags, pinned
 // subscription) and delete. Adding an account opens the browser sign-in and the
 // backend call blocks until the user finishes it.

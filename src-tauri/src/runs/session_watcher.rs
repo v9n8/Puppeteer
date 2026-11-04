@@ -1,16 +1,16 @@
-//! Live mirroring of the shared Claude/Codex transcript stores into Devdy.
+//! Live mirroring of the shared Claude/Codex transcript stores into Puppeteer.
 //!
 //! Both engines persist conversations to a store their CLIs / VS Code extensions
 //! also write — Claude at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`,
 //! Codex at `~/.codex/sessions/<date>/rollout-<ts>-<thread-id>.jsonl`. This
-//! watcher tails both so anything done OUTSIDE Devdy (a new session, or more
-//! turns added to one Devdy started) shows up without a manual refresh.
+//! watcher tails both so anything done OUTSIDE Puppeteer (a new session, or more
+//! turns added to one Puppeteer started) shows up without a manual refresh.
 //!
 //! On a debounced change it maps the file back to a project and upserts the
-//! session into Devdy's run/log/usage model, then emits `sessions:changed` (with
+//! session into Puppeteer's run/log/usage model, then emits `sessions:changed` (with
 //! the legacy `claude:sessions_changed` alias) so the UI refetches the run list
 //! and reloads the open run. Live runs are left untouched — the upsert skips
-//! sessions owned by a still-running Devdy run.
+//! sessions owned by a still-running Puppeteer run.
 
 use crate::commands::codex_sessions::{rollout_meta, upsert_codex_session_file};
 use crate::commands::sessions::{encode_project_dir, upsert_claude_session, SyncOutcome};
@@ -26,7 +26,7 @@ const DEBOUNCE: Duration = Duration::from_millis(400);
 /// Start watching the Claude and Codex transcript stores for changes. Spawns a
 /// background thread that owns the OS watcher and a batching loop; returns
 /// immediately. A failure to set up the watcher is logged and otherwise ignored
-/// (the on-focus / project-open reconcile paths still keep Devdy in sync).
+/// (the on-focus / project-open reconcile paths still keep Puppeteer in sync).
 pub fn start(db: Pool<Sqlite>, app: AppHandle) {
     let Some(home) = std::env::var_os("HOME") else {
         return;

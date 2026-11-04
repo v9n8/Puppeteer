@@ -7,7 +7,7 @@
 //   Slack thread link (a reply → its root)        → slack  `slack:<team>/<channel>/<ts>`
 //   github.com/<o>/<r>/(issues|pull)/<n> | <o>/<r>#<n> → github `github:<o>/<r>#<n>` (lowercase)
 //   <host>/<path>/-/(issues|merge_requests)/<n>    → gitlab `gitlab:<path>#<n>` / `!<n>`
-//   run:<id> | devdy://run/<id>                    → run    `run:<id>`
+//   run:<id> | puppeteer://run/<id>                    → run    `run:<id>`
 //   any other http(s) URL                          → url    (no ref)
 //
 // The URL is kept as given (trimmed, `<…>` unwrapped); anything else throws.
@@ -144,7 +144,7 @@ export function normalizeSource(input) {
   if (!s) return null;
   const found = (source_type, source_ref = null) => ({ source_type, source_ref, source_url: s });
 
-  for (const prefix of ['run:', 'devdy://run/', 'devdy://runs/']) {
+  for (const prefix of ['run:', 'puppeteer://run/', 'puppeteer://runs/']) {
     if (s.startsWith(prefix)) {
       const id = s.slice(prefix.length).replace(/\/+$/, '');
       if (!isRunId(id)) throw new Error(INVALID_SOURCE_MESSAGE);

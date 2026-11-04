@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Smoke test for the session links of notes / todos in the built-in `devdy`
+// Smoke test for the session links of notes / todos in the built-in `puppeteer`
 // MCP server (migration 0044: note_runs / todo_runs): list / read show the
 // linked session (run) ids of runs that still exist, and deletes drop the links
 // (the sidecar connection has no `foreign_keys`).
@@ -30,7 +30,7 @@ const check = (ok, label) => {
 
 // ---- Fixture -------------------------------------------------------------------
 
-const appData = mkdtempSync(join(tmpdir(), 'devdy-item-links-'));
+const appData = mkdtempSync(join(tmpdir(), 'puppeteer-item-links-'));
 const dbPath = join(appData, 'data.db');
 const db = new DatabaseSync(dbPath);
 for (const f of readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort()) {
@@ -63,7 +63,7 @@ db.prepare(
 function drive(frames) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, DEVDY_DB_PATH: dbPath, DEVDY_PROJECT_ID: PROJECT },
+      env: { ...process.env, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';

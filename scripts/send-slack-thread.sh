@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Send a Slack thread link to Devdy's local Inbox API; Devdy fetches the thread
+# Send a Slack thread link to Puppeteer's local Inbox API; Puppeteer fetches the thread
 # from Slack and translates it in the background (202 Accepted).
 #
 # Usage: ./scripts/send-slack-thread.sh <slack-link> [token] [port]
 #
 # slack-link: https://<workspace>.slack.com/archives/<channel>/p<16 digits>[?thread_ts=…&cid=…]
-# token: arg 2, else $DEVDY_INBOX_TOKEN (copy it from Devdy → Settings → Inbox API)
-# port:  arg 3, else $DEVDY_INBOX_PORT, else auto-detect 47821..47830 via /health
-# Optional env: DEVDY_INBOX_PROJECT_ID (body "projectId"), DEVDY_INBOX_TITLE (body "title", any UTF-8)
+# token: arg 2, else $PUPPETEER_INBOX_TOKEN (copy it from Puppeteer → Settings → Inbox API)
+# port:  arg 3, else $PUPPETEER_INBOX_PORT, else auto-detect 47821..47830 via /health
+# Optional env: PUPPETEER_INBOX_PROJECT_ID (body "projectId"), PUPPETEER_INBOX_TITLE (body "title", any UTF-8)
 set -euo pipefail
 
 if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
@@ -16,15 +16,15 @@ if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 
 url="$1"
-token="${2:-${DEVDY_INBOX_TOKEN:-}}"
-port="${3:-${DEVDY_INBOX_PORT:-}}"
+token="${2:-${PUPPETEER_INBOX_TOKEN:-}}"
+port="${3:-${PUPPETEER_INBOX_PORT:-}}"
 
 if [[ -f "$url" ]]; then
   echo "error: expected a Slack thread link, not a file (zip/markdown uploads are no longer supported)" >&2
   exit 1
 fi
 if [[ -z "$token" ]]; then
-  echo "error: no token (pass it as arg 2 or set DEVDY_INBOX_TOKEN)" >&2
+  echo "error: no token (pass it as arg 2 or set PUPPETEER_INBOX_TOKEN)" >&2
   exit 1
 fi
 
@@ -33,17 +33,17 @@ if [[ -z "$port" ]]; then
   # silently picking the first one could send to the wrong app.
   found=()
   for p in $(seq 47821 47830); do
-    if curl -fsS --max-time 1 "http://127.0.0.1:$p/health" 2>/dev/null | grep -q '"app":"devdy"'; then
+    if curl -fsS --max-time 1 "http://127.0.0.1:$p/health" 2>/dev/null | grep -q '"app":"puppeteer"'; then
       found+=("$p")
     fi
   done
   if [[ ${#found[@]} -eq 0 ]]; then
-    echo "error: Devdy Inbox API not found on 127.0.0.1:47821-47830 (is Devdy running?)" >&2
+    echo "error: Puppeteer Inbox API not found on 127.0.0.1:47821-47830 (is Puppeteer running?)" >&2
     exit 1
   fi
   if [[ ${#found[@]} -gt 1 ]]; then
-    echo "error: several Devdy instances answer on ports: ${found[*]}" >&2
-    echo "       pass the port explicitly (arg 3 or DEVDY_INBOX_PORT); see Devdy → Settings → Inbox API" >&2
+    echo "error: several Puppeteer instances answer on ports: ${found[*]}" >&2
+    echo "       pass the port explicitly (arg 3 or PUPPETEER_INBOX_PORT); see Puppeteer → Settings → Inbox API" >&2
     exit 1
   fi
   port="${found[0]}"
@@ -62,8 +62,8 @@ json_str() {
 }
 
 body="{\"url\":$(json_str "$url")"
-[[ -n "${DEVDY_INBOX_PROJECT_ID:-}" ]] && body+=",\"projectId\":$(json_str "$DEVDY_INBOX_PROJECT_ID")"
-[[ -n "${DEVDY_INBOX_TITLE:-}" ]] && body+=",\"title\":$(json_str "$DEVDY_INBOX_TITLE")"
+[[ -n "${PUPPETEER_INBOX_PROJECT_ID:-}" ]] && body+=",\"projectId\":$(json_str "$PUPPETEER_INBOX_PROJECT_ID")"
+[[ -n "${PUPPETEER_INBOX_TITLE:-}" ]] && body+=",\"title\":$(json_str "$PUPPETEER_INBOX_TITLE")"
 body+="}"
 
 curl -sS -w '\nHTTP %{http_code}\n' \

@@ -1,7 +1,7 @@
-// Thin data-access layer over Devdy's SQLite store (`data.db`).
+// Thin data-access layer over Puppeteer's SQLite store (`data.db`).
 //
 // Opened read-write because the notes tools mutate. Reads (runs/sessions) are
-// scoped to the current project by default via DEVDY_PROJECT_ID. We open lazily
+// scoped to the current project by default via PUPPETEER_PROJECT_ID. We open lazily
 // and reuse a single handle for the process lifetime.
 
 import { DatabaseSync } from 'node:sqlite';
@@ -28,8 +28,8 @@ let handle = null;
 
 function db() {
   if (handle) return handle;
-  const dbPath = process.env.DEVDY_DB_PATH;
-  if (!dbPath) throw new Error('DEVDY_DB_PATH is not set — cannot open Devdy store');
+  const dbPath = process.env.PUPPETEER_DB_PATH;
+  if (!dbPath) throw new Error('PUPPETEER_DB_PATH is not set — cannot open Puppeteer store');
   handle = new DatabaseSync(dbPath);
   // The conductor runs several sidecar processes at once, each with its own
   // connection into the same data.db. Without a busy timeout, concurrent writers
@@ -90,8 +90,8 @@ function normIds(ids) {
 
 /** The current project id, or throw — for tools that can't fall back to global. */
 function requireProject() {
-  const id = process.env.DEVDY_PROJECT_ID || null;
-  if (!id) throw new Error('no current project (DEVDY_PROJECT_ID is not set)');
+  const id = process.env.PUPPETEER_PROJECT_ID || null;
+  if (!id) throw new Error('no current project (PUPPETEER_PROJECT_ID is not set)');
   return id;
 }
 
@@ -102,7 +102,7 @@ function requireProject() {
 function targetProjectId({ scope, project } = {}, { strict = false } = {}) {
   if (project != null && String(project).trim()) return findProject(project).id;
   if (scope === 'global') return null;
-  return strict ? requireProject() : process.env.DEVDY_PROJECT_ID || null;
+  return strict ? requireProject() : process.env.PUPPETEER_PROJECT_ID || null;
 }
 
 /** A project by id, exact name, then case-insensitive name; throws when none or ambiguous. */
@@ -173,7 +173,7 @@ const NOTE_LINKS = linkedRunsCol('note_runs', 'note_id', 'n');
 const TODO_LINKS = linkedRunsCol('todo_runs', 'todo_id', 't');
 
 export function listNotes({ scope = 'project', limit = 50 } = {}) {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   const lim = Math.max(1, Math.min(200, Number(limit) || 50));
   if (scope === 'project' && projectId) {
     return db()
@@ -275,7 +275,7 @@ export function appendNote({ id, text } = {}) {
 export function searchNotes({ query, scope = 'project', limit = 20 } = {}) {
   const q = String(query || '').trim();
   if (!q) throw new Error('query is required');
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   const lim = Math.max(1, Math.min(200, Number(limit) || 20));
   const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const cols = 'id, title, content, project_id, updated_at';
@@ -346,7 +346,7 @@ function localDayStartIso(ymd, dayOffset = 0) {
  * tokens / cost / `agent_ms` count only the usage that happened in the range.
  */
 export function recentRuns({ scope = 'project', limit, from, to } = {}) {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   for (const [name, v] of [['from', from], ['to', to]]) {
     if (v && !YMD_RE.test(String(v))) throw new Error(`${name} must be YYYY-MM-DD`);
   }
@@ -638,14 +638,14 @@ export function reorderTodos({ ids } = {}) {
 // ---- Project info -----------------------------------------------------------
 
 export function currentProject() {
-  const id = process.env.DEVDY_PROJECT_ID || null;
+  const id = process.env.PUPPETEER_PROJECT_ID || null;
   if (!id) return null;
   return db()
     .prepare('SELECT id, name, path, github_owner, github_repo, default_engine FROM projects WHERE id = ?')
     .get(id);
 }
 
-/** All Devdy projects (name, path, linked github + repo count). */
+/** All Puppeteer projects (name, path, linked github + repo count). */
 export function listProjects() {
   return db()
     .prepare(
@@ -693,7 +693,7 @@ export function listRepos({ scope = 'project', project = null } = {}) {
     };
   }
 
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   if (!projectId) return { project: null, rows: [] };
   return forProject(db().prepare('SELECT id, name FROM projects WHERE id = ?').get(projectId));
 }
@@ -706,7 +706,7 @@ export function listRepos({ scope = 'project', project = null } = {}) {
  * returned; otherwise every managed server. Never exposes secrets.
  */
 export function listServers({ scope = 'project' } = {}) {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   const cols = 's.id, s.label, s.host, s.port, s.username, s.auth_method, s.tags, s.status, s.last_checked_at';
   if (scope === 'project' && projectId) {
     return db()
@@ -725,11 +725,11 @@ export function listServers({ scope = 'project' } = {}) {
 /**
  * GitHub / GitLab accounts enabled for the current project (plus its default
  * account), with which one is the default. A command picks another one with
- * `DEVDY_GIT_ACCOUNT=<label or username>`. Metadata only — PATs stay in the
+ * `PUPPETEER_GIT_ACCOUNT=<label or username>`. Metadata only — PATs stay in the
  * Keychain and are never readable here.
  */
 export function listGitAccounts() {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   if (!projectId) return [];
   const query = (provider, table, link, column, host) =>
     db()
@@ -752,11 +752,11 @@ export function listGitAccounts() {
 /**
  * AWS / Azure accounts enabled for the current project (plus its default
  * account), with which one is the default. A command picks another one with
- * `DEVDY_AWS_ACCOUNT=<label>` / `DEVDY_AZURE_ACCOUNT=<label>`. Metadata only —
- * AWS secret keys stay in the Keychain and az sessions in Devdy's config dirs.
+ * `PUPPETEER_AWS_ACCOUNT=<label>` / `PUPPETEER_AZURE_ACCOUNT=<label>`. Metadata only —
+ * AWS secret keys stay in the Keychain and az sessions in Puppeteer's config dirs.
  */
 export function listCloudAccounts() {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   if (!projectId) return { aws: [], azure: [] };
   const query = (table, link, column, cols) =>
     db()
@@ -790,20 +790,20 @@ export function getServer(id) {
 
 // ---- Skills & Rules library -------------------------------------------------
 //
-// Source-of-truth mirrors Devdy's own screens (commands/skills.rs, rules.rs):
+// Source-of-truth mirrors Puppeteer's own screens (commands/skills.rs, rules.rs):
 //   • skills live in  <app_data>/skills/<name>/SKILL.md  (row in `skills`)
 //   • rules  live in  <app_data>/rules/<name>.md          (row in `rules`)
-// `<app_data>` is derived from DEVDY_DB_PATH (data.db sits at its root).
+// `<app_data>` is derived from PUPPETEER_DB_PATH (data.db sits at its root).
 // Projects symlink to these sources (.claude/skills, .claude/rules, .agents/skills),
 // so content edits here are live in every project. What these tools do NOT do is
 // the rest of the sync (AGENTS.md rule blocks, generated Codex skills of rules,
 // new links after a rename/target change) — callers get a warning to re-apply via
-// the Devdy app. On rename/delete they only drop the project links that would
+// the Puppeteer app. On rename/delete they only drop the project links that would
 // otherwise dangle.
 
 export function appDataDir() {
-  const dbPath = process.env.DEVDY_DB_PATH;
-  if (!dbPath) throw new Error('DEVDY_DB_PATH is not set — cannot locate app data dir');
+  const dbPath = process.env.PUPPETEER_DB_PATH;
+  if (!dbPath) throw new Error('PUPPETEER_DB_PATH is not set — cannot locate app data dir');
   return dirname(dbPath);
 }
 const skillsDir = () => join(appDataDir(), 'skills');
@@ -858,11 +858,11 @@ function occupied(from, to) {
   }
 }
 
-/** Where Devdy generates the Codex-skill form of a rule (see rules.rs `codex_skill_source`). */
+/** Where Puppeteer generates the Codex-skill form of a rule (see rules.rs `codex_skill_source`). */
 const ruleCodexSkillDir = (sourcePath, name) => join(dirname(sourcePath), '.codex-skills', name);
 
 /**
- * Remove Devdy's managed block `kind`/`name` from a project's AGENTS.md, collapsing the blank
+ * Remove Puppeteer's managed block `kind`/`name` from a project's AGENTS.md, collapsing the blank
  * lines around it; an AGENTS.md left empty is deleted. Mirrors agents_block.rs `remove`.
  */
 function removeAgentsBlock(projectPath, kind, name) {
@@ -873,8 +873,8 @@ function removeAgentsBlock(projectPath, kind, name) {
   } catch {
     return;
   }
-  const start = `<!-- devdy:${kind}:${name} START -->`;
-  const end = `<!-- devdy:${kind}:${name} END -->`;
+  const start = `<!-- puppeteer:${kind}:${name} START -->`;
+  const end = `<!-- puppeteer:${kind}:${name} END -->`;
   const s = content.indexOf(start);
   if (s === -1) return;
   const eRel = content.slice(s).indexOf(end);

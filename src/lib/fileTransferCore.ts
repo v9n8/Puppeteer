@@ -1,6 +1,6 @@
 // File Transfer window of a remote desktop (views/FileTransferWindow.vue):
 // copy files and folders between THIS machine (A, "local") and the controlled
-// Devdy (B, "remote"), both ways. Planning a copy from a folder walk, conflict
+// Puppeteer (B, "remote"), both ways. Planning a copy from a folder walk, conflict
 // answers, path joining across separators, the chunked copy of one file and
 // the queue that runs them. Free of Vue / Tauri so it can be unit-tested in
 // plain Node; lib/fileTransfer.ts wires it to the commands

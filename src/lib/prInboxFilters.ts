@@ -6,7 +6,7 @@ import { AVATAR_TONES, avatarTone } from './slackThreadUtils.ts'
 
 /**
  * Review state of a PR from the inbox's point of view:
- * - `unmapped`:     repo isn't tracked in devdy (no Review action)
+ * - `unmapped`:     repo isn't tracked in puppeteer (no Review action)
  * - `not_reviewed`: mapped, no review run yet
  * - `running`:      the linked review run is streaming
  * - `reviewed`:     the linked review run exists and isn't running
@@ -14,7 +14,7 @@ import { AVATAR_TONES, avatarTone } from './slackThreadUtils.ts'
 export type PrReviewStatus = 'not_reviewed' | 'running' | 'reviewed' | 'unmapped'
 export const PR_REVIEW_STATUSES: readonly PrReviewStatus[] = ['not_reviewed', 'running', 'reviewed', 'unmapped']
 
-/** Filter value standing for "Not in devdy" in the project filter. */
+/** Filter value standing for "Not in puppeteer" in the project filter. */
 export const UNMAPPED_PROJECT_VALUE = '__unmapped__'
 
 /** Multi-select filters; an empty list means "no filter" for that dimension. */

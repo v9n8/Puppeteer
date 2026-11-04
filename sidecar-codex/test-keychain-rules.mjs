@@ -1,5 +1,5 @@
-// Every Codex session installs Devdy's execpolicy rule that forbids reading the
-// macOS Keychain through `security` ($CODEX_HOME/rules/devdy-keychain.rules),
+// Every Codex session installs Puppeteer's execpolicy rule that forbids reading the
+// macOS Keychain through `security` ($CODEX_HOME/rules/puppeteer-keychain.rules),
 // and puts it back when it was changed. Uses the fixture app-server (no CLI).
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -9,15 +9,15 @@ import { tmpdir } from 'node:os'
 import assert from 'node:assert/strict'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const codexHome = mkdtempSync(join(tmpdir(), 'devdy-codex-home-'))
-const rules = join(codexHome, 'rules', 'devdy-keychain.rules')
+const codexHome = mkdtempSync(join(tmpdir(), 'puppeteer-codex-home-'))
+const rules = join(codexHome, 'rules', 'puppeteer-keychain.rules')
 
 function runSession() {
-  const env = { ...process.env, CODEX_HOME: codexHome, DEVDY_CODEX_PATH: join(here, 'test-fixture-app-server.mjs') }
-  delete env.DEVDY_RESUME_SESSION
+  const env = { ...process.env, CODEX_HOME: codexHome, PUPPETEER_CODEX_PATH: join(here, 'test-fixture-app-server.mjs') }
+  delete env.PUPPETEER_RESUME_SESSION
   return new Promise((resolve) => {
     const child = spawn('node', [join(here, 'index.mjs')], {
-      cwd: mkdtempSync(join(tmpdir(), 'devdy-codex-rules-')),
+      cwd: mkdtempSync(join(tmpdir(), 'puppeteer-codex-rules-')),
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
     })
@@ -26,7 +26,7 @@ function runSession() {
     child.stdout.on('data', (chunk) => {
       buf += chunk.toString()
       // Ready means the rule was handled (it is written before codex starts).
-      if (buf.includes('"_devdy_ready"')) child.stdin.end()
+      if (buf.includes('"_puppeteer_ready"')) child.stdin.end()
     })
     child.on('exit', () => { clearTimeout(timer); resolve() })
   })

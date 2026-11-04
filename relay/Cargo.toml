@@ -1,13 +1,13 @@
 [package]
-name = "devdy-relay"
+name = "puppeteer-relay"
 version = "0.1.0"
 edition = "2021"
-description = "Devdy Remote Control Relay — WSS bridge that routes opaque E2E-encrypted envelopes by room_id (Topology B, bind localhost behind reverse proxy)."
+description = "Puppeteer Remote Control Relay — WSS bridge that routes opaque E2E-encrypted envelopes by room_id (Topology B, bind localhost behind reverse proxy)."
 license = "MIT"
 publish = false
 
 [[bin]]
-name = "devdy-relay"
+name = "puppeteer-relay"
 path = "src/main.rs"
 
 [dependencies]

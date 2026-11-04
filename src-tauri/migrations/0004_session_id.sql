@@ -1,1 +1,0 @@
-ALTER TABLE runs ADD COLUMN session_id TEXT;

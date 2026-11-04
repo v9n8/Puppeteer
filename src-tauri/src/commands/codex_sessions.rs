@@ -1,14 +1,14 @@
-//! Mirroring Codex sessions into Devdy — the Codex counterpart of [`sessions`].
+//! Mirroring Codex sessions into Puppeteer — the Codex counterpart of [`sessions`].
 //!
-//! `codex app-server` (spawned by Devdy), the `codex` CLI, and the Codex VS Code
+//! `codex app-server` (spawned by Puppeteer), the `codex` CLI, and the Codex VS Code
 //! extension all persist conversations to the SAME rollout store under
 //! `~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<ts>-<thread-id>.jsonl`. Resuming a
 //! thread (including across processes) APPENDS to the same file — verified — so a
-//! rollout maps 1:1 to a Devdy run via the thread id Devdy stores as `session_id`.
+//! rollout maps 1:1 to a Puppeteer run via the thread id Puppeteer stores as `session_id`.
 //!
-//! Unlike Claude (whose transcript already uses Devdy's `{type,message}` shape and
+//! Unlike Claude (whose transcript already uses Puppeteer's `{type,message}` shape and
 //! whose dir name IS the project), Codex needs:
-//!   1. a translator from its rollout vocabulary into Devdy stream-json, and
+//!   1. a translator from its rollout vocabulary into Puppeteer stream-json, and
 //!   2. reading each file's `session_meta.cwd` to map it to a project (the tree is
 //!      organized by date, not project).
 //! Everything after parsing reuses the engine-agnostic core in [`sessions`].
@@ -37,9 +37,9 @@ pub(crate) fn codex_sessions_root() -> Option<PathBuf> {
 /// Returns `None` for subagent/forked rollouts. Codex's multi-agent mode
 /// (`multi_agent_version: v2`, triggered e.g. by slash commands) spawns child
 /// threads that each write their OWN rollout file with the SAME `cwd` as the
-/// parent. Since Devdy maps a rollout to a project purely by `cwd`, importing
+/// parent. Since Puppeteer maps a rollout to a project purely by `cwd`, importing
 /// these forks would surface one conversation as several duplicate sessions
-/// after a restart. Devdy only ever spawns top-level threads (`thread/start`,
+/// after a restart. Puppeteer only ever spawns top-level threads (`thread/start`,
 /// `thread_source: "user"`), so skipping subagent/fork rollouts is safe.
 pub(crate) fn rollout_meta(file: &Path) -> Option<(String, String)> {
     let v = read_session_meta(file)?;
@@ -153,7 +153,7 @@ pub(crate) fn codex_session_file(session_id: &str) -> Option<PathBuf> {
         })
 }
 
-/// Map a Codex `function_call` to a Devdy tool_use `(name, input)`. Shell execs
+/// Map a Codex `function_call` to a Puppeteer tool_use `(name, input)`. Shell execs
 /// render as `Bash`; everything else (MCP tools, etc.) keeps its own name.
 fn map_function_call(name: &str, args: &Value) -> (String, Value) {
     match name {
@@ -173,7 +173,7 @@ fn map_function_call(name: &str, args: &Value) -> (String, Value) {
     }
 }
 
-/// Translate a Codex rollout into a Devdy [`ParsedTranscript`].
+/// Translate a Codex rollout into a Puppeteer [`ParsedTranscript`].
 ///
 /// Text turns come from the clean `event_msg` user/agent messages; tool calls
 /// from `response_item` `function_call`/`function_call_output`. Codex `reasoning`
@@ -223,7 +223,7 @@ pub(crate) fn parse_codex_rollout(file: &Path, project_path: &str) -> Option<Par
                 match p.get("type").and_then(|x| x.as_str()).unwrap_or("") {
                     "user_message" => {
                         if let Some(text) = p.get("message").and_then(|x| x.as_str()) {
-                            // Drop a one-time <session-framing> seed Devdy prepended
+                            // Drop a one-time <session-framing> seed Puppeteer prepended
                             // on resume — it is system framing, not the user's words.
                             let text = crate::conductor::strip_session_framing(text).trim();
                             if !text.is_empty() {
@@ -355,7 +355,7 @@ pub(crate) async fn upsert_codex_session_file(
     .await
 }
 
-/// Reconcile every Codex rollout whose `cwd` matches a project into Devdy runs.
+/// Reconcile every Codex rollout whose `cwd` matches a project into Puppeteer runs.
 /// Scans the rollout tree once, reading only each file's first line to match the
 /// project, then upserts the matching threads. Returns how many runs changed.
 #[tauri::command]
@@ -542,7 +542,7 @@ mod tests {
 
     fn temp_file(name: &str, content: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("devdy_codex_test_{}_{}.jsonl", name, std::process::id()));
+        p.push(format!("puppeteer_codex_test_{}_{}.jsonl", name, std::process::id()));
         let mut f = fs::File::create(&p).unwrap();
         f.write_all(content.as_bytes()).unwrap();
         p
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn codex_thread_files_collects_subagents_transitively() {
-        let root = std::env::temp_dir().join(format!("devdy_codex_thread_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("puppeteer_codex_thread_{}", std::process::id()));
         let day = root.join("2026").join("10").join("17");
         fs::create_dir_all(&day).unwrap();
         let write = |name: &str, meta: &str| {

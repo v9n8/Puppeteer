@@ -342,7 +342,7 @@ pub(crate) async fn start_run_inner(
     }
 
     // Per-run scratch dir (also where the log lands).
-    let runs_dir = Path::new(&project_path).join(".devdy").join("runs");
+    let runs_dir = Path::new(&project_path).join(".puppeteer").join("runs");
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let log_path = runs_dir.join(format!("{}.log", payload.run_id));
 
@@ -352,7 +352,7 @@ pub(crate) async fn start_run_inner(
     let started_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         // A fresh start is a fresh Codex thread, re-seeded by its own thread/start
-        // developer instructions (the sidecar reports `_devdy_framing_seeded`).
+        // developer instructions (the sidecar reports `_puppeteer_framing_seeded`).
         "UPDATE runs SET status = 'running', engine = ?, model = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
     )
     .bind(&engine)
@@ -385,7 +385,7 @@ pub(crate) async fn start_run_inner(
         augment_command_path(&mut cmd);
         apply_mcp_tool_timeout(&mut cmd);
         // GĐ3: per-run credential broker + gh/glab shim. Prepends the shim dir to
-        // PATH and sets DEVDY_BROKER_SOCK/DEVDY_PROJECT_ID. Fail-closed: no token
+        // PATH and sets PUPPETEER_BROKER_SOCK/PUPPETEER_PROJECT_ID. Fail-closed: no token
         // is ever placed on the sidecar env. Held in RunHandles for Drop cleanup.
         let (broker_run, ssh_access) = wire_broker(
             &app,
@@ -399,17 +399,17 @@ pub(crate) async fn start_run_inner(
         // Honor a custom claude binary if the user configured one; default uses
         // the SDK's bundled CLI (both read the same Keychain login).
         if claude_path != "claude" && !claude_path.trim().is_empty() {
-            cmd.env("DEVDY_CLAUDE_PATH", &claude_path);
+            cmd.env("PUPPETEER_CLAUDE_PATH", &claude_path);
         }
         cmd.env(
-            "DEVDY_USAGE_CAPTURE_MODE",
+            "PUPPETEER_USAGE_CAPTURE_MODE",
             claude_usage_capture_mode(db, claude_account.as_ref().map(|a| a.id.as_str())).await,
         );
-        cmd.env("DEVDY_USAGE_POLL_MS", "60000");
+        cmd.env("PUPPETEER_USAGE_POLL_MS", "60000");
         // Stream text/thinking deltas so the chat renders as the model writes.
-        cmd.env("DEVDY_PARTIAL_MESSAGES", "1");
+        cmd.env("PUPPETEER_PARTIAL_MESSAGES", "1");
         if let Some(m) = &model {
-            cmd.env("DEVDY_MODEL", m);
+            cmd.env("PUPPETEER_MODEL", m);
         }
         // Isolate this run to its resolved Claude account profile (clears inherited
         // auth env overrides). No-op when no managed account applies (legacy global).
@@ -546,7 +546,7 @@ pub(crate) async fn start_run_inner(
     }
 
     // ---- Codex: drive the `codex app-server` sidecar (subscription auth) ----
-    // Same NDJSON `_devdy_*` protocol as the Claude sidecar, so drain_sidecar,
+    // Same NDJSON `_puppeteer_*` protocol as the Claude sidecar, so drain_sidecar,
     // the stream renderer, and the permission modal all work unchanged. (Replaces
     // the old one-shot `codex exec` path, which had no streaming/approval/multi-turn.)
     let _ = &extra; // codex tuning is now via sandbox/approval env, not exec args
@@ -565,11 +565,11 @@ pub(crate) async fn start_run_inner(
     )
     .await?;
     if codex_path != "codex" && !codex_path.trim().is_empty() {
-        cmd.env("DEVDY_CODEX_PATH", &codex_path);
+        cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
     }
-    cmd.env("DEVDY_PERMISSION_MODE", &permission_mode);
+    cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
     if let Some(m) = &model {
-        cmd.env("DEVDY_CODEX_MODEL", m);
+        cmd.env("PUPPETEER_CODEX_MODEL", m);
     }
     // Inject the project's enabled MCP servers for Codex (QĐ-2: actual engine).
     // Codex supports stdio + streamable HTTP; legacy SSE servers land in `skipped`.
@@ -585,11 +585,11 @@ pub(crate) async fn start_run_inner(
     )
     .await?;
     if !codex_mcp.is_null() {
-        cmd.env("DEVDY_CODEX_MCP", codex_mcp.to_string());
+        cmd.env("PUPPETEER_CODEX_MCP", codex_mcp.to_string());
     }
     // Conductor framing / worker instruction → Codex developer instructions.
     if let Some(extra) = &extra_system_prompt {
-        cmd.env("DEVDY_CODEX_DEVELOPER_INSTRUCTIONS", extra);
+        cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", extra);
     }
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -756,10 +756,10 @@ fn is_valid_permission_mode(mode: &str) -> bool {
 }
 
 /// Resolve the `sidecar-proxy/` directory holding brokered tool shims. Mirrors
-/// `resolve_sidecar_script`: explicit `DEVDY_SHIM_DIR` env → bundled
+/// `resolve_sidecar_script`: explicit `PUPPETEER_SHIM_DIR` env → bundled
 /// `<resource_dir>/sidecar-proxy` → dev fallback `<crate>/../sidecar-proxy`.
 fn resolve_shim_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(p) = std::env::var("DEVDY_SHIM_DIR") {
+    if let Ok(p) = std::env::var("PUPPETEER_SHIM_DIR") {
         let p = PathBuf::from(p);
         if p.exists() {
             return Ok(p);
@@ -779,7 +779,7 @@ fn resolve_shim_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if !dir.exists() {
         return Err(format!(
             "shim dir not found at {}. Ensure the sidecar-proxy/ directory is \
-             present, or set DEVDY_SHIM_DIR.",
+             present, or set PUPPETEER_SHIM_DIR.",
             dir.display()
         ));
     }
@@ -787,7 +787,7 @@ fn resolve_shim_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Prepend the shim dir to the command's PATH so brokered tools resolve to the
-/// Devdy shims first. Must be called AFTER `augment_command_path` so the shim
+/// Puppeteer shims first. Must be called AFTER `augment_command_path` so the shim
 /// dir ends up ABSOLUTELY first, ahead of the real binaries in the login PATH.
 fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
     // Read the PATH already set on the command (by augment_command_path); fall
@@ -808,7 +808,7 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
 }
 
 /// The MCP map for a run on `engine` ("claude" | "codex"): the project's
-/// enabled servers plus the built-ins — `devdy` and `google` unless switched off,
+/// enabled servers plus the built-ins — `puppeteer` and `google` unless switched off,
 /// and the loopback `conductor` server for a conductor run. Credentials are left
 /// to the broker (see `McpLaunch`), so the map is safe to put on a command line.
 /// Returns the map (`Null` when empty) and the servers skipped for the engine.
@@ -826,7 +826,7 @@ async fn assemble_run_mcp(
     use crate::commands::mcp;
     let launch = mcp::McpLaunch {
         node_bin: node_bin.to_string(),
-        launcher: resolve_shim_dir(app)?.join("devdy-mcp-launch.mjs"),
+        launcher: resolve_shim_dir(app)?.join("puppeteer-mcp-launch.mjs"),
         broker_sock: app
             .try_state::<BrokerHandle>()
             .ok_or_else(|| "credential broker not initialized".to_string())?
@@ -836,8 +836,8 @@ async fn assemble_run_mcp(
         run_id: run_id.to_string(),
     };
     let (map, skipped) = mcp::resolve_project_mcp_servers(db, project_id, engine, &launch).await;
-    let map = if mcp::builtin_mcp_enabled(db, "devdy", project_id).await {
-        mcp::with_builtin_devdy(
+    let map = if mcp::builtin_mcp_enabled(db, "puppeteer", project_id).await {
+        mcp::with_builtin_puppeteer(
             map,
             node_bin,
             &crate::runs::sidecar::resolve_mcp_sidecar_script(app),
@@ -906,20 +906,20 @@ async fn wire_broker(
     // Shim dir goes FIRST on PATH (after augment_command_path has run).
     let shim_dir = resolve_shim_dir(app)?;
     prepend_shim_path(cmd, &shim_dir);
-    cmd.env("DEVDY_BROKER_SOCK", &sock_path);
-    cmd.env("DEVDY_PROJECT_ID", project_id);
+    cmd.env("PUPPETEER_BROKER_SOCK", &sock_path);
+    cmd.env("PUPPETEER_PROJECT_ID", project_id);
     // Fallback working directory for the sidecar: if `process.cwd()` throws
     // (e.g. EPERM on macOS when the project folder is TCC-protected / on a
     // network volume / was deleted), the sidecar reports the error and uses
     // this path instead of crashing at startup.
-    cmd.env("DEVDY_PROJECT_PATH", project_path);
+    cmd.env("PUPPETEER_PROJECT_PATH", project_path);
     // GĐ7: the shim echoes this back so the broker can route `Ask` to this run.
-    cmd.env("DEVDY_RUN_ID", run_id);
+    cmd.env("PUPPETEER_RUN_ID", run_id);
 
-    // GĐ4: route `git` HTTPS auth through the Devdy credential helper (per-run,
+    // GĐ4: route `git` HTTPS auth through the Puppeteer credential helper (per-run,
     // never touching global git config) + set the commit identity from the
     // linked account.
-    let helper_path = shim_dir.join("git-credential-devdy");
+    let helper_path = shim_dir.join("git-credential-puppeteer");
     wire_git_config(cmd, &helper_path);
     wire_commit_identity(cmd, db, project_id).await;
 
@@ -935,12 +935,12 @@ async fn wire_broker(
     // ssh-transparent-connect: wire per-run transparent SSH for this project's
     // mapped VPS servers. No mapping → Ok(None) (no env set, no agent — AC-305).
     // The shim dir is already on PATH (prepend_shim_path above), so the ssh/scp
-    // shims resolve; prepare_ssh_access only adds DEVDY_SSH_CONFIG + SSH_AUTH_SOCK.
+    // shims resolve; prepare_ssh_access only adds PUPPETEER_SSH_CONFIG + SSH_AUTH_SOCK.
     // Fail-soft: a genuine setup error degrades to no-ssh rather than aborting.
     let ssh_access = match ssh_access::prepare_ssh_access(app, db, cmd, run_id, project_id).await {
         Ok(guard) => guard,
         Err(e) => {
-            eprintln!("devdy: transparent ssh setup failed (run continues without it): {e}");
+            eprintln!("puppeteer: transparent ssh setup failed (run continues without it): {e}");
             None
         }
     };
@@ -948,25 +948,25 @@ async fn wire_broker(
     Ok((guard, ssh_access))
 }
 
-/// Configure `git` for this run to use the Devdy credential helper via
+/// Configure `git` for this run to use the Puppeteer credential helper via
 /// `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`. This is per-run
 /// and NEVER touches `~/.gitconfig` or system config.
 ///
 /// The first `credential.helper=""` entry RESETS any inherited helper chain
-/// (e.g. osxkeychain), so the run can only auth via Devdy → fail-closed to the
+/// (e.g. osxkeychain), so the run can only auth via Puppeteer → fail-closed to the
 /// project's account. No token is ever set in the environment here.
 fn wire_git_config(cmd: &mut Command, helper_path: &Path) {
     cmd.env("GIT_CONFIG_COUNT", "3");
     // 0: reset the accumulated credential helper list (system/global).
     cmd.env("GIT_CONFIG_KEY_0", "credential.helper");
     cmd.env("GIT_CONFIG_VALUE_0", "");
-    // 1: the Devdy helper (absolute path → independent of PATH resolution).
+    // 1: the Puppeteer helper (absolute path → independent of PATH resolution).
     cmd.env("GIT_CONFIG_KEY_1", "credential.helper");
     cmd.env("GIT_CONFIG_VALUE_1", helper_path.as_os_str());
     // 2: credentials keyed per host, not per repo path.
     cmd.env("GIT_CONFIG_KEY_2", "credential.useHttpPath");
     cmd.env("GIT_CONFIG_VALUE_2", "false");
-    // Fail-closed: when the Devdy helper returns no credential (project not
+    // Fail-closed: when the Puppeteer helper returns no credential (project not
     // linked to an account), git must FAIL immediately rather than fall back to
     // an interactive username/password prompt (which would hang the sidecar).
     cmd.env("GIT_TERMINAL_PROMPT", "0");
@@ -991,10 +991,10 @@ async fn wire_aws_config(app: &AppHandle, db: &Db, cmd: &mut Command, project_id
         cmd.env_remove(key);
     }
     if let Some(value) = std::env::var_os("AWS_CONFIG_FILE") {
-        cmd.env("DEVDY_ORIGINAL_AWS_CONFIG_FILE", value);
+        cmd.env("PUPPETEER_ORIGINAL_AWS_CONFIG_FILE", value);
     }
     if let Some(value) = std::env::var_os("AWS_SHARED_CREDENTIALS_FILE") {
-        cmd.env("DEVDY_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE", value);
+        cmd.env("PUPPETEER_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE", value);
     }
     cmd.env("AWS_EC2_METADATA_DISABLED", "true");
 
@@ -1054,7 +1054,7 @@ fn wire_azure_config(app: &AppHandle, cmd: &mut Command) {
     // app data dir cannot be resolved.
     let empty_dir = match app.path().app_data_dir() {
         Ok(app_data_dir) => crate::azure_sandbox::empty_azure_dir(&app_data_dir),
-        Err(_) => std::env::temp_dir().join("devdy-azure-empty"),
+        Err(_) => std::env::temp_dir().join("puppeteer-azure-empty"),
     };
     // Normally created at startup; recreate if something removed it.
     let _ = std::fs::create_dir_all(&empty_dir);
@@ -1468,13 +1468,13 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
     // Prefer this over output_path because output_path may still point to the
     // input markdown when an earlier UPDATE silently failed or hasn't run yet.
     let conv_path = Path::new(&project_path)
-        .join(".devdy")
+        .join(".puppeteer")
         .join("runs")
         .join(format!("{}.log", run_id));
 
     // Both engines persist conversations to a shared transcript store the CLI /
     // VS Code extension also write. Run the same upsert core the watcher uses so
-    // that, if the session was continued outside Devdy, the log AND usage are
+    // that, if the session was continued outside Puppeteer, the log AND usage are
     // refreshed (and the synced-size marker advanced) before we read. The core
     // skips live runs and no-ops when nothing changed.
     match (engine.as_deref(), session_id.as_deref()) {
@@ -1532,7 +1532,7 @@ pub struct RunLogPath {
 
 /// Resolve the absolute path of the log file backing a run/session, using the
 /// same priority `get_run_log` reads its content from:
-///   1. the conventional `.devdy/runs/<id>.log` written by start_run/resume_run,
+///   1. the conventional `.puppeteer/runs/<id>.log` written by start_run/resume_run,
 ///   2. the shared Claude/Codex transcript (`transcript_path`) for mirrored
 ///      sessions — falling back to the conventional session-store location when
 ///      the cached path is missing,
@@ -1561,7 +1561,7 @@ pub async fn get_run_log_path(db: State<'_, Db>, run_id: String) -> Result<RunLo
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogSource {
-    /// `.devdy/runs/<id>.log`, written by the run's own drain task.
+    /// `.puppeteer/runs/<id>.log`, written by the run's own drain task.
     Conventional,
     /// Shared Claude/Codex transcript — also written by the CLI / IDE extension.
     Transcript,
@@ -1573,7 +1573,7 @@ pub enum LogSource {
 ///
 /// Deliberately does NOT run the session upsert that `get_run_log` does: the
 /// point is to answer "did anything change?" without paying for a sync. Instead
-/// the SOURCE transcript is stat'd directly, so a session continued outside Devdy
+/// the SOURCE transcript is stat'd directly, so a session continued outside Puppeteer
 /// (Claude CLI, the IDE extension) still shows up as a changed fingerprint and
 /// the caller then goes through the full `get_run_log` path, upsert included.
 /// Stat'ing only the conventional log would have missed exactly that case.
@@ -1586,7 +1586,7 @@ pub struct RunLogRevision {
     /// streaming run rewrites its log many times within one second.
     pub mtime_ns: i64,
     /// Set only for mirrored sessions: the upstream transcript's own stat, so a
-    /// change made outside Devdy invalidates the fingerprint too.
+    /// change made outside Puppeteer invalidates the fingerprint too.
     pub transcript_size: Option<u64>,
     pub transcript_mtime_ns: Option<i64>,
 }
@@ -1662,7 +1662,7 @@ fn resolve_transcript(row: &RunLogRow) -> Option<PathBuf> {
 /// alone used to pull ~29MB off disk just to decide which path to use.
 fn resolve_log_source(row: &RunLogRow, run_id: &str) -> Option<(LogSource, PathBuf)> {
     let conv = Path::new(&row.project_path)
-        .join(".devdy")
+        .join(".puppeteer")
         .join("runs")
         .join(format!("{}.log", run_id));
     if fs::metadata(&conv).map(|m| m.is_file() && m.len() > 0).unwrap_or(false) {
@@ -2357,7 +2357,7 @@ async fn load_clonable_run(db: &sqlx::SqlitePool, run_id: &str) -> Result<Clonab
             if run_type == "analyze_issue" {
                 ref_number.map(|n| {
                     PathBuf::from(&project_path)
-                        .join(".devdy")
+                        .join(".puppeteer")
                         .join("tasks")
                         .join(format!("issue-{}", n))
                         .join("issue.md")
@@ -2435,7 +2435,7 @@ async fn load_handoff_source_run(
                 if run_type == "analyze_issue" {
                     ref_number.map(|n| {
                         PathBuf::from(&project_path)
-                            .join(".devdy")
+                            .join(".puppeteer")
                             .join("tasks")
                             .join(format!("issue-{}", n))
                             .join("issue.md")
@@ -2554,7 +2554,7 @@ pub async fn create_handoff_run(
     let now = chrono::Utc::now().to_rfc3339();
 
     // Persist the transcript next to the per-run logs so the new run can read it.
-    let runs_dir = Path::new(&src.project_path).join(".devdy").join("runs");
+    let runs_dir = Path::new(&src.project_path).join(".puppeteer").join("runs");
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let context_path = runs_dir.join(format!("{}.context.md", new_id));
     let body = format!(
@@ -2853,7 +2853,7 @@ async fn delete_single_run(
         .await;
     crate::runs::model_usage::clear_baseline(db, run_id).await;
 
-    let runs_dir = Path::new(&project_path).join(".devdy").join("runs");
+    let runs_dir = Path::new(&project_path).join(".puppeteer").join("runs");
     let _ = fs::remove_file(runs_dir.join(format!("{}.log", run_id)));
     let _ = fs::remove_dir_all(runs_dir.join(run_id));
 
@@ -3484,7 +3484,7 @@ pub(crate) async fn resume_run_with(
             }
         });
 
-    let runs_dir = Path::new(&project_path).join(".devdy").join("runs");
+    let runs_dir = Path::new(&project_path).join(".puppeteer").join("runs");
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let log_path = runs_dir.join(format!("{}.log", run_id));
 
@@ -3563,7 +3563,7 @@ pub(crate) async fn resume_run_with(
     cmd.current_dir(&project_path).arg(&sidecar_script);
     if transcript_available {
         // The sidecar resumes this session/thread on its first prompt.
-        cmd.env("DEVDY_RESUME_SESSION", &session_id);
+        cmd.env("PUPPETEER_RESUME_SESSION", &session_id);
     }
     augment_command_path(&mut cmd);
     apply_mcp_tool_timeout(&mut cmd);
@@ -3580,12 +3580,12 @@ pub(crate) async fn resume_run_with(
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);
     if engine == "codex" {
-        cmd.env("DEVDY_PERMISSION_MODE", &permission_mode);
+        cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
         if codex_path != "codex" && !codex_path.trim().is_empty() {
-            cmd.env("DEVDY_CODEX_PATH", &codex_path);
+            cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
         }
         if let Some(m) = &model {
-            cmd.env("DEVDY_CODEX_MODEL", m);
+            cmd.env("PUPPETEER_CODEX_MODEL", m);
         }
         // Re-inject the project's MCP servers on resume: a resumed run spawns a
         // FRESH sidecar/query whose first prompt arrives via send_user_message
@@ -3602,42 +3602,42 @@ pub(crate) async fn resume_run_with(
         )
         .await?;
         if !codex_mcp.is_null() {
-            cmd.env("DEVDY_CODEX_MCP", codex_mcp.to_string());
+            cmd.env("PUPPETEER_CODEX_MCP", codex_mcp.to_string());
         }
         // Codex ignores developerInstructions on thread/resume (verified against a
         // real Codex), so a thread never started with this framing (e.g. a legacy
         // plain session) is seeded ONCE by prepending it to the next turn's prompt.
-        // The sidecar reports `_devdy_framing_seeded`, which sets
+        // The sidecar reports `_puppeteer_framing_seeded`, which sets
         // runs.framing_seeded so later resumes don't repeat it.
         if !transcript_available {
             // Fresh thread: the framing goes in as developer instructions, as on start.
             if let Some(framing) = &framing {
-                cmd.env("DEVDY_CODEX_DEVELOPER_INSTRUCTIONS", framing);
+                cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", framing);
             }
         } else if let Some(seed) =
             crate::conductor::codex_resume_seed(framing.as_deref(), framing_seeded)
         {
-            cmd.env("DEVDY_CODEX_SEED_FRAMING", seed);
+            cmd.env("PUPPETEER_CODEX_SEED_FRAMING", seed);
         }
     } else {
         cmd.env(
-            "DEVDY_PERMISSION_MODE",
+            "PUPPETEER_PERMISSION_MODE",
             sdk_permission_mode(&permission_mode),
         );
         if claude_path != "claude" && !claude_path.trim().is_empty() {
-            cmd.env("DEVDY_CLAUDE_PATH", &claude_path);
+            cmd.env("PUPPETEER_CLAUDE_PATH", &claude_path);
         }
         cmd.env(
-            "DEVDY_USAGE_CAPTURE_MODE",
+            "PUPPETEER_USAGE_CAPTURE_MODE",
             claude_usage_capture_mode(db.inner(), claude_account.as_ref().map(|a| a.id.as_str())).await,
         );
-        cmd.env("DEVDY_USAGE_POLL_MS", "60000");
-        cmd.env("DEVDY_PARTIAL_MESSAGES", "1");
+        cmd.env("PUPPETEER_USAGE_POLL_MS", "60000");
+        cmd.env("PUPPETEER_PARTIAL_MESSAGES", "1");
         if let Some(m) = &model {
-            cmd.env("DEVDY_MODEL", m);
+            cmd.env("PUPPETEER_MODEL", m);
         }
         // Re-inject MCP on resume (see the Codex branch above). The sidecar reads
-        // DEVDY_MCP_SERVERS as a fallback when the first prompt carries no options.
+        // PUPPETEER_MCP_SERVERS as a fallback when the first prompt carries no options.
         // A resumed conductor keeps its `session_*` control tools: its session
         // (restored on startup for pre-restart sessions) is still registered.
         let (mcp, _skipped) = assemble_run_mcp(
@@ -3652,18 +3652,18 @@ pub(crate) async fn resume_run_with(
         )
         .await?;
         if !mcp.is_null() {
-            cmd.env("DEVDY_MCP_SERVERS", mcp.to_string());
+            cmd.env("PUPPETEER_MCP_SERVERS", mcp.to_string());
         }
         // Sidecar fallbacks for a resumed first prompt that carries no options:
         // the Claude SDK does not persist an appended system prompt, so the
         // framing (session framing and/or a worker's instruction) is re-sent on
         // every resume.
         if let Some(framing) = &framing {
-            cmd.env("DEVDY_APPEND_SYSTEM_PROMPT", framing);
+            cmd.env("PUPPETEER_APPEND_SYSTEM_PROMPT", framing);
         }
         if conductor_launch.is_some() && sdk_permission_mode(&permission_mode) != "bypassPermissions" {
             cmd.env(
-                "DEVDY_ALLOWED_TOOLS",
+                "PUPPETEER_ALLOWED_TOOLS",
                 serde_json::json!([crate::conductor::CONDUCTOR_TOOLS_ALLOW]).to_string(),
             );
         }
@@ -3758,7 +3758,7 @@ mod transcript_purge_tests {
 
     #[test]
     fn claude_purge_covers_every_account_and_subagent_folder() {
-        let root = std::env::temp_dir().join(format!("devdy_purge_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("puppeteer_purge_{}", std::process::id()));
         let global = root.join("global").join("projects").join("-proj");
         let account = root.join("acct").join("projects").join("-proj");
         for dir in [&global, &account] {
@@ -3866,7 +3866,7 @@ mod log_page_tests {
     fn temp_log(name: &str, content: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
         p.push(format!(
-            "devdy_logpage_{}_{}_{}.log",
+            "puppeteer_logpage_{}_{}_{}.log",
             name,
             std::process::id(),
             std::time::SystemTime::now()
@@ -4252,7 +4252,7 @@ mod claude_account_resume_tests {
     }
 
     fn temp_dir(tag: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("devdy-{tag}-{}", uuid::Uuid::new_v4()));
+        let d = std::env::temp_dir().join(format!("puppeteer-{tag}-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&d).unwrap();
         d
     }
@@ -4274,7 +4274,7 @@ mod claude_account_resume_tests {
     async fn mirror_refreshes_a_stale_copy_from_the_live_transcript() {
         let dir = temp_dir("claude-mirror");
         let db = db_with_accounts(dir.to_str().unwrap()).await;
-        let project_path = "/tmp/devdy-mirror-project";
+        let project_path = "/tmp/puppeteer-mirror-project";
         let dest = claude_transcript_path_for_account(dir.to_str(), project_path, "s1").unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, "old\n").unwrap();

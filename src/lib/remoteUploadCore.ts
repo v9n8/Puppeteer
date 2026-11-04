@@ -1,4 +1,4 @@
-// Copy files of THIS machine onto the controlled Devdy, chunk by chunk (see
+// Copy files of THIS machine onto the controlled Puppeteer, chunk by chunk (see
 // lib/remoteUpload.ts for the wiring and src-tauri/src/remote/upload.rs for
 // both ends). Free of Vue / Tauri so it can be unit-tested in plain Node.
 
@@ -24,7 +24,7 @@ export interface UploadDeps {
   begin: (name: string, size: number) => Promise<{ upload_id: string; path: string }>
   /** Returns the bytes written so far. */
   chunk: (uploadId: string, offset: number, dataBase64: string) => Promise<number>
-  /** Returns the file's path on the controlled Devdy. */
+  /** Returns the file's path on the controlled Puppeteer. */
   finish: (uploadId: string) => Promise<string>
   abort: (uploadId: string) => Promise<void>
   onProgress?: (p: UploadProgress) => void

@@ -26,7 +26,7 @@
   "allow": "Allow",
   "broadScopeWarning": "\"Always\" here covers the whole Google server — Drive, Gmail and Calendar, including sending mail and permanently deleting files — not just this one action.",
   "window": {
-    "title": "Permission — Devdy",
+    "title": "Permission — Puppeteer",
     "osTitlePrefix": "Permission",
     "headerLabel": "Claude — Permission",
     "pinned": "Pinned",

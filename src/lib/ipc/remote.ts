@@ -2,7 +2,7 @@
  * Remote desktop IPC client (CONTRACT — implemented by the shim task).
  *
  * A remote-desktop window (opened with `?remote=1`) runs the normal UI, but its
- * app-level `invoke` / `listen` go to another Devdy over the relay instead of
+ * app-level `invoke` / `listen` go to another Puppeteer over the relay instead of
  * this machine's backend. `remoteIpc()` is `null` everywhere else, so the shim
  * in ./core.ts and ./event.ts is a pure pass-through.
  *
@@ -31,9 +31,9 @@ export interface RemoteIpcState {
 
 export interface RemoteIpcClient {
   readonly state: RemoteIpcState
-  /** Run a Tauri command on the controlled Devdy (queued until connected). */
+  /** Run a Tauri command on the controlled Puppeteer (queued until connected). */
   invoke<T>(cmd: string, args?: InvokeArgs): Promise<T>
-  /** Subscribe to an app event on the controlled Devdy. */
+  /** Subscribe to an app event on the controlled Puppeteer. */
   listen<T>(event: string, handler: EventCallback<T>): Promise<UnlistenFn>
   /** Disconnect for good. */
   close(): void
@@ -68,9 +68,9 @@ function newId(): string {
 }
 
 /**
- * Connect this remote-desktop window to the controlled Devdy. `onToken` is
+ * Connect this remote-desktop window to the controlled Puppeteer. `onToken` is
  * called with the (re)issued session token so the caller can persist it;
- * `onResync` when the controlled Devdy had to drop events for us (congested
+ * `onResync` when the controlled Puppeteer had to drop events for us (congested
  * link), so state fed by events may be stale (see ./resync.ts).
  *
  * Calls made before the first authentication are queued, not failed, so the
@@ -110,7 +110,7 @@ export function startRemoteIpc(
   const c: RemoteIpcClient = {
     state,
     invoke: <T>(cmd: string, args?: InvokeArgs) => core.invoke<T>(cmd, args),
-    // Resolves once registered here, before the controlled Devdy has actually
+    // Resolves once registered here, before the controlled Puppeteer has actually
     // subscribed (that takes a round trip, and is replayed after reconnects):
     // an event emitted there in between is missed, as it would be for a local
     // listen racing the emit. Acceptable — nothing waits on the ack.
@@ -154,7 +154,7 @@ export function startRemoteIpc(
 
 /**
  * Install a client that is not a direct relay connection: a remote pop-out's
- * client reaches the controlled Devdy through the main remote-desktop window
+ * client reaches the controlled Puppeteer through the main remote-desktop window
  * (./muxTransport.ts).
  */
 export function installRemoteIpc(c: RemoteIpcClient): void {

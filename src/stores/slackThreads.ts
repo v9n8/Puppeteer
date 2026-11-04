@@ -4,7 +4,7 @@ import { invoke } from '@/lib/tauri'
 import { linkTargetRun, type SessionLink, type SessionLinkSource } from '@/lib/sessionLinks'
 
 /**
- * Slack threads fetched by Devdy from a thread link (Slack Web API) and
+ * Slack threads fetched by Puppeteer from a thread link (Slack Web API) and
  * translated message by message into Vietnamese. They live in their own tables
  * (slack_threads / slack_messages / slack_files / slack_users). Shapes are the
  * backend contract (serde camelCase) — see

@@ -1,12 +1,12 @@
 [package]
-name = "devdy"
+name = "puppeteer"
 version = "0.13.0"
 description = "AI coding agent for developers"
 authors = ["thainph"]
 edition = "2021"
 
 [lib]
-name = "devdy_lib"
+name = "puppeteer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

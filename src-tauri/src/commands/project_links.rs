@@ -1,4 +1,4 @@
-//! Symlinks from a project into Devdy's skill/rule library.
+//! Symlinks from a project into Puppeteer's skill/rule library.
 //!
 //! Skills and rules are installed into projects as symlinks pointing back at the library source,
 //! so editing the source updates every project at once. There is deliberately no copy fallback:
@@ -10,7 +10,7 @@
 //! switch-over never blocks and never loses a local edit.
 //!
 //! Paths git tracks are never touched: a team that committed its own `.claude/skills/x` keeps it,
-//! and Devdy reports `Linked::TrackedByGit` instead of installing there. A project folder that no
+//! and Puppeteer reports `Linked::TrackedByGit` instead of installing there. A project folder that no
 //! longer exists is an error rather than being recreated by `create_dir_all`.
 //!
 //! Every operation first checks that the folder holding `dest` is a real directory inside the
@@ -34,7 +34,7 @@ pub fn backup_root() -> PathBuf {
     BACKUP_ROOT
         .get()
         .cloned()
-        .unwrap_or_else(|| std::env::temp_dir().join("devdy-legacy-backups"))
+        .unwrap_or_else(|| std::env::temp_dir().join("puppeteer-legacy-backups"))
 }
 
 /// Backups for one project live under a folder named after its path.
@@ -48,11 +48,11 @@ pub fn project_backup_dir(project_root: &Path) -> PathBuf {
     backup_root().join(key)
 }
 
-/// Decides whether a plain file/dir found at a destination is an unedited Devdy copy.
+/// Decides whether a plain file/dir found at a destination is an unedited Puppeteer copy.
 pub trait Known: Fn(&Path) -> bool {}
 impl<F: Fn(&Path) -> bool> Known for F {}
 
-/// Nothing at a destination is ever a known copy (used where Devdy never wrote copies).
+/// Nothing at a destination is ever a known copy (used where Puppeteer never wrote copies).
 pub fn no_copies(_: &Path) -> bool {
     false
 }
@@ -66,11 +66,11 @@ pub enum Linked {
     TrackedByGit,
 }
 
-/// Whether `path` lies inside a Devdy app data dir (`vn.papay.devdy`, `vn.papay.devdy.dev`, …) —
-/// i.e. a link to it was made by Devdy, possibly from another build or an older location.
-fn in_devdy_library(path: &Path) -> bool {
+/// Whether `path` lies inside a Puppeteer app data dir (`io.github.v9n8.puppeteer`, `io.github.v9n8.puppeteer.dev`, …) —
+/// i.e. a link to it was made by Puppeteer, possibly from another build or an older location.
+fn in_puppeteer_library(path: &Path) -> bool {
     path.ancestors()
-        .any(|a| a.file_name().is_some_and(|n| n.to_string_lossy().starts_with("vn.papay.devdy")))
+        .any(|a| a.file_name().is_some_and(|n| n.to_string_lossy().starts_with("io.github.v9n8.puppeteer")))
 }
 
 /// Whether git tracks anything at `dest` (a file, or files under a folder) in the project's repo.
@@ -137,13 +137,13 @@ fn require_real_parent(root: &Path, dest: &Path) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "{} is reached through a symlinked folder — Devdy won't manage links there",
+            "{} is reached through a symlinked folder — Puppeteer won't manage links there",
             dest.display()
         ))
     }
 }
 
-/// Move a copy Devdy can't vouch for out of the project, keeping its path relative to `root`.
+/// Move a copy Puppeteer can't vouch for out of the project, keeping its path relative to `root`.
 fn back_up(root: &Path, dest: &Path) -> Result<PathBuf, String> {
     let rel = dest.strip_prefix(root).unwrap_or(dest);
     move_to_backup(&project_backup_dir(root), dest, rel)
@@ -206,7 +206,7 @@ fn clear_copy(root: &Path, dest: &Path, known: impl Known) -> Result<(), String>
 /// Make `dest` (inside project `root`) a symlink to `target`.
 ///
 /// * nothing there → create the link (parent dirs included);
-/// * already a link to `target` → no-op; a dangling link or one into a Devdy library elsewhere →
+/// * already a link to `target` → no-op; a dangling link or one into a Puppeteer library elsewhere →
 ///   repointed; a link to anything else → error (not ours to repoint);
 /// * a real file/dir git tracks → left alone (`Linked::TrackedByGit`);
 /// * any other real file/dir (legacy copy) → deleted if `known(dest)`, else moved to the backups.
@@ -222,7 +222,7 @@ pub fn ensure_symlink(root: &Path, dest: &Path, target: &Path, known: impl Known
             if current == target {
                 return Ok(Linked::Yes);
             }
-            if dest.exists() && !in_devdy_library(&current) {
+            if dest.exists() && !in_puppeteer_library(&current) {
                 return Err(format!(
                     "{} already links to {} — remove it, then apply again",
                     dest.display(),
@@ -244,7 +244,7 @@ pub fn ensure_symlink(root: &Path, dest: &Path, target: &Path, known: impl Known
     create_symlink(target, dest).map(|()| Linked::Yes)
 }
 
-/// Remove what Devdy installed at `dest`: a link to `target`, a dangling one or one into a Devdy
+/// Remove what Puppeteer installed at `dest`: a link to `target`, a dangling one or one into a Puppeteer
 /// library, or a legacy copy (deleted if `known`, else moved to the backups). Other links and
 /// anything git tracks are left alone. Missing is fine, and so is a symlinked parent folder (then
 /// `dest` isn't ours — nothing is touched).
@@ -255,7 +255,7 @@ pub fn remove_installed(root: &Path, dest: &Path, target: &Path, known: impl Kno
     match inspect(dest)? {
         Existing::Nothing => Ok(()),
         Existing::Link(current) => {
-            if current == target || !dest.exists() || in_devdy_library(&current) {
+            if current == target || !dest.exists() || in_puppeteer_library(&current) {
                 remove_link(dest).map_err(|e| format!("{}: {}", dest.display(), e))
             } else {
                 Ok(())
@@ -266,8 +266,8 @@ pub fn remove_installed(root: &Path, dest: &Path, target: &Path, known: impl Kno
     }
 }
 
-/// Remove `dest` only if it is Devdy's link (see `remove_installed`); real files and folders are
-/// left alone. For locations Devdy never wrote copies to, such as `.agents/skills`.
+/// Remove `dest` only if it is Puppeteer's link (see `remove_installed`); real files and folders are
+/// left alone. For locations Puppeteer never wrote copies to, such as `.agents/skills`.
 pub fn remove_own_link(root: &Path, dest: &Path, target: &Path) -> Result<(), String> {
     match inspect(dest)? {
         Existing::Link(_) => remove_installed(root, dest, target, no_copies),
@@ -321,7 +321,7 @@ const SYNC_PASS_SLACK: std::time::Duration = std::time::Duration::from_secs(2);
 /// True when no file in `dir` (other than `reference` itself) was written after `reference`.
 ///
 /// Copy-era syncs rewrote a skill's whole folder in one pass, SKILL.md included, so every file
-/// Devdy wrote has a change time (ctime) at or before that pass — leftovers from older syncs are
+/// Puppeteer wrote has a change time (ctime) at or before that pass — leftovers from older syncs are
 /// earlier still. A file edited or added in the project afterwards has a later ctime. ctime is
 /// used, not mtime: `fs::copy` keeps the source's mtime, which says nothing about when the copy
 /// was made. (No ctime on Windows; mtime is the best available there.)
@@ -411,7 +411,7 @@ mod tests {
     use super::*;
 
     fn tmp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-links-{}-{}", name, uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-links-{}-{}", name, uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -589,10 +589,10 @@ mod tests {
     }
 
     #[test]
-    fn links_into_another_devdy_library_are_repointed() {
+    fn links_into_another_puppeteer_library_are_repointed() {
         let root = tmp("relink");
-        let old_lib = root.join("Application Support/vn.papay.devdy.dev/skills/skill");
-        let src = root.join("Application Support/vn.papay.devdy/skills/skill");
+        let old_lib = root.join("Application Support/io.github.v9n8.puppeteer.dev/skills/skill");
+        let src = root.join("Application Support/io.github.v9n8.puppeteer/skills/skill");
         for d in [&old_lib, &src] {
             fs::create_dir_all(d).unwrap();
             fs::write(d.join("SKILL.md"), "x").unwrap();

@@ -57,43 +57,12 @@ pub struct AppSettings {
     pub translate_target_lang: String,
     /// Translation style: "natural" | "literal" | "technical" | "formal" | "casual".
     pub translate_style: String,
-    /// Inject the built-in `devdy` MCP server (notes + session recall + project
+    /// Inject the built-in `puppeteer` MCP server (notes + session recall + project
     /// context + VPS) into every run. "true" (default) | "false".
-    pub mcp_builtin_devdy_enabled: String,
+    pub mcp_builtin_puppeteer_enabled: String,
     /// Inject the built-in `google` MCP server when an account is connected.
     /// "true" (default) | "false".
     pub mcp_builtin_google_enabled: String,
-    /// Show the floating DY Cyber Fox mascot. "true" | "false" (default).
-    pub cyber_fox_enabled: String,
-    /// Floating mascot size: "sm" | "md" (default) | "lg".
-    pub cyber_fox_size: String,
-    /// Where the mascot floats: "in-app" (default, inside the app window) |
-    /// "desktop" (a frameless always-on-top pet window over the desktop).
-    pub cyber_fox_mode: String,
-    /// Play a short Cyber Fox "voice" sound when a speech bubble appears.
-    /// "true" (default) | "false".
-    pub cyber_fox_sound: String,
-    /// Let the mascot use a one-shot AI call to write important speech bubbles.
-    /// "true" | "false" (default).
-    pub mascot_speech_enabled: String,
-    /// Engine used by mascot AI speech ("" = follow default_engine).
-    pub mascot_speech_engine: String,
-    /// Model used by mascot AI speech ("" = fast default, e.g. haiku for Claude).
-    pub mascot_speech_model: String,
-    /// Lite / performance mode for the mascot: trims the heaviest effects
-    /// (glow tails, orbit blur/blend, ground-dot density) for weaker machines.
-    /// "false" (default, full effects) | "true".
-    pub cyber_fox_lite: String,
-    /// Preferred Vietnamese TTS voice NAME for the mascot (as reported by the
-    /// browser Web Speech API). "" (default) = auto-pick the first vi voice.
-    pub cyber_fox_voice_vi: String,
-    /// Preferred English TTS voice NAME for the mascot. "" (default) = auto-pick
-    /// the first en voice.
-    pub cyber_fox_voice_en: String,
-    /// Mascot TTS speaking rate. "1" (default); range ~0.5–2.0.
-    pub cyber_fox_voice_rate: String,
-    /// Mascot TTS voice pitch. "1.15" (default); range ~0–2.0.
-    pub cyber_fox_voice_pitch: String,
     /// What quitting does while sessions or leftover background processes are
     /// still running: "ask" (default) | "stop_all" | "keep_leftovers". Read by
     /// `procs::quit`.
@@ -126,20 +95,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "translate_model",
     "translate_target_lang",
     "translate_style",
-    "mcp_builtin_devdy_enabled",
+    "mcp_builtin_puppeteer_enabled",
     "mcp_builtin_google_enabled",
-    "cyber_fox_enabled",
-    "cyber_fox_size",
-    "cyber_fox_mode",
-    "cyber_fox_sound",
-    "mascot_speech_enabled",
-    "mascot_speech_engine",
-    "mascot_speech_model",
-    "cyber_fox_lite",
-    "cyber_fox_voice_vi",
-    "cyber_fox_voice_en",
-    "cyber_fox_voice_rate",
-    "cyber_fox_voice_pitch",
     "quit_background_policy",
     // Focus (focus::settings); the calendar choice stays per machine.
     "focus.work_start",
@@ -185,20 +142,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         translate_model: "".to_string(),
         translate_target_lang: "vi".to_string(),
         translate_style: "natural".to_string(),
-        mcp_builtin_devdy_enabled: "true".to_string(),
+        mcp_builtin_puppeteer_enabled: "true".to_string(),
         mcp_builtin_google_enabled: "true".to_string(),
-        cyber_fox_enabled: "false".to_string(),
-        cyber_fox_size: "md".to_string(),
-        cyber_fox_mode: "in-app".to_string(),
-        cyber_fox_sound: "true".to_string(),
-        mascot_speech_enabled: "false".to_string(),
-        mascot_speech_engine: "".to_string(),
-        mascot_speech_model: "".to_string(),
-        cyber_fox_lite: "false".to_string(),
-        cyber_fox_voice_vi: "".to_string(),
-        cyber_fox_voice_en: "".to_string(),
-        cyber_fox_voice_rate: "1".to_string(),
-        cyber_fox_voice_pitch: "1.15".to_string(),
         quit_background_policy: "ask".to_string(),
     };
 
@@ -234,20 +179,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "translate_model" => settings.translate_model = value,
             "translate_target_lang" => settings.translate_target_lang = value,
             "translate_style" => settings.translate_style = value,
-            "mcp_builtin_devdy_enabled" => settings.mcp_builtin_devdy_enabled = value,
+            "mcp_builtin_puppeteer_enabled" => settings.mcp_builtin_puppeteer_enabled = value,
             "mcp_builtin_google_enabled" => settings.mcp_builtin_google_enabled = value,
-            "cyber_fox_enabled" => settings.cyber_fox_enabled = value,
-            "cyber_fox_size" => settings.cyber_fox_size = value,
-            "cyber_fox_mode" => settings.cyber_fox_mode = value,
-            "cyber_fox_sound" => settings.cyber_fox_sound = value,
-            "mascot_speech_enabled" => settings.mascot_speech_enabled = value,
-            "mascot_speech_engine" => settings.mascot_speech_engine = value,
-            "mascot_speech_model" => settings.mascot_speech_model = value,
-            "cyber_fox_lite" => settings.cyber_fox_lite = value,
-            "cyber_fox_voice_vi" => settings.cyber_fox_voice_vi = value,
-            "cyber_fox_voice_en" => settings.cyber_fox_voice_en = value,
-            "cyber_fox_voice_rate" => settings.cyber_fox_voice_rate = value,
-            "cyber_fox_voice_pitch" => settings.cyber_fox_voice_pitch = value,
             "quit_background_policy" => settings.quit_background_policy = value,
             _ => {}
         }

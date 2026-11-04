@@ -41,8 +41,8 @@ pub const TODO_PATCH_KEYS: [&str; 3] = ["text", "due_date", "project_id"];
 /// Keys a `note_update` patch may carry.
 pub const NOTE_PATCH_KEYS: [&str; 3] = ["title", "content", "project_id"];
 
-/// The settings key behind the built-in `devdy` MCP switch (app-wide).
-const BUILTIN_DEVDY_KEY: &str = "mcp_builtin_devdy_enabled";
+/// The settings key behind the built-in `puppeteer` MCP switch (app-wide).
+const BUILTIN_PUPPETEER_KEY: &str = "mcp_builtin_puppeteer_enabled";
 
 // ---- Pure validation ---------------------------------------------------------
 
@@ -164,7 +164,7 @@ pub enum ToggleKind {
     Skill,
     Rule,
     Mcp,
-    /// The built-in `devdy` MCP server (an app-wide setting today).
+    /// The built-in `puppeteer` MCP server (an app-wide setting today).
     BuiltinMcp,
     /// A VPS server.
     Server,
@@ -288,7 +288,7 @@ async fn claude_account_rows(db: &Db, project_id: &str) -> Result<Vec<ClaudeAcco
 }
 
 /// Every skill / rule / MCP server / VPS server / account with whether it is on
-/// for `project_id`, plus the built-in `devdy` server. Selects ids and names
+/// for `project_id`, plus the built-in `puppeteer` server. Selects ids and names
 /// only — nothing a server or account is configured with (command, URL, env /
 /// header keys, host, login, email) is read.
 pub async fn project_toggles(db: &Db, project_id: &str) -> Result<StreamPayload, String> {
@@ -329,8 +329,8 @@ pub async fn project_toggles(db: &Db, project_id: &str) -> Result<StreamPayload,
         mcp_servers,
         skills,
         rules,
-        builtin_devdy: BuiltinToggle {
-            enabled: mcp::builtin_devdy_enabled(db).await,
+        builtin_puppeteer: BuiltinToggle {
+            enabled: mcp::builtin_puppeteer_enabled(db).await,
             global: true,
         },
         servers,
@@ -616,7 +616,7 @@ async fn toggle_set(ctx: &HandlerCtx, cmd: &CmdPayload) -> DataResult {
     let db = &ctx.db;
     let outcome = match kind {
         ToggleKind::BuiltinMcp => {
-            settings::set_setting(db, BUILTIN_DEVDY_KEY, if enabled { "true" } else { "false" }).await
+            settings::set_setting(db, BUILTIN_PUPPETEER_KEY, if enabled { "true" } else { "false" }).await
         }
         ToggleKind::Skill | ToggleKind::Rule | ToggleKind::Mcp => {
             let id = valid_id(cmd.item_id.as_deref())?;
@@ -853,7 +853,7 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&db).await.unwrap();
         for sql in [
-            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'devdy', '/tmp/devdy', 'c')",
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'puppeteer', '/tmp/puppeteer', 'c')",
             "INSERT INTO mcp_servers (id, name, description, transport, command, args, url, env_keys, \
              header_keys, enabled, created_at) VALUES ('m1', 'pms', 'desc-SECRET', 'http', \
              'cmd-SECRET', '[\"arg-SECRET\"]', 'https://url-SECRET', '[\"ENV_KEY_SECRET\"]', \
@@ -864,7 +864,7 @@ mod tests {
              VALUES ('s1', 'git-flow', 'desc-SECRET', '/path-SECRET', 'c')",
             "INSERT INTO rules (id, name, description, source_path, updated_at) \
              VALUES ('r1', 'git-rule', 'desc-SECRET', '/path-SECRET', 'c')",
-            "INSERT INTO settings (key, value) VALUES ('mcp_builtin_devdy_enabled', 'false')",
+            "INSERT INTO settings (key, value) VALUES ('mcp_builtin_puppeteer_enabled', 'false')",
             "INSERT INTO servers (id, label, host, port, username, auth_method, private_key_path, created_at) \
              VALUES ('v1', 'prod', 'host-SECRET', 22, 'user-SECRET', 'key', '/key-SECRET', 'c')",
             "INSERT INTO project_servers (project_id, server_id, role, created_at) VALUES ('p1', 'v1', 'staging', 'c')",
@@ -889,7 +889,7 @@ mod tests {
         ]));
         assert_eq!(v["skills"], json!([{ "id": "s1", "name": "git-flow", "enabled": false }]));
         assert_eq!(v["rules"], json!([{ "id": "r1", "name": "git-rule", "enabled": false }]));
-        assert_eq!(v["builtin_devdy"], json!({ "enabled": false, "global": true }));
+        assert_eq!(v["builtin_puppeteer"], json!({ "enabled": false, "global": true }));
         assert_eq!(v["servers"], json!([{ "id": "v1", "name": "prod", "enabled": true }]));
         assert_eq!(v["github_accounts"], json!([{ "id": "g1", "name": "work", "enabled": true }]));
         assert_eq!(v["gitlab_accounts"], json!([]));
@@ -903,7 +903,7 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         keys(&v, &mut seen);
         let allowed = [
-            "kind", "project_id", "mcp_servers", "skills", "rules", "builtin_devdy", "id", "name",
+            "kind", "project_id", "mcp_servers", "skills", "rules", "builtin_puppeteer", "id", "name",
             "enabled", "global", "servers", "github_accounts", "gitlab_accounts", "aws_accounts",
             "azure_accounts", "claude_accounts", "is_default",
         ];

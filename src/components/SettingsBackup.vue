@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Settings → Devices → Backup: export the whole Devdy configuration (settings, Skills/Rules
+// Settings → Devices → Backup: export the whole Puppeteer configuration (settings, Skills/Rules
 // library, MCP + VPS servers, account metadata, notes/todos, Slack threads, projects) into one file and import it
 // on another machine. Secrets only travel when the user sets a password (sealed backend-side with
 // Argon2id + XChaCha20-Poly1305). Import merges by name and never deletes local items.
@@ -15,7 +15,7 @@ import { invoke } from '@/lib/tauri'
 import { formatExportedAt, type BackupInfo, type ImportReport } from '@/lib/settingsBackup'
 
 const MIN_PASSWORD = 8
-const FILE_EXT = 'devdy-backup'
+const FILE_EXT = 'puppeteer-backup'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -37,8 +37,8 @@ async function runExport() {
   if (exporting.value || exportError.value) return
   const stamp = new Date().toISOString().slice(0, 10)
   const path = await save({
-    defaultPath: `devdy-settings-${stamp}.${FILE_EXT}`,
-    filters: [{ name: 'Devdy backup', extensions: [FILE_EXT] }],
+    defaultPath: `puppeteer-settings-${stamp}.${FILE_EXT}`,
+    filters: [{ name: 'Puppeteer backup', extensions: [FILE_EXT] }],
   })
   if (!path) return
   exporting.value = true
@@ -68,7 +68,7 @@ const report = ref<ImportReport | null>(null)
 async function chooseFile() {
   const selected = await open({
     multiple: false,
-    filters: [{ name: 'Devdy backup', extensions: [FILE_EXT, 'json'] }],
+    filters: [{ name: 'Puppeteer backup', extensions: [FILE_EXT, 'json'] }],
   })
   if (!selected || Array.isArray(selected)) return
   report.value = null

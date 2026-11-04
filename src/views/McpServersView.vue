@@ -74,7 +74,7 @@ const addingName = ref<string | null>(null)
 // on/off app-wide here (`mcp_builtin_<name>_enabled`) and per project in the
 // project's MCP tab — never deleted.
 function builtinOn(name: string): boolean {
-  const key = `mcp_builtin_${name}_enabled` as 'mcp_builtin_devdy_enabled' | 'mcp_builtin_google_enabled'
+  const key = `mcp_builtin_${name}_enabled` as 'mcp_builtin_puppeteer_enabled' | 'mcp_builtin_google_enabled'
   return appSettings.settings?.[key] !== 'false'
 }
 
@@ -103,7 +103,7 @@ interface Builtin extends BuiltinInfo {
   toolGroups?: string[]
 }
 
-const DEVDY_TOOL_GROUPS = [
+const PUPPETEER_TOOL_GROUPS = [
   '📝 notes_list / read / search / create / update / append / set_project / reorder / delete',
   '🧠 sessions_recent / search / read',
   '✅ todos_list / add / done / update / set_project / reorder / delete / clear_done',
@@ -116,15 +116,15 @@ const DEVDY_TOOL_GROUPS = [
 ]
 
 const builtins = computed<Builtin[]>(() => {
-  const devdyOn = builtinOn('devdy')
-  const devdy: Builtin = {
-    name: 'devdy',
-    tools: 'mcp__devdy__*',
-    tone: devdyOn ? 'success' : 'neutral',
-    status: devdyOn ? t('mcp.list.builtin.active') : t('mcp.list.builtin.disabled'),
-    description: t('mcp.list.builtin.description', { tools: 'mcp__devdy__*' }),
-    enabled: devdyOn,
-    toolGroups: DEVDY_TOOL_GROUPS,
+  const puppeteerOn = builtinOn('puppeteer')
+  const puppeteer: Builtin = {
+    name: 'puppeteer',
+    tools: 'mcp__puppeteer__*',
+    tone: puppeteerOn ? 'success' : 'neutral',
+    status: puppeteerOn ? t('mcp.list.builtin.active') : t('mcp.list.builtin.disabled'),
+    description: t('mcp.list.builtin.description', { tools: 'mcp__puppeteer__*' }),
+    enabled: puppeteerOn,
+    toolGroups: PUPPETEER_TOOL_GROUPS,
   }
   const googleOn = builtinOn('google')
   const googleState = !googleOn ? 'disabled' : !googleHasClient.value ? 'needsClient' : googleAccountCount.value === 0 ? 'noAccount' : 'active'
@@ -137,7 +137,7 @@ const builtins = computed<Builtin[]>(() => {
     enabled: googleOn,
     section: 'google',
   }
-  return [devdy, google]
+  return [puppeteer, google]
 })
 
 // ── Sidebar rows ────────────────────────────────────────────────────────────

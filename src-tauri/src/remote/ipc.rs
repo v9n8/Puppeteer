@@ -1,7 +1,7 @@
-//! Remote desktop IPC: drive this app's backend from another Devdy over the
+//! Remote desktop IPC: drive this app's backend from another Puppeteer over the
 //! relay, exactly as the local UI does.
 //!
-//! A Controller that advertises [`FEATURE_IPC`] is another Devdy window running
+//! A Controller that advertises [`FEATURE_IPC`] is another Puppeteer window running
 //! the normal UI with its `invoke` / `listen` routed here. The agent does not
 //! interpret those calls: it hands them to a hidden `remote-bridge` webview,
 //! which runs the real `invoke` / `listen` — so every command (and every plugin
@@ -48,7 +48,7 @@ use crate::remote::protocol::StreamPayload;
 pub const FEATURE_IPC: &str = "ipc";
 /// Label of the hidden bridge webview.
 pub const BRIDGE_LABEL: &str = "remote-bridge";
-/// App event: an IPC Controller started driving this Devdy (`{ since_unix }`).
+/// App event: an IPC Controller started driving this Puppeteer (`{ since_unix }`).
 pub const ATTACHED_EVENT: &str = "remote://desktop-attached";
 /// App event: the IPC Controller left or was cut off (`{}`).
 pub const DETACHED_EVENT: &str = "remote://desktop-detached";
@@ -375,7 +375,7 @@ impl IpcHub {
         }
         let on_load = self.clone();
         let built = WebviewWindowBuilder::new(app, BRIDGE_LABEL, WebviewUrl::App("bridge.html".into()))
-            .title("Devdy remote bridge")
+            .title("Puppeteer remote bridge")
             .visible(false)
             .on_page_load(move |_, payload| {
                 // Requests sent now would hit a page that is going away.

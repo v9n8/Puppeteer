@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// projects_create / repos_add of the built-in `devdy` MCP server: the rows match
+// projects_create / repos_add of the built-in `puppeteer` MCP server: the rows match
 // what the app's add_project / add_repo write (position, provider coordinates
 // read off the origin remote), duplicates and bad paths are rejected.
 //
@@ -30,8 +30,8 @@ const check = (ok, label) => {
 
 // ---- Pure helpers ----------------------------------------------------------------
 
-const gh = { provider: 'github', github_owner: 'Papay', github_repo: 'devdy', gitlab_project_path: null };
-for (const url of ['https://github.com/Papay/devdy.git', 'git@github.com:Papay/devdy.git', 'ssh://git@github.com/Papay/devdy/']) {
+const gh = { provider: 'github', github_owner: 'Papay', github_repo: 'puppeteer', gitlab_project_path: null };
+for (const url of ['https://github.com/Papay/puppeteer.git', 'git@github.com:Papay/puppeteer.git', 'ssh://git@github.com/Papay/puppeteer/']) {
   check(JSON.stringify(parseRemoteUrl(url)) === JSON.stringify(gh), `remote: ${url}`);
 }
 check(parseRemoteUrl('git@gitlab.com:grp/sub/app.git')?.gitlab_project_path === 'grp/sub/app', 'remote: gitlab nested group');
@@ -39,7 +39,7 @@ check(parseRemoteUrl('https://bitbucket.org/a/b') === null && parseRemoteUrl('ht
 
 // ---- Fixture -------------------------------------------------------------------
 
-const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'devdy-projects-')));
+const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'puppeteer-projects-')));
 const dbPath = join(tmp, 'data.db');
 const db = new DatabaseSync(dbPath);
 for (const f of readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort()) {
@@ -66,7 +66,7 @@ mkdirSync(plain);
 function drive(calls, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, DEVDY_DB_PATH: dbPath, DEVDY_PROJECT_ID: PROJECT, ...env },
+      env: { ...process.env, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -131,7 +131,7 @@ check(out.plain.includes('no .git') && reposOf(created).some((r) => r.path === p
 check(out['bad-url'].includes('not a GitHub/GitLab'), 'repos_add: bad remote_url rejected');
 check(out.ghost.includes('no project matches "Ghost"'), 'repos_add: unknown project rejected');
 
-out = await drive([['no-current', 'repos_add', { path: lone }]], { DEVDY_PROJECT_ID: '' });
+out = await drive([['no-current', 'repos_add', { path: lone }]], { PUPPETEER_PROJECT_ID: '' });
 check(out['no-current'].includes('no current project'), 'repos_add: no current project and none given');
 
 const [api, web] = reposOf(created);

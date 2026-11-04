@@ -10,7 +10,7 @@ export const PR_GROUP_BY_OPTIONS: readonly PrGroupBy[] = ['none', 'project', 're
 /**
  * - `all`:      the single headerless bucket of `none` mode
  * - `normal`:   a project / repo / author / reviewer-account group
- * - `unmapped`: PRs whose repo isn't tracked in devdy (project mode only)
+ * - `unmapped`: PRs whose repo isn't tracked in puppeteer (project mode only)
  * - `bots`:     every bot-authored PR when bots aren't hidden
  */
 export type PrGroupKind = 'all' | 'normal' | 'unmapped' | 'bots'
@@ -99,7 +99,7 @@ function bucketsOf(item: PrInboxItem, groupBy: Exclude<PrGroupBy, 'none'>): Buck
 
 /**
  * Split the inbox into ordered groups. Within a group PRs stay newest-first;
- * groups are ordered by their newest PR, with "Not in devdy" and "Bots" always
+ * groups are ordered by their newest PR, with "Not in puppeteer" and "Bots" always
  * last. Bot PRs are either hidden (counted in `hiddenBotCount`) or gathered
  * into one "Bots" group — except in `none` mode, where they stay inline.
  * `isBot` defaults to the backend's `author_is_bot` (the view also honours the

@@ -335,50 +335,6 @@ pub async fn convert_run_to_conductor(
     })
 }
 
-/// SQL predicate selecting top-level runs that are not conductors yet: not a
-/// worker (no role 'worker', no parent conductor) and not currently running.
-const LEGACY_TOP_LEVEL_WHERE: &str = "(r.role IS NULL OR r.role NOT IN ('conductor', 'worker'))
-     AND (r.conductor_run_id IS NULL OR TRIM(r.conductor_run_id) = '')
-     AND r.status != 'running'";
-
-/// One-time-safe startup migration: every legacy plain top-level run becomes a
-/// conductor (the same DB upgrade `convert_run_to_conductor` does). Workers and
-/// running runs are never touched; runs whose project no longer exists are
-/// skipped (the session row's FK needs it). Idempotent — a re-run finds nothing
-/// left to convert. Must run before [`reconnect_running`] so the upgraded
-/// sessions are registered in memory with a live token.
-pub async fn migrate_legacy_sessions(db: &Db) -> Result<u64, String> {
-    let now = chrono::Utc::now().to_rfc3339();
-    let mut tx = db.begin().await.map_err(|e| e.to_string())?;
-    sqlx::query(&format!(
-        "INSERT OR IGNORE INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at)
-         SELECT r.id, r.project_id, '', 'running', ?, ?
-         FROM runs r JOIN projects p ON p.id = r.project_id
-         WHERE {LEGACY_TOP_LEVEL_WHERE}"
-    ))
-    .bind(DEFAULT_MAX_WORKERS as i64)
-    .bind(&now)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| e.to_string())?;
-    let converted = sqlx::query(&format!(
-        "UPDATE runs SET role = 'conductor'
-         WHERE id IN (
-           SELECT r.id FROM runs r JOIN conductor_sessions s ON s.id = r.id
-           WHERE {LEGACY_TOP_LEVEL_WHERE}
-         )"
-    ))
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| e.to_string())?
-    .rows_affected();
-    tx.commit().await.map_err(|e| e.to_string())?;
-    if converted > 0 {
-        tracing::info!(event = "conductor_legacy_sessions_migrated", count = converted);
-    }
-    Ok(converted)
-}
-
 #[derive(Serialize)]
 pub struct ConductorSessionRow {
     pub id: String,
@@ -632,41 +588,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn migration_upgrades_only_stopped_top_level_runs_and_is_idempotent() {
-        let db = setup().await;
-        add_run(&db, "plain", "session", "done", None, None).await;
-        add_run(&db, "issue", "analyze_issue", "fetched", None, None).await;
-        add_run(&db, "pr", "review_pr", "cancelled", Some("normal"), None).await;
-        add_run(&db, "live", "session", "running", None, None).await;
-        add_run(&db, "cond", "session", "done", Some("conductor"), None).await;
-        add_run(&db, "w1", "session", "done", Some("worker"), Some("cond")).await;
-        // Defensive: a run linked to a conductor without the worker role.
-        add_run(&db, "w2", "session", "done", None, Some("cond")).await;
-
-        assert_eq!(migrate_legacy_sessions(&db).await.unwrap(), 3);
-        for id in ["plain", "issue", "pr"] {
-            assert_eq!(role_of(&db, id).await.as_deref(), Some("conductor"), "{id}");
-            assert!(has_session(&db, id).await, "{id}");
-        }
-        assert_eq!(role_of(&db, "live").await, None, "running runs are skipped");
-        assert!(!has_session(&db, "live").await);
-        assert_eq!(role_of(&db, "w1").await.as_deref(), Some("worker"));
-        assert_eq!(role_of(&db, "w2").await, None, "linked runs are never promoted");
-        assert!(!has_session(&db, "w1").await && !has_session(&db, "w2").await);
-        // The pre-existing conductor keeps its (absent) row: nothing touched it.
-        assert!(!has_session(&db, "cond").await);
-
-        // Re-running is harmless.
-        assert_eq!(migrate_legacy_sessions(&db).await.unwrap(), 0);
-
-        // Upgraded sessions are restored in memory on startup.
-        let cst = ConductorState::new();
-        reconnect_running(&db, &cst).await;
-        assert!(cst.token_for("plain").is_some());
-        assert_eq!(cst.session("plain").unwrap().max_workers, DEFAULT_MAX_WORKERS);
-    }
-
-    #[tokio::test]
     async fn ensure_launch_upgrades_top_level_and_skips_workers() {
         let db = setup().await;
         add_run(&db, "s", "review_pr", "done", None, None).await;
@@ -745,11 +666,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn codex_legacy_thread_is_seeded_once_then_never_again() {
+    async fn codex_converted_thread_is_seeded_once_then_never_again() {
         let db = setup().await;
-        // A legacy plain Codex session, migrated: its thread never saw framing.
+        // A plain Codex session converted to a conductor: its thread never saw framing.
         add_run(&db, "legacy", "session", "done", None, None).await;
-        migrate_legacy_sessions(&db).await.unwrap();
+        upgrade_run_to_conductor(&db, "legacy", "p1", None, None).await.unwrap();
         let cst = ConductorState::new();
 
         let r = resume_framing(&db, Some(&cst), "legacy").await.unwrap();
@@ -758,7 +679,7 @@ mod tests {
             .expect("first resume seeds the framing into the prompt");
         assert!(seed.contains(super::super::CONDUCTOR_SYSTEM_PROMPT));
 
-        // The sidecar confirmed the seeded turn (`_devdy_framing_seeded`).
+        // The sidecar confirmed the seeded turn (`_puppeteer_framing_seeded`).
         mark_framing_seeded(&db, "legacy").await;
         let r = resume_framing(&db, Some(&cst), "legacy").await.unwrap();
         assert!(r.seeded);
@@ -767,8 +688,8 @@ mod tests {
 
     #[tokio::test]
     async fn deleting_a_session_deletes_its_workers_and_revokes_tokens() {
-        let dir = std::env::temp_dir().join(format!("devdy-del-{}", uuid::Uuid::new_v4()));
-        let runs_dir = dir.join(".devdy").join("runs");
+        let dir = std::env::temp_dir().join(format!("puppeteer-del-{}", uuid::Uuid::new_v4()));
+        let runs_dir = dir.join(".puppeteer").join("runs");
         std::fs::create_dir_all(&runs_dir).unwrap();
         let db = setup().await;
         sqlx::query("UPDATE projects SET path = ? WHERE id = 'p1'")

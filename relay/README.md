@@ -1,8 +1,8 @@
-# Devdy Remote Control Relay
+# Puppeteer Remote Control Relay
 
-WebSocket bridge for Devdy's Remote Control feature (SRS-RC-C1, **Unit U1**).
+WebSocket bridge for Puppeteer's Remote Control feature (SRS-RC-C1, **Unit U1**).
 
-The relay bridges a **Host** (Devdy on the dev machine) and a single
+The relay bridges a **Host** (Puppeteer on the dev machine) and a single
 **Controller** (phone/other PC) by `room_id`. It **never** decrypts, stores, or
 logs the business payload — it forwards the opaque `cipher` field verbatim
 (SEC-006 / CON-04 / NFR-005). Both peers connect *outbound* to the relay, so
@@ -14,7 +14,7 @@ workspace and has no dependency on `src-tauri/`.
 ## Topology B (the only supported deployment)
 
 ```
-[Devdy Host] --outbound WSS--> nginx/apache (TLS :443) --proxy--> relay 127.0.0.1:8787 <--outbound WSS-- [Controller]
+[Puppeteer Host] --outbound WSS--> nginx/apache (TLS :443) --proxy--> relay 127.0.0.1:8787 <--outbound WSS-- [Controller]
 ```
 
 The relay binds **localhost only**. TLS is terminated by the reverse proxy
@@ -38,7 +38,7 @@ Control frames handled by the relay:
 | `t`              | Direction        | Purpose |
 |------------------|------------------|---------|
 | `register_host`  | Host → Relay     | Authenticate with `auth_token`; hold long-lived. |
-| `create_pair`    | Host → Relay     | Listen on a rendezvous `pair_code` until this connection closes (a new code replaces the old one in the same `slot`). Acked with `room_ready{code:"armed"}`. Optional `slot`: absent = the session, `"login"` = password login (well-known code `devdy-login-v1`). |
+| `create_pair`    | Host → Relay     | Listen on a rendezvous `pair_code` until this connection closes (a new code replaces the old one in the same `slot`). Acked with `room_ready{code:"armed"}`. Optional `slot`: absent = the session, `"login"` = password login (well-known code `puppeteer-login-v1`). |
 | `join`           | Controller → Relay | Join the Host listening on `pair_code`. A newer join replaces the previous Controller (`error{superseded}` to the old one). |
 | `room_ready`     | Relay → both     | Room opened, carries `room_id`. |
 | `peer_left`      | Relay → survivor | The other peer left / was cut. Re-join. |
@@ -83,7 +83,7 @@ No secret is ever hardcoded or committed (SEC-001).
 ## Build
 
 ```bash
-cargo build --release        # -> target/release/devdy-relay (single static-friendly binary)
+cargo build --release        # -> target/release/puppeteer-relay (single static-friendly binary)
 cargo test                   # unit + real in-process WebSocket integration tests
 cargo clippy --all-targets -- -D warnings
 ```
@@ -96,7 +96,7 @@ VPS. For a self-contained, portable Linux binary, build against musl:
 ```bash
 rustup target add x86_64-unknown-linux-musl
 cargo build --release --target x86_64-unknown-linux-musl
-# -> target/x86_64-unknown-linux-musl/release/devdy-relay
+# -> target/x86_64-unknown-linux-musl/release/puppeteer-relay
 ```
 
 Or without a local musl toolchain:
@@ -114,18 +114,18 @@ Files in `deploy/`:
 
 - `relay.service` — systemd unit: unprivileged user, `Restart=always`
   (recover <=10s, NFR-006), `MemoryMax=128M`, and sandboxing (SEC-010).
-- `relay.env.example` — copy to `/etc/devdy-relay.env`, set `RELAY_HOST_TOKEN`,
+- `relay.env.example` — copy to `/etc/puppeteer-relay.env`, set `RELAY_HOST_TOKEN`,
   `chmod 0640`. **Never commit the real file.**
 - `nginx-relay.conf.example` — WSS reverse proxy with `Upgrade`/`Connection`
   headers and long read timeout (INT-002).
 
 ```bash
 # On the VPS:
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin devdyrelay
-sudo install -m 0755 devdy-relay /usr/local/bin/devdy-relay
-sudo install -m 0640 -o devdyrelay -g devdyrelay relay.env /etc/devdy-relay.env  # edit token first
-sudo cp deploy/relay.service /etc/systemd/system/devdy-relay.service
-sudo systemctl daemon-reload && sudo systemctl enable --now devdy-relay
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin puppeteerrelay
+sudo install -m 0755 puppeteer-relay /usr/local/bin/puppeteer-relay
+sudo install -m 0640 -o puppeteerrelay -g puppeteerrelay relay.env /etc/puppeteer-relay.env  # edit token first
+sudo cp deploy/relay.service /etc/systemd/system/puppeteer-relay.service
+sudo systemctl daemon-reload && sudo systemctl enable --now puppeteer-relay
 # then wire the nginx subdomain (see nginx-relay.conf.example) and reload nginx
 ```
 

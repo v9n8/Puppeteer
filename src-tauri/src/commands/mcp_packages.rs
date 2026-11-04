@@ -3,7 +3,7 @@
 //! A server configured as `npx [-y] <pkg>[@ver] …` costs every run an extra
 //! `npm exec` wrapper process (~90–120 MB RSS) that does nothing but sit between
 //! the engine and the real server for the whole session, and `@latest` makes npm
-//! hit the registry on every spawn. Devdy instead installs the package once into
+//! hit the registry on every spawn. Puppeteer instead installs the package once into
 //! `<app data>/mcp-packages/<spec>/` and launches its bin directly.
 //!
 //! Never blocks or breaks a run: when the package isn't installed yet the
@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime};
 const REFRESH_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Written after a successful install; its mtime is the install time.
-const MARKER: &str = ".devdy-installed";
+const MARKER: &str = ".puppeteer-installed";
 
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn launches_installed_bin_with_passthrough_args() {
-        let root = std::env::temp_dir().join(format!("devdy-mcp-pkg-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("puppeteer-mcp-pkg-{}", std::process::id()));
         let call = parse_npx("npx", &s(&["-y", "@scope/tool@1.0.0", "--port", "1"])).unwrap();
         let dir = install_dir(&root, &call.spec);
         assert!(dir.ends_with("@scope+tool@1.0.0"));

@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use devdy_relay::config::Config;
+use puppeteer_relay::config::Config;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
@@ -34,7 +34,7 @@ async fn start_relay_with(ping_interval: Duration, peer_liveness_timeout: Durati
         max_rooms: 256,
         max_message_bytes: 32 * 1024 * 1024,
     };
-    let (handle, accept_loop) = devdy_relay::server::serve(config)
+    let (handle, accept_loop) = puppeteer_relay::server::serve(config)
         .await
         .expect("relay must bind");
     let addr = handle.local_addr;
@@ -326,13 +326,13 @@ async fn login_slot_is_tagged_and_survives_ending_the_session() {
     let url = start_relay().await;
     let mut host = register_host(&url).await;
     listen(&mut host, "session-code").await;
-    send(&mut host, json!({ "t": "create_pair", "pair_code": "devdy-login", "slot": "login" })).await;
+    send(&mut host, json!({ "t": "create_pair", "pair_code": "puppeteer-login", "slot": "login" })).await;
     let ack = recv_json(&mut host).await.unwrap();
     assert_eq!(ack["code"], "armed");
     assert_eq!(ack["slot"], "login");
 
     let mut ctrl = connect(&url).await;
-    send(&mut ctrl, json!({ "t": "join", "pair_code": "devdy-login" })).await;
+    send(&mut ctrl, json!({ "t": "join", "pair_code": "puppeteer-login" })).await;
     assert_eq!(recv_json(&mut ctrl).await.unwrap()["t"], "room_ready");
     let h = recv_json(&mut host).await.unwrap();
     assert_eq!(h["t"], "room_ready");
@@ -341,6 +341,6 @@ async fn login_slot_is_tagged_and_survives_ending_the_session() {
     // Ending the session must not drop the login listen.
     send(&mut host, json!({ "t": "revoke", "room_id": "" })).await;
     let mut c2 = connect(&url).await;
-    send(&mut c2, json!({ "t": "join", "pair_code": "devdy-login" })).await;
+    send(&mut c2, json!({ "t": "join", "pair_code": "puppeteer-login" })).await;
     assert_eq!(recv_json(&mut c2).await.unwrap()["t"], "room_ready");
 }

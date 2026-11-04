@@ -20,7 +20,7 @@ const emit = defineEmits<{ link: [payload: SessionLinkPayload]; granted: [grant:
 // Password login: for when the link is lost. The owner's master password alone
 // reaches the Host through its login slot; the optional device name picks
 // which Host when several share the relay (remembered for next time).
-const DEVICE_KEY = 'devdy.controller.loginDevice'
+const DEVICE_KEY = 'puppeteer.controller.loginDevice'
 const device = ref(readDevice())
 const password = ref('')
 const loggingIn = ref(false)

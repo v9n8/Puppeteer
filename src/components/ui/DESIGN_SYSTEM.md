@@ -1,4 +1,4 @@
-# Devdy design system
+# Puppeteer design system
 
 Single reference for how UI is built in `src/` (app + `controller/`). Before
 adding UI, reuse what is listed here; if something is missing, extend the shared
@@ -30,7 +30,7 @@ Solid fills pair with their foreground: `bg-success text-success-foreground`,
 Question / plan prompts and the "ok" segment of usage meters use `info` (fixed hue — `primary` changes per color theme and can collide with warning/destructive).
 
 Exceptions (raw palette is OK): `Badge` solid tones, charts/Gantt series colors,
-calendar event colors, mascot/decorations — data-driven palettes, not UI state.
+calendar event colors, decorations — data-driven palettes, not UI state.
 
 ### Radius
 

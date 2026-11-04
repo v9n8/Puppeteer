@@ -325,7 +325,7 @@ async function handleExport(rule: Rule) {
       v-model:search="search"
       :groups="sidebarGroups"
       :selected-id="isNew ? null : selectedId"
-      collapse-key="devdy.rules.collapsedGroups"
+      collapse-key="puppeteer.rules.collapsedGroups"
       :search-placeholder="t('rules.detail.searchPlaceholder')"
       :loading="store.loading"
       :error="store.error"

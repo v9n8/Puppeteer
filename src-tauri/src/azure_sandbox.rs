@@ -1,6 +1,6 @@
-//! Azure CLI config dirs managed by Devdy.
+//! Azure CLI config dirs managed by Puppeteer.
 //!
-//! Every Devdy Azure account is an ISOLATED Azure CLI config dir
+//! Every Puppeteer Azure account is an ISOLATED Azure CLI config dir
 //! (`AZURE_CONFIG_DIR`) at `<app_data>/azure-accounts/<account_id>`. The account
 //! is signed in (`az login`) and its default subscription set (`az account set`)
 //! inside that dir, so the user's own `~/.azure` is never read or written.
@@ -40,7 +40,7 @@ pub fn accounts_root(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join(AZURE_ACCOUNTS_DIR)
 }
 
-/// Account ids are Devdy-generated UUIDs; reject anything else so a stray id can
+/// Account ids are Puppeteer-generated UUIDs; reject anything else so a stray id can
 /// never escape the account root via path traversal.
 fn is_safe_account_id(account_id: &str) -> bool {
     !account_id.is_empty()
@@ -122,10 +122,10 @@ mod tests {
 
     #[test]
     fn account_dir_rejects_traversal() {
-        let root = Path::new("/tmp/devdy-az");
+        let root = Path::new("/tmp/puppeteer-az");
         assert_eq!(
             account_dir_in(root, "6f1c-ab_9").as_deref(),
-            Some(Path::new("/tmp/devdy-az/6f1c-ab_9"))
+            Some(Path::new("/tmp/puppeteer-az/6f1c-ab_9"))
         );
         for bad in ["", "..", "../x", "a/b", "a b", "."] {
             assert!(
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn is_logged_in_reads_bom_profile() {
-        let dir = std::env::temp_dir().join(format!("devdy-az-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-az-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         assert!(!is_logged_in(&dir), "missing profile");
         std::fs::write(

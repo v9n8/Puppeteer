@@ -128,7 +128,7 @@ async function clearMasterPassword() {
       </div>
 
       <!-- Device name: picks this host's password-login code, so several
-           Devdy hosts can share one relay (and one master password). -->
+           Puppeteer hosts can share one relay (and one master password). -->
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-muted-foreground">{{ t('remote.settings.deviceName') }}</label>
         <Input

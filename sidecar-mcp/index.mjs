@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Devdy built-in MCP server (stdio transport, JSON-RPC 2.0 line-delimited).
+// Puppeteer built-in MCP server (stdio transport, JSON-RPC 2.0 line-delimited).
 //
-// Injected automatically into every run under the server key `devdy`, so tools
-// are namespaced `mcp__devdy__<name>` on the AI side. Capabilities:
-//   • Quick notes  — full CRUD over Devdy's markdown scratchpad (per-project or global)
+// Injected automatically into every run under the server key `puppeteer`, so tools
+// are namespaced `mcp__puppeteer__<name>` on the AI side. Capabilities:
+//   • Quick notes  — full CRUD over Puppeteer's markdown scratchpad (per-project or global)
 //   • Slack threads (slack_threads_*) fetched + translated to Vietnamese by the app:
 //     list/read (Vietnamese, original on request)/search/rename/set_project/delete
 //   • Session recall — search & read past run transcripts across sessions
@@ -11,8 +11,8 @@
 //     status, source; ranked in the app's Focus board), git, managed servers
 //   • Skills & Rules library — CRUD the reusable skill/rule definitions (source-only)
 //
-// Scope: env `DEVDY_PROJECT_ID` / `DEVDY_PROJECT_PATH` pin the "current project";
-// `DEVDY_DB_PATH` points at Devdy's SQLite store. Hand-rolled protocol keeps this
+// Scope: env `PUPPETEER_PROJECT_ID` / `PUPPETEER_PROJECT_PATH` pin the "current project";
+// `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store. Hand-rolled protocol keeps this
 // dependency-free (nothing to `npm install` / bundle). Only JSON-RPC frames go to
 // stdout; everything else must use stderr.
 
@@ -24,12 +24,12 @@ import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
 
-const SERVER_INFO = { name: 'devdy', version: '0.1.0' };
+const SERVER_INFO = { name: 'puppeteer', version: '0.1.0' };
 const DEFAULT_PROTOCOL = '2025-06-18';
 
-const log = (...a) => process.stderr.write(`[devdy-mcp] ${a.join(' ')}\n`);
+const log = (...a) => process.stderr.write(`[puppeteer-mcp] ${a.join(' ')}\n`);
 const firstLine = (s = '') => String(s).split('\n').find((l) => l.trim()) || '';
-// Result of notes_set_project / todos_set_project: `Note abc is now in project "Devdy" (id).`
+// Result of notes_set_project / todos_set_project: `Note abc is now in project "Puppeteer" (id).`
 const movedLine = (kind, r) => {
   const where = r.project_id ? `in project "${r.project_name ?? r.project_id}" (${r.project_id})` : 'global (no project)';
   const what = r.ids.length === 1 ? `${kind[0].toUpperCase()}${kind.slice(1)} ${r.ids[0]} is` : `${r.ids.length} ${kind}s are`;
@@ -67,7 +67,7 @@ const snippetAround = (text = '', query = '', width = 120) => {
   const end = start + width;
   return `${start > 0 ? '…' : ''}${body.slice(start, end)}${end < body.length ? '…' : ''}`;
 };
-// `runs.title` is normally set (Devdy derives it from the first user message);
+// `runs.title` is normally set (Puppeteer derives it from the first user message);
 // fall back to an engine/type label when it's empty.
 const titleOf = (run) => run.title || `${run.engine} ${run.type}`.trim();
 const fmtDuration = (secs) => {
@@ -83,7 +83,7 @@ const fmtTokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${
 const tools = {
   notes_list: {
     description:
-      'List Devdy quick notes (markdown scratchpad). Defaults to the current project; pass scope="all" for every project. Returns id, title, a short preview and the linked session (run) ids.',
+      'List Puppeteer quick notes (markdown scratchpad). Defaults to the current project; pass scope="all" for every project. Returns id, title, a short preview and the linked session (run) ids.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -248,7 +248,7 @@ const tools = {
 
   sessions_recent: {
     description:
-      'List recent Devdy runs/sessions (chat history) with duration, tokens and cost. Defaults to the current project; scope="all" spans every project. Pass from/to (local YYYY-MM-DD, inclusive) to list a day or date range — e.g. for a daily work summary — and get totals. Use the returned run ids with session_read.',
+      'List recent Puppeteer runs/sessions (chat history) with duration, tokens and cost. Defaults to the current project; scope="all" spans every project. Pass from/to (local YYYY-MM-DD, inclusive) to list a day or date range — e.g. for a daily work summary — and get totals. Use the returned run ids with session_read.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -352,7 +352,7 @@ const tools = {
 
   todos_list: {
     description:
-      'List Devdy todos. Default sort="due": open todos first by deadline (date, then time; no deadline last), then priority; sort="position" gives the manual list order. Set include_done=false to hide completed items, or scope="project" to only show the current project\'s todos. Each line shows deadline, priority, estimate, status, snooze, project, source link and linked session (run) ids. This is not the recommended work order: open Focus in Devdy for the recommended order.',
+      'List Puppeteer todos. Default sort="due": open todos first by deadline (date, then time; no deadline last), then priority; sort="position" gives the manual list order. Set include_done=false to hide completed items, or scope="project" to only show the current project\'s todos. Each line shows deadline, priority, estimate, status, snooze, project, source link and linked session (run) ids. This is not the recommended work order: open Focus in Puppeteer for the recommended order.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -370,7 +370,7 @@ const tools = {
 
   todos_add: {
     description:
-      'Add a todo. Links to the current project by default; pass project="<id or name>" for another project, or scope="global" for a project-less task. Optional: deadline due="YYYY-MM-DD" (+ due_time="HH:MM", 24 h), priority 1–3 or "P1".."P3" (default 2), estimate ("30m", "2h", "1h30" or minutes, 5–2400), source_url (Slack thread, GitHub/GitLab issue or PR, run:<id>, or any URL). Use this to capture follow-up work that surfaces during a session; open Focus in Devdy for the recommended order.',
+      'Add a todo. Links to the current project by default; pass project="<id or name>" for another project, or scope="global" for a project-less task. Optional: deadline due="YYYY-MM-DD" (+ due_time="HH:MM", 24 h), priority 1–3 or "P1".."P3" (default 2), estimate ("30m", "2h", "1h30" or minutes, 5–2400), source_url (Slack thread, GitHub/GitLab issue or PR, run:<id>, or any URL). Use this to capture follow-up work that surfaces during a session; open Focus in Puppeteer for the recommended order.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -429,7 +429,7 @@ const tools = {
 
   todos_update: {
     description:
-      'Update a todo: text, priority (1–3 or "P1".."P3"), estimate ("30m", "2h", "1h30" or minutes; "" clears), status ("todo", "doing" = working on it now, "waiting" = blocked on someone else) and snooze_until (RFC3339 date-time, e.g. 2026-10-30T14:00:00+07:00; "" clears). Only the fields passed change. Open Focus in Devdy for the recommended order.',
+      'Update a todo: text, priority (1–3 or "P1".."P3"), estimate ("30m", "2h", "1h30" or minutes; "" clears), status ("todo", "doing" = working on it now, "waiting" = blocked on someone else) and snooze_until (RFC3339 date-time, e.g. 2026-10-30T14:00:00+07:00; "" clears). Only the fields passed change. Open Focus in Puppeteer for the recommended order.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -505,11 +505,11 @@ const tools = {
   // ---- Phase 2: Project context --------------------------------------------
 
   project_info: {
-    description: 'Summarise the current Devdy project (name, path, linked git repo) plus git branch/status.',
+    description: 'Summarise the current Puppeteer project (name, path, linked git repo) plus git branch/status.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const p = store.currentProject();
-      if (!p) return 'No current project (this run is not scoped to a Devdy project).';
+      if (!p) return 'No current project (this run is not scoped to a Puppeteer project).';
       const repo = p.github_owner && p.github_repo ? `${p.github_owner}/${p.github_repo}` : '(none)';
       let head = `# ${p.name}\n- path: ${p.path}\n- repo: ${repo}\n- default engine: ${p.default_engine || 'inherit'}\n`;
       try {
@@ -523,11 +523,11 @@ const tools = {
 
   projects_list: {
     description:
-      'List every Devdy project (name, path, default engine and how many repos each has linked). Use this to discover project names/ids to pass to repos_list / repos_add.',
+      'List every Puppeteer project (name, path, default engine and how many repos each has linked). Use this to discover project names/ids to pass to repos_list / repos_add.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const rows = store.listProjects();
-      if (!rows.length) return 'No Devdy projects.';
+      if (!rows.length) return 'No Puppeteer projects.';
       return rows
         .map((p) => {
           const repo = p.github_owner && p.github_repo ? ` · ${p.github_owner}/${p.github_repo}` : '';
@@ -539,7 +539,7 @@ const tools = {
 
   repos_list: {
     description:
-      'List git repos linked to Devdy projects. Defaults to the current project; pass scope="all" for every repo across all projects, or project="<name-or-id>" to target a specific project regardless of the current run.',
+      'List git repos linked to Puppeteer projects. Defaults to the current project; pass scope="all" for every repo across all projects, or project="<name-or-id>" to target a specific project regardless of the current run.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -578,7 +578,7 @@ const tools = {
 
   projects_create: {
     description:
-      'Register a local folder as a new Devdy project. By default the folder itself and its immediate subfolders that are git repos are linked as repos (GitHub/GitLab coordinates read from each origin remote), like the app\'s "Add project" dialog; detect_repos=false links none. Fails if the folder is already a project.',
+      'Register a local folder as a new Puppeteer project. By default the folder itself and its immediate subfolders that are git repos are linked as repos (GitHub/GitLab coordinates read from each origin remote), like the app\'s "Add project" dialog; detect_repos=false links none. Fails if the folder is already a project.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -597,7 +597,7 @@ const tools = {
 
   repos_add: {
     description:
-      'Link a local git repo folder to a Devdy project: project="<id or name>" (see projects_list), the current project by default. GitHub/GitLab coordinates are read from the repo\'s origin remote, or from remote_url when given.',
+      'Link a local git repo folder to a Puppeteer project: project="<id or name>" (see projects_list), the current project by default. GitHub/GitLab coordinates are read from the repo\'s origin remote, or from remote_url when given.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -617,7 +617,7 @@ const tools = {
 
   repos_remove: {
     description:
-      'Unlink one or more repos from their Devdy project by repo id (see repos_list). Only the link is removed — the folder and its git history on disk are untouched; past sessions keep running but lose the repo reference. A batch is all or nothing.',
+      'Unlink one or more repos from their Puppeteer project by repo id (see repos_list). Only the link is removed — the folder and its git history on disk are untouched; past sessions keep running but lose the repo reference. A batch is all or nothing.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -666,7 +666,7 @@ const tools = {
 
   git_accounts_list: {
     description:
-      'List the GitHub / GitLab accounts enabled for the current project and which one is the default. gh / glab / git use the default unless a command is prefixed with DEVDY_GIT_ACCOUNT=<label or username> (e.g. `DEVDY_GIT_ACCOUNT=work git push`) — pick the account that has access to the repository. A PR-review session may default gh to the account the review was requested from (see the system prompt). No secrets are returned.',
+      'List the GitHub / GitLab accounts enabled for the current project and which one is the default. gh / glab / git use the default unless a command is prefixed with PUPPETEER_GIT_ACCOUNT=<label or username> (e.g. `PUPPETEER_GIT_ACCOUNT=work git push`) — pick the account that has access to the repository. A PR-review session may default gh to the account the review was requested from (see the system prompt). No secrets are returned.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const rows = store.listGitAccounts();
@@ -686,7 +686,7 @@ const tools = {
 
   cloud_accounts_list: {
     description:
-      'List the AWS / Azure accounts enabled for the current project and which one is the default for each provider. aws / az / terraform use the default unless a command is prefixed with DEVDY_AWS_ACCOUNT=<label> (e.g. `DEVDY_AWS_ACCOUNT=prod aws s3 ls`) or DEVDY_AZURE_ACCOUNT=<label> (e.g. `DEVDY_AZURE_ACCOUNT=staging az group list`) — pick the account that owns the resources. No secrets are returned.',
+      'List the AWS / Azure accounts enabled for the current project and which one is the default for each provider. aws / az / terraform use the default unless a command is prefixed with PUPPETEER_AWS_ACCOUNT=<label> (e.g. `PUPPETEER_AWS_ACCOUNT=prod aws s3 ls`) or PUPPETEER_AZURE_ACCOUNT=<label> (e.g. `PUPPETEER_AZURE_ACCOUNT=staging az group list`) — pick the account that owns the resources. No secrets are returned.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const { aws, azure } = store.listCloudAccounts();
@@ -712,7 +712,7 @@ const tools = {
 
   vps_list: {
     description:
-      'List Devdy-managed VPS/servers. Defaults to servers mapped to the current project (with deployment role); scope="all" lists every server. No secrets are returned.',
+      'List Puppeteer-managed VPS/servers. Defaults to servers mapped to the current project (with deployment role); scope="all" lists every server. No secrets are returned.',
     inputSchema: {
       type: 'object',
       properties: { scope: { type: 'string', enum: ['project', 'all'] } },
@@ -732,7 +732,7 @@ const tools = {
 
   vps_run: {
     description:
-      'Run a shell command over SSH on a managed server (identified by server_id from vps_list). Non-interactive (BatchMode); passphrase-protected keys must be in ssh-agent. Returns combined stdout/stderr. This mutates a remote host — it is gated by Devdy\'s permission prompt.',
+      'Run a shell command over SSH on a managed server (identified by server_id from vps_list). Non-interactive (BatchMode); passphrase-protected keys must be in ssh-agent. Returns combined stdout/stderr. This mutates a remote host — it is gated by Puppeteer\'s permission prompt.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -753,14 +753,14 @@ const tools = {
   },
 
   // ---- Skills library ------------------------------------------------------
-  // Manage Devdy's reusable skill definitions (the same library shown on the
+  // Manage Puppeteer's reusable skill definitions (the same library shown on the
   // Skills screen). These edit the skill definition + files under
   // <app_data>/skills. Projects symlink to that folder, so content edits are live
-  // everywhere; a rename or target change needs a re-apply in the Devdy app.
+  // everywhere; a rename or target change needs a re-apply in the Puppeteer app.
 
   skills_list: {
     description:
-      'List Devdy skills from the shared library (the same skills shown on the Skills screen). Returns id, name, target (claude/codex/both) and description.',
+      'List Puppeteer skills from the shared library (the same skills shown on the Skills screen). Returns id, name, target (claude/codex/both) and description.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const rows = store.listSkills();
@@ -806,7 +806,7 @@ const tools = {
 
   skills_update: {
     description:
-      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename or target change, re-apply via the Devdy app to install it again.',
+      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename or target change, re-apply via the Puppeteer app to install it again.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -823,7 +823,7 @@ const tools = {
       let msg = `Updated skill '${r.skill.name}'.`;
       if (r.applied.length) {
         msg += r.renamed || r.retargeted
-          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. ${r.renamed ? 'Renamed — the old links were removed from those projects' : 'Target changed'}; re-apply via the Devdy app to install it again.`
+          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. ${r.renamed ? 'Renamed — the old links were removed from those projects' : 'Target changed'}; re-apply via the Puppeteer app to install it again.`
           : `\nApplied to ${r.applied.length} project(s) via symlink — the change is already live there.`;
       }
       return msg;
@@ -832,7 +832,7 @@ const tools = {
 
   skills_delete: {
     description:
-      'Delete a skill from the library: removes the source folder, its DB record, project-apply links and the symlinks projects had to it. Old copies from before Devdy switched to symlinks (.codex/skills, AGENTS.md pointer) are NOT removed.',
+      'Delete a skill from the library: removes the source folder, its DB record, project-apply links and the symlinks projects had to it. Old copies from before Puppeteer switched to symlinks (.codex/skills, AGENTS.md pointer) are NOT removed.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -902,7 +902,7 @@ const tools = {
       const r = store.writeSkillFile(a);
       let msg = `${r.created ? 'Created' : 'Updated'} ${r.skill}/${r.path}.`;
       if (r.applied.length) {
-        msg += `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Re-apply via the Devdy app to sync the change.`;
+        msg += `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Re-apply via the Puppeteer app to sync the change.`;
       }
       return msg;
     },
@@ -923,20 +923,20 @@ const tools = {
       const r = store.deleteSkillFile(a);
       let msg = `Deleted ${r.skill}/${r.path}.`;
       if (r.applied.length) {
-        msg += `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Re-apply via the Devdy app to sync the change.`;
+        msg += `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Re-apply via the Puppeteer app to sync the change.`;
       }
       return msg;
     },
   },
 
   // ---- Rules library -------------------------------------------------------
-  // Manage Devdy's reusable rule/convention definitions (the Rules screen).
+  // Manage Puppeteer's reusable rule/convention definitions (the Rules screen).
   // Claude's .claude/rules/<name>.md symlinks to the source (live); Codex gets an
   // AGENTS.md block or generated skill that only updates on re-apply in the app.
 
   rules_list: {
     description:
-      'List Devdy rules from the shared library (the same rules shown on the Rules screen). Returns id, name, target (claude/codex/both) and description.',
+      'List Puppeteer rules from the shared library (the same rules shown on the Rules screen). Returns id, name, target (claude/codex/both) and description.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
       const rows = store.listRules();
@@ -982,7 +982,7 @@ const tools = {
 
   rules_update: {
     description:
-      'Update an existing rule by id. Omitted fields are left unchanged; pass `content` to replace the body. Claude sees content changes at once (projects symlink the rule file); Codex\'s copy (AGENTS.md block, or generated skill with `codex_mode: skill`) updates only after a re-apply via the Devdy app. Renaming moves the source file and removes the old links/AGENTS.md block from projects — re-apply to install it again.',
+      'Update an existing rule by id. Omitted fields are left unchanged; pass `content` to replace the body. Claude sees content changes at once (projects symlink the rule file); Codex\'s copy (AGENTS.md block, or generated skill with `codex_mode: skill`) updates only after a re-apply via the Puppeteer app. Renaming moves the source file and removes the old links/AGENTS.md block from projects — re-apply to install it again.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -999,8 +999,8 @@ const tools = {
       let msg = `Updated rule '${r.rule.name}'.`;
       if (r.applied.length) {
         msg += r.renamed || r.retargeted
-          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. ${r.renamed ? 'Renamed — the old links and AGENTS.md block were removed from those projects' : 'Target changed'}; re-apply via the Devdy app to install it again.`
-          : `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Claude already sees the change (symlink); re-apply via the Devdy app to update Codex's copy (AGENTS.md block / generated skill).`;
+          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. ${r.renamed ? 'Renamed — the old links and AGENTS.md block were removed from those projects' : 'Target changed'}; re-apply via the Puppeteer app to install it again.`
+          : `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Claude already sees the change (symlink); re-apply via the Puppeteer app to update Codex's copy (AGENTS.md block / generated skill).`;
       }
       return msg;
     },
@@ -1140,4 +1140,4 @@ process.stdin.on('end', () => {
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));
 
-log(`ready (project=${process.env.DEVDY_PROJECT_ID || 'none'})`);
+log(`ready (project=${process.env.PUPPETEER_PROJECT_ID || 'none'})`);

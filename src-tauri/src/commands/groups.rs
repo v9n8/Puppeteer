@@ -789,7 +789,7 @@ mod tests {
 
     /// Throwaway project dir for one test, so rule artifacts land somewhere harmless.
     fn temp_project(label: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-groups-{}-{}", label, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-groups-{}-{}", label, std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

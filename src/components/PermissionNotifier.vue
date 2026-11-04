@@ -10,8 +10,6 @@ import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
 import { useRunsStore } from '@/stores/runs'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
-import { useAppSettingsStore } from '@/stores/appSettings'
-import { useMascotState } from '@/composables/useMascotState'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 
 /**
@@ -39,10 +37,6 @@ const live = useLiveRunsStore()
 const projectsStore = useProjectsStore()
 const runsStore = useRunsStore()
 const tabsStore = useWorkspaceTabsStore()
-const appSettings = useAppSettingsStore()
-// When the Cyber Fox mascot is on, it already surfaces pending permissions in
-// its speech bubble, so we suppress the duplicate native OS notification.
-const { enabled: mascotEnabled } = useMascotState()
 
 // The run currently open in RunView — its request is already shown there.
 const activeRunId = computed(() =>
@@ -93,12 +87,12 @@ let unsubscribeReminder: (() => void) | null = null
 const notified = new Set<string>()
 
 // Native "session finished" notification. Skipped when the window is focused
-// (the Active runs dock already shows it), when the mascot is on, for cancelled
-// runs (the user stopped it), and for conductor workers (only the main run).
+// (the Active runs dock already shows it), for cancelled runs (the user stopped
+// it), and for conductor workers (only the main run).
 async function notifyRunFinished(runId: string, projectId: string, status: string) {
-  if (!permissionGranted || mascotEnabled.value || status === 'cancelled') return
+  if (!permissionGranted || status === 'cancelled') return
   try {
-    // Any app window counts (a popped-out session window, the mascot, …).
+    // Any app window counts (a popped-out session window, …).
     const wins = await getAllWebviewWindows()
     const focused = await Promise.all(wins.map((w) => w.isFocused().catch(() => false)))
     if (focused.some(Boolean)) return
@@ -127,7 +121,7 @@ async function notifyRunFinished(runId: string, projectId: string, status: strin
 // native notification (unless the app is in front of the user — the in-app
 // banner and window already show it). The prompt itself is never auto-answered.
 async function remindPermission(projectId: string, runId: string, req: PermissionRequest) {
-  if (!permissionGranted || mascotEnabled.value) return
+  if (!permissionGranted) return
   try {
     const wins = await getAllWebviewWindows()
     const focused = await Promise.all(wins.map((w) => w.isFocused().catch(() => false)))
@@ -146,8 +140,6 @@ async function remindPermission(projectId: string, runId: string, req: Permissio
 }
 
 onMounted(async () => {
-  // Make sure the mascot-enabled flag is populated before we start gating.
-  appSettings.ensureLoaded().catch(() => {})
   try {
     permissionGranted = await isPermissionGranted()
     if (!permissionGranted) {
@@ -209,8 +201,6 @@ watch(
     }
 
     if (!permissionGranted) return
-    // Mascot on → the speech bubble covers it; skip the native notification.
-    if (mascotEnabled.value) return
     for (const t of list) {
       const id = t.request.request_id
       if (notified.has(id)) continue

@@ -32,7 +32,7 @@ export async function openGanttWindow(projectId?: string): Promise<WebviewWindow
   const query = projectId ? `&project=${encodeURIComponent(projectId)}` : ''
   const win = new WebviewWindow(popoutLabel(GANTT_WINDOW_LABEL), {
     url: popoutUrl(`index.html?ganttWindow=1${query}`),
-    title: 'Gantt — Devdy',
+    title: 'Gantt — Puppeteer',
     width: 1200,
     height: 760,
     minWidth: 720,

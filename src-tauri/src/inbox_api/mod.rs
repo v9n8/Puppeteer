@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn legacy_web_pages_dir_is_removed_and_slack_kept() {
         let root = std::env::temp_dir().join(format!(
-            "devdy-webpages-{}-{}",
+            "puppeteer-webpages-{}-{}",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
