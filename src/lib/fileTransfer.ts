@@ -3,7 +3,7 @@
 // both directions.
 //
 // THIS machine (A) is reached with the REAL local invoke (`local_fs_*`, refused
-// to the bridge); the controlled Devdy (B) with the app's `invoke`, which a
+// to the bridge); the controlled Puppeteer (B) with the app's `invoke`, which a
 // remote window routes over the relay (`remote_fs_*`, `remote_upload_*`, held
 // to B's remote-desktop file policy). See src-tauri/src/remote/transfer.rs.
 import { invoke as localInvoke } from '@tauri-real/core'

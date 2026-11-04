@@ -39,7 +39,7 @@ const parseJson = (s, fallback) => {
 
 /** WHERE fragment + params for scope="project" (default) | "all", mirroring notes. */
 function scopeFilter(scope) {
-  const projectId = process.env.DEVDY_PROJECT_ID || null;
+  const projectId = process.env.PUPPETEER_PROJECT_ID || null;
   return scope !== 'all' && projectId ? { sql: 't.project_id = ?', params: [projectId] } : { sql: '1 = 1', params: [] };
 }
 

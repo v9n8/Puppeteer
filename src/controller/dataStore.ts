@@ -284,7 +284,7 @@ export function createDataStore(send: SendCommand, describeError: (reason: strin
     const tg = state.toggles
     if (!projectId || !tg) return
     if (kind === 'builtin_mcp') {
-      tg.builtin_devdy.enabled = enabled
+      tg.builtin_puppeteer.enabled = enabled
     } else if (kind === 'claude_account') {
       // One linked account at most: switching one on switches the rest off.
       for (const a of tg.claude_accounts) {

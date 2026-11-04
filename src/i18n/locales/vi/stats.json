@@ -97,7 +97,7 @@
     "files": "File",
     "size": "Kích thước",
     "percent": "%",
-    "note": "Chỉ để xem. Muốn giải phóng dung lượng, hãy xóa session trong History — thao tác đó xóa cùng lúc log Devdy, file issue/PR đã fetch và transcript Claude/Codex CLI của session. Thống kê token vẫn được giữ."
+    "note": "Chỉ để xem. Muốn giải phóng dung lượng, hãy xóa session trong History — thao tác đó xóa cùng lúc log Puppeteer, file issue/PR đã fetch và transcript Claude/Codex CLI của session. Thống kê token vẫn được giữ."
   },
   "resetModal": {
     "title": "Đặt lại thống kê sử dụng",

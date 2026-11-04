@@ -3,9 +3,9 @@
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
-// or — DEVDY_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer.
+// or — PUPPETEER_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer.
 if (process.argv.includes('mcp')) {
-  const mode = process.env.DEVDY_FIXTURE_MCP_LIST
+  const mode = process.env.PUPPETEER_FIXTURE_MCP_LIST
   if (mode === 'fail') {
     process.stderr.write('boom')
     process.exit(2)
@@ -16,17 +16,17 @@ if (process.argv.includes('mcp')) {
   process.exit(0)
 }
 // When set, record argv and every client request as JSON lines.
-const fixtureLog = process.env.DEVDY_FIXTURE_LOG
+const fixtureLog = process.env.PUPPETEER_FIXTURE_LOG
 if (fixtureLog) appendFileSync(fixtureLog, JSON.stringify({ argv: process.argv.slice(2) }) + '\n')
 
-const marker = process.env.DEVDY_DENY_TEST_MARKER
-const mcpMode = process.env.DEVDY_MCP_PERMISSION_KEY_TEST === '1'
+const marker = process.env.PUPPETEER_DENY_TEST_MARKER
+const mcpMode = process.env.PUPPETEER_MCP_PERMISSION_KEY_TEST === '1'
 // Codex's real app-server v2 elicitation has no `toolName` field; this mode
 // reproduces that so the per-server permission key stays covered.
-const mcpOmitToolName = process.env.DEVDY_MCP_OMIT_TOOLNAME === '1'
+const mcpOmitToolName = process.env.PUPPETEER_MCP_OMIT_TOOLNAME === '1'
 // When set, record the approval decision the sidecar sent so a test can assert
 // it (e.g. `acceptForSession` for an "always" allow).
-const decisionOut = process.env.DEVDY_DECISION_OUT
+const decisionOut = process.env.PUPPETEER_DECISION_OUT
 let buffer = ''
 
 function send(message) {

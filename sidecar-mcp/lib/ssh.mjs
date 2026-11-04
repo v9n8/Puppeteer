@@ -1,7 +1,7 @@
-// Non-interactive SSH exec against a Devdy-managed server. Mirrors Devdy's own
+// Non-interactive SSH exec against a Puppeteer-managed server. Mirrors Puppeteer's own
 // connection probe (BatchMode + accept-new + identity file for key auth), so it
 // works for ssh-agent or passphrase-less keys and never prompts. Passphrase-
-// protected keys must be loaded into ssh-agent (Devdy keeps passphrases in the
+// protected keys must be loaded into ssh-agent (Puppeteer keeps passphrases in the
 // Keychain, out of reach of this separate process — by design).
 
 import { execFileSync } from 'node:child_process';

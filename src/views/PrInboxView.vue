@@ -177,7 +177,7 @@ function clearAllFilters() {
 
 function filterOptionLabel(dimension: PrFilterDimension, o: PrFilterOption): string {
   if (dimension === 'statuses') return t(`prInbox.status.${o.value}`)
-  if (dimension === 'projects' && o.value === UNMAPPED_PROJECT_VALUE) return t('prInbox.notInDevdyGroup')
+  if (dimension === 'projects' && o.value === UNMAPPED_PROJECT_VALUE) return t('prInbox.notInPuppeteerGroup')
   return o.label
 }
 
@@ -215,7 +215,7 @@ function toggleGroup(group: PrGroup) {
 }
 
 function groupLabel(group: PrGroup): string {
-  if (group.kind === 'unmapped') return t('prInbox.notInDevdyGroup')
+  if (group.kind === 'unmapped') return t('prInbox.notInPuppeteerGroup')
   if (group.kind === 'bots') return t('prInbox.botsGroup')
   return group.label || t('prInbox.unknownGroup')
 }
@@ -264,7 +264,7 @@ function openRun(item: PrInboxItem) {
   router.push(`/projects/${item.project_id}/run/${item.existing_run_id}`)
 }
 
-// "Add to devdy": the project screen lives in the main window.
+// "Add to puppeteer": the project screen lives in the main window.
 function openProjects() {
   if (props.standalone) {
     emitEvent(PR_INBOX_WINDOW_OPEN_ROUTE, { path: '/projects' } satisfies PrInboxWindowOpenRoute).catch(() => {})
@@ -692,7 +692,7 @@ async function reviewAll(group: PrGroup) {
               :index="i"
               @review="handleReview"
               @open-run="openRun"
-              @add-to-devdy="openProjects"
+              @add-to-puppeteer="openProjects"
               @menu="openMenu"
             />
           </div>

@@ -7,7 +7,7 @@
 //! only outputs are notices (a banner with a stop action), notice clears and
 //! permission reminders. The `Action` enum has no kill/deny variant on purpose.
 //! Runs are only torn down on definitive evidence (process exited, stdout EOF,
-//! the `_devdy_closed` shutdown protocol), which the drain handles itself.
+//! the `_puppeteer_closed` shutdown protocol), which the drain handles itself.
 //!
 //! Why silence is only ever a hint: legitimate work can be silent for a long
 //! time. The CLI emits a `tool_progress` heartbeat every 30s only for tools the
@@ -31,7 +31,7 @@ use tokio::time::Instant;
 
 /// How often the drain evaluates liveness.
 pub const WATCHDOG_TICK: Duration = Duration::from_secs(15);
-/// Heartbeat-capable sidecars emit `_devdy_heartbeat` every 30s from a plain
+/// Heartbeat-capable sidecars emit `_puppeteer_heartbeat` every 30s from a plain
 /// Node timer. No output at all for this long → "not responding" notice.
 pub const SIDECAR_SILENCE_LIMIT: Duration = Duration::from_secs(3 * 60);
 /// A freshly spawned sidecar that has produced no output at all (no ready line,
@@ -52,7 +52,7 @@ pub const LONG_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(30 * 60);
 pub const PERMISSION_NOTICE_AFTER: Duration = Duration::from_secs(10 * 60);
 /// After the first reminder, re-fire the native notification this often.
 pub const PERMISSION_REMIND_EVERY: Duration = Duration::from_secs(30 * 60);
-/// Once the sidecar reported `_devdy_closed` (or its process exited) the
+/// Once the sidecar reported `_puppeteer_closed` (or its process exited) the
 /// session is over; if stdout hasn't hit EOF within this grace, the process
 /// group is killed. Definitive evidence, not a guess.
 pub const SIDECAR_EXIT_GRACE: Duration = Duration::from_secs(10);
@@ -240,7 +240,7 @@ impl Liveness {
         actions
     }
 
-    /// `_devdy_ready`. `heartbeat` is the sidecar's declared capability; a build
+    /// `_puppeteer_ready`. `heartbeat` is the sidecar's declared capability; a build
     /// without it is never judged on silence.
     pub fn on_ready(&mut self, now: Instant, heartbeat: bool) -> Vec<Action> {
         if heartbeat {
@@ -249,7 +249,7 @@ impl Liveness {
         self.mark_output(now)
     }
 
-    /// The sidecar's own `_devdy_heartbeat`.
+    /// The sidecar's own `_puppeteer_heartbeat`.
     pub fn on_heartbeat(&mut self, now: Instant) -> Vec<Action> {
         self.heartbeat_expected = true;
         self.mark_output(now)

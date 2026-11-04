@@ -1,7 +1,7 @@
 /**
  * Tauri wiring of ./mux.ts: the main remote-desktop window serves its relay
  * connection to the remote pop-outs over local events (real event API, never
- * the shim, so nothing here is routed to the controlled Devdy).
+ * the shim, so nothing here is routed to the controlled Puppeteer).
  */
 import { emit, emitTo, listen, type UnlistenFn } from '@tauri-real/event'
 import type { InvokeArgs } from '@tauri-real/core'
@@ -95,7 +95,7 @@ function newId(): string {
 
 /**
  * Peer side, in a remote pop-out labelled `label`: a client that reaches the
- * controlled Devdy through the owner window. The pop-out closes itself when the
+ * controlled Puppeteer through the owner window. The pop-out closes itself when the
  * owner window goes away (or is not there at all).
  */
 export function startMuxClient(label: string): RemoteIpcClient {

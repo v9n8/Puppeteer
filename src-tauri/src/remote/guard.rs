@@ -20,7 +20,7 @@
 //! - [`remote_may_set_setting`]: `update_setting` from the bridge writes any
 //!   setting but Remote Control's own.
 //! - [`SecretPaths`]: file reads from the bridge never return on-disk
-//!   credentials (Devdy's app data, `~/.ssh`, cloud CLI logins, …).
+//!   credentials (Puppeteer's app data, `~/.ssh`, cloud CLI logins, …).
 //!
 //! The bridge's plugin calls are bounded by its own capability
 //! (`capabilities/remote-bridge.json`).
@@ -179,7 +179,7 @@ pub fn audited_command(name: &str) -> bool {
 
 /// Directories under HOME holding credentials (keys, CLI logins, tokens).
 const SECRET_HOME_DIRS: &[&str] = &[
-    ".devdy",
+    ".puppeteer",
     ".ssh",
     ".aws",
     ".azure",
@@ -213,9 +213,9 @@ const SECRET_HOME_FILES: &[&str] = &[
 /// `.backup` copies carry the Claude account).
 const SECRET_HOME_FILE_PREFIXES: &[&str] = &[".claude.json"];
 
-/// Devdy's own app data folders (prod and dev builds, all their accounts,
+/// Puppeteer's own app data folders (prod and dev builds, all their accounts,
 /// server keys, sandboxed CLI logins) are named after this identifier.
-const APP_ID_PREFIX: &str = "vn.papay.devdy";
+const APP_ID_PREFIX: &str = "io.github.v9n8.puppeteer";
 
 /// Readable parts of this app's data dir: Slack thread downloads (previews)
 /// and the log folder (`remote_fs_log_dir`). Never credentials.
@@ -277,7 +277,7 @@ pub struct SecretPaths {
     dirs: Vec<PathBuf>,
     allowed: Vec<PathBuf>,
     files: Vec<PathBuf>,
-    /// Folders whose children named `vn.papay.devdy*` are denied (where the
+    /// Folders whose children named `io.github.v9n8.puppeteer*` are denied (where the
     /// app data dir lives).
     app_parents: Vec<PathBuf>,
     /// The same stores by identity (those that exist), for [`Self::denies`]'s
@@ -392,7 +392,7 @@ impl SecretPaths {
 
     /// Whether `path` is in a backup store, or in a credential store of a home
     /// other than this user's (`…/Users/<name>/.ssh`, `…/Users/<name>/Library/
-    /// Application Support/vn.papay.devdy*`, …) — the internal disk of another
+    /// Application Support/io.github.v9n8.puppeteer*`, …) — the internal disk of another
     /// Mac or a backup mounted under `/Volumes`. By name: those are not ours.
     fn in_backup_or_other_home(&self, path: &Path) -> bool {
         let p = parts(&strip_data_volume(path));
@@ -426,7 +426,7 @@ impl SecretPaths {
         false
     }
 
-    /// Every credential store this policy knows that exists, Devdy's app data
+    /// Every credential store this policy knows that exists, Puppeteer's app data
     /// folders included: what a rename / delete must never take along.
     pub fn protected(&self) -> Vec<PathBuf> {
         let mut out: Vec<PathBuf> = self.dirs.iter().chain(&self.files).filter(|p| p.exists()).cloned().collect();
@@ -719,10 +719,10 @@ mod tests {
 
     impl Fixture {
         fn new() -> Self {
-            let root = std::env::temp_dir().join(format!("devdy-guard-{}", uuid::Uuid::new_v4())).canonicalize_parent();
+            let root = std::env::temp_dir().join(format!("puppeteer-guard-{}", uuid::Uuid::new_v4())).canonicalize_parent();
             let home = root.join("home");
             let support = home.join("Library/Application Support");
-            let app_data = support.join("vn.papay.devdy");
+            let app_data = support.join("io.github.v9n8.puppeteer");
             for d in [
                 home.join(".ssh"),
                 home.join(".aws"),
@@ -731,7 +731,7 @@ mod tests {
                 home.join("proj/src"),
                 app_data.join("server-keys"),
                 app_data.join("claude-accounts/a1"),
-                support.join("vn.papay.devdy.dev/azure-accounts"),
+                support.join("io.github.v9n8.puppeteer.dev/azure-accounts"),
                 support.join("Other App"),
                 home.join("Library/Keychains"),
             ] {
@@ -748,9 +748,9 @@ mod tests {
                 ".codex/sessions/2026/r.jsonl",
                 ".netrc",
                 "proj/src/main.rs",
-                "Library/Application Support/vn.papay.devdy/server-keys/k",
-                "Library/Application Support/vn.papay.devdy/claude-accounts/a1/.credentials.json",
-                "Library/Application Support/vn.papay.devdy.dev/azure-accounts/t",
+                "Library/Application Support/io.github.v9n8.puppeteer/server-keys/k",
+                "Library/Application Support/io.github.v9n8.puppeteer/claude-accounts/a1/.credentials.json",
+                "Library/Application Support/io.github.v9n8.puppeteer.dev/azure-accounts/t",
                 "Library/Application Support/Other App/x",
                 "Library/Keychains/login.keychain-db",
             ] {
@@ -794,10 +794,10 @@ mod tests {
             ".claude.json.backup",
             ".codex/auth.json",
             ".netrc",
-            "Library/Application Support/vn.papay.devdy/server-keys/k",
-            "Library/Application Support/vn.papay.devdy/claude-accounts/a1/.credentials.json",
+            "Library/Application Support/io.github.v9n8.puppeteer/server-keys/k",
+            "Library/Application Support/io.github.v9n8.puppeteer/claude-accounts/a1/.credentials.json",
             // The other build's data dir too.
-            "Library/Application Support/vn.papay.devdy.dev/azure-accounts/t",
+            "Library/Application Support/io.github.v9n8.puppeteer.dev/azure-accounts/t",
             "Library/Keychains/login.keychain-db",
         ] {
             let err = fx.policy.check(&fx.p(rel)).unwrap_err();
@@ -828,7 +828,7 @@ mod tests {
         }
         // Case-insensitive volumes (macOS) open `.SSH` as `.ssh`.
         assert!(fx.policy.denies(&fx.home.join(".SSH/id_ed25519")));
-        assert!(fx.policy.denies(&fx.home.join("library/application support/VN.PAPAY.DEVDY/x")));
+        assert!(fx.policy.denies(&fx.home.join("library/application support/IO.GITHUB.V9N8.PUPPETEER/x")));
     }
 
     #[test]
@@ -858,7 +858,7 @@ mod tests {
         assert!(!fx.policy.denies_by_id(&alias.join(".codex/sessions/2026/r.jsonl")));
         assert!(fx.policy.denies_by_id(&alias.join(".codex/auth.json")));
         // App-data exceptions: Slack downloads stay readable.
-        let app = fx.home.join("Library/Application Support/vn.papay.devdy");
+        let app = fx.home.join("Library/Application Support/io.github.v9n8.puppeteer");
         fs::create_dir_all(app.join("slack-threads/t1")).unwrap();
         fs::write(app.join("slack-threads/t1/a.png"), b"x").unwrap();
         let policy = SecretPaths::new(Some(&fx.home), Some(&app));
@@ -875,7 +875,7 @@ mod tests {
         assert!(fx.policy.check(&link.to_string_lossy()).is_err());
         // A linked directory too.
         let dir_link = fx.home.join("proj/keys");
-        std::os::unix::fs::symlink(fx.home.join("Library/Application Support/vn.papay.devdy"), &dir_link).unwrap();
+        std::os::unix::fs::symlink(fx.home.join("Library/Application Support/io.github.v9n8.puppeteer"), &dir_link).unwrap();
         assert!(fx.policy.check(&fx.p("proj/keys/server-keys/k")).is_err());
         // A store that is itself a link elsewhere is matched at its target.
         let real_aws = fx.root.join("elsewhere-aws");

@@ -21,7 +21,7 @@ function runSidecar(scenario, onMessage, timeoutMs = 10_000, extraEnv = {}) {
       ['--import', join(here, 'test-fixtures', 'mock-sdk-register.mjs'), join(here, 'index.mjs')],
       {
         cwd: here,
-        env: { ...process.env, MOCK_SCENARIO: scenario, DEVDY_SIDECAR_HEARTBEAT_MS: '100', ...extraEnv },
+        env: { ...process.env, MOCK_SCENARIO: scenario, PUPPETEER_SIDECAR_HEARTBEAT_MS: '100', ...extraEnv },
         stdio: ['pipe', 'pipe', 'inherit'],
       },
     )
@@ -61,11 +61,11 @@ const tests = {
   // Liveness protocol: ready declares the heartbeat, and heartbeats flow.
   async 'ready declares heartbeat capability and heartbeats arrive'() {
     const { messages } = await runSidecar('permission', (msg, ctl, all) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
-      if (msg.type === '_devdy_permission_request') {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') {
         // Hold the answer until a couple of heartbeats went by.
         const wait = setInterval(() => {
-          if (of(all, '_devdy_heartbeat').length >= 2) {
+          if (of(all, '_puppeteer_heartbeat').length >= 2) {
             clearInterval(wait)
             ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
             ctl.closeInput()
@@ -73,17 +73,17 @@ const tests = {
         }, 20)
       }
     })
-    const ready = of(messages, '_devdy_ready')[0]
+    const ready = of(messages, '_puppeteer_ready')[0]
     assert.equal(ready.capabilities?.heartbeat_ms, 100)
-    assert.ok(of(messages, '_devdy_heartbeat').length >= 2)
+    assert.ok(of(messages, '_puppeteer_heartbeat').length >= 2)
     assert.equal(of(messages, 'result')[0].mock_behavior, 'allow')
   },
 
   // Control: a normal answer is delivered and the process exits on input close.
   async 'answered request is delivered; session closes and exits'() {
     const { messages, code } = await runSidecar('permission', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
-      if (msg.type === '_devdy_permission_request') {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') {
         ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'deny', reason: 'no thanks' })
         ctl.closeInput()
       }
@@ -91,9 +91,9 @@ const tests = {
     const result = of(messages, 'result')[0]
     assert.equal(result.mock_behavior, 'deny')
     assert.equal(result.mock_message, 'no thanks')
-    assert.equal(of(messages, '_devdy_permission_cancelled').length, 0)
-    assert.equal(of(messages, '_devdy_closed').length, 1)
-    assert.equal(of(messages, '_devdy_closed')[0].code, 0)
+    assert.equal(of(messages, '_puppeteer_permission_cancelled').length, 0)
+    assert.equal(of(messages, '_puppeteer_closed').length, 1)
+    assert.equal(of(messages, '_puppeteer_closed')[0].code, 0)
     assert.equal(code, 0)
   },
 
@@ -101,10 +101,10 @@ const tests = {
   // broker marks the run failed even if it stops waiting on the pipes.
   async 'failed session closes with code 1 and exits 1'() {
     const { messages, code } = await runSidecar('throw', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
     })
-    assert.equal(of(messages, '_devdy_error').length, 1)
-    assert.equal(of(messages, '_devdy_closed')[0].code, 1)
+    assert.equal(of(messages, '_puppeteer_error').length, 1)
+    assert.equal(of(messages, '_puppeteer_closed')[0].code, 1)
     assert.equal(code, 1)
   },
 
@@ -113,20 +113,20 @@ const tests = {
   async 'input closed while a request is open → denied, cancelled, exits'() {
     let requestId = null
     const { messages, code } = await runSidecar('permission', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
-      if (msg.type === '_devdy_permission_request') {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') {
         requestId = msg.requestId
         ctl.closeInput() // never answer
       }
     })
-    const cancelled = of(messages, '_devdy_permission_cancelled')
+    const cancelled = of(messages, '_puppeteer_permission_cancelled')
     assert.equal(cancelled.length, 1)
     assert.equal(cancelled[0].requestId, requestId)
     assert.equal(cancelled[0].level, 'warn')
     const result = of(messages, 'result')[0]
     assert.equal(result.mock_behavior, 'deny')
     assert.match(result.mock_message, /input channel closed/)
-    assert.equal(of(messages, '_devdy_closed').length, 1)
+    assert.equal(of(messages, '_puppeteer_closed').length, 1)
     assert.equal(code, 0)
   },
 
@@ -134,16 +134,16 @@ const tests = {
   // that nobody could ever answer.
   async 'request after input closed is denied immediately, no prompt'() {
     const { messages, code } = await runSidecar('after-close', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') {
+      if (msg.type === '_puppeteer_ready') {
         startPrompt(ctl)
         ctl.closeInput()
       }
     })
-    assert.equal(of(messages, '_devdy_permission_request').length, 0)
+    assert.equal(of(messages, '_puppeteer_permission_request').length, 0)
     const result = of(messages, 'result')[0]
     assert.equal(result.mock_tool, 'Edit')
     assert.equal(result.mock_behavior, 'deny')
-    assert.ok(of(messages, '_devdy_log').some((m) => m.level === 'warn' && /Edit was denied/.test(m.text)))
+    assert.ok(of(messages, '_puppeteer_log').some((m) => m.level === 'warn' && /Edit was denied/.test(m.text)))
     assert.equal(code, 0)
   },
 
@@ -152,11 +152,11 @@ const tests = {
   async 'CLI-withdrawn request is cancelled (info) and settled'() {
     let requestId = null
     const { messages } = await runSidecar('abort', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
-      if (msg.type === '_devdy_permission_request') requestId = msg.requestId
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') requestId = msg.requestId
       if (msg.type === 'result') ctl.closeInput()
     })
-    const cancelled = of(messages, '_devdy_permission_cancelled')
+    const cancelled = of(messages, '_puppeteer_permission_cancelled')
     assert.equal(cancelled.length, 1)
     assert.equal(cancelled[0].requestId, requestId)
     assert.equal(cancelled[0].level, 'info')
@@ -167,20 +167,20 @@ const tests = {
   // any call without a prompt — even with looser options and MCP env fallbacks.
   async 'noTools session has no tools and denies every call without a prompt'() {
     const { messages, code } = await runSidecar('permission', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') {
+      if (msg.type === '_puppeteer_ready') {
         ctl.send({
           type: 'prompt',
           text: 'go',
           options: {
             noTools: true,
             permissionMode: 'bypassPermissions',
-            allowedTools: ['Bash', 'mcp__devdy'],
-            mcpServers: { devdy: { type: 'http', url: 'http://127.0.0.1:1/mcp' } },
+            allowedTools: ['Bash', 'mcp__puppeteer'],
+            mcpServers: { puppeteer: { type: 'http', url: 'http://127.0.0.1:1/mcp' } },
           },
         })
       }
       if (msg.type === 'result') ctl.closeInput()
-    }, 10_000, { DEVDY_MCP_SERVERS: JSON.stringify({ env: { type: 'stdio', command: 'x' } }), DEVDY_ALLOWED_TOOLS: '["Bash"]' })
+    }, 10_000, { PUPPETEER_MCP_SERVERS: JSON.stringify({ env: { type: 'stdio', command: 'x' } }), PUPPETEER_ALLOWED_TOOLS: '["Bash"]' })
     const init = messages.find((m) => m.type === 'system' && m.subtype === 'init')
     const o = init.mock_options
     assert.deepEqual(o.tools, [])
@@ -190,7 +190,7 @@ const tests = {
     assert.equal(o.strictMcpConfig, true)
     assert.equal(o.permissionMode, 'dontAsk')
     assert.equal(init.mock_has_can_use_tool, true)
-    assert.equal(of(messages, '_devdy_permission_request').length, 0)
+    assert.equal(of(messages, '_puppeteer_permission_request').length, 0)
     const result = of(messages, 'result')[0]
     assert.equal(result.mock_tool, 'Write')
     assert.equal(result.mock_behavior, 'deny')
@@ -201,8 +201,8 @@ const tests = {
   // Control: a regular session keeps the default tool set.
   async 'regular session does not restrict tools'() {
     const { messages } = await runSidecar('permission', (msg, ctl) => {
-      if (msg.type === '_devdy_ready') startPrompt(ctl)
-      if (msg.type === '_devdy_permission_request') {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') {
         ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
         ctl.closeInput()
       }

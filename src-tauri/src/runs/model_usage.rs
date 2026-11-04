@@ -5,7 +5,7 @@
 //! a single model. `modelUsage` is the complete picture: per model, the running
 //! totals (tokens + `costUSD`) of every call in the session. It is cumulative
 //! within a CLI process and, since CLI 2.1.288, across resumes too (the total
-//! continues from what the transcript saved). Each Devdy turn is a resumed
+//! continues from what the transcript saved). Each Puppeteer turn is a resumed
 //! process, so a turn's usage is the per-model difference from the previous
 //! result of the same run; that previous `modelUsage` is the run's baseline
 //! (`run_usage_baseline`). The ledger gets one row per model used in the turn.

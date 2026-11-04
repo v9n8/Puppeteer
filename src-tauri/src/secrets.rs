@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-const SERVICE_NAME: &str = "vn.papay.devdy";
+#[cfg(not(all(debug_assertions, test)))]
+const SERVICE_NAME: &str = "io.github.v9n8.puppeteer";
 
-/// The consolidated item's service. Debug builds (`pnpm dev`, "Devdy Dev") use
+/// The consolidated item's service. Debug builds (`pnpm dev`, "Puppeteer Dev") use
 /// their own item: two processes sharing one item each keep a cached copy and
 /// write the whole store back, so they would overwrite each other's secrets.
 #[cfg(debug_assertions)]
-const STORE_SERVICE: &str = "vn.papay.devdy.dev";
+const STORE_SERVICE: &str = "io.github.v9n8.puppeteer.dev";
 #[cfg(not(debug_assertions))]
 const STORE_SERVICE: &str = SERVICE_NAME;
 
@@ -22,7 +23,7 @@ const STORE_SERVICE: &str = SERVICE_NAME;
 /// longer matches. With one item per account the user was asked once *per
 /// account*. Collapsing everything into ONE item means at most ONE prompt after a
 /// reinstall, regardless of how many accounts are stored.
-const STORE_KEY: &str = "devdy_secret_store_v1";
+const STORE_KEY: &str = "puppeteer_secret_store_v1";
 
 /// In-memory view of the consolidated store. Keyed by account id → PAT.
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -61,28 +62,10 @@ struct SecretStore {
     /// table; only the secret token is here. Multiple accounts allowed.
     #[serde(default)]
     google_accounts: HashMap<String, String>,
-    /// LEGACY single-account field from the pre-multi-account design. Kept only
-    /// so an existing connection migrates transparently into `google_accounts`
-    /// on first read (see `take_legacy_google`). Never written anymore.
-    #[serde(default)]
-    google: Option<GoogleTokens>,
     /// Secret notes: sealed data only, never a plaintext title or content (see
     /// `crate::secret_vault`).
     #[serde(default)]
     secret_vault: crate::secret_vault::VaultData,
-    /// Two-way sync membership (group key + relay token) written by builds
-    /// before sync was removed. Only its presence is recorded — the value is
-    /// discarded while parsing — and it is never written back, so the next
-    /// persist drops it (see [`drop_legacy_sync`]).
-    #[serde(default, rename = "sync", skip_serializing)]
-    legacy_sync: Option<serde::de::IgnoredAny>,
-    /// Per-process guard: `"<provider>:<account_id>"` keys we already attempted to
-    /// migrate from a legacy per-account item. A denied or missing legacy read is
-    /// recorded here so it is NEVER retried within the same run — otherwise a
-    /// user who clicks "Deny" would be re-prompted on every subsequent git op.
-    /// Not persisted (rebuilt each launch).
-    #[serde(skip)]
-    tried_legacy: std::collections::HashSet<String>,
     /// The Keychain item exists but could not be read (access denied, bad
     /// JSON): this in-memory store is an empty stand-in and must never be
     /// written back, or it would wipe the real item.
@@ -112,31 +95,13 @@ fn store_entry() -> Result<Entry> {
     Ok(Entry::new(STORE_SERVICE, STORE_KEY)?)
 }
 
-/// Legacy per-account key format used before consolidation. Kept only so old
-/// installs migrate transparently on first read.
-fn legacy_key(provider: &Provider, account_id: &str) -> String {
-    match provider {
-        Provider::Github => format!("account_{}", account_id),
-        Provider::Gitlab => format!("gitlab_account_{}", account_id),
-    }
-}
-
-fn provider_tag(provider: &Provider) -> &'static str {
-    match provider {
-        Provider::Github => "github",
-        Provider::Gitlab => "gitlab",
-    }
-}
-
 /// Load the store into the cache if not already loaded. This is the ONLY place
 /// that may trigger a Keychain password prompt (besides `loaded_strict`).
 fn ensure_loaded(guard: &mut Option<SecretStore>) {
     if guard.is_some() {
         return;
     }
-    let mut store = read_store().unwrap_or_else(|_| SecretStore { unreadable: true, ..Default::default() });
-    drop_legacy_sync(&mut store);
-    *guard = Some(store);
+    *guard = Some(read_store().unwrap_or_else(|_| SecretStore { unreadable: true, ..Default::default() }));
 }
 
 /// The Keychain item, or an empty store when there is none yet. Fails when it
@@ -169,14 +134,6 @@ fn seed_from_release() -> SecretStore {
     SecretStore::default()
 }
 
-/// Whether a legacy per-item secret may be moved into the store now. The move
-/// deletes the legacy item, so not while the store cannot be written back (the
-/// value would be lost), nor from a debug build (those items are the release
-/// app's).
-fn may_migrate_legacy(store: &SecretStore) -> bool {
-    !store.unreadable && !cfg!(debug_assertions)
-}
-
 /// Persist the whole store back to the single Keychain item.
 fn persist(store: &SecretStore) -> Result<()> {
     if store.unreadable {
@@ -185,51 +142,6 @@ fn persist(store: &SecretStore) -> Result<()> {
     let json = serde_json::to_string(store)?;
     store_entry()?.set_password(&json)?;
     Ok(())
-}
-
-/// Rewrite the store without the removed two-way sync membership, so its group
-/// key does not linger in the Keychain. Runs right after the store is first
-/// loaded (no extra Keychain read); a no-op when there is none. Never fails the
-/// caller: errors are logged without any secret value.
-fn drop_legacy_sync(store: &mut SecretStore) {
-    if store.unreadable || store.legacy_sync.is_none() {
-        return;
-    }
-    store.legacy_sync = None;
-    match persist(store) {
-        Ok(()) => tracing::info!(event = "legacy_sync_secrets_dropped"),
-        Err(e) => tracing::warn!(event = "legacy_sync_secrets_drop_failed", error = %e),
-    }
-}
-
-/// Read a legacy per-account item and remove it (one-time migration). Returns the
-/// PAT if the legacy item existed. May prompt once per legacy item — unavoidable
-/// for pre-consolidation installs, but only happens until every account is moved
-/// into the consolidated store.
-fn take_legacy(provider: &Provider, account_id: &str) -> Option<String> {
-    let entry = Entry::new(SERVICE_NAME, &legacy_key(provider, account_id)).ok()?;
-    match entry.get_password() {
-        Ok(pat) => {
-            let _ = entry.delete_credential();
-            Some(pat)
-        }
-        Err(_) => None,
-    }
-}
-
-/// Delete a legacy per-account item if present (no prompt on delete).
-fn drop_legacy(provider: &Provider, account_id: &str) {
-    if let Ok(entry) = Entry::new(SERVICE_NAME, &legacy_key(provider, account_id)) {
-        let _ = entry.delete_credential();
-    }
-}
-
-/// Whether a legacy per-account item exists — checked via metadata only, which
-/// does NOT trigger the macOS confidential-access prompt.
-fn legacy_exists(provider: &Provider, account_id: &str) -> bool {
-    Entry::new(SERVICE_NAME, &legacy_key(provider, account_id))
-        .map(|e| e.get_attributes().is_ok())
-        .unwrap_or(false)
 }
 
 /// Whether the consolidated store item exists — metadata-only, prompt-free.
@@ -262,32 +174,17 @@ fn set_pat(provider: Provider, account_id: &str, pat: &str) -> Result<()> {
     let store = guard.as_mut().expect("store loaded");
     map_of_mut(store, &provider).insert(account_id.to_string(), pat.to_string());
     persist(store)?;
-    // Remove any stale legacy item so it can never shadow or re-prompt.
-    drop_legacy(&provider, account_id);
     Ok(())
 }
 
 fn get_pat(provider: Provider, account_id: &str) -> Result<String> {
     let mut guard = CACHE.lock().map_err(|_| anyhow!("secret cache poisoned"))?;
     ensure_loaded(&mut guard);
-    let store = guard.as_mut().expect("store loaded");
-    if let Some(pat) = map_of(store, &provider).get(account_id) {
-        return Ok(pat.clone());
-    }
-    // Transparent one-time migration from a pre-consolidation install. Attempt at
-    // most ONCE per account per process: record the attempt BEFORE reading so a
-    // denied/missing legacy read is never retried (which would re-prompt on every
-    // git op). `legacy_exists` is metadata-only (no prompt), so a non-existent
-    // legacy item costs nothing and never shows a dialog.
-    let marker = format!("{}:{}", provider_tag(&provider), account_id);
-    if may_migrate_legacy(store) && store.tried_legacy.insert(marker) && legacy_exists(&provider, account_id) {
-        if let Some(pat) = take_legacy(&provider, account_id) {
-            map_of_mut(store, &provider).insert(account_id.to_string(), pat.clone());
-            let _ = persist(store);
-            return Ok(pat);
-        }
-    }
-    Err(anyhow!("No PAT stored for account"))
+    let store = guard.as_ref().expect("store loaded");
+    map_of(store, &provider)
+        .get(account_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("No PAT stored for account"))
 }
 
 fn delete_pat(provider: Provider, account_id: &str) -> Result<()> {
@@ -296,7 +193,6 @@ fn delete_pat(provider: Provider, account_id: &str) -> Result<()> {
     let store = guard.as_mut().expect("store loaded");
     map_of_mut(store, &provider).remove(account_id);
     let _ = persist(store);
-    drop_legacy(&provider, account_id);
     Ok(())
 }
 
@@ -304,18 +200,16 @@ fn delete_pat(provider: Provider, account_id: &str) -> Result<()> {
 ///
 /// Resolution order, all prompt-free:
 /// 1. If the store is already cached, answer precisely from memory.
-/// 2. Otherwise check the legacy per-account item's metadata.
-/// 3. Otherwise fall back to "the consolidated store exists" — accounts are
+/// 2. Otherwise fall back to "the consolidated store exists" — accounts are
 ///    always created together with their PAT, so this is accurate in practice
 ///    and never triggers a prompt before the first real read.
 fn has_pat(provider: Provider, account_id: &str) -> bool {
     if let Ok(guard) = CACHE.lock() {
         if let Some(store) = guard.as_ref() {
-            return map_of(store, &provider).contains_key(account_id)
-                || legacy_exists(&provider, account_id);
+            return map_of(store, &provider).contains_key(account_id);
         }
     }
-    legacy_exists(&provider, account_id) || store_exists()
+    store_exists()
 }
 
 // ---- Public API (unchanged signatures; callers untouched) ------------------
@@ -359,14 +253,10 @@ pub fn has_gitlab_account_pat(account_id: &str) -> bool {
 // never holds the VALUEs — only the KEY names, for form rendering.
 //
 // WHY CONSOLIDATED: previously each server had its OWN item (service
-// `devdy-mcp`). On macOS every item has a separate ACL bound to the app's code
+// `puppeteer-mcp`). On macOS every item has a separate ACL bound to the app's code
 // signature, so an ad-hoc/unsigned rebuild re-prompts ("allow access…") once
 // PER item — i.e. once per MCP server. Folding the secrets into the single
 // store means at most ONE prompt for the whole app, matching the PAT behaviour.
-// Legacy per-server items are migrated transparently on first read.
-
-/// Legacy per-server Keychain service, kept only for one-time migration.
-const MCP_SERVICE_NAME: &str = "devdy-mcp";
 
 /// Decrypted secret payload for a single MCP server.
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -375,39 +265,6 @@ pub struct McpSecrets {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub headers: HashMap<String, String>,
-}
-
-/// Legacy per-server item (service `devdy-mcp`, account = server_id).
-fn legacy_mcp_entry(server_id: &str) -> Result<Entry> {
-    Ok(Entry::new(MCP_SERVICE_NAME, server_id)?)
-}
-
-/// Read + remove a legacy per-server item (one-time migration). May prompt once
-/// per legacy item — unavoidable for pre-consolidation installs, but only until
-/// every server is moved into the consolidated store.
-fn take_legacy_mcp(server_id: &str) -> Option<McpSecrets> {
-    let entry = legacy_mcp_entry(server_id).ok()?;
-    match entry.get_password() {
-        Ok(json) => {
-            let _ = entry.delete_credential();
-            Some(serde_json::from_str(&json).unwrap_or_default())
-        }
-        Err(_) => None,
-    }
-}
-
-/// Delete a legacy per-server item if present (no prompt on delete).
-fn drop_legacy_mcp(server_id: &str) {
-    if let Ok(entry) = legacy_mcp_entry(server_id) {
-        let _ = entry.delete_credential();
-    }
-}
-
-/// Whether a legacy per-server item exists — metadata-only, prompt-free.
-fn legacy_mcp_exists(server_id: &str) -> bool {
-    legacy_mcp_entry(server_id)
-        .map(|e| e.get_attributes().is_ok())
-        .unwrap_or(false)
 }
 
 /// Persist a server's secret env/header VALUEs into the consolidated store.
@@ -427,8 +284,6 @@ pub fn set_mcp_secrets(
         },
     );
     persist(store)?;
-    // Remove any stale legacy item so it can never shadow or re-prompt.
-    drop_legacy_mcp(server_id);
     Ok(())
 }
 
@@ -440,23 +295,8 @@ pub fn get_mcp_secrets(server_id: &str) -> McpSecrets {
         Err(_) => return McpSecrets::default(),
     };
     ensure_loaded(&mut guard);
-    let store = guard.as_mut().expect("store loaded");
-    if let Some(secret) = store.mcp.get(server_id) {
-        return secret.clone();
-    }
-    // Transparent one-time migration from a pre-consolidation install. Attempt
-    // at most ONCE per server per process (recorded BEFORE reading), and only
-    // when the legacy item actually exists — the existence check is
-    // metadata-only so a missing item never shows a dialog.
-    let marker = format!("mcp:{}", server_id);
-    if may_migrate_legacy(store) && store.tried_legacy.insert(marker) && legacy_mcp_exists(server_id) {
-        if let Some(secret) = take_legacy_mcp(server_id) {
-            store.mcp.insert(server_id.to_string(), secret.clone());
-            let _ = persist(store);
-            return secret;
-        }
-    }
-    McpSecrets::default()
+    let store = guard.as_ref().expect("store loaded");
+    store.mcp.get(server_id).cloned().unwrap_or_default()
 }
 
 /// Delete a server's secrets from the consolidated store (no-op if absent).
@@ -466,7 +306,6 @@ pub fn delete_mcp_secrets(server_id: &str) -> Result<()> {
     let store = guard.as_mut().expect("store loaded");
     store.mcp.remove(server_id);
     let _ = persist(store);
-    drop_legacy_mcp(server_id);
     Ok(())
 }
 
@@ -477,8 +316,8 @@ pub fn delete_mcp_secrets(server_id: &str) -> Result<()> {
 //   • CLIENT (GoogleClientCreds): the user-pasted OAuth Desktop-app
 //     client_id/client_secret. Persisted at the APP level and REUSED across
 //     connect/disconnect — switching accounts never re-prompts for these.
-//   • ACCOUNT (GoogleTokens): the connected account's long-lived refresh_token
-//     + email + scope. Cleared on disconnect. Access tokens are NEVER stored —
+//   • ACCOUNT (`google_accounts`): each connected account's long-lived
+//     refresh_token. Cleared on disconnect. Access tokens are NEVER stored —
 //     the MCP servers mint short-lived ones on demand from the refresh_token.
 
 /// The reusable OAuth Desktop-app client credentials (shared by all accounts).
@@ -486,23 +325,6 @@ pub fn delete_mcp_secrets(server_id: &str) -> Result<()> {
 pub struct GoogleClientCreds {
     pub client_id: String,
     pub client_secret: String,
-}
-
-/// Decrypted Google OAuth payload for the connected account. Carries a COPY of
-/// the client id/secret so the MCP-server injection has everything it needs in
-/// one place.
-#[derive(Default, Serialize, Deserialize, Clone)]
-pub struct GoogleTokens {
-    pub client_id: String,
-    pub client_secret: String,
-    pub refresh_token: String,
-    /// Account email, resolved via the userinfo endpoint at connect time. Shown
-    /// in Settings; not a secret but kept alongside for convenience.
-    #[serde(default)]
-    pub email: String,
-    /// Space-delimited scopes actually granted by the consent screen.
-    #[serde(default)]
-    pub scope: String,
 }
 
 /// Persist (or update) the reusable OAuth client credentials.
@@ -542,7 +364,6 @@ pub fn delete_google_client() -> Result<()> {
     ensure_loaded(&mut guard);
     let store = guard.as_mut().expect("store loaded");
     store.google_client = None;
-    store.google = None;
     store.google_accounts.clear();
     persist(store)?;
     Ok(())
@@ -579,26 +400,11 @@ pub fn delete_google_account_token(id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Read + clear the LEGACY single-account tokens, for one-time migration into
-/// the multi-account map. Returns `None` when there's nothing to migrate.
-pub fn take_legacy_google() -> Option<GoogleTokens> {
-    let mut guard = CACHE.lock().ok()?;
-    ensure_loaded(&mut guard);
-    let store = guard.as_mut()?;
-    let legacy = store.google.take();
-    if legacy.is_some() {
-        let _ = persist(store);
-    }
-    legacy
-}
-
-
 // ---- VPS/server secrets ----------------------------------------------------
 //
 // The SSH private-key passphrase (if any) for a managed VPS lives in the SAME
 // consolidated Keychain item as the PATs/MCP secrets, keyed by server_id.
-// SQLite never holds the passphrase. This table is NEW (no pre-consolidation
-// per-item history), so there is no legacy migration path.
+// SQLite never holds the passphrase.
 
 /// Decrypted secret payload for a single managed server.
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -715,7 +521,7 @@ pub fn has_aws_secret(account_id: &str) -> bool {
 // The Host↔relay `auth_token` (SEC-001) and each paired device's pairing `psk`
 // (SEC-002/BR-003) live in the SAME consolidated Keychain item, so the whole app
 // still costs at most ONE Keychain prompt after a reinstall. SQLite never holds
-// either value. No legacy migration path (this feature is new).
+// either value.
 
 /// Remote Control secret material kept in the consolidated store.
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -897,12 +703,7 @@ pub fn delete_remote_session() -> Result<()> {
 /// never answered from the empty stand-in.
 fn loaded_strict(guard: &mut Option<SecretStore>) -> Result<&mut SecretStore> {
     if guard.as_ref().is_none_or(|s| s.unreadable) {
-        let mut store = read_store()?;
-        drop_legacy_sync(&mut store);
-        if let Some(old) = guard.as_ref() {
-            store.tried_legacy = old.tried_legacy.clone();
-        }
-        *guard = Some(store);
+        *guard = Some(read_store()?);
     }
     Ok(guard.as_mut().expect("store loaded"))
 }
@@ -928,22 +729,4 @@ pub fn with_vault<R>(
         return Err(format!("keychain write failed: {e}"));
     }
     Ok(out)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_legacy_sync_membership_is_noticed_and_never_written_back() {
-        let json = r#"{"github":{"a1":"pat"},"sync":{"group_id":"g","group_key":"k","device_token":"t","device_id":"d"}}"#;
-        let store: SecretStore = serde_json::from_str(json).unwrap();
-        assert!(store.legacy_sync.is_some());
-        let out = serde_json::to_string(&store).unwrap();
-        assert!(!out.contains("\"sync\"") && !out.contains("group_key"), "{out}");
-        assert_eq!(store.github.get("a1").map(String::as_str), Some("pat"));
-
-        let clean: SecretStore = serde_json::from_str(&out).unwrap();
-        assert!(clean.legacy_sync.is_none());
-    }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Devdy Remote Controller — root app. A standalone, Tauri-free web client that
+ * Puppeteer Remote Controller — root app. A standalone, Tauri-free web client that
  * drives the paired Host over the relay. Flow:
  *   1. A valid stored token → auto-reattach (skip entry) → the run it was on.
  *   2. Otherwise: LinkEntryView → connect + wait for the Host OTP gate →
@@ -458,7 +458,7 @@ const inboxPending = computed(() =>
 const inboxCount = computed(() => pendingCount(store.state.pendingQueues))
 
 // "Since last visit" bookkeeping, persisted across reloads.
-const VISIT_KEY = 'devdy.controller.inbox.v1'
+const VISIT_KEY = 'puppeteer.controller.inbox.v1'
 function loadVisit(): VisitState {
   try {
     return parseVisitState(localStorage.getItem(VISIT_KEY))
@@ -501,9 +501,9 @@ window.addEventListener('pagehide', onPageHide)
 // A tapped notification (service worker → open window): show the Inbox.
 function onWorkerMessage(e: MessageEvent): void {
   const msg = e.data as { type?: unknown } | null
-  if (msg?.type === 'devdy:open-inbox' && phase.value === 'session') openInbox()
+  if (msg?.type === 'puppeteer:open-inbox' && phase.value === 'session') openInbox()
   // The browser rotated the push subscription: re-sync it with the Host.
-  if (msg?.type === 'devdy:subscription-changed' && hasPush.value) void push.refresh()
+  if (msg?.type === 'puppeteer:subscription-changed' && hasPush.value) void push.refresh()
 }
 navigator.serviceWorker?.addEventListener('message', onWorkerMessage)
 

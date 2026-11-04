@@ -27,7 +27,7 @@ export function claimOrphanPrompt(): boolean {
 }
 
 /**
- * Processes Devdy is tracking (sidecars, agent-started dev servers, leftovers
+ * Processes Puppeteer is tracking (sidecars, agent-started dev servers, leftovers
  * from a previous session). Started once by the main window (App.vue): the
  * backend sampler pushes `procs:changed` with fresh counts, which is all the
  * sidebar row and the tray need. The full snapshot (`list_background_processes`)

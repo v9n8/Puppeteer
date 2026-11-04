@@ -1,25 +1,24 @@
 {
   "title": "Background Processes",
-  "subtitle": "Everything Devdy started that is still running: sessions, app services, and processes left behind.",
+  "subtitle": "Everything Puppeteer started that is still running: sessions, app services, and processes left behind.",
   "refresh": "Refresh",
   "stopAllLeftovers": "Stop all leftovers",
   "stopAll": "Stop all",
   "processCount": "{n} process | {n} processes",
   "sections": {
     "orphan": "Leftover from previous session",
-    "orphanHint": "Started by Devdy before it last quit. Nothing owns them now.",
+    "orphanHint": "Started by Puppeteer before it last quit. Nothing owns them now.",
     "leftover": "Leftover",
     "leftoverHint": "Their session ended, but processes it started are still alive.",
     "sessions": "Sessions",
     "services": "App services",
-    "servicesHint": "Devdy's own helpers (translation, mascot, probes, MCP tests, ssh-agent)."
+    "servicesHint": "Puppeteer's own helpers (translation, probes, MCP tests, ssh-agent)."
   },
   "kind": {
     "run": "Session",
     "translate": "Translate",
     "slack_translate": "Slack translate",
     "focus_ai": "Focus AI",
-    "mascot": "Mascot",
     "probe": "Model probe",
     "mcp_test": "MCP test",
     "ssh_agent": "ssh-agent"
@@ -47,7 +46,7 @@
     "stopLeftoversTitle": "Stop all leftovers?",
     "stopLeftoversMessage": "{n} leftover process will be stopped. | {n} leftover processes will be stopped.",
     "stopAllTitle": "Stop everything?",
-    "stopAllMessage": "This stops every tracked process ({n}), including running sessions and Devdy's app services. Running sessions are cancelled.",
+    "stopAllMessage": "This stops every tracked process ({n}), including running sessions and Puppeteer's app services. Running sessions are cancelled.",
     "forceTitle": "Force kill?",
     "forceMessage": "\"{label}\" will be killed immediately without a chance to clean up.",
     "stopSessionTitle": "Stop this session?",
@@ -60,7 +59,7 @@
   },
   "empty": {
     "title": "Nothing is running in the background",
-    "hint": "Sessions, dev servers and helpers started by Devdy show up here while they run."
+    "hint": "Sessions, dev servers and helpers started by Puppeteer show up here while they run."
   },
   "dock": {
     "label": "{n} background process | {n} background processes",
@@ -68,16 +67,16 @@
   },
   "orphanPrompt": {
     "title": "{n} process is still running from the previous session | {n} processes are still running from the previous session",
-    "message": "Devdy quit while these were running. They keep using CPU and memory until stopped.",
+    "message": "Puppeteer quit while these were running. They keep using CPU and memory until stopped.",
     "stopAll": "Stop all",
     "viewDetails": "View details",
     "leaveRunning": "Leave running"
   },
   "quit": {
-    "title": "Quit Devdy?",
+    "title": "Quit Puppeteer?",
     "sessions": "Running sessions (will be stopped)",
     "stray": "Background processes",
-    "strayHint": "Leftover processes can keep running after Devdy quits; they show up as leftovers next launch.",
+    "strayHint": "Leftover processes can keep running after Puppeteer quits; they show up as leftovers next launch.",
     "stopAllQuit": "Stop all & quit",
     "keepQuit": "Quit, keep background processes",
     "cancel": "Cancel",

@@ -150,7 +150,7 @@ pub fn read_skill_md(source_path: &str) -> String {
 /// (claude_hash, codex_hash) — the source SKILL.md hash per engine it is installed for.
 ///
 /// `prev_*` are the SKILL.md hashes recorded at the last sync (None = not installed for that
-/// engine); only an engine Devdy installed before is cleaned up. A copy-era folder is deleted when
+/// engine); only an engine Puppeteer installed before is cleaned up. A copy-era folder is deleted when
 /// swapped for a link (or removed) only if it is unedited: SKILL.md matches the source or the last
 /// sync, and every other file matches the source or was not written after that SKILL.md. Any
 /// other copy is moved to the legacy backups, never deleted.
@@ -208,7 +208,7 @@ pub fn write_skill_artifacts(
         }
     } else {
         if had_codex {
-            // Devdy only ever linked into `.agents/skills`; a real folder there is someone else's.
+            // Puppeteer only ever linked into `.agents/skills`; a real folder there is someone else's.
             project_links::remove_own_link(root, &codex_dest, source)?;
             project_links::remove_installed(root, &legacy, source, &unedited)?;
         }
@@ -222,7 +222,7 @@ pub fn write_skill_artifacts(
 }
 
 /// Remove a skill's artifacts (legacy layout included) for the engines it was installed for.
-/// Legacy copies Devdy can't vouch for are moved to the backups.
+/// Legacy copies Puppeteer can't vouch for are moved to the backups.
 pub fn remove_skill_artifacts(
     project_path: &str,
     name: &str,

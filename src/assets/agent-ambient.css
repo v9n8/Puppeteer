@@ -35,8 +35,8 @@
   initial-value: transparent;
 }
 
-html:not(.mascot-window)::before,
-html:not(.mascot-window)::after {
+html::before,
+html::after {
   --agent-mask-x: linear-gradient(to right,
     #000 0, rgb(0 0 0 / 0.5) 3px, rgb(0 0 0 / 0.14) 14px, transparent 36px,
     transparent calc(100% - 36px), rgb(0 0 0 / 0.14) calc(100% - 14px),
@@ -56,7 +56,7 @@ html:not(.mascot-window)::after {
 }
 
 /* running — palette-tinted, so it adapts to every theme */
-html:not(.mascot-window)::before {
+html::before {
   background: conic-gradient(
     from var(--agent-angle),
     hsl(var(--primary)),
@@ -68,7 +68,7 @@ html:not(.mascot-window)::before {
 }
 
 /* waiting / error / done share one gradient; only the colors change */
-html:not(.mascot-window)::after {
+html::after {
   background: conic-gradient(
     from var(--agent-angle),
     var(--agent-edge-a),
@@ -76,29 +76,29 @@ html:not(.mascot-window)::after {
     var(--agent-edge-a)
   );
 }
-html[data-agent-state='waiting']:not(.mascot-window)::after {
+html[data-agent-state='waiting']::after {
   --agent-edge-a: hsl(38 95% 55%);
   --agent-edge-b: hsl(26 95% 55%);
 }
-html[data-agent-state='error']:not(.mascot-window)::after {
+html[data-agent-state='error']::after {
   --agent-edge-a: hsl(0 85% 58%);
   --agent-edge-b: hsl(345 85% 58%);
 }
-html[data-agent-state='done']:not(.mascot-window)::after {
+html[data-agent-state='done']::after {
   --agent-edge-a: hsl(150 75% 45%);
   --agent-edge-b: hsl(185 85% 50%);
 }
 
 /* Static information: waiting and error stay visible even with motion off. */
-html[data-agent-state='waiting']:not(.mascot-window)::after,
-html[data-agent-state='error']:not(.mascot-window)::after {
+html[data-agent-state='waiting']::after,
+html[data-agent-state='error']::after {
   opacity: 1;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   /* ~600ms crossfade on every state change. */
-  html:not([data-animated-bg='false']):not(.mascot-window)::before,
-  html:not([data-animated-bg='false']):not(.mascot-window)::after {
+  html:not([data-animated-bg='false'])::before,
+  html:not([data-animated-bg='false'])::after {
     transition:
       opacity 600ms ease,
       --agent-edge-a 600ms ease,
@@ -106,7 +106,7 @@ html[data-agent-state='error']:not(.mascot-window)::after {
   }
 
   /* running — the edge slowly rotates and breathes. */
-  html[data-agent-state='running']:not([data-animated-bg='false']):not(.mascot-window)::before {
+  html[data-agent-state='running']:not([data-animated-bg='false'])::before {
     opacity: 1;
     animation:
       agent-spin 8s linear infinite,
@@ -114,17 +114,17 @@ html[data-agent-state='error']:not(.mascot-window)::after {
   }
 
   /* waiting — steady amber, slow deep breath (the human has to act). */
-  html[data-agent-state='waiting']:not([data-animated-bg='false']):not(.mascot-window)::after {
+  html[data-agent-state='waiting']:not([data-animated-bg='false'])::after {
     animation: agent-breathe-deep 3.2s ease-in-out infinite;
   }
 
   /* error — lands with a flare that decays across the 4s flash. */
-  html[data-agent-state='error']:not([data-animated-bg='false']):not(.mascot-window)::after {
+  html[data-agent-state='error']:not([data-animated-bg='false'])::after {
     animation: agent-flare 4s ease-out both;
   }
 
   /* done — one green → cyan sweep around the edge while it fades. */
-  html[data-agent-state='done']:not([data-animated-bg='false']):not(.mascot-window)::after {
+  html[data-agent-state='done']:not([data-animated-bg='false'])::after {
     opacity: 1;
     animation:
       agent-spin 3s cubic-bezier(0.25, 0.6, 0.3, 1) both,

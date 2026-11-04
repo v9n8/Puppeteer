@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // THE Slack threads window (opened via lib/slackWindow, `?slackWindow=1[&id=]
-// [&add=1][&projectId=]`): a Slack-like reader of the threads Devdy fetched from
+// [&add=1][&projectId=]`): a Slack-like reader of the threads Puppeteer fetched from
 // Slack and translated into Vietnamese.
 //
 //   ┌ (native OS titlebar only — no custom titlebar row, to stay compact) ───┐

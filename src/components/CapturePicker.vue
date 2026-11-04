@@ -3,7 +3,7 @@
 // sibling of the saved-prompt dropdown (RunView, BookMarked icon), built on the
 // same DropdownMenu. Picking an item does NOT paste its content: it emits a
 // one-line reference — `[Slack] <title> (id: …)`, `[Note] <title> (id: …)`, or
-// `[Todo] (id: …)` — and the AI resolves the id through the devdy MCP tools when
+// `[Todo] (id: …)` — and the AI resolves the id through the puppeteer MCP tools when
 // it needs more.
 //
 // The host inserts the emitted text at the caret (same contract as a saved
@@ -46,7 +46,7 @@ const emit = defineEmits<{
 
 type PickKind = 'slack' | 'note' | 'todo'
 type Filter = 'all' | PickKind
-const FILTER_STORAGE_KEY = 'devdy.capturePicker.filter'
+const FILTER_STORAGE_KEY = 'puppeteer.capturePicker.filter'
 const FILTERS: Filter[] = ['all', 'slack', 'note', 'todo']
 const KIND_ICON = { slack: Slack, note: StickyNote, todo: ListTodo } as const
 

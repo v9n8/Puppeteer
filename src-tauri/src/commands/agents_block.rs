@@ -1,4 +1,4 @@
-//! Shared helpers for managing devdy-owned managed blocks inside a project's
+//! Shared helpers for managing puppeteer-owned managed blocks inside a project's
 //! `AGENTS.md` (the file Codex reads). Both rules (`kind = "rule"`) and skills
 //! (`kind = "skill"`) inject/remove blocks here, keyed by `kind` + `name`, while
 //! leaving all surrounding (user-authored) content untouched.
@@ -7,10 +7,10 @@ use std::fs;
 use std::path::Path;
 
 fn block_start(kind: &str, name: &str) -> String {
-    format!("<!-- devdy:{}:{} START -->", kind, name)
+    format!("<!-- puppeteer:{}:{} START -->", kind, name)
 }
 fn block_end(kind: &str, name: &str) -> String {
-    format!("<!-- devdy:{}:{} END -->", kind, name)
+    format!("<!-- puppeteer:{}:{} END -->", kind, name)
 }
 
 /// Insert or replace the managed block for `kind`/`name` in `agents_path`,

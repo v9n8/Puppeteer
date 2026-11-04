@@ -1278,19 +1278,19 @@ mod tests {
     #[test]
     fn login_listen_follows_the_login_code() {
         assert!(login_listen_frame(None, None).is_none());
-        assert!(login_listen_frame(Some("devdy-login-v1"), Some("devdy-login-v1")).is_none());
+        assert!(login_listen_frame(Some("puppeteer-login-v1"), Some("puppeteer-login-v1")).is_none());
 
-        let arm = login_listen_frame(None, Some("devdy-login-v1")).unwrap();
+        let arm = login_listen_frame(None, Some("puppeteer-login-v1")).unwrap();
         assert_eq!(arm.t, FrameType::CreatePair);
-        assert_eq!(arm.pair_code.as_deref(), Some("devdy-login-v1"));
+        assert_eq!(arm.pair_code.as_deref(), Some("puppeteer-login-v1"));
         assert_eq!(arm.slot.as_deref(), Some("login"));
 
         // A renamed device re-listens on the same slot (create_pair replaces).
-        let rename = login_listen_frame(Some("devdy-login-v1"), Some("devdy-login-v1/mini")).unwrap();
+        let rename = login_listen_frame(Some("puppeteer-login-v1"), Some("puppeteer-login-v1/mini")).unwrap();
         assert_eq!(rename.t, FrameType::CreatePair);
-        assert_eq!(rename.pair_code.as_deref(), Some("devdy-login-v1/mini"));
+        assert_eq!(rename.pair_code.as_deref(), Some("puppeteer-login-v1/mini"));
 
-        let off = login_listen_frame(Some("devdy-login-v1/mini"), None).unwrap();
+        let off = login_listen_frame(Some("puppeteer-login-v1/mini"), None).unwrap();
         assert_eq!(off.t, FrameType::Revoke);
         assert_eq!(off.slot.as_deref(), Some("login"));
     }

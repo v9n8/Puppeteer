@@ -1,4 +1,4 @@
-/* Devdy Remote — service worker for the phone controller (controller.html).
+/* Puppeteer Remote — service worker for the phone controller (controller.html).
  *
  * Served from the relay web root (scope "/") and registered only by
  * src/controller/main.ts; the desktop app never registers it.
@@ -15,12 +15,12 @@
  *     cannot reach the Host itself: that channel is end-to-end encrypted).
  */
 
-const TAG = 'devdy'
+const TAG = 'puppeteer'
 const APP_URL = '/controller.html'
 
 const TEXT = {
   en: {
-    title: 'Devdy',
+    title: 'Puppeteer',
     pending: (n) => (n === 1 ? '1 request waiting for you' : `${n} requests waiting for you`),
     done: (n) => (n === 1 ? '1 run finished' : `${n} runs finished`),
     failed: (n) => (n === 1 ? '1 run failed' : `${n} runs failed`),
@@ -28,7 +28,7 @@ const TEXT = {
     generic: 'Something needs your attention.',
   },
   vi: {
-    title: 'Devdy',
+    title: 'Puppeteer',
     pending: (n) => `${n} việc cần duyệt`,
     done: (n) => `${n} phiên đã xong`,
     failed: (n) => `${n} phiên bị lỗi`,
@@ -84,8 +84,8 @@ self.addEventListener('push', (event) => {
     body: n.body,
     tag: TAG,
     renotify: true,
-    icon: '/pwa-icon-192.png',
-    badge: '/pwa-icon-192.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     data: { url: APP_URL },
   })
   const nav = self.navigator
@@ -105,7 +105,7 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const open = list.find((c) => new URL(c.url).pathname === APP_URL)
       if (open) {
-        open.postMessage({ type: 'devdy:open-inbox' })
+        open.postMessage({ type: 'puppeteer:open-inbox' })
         return open.focus()
       }
       return self.clients.openWindow(APP_URL)
@@ -124,6 +124,6 @@ self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil(
     resubscribe
       .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then((list) => list.forEach((c) => c.postMessage({ type: 'devdy:subscription-changed' }))),
+      .then((list) => list.forEach((c) => c.postMessage({ type: 'puppeteer:subscription-changed' }))),
   )
 })

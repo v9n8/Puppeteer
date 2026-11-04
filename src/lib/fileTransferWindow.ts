@@ -1,7 +1,7 @@
 // Opens THE File Transfer window (views/FileTransferWindow.vue,
 // `?fileTransferWindow=1`): copy files and folders between this machine and
-// the Devdy a remote-desktop window controls. Only exists in the remote set —
-// its label is `remote-file-transfer` and it talks to the controlled Devdy
+// the Puppeteer a remote-desktop window controls. Only exists in the remote set —
+// its label is `remote-file-transfer` and it talks to the controlled Puppeteer
 // through the main remote-desktop window (lib/ipc/muxTransport.ts) — so it is
 // offered only from a remote-desktop window. Opening it again focuses it.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -13,7 +13,7 @@ import { popoutLabel, popoutUrl } from '@/lib/popout'
 /** Local label (the window itself is `remote-file-transfer`, see lib/popout.ts). */
 const FILE_TRANSFER_WINDOW_LABEL = 'file-transfer'
 
-/** File transfer is between two machines: only offered while controlling another Devdy. */
+/** File transfer is between two machines: only offered while controlling another Puppeteer. */
 export function canOpenFileTransfer(): boolean {
   return isRemoteMode()
 }
@@ -58,7 +58,7 @@ async function createFileTransferWindow(label: string): Promise<WebviewWindow> {
   const height = 760
   const win = new WebviewWindow(label, {
     url: popoutUrl('index.html?fileTransferWindow=1'),
-    title: 'File Transfer — Devdy',
+    title: 'File Transfer — Puppeteer',
     width,
     height,
     minWidth: 820,

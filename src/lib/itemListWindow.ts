@@ -30,8 +30,8 @@ const LIST_WINDOW_HEIGHT = 720
 const LIST_WINDOW_OFFSET = 36
 
 const LIST_WINDOW_TITLES: Record<ItemKind, string> = {
-  todo: 'Todos — Devdy',
-  note: 'Notes — Devdy',
+  todo: 'Todos — Puppeteer',
+  note: 'Notes — Puppeteer',
 }
 
 /** The fixed window label of a kind's list window. */

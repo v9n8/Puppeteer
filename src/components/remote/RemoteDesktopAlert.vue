@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Pill at the bottom of a remote-desktop window, shown only while the link to
- * the controlled Devdy is down (after GRACE_MS, so a boot or a short blip does
+ * the controlled Puppeteer is down (after GRACE_MS, so a boot or a short blip does
  * not flash it) and gone again once it is back. The steady state lives in the
  * sidebar dot (RemoteDesktopIndicator.vue).
  */

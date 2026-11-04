@@ -1,11 +1,11 @@
 // Files dropped into a remote-desktop window come from THIS machine, but every
-// path the UI hands to a command must be a path on the controlled Devdy. So in
+// path the UI hands to a command must be a path on the controlled Puppeteer. So in
 // remote mode a drop is first copied over (src-tauri/src/remote/upload.rs) and
 // the UI carries on with the copies' remote paths. Outside remote mode the
 // paths are returned untouched.
 //
 // Reading the dropped files uses the REAL local invoke: in a remote window the
-// app's `invoke` goes to the controlled Devdy.
+// app's `invoke` goes to the controlled Puppeteer.
 import { invoke as localInvoke } from '@tauri-real/core'
 import { invoke } from '@/lib/tauri'
 import { i18n } from '@/i18n'
@@ -19,7 +19,7 @@ function t(key: string, named: Record<string, unknown>): string {
 
 /**
  * The paths the UI should use for files dropped from this machine: the same
- * paths normally, copies on the controlled Devdy in a remote-desktop window
+ * paths normally, copies on the controlled Puppeteer in a remote-desktop window
  * (progress and failures are toasted; failed files and folders are left out).
  */
 export async function remotePathsForDrop(localPaths: string[]): Promise<string[]> {

@@ -21,7 +21,7 @@ const { confirm } = useConfirm()
 const clearingAudit = ref(false)
 
 const togglingEnabled = ref(false)
-// A remote-desktop window already drives another Devdy; no nesting.
+// A remote-desktop window already drives another Puppeteer; no nesting.
 const remoteMode = isRemoteMode()
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -177,7 +177,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
           </i18n-t>
         </p>
 
-        <!-- Remote desktop: drive another Devdy from this one. -->
+        <!-- Remote desktop: drive another Puppeteer from this one. -->
         <div
           v-if="!remoteMode"
           class="flex items-center justify-between gap-4 border-t border-border/50 pt-3"

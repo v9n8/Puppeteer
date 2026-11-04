@@ -35,7 +35,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../../icons/tray-template.png");
 
 /// Stable id so `set_tray_menu` can find the tray built at startup.
-pub const TRAY_ID: &str = "devdy-tray";
+pub const TRAY_ID: &str = "puppeteer-tray";
 /// Reserved menu id: quit the whole app (mirrors closing the main window).
 const QUIT_ID: &str = "tray:quit";
 /// Prefix for "focus this window" ids; the suffix is the window label.
@@ -94,7 +94,7 @@ impl Default for TrayState {
             actions: Mutex::default(),
             windows: Mutex::default(),
             sessions: Mutex::default(),
-            quit_label: Mutex::new("Quit Devdy".into()),
+            quit_label: Mutex::new("Quit Puppeteer".into()),
         }
     }
 }
@@ -269,7 +269,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     app.manage(state);
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Devdy")
+        .tooltip("Puppeteer")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(on_menu_event);

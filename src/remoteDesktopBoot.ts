@@ -3,13 +3,13 @@
  *
  * The main one (`remote-desktop`, see lib/remoteDesktopWindow.ts): without a
  * stored sign-in it shows the password login; with one it connects the IPC shim
- * to the controlled Devdy FIRST (any invoke/listen made before that would hit
+ * to the controlled Puppeteer FIRST (any invoke/listen made before that would hit
  * this machine's backend), then mounts the normal app (its sidebar shows the
  * link: components/remote/RemoteDesktopIndicator.vue) and serves that one
  * connection to its pop-outs (lib/ipc/mux.ts).
  *
  * A pop-out opened from a remote window (`remote-…` label, lib/ipc/windows.ts)
- * has no connection of its own: its shim talks to the controlled Devdy through
+ * has no connection of its own: its shim talks to the controlled Puppeteer through
  * the main remote-desktop window.
  */
 import { createApp, type App } from 'vue'

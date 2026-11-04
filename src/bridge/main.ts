@@ -1,7 +1,7 @@
 /**
- * Remote desktop bridge (hidden window on the controlled Devdy).
+ * Remote desktop bridge (hidden window on the controlled Puppeteer).
  *
- * Another Devdy drives this app's UI over the relay; its `invoke` / `listen`
+ * Another Puppeteer drives this app's UI over the relay; its `invoke` / `listen`
  * calls arrive here and are replayed with the REAL Tauri APIs, so they behave
  * exactly as if the local user had made them. Results and events go back, in
  * the order they happened, through one serialized `remote_bridge_batch` queue

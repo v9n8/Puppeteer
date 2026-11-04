@@ -316,7 +316,7 @@ async function handleExport(skill: Skill) {
       v-model:search="search"
       :groups="rowGroups"
       :selected-id="selectedId"
-      collapse-key="devdy.skills.collapsed"
+      collapse-key="puppeteer.skills.collapsed"
       :search-placeholder="t('skills.detail.searchPlaceholder')"
       :loading="store.loading"
       :error="store.error"

@@ -22,7 +22,7 @@ use remote_e2e::derive_effective_psk;
 
 /// Rendezvous code of the password-login slot. Public by design: knowing it
 /// only lets a peer *try* a password, which the Host rate limits.
-pub const LOGIN_CODE: &str = "devdy-login-v1";
+pub const LOGIN_CODE: &str = "puppeteer-login-v1";
 /// Longest accepted device alias.
 pub const MAX_ALIAS_LEN: usize = 32;
 
@@ -48,10 +48,10 @@ pub fn login_code(alias: Option<&str>) -> String {
 /// Relay listen slot for the login code.
 pub const LOGIN_SLOT: &str = "login";
 /// Public stand-in for the link secret in the login KDF (hex of
-/// `"devdy remote login v1 public key"`). Must match the controller.
-pub const LOGIN_LINK_SECRET: &str = "64657664792072656d6f7465206c6f67696e207631207075626c6963206b6579";
+/// `"puppeteer remote login v1 pubkey"`). Must match the controller.
+pub const LOGIN_LINK_SECRET: &str = "7075707065746565722072656d6f7465206c6f67696e207631207075626b6579";
 /// PBKDF2-HMAC-SHA256 salt and rounds. Must match the controller.
-const PBKDF2_SALT: &[u8] = b"devdy-remote-login-v1";
+const PBKDF2_SALT: &[u8] = b"puppeteer-remote-login-v1";
 pub const PBKDF2_ROUNDS: u32 = 210_000;
 
 /// Wrong passwords allowed per window before login is refused outright.
@@ -142,17 +142,17 @@ mod tests {
     #[test]
     fn psk_matches_the_controller_vector() {
         assert_eq!(
-            crate::remote::pairing_hex(&login_psk("devdy-test-password")),
+            crate::remote::pairing_hex(&login_psk("puppeteer-test-password")),
             LOGIN_PSK_VECTOR
         );
     }
-    const LOGIN_PSK_VECTOR: &str = "c2ee56d76cc322ce322e386031f956429595a64a04195e648ba9f27fa070e57f";
+    const LOGIN_PSK_VECTOR: &str = "95db3565ad5fad0b134b257f669773234d2750ebe9ed3350bc4c5f5715f2286b";
 
     #[test]
     fn login_code_appends_the_alias() {
-        assert_eq!(login_code(None), "devdy-login-v1");
-        assert_eq!(login_code(Some("")), "devdy-login-v1");
-        assert_eq!(login_code(Some("mac-mini")), "devdy-login-v1/mac-mini");
+        assert_eq!(login_code(None), "puppeteer-login-v1");
+        assert_eq!(login_code(Some("")), "puppeteer-login-v1");
+        assert_eq!(login_code(Some("mac-mini")), "puppeteer-login-v1/mac-mini");
     }
 
     #[test]

@@ -9,14 +9,14 @@ import { tmpdir } from 'node:os'
 import { execSync } from 'node:child_process'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const work = mkdtempSync(join(tmpdir(), 'devdy-codex-'))
+const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-'))
 writeFileSync(join(work, 'README.md'), '# scratch\n')
 try { execSync('git init -q && git add -A && git -c user.email=t@t.co -c user.name=t commit -qm init', { cwd: work }) } catch {}
 
 const child = spawn('node', [join(here, 'index.mjs')], {
   cwd: work,
   stdio: ['pipe', 'pipe', 'pipe'],
-  env: { ...process.env, DEVDY_PERMISSION_MODE: 'default' },
+  env: { ...process.env, PUPPETEER_PERMISSION_MODE: 'default' },
 })
 
 let sawSystem = false, sawAssistantText = false, sawToolUse = false, sawResult = false, sawPermission = false
@@ -28,13 +28,13 @@ child.stdout.on('data', (c) => {
     const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1)
     if (!line) continue
     let m; try { m = JSON.parse(line) } catch { continue }
-    if (m.type === '_devdy_permission_request') {
+    if (m.type === '_puppeteer_permission_request') {
       sawPermission = true
       console.log(`  ⟵ permission: ${m.tool_name} — ${JSON.stringify(m.tool_input).slice(0, 80)}`)
       child.stdin.write(JSON.stringify({ type: 'permission_response', requestId: m.requestId, decision: 'allow' }) + '\n')
-    } else if (m.type === '_devdy_ready') {
+    } else if (m.type === '_puppeteer_ready') {
       console.log(`  ✓ ready (thread ${m.threadId})`)
-    } else if (m.type === '_devdy_error') {
+    } else if (m.type === '_puppeteer_error') {
       console.log(`  ✗ error: ${m.error}`)
     } else if (m.type === 'system') {
       sawSystem = true; console.log(`  ✓ system.init model=${m.model} session=${m.session_id}`)
@@ -51,7 +51,7 @@ child.stdout.on('data', (c) => {
 child.stderr.on('data', (d) => process.stderr.write(`[stderr] ${d}`))
 child.on('exit', () => {
   const content = readFileSync(join(work, 'README.md'), 'utf8')
-  const edited = content.includes('devdy-codex-ok')
+  const edited = content.includes('puppeteer-codex-ok')
   console.log('\n──────── RESULT ────────')
   console.log({ sawSystem, sawAssistantText, sawToolUse, sawPermission, sawResult, fileEdited: edited })
   const pass = sawSystem && sawResult && sawPermission && edited
@@ -62,7 +62,7 @@ child.on('exit', () => {
 // Send the first prompt the way start_run does.
 child.stdin.write(JSON.stringify({
   type: 'prompt',
-  text: 'Append a line "devdy-codex-ok" to README.md (the sandbox may require escalated write approval). Then reply DONE.',
+  text: 'Append a line "puppeteer-codex-ok" to README.md (the sandbox may require escalated write approval). Then reply DONE.',
 }) + '\n')
 
 setTimeout(() => { console.log('⏱ timeout'); try { child.kill() } catch {} }, 150000)

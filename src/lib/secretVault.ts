@@ -1,5 +1,5 @@
 // Typed wrappers for the secret notes vault commands (src-tauri/src/commands/secret_vault.rs).
-// The Secret notes window only (or, from a remote desktop, the controlled Devdy's bridge).
+// The Secret notes window only (or, from a remote desktop, the controlled Puppeteer's bridge).
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke as localInvoke } from '@tauri-real/core'
 import { invoke } from '@/lib/tauri'
@@ -34,7 +34,7 @@ export const secretNotesList = () => invoke<SecretNoteMeta[]>('secret_notes_list
 export const secretNoteReveal = (id: string) => invoke<string>('secret_note_reveal', { id })
 /**
  * Copies in the backend (content never reaches here); resolves to the seconds until it is cleared.
- * Driving another Devdy, its clipboard is out of reach: reveal there, copy onto this machine's.
+ * Driving another Puppeteer, its clipboard is out of reach: reveal there, copy onto this machine's.
  */
 export async function secretNoteCopy(id: string): Promise<number> {
   if (!isRemoteMode()) return invoke<number>('secret_note_copy', { id })

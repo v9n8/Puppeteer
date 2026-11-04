@@ -68,7 +68,7 @@ pub(crate) fn show_clickable_opts(
         let ident = if tauri::is_dev() {
             "com.apple.Terminal"
         } else {
-            "vn.papay.devdy"
+            "io.github.v9n8.puppeteer"
         };
         let _ = notify_rust::set_application(ident);
     });

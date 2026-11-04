@@ -4,7 +4,7 @@
 // session or on a second monitor.
 //
 // It renders the very same PrInboxView in `standalone` mode — no fork. That
-// mode swaps what needs the main window: opening a review run / "Add to devdy"
+// mode swaps what needs the main window: opening a review run / "Add to puppeteer"
 // become requests to it (WINDOW_OPEN_RUN, PR_INBOX_WINDOW_OPEN_ROUTE — handled
 // in App.vue), and run status comes from a light event feed instead of the
 // liveRuns stream (see composables/useRunStatusEvents).

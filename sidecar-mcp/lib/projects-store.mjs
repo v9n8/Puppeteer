@@ -1,4 +1,4 @@
-// Project / repo registration for the `devdy` MCP server: create a project and
+// Project / repo registration for the `puppeteer` MCP server: create a project and
 // link git repos to one, with the same rows the app writes (`add_project` /
 // `add_repo` in src-tauri/src/commands/projects.rs) — repo coordinates are read
 // off `git remote get-url origin` like `detect_project_info`.
@@ -13,7 +13,7 @@ import { db, tx, normIds, nowRfc3339, findProject } from './store.mjs';
 // Credential stores under HOME (src-tauri/src/remote/guard.rs SECRET_HOME_DIRS):
 // a registered project becomes a root the remote desktop may browse.
 const SECRET_HOME_DIRS = [
-  '.devdy', '.ssh', '.aws', '.azure', '.codex', '.gnupg', '.kube', '.docker',
+  '.puppeteer', '.ssh', '.aws', '.azure', '.codex', '.gnupg', '.kube', '.docker',
   '.password-store', '.config/gh', '.config/glab-cli', '.config/gcloud', 'Library/Keychains',
 ];
 
@@ -127,7 +127,7 @@ function insertRepo(d, projectId, f, now) {
 }
 
 /**
- * Register a folder as a Devdy project (appended to the manual order). With
+ * Register a folder as a Puppeteer project (appended to the manual order). With
  * `detect_repos` (default) the root and its immediate git subfolders are linked
  * as repos, like the app's "Add project" dialog.
  */
@@ -163,7 +163,7 @@ export function addRepo({ path, project, name, remote_url } = {}) {
     project != null && String(project).trim()
       ? findProject(project)
       : (() => {
-          const id = process.env.DEVDY_PROJECT_ID || null;
+          const id = process.env.PUPPETEER_PROJECT_ID || null;
           if (!id) throw new Error('no current project — pass project="<id or name>" (see projects_list)');
           return findProject(id);
         })();
@@ -177,7 +177,7 @@ export function addRepo({ path, project, name, remote_url } = {}) {
 
 /**
  * Unlink repos (`id` or `ids`) from their project (`remove_repo`), all or
- * nothing. Only the Devdy row goes — the folder on disk is untouched.
+ * nothing. Only the Puppeteer row goes — the folder on disk is untouched.
  */
 export function removeRepos({ ids } = {}) {
   const list = normIds(ids);

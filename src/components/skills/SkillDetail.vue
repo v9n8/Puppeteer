@@ -3,7 +3,7 @@
 // null). SKILL.md is the source of truth — the metadata fields rewrite its
 // frontmatter and are re-read from it. The skill's extra files (references/,
 // scripts/, …) are listed as tabs and shown read-only: the app has no command
-// to write them, so editing goes through the folder (or the devdy MCP tools).
+// to write them, so editing goes through the folder (or the puppeteer MCP tools).
 //
 // The host keys this component on the selection, so every skill starts from a
 // fresh editor (own undo history, own dirty baseline).
@@ -108,7 +108,7 @@ function setTarget(value: string) {
 // ── Preview ─────────────────────────────────────────────────────────────────
 
 type ViewMode = 'edit' | 'split' | 'preview'
-const VIEW_KEY = 'devdy.skills.view'
+const VIEW_KEY = 'puppeteer.skills.view'
 const viewMode = ref<ViewMode>(readViewMode())
 const viewModes = computed(() => [
   { value: 'edit' as const, label: t('skills.editor.markdown'), icon: Pencil },

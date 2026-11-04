@@ -31,7 +31,7 @@ pub struct RunRecord {
     pub finished_at: Option<String>,
     pub created_at: String,
     /// Last time this session was worked on — start/resume, a follow-up turn, a
-    /// finished turn, or a transcript touched outside Devdy. Drives the History
+    /// finished turn, or a transcript touched outside Puppeteer. Drives the History
     /// order. Null when nothing has happened since the row was created; readers
     /// fall back to finished_at / started_at / created_at.
     #[serde(default)]
@@ -925,7 +925,7 @@ pub async fn list_runs(
 }
 
 /// A pull request awaiting the current user's review, aggregated across every
-/// configured GitHub account, plus its mapping to a devdy project (if any).
+/// configured GitHub account, plus its mapping to a puppeteer project (if any).
 #[derive(Debug, Serialize, Clone)]
 pub struct PrInboxItem {
     /// Account whose review request surfaced this PR (label for display).
@@ -945,7 +945,7 @@ pub struct PrInboxItem {
     /// Label names, in GitHub's order.
     pub labels: Vec<String>,
     pub updated_at: String,
-    /// True when a devdy repo row matches owner/repo — enables the Review action.
+    /// True when a puppeteer repo row matches owner/repo — enables the Review action.
     pub mapped: bool,
     pub project_id: Option<String>,
     pub repo_id: Option<String>,
@@ -1136,7 +1136,7 @@ async fn fetch_requested_reviewers(
 }
 
 /// List every open PR where the signed-in user is a requested reviewer, gathered
-/// across all validated GitHub accounts and mapped to devdy projects when the
+/// across all validated GitHub accounts and mapped to puppeteer projects when the
 /// repo is already tracked. Read-only; a failing account is skipped, not fatal.
 #[tauri::command]
 pub async fn list_review_requested_prs(db: State<'_, Db>) -> Result<PrInboxResult, String> {
@@ -1264,7 +1264,7 @@ pub async fn list_review_requested_prs(db: State<'_, Db>) -> Result<PrInboxResul
             }
             seen.insert(key, items.len());
 
-            // Map to a devdy project via a tracked repo row (case-insensitive).
+            // Map to a puppeteer project via a tracked repo row (case-insensitive).
             let mapping = sqlx::query(
                 "SELECT r.id AS repo_id, r.project_id AS project_id, p.name AS project_name
                  FROM repos r JOIN projects p ON p.id = r.project_id

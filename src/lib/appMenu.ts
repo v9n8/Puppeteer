@@ -85,7 +85,7 @@ function buildSpec(state: MenuState): MenuSpec {
   // exist: Settings and Quit ride along in File, About in Help.
   if (IS_MAC) {
     submenus.push({
-      label: 'Devdy',
+      label: 'Puppeteer',
       items: [
         // The app's own About page rather than the bare OS panel, so there's
         // one About, not two.

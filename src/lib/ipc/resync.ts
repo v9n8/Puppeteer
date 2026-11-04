@@ -1,10 +1,10 @@
 /**
- * Remote desktop resync: the controlled Devdy dropped events for us on a
+ * Remote desktop resync: the controlled Puppeteer dropped events for us on a
  * congested link (`ipc_resync`), so stores and queries fed by those events may
  * be stale. The app has no generic "refetch everything" path — each store
  * loads once and then follows events — so a remote window recovers the simple,
  * robust way: it reloads, which re-runs every load against the controlled
- * Devdy. Reloads are throttled per window (a link that keeps shedding must not
+ * Puppeteer. Reloads are throttled per window (a link that keeps shedding must not
  * reload-loop); a resync inside the window is deferred, never dropped.
  *
  * The main remote-desktop window turns `ipc_resync` into {@link RESYNC_EVENT}
@@ -14,7 +14,7 @@
 import { emit, listen, type UnlistenFn } from '@tauri-real/event'
 import { RESYNC_EVENT, resyncDelay } from './resyncCore'
 
-const STORAGE_KEY = 'devdy.remoteDesktop.lastResyncReload'
+const STORAGE_KEY = 'puppeteer.remoteDesktop.lastResyncReload'
 
 /** Ask every remote window of this machine to resync. */
 export function broadcastResync(): void {

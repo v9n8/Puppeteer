@@ -1,5 +1,5 @@
 // Regression test: Codex MCP permission prompts must expose a stable per-tool
-// key so Devdy's "allow always" / "deny always" store can match them.
+// key so Puppeteer's "allow always" / "deny always" store can match them.
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -7,20 +7,20 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const work = mkdtempSync(join(tmpdir(), 'devdy-codex-mcp-key-'))
+const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-mcp-key-'))
 const fixture = join(here, 'test-fixture-app-server.mjs')
 
 const childEnv = { ...process.env }
-delete childEnv.DEVDY_RESUME_SESSION
+delete childEnv.PUPPETEER_RESUME_SESSION
 
 const child = spawn('node', [join(here, 'index.mjs')], {
   cwd: work,
   stdio: ['pipe', 'pipe', 'pipe'],
   env: {
     ...childEnv,
-    DEVDY_PERMISSION_MODE: 'default',
-    DEVDY_CODEX_PATH: fixture,
-    DEVDY_MCP_PERMISSION_KEY_TEST: '1',
+    PUPPETEER_PERMISSION_MODE: 'default',
+    PUPPETEER_CODEX_PATH: fixture,
+    PUPPETEER_MCP_PERMISSION_KEY_TEST: '1',
   },
 })
 
@@ -49,7 +49,7 @@ child.stdout.on('data', (chunk) => {
     let message
     try { message = JSON.parse(line) } catch { continue }
 
-    if (message.type === '_devdy_permission_request') {
+    if (message.type === '_puppeteer_permission_request') {
       sawPermission = true
       sawStableToolName = message.tool_name === 'mcp__google_drive__list_files'
       child.stdin.write(JSON.stringify({
@@ -64,7 +64,7 @@ child.stdout.on('data', (chunk) => {
       }
     }
     if (message.type === 'result') finish(0)
-    if (message.type === '_devdy_error') {
+    if (message.type === '_puppeteer_error') {
       console.error(message.error)
       finish(1)
     }

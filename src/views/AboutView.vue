@@ -25,9 +25,9 @@ onMounted(async () => {
     <div class="flex-1 flex items-center justify-center p-6">
       <div class="flex flex-col items-center text-center max-w-xs">
         <!-- Logo -->
-        <img src="/logo.png" alt="Devdy" class="h-14 w-14 rounded-2xl mb-5" />
+        <img src="/logo.png" alt="Puppeteer" class="h-14 w-14 rounded-2xl mb-5" />
 
-        <h2 class="text-xl font-bold tracking-tight">Devdy</h2>
+        <h2 class="text-xl font-bold tracking-tight">Puppeteer</h2>
         <p class="text-sm text-muted-foreground mt-1">{{ t('about.tagline') }}</p>
         <Badge v-if="appVersion" class="mt-2 px-2 py-0.5 text-[10px] font-mono font-medium">
           v{{ appVersion }}

@@ -21,7 +21,6 @@ pub mod health;
 pub mod inbox_api;
 pub mod instruction_checks;
 pub mod item_links;
-pub mod mascot_speak;
 pub mod mcp;
 pub mod mcp_packages;
 pub mod models;

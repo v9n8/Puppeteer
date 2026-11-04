@@ -5,7 +5,7 @@
 //
 // Scope: gmail.modify (read / attachments / send / label / trash — NOT permanent mailbox
 // wipe). `delete` needs the broader scope and will fail cleanly if not granted.
-// Destructive/outbound tools still hit Devdy's per-tool permission prompt.
+// Destructive/outbound tools still hit Puppeteer's per-tool permission prompt.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';

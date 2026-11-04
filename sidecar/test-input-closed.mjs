@@ -4,8 +4,8 @@
 //
 // Once stdin is closed no permission answer can ever arrive. The SDK still keeps
 // the CLI running until its turn ends, so the sidecar must settle the open
-// request itself (deny + `_devdy_permission_cancelled`), let the turn finish,
-// report `_devdy_closed` and EXIT — instead of waiting forever.
+// request itself (deny + `_puppeteer_permission_cancelled`), let the turn finish,
+// report `_puppeteer_closed` and EXIT — instead of waiting forever.
 //
 // Run: node test-input-closed.mjs   (from the sidecar/ dir; makes one real turn)
 
@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const testDir = join(os.tmpdir(), 'devdy-sidecar-input-closed-test')
+const testDir = join(os.tmpdir(), 'puppeteer-sidecar-input-closed-test')
 fs.rmSync(testDir, { recursive: true, force: true })
 fs.mkdirSync(testDir, { recursive: true })
 
@@ -48,7 +48,7 @@ function report(exited) {
   console.log('permission requested :', requested ? `YES ✅ (${requested})` : 'NO ❌')
   console.log('request cancelled    :', cancelled ? 'YES ✅' : 'NO ❌')
   console.log('turn result          :', sawResult ? 'YES ✅' : 'NO ❌')
-  console.log('_devdy_closed        :', closed ? 'YES ✅' : 'NO ❌')
+  console.log('_puppeteer_closed        :', closed ? 'YES ✅' : 'NO ❌')
   console.log('process exited       :', exited ? 'YES ✅' : 'NO ❌')
   console.log('==========================================================')
   const pass = !!requested && cancelled && sawResult && closed && exited
@@ -71,7 +71,7 @@ child.stdout.on('data', (chunk) => {
 
 function handle(msg) {
   switch (msg.type) {
-    case '_devdy_ready':
+    case '_puppeteer_ready':
       child.stdin.write(JSON.stringify({
         type: 'prompt',
         text: 'Create a file named out.txt containing the word hello in the current directory. ' +
@@ -79,18 +79,18 @@ function handle(msg) {
         options: { cwd: testDir, permissionMode: 'default' },
       }) + '\n')
       break
-    case '_devdy_permission_request':
+    case '_puppeteer_permission_request':
       // Don't answer: close the input channel instead (what the broker does at
       // turn end). Without the fix the sidecar waits on this request forever.
       requested = msg.tool_name
       console.log(`[permission] ${msg.tool_name} → closing stdin instead of answering`)
       child.stdin.end()
       break
-    case '_devdy_permission_cancelled':
+    case '_puppeteer_permission_cancelled':
       cancelled = true
       console.log(`[cancelled] ${msg.text ?? ''}`)
       break
-    case '_devdy_closed':
+    case '_puppeteer_closed':
       closed = true
       console.log('[closed]')
       break

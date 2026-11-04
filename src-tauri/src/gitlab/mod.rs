@@ -10,7 +10,7 @@
 
 use serde_json::Value;
 
-const USER_AGENT: &str = "devdy/0.1";
+const USER_AGENT: &str = "puppeteer/0.1";
 
 /// Everything needed to talk to one GitLab project's REST API.
 pub struct GitlabClient {
@@ -233,9 +233,9 @@ pub fn repo_slug(provider: &str, owner: &str, repo: &str, repo_id: &str) -> Stri
 /// Where a repo's fetched task files live, and how they are named:
 ///
 /// ```text
-/// <project>/.devdy/tasks/<repo_slug>/issue-<n>/issue.md
-/// <project>/.devdy/tasks/<repo_slug>/pr-<n>/pr.md      (GitHub)
-/// <project>/.devdy/tasks/<repo_slug>/mr-<n>/mr.md      (GitLab)
+/// <project>/.puppeteer/tasks/<repo_slug>/issue-<n>/issue.md
+/// <project>/.puppeteer/tasks/<repo_slug>/pr-<n>/pr.md      (GitHub)
+/// <project>/.puppeteer/tasks/<repo_slug>/mr-<n>/mr.md      (GitLab)
 /// ```
 ///
 /// The path is a pure function of the immutable identity `(repo, kind, number)`
@@ -265,7 +265,7 @@ impl TaskLocation<'_> {
             (format!("pr-{}", number), "pr.md")
         };
         std::path::Path::new(self.project_path)
-            .join(".devdy")
+            .join(".puppeteer")
             .join("tasks")
             .join(self.repo_slug)
             .join(dir)
@@ -621,15 +621,15 @@ mod tests {
     fn task_paths_are_named_per_provider_and_kind() {
         assert_eq!(
             loc("github").file("analyze_issue", 5),
-            std::path::PathBuf::from("/p/.devdy/tasks/slug/issue-5/issue.md")
+            std::path::PathBuf::from("/p/.puppeteer/tasks/slug/issue-5/issue.md")
         );
         assert_eq!(
             loc("github").file("review_pr", 5),
-            std::path::PathBuf::from("/p/.devdy/tasks/slug/pr-5/pr.md")
+            std::path::PathBuf::from("/p/.puppeteer/tasks/slug/pr-5/pr.md")
         );
         assert_eq!(
             loc("gitlab").file("review_pr", 5),
-            std::path::PathBuf::from("/p/.devdy/tasks/slug/mr-5/mr.md")
+            std::path::PathBuf::from("/p/.puppeteer/tasks/slug/mr-5/mr.md")
         );
     }
 
@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn linked_issue_reference_resolves_relative_to_the_pr_file() {
-        let dir = std::env::temp_dir().join(format!("devdy-loc-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-loc-{}", std::process::id()));
         let l = TaskLocation {
             project_path: dir.to_str().unwrap(),
             repo_slug: "slug",

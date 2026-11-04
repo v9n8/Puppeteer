@@ -425,7 +425,7 @@ pub fn prompt_text(
         let len = chunk.chars().count();
         if used + len > max_chars {
             out.push_str(&format!(
-                "… (truncated — read the rest with mcp__devdy__slack_threads_read id={} offset={})\n",
+                "… (truncated — read the rest with mcp__puppeteer__slack_threads_read id={} offset={})\n",
                 h.id, body_offset
             ));
             return (out, true);
@@ -558,7 +558,7 @@ mod tests {
         let (text, truncated) = prompt_text(&h, &msgs, &[], &names, false, 150);
         assert!(truncated);
         assert!(text.ends_with(
-            "… (truncated — read the rest with mcp__devdy__slack_threads_read id=t1 offset=0)\n"
+            "… (truncated — read the rest with mcp__puppeteer__slack_threads_read id=t1 offset=0)\n"
         ));
         assert!(!text.contains("Alice ("));
 

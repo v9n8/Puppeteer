@@ -92,13 +92,6 @@ const router = createRouter({
     { path: '/settings', name: 'settings', component: SettingsView },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
-    ...(import.meta.env.DEV
-      ? [{
-          path: '/dev/cyber-fox',
-          name: 'dev-cyber-fox',
-          component: () => import('../views/dev/CyberFoxDebugView.vue'),
-        }]
-      : []),
   ],
 })
 

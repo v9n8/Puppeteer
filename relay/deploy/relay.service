@@ -1,21 +1,21 @@
-# Devdy Remote Control Relay — systemd unit (Topology B).
+# Puppeteer Remote Control Relay — systemd unit (Topology B).
 #
 # Runs as an unprivileged user behind nginx/apache (SEC-010 / CON-02).
 # Restart=always with a short window satisfies NFR-006 (recover within <=10s).
 #
 # Install:
-#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin devdyrelay
-#   sudo install -m 0755 devdy-relay /usr/local/bin/devdy-relay
-#   sudo install -m 0640 -o devdyrelay -g devdyrelay relay.env /etc/devdy-relay.env
-#   sudo cp relay.service /etc/systemd/system/devdy-relay.service
-#   sudo systemctl daemon-reload && sudo systemctl enable --now devdy-relay
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin puppeteerrelay
+#   sudo install -m 0755 puppeteer-relay /usr/local/bin/puppeteer-relay
+#   sudo install -m 0640 -o puppeteerrelay -g puppeteerrelay relay.env /etc/puppeteer-relay.env
+#   sudo cp relay.service /etc/systemd/system/puppeteer-relay.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now puppeteer-relay
 #
-# The auth token lives ONLY in /etc/devdy-relay.env (chmod 0640), never in this
+# The auth token lives ONLY in /etc/puppeteer-relay.env (chmod 0640), never in this
 # unit and never in the repo (SEC-001).
 
 [Unit]
-Description=Devdy Remote Control Relay (WSS bridge, localhost)
-Documentation=https://github.com/devdy/relay
+Description=Puppeteer Remote Control Relay (WSS bridge, localhost)
+Documentation=https://github.com/puppeteer/relay
 After=network-online.target
 Wants=network-online.target
 # Never stop restarting (NFR-006). This is a [Unit] option; systemd ignores it
@@ -24,16 +24,16 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=devdyrelay
-Group=devdyrelay
+User=puppeteerrelay
+Group=puppeteerrelay
 
 # Secrets and tunables are read from this env file (not committed).
-EnvironmentFile=/etc/devdy-relay.env
+EnvironmentFile=/etc/puppeteer-relay.env
 # Sensible defaults; override in the env file.
 Environment=RELAY_BIND=127.0.0.1:8787
 Environment=RUST_LOG=info
 
-ExecStart=/usr/local/bin/devdy-relay
+ExecStart=/usr/local/bin/puppeteer-relay
 
 # Reliability (NFR-006): recover within <=10s after a crash.
 Restart=always

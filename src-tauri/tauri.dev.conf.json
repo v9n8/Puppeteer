@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Devdy Dev",
-  "identifier": "vn.papay.devdy.dev",
+  "productName": "Puppeteer Dev",
+  "identifier": "io.github.v9n8.puppeteer.dev",
   "app": {
     "windows": [
       {
-        "title": "Devdy (dev)",
+        "title": "Puppeteer (dev)",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

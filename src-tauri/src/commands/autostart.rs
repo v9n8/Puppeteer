@@ -1,9 +1,9 @@
-//! Launch Devdy at login (macOS): a per-user LaunchAgent at
+//! Launch Puppeteer at login (macOS): a per-user LaunchAgent at
 //! `~/Library/LaunchAgents/<bundle identifier>.plist` with `RunAtLoad`.
 //!
 //! The OS file IS the setting — nothing is stored in SQLite, so the toggle can't
 //! drift from what macOS actually does. The identifier keeps the dev build
-//! ("Devdy Dev", `vn.papay.devdy.dev`) and the release build apart.
+//! ("Puppeteer Dev", `io.github.v9n8.puppeteer.dev`) and the release build apart.
 //!
 //! The agent may pass [`MINIMIZED_ARG`]: the app then starts with its main
 //! window minimized to the Dock (closing it would quit the app, see `lib.rs`).
@@ -58,7 +58,7 @@ fn render_plist(label: &str, exe: &Path, minimized: bool) -> String {
     )
 }
 
-/// Whether an existing agent file asks for a minimized start. Only Devdy writes
+/// Whether an existing agent file asks for a minimized start. Only Puppeteer writes
 /// this file, so a plain substring check is enough.
 fn plist_is_minimized(content: &str) -> bool {
     content.contains(&format!("<string>{MINIMIZED_ARG}</string>"))
@@ -149,12 +149,12 @@ mod tests {
     #[test]
     fn plist_has_label_exe_and_run_at_load() {
         let p = render_plist(
-            "vn.papay.devdy",
-            Path::new("/Applications/Devdy.app/Contents/MacOS/devdy"),
+            "io.github.v9n8.puppeteer",
+            Path::new("/Applications/Puppeteer.app/Contents/MacOS/puppeteer"),
             false,
         );
-        assert!(p.contains("<string>vn.papay.devdy</string>"));
-        assert!(p.contains("<string>/Applications/Devdy.app/Contents/MacOS/devdy</string>"));
+        assert!(p.contains("<string>io.github.v9n8.puppeteer</string>"));
+        assert!(p.contains("<string>/Applications/Puppeteer.app/Contents/MacOS/puppeteer</string>"));
         assert!(p.contains("<key>RunAtLoad</key>\n    <true/>"));
         assert!(!plist_is_minimized(&p));
     }
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn plist_escapes_xml_in_paths() {
-        let p = render_plist("x", Path::new("/Users/a&b/<Devdy>.app"), false);
-        assert!(p.contains("/Users/a&amp;b/&lt;Devdy&gt;.app"));
+        let p = render_plist("x", Path::new("/Users/a&b/<Puppeteer>.app"), false);
+        assert!(p.contains("/Users/a&amp;b/&lt;Puppeteer&gt;.app"));
     }
 }

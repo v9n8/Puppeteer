@@ -26,7 +26,7 @@ const lineParam = params.get('line')
 const line = ref<number | null>(lineParam != null ? Number(lineParam) : null)
 
 function setTitle(p: string) {
-  document.title = (p.split('/').pop() || p) + ' — Devdy'
+  document.title = (p.split('/').pop() || p) + ' — Puppeteer'
 }
 
 /** True when `candidate` IS our file, or the folder our file lives in. */

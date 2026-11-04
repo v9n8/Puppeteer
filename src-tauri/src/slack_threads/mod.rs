@@ -198,7 +198,7 @@ impl SlackEvents for AppEvents {
         let id = id.to_string();
         crate::commands::notifications::show_clickable(
             self.app.clone(),
-            "Devdy".to_string(),
+            "Puppeteer".to_string(),
             body,
             "slack thread notification",
             move |app| {

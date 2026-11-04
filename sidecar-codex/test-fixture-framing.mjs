@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // JSON-RPC fixture for test-framing-seed.mjs: records thread/start,
-// thread/resume and turn/start params to DEVDY_FRAMING_RPC_OUT (NDJSON).
+// thread/resume and turn/start params to PUPPETEER_FRAMING_RPC_OUT (NDJSON).
 import { appendFileSync } from 'node:fs'
 
-const out = process.env.DEVDY_FRAMING_RPC_OUT
+const out = process.env.PUPPETEER_FRAMING_RPC_OUT
 let buffer = ''
 const send = (m) => process.stdout.write(JSON.stringify(m) + '\n')
 

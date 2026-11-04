@@ -24,7 +24,7 @@ pub const SECRET_VAULT_EVENT: &str = "secret-vault://changed";
 const SECRET_NOTES_WINDOW: &str = "secret-notes";
 /// The local Notes window (`itemListWindowLabel('note')` in src/lib/itemListWindow.ts).
 const NOTES_WINDOW: &str = "item-list-note";
-/// The Secret notes window of a remote desktop driving ANOTHER Devdy
+/// The Secret notes window of a remote desktop driving ANOTHER Puppeteer
 /// (`toRemoteLabel` in src/lib/ipc/windows.ts): only [`rd_copy_secret`] here.
 const REMOTE_SECRET_NOTES_WINDOW: &str = "remote-secret-notes";
 
@@ -265,7 +265,7 @@ pub async fn secret_note_copy(webview: Webview, id: String) -> Result<u64, Strin
 }
 
 /// [`secret_note_copy`] for a remote desktop: its Secret notes window revealed
-/// a note of the controlled Devdy and copies it onto THIS machine's clipboard
+/// a note of the controlled Puppeteer and copies it onto THIS machine's clipboard
 /// (the controlled one's is out of reach), concealed and cleared the same way.
 /// Local plumbing of the controlling side, never run over the bridge.
 #[tauri::command]

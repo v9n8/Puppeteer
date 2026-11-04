@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-// Smoke test for the `slack_threads_*` tools of the built-in `devdy` MCP server
-// (own tables since migration 0041, docs/srs-slack-thread-translate.md §14).
+// Smoke test for the `slack_threads_*` tools of the built-in `puppeteer` MCP server.
 //
 //   node sidecar-mcp/test-slack-threads.mjs
 //
 // Builds a throwaway <app_data> (temp dir) whose data.db is created by running
-// every real migration in src-tauri/migrations up to 0040, seeds legacy Slack
-// captures (+ one web page), then applies 0041 — the real migration file when it
-// exists, else the SQL block of the frozen SRS §5.1 — and every later migration
-// (0042 drops the old captures tables), and seeds fetched Slack threads into
-// the new tables. It then drives index.mjs over stdio JSON-RPC and
+// every real migration in src-tauri/migrations, seeds legacy Slack snapshots and
+// fetched Slack threads. It then drives index.mjs over stdio JSON-RPC and
 // checks every tool against the real DB and filesystem. Nothing outside the temp
 // dir is touched.
 
@@ -23,7 +19,6 @@ import { tmpdir } from 'node:os';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, 'index.mjs');
 const MIGRATIONS = join(HERE, '..', 'src-tauri', 'migrations');
-const SRS = join(HERE, '..', 'docs', 'srs-slack-thread-translate.md');
 const PROJECT = 'proj-1';
 
 const failures = [];
@@ -32,99 +27,53 @@ const check = (ok, label) => {
   process.stdout.write(`${ok ? '  ok  ' : '  FAIL'} ${label}\n`);
 };
 
-// ---- Fixture: migrations ≤ 0040 -------------------------------------------------
+// ---- Fixture: schema + legacy snapshots ---------------------------------------
 
-const appData = mkdtempSync(join(tmpdir(), 'devdy-slack-threads-'));
+const appData = mkdtempSync(join(tmpdir(), 'puppeteer-slack-threads-'));
 const dbPath = join(appData, 'data.db');
 const outsideName = `${basename(appData)}-outside.txt`;
 const outsidePath = join(dirname(appData), outsideName);
 const db = new DatabaseSync(dbPath);
 
 const migrationFiles = readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-for (const f of migrationFiles.filter((f) => f < '0041')) db.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
-
-let migration0041;
-let migration0041Source;
-const real0041 = migrationFiles.find((f) => f.startsWith('0041_'));
-if (real0041) {
-  migration0041 = readFileSync(join(MIGRATIONS, real0041), 'utf8');
-  migration0041Source = `src-tauri/migrations/${real0041}`;
-} else {
-  const srs = readFileSync(SRS, 'utf8');
-  const section = srs.slice(srs.indexOf('### 5.1'));
-  migration0041 = section.slice(section.indexOf('```sql') + 6, section.indexOf('```', section.indexOf('```sql') + 6));
-  migration0041Source = 'SRS §5.1 SQL (0041 migration file not written yet)';
-}
-process.stdout.write(`migration 0041 from: ${migration0041Source}\n`);
+for (const f of migrationFiles) db.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
 
 const T0 = '2026-01-01T00:00:00.000Z';
 const T1 = '2026-02-01T00:00:00.000Z';
 
-// Legacy kind='slack' captures (0038/0039 era), carried over by 0041.
+// Legacy snapshots (legacy = 1): old markdown body + files, not yet re-fetched.
 const insLegacy = db.prepare(
-  `INSERT INTO captures (id, kind, title, title_custom, content, workspace, channel, thread_url, thread_ts, exported_at,
-                         project_id, position, created_at, updated_at)
-   VALUES (?, 'slack', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO slack_threads (id, title, title_custom, project_id, position, created_at, updated_at, workspace, channel_id,
+     channel, thread_ts, thread_url, fetch_status, search_text, legacy, legacy_content)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 'malme', ?, ?, ?, ?, 'pending', ?, 1, ?)`,
 );
-insLegacy.run('lg-a', 'Legacy deploy thread', 1, '# Legacy deploy\nalice: deploy broke\nbob: rollback done', 'malme', '#dev-backend',
-  'https://malme.slack.com/archives/C0B83GHDTFG/p1789877283026359', '1789877283.026359', T0, PROJECT, 3, T0, T0);
-insLegacy.run('lg-dup-old', 'Dup old title', 0, 'old copy', 'malme', '#ops',
-  'https://malme.slack.com/archives/C0DUPDUPDUP/p1700000000000100', null, T0, null, 7, T0, T0);
-insLegacy.run('lg-dup-new', 'Dup new title', 1, 'new copy', 'malme', '#ops',
-  'https://malme.slack.com/archives/C0DUPDUPDUP/p1700000000000100', null, T0, PROJECT, 4, T0, T1);
-insLegacy.run('lg-nourl', 'No URL thread', 0, 'carol: mockups', 'malme', '#design', null, null, null, null, 9, T0, T0);
+const legacyRow = (id, title, custom, projectId, position, updatedAt, channelId, channel, ts, url, content) =>
+  insLegacy.run(id, title, custom, projectId, position, T0, updatedAt, channelId, channel, ts, url, `${title}\n${content}`, content);
+legacyRow('lg-a', 'Legacy deploy thread', 1, PROJECT, 3, T0, 'C0B83GHDTFG', 'dev-backend', '1789877283.026359',
+  'https://malme.slack.com/archives/C0B83GHDTFG/p1789877283026359', '# Legacy deploy\nalice: deploy broke\nbob: rollback done');
+legacyRow('lg-dup-new', 'Dup new title', 1, PROJECT, 4, T1, 'C0DUPDUPDUP', 'ops', '1700000000.000100',
+  'https://malme.slack.com/archives/C0DUPDUPDUP/p1700000000000100', 'new copy');
+legacyRow('lg-nourl', 'No URL thread', 0, null, 9, T0, null, 'design', null, null, 'carol: mockups');
 
-const insAtt = db.prepare(
-  'INSERT INTO capture_attachments (id, capture_id, name, file_path, size, mime, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+const insLegacyFile = db.prepare(
+  `INSERT INTO slack_files (id, thread_id, name, mime, size, file_path, download_status, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'done', ?)`,
 );
-const addFile = (attId, captureId, dir, name, file, data, mime) => {
-  const rel = `${dir}/${captureId}/files/${file}`;
+const addFile = (fileId, threadId, name, file, data, mime) => {
+  const rel = `slack-threads/${threadId}/files/${file}`;
   mkdirSync(join(appData, dirname(rel)), { recursive: true });
   writeFileSync(join(appData, rel), data);
-  insAtt.run(attId, captureId, name, rel, Buffer.byteLength(data), mime, T0);
+  insLegacyFile.run(fileId, threadId, name, mime, Buffer.byteLength(data), rel, T0);
   return rel;
 };
-const legacyLogRel = addFile('att-log', 'lg-a', 'slack-threads', 'attachments/deploy.log', 'deploy.log', 'ERROR: migration 42 failed\n', 'text/plain');
-addFile('att-dup-old', 'lg-dup-old', 'slack-threads', 'old.txt', 'old.txt', 'old', 'text/plain');
-addFile('att-dup-new', 'lg-dup-new', 'slack-threads', 'new.txt', 'new.txt', 'new', 'text/plain');
-
-// One web page capture (feature removed): 0041 leaves it, 0042 drops the table.
-db.prepare(
-  `INSERT INTO captures (id, kind, title, content, source_url, project_id, position, created_at, updated_at)
-   VALUES ('wp-1', 'web', 'Some page', 'body', 'https://example.com/', NULL, 0, ?, ?)`,
-).run(T0, T0);
-addFile('att-web', 'wp-1', 'web-pages', 'diagram.svg', 'diagram.svg', '<svg/>', 'text/plain');
+const legacyLogRel = addFile('att-log', 'lg-a', 'attachments/deploy.log', 'deploy.log', 'ERROR: migration 42 failed\n', 'text/plain');
+addFile('att-dup-new', 'lg-dup-new', 'new.txt', 'new.txt', 'new', 'text/plain');
 // A file outside <app_data> that traversal-y ids must never reach.
 writeFileSync(outsidePath, 'secret');
 // A sibling dir a traversal-y delete id would hit if ids weren't validated.
 mkdirSync(join(appData, 'keep-me'), { recursive: true });
 
-// ---- Migration 0041 ---------------------------------------------------------------
-
-db.exec(migration0041);
 const sl = (sql, ...p) => db.prepare(sql).all(...p);
-check(sl("SELECT COUNT(*) AS n FROM captures WHERE kind = 'slack'")[0].n === 0, '0041: no kind=slack rows left in captures');
-check(sl("SELECT COUNT(*) AS n FROM captures WHERE kind = 'web'")[0].n === 1, '0041: web rows untouched');
-check(sl('SELECT COUNT(*) AS n FROM capture_attachments')[0].n === 1, '0041: capture_attachments only keeps web files');
-const ids0041 = sl('SELECT id FROM slack_threads ORDER BY id').map((r) => r.id).join(',');
-check(ids0041 === 'lg-a,lg-dup-new,lg-nourl', `0041: duplicates merged, newest kept (got ${ids0041})`);
-const lgA = sl('SELECT * FROM slack_threads WHERE id = ?', 'lg-a')[0];
-check(lgA.title === 'Legacy deploy thread' && lgA.title_custom === 1 && lgA.project_id === PROJECT && lgA.position === 3 &&
-  lgA.channel_id === 'C0B83GHDTFG' && lgA.thread_ts === '1789877283.026359' && lgA.channel === 'dev-backend' &&
-  lgA.legacy === 1 && lgA.fetch_status === 'pending' && lgA.legacy_content.startsWith('# Legacy deploy'), '0041: legacy row fields carried over');
-const lgN = sl('SELECT * FROM slack_threads WHERE id = ?', 'lg-nourl')[0];
-check(lgN.channel_id === null && lgN.thread_ts === null && lgN.legacy === 1, '0041: row without thread_url has channel_id NULL');
-check(sl('SELECT id FROM slack_files ORDER BY id').map((r) => r.id).join(',') === 'att-dup-new,att-log', '0041: slack_files only from kept rows');
-check(sl('SELECT file_path FROM slack_files WHERE id = ?', 'att-log')[0].file_path === legacyLogRel, '0041: legacy file_path kept as-is');
-check(sl('SELECT id FROM slack_legacy_orphans').map((r) => r.id).join(',') === 'lg-dup-old', '0041: merged-away id recorded as orphan');
-
-// ---- Later migrations (0042 drops the captures core) ------------------------------
-
-for (const f of migrationFiles.filter((f) => f >= '0042')) db.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
-check(sl("SELECT COUNT(*) AS n FROM sqlite_master WHERE name IN ('captures', 'capture_attachments')")[0].n === 0,
-  '0042: captures + capture_attachments dropped');
-check(sl('SELECT COUNT(*) AS n FROM slack_threads')[0].n === 3 && sl('SELECT COUNT(*) AS n FROM slack_files')[0].n === 2,
-  '0042: slack_threads / slack_files untouched');
 
 // ---- Fetched (v2) Slack threads -----------------------------------------------------
 
@@ -202,7 +151,7 @@ insLink.run('th-v2', 'r-gone', PROJECT, T0);
 function drive(frames) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, DEVDY_DB_PATH: dbPath, DEVDY_PROJECT_ID: PROJECT },
+      env: { ...process.env, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -251,7 +200,7 @@ const head = await drive([
 ]);
 check(head.noise.length === 0, 'stdout carries only JSON-RPC frames');
 const headById = new Map(head.parsed.map((m) => [m.id, m]));
-check(headById.get(1)?.result?.serverInfo?.name === 'devdy', 'initialize reports serverInfo.name = "devdy"');
+check(headById.get(1)?.result?.serverInfo?.name === 'puppeteer', 'initialize reports serverInfo.name = "puppeteer"');
 const names = (headById.get(2)?.result?.tools || []).map((t) => t.name);
 check(!names.some((n) => n.startsWith('web_pages_')), 'tools/list: no web_pages_* tools (feature removed)');
 const slackNames = names.filter((n) => n.startsWith('slack_threads_')).sort();
@@ -425,4 +374,4 @@ if (failures.length) {
   if (stderrAll.trim()) process.stderr.write(`server stderr:\n${stderrAll}\n`);
   process.exit(1);
 }
-process.stdout.write(`\nAll checks passed (migration 0041 from: ${migration0041Source}).\n`);
+process.stdout.write('\nAll checks passed.\n');

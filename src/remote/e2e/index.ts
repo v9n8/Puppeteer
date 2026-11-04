@@ -1,5 +1,5 @@
 /**
- * Devdy Remote Control — E2E crypto contract (TS reference impl).
+ * Puppeteer Remote Control — E2E crypto contract (TS reference impl).
  *
  * Cross-compatible with the Rust reference impl in `remote-e2e/` (crate
  * `dryoc`). Both sides use the same libsodium-compatible primitives, so the
@@ -17,11 +17,11 @@ import sodium from 'libsodium-wrappers'
 /** Wire format version — first byte of every frame (spec §2). */
 export const E2E_VERSION = 0x01
 /** Domain-separation label mixed into the session-key KDF (spec §3). */
-const CONTEXT = 'devdy-remote-e2e/v1'
+const CONTEXT = 'puppeteer-remote-e2e/v1'
 /** Domain-separation label for the host fingerprint (spec §3). */
-const FP_CONTEXT = 'devdy-host-fp/v1'
+const FP_CONTEXT = 'puppeteer-host-fp/v1'
 /** Domain-separation label for the two-layer (link_secret + OTP) psk KDF. */
-const OTP_KDF_CONTEXT = 'devdy-remote-otp/v1'
+const OTP_KDF_CONTEXT = 'puppeteer-remote-otp/v1'
 
 /** X25519 / AEAD key length. */
 export const KEY_LEN = 32

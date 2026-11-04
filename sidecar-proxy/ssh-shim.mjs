@@ -1,4 +1,4 @@
-// Devdy ssh/scp shim core (ssh-transparent-connect pivot).
+// Puppeteer ssh/scp shim core (ssh-transparent-connect pivot).
 //
 // A tiny wrapper placed at the FRONT of the sidecar PATH under the names
 // `ssh`/`scp`. Unlike the gh/glab shim it does NOT talk to the broker — the
@@ -8,7 +8,7 @@
 // binary.
 //
 // Hard rules (frozen):
-//   - When DEVDY_SSH_CONFIG is UNSET, behave EXACTLY like the real ssh/scp:
+//   - When PUPPETEER_SSH_CONFIG is UNSET, behave EXACTLY like the real ssh/scp:
 //     exec it with the original argv, adding nothing (BR-304). This keeps normal
 //     ssh working for runs whose project maps no server.
 //   - Self-exclude the shim dir from PATH when resolving the real binary so the
@@ -26,7 +26,7 @@ const EXIT_EXEC_FAILED = 95 // spawning the real binary failed
  * Compute the argv for the real ssh/scp. When `config` is a non-empty string,
  * prepend `-F <config>` so the per-run config wins; otherwise pass argv through
  * unchanged. Pure function (AC-307) — no I/O — so it is unit-testable.
- * @param {string} config  DEVDY_SSH_CONFIG value ('' / undefined → unchanged)
+ * @param {string} config  PUPPETEER_SSH_CONFIG value ('' / undefined → unchanged)
  * @param {string[]} argv  arguments after the tool name
  * @returns {string[]}
  */
@@ -64,19 +64,19 @@ function resolveReal(tool) {
  * @param {string} tool
  */
 export function run(tool) {
-  const config = process.env.DEVDY_SSH_CONFIG || ''
+  const config = process.env.PUPPETEER_SSH_CONFIG || ''
   const argv = process.argv.slice(2) // drop [node, shimPath]
 
   const realBin = resolveReal(tool)
   if (!realBin) {
-    process.stderr.write(`devdy: real ${tool} not found on PATH\n`)
+    process.stderr.write(`puppeteer: real ${tool} not found on PATH\n`)
     process.exit(EXIT_REAL_NOT_FOUND)
   }
 
   // stdio inherited so interactive/streamed remote output flows through.
   const child = spawn(realBin, buildArgs(config, argv), { stdio: 'inherit' })
   child.on('error', () => {
-    process.stderr.write(`devdy: failed to exec ${tool}\n`)
+    process.stderr.write(`puppeteer: failed to exec ${tool}\n`)
     process.exit(EXIT_EXEC_FAILED)
   })
   child.on('exit', (code, signal) => {

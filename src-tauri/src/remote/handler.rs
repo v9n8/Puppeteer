@@ -1349,7 +1349,7 @@ mod tests {
     #[test]
     fn always_applies_only_to_per_tool_prompts() {
         assert!(remember_applies("Bash", false));
-        assert!(remember_applies("mcp__devdy__notes_list", false));
+        assert!(remember_applies("mcp__puppeteer__notes_list", false));
         for tool in ["MCP", "AskUserQuestion", "ExitPlanMode"] {
             assert!(!remember_applies(tool, false), "{tool}");
         }

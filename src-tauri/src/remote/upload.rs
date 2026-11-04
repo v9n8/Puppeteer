@@ -1,4 +1,4 @@
-//! Remote desktop uploads: files the controlling Devdy (A) drops or pastes into
+//! Remote desktop uploads: files the controlling Puppeteer (A) drops or pastes into
 //! a remote-desktop window are copied onto this machine (B) before the UI uses
 //! them, because every path the UI hands to a command must be a path on B.
 //!
@@ -23,7 +23,7 @@
 //!
 //! Partial files never outlive their copy for long: [`spawn_sweeper`] drops
 //! writes left idle for [`STALE_UPLOAD`] (their temp file with them) every
-//! [`SWEEP_EVERY`], and removes our own temp files (`.devdy-part-<id>`, nothing
+//! [`SWEEP_EVERY`], and removes our own temp files (`.puppeteer-part-<id>`, nothing
 //! else) older than [`PART_MAX_AGE`] from every folder a copy wrote into. Those
 //! folders are remembered in the app cache, so leftovers of a crash or quit are
 //! found after a restart too.
@@ -55,7 +55,7 @@ const MAX_NAME_CHARS: usize = 120;
 const UPLOADS_DIR: &str = "remote-uploads";
 /// Prefix of the temp file a copy into a chosen folder is written to; the
 /// rest of its name is the upload id (32 hex digits).
-const PART_PREFIX: &str = ".devdy-part-";
+const PART_PREFIX: &str = ".puppeteer-part-";
 /// How often [`spawn_sweeper`] runs.
 pub const SWEEP_EVERY: Duration = Duration::from_secs(3 * 60);
 /// A temp file of ours untouched this long is a leftover (an active write
@@ -645,7 +645,7 @@ mod tests {
     use super::*;
 
     fn tmp_root() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-upload-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-upload-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -769,7 +769,7 @@ mod tests {
     #[test]
     fn only_our_temp_files_count_as_parts() {
         assert!(is_part_name(&format!("{PART_PREFIX}{}", "0123456789abcdef0123456789ABCDEF")));
-        for name in [".devdy-part-", ".devdy-part-xyz", ".devdy-part-0123", "devdy-part-0123456789abcdef0123456789abcdef", "notes.txt"] {
+        for name in [".puppeteer-part-", ".puppeteer-part-xyz", ".puppeteer-part-0123", "puppeteer-part-0123456789abcdef0123456789abcdef", "notes.txt"] {
             assert!(!is_part_name(name), "{name}");
         }
     }
@@ -783,7 +783,7 @@ mod tests {
         // A leftover of an earlier run, and files that merely look alike.
         let old = dir.join(format!("{PART_PREFIX}{}", "a".repeat(32)));
         fs::write(&old, b"x").unwrap();
-        fs::write(dir.join(".devdy-part-keep"), b"x").unwrap();
+        fs::write(dir.join(".puppeteer-part-keep"), b"x").unwrap();
         fs::write(dir.join("user.txt"), b"x").unwrap();
 
         // Young files survive; the folder is remembered on disk for later sweeps.
@@ -796,7 +796,7 @@ mod tests {
         let restarted = Mutex::new(Uploads::default());
         sweep(&[&restarted, &ups], Some(&cache), Duration::ZERO);
         assert!(!old.exists());
-        assert!(dir.join(".devdy-part-keep").exists() && dir.join("user.txt").exists());
+        assert!(dir.join(".puppeteer-part-keep").exists() && dir.join("user.txt").exists());
         assert_eq!(parts(&dir), 1, "the live write keeps its temp file");
         assert!(ups.lock().unwrap().chunk(&live.upload_id, 0, b"ab").is_ok());
 

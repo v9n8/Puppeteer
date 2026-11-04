@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Todo tools of the built-in `devdy` MCP server with the Focus columns
+// Todo tools of the built-in `puppeteer` MCP server with the Focus columns
 // (migration 0067, docs/focus-board-spec.md §6.2): source normalisation
 // (shared vectors with src-tauri/src/focus/source.rs), field parsing, and
 // todos_add / todos_set_due / todos_update / todos_done / todos_list keeping
@@ -66,7 +66,7 @@ check(throws(() => normInstant('snooze_until', 'tomorrow'))?.startsWith('snooze_
 
 // ---- Fixture -------------------------------------------------------------------
 
-const appData = mkdtempSync(join(tmpdir(), 'devdy-todos-'));
+const appData = mkdtempSync(join(tmpdir(), 'puppeteer-todos-'));
 const dbPath = join(appData, 'data.db');
 const db = new DatabaseSync(dbPath);
 for (const f of readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort()) {
@@ -85,7 +85,7 @@ check(pulse === 0, 'migration: pulse tables dropped');
 function drive(calls) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, DEVDY_DB_PATH: dbPath, DEVDY_PROJECT_ID: PROJECT },
+      env: { ...process.env, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -116,7 +116,7 @@ let out = await drive([
     due_time: '15:00',
     priority: 'P1',
     estimate: '1h30',
-    source_url: 'https://github.com/Papay/Devdy/issues/123',
+    source_url: 'https://github.com/Papay/Puppeteer/issues/123',
   }],
   ['add-plain', 'todos_add', { text: 'Reply to customer', scope: 'global', estimate: 30 }],
   ['add-bad-time', 'todos_add', { text: 'x', due_time: '15:00' }],
@@ -133,7 +133,7 @@ check(
   'todos_add: Focus columns stored',
 );
 check(
-  r.source_type === 'github' && r.source_ref === 'github:papay/devdy#123' && r.source_url === 'https://github.com/Papay/Devdy/issues/123',
+  r.source_type === 'github' && r.source_ref === 'github:papay/puppeteer#123' && r.source_url === 'https://github.com/Papay/Puppeteer/issues/123',
   'todos_add: source normalised, url kept',
 );
 check(/^\d{4}-\d{2}-\d{2}T[\d:.]+\+00:00$/.test(r.updated_at) && r.updated_at === r.created_at, 'todos_add: updated_at stamped');
@@ -163,7 +163,7 @@ check(out['update-none'].includes('nothing to update'), 'todos_update: empty pat
 check(out['update-bad'].includes('status must be'), 'todos_update: bad status rejected');
 check(out.due === `Todo ${full} is due 2026-11-02 09:30.` && f.due_time === '09:30', 'todos_set_due: date + time');
 const lines = out['list-due'].split('\n');
-check(lines[0].includes('Fix CSV export') && lines[0].includes('waiting') && lines[0].includes('source github:papay/devdy#123'),
+check(lines[0].includes('Fix CSV export') && lines[0].includes('waiting') && lines[0].includes('source github:papay/puppeteer#123'),
   'todos_list: due sort puts the dated todo first, shows status and source');
 check(out['list-pos'].split('\n')[0].includes('Reply to customer'), 'todos_list: position sort keeps the manual order');
 

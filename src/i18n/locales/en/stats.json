@@ -97,7 +97,7 @@
     "files": "Files",
     "size": "Size",
     "percent": "%",
-    "note": "Read-only overview. To free up space, delete sessions in History — that removes each session's Devdy log, fetched issue/PR files and Claude/Codex CLI transcripts together. Token stats are kept."
+    "note": "Read-only overview. To free up space, delete sessions in History — that removes each session's Puppeteer log, fetched issue/PR files and Claude/Codex CLI transcripts together. Token stats are kept."
   },
   "resetModal": {
     "title": "Reset usage statistics",

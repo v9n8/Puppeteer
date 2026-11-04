@@ -993,7 +993,7 @@ pub fn request_balance_eval(app: &AppHandle) {
     });
 }
 
-/// Absolute config dirs of every Devdy-managed Claude account. Used by session
+/// Absolute config dirs of every Puppeteer-managed Claude account. Used by session
 /// mirroring and storage cleanup to scan transcripts across account profiles in
 /// addition to the global `~/.claude` store. Best-effort: returns empty on error.
 pub async fn account_config_dirs(db: &Db) -> Vec<String> {

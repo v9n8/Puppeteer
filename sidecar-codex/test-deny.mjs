@@ -6,22 +6,22 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const work = mkdtempSync(join(tmpdir(), 'devdy-codex-deny-'))
+const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-deny-'))
 const marker = join(work, 'DENIED_COMMAND_RAN')
 const fixture = join(here, 'test-fixture-app-server.mjs')
-// Strip ambient Devdy runtime vars so the test is deterministic no matter who
-// runs it (e.g. inside a live Devdy run, DEVDY_RESUME_SESSION would make the
+// Strip ambient Puppeteer runtime vars so the test is deterministic no matter who
+// runs it (e.g. inside a live Puppeteer run, PUPPETEER_RESUME_SESSION would make the
 // sidecar attempt `thread/resume`, which the fixture does not serve).
 const childEnv = { ...process.env }
-delete childEnv.DEVDY_RESUME_SESSION
+delete childEnv.PUPPETEER_RESUME_SESSION
 const child = spawn('node', [join(here, 'index.mjs')], {
   cwd: work,
   stdio: ['pipe', 'pipe', 'pipe'],
   env: {
     ...childEnv,
-    DEVDY_PERMISSION_MODE: 'default',
-    DEVDY_CODEX_PATH: fixture,
-    DEVDY_DENY_TEST_MARKER: marker,
+    PUPPETEER_PERMISSION_MODE: 'default',
+    PUPPETEER_CODEX_PATH: fixture,
+    PUPPETEER_DENY_TEST_MARKER: marker,
   },
 })
 
@@ -49,7 +49,7 @@ child.stdout.on('data', (chunk) => {
     if (!line) continue
     let message
     try { message = JSON.parse(line) } catch { continue }
-    if (message.type === '_devdy_permission_request') {
+    if (message.type === '_puppeteer_permission_request') {
       sawPermission = true
       child.stdin.write(JSON.stringify({
         type: 'permission_response',
@@ -57,10 +57,10 @@ child.stdout.on('data', (chunk) => {
         decision: 'deny',
       }) + '\n')
     }
-    if (message.type === '_devdy_error') {
+    if (message.type === '_puppeteer_error') {
       console.error(message.error)
     }
-    if (message.type === '_devdy_log') {
+    if (message.type === '_puppeteer_log') {
       console.error(message.text)
     }
     if (message.type === 'user') {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Devdy — Claude sidecar.
+// Puppeteer — Claude sidecar.
 //
 // Hosts @anthropic-ai/claude-agent-sdk and bridges it to the Rust broker over
 // newline-delimited JSON (NDJSON) on stdin/stdout. One sidecar process == one
@@ -21,26 +21,26 @@
 //   <raw SDKMessage>           // emitted verbatim (type: system|assistant|user|
 //                              // result|stream_event…) so the Rust drain's
 //                              // existing stream-json parsing works unchanged.
-//   { "type": "_devdy_ready", "capabilities": { "heartbeat_ms": 30000 } }
-//   { "type": "_devdy_permission_request", requestId, tool_name, tool_input,
+//   { "type": "_puppeteer_ready", "capabilities": { "heartbeat_ms": 30000 } }
+//   { "type": "_puppeteer_permission_request", requestId, tool_name, tool_input,
 //        tool_use_id, title, description, display_name }
-//   { "type": "_devdy_stderr", "text": "..." }
-//   { "type": "_devdy_usage", usage }  // structured /usage data (plan rate-limit
+//   { "type": "_puppeteer_stderr", "text": "..." }
+//   { "type": "_puppeteer_usage", usage }  // structured /usage data (plan rate-limit
 //                                      // utilization + reset windows), captured at
 //                                      // turn end and on the get_usage command
-//   { "type": "_devdy_done" }          // query iterator finished
-//   { "type": "_devdy_closed", "code": 0|1 }  // session fully torn down (the
+//   { "type": "_puppeteer_done" }          // query iterator finished
+//   { "type": "_puppeteer_closed", "code": 0|1 }  // session fully torn down (the
 //                                      // process exits right after, with `code`)
-//   { "type": "_devdy_error", "error": "..." }
-//   { "type": "_devdy_heartbeat" }     // every 30s: proves this bridge is alive
-//   { "type": "_devdy_permission_cancelled", requestId, level, text }
+//   { "type": "_puppeteer_error", "error": "..." }
+//   { "type": "_puppeteer_heartbeat" }     // every 30s: proves this bridge is alive
+//   { "type": "_puppeteer_permission_cancelled", requestId, level, text }
 //                                      // a request settled here (CLI cancelled
 //                                      // it, or no answer can arrive any more)
 //
-// Control messages are namespaced with a `_devdy_` prefix so they never collide
+// Control messages are namespaced with a `_puppeteer_` prefix so they never collide
 // with real stream-json message types.
 //
-// Resume: if options.resume is absent but DEVDY_RESUME_SESSION is set in env,
+// Resume: if options.resume is absent but PUPPETEER_RESUME_SESSION is set in env,
 // the first prompt resumes that session.
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
@@ -50,15 +50,15 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 // --- Orphan guard ------------------------------------------------------------
-// Devdy spawns this sidecar as the leader of its own process group and says so
-// with DEVDY_OWN_PROCESS_GROUP=1 (removed here so no child inherits it). If
-// Devdy dies without stopping us (crash, force quit), we are re-parented and
+// Puppeteer spawns this sidecar as the leader of its own process group and says so
+// with PUPPETEER_OWN_PROCESS_GROUP=1 (removed here so no child inherits it). If
+// Puppeteer dies without stopping us (crash, force quit), we are re-parented and
 // nobody reads our output any more: tear the whole group down (CLI, MCP
 // servers, tool processes) rather than letting a turn run on, burning tokens,
-// with nobody listening. Processes that left the group are listed by Devdy's
+// with nobody listening. Processes that left the group are listed by Puppeteer's
 // background-process view at its next launch.
-const OWN_GROUP = process.env.DEVDY_OWN_PROCESS_GROUP === '1'
-delete process.env.DEVDY_OWN_PROCESS_GROUP
+const OWN_GROUP = process.env.PUPPETEER_OWN_PROCESS_GROUP === '1'
+delete process.env.PUPPETEER_OWN_PROCESS_GROUP
 const PARENT_PID = process.ppid
 let orphaned = false
 function orphanTeardown() {
@@ -76,10 +76,10 @@ const parentGone = () => process.ppid !== PARENT_PID
 if (OWN_GROUP && PARENT_PID > 1) {
   const watch = setInterval(() => {
     if (parentGone()) { clearInterval(watch); orphanTeardown() }
-  }, Math.max(50, Number(process.env.DEVDY_PARENT_WATCH_MS) || 2000))
+  }, Math.max(50, Number(process.env.PUPPETEER_PARENT_WATCH_MS) || 2000))
   watch.unref()
 }
-// A write to a closed stdout (EPIPE) is how the death of Devdy usually shows
+// A write to a closed stdout (EPIPE) is how the death of Puppeteer usually shows
 // first; the re-parenting follows right after. Re-check then: orphaned → tear
 // down, otherwise stop as before (the reader went away on purpose).
 process.stdout.on('error', (err) => {
@@ -92,10 +92,10 @@ process.stdout.on('error', (err) => {
 
 // Broker → sidecar inputs consumed by this process only. Captured once and
 // removed from process.env so they never reach the Claude CLI child (or the MCP
-// servers it spawns). DEVDY_MCP_SERVERS holds no secret (servers fetch theirs
+// servers it spawns). PUPPETEER_MCP_SERVERS holds no secret (servers fetch theirs
 // from the broker), but it is still this process's input only.
 const SIDECAR_ENV = {}
-for (const k of ['DEVDY_MCP_SERVERS', 'DEVDY_ALLOWED_TOOLS', 'DEVDY_APPEND_SYSTEM_PROMPT']) {
+for (const k of ['PUPPETEER_MCP_SERVERS', 'PUPPETEER_ALLOWED_TOOLS', 'PUPPETEER_APPEND_SYSTEM_PROMPT']) {
   SIDECAR_ENV[k] = process.env[k]
   delete process.env[k]
 }
@@ -105,13 +105,13 @@ function send(obj) {
 }
 
 // --- Global safety net -------------------------------------------------------
-// Surface EVERY uncaught failure to the user as a friendly `_devdy_error` (which
+// Surface EVERY uncaught failure to the user as a friendly `_puppeteer_error` (which
 // the broker forwards to the run log as an error line) instead of letting Node
 // print a raw stack trace to stderr and exit — so the UI shows a clear message
 // rather than the process appearing to "crash".
 function reportFatal(err, context) {
   const msg = String(err && err.stack ? err.stack : err)
-  try { send({ type: '_devdy_error', error: context ? `${context}: ${msg}` : msg }) } catch {}
+  try { send({ type: '_puppeteer_error', error: context ? `${context}: ${msg}` : msg }) } catch {}
 }
 process.on('uncaughtException', (err) => { reportFatal(err, 'Uncaught exception'); setTimeout(() => process.exit(1), 50) })
 process.on('unhandledRejection', (err) => { reportFatal(err, 'Unhandled rejection'); setTimeout(() => process.exit(1), 50) })
@@ -120,10 +120,10 @@ process.on('unhandledRejection', (err) => { reportFatal(err, 'Unhandled rejectio
 // tool — so the broker can tell a quiet-but-working session (heartbeats keep
 // coming) from a dead or frozen bridge (they stop). unref: never keeps the
 // process alive on its own.
-// The interval is declared to the broker in `_devdy_ready.capabilities`;
-// DEVDY_SIDECAR_HEARTBEAT_MS exists only so tests can run fast.
-const HEARTBEAT_MS = Math.max(50, Number(process.env.DEVDY_SIDECAR_HEARTBEAT_MS) || 30_000)
-setInterval(() => send({ type: '_devdy_heartbeat' }), HEARTBEAT_MS).unref()
+// The interval is declared to the broker in `_puppeteer_ready.capabilities`;
+// PUPPETEER_SIDECAR_HEARTBEAT_MS exists only so tests can run fast.
+const HEARTBEAT_MS = Math.max(50, Number(process.env.PUPPETEER_SIDECAR_HEARTBEAT_MS) || 30_000)
+setInterval(() => send({ type: '_puppeteer_heartbeat' }), HEARTBEAT_MS).unref()
 
 // Pull the structured data behind the `/usage` command (session cost + claude.ai
 // plan rate-limit utilization windows with real per-account reset times) off the
@@ -144,9 +144,9 @@ async function captureUsage() {
         timer = setTimeout(() => reject(new Error('usage request timed out')), 8000)
       }),
     ])
-    if (usage) send({ type: '_devdy_usage', usage })
+    if (usage) send({ type: '_puppeteer_usage', usage })
   } catch (err) {
-    send({ type: '_devdy_log', level: 'debug', text: `usage capture skipped: ${String(err)}` })
+    send({ type: '_puppeteer_log', level: 'debug', text: `usage capture skipped: ${String(err)}` })
   } finally {
     if (timer) clearTimeout(timer)
     usageCaptureInFlight = false
@@ -231,7 +231,7 @@ let inputClosed = false
 let inputQueue = null
 
 const INPUT_CLOSED_REASON =
-  'Devdy can no longer show permission prompts for this session (its input channel closed). ' +
+  'Puppeteer can no longer show permission prompts for this session (its input channel closed). ' +
   'Do not retry; finish the turn and tell the user to send a follow-up message to continue.'
 
 // Settle a pending request here (not via the broker) and tell the broker to drop
@@ -241,11 +241,11 @@ function cancelPermission(requestId, reason, level, text) {
   if (!resolve) return
   pendingPermissions.delete(requestId)
   resolve({ decision: 'deny', reason })
-  send({ type: '_devdy_permission_cancelled', requestId, level, text })
+  send({ type: '_puppeteer_permission_cancelled', requestId, level, text })
 }
 const NO_TOOLS_REASON = 'This session has no tool access.'
 
-// Agents never read the macOS Keychain through the `security` CLI: Devdy's item
+// Agents never read the macOS Keychain through the `security` CLI: Puppeteer's item
 // holds PATs / tokens (and the sealed secret notes vault). Deny rules hold in
 // every permission mode, bypass included. A determined agent can still go around
 // a prefix rule (another binary, a script), which is why secret notes are also
@@ -278,26 +278,26 @@ function applyNoTools(options) {
 }
 
 // Claude Code reads AGENTS.md (Codex's file) when a project has no CLAUDE.md. Where every
-// AGENTS.md from cwd up to the root holds nothing but Devdy-written blocks, those only duplicate
+// AGENTS.md from cwd up to the root holds nothing but Puppeteer-written blocks, those only duplicate
 // the rules Claude already gets from .claude/rules — so turn the fallback off for that session.
-// The switch drops ALL AGENTS.md files, so any hand-written content keeps it on (the Devdy app
+// The switch drops ALL AGENTS.md files, so any hand-written content keeps it on (the Puppeteer app
 // warns about the duplication instead).
-const DEVDY_BLOCK = /<!-- devdy:([\w-]+):([\w-]+) START -->[\s\S]*?<!-- devdy:\1:\2 END -->/g
-function devdyManagesAgentsMd(cwd) {
+const PUPPETEER_BLOCK = /<!-- puppeteer:([\w-]+):([\w-]+) START -->[\s\S]*?<!-- puppeteer:\1:\2 END -->/g
+function puppeteerManagesAgentsMd(cwd) {
   let dir = resolve(cwd || process.cwd())
-  let sawDevdyBlocks = false
+  let sawPuppeteerBlocks = false
   for (;;) {
     let text = null
     try {
       text = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
     } catch { /* no AGENTS.md here */ }
     if (text !== null) {
-      const rest = text.replace(DEVDY_BLOCK, '')
+      const rest = text.replace(PUPPETEER_BLOCK, '')
       if (rest.trim() !== '') return false
-      if (rest !== text) sawDevdyBlocks = true
+      if (rest !== text) sawPuppeteerBlocks = true
     }
     const parent = dirname(dir)
-    if (parent === dir) return sawDevdyBlocks
+    if (parent === dir) return sawPuppeteerBlocks
     dir = parent
   }
 }
@@ -324,11 +324,11 @@ function startQuery(firstText, opts = {}, firstImages) {
   // still go to the SDK as allowedTools.
   let allowedTools = null
   if (Array.isArray(opts.allowedTools)) allowedTools = opts.allowedTools
-  else if (SIDECAR_ENV.DEVDY_ALLOWED_TOOLS) {
-    // Resume fallback (like DEVDY_MCP_SERVERS): a conductor's own `mcp__conductor`
+  else if (SIDECAR_ENV.PUPPETEER_ALLOWED_TOOLS) {
+    // Resume fallback (like PUPPETEER_MCP_SERVERS): a conductor's own `mcp__conductor`
     // tools stay auto-allowed in gated permission modes.
     try {
-      const parsed = JSON.parse(SIDECAR_ENV.DEVDY_ALLOWED_TOOLS)
+      const parsed = JSON.parse(SIDECAR_ENV.PUPPETEER_ALLOWED_TOOLS)
       if (Array.isArray(parsed)) allowedTools = parsed
     } catch { /* ignore malformed env */ }
   }
@@ -341,12 +341,12 @@ function startQuery(firstText, opts = {}, firstImages) {
   const canUseTool = async (toolName, input, options) => {
     if (isAutoAllowed(toolName)) return { behavior: 'allow', updatedInput: input }
     if (inputClosed) {
-      send({ type: '_devdy_log', level: 'warn', text: `⚠ ${toolName} was denied: the session can no longer receive permission answers.` })
+      send({ type: '_puppeteer_log', level: 'warn', text: `⚠ ${toolName} was denied: the session can no longer receive permission answers.` })
       return { behavior: 'deny', message: INPUT_CLOSED_REASON }
     }
     const requestId = randomUUID()
     send({
-      type: '_devdy_permission_request',
+      type: '_puppeteer_permission_request',
       requestId,
       tool_name: toolName,
       tool_input: input,
@@ -384,14 +384,14 @@ function startQuery(firstText, opts = {}, firstImages) {
     return { behavior: 'deny', message: decision.reason || 'Denied by user' }
   }
 
-  const permissionMode = opts.permissionMode || process.env.DEVDY_PERMISSION_MODE || 'default'
+  const permissionMode = opts.permissionMode || process.env.PUPPETEER_PERMISSION_MODE || 'default'
   const options = {
     permissionMode,
     // Per-turn option wins; else the broker's env default (session runs stream
     // deltas, also on resume where the first prompt carries no options).
     includePartialMessages:
-      opts.includePartialMessages ?? process.env.DEVDY_PARTIAL_MESSAGES === '1',
-    stderr: (data) => send({ type: '_devdy_stderr', text: data }),
+      opts.includePartialMessages ?? process.env.PUPPETEER_PARTIAL_MESSAGES === '1',
+    stderr: (data) => send({ type: '_puppeteer_stderr', text: data }),
   }
   // 'bypassPermissions' auto-approves every tool call before canUseTool is ever
   // consulted, so passing the callback there only triggers the SDK's
@@ -402,23 +402,23 @@ function startQuery(firstText, opts = {}, firstImages) {
   options.disallowedTools = KEYCHAIN_DENY_RULES
   // Model: explicit per-turn option wins, else the broker-provided env default.
   if (opts.model) options.model = opts.model
-  else if (process.env.DEVDY_MODEL) options.model = process.env.DEVDY_MODEL
+  else if (process.env.PUPPETEER_MODEL) options.model = process.env.PUPPETEER_MODEL
   if (opts.cwd) options.cwd = opts.cwd
-  if (devdyManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
+  if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).
   // MCP tools still flow through canUseTool → the permission modal is unchanged.
-  // Per-turn option wins; else fall back to DEVDY_MCP_SERVERS (set by the broker
+  // Per-turn option wins; else fall back to PUPPETEER_MCP_SERVERS (set by the broker
   // on RESUME, whose first prompt arrives via send_user_message without options —
   // without this fallback a resumed session loses all its MCP servers).
   if (opts.mcpServers && typeof opts.mcpServers === 'object') {
     options.mcpServers = opts.mcpServers
-  } else if (SIDECAR_ENV.DEVDY_MCP_SERVERS) {
+  } else if (SIDECAR_ENV.PUPPETEER_MCP_SERVERS) {
     try {
-      const parsed = JSON.parse(SIDECAR_ENV.DEVDY_MCP_SERVERS)
+      const parsed = JSON.parse(SIDECAR_ENV.PUPPETEER_MCP_SERVERS)
       if (parsed && typeof parsed === 'object') options.mcpServers = parsed
     } catch { /* ignore malformed env; run without MCP rather than crash */ }
   }
-  const resume = opts.resume || process.env.DEVDY_RESUME_SESSION
+  const resume = opts.resume || process.env.PUPPETEER_RESUME_SESSION
   if (resume) options.resume = resume
   // Bare names are handled by canUseTool (see isAutoAllowed); only scoped rules
   // reach the SDK. An explicit empty list is kept as-is.
@@ -427,14 +427,14 @@ function startQuery(firstText, opts = {}, firstImages) {
   }
   // Pin to a specific claude binary when the broker provides one; otherwise the
   // SDK uses its bundled CLI (both read the same macOS Keychain login).
-  if (process.env.DEVDY_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.DEVDY_CLAUDE_PATH
+  if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
   // GĐ6 (AC1): per-project git account context. Keep the default Claude Code
   // preset system prompt and APPEND our context (a plain string would replace
   // the whole prompt and lose tool guidance).
   // Resume fallback: a resumed first prompt carries no options, so the broker
-  // passes the conductor framing via DEVDY_APPEND_SYSTEM_PROMPT (the SDK does not
+  // passes the conductor framing via PUPPETEER_APPEND_SYSTEM_PROMPT (the SDK does not
   // persist an appended system prompt across a resume).
-  const appendSystemPrompt = opts.appendSystemPrompt || SIDECAR_ENV.DEVDY_APPEND_SYSTEM_PROMPT
+  const appendSystemPrompt = opts.appendSystemPrompt || SIDECAR_ENV.PUPPETEER_APPEND_SYSTEM_PROMPT
   if (appendSystemPrompt) {
     options.systemPrompt = {
       type: 'preset',
@@ -448,9 +448,9 @@ function startQuery(firstText, opts = {}, firstImages) {
   // at `init` and once at `result` — piggybacking on this run's already-open
   // control channel is a near-free way to keep the plan % fresh (no extra
   // process, no completion tokens), so normal runs update the badge too.
-  const usageCaptureMode = opts.usageCaptureMode || process.env.DEVDY_USAGE_CAPTURE_MODE || 'normal'
+  const usageCaptureMode = opts.usageCaptureMode || process.env.PUPPETEER_USAGE_CAPTURE_MODE || 'normal'
   const pollWhileRunning = usageCaptureMode === 'warning'
-  const configuredUsagePollMs = Number(opts.usagePollMs || process.env.DEVDY_USAGE_POLL_MS || 60_000)
+  const configuredUsagePollMs = Number(opts.usagePollMs || process.env.PUPPETEER_USAGE_POLL_MS || 60_000)
   const usagePollMs = Number.isFinite(configuredUsagePollMs) && configuredUsagePollMs >= 30_000
     ? configuredUsagePollMs
     : 60_000
@@ -477,15 +477,15 @@ function startQuery(firstText, opts = {}, firstImages) {
       }
       stopUsagePolling()
       await flushUsageCaptures()
-      send({ type: '_devdy_done' })
+      send({ type: '_puppeteer_done' })
     } catch (err) {
       failed = true
-      send({ type: '_devdy_error', error: String(err && err.stack ? err.stack : err) })
+      send({ type: '_puppeteer_error', error: String(err && err.stack ? err.stack : err) })
     } finally {
       stopUsagePolling()
       await flushUsageCaptures()
       // `code` mirrors the process exit code: non-zero = the session failed.
-      send({ type: '_devdy_closed', code: failed ? 1 : 0 })
+      send({ type: '_puppeteer_closed', code: failed ? 1 : 0 })
       exitAfterSession(failed ? 1 : 0)
     }
   })()
@@ -508,12 +508,12 @@ function startUsageProbe(opts = {}) {
   inputQueue.push(userMessage('/usage'))
 
   const options = {
-    permissionMode: opts.permissionMode || process.env.DEVDY_PERMISSION_MODE || 'default',
+    permissionMode: opts.permissionMode || process.env.PUPPETEER_PERMISSION_MODE || 'default',
     includePartialMessages: false,
-    stderr: (data) => send({ type: '_devdy_stderr', text: data }),
+    stderr: (data) => send({ type: '_puppeteer_stderr', text: data }),
   }
   if (opts.cwd) options.cwd = opts.cwd
-  if (process.env.DEVDY_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.DEVDY_CLAUDE_PATH
+  if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
 
   ;(async () => {
     try {
@@ -544,21 +544,21 @@ function startUsageProbe(opts = {}) {
         }
       }
       await flushUsageCaptures()
-      send({ type: '_devdy_done' })
+      send({ type: '_puppeteer_done' })
     } catch (err) {
-      send({ type: '_devdy_error', error: String(err && err.stack ? err.stack : err) })
+      send({ type: '_puppeteer_error', error: String(err && err.stack ? err.stack : err) })
     } finally {
       await flushUsageCaptures()
-      send({ type: '_devdy_closed' })
+      send({ type: '_puppeteer_closed' })
     }
   })()
 }
 
 // Validate one model id by running the shortest possible real turn through the
 // SAME SDK path a run uses — so the binary the SDK resolves (its bundled CLI, or
-// DEVDY_CLAUDE_PATH when set) is exactly the one a real run would use. A direct
+// PUPPETEER_CLAUDE_PATH when set) is exactly the one a real run would use. A direct
 // `claude --model` spawn could hit a different binary and give a false verdict.
-// Emits `_devdy_valid` on a successful result, `_devdy_invalid` (with a reason)
+// Emits `_puppeteer_valid` on a successful result, `_puppeteer_invalid` (with a reason)
 // when the turn errors or the model is rejected.
 function startValidateModel(opts = {}) {
   inputQueue = new MessageQueue()
@@ -583,7 +583,7 @@ function startValidateModel(opts = {}) {
   }
   if (opts.model) options.model = opts.model
   if (opts.cwd) options.cwd = opts.cwd
-  if (process.env.DEVDY_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.DEVDY_CLAUDE_PATH
+  if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
 
   const firstStderrLine = () => stderrAll.split('\n').map((l) => l.trim()).find(Boolean) || ''
 
@@ -604,20 +604,20 @@ function startValidateModel(opts = {}) {
       const lowered = stderrAll.toLowerCase()
       const unrecognized = UNKNOWN_MODEL_HINTS.some((h) => lowered.includes(h))
       if (completed && !unrecognized) {
-        send({ type: '_devdy_valid' })
+        send({ type: '_puppeteer_valid' })
       } else if (unrecognized) {
-        send({ type: '_devdy_invalid', error: 'Not recognized by this Claude Code version' })
+        send({ type: '_puppeteer_invalid', error: 'Not recognized by this Claude Code version' })
       } else {
-        send({ type: '_devdy_invalid', error: failure || firstStderrLine() || 'No successful result' })
+        send({ type: '_puppeteer_invalid', error: failure || firstStderrLine() || 'No successful result' })
       }
     } catch (err) {
       // A model the CLI rejects outright throws here; the reason is usually in
       // the error message (and sometimes only on stderr), so prefer either.
       const msg = String(err && err.message ? err.message : err).trim()
-      send({ type: '_devdy_invalid', error: msg || firstStderrLine() || 'Validation failed' })
+      send({ type: '_puppeteer_invalid', error: msg || firstStderrLine() || 'Validation failed' })
     } finally {
       if (inputQueue) inputQueue.close()
-      send({ type: '_devdy_closed' })
+      send({ type: '_puppeteer_closed' })
     }
   })()
 }
@@ -651,7 +651,7 @@ rl.on('line', (raw) => {
     }
     case 'interrupt':
       if (currentQuery && typeof currentQuery.interrupt === 'function') {
-        currentQuery.interrupt().catch((e) => send({ type: '_devdy_stderr', text: String(e) }))
+        currentQuery.interrupt().catch((e) => send({ type: '_puppeteer_stderr', text: String(e) }))
       }
       break
     case 'end_input':
@@ -694,4 +694,4 @@ rl.on('close', () => {
   }
 })
 
-send({ type: '_devdy_ready', capabilities: { heartbeat_ms: HEARTBEAT_MS } })
+send({ type: '_puppeteer_ready', capabilities: { heartbeat_ms: HEARTBEAT_MS } })

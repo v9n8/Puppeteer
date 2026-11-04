@@ -14,7 +14,7 @@ import { ref } from 'vue'
  * persisted, because someone who works with the nav hidden expects it to stay
  * hidden across restarts rather than to reappear on every launch.
  */
-const SIDEBAR_STORAGE_KEY = 'devdy.sidebarHidden'
+const SIDEBAR_STORAGE_KEY = 'puppeteer.sidebarHidden'
 
 /**
  * Row density shared by the session lists — the History list (RunView's left
@@ -25,9 +25,9 @@ const SIDEBAR_STORAGE_KEY = 'devdy.sidebarHidden'
  *  - dense:       one line; the rest lives in the row tooltip
  */
 export type ListDensity = 'comfortable' | 'compact' | 'dense'
-const LIST_DENSITY_KEY = 'devdy.listDensity'
+const LIST_DENSITY_KEY = 'puppeteer.listDensity'
 // Pre-rename key (History-only density); read once so the choice carries over.
-const LEGACY_HISTORY_DENSITY_KEY = 'devdy.historyDensity'
+const LEGACY_HISTORY_DENSITY_KEY = 'puppeteer.historyDensity'
 const LIST_DENSITIES: readonly ListDensity[] = ['comfortable', 'compact', 'dense']
 
 function loadListDensity(): ListDensity {
@@ -51,8 +51,8 @@ function loadListDensity(): ListDensity {
  * Worker-panel timeline: collapsed to a one-line header by default; when open,
  * its height (px) is user-resizable. Both persist across restarts.
  */
-const TIMELINE_OPEN_KEY = 'devdy.workerTimelineOpen'
-const TIMELINE_HEIGHT_KEY = 'devdy.workerTimelineHeight'
+const TIMELINE_OPEN_KEY = 'puppeteer.workerTimelineOpen'
+const TIMELINE_HEIGHT_KEY = 'puppeteer.workerTimelineHeight'
 export const TIMELINE_MIN_HEIGHT = 80
 const TIMELINE_DEFAULT_HEIGHT = 192
 

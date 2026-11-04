@@ -98,12 +98,12 @@ function loadServiceWorker() {
 test('the service worker words counts in the phone language', () => {
   const { compose } = loadServiceWorker()
   assert.deepEqual(compose({ v: 1, t: 'summary', pending: 2, done: 1, failed: 0 }, 'vi-VN'), {
-    title: 'Devdy',
+    title: 'Puppeteer',
     body: '2 việc cần duyệt · 1 phiên đã xong',
     badge: 2,
   })
   assert.deepEqual(compose({ v: 1, t: 'summary', pending: 1, done: 0, failed: 2 }, 'en-US'), {
-    title: 'Devdy',
+    title: 'Puppeteer',
     body: '1 request waiting for you · 2 runs failed',
     badge: 1,
   })
@@ -173,7 +173,7 @@ test('the badge follows the pending count and clears at zero', async () => {
     w.calls.filter((c) => c[0] !== 'show'),
     [['setAppBadge', 2], ['clearAppBadge']],
   )
-  assert.ok(w.calls.filter((c) => c[0] === 'show').every((c) => c[2] === 'devdy'), 'one tag')
+  assert.ok(w.calls.filter((c) => c[0] === 'show').every((c) => c[2] === 'puppeteer'), 'one tag')
 })
 
 test('a click focuses only the controller window, else opens it', async () => {
@@ -187,7 +187,7 @@ test('a click focuses only the controller window, else opens it', async () => {
   w.windows.push(win('https://relay.example/controller.html#x'))
   await w.fire('notificationclick', { notification: { close() {} } })
   assert.deepEqual(msgs, [
-    ['https://relay.example/controller.html#x', 'devdy:open-inbox'],
+    ['https://relay.example/controller.html#x', 'puppeteer:open-inbox'],
     ['https://relay.example/controller.html#x', 'focus'],
   ])
 })
@@ -198,5 +198,5 @@ test('a rotated subscription is renewed with the same key and reported to open w
   w.windows.push({ url: 'https://relay.example/controller.html', postMessage: (m) => msgs.push(m.type) })
   await w.fire('pushsubscriptionchange', { oldSubscription: { options: { applicationServerKey: 'KEY' } } })
   assert.deepEqual(w.calls, [['subscribe', 'KEY']])
-  assert.deepEqual(msgs, ['devdy:subscription-changed'])
+  assert.deepEqual(msgs, ['puppeteer:subscription-changed'])
 })

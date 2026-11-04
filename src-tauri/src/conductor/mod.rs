@@ -573,7 +573,7 @@ mod tests {
     fn launch() -> crate::commands::mcp::McpLaunch {
         crate::commands::mcp::McpLaunch {
             node_bin: "/bin/node".into(),
-            launcher: "/shims/devdy-mcp-launch.mjs".into(),
+            launcher: "/shims/puppeteer-mcp-launch.mjs".into(),
             broker_sock: "/tmp/b.sock".into(),
             project_id: "p".into(),
             run_id: "c1".into(),
@@ -589,8 +589,8 @@ mod tests {
         assert_eq!(c["url"], base);
         assert!(c.get("headers").is_none(), "no bearer in the config");
         assert_eq!(
-            c["devdy_headers_helper"],
-            serde_json::json!(["/bin/node", "/shims/devdy-mcp-launch.mjs", "headers", "@conductor"])
+            c["puppeteer_headers_helper"],
+            serde_json::json!(["/bin/node", "/shims/puppeteer-mcp-launch.mjs", "headers", "@conductor"])
         );
         assert_eq!(c["default_tools_approval_mode"], "approve");
     }
@@ -602,8 +602,8 @@ mod tests {
         assert!(c.get("headers").is_none(), "no bearer in the config");
         assert_eq!(
             c["headersHelper"],
-            "DEVDY_BROKER_SOCK='/tmp/b.sock' DEVDY_PROJECT_ID='p' DEVDY_RUN_ID='c1' \
-             '/bin/node' '/shims/devdy-mcp-launch.mjs' 'headers' '@conductor'"
+            "PUPPETEER_BROKER_SOCK='/tmp/b.sock' PUPPETEER_PROJECT_ID='p' PUPPETEER_RUN_ID='c1' \
+             '/bin/node' '/shims/puppeteer-mcp-launch.mjs' 'headers' '@conductor'"
         );
     }
 

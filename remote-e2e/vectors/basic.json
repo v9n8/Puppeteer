@@ -8,7 +8,7 @@
   "pk_b_hex": "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
   "nonce_hex": "404142434445464748494a4b4c4d4e4f5051525354555657",
   "plaintext_utf8": "{\"kind\":\"stream\",\"run_id\":\"r_1\",\"line\":\"hello from host\"}",
-  "session_key_hex": "844e5b03d605cfa0e7429997f53bd211c8218dce3169d8841cea76b8648008fa",
-  "host_fingerprint_hex": "5a9b976a849e6b72f45064d0bf17351bc0a4982aae057737c504df70e20f1292",
-  "cipher_b64": "AUBBQkNERUZHSElKS0xNTk9QUVJTVFVWV0u7mO7JfAfJKvmsIXJSp4DdSimfX6HIQaAH4d3p6h8jinHkfa/NwB2P2iM2gf7T2iQYFAZqZD8SfB9QBm03pMQYuRfPC7eDjNU="
+  "session_key_hex": "ea16acde22c92c7b3e4cb43a1d48038c8ede09c6d65a33fbe902bf9023084bd2",
+  "host_fingerprint_hex": "d9dd87aa7f921cb6d4c2fbeb517efc1127954a6485ac0b212f5f9a9a3099af4b",
+  "cipher_b64": "AUBBQkNERUZHSElKS0xNTk9QUVJTVFVWV8pde3JuI9MgppGDSnvVqqCaC+6LrbZT7Jcs+joTu+ScPr2fKFUn2Hajk1pK+ZtYuHpTYHPU9B6UNSzMWKleuiH+LzF9pyqC6bg="
 }

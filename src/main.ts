@@ -20,7 +20,7 @@ function mountApp() {
   return app
 }
 
-// The remote-desktop window (lib/remoteDesktopWindow.ts) drives another Devdy;
+// The remote-desktop window (lib/remoteDesktopWindow.ts) drives another Puppeteer;
 // its boot lives in its own chunk so the normal window never loads it.
 if (isRemoteMode()) {
   import('./remoteDesktopBoot')

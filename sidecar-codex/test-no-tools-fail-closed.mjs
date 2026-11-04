@@ -1,4 +1,4 @@
-// Tool-less session (DEVDY_CODEX_NO_TOOLS=1): when the configured MCP servers
+// Tool-less session (PUPPETEER_CODEX_NO_TOOLS=1): when the configured MCP servers
 // cannot be listed (`codex mcp list` fails, prints garbage or not a list), the
 // sidecar must refuse to start — an error, and codex app-server never runs.
 import { spawn } from 'node:child_process'
@@ -12,10 +12,10 @@ const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'test-fixture-app-server.mjs')
 
 function run(mode) {
-  const work = mkdtempSync(join(tmpdir(), 'devdy-codex-failclosed-'))
+  const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-failclosed-'))
   const log = join(work, 'fixture.jsonl')
-  const env = { ...process.env, DEVDY_CODEX_NO_TOOLS: '1', DEVDY_CODEX_PATH: fixture, DEVDY_FIXTURE_LOG: log, DEVDY_FIXTURE_MCP_LIST: mode }
-  delete env.DEVDY_RESUME_SESSION
+  const env = { ...process.env, PUPPETEER_CODEX_NO_TOOLS: '1', PUPPETEER_CODEX_PATH: fixture, PUPPETEER_FIXTURE_LOG: log, PUPPETEER_FIXTURE_MCP_LIST: mode }
+  delete env.PUPPETEER_RESUME_SESSION
   return new Promise((resolve) => {
     const child = spawn('node', [join(here, 'index.mjs')], { cwd: work, stdio: ['pipe', 'pipe', 'pipe'], env })
     let out = ''
@@ -33,7 +33,7 @@ function run(mode) {
 
 for (const mode of ['fail', 'garbage', 'object']) {
   const r = await run(mode)
-  const err = r.messages.find((m) => m.type === '_devdy_error')
+  const err = r.messages.find((m) => m.type === '_puppeteer_error')
   assert.ok(err && /Refusing to start a tool-less codex session/.test(err.error), `${mode}: no refusal error: ${JSON.stringify(r.messages)}`)
   assert.equal(r.code, 1, `${mode}: exit code`)
   assert.equal(r.appServerRan, false, `${mode}: codex app-server was started`)

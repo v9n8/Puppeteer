@@ -654,7 +654,7 @@ pub async fn refresh_plan_usage(
     cmd.current_dir(&cwd).arg(&sidecar_script);
     augment_command_path(&mut cmd);
     if claude_path != "claude" && !claude_path.trim().is_empty() {
-        cmd.env("DEVDY_CLAUDE_PATH", &claude_path);
+        cmd.env("PUPPETEER_CLAUDE_PATH", &claude_path);
     }
     // Probe /usage for a specific Claude account when `account_id` is given
     // (per-account badge refresh), else the default account's profile (if any).
@@ -702,7 +702,7 @@ pub async fn refresh_plan_usage(
                 continue;
             };
             match value.get("type").and_then(|v| v.as_str()) {
-                Some("_devdy_usage") => {
+                Some("_puppeteer_usage") => {
                     if let Some(usage) = value.get("usage") {
                         if usage
                             .get("rate_limits_available")
@@ -729,8 +729,8 @@ pub async fn refresh_plan_usage(
                         return Ok(true);
                     }
                 }
-                Some("_devdy_done") | Some("_devdy_closed") => return Ok(false),
-                Some("_devdy_error") => {
+                Some("_puppeteer_done") | Some("_puppeteer_closed") => return Ok(false),
+                Some("_puppeteer_error") => {
                     let err = value
                         .get("error")
                         .and_then(|v| v.as_str())
@@ -800,9 +800,9 @@ pub async fn refresh_codex_plan_usage(
     let mut cmd = Command::new(&node_bin);
     cmd.current_dir(&cwd).arg(&sidecar_script);
     augment_command_path(&mut cmd);
-    cmd.env("DEVDY_CODEX_USAGE_PROBE", "1");
+    cmd.env("PUPPETEER_CODEX_USAGE_PROBE", "1");
     if codex_path != "codex" && !codex_path.trim().is_empty() {
-        cmd.env("DEVDY_CODEX_PATH", &codex_path);
+        cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
     }
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -827,7 +827,7 @@ pub async fn refresh_codex_plan_usage(
                 continue;
             };
             match value.get("type").and_then(|v| v.as_str()) {
-                Some("_devdy_usage") => {
+                Some("_puppeteer_usage") => {
                     if let Some(rl) = value.get("usage").and_then(|u| u.get("rate_limits")) {
                         if crate::commands::codex_sessions::persist_codex_plan_usage(&db_pool, rl).await {
                             let _ = app.emit("plan_usage_updated", serde_json::json!({ "provider": "codex", "source": "probe" }));
@@ -835,8 +835,8 @@ pub async fn refresh_codex_plan_usage(
                         }
                     }
                 }
-                Some("_devdy_done") | Some("_devdy_closed") => return Ok(false),
-                Some("_devdy_error") => {
+                Some("_puppeteer_done") | Some("_puppeteer_closed") => return Ok(false),
+                Some("_puppeteer_error") => {
                     let err = value
                         .get("error")
                         .and_then(|v| v.as_str())

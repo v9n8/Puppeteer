@@ -1811,7 +1811,7 @@ onMounted(async () => {
     }
   })
 
-  // Mirror in any sessions created/continued outside Devdy while it was closed
+  // Mirror in any sessions created/continued outside Puppeteer while it was closed
   // (both engines), then surface them in the sidebar.
   Promise.all([
     runsStore.reconcileClaudeSessions(projectId.value).catch(() => 0),
@@ -1837,7 +1837,7 @@ onMounted(async () => {
 })
 
 // When the window regains focus, the run on screen may have been continued
-// outside Devdy (claude CLI / VS Code extension write to the same session
+// outside Puppeteer (claude CLI / VS Code extension write to the same session
 // transcript). Re-read its on-disk log so those external turns show up.
 // Skip live sessions — those stream their own updates in real time.
 let sessionsChangedUnlisten: UnlistenFn | null = null
@@ -3050,7 +3050,7 @@ async function copyLogPath(run: RunRecord) {
   }
 }
 
-// Copy this run/session's Devdy run ID to the clipboard — the id the devdy MCP
+// Copy this run/session's Puppeteer run ID to the clipboard — the id the puppeteer MCP
 // (session_read) uses to load the session.
 async function copySessionId(run: RunRecord) {
   try {
@@ -3259,7 +3259,7 @@ async function loadRunLog(runId: string, opts: { preferDisk?: boolean; force?: b
   // log — and re-attach listeners if it's still streaming.
   // Only `force` (the transcript actually changed on disk — the sessions:changed
   // watcher fired) overrides this for a finished session to re-read turns added
-  // outside Devdy. A plain window refocus (preferDisk without force) keeps the
+  // outside Puppeteer. A plain window refocus (preferDisk without force) keeps the
   // live view untouched so it doesn't blank + re-render (the "flash").
   const liveSession = live.get(runId)
   if (liveSession && !(opts.force && liveSession.status !== 'running')) {

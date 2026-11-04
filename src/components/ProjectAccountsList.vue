@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // GitHub / GitLab / AWS / Azure tab of a project: every configured account with
 // an on/off switch (like the Deploy servers list) and a "make default" action.
-// Sessions may use any enabled account; commands without DEVDY_GIT_ACCOUNT /
-// DEVDY_AWS_ACCOUNT / DEVDY_AZURE_ACCOUNT use the default.
+// Sessions may use any enabled account; commands without PUPPETEER_GIT_ACCOUNT /
+// PUPPETEER_AWS_ACCOUNT / PUPPETEER_AZURE_ACCOUNT use the default.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -38,10 +38,10 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const PROVIDERS = {
-  github: { icon: Github, title: 'githubAccounts', hint: 'gitAccountsHint', empty: 'noGithubAccounts', envVar: 'DEVDY_GIT_ACCOUNT', settings: '/settings' },
-  gitlab: { icon: Gitlab, title: 'gitlabAccounts', hint: 'gitAccountsHint', empty: 'noGitlabAccounts', envVar: 'DEVDY_GIT_ACCOUNT', settings: '/settings' },
-  aws: { icon: Cloud, title: 'awsAccounts', hint: 'awsAccountHint', empty: 'noAwsAccounts', envVar: 'DEVDY_AWS_ACCOUNT', settings: '/settings' },
-  azure: { icon: CloudCog, title: 'azureAccounts', hint: 'azureAccountHint', empty: 'noAzureAccounts', envVar: 'DEVDY_AZURE_ACCOUNT', settings: '/settings?section=azure' },
+  github: { icon: Github, title: 'githubAccounts', hint: 'gitAccountsHint', empty: 'noGithubAccounts', envVar: 'PUPPETEER_GIT_ACCOUNT', settings: '/settings' },
+  gitlab: { icon: Gitlab, title: 'gitlabAccounts', hint: 'gitAccountsHint', empty: 'noGitlabAccounts', envVar: 'PUPPETEER_GIT_ACCOUNT', settings: '/settings' },
+  aws: { icon: Cloud, title: 'awsAccounts', hint: 'awsAccountHint', empty: 'noAwsAccounts', envVar: 'PUPPETEER_AWS_ACCOUNT', settings: '/settings' },
+  azure: { icon: CloudCog, title: 'azureAccounts', hint: 'azureAccountHint', empty: 'noAzureAccounts', envVar: 'PUPPETEER_AZURE_ACCOUNT', settings: '/settings?section=azure' },
 } as const
 
 const config = computed(() => PROVIDERS[props.provider])

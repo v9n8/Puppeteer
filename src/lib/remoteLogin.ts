@@ -5,13 +5,13 @@
  */
 
 /** Rendezvous code of the Host's password-login slot (public by design). */
-export const LOGIN_CODE = 'devdy-login-v1'
+export const LOGIN_CODE = 'puppeteer-login-v1'
 /** Device aliases: `[a-z0-9-]{0,32}`, empty = none (see `login::valid_alias`). */
 export const DEVICE_ALIAS_RE = /^[a-z0-9-]{0,32}$/
 
 /**
- * The login code of the Host named `alias` — `devdy-login-v1` or
- * `devdy-login-v1/<alias>`. Mirrors `login::login_code` in Rust.
+ * The login code of the Host named `alias` — `puppeteer-login-v1` or
+ * `puppeteer-login-v1/<alias>`. Mirrors `login::login_code` in Rust.
  */
 export function loginCodeFor(alias?: string): string {
   const a = alias?.trim()
@@ -20,8 +20,8 @@ export function loginCodeFor(alias?: string): string {
 
 /** Public stand-in for the link secret in the login KDF. */
 export const LOGIN_LINK_SECRET =
-  '64657664792072656d6f7465206c6f67696e207631207075626c6963206b6579'
-const PBKDF2_SALT = 'devdy-remote-login-v1'
+  '7075707065746565722072656d6f7465206c6f67696e207631207075626b6579'
+const PBKDF2_SALT = 'puppeteer-remote-login-v1'
 export const PBKDF2_ROUNDS = 210_000
 
 /** PBKDF2-HMAC-SHA256(password) → lowercase hex (the login KDF's `secret2`). */

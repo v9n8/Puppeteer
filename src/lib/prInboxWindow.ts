@@ -13,7 +13,7 @@ export const PR_INBOX_WINDOW_LABEL = 'pr-inbox'
 /**
  * Emitted by the PR Inbox window; the main window focuses itself and navigates
  * (the pop-out has no router of the app) — e.g. to /projects for "Add to
- * devdy". Handled in App.vue. Opening a review run goes through
+ * puppeteer". Handled in App.vue. Opening a review run goes through
  * WINDOW_OPEN_RUN of lib/sessionLinks instead, like the Slack window.
  */
 export const PR_INBOX_WINDOW_OPEN_ROUTE = 'pr-inbox-window:open-route'
@@ -22,7 +22,7 @@ export interface PrInboxWindowOpenRoute {
   path: string
 }
 
-// In-flight creation guard (like lib/mascotWindow.ts): two quick clicks / a
+// In-flight creation guard: two quick clicks / a
 // click plus the Go menu item would otherwise both pass the getByLabel() null
 // check before either window exists, and create 'pr-inbox' twice.
 let creating: Promise<WebviewWindow> | null = null
@@ -69,7 +69,7 @@ async function createPrInboxWindow(): Promise<WebviewWindow> {
   const height = 780
   const win = new WebviewWindow(popoutLabel(PR_INBOX_WINDOW_LABEL), {
     url: popoutUrl('index.html?prInboxWindow=1'),
-    title: 'PR Inbox — Devdy',
+    title: 'PR Inbox — Puppeteer',
     width,
     height,
     minWidth: 720,

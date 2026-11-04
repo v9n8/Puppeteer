@@ -517,17 +517,17 @@ async fn spawn_warm(
     augment_command_path(&mut cmd);
     if is_codex {
         if s.codex_path != "codex" && !s.codex_path.trim().is_empty() {
-            cmd.env("DEVDY_CODEX_PATH", &s.codex_path);
+            cmd.env("PUPPETEER_CODEX_PATH", &s.codex_path);
         }
         // Tool-less like the claude session (see `session_options`): read-only
         // sandbox, no exec/MCP, every approval declined.
-        cmd.env("DEVDY_CODEX_NO_TOOLS", "1");
-        cmd.env("DEVDY_PERMISSION_MODE", "plan");
+        cmd.env("PUPPETEER_CODEX_NO_TOOLS", "1");
+        cmd.env("PUPPETEER_PERMISSION_MODE", "plan");
         if !s.model.trim().is_empty() {
-            cmd.env("DEVDY_CODEX_MODEL", s.model.trim());
+            cmd.env("PUPPETEER_CODEX_MODEL", s.model.trim());
         }
     } else if s.claude_path != "claude" && !s.claude_path.trim().is_empty() {
-        cmd.env("DEVDY_CLAUDE_PATH", &s.claude_path);
+        cmd.env("PUPPETEER_CLAUDE_PATH", &s.claude_path);
     }
     if !is_codex {
         apply_claude_config_dir(&mut cmd, s.claude_config_dir.as_deref());
@@ -703,7 +703,7 @@ fn route_message(r: &mut TurnRouting, v: &Value) -> (Vec<(u64, TurnEvent)>, bool
                 }
             }
         }
-        Some("_devdy_error") => {
+        Some("_puppeteer_error") => {
             let msg = v
                 .get("error")
                 .and_then(|e| e.as_str())
@@ -731,7 +731,7 @@ fn route_message(r: &mut TurnRouting, v: &Value) -> (Vec<(u64, TurnEvent)>, bool
             r.error = None;
         }
         // Session torn down (Codex single turn, or claude session death).
-        Some("_devdy_done") | Some("_devdy_closed") => return (out, true),
+        Some("_puppeteer_done") | Some("_puppeteer_closed") => return (out, true),
         _ => {}
     }
     (out, false)
@@ -1098,7 +1098,7 @@ mod tests {
     async fn drain_reports_sidecar_error_at_result() {
         let lines = vec![
             delta("partial"),
-            r#"{"type":"_devdy_error","error":"boom"}"#.to_string(),
+            r#"{"type":"_puppeteer_error","error":"boom"}"#.to_string(),
             r#"{"type":"result"}"#.to_string(),
         ];
         let (mut rxs, _, _) = drive(&[7], &lines).await;
@@ -1115,7 +1115,7 @@ mod tests {
     async fn drain_fails_pending_turns_when_stdout_closes() {
         let lines = vec![
             delta("a"),
-            r#"{"type":"_devdy_closed"}"#.to_string(),
+            r#"{"type":"_puppeteer_closed"}"#.to_string(),
             delta("ignored"),
         ];
         let (mut rxs, emitted, alive) = drive(&[1, 2], &lines).await;

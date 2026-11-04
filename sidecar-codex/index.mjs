@@ -1,6 +1,6 @@
-// Devdy Codex sidecar.
+// Puppeteer Codex sidecar.
 //
-// Drives `codex app-server` (JSON-RPC over stdio) and bridges it to the Devdy
+// Drives `codex app-server` (JSON-RPC over stdio) and bridges it to the Puppeteer
 // Rust broker using the SAME protocol as the Claude sidecar, so `drain_sidecar`,
 // the frontend stream renderer, and the permission modal all work UNCHANGED:
 //
@@ -10,10 +10,10 @@
 //         {type:"assistant",message:{content:[{type:"text"|"thinking"|"tool_use",...}]}}
 //         {type:"user",message:{content:[{type:"tool_result",tool_use_id,content}]}}
 //         {type:"result",subtype:"success"}            ← ends the turn
-//     - control, namespaced `_devdy_*`:
-//         {type:"_devdy_ready"} / {type:"_devdy_done"} / {type:"_devdy_error",error}
-//         {type:"_devdy_closed",code,signal}   ← session over (signal ⇒ crash)
-//         {type:"_devdy_permission_request",requestId,tool_name,tool_input,title,description}
+//     - control, namespaced `_puppeteer_*`:
+//         {type:"_puppeteer_ready"} / {type:"_puppeteer_done"} / {type:"_puppeteer_error",error}
+//         {type:"_puppeteer_closed",code,signal}   ← session over (signal ⇒ crash)
+//         {type:"_puppeteer_permission_request",requestId,tool_name,tool_input,title,description}
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn
@@ -30,15 +30,15 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 // --- Orphan guard ------------------------------------------------------------
-// Devdy spawns this sidecar as the leader of its own process group and says so
-// with DEVDY_OWN_PROCESS_GROUP=1 (removed here so no child inherits it). If
-// Devdy dies without stopping us (crash, force quit), we are re-parented and
+// Puppeteer spawns this sidecar as the leader of its own process group and says so
+// with PUPPETEER_OWN_PROCESS_GROUP=1 (removed here so no child inherits it). If
+// Puppeteer dies without stopping us (crash, force quit), we are re-parented and
 // nobody reads our output any more: tear the whole group down (CLI, MCP
 // servers, tool processes) rather than letting a turn run on, burning tokens,
-// with nobody listening. Processes that left the group are listed by Devdy's
+// with nobody listening. Processes that left the group are listed by Puppeteer's
 // background-process view at its next launch.
-const OWN_GROUP = process.env.DEVDY_OWN_PROCESS_GROUP === '1'
-delete process.env.DEVDY_OWN_PROCESS_GROUP
+const OWN_GROUP = process.env.PUPPETEER_OWN_PROCESS_GROUP === '1'
+delete process.env.PUPPETEER_OWN_PROCESS_GROUP
 const PARENT_PID = process.ppid
 let orphaned = false
 function orphanTeardown() {
@@ -56,10 +56,10 @@ const parentGone = () => process.ppid !== PARENT_PID
 if (OWN_GROUP && PARENT_PID > 1) {
   const watch = setInterval(() => {
     if (parentGone()) { clearInterval(watch); orphanTeardown() }
-  }, Math.max(50, Number(process.env.DEVDY_PARENT_WATCH_MS) || 2000))
+  }, Math.max(50, Number(process.env.PUPPETEER_PARENT_WATCH_MS) || 2000))
   watch.unref()
 }
-// A write to a closed stdout (EPIPE) is how the death of Devdy usually shows
+// A write to a closed stdout (EPIPE) is how the death of Puppeteer usually shows
 // first; the re-parenting follows right after. Re-check then: orphaned → tear
 // down, otherwise stop as before (the reader went away on purpose).
 process.stdout.on('error', (err) => {
@@ -71,7 +71,7 @@ process.stdout.on('error', (err) => {
 })
 
 
-// A per-process nonce so permission `requestId`s are globally unique. Each Devdy
+// A per-process nonce so permission `requestId`s are globally unique. Each Puppeteer
 // prompt spawns a FRESH sidecar (a new `codex app-server` whose JSON-RPC id
 // counter restarts at a low number), so a bare `codex-<rpcId>` would collide
 // across prompts within one remote session — and the Host's session-scoped
@@ -80,23 +80,23 @@ process.stdout.on('error', (err) => {
 // that collision (P0: remote Deny had no effect after the first turn).
 const PROC_NONCE = randomUUID().slice(0, 8)
 
-const CODEX_BIN = process.env.DEVDY_CODEX_PATH || 'codex'
-const RESUME_THREAD = process.env.DEVDY_RESUME_SESSION || null
-const PERMISSION_MODE = process.env.DEVDY_PERMISSION_MODE || 'default'
-const MODEL = process.env.DEVDY_CODEX_MODEL || null
+const CODEX_BIN = process.env.PUPPETEER_CODEX_PATH || 'codex'
+const RESUME_THREAD = process.env.PUPPETEER_RESUME_SESSION || null
+const PERMISSION_MODE = process.env.PUPPETEER_PERMISSION_MODE || 'default'
+const MODEL = process.env.PUPPETEER_CODEX_MODEL || null
 // Tool-less session (translation engine): the prompt carries UNTRUSTED text
 // (Slack messages, GitHub comments), so a prompt injection must not be able to
 // run anything. Forces a read-only sandbox, turns off codex's exec/app/plugin
 // features, disables every MCP server, and declines any approval request.
-const NO_TOOLS = process.env.DEVDY_CODEX_NO_TOOLS === '1'
+const NO_TOOLS = process.env.PUPPETEER_CODEX_NO_TOOLS === '1'
 // Extra system framing (session orchestration prompt / a worker's role
 // instruction) for a NEW thread: sent as `developerInstructions` on
 // thread/start, after which it lives in the thread itself.
-const DEVELOPER_INSTRUCTIONS = process.env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS || null
+const DEVELOPER_INSTRUCTIONS = process.env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS || null
 // One-time framing seed for a RESUMED thread that never got it at start. Codex
 // ignores developerInstructions on thread/resume, so the broker hands us a
 // ready-made <session-framing> block to prepend to this sidecar's first turn.
-let SEED_FRAMING = process.env.DEVDY_CODEX_SEED_FRAMING || null
+let SEED_FRAMING = process.env.PUPPETEER_CODEX_SEED_FRAMING || null
 // Per-call MCP tool timeout. The broker sets MCP_TOOL_TIMEOUT (ms) above the
 // conductor's longest `session_wait`; Codex's own default (~60s) would cut a
 // blocking wait short. Applied to every server, matching Claude's global env.
@@ -109,23 +109,23 @@ function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n') }
 function ctrl(type, extra = {}) { out({ type, ...extra }) }
 
 // --- Global safety net -------------------------------------------------------
-// Surface EVERY failure to the user as a friendly `_devdy_error` (which the
+// Surface EVERY failure to the user as a friendly `_puppeteer_error` (which the
 // broker forwards to the run log as an error line) instead of letting Node
 // print a raw stack trace to stderr and exit — so the UI shows a clear message
 // rather than the process appearing to "crash".
 function reportFatal(err, context) {
   const msg = String(err?.stack || err?.message || err)
-  try { ctrl('_devdy_error', { error: context ? `${context}: ${msg}` : msg }) } catch {}
+  try { ctrl('_puppeteer_error', { error: context ? `${context}: ${msg}` : msg }) } catch {}
 }
 process.on('uncaughtException', (err) => { reportFatal(err, 'Uncaught exception'); setTimeout(() => process.exit(1), 50) })
 process.on('unhandledRejection', (err) => { reportFatal(err, 'Unhandled rejection'); setTimeout(() => process.exit(1), 50) })
 
-// Liveness heartbeat ({type:"_devdy_heartbeat"} every 30s, declared in
-// `_devdy_ready.capabilities`), independent of any
+// Liveness heartbeat ({type:"_puppeteer_heartbeat"} every 30s, declared in
+// `_puppeteer_ready.capabilities`), independent of any
 // codex work, so the broker can tell a long silent command (heartbeats keep
 // coming) from a dead or frozen bridge (they stop). unref: never keeps us alive.
-const HEARTBEAT_MS = Math.max(50, Number(process.env.DEVDY_SIDECAR_HEARTBEAT_MS) || 30_000)
-setInterval(() => ctrl('_devdy_heartbeat'), HEARTBEAT_MS).unref()
+const HEARTBEAT_MS = Math.max(50, Number(process.env.PUPPETEER_SIDECAR_HEARTBEAT_MS) || 30_000)
+setInterval(() => ctrl('_puppeteer_heartbeat'), HEARTBEAT_MS).unref()
 
 // Reading the working directory can throw EPERM on macOS when the project folder
 // is in a TCC-protected location (Desktop/Documents/Downloads/iCloud), on a
@@ -136,13 +136,13 @@ function safeCwd() {
   try {
     return process.cwd()
   } catch (e) {
-    const fallback = process.env.DEVDY_PROJECT_PATH || process.env.HOME || '/'
-    ctrl('_devdy_error', {
+    const fallback = process.env.PUPPETEER_PROJECT_PATH || process.env.HOME || '/'
+    ctrl('_puppeteer_error', {
       error:
         `Không truy cập được thư mục làm việc (${e?.code || 'EPERM'}). ` +
         `Thư mục dự án có thể nằm ở nơi macOS chặn quyền (Desktop/Documents/Downloads/iCloud), ` +
         `trên ổ mạng/ổ ngoài chưa được cấp quyền, hoặc đã bị xóa/di chuyển. ` +
-        `Hãy cấp Full Disk Access cho Devdy trong System Settings → Privacy & Security, ` +
+        `Hãy cấp Full Disk Access cho Puppeteer trong System Settings → Privacy & Security, ` +
         `hoặc chuyển dự án sang thư mục khác (ví dụ ~/Projects). Đang tạm dùng: ${fallback}`,
     })
     return fallback
@@ -152,9 +152,9 @@ const CWD = safeCwd()
 
 // Diagnostic log line (level: error|warn|info|debug|trace) — rendered as a muted
 // log entry in the UI, NOT as a system error. Use for codex tracing + sidecar notes.
-function note(text, level = 'info') { ctrl('_devdy_log', { level, text }) }
+function note(text, level = 'info') { ctrl('_puppeteer_log', { level, text }) }
 
-// Forward a codex RateLimitSnapshot to the broker as the same `_devdy_usage`
+// Forward a codex RateLimitSnapshot to the broker as the same `_puppeteer_usage`
 // control message the Claude sidecar emits, tagged `provider:"codex"`. The Rust
 // drain persists it as the latest Codex plan-usage state (the equivalent of
 // Claude's `/usage`). Best-effort — never throws into the RPC loop.
@@ -163,7 +163,7 @@ function emitCodexRateLimits(snapshot) {
   const rl = snapshot.rateLimits || snapshot.rateLimitsByLimitId?.codex || snapshot
   if (!rl || typeof rl !== 'object') return
   if (!rl.primary && !rl.secondary) return
-  out({ type: '_devdy_usage', usage: { provider: 'codex', rate_limits: rl } })
+  out({ type: '_puppeteer_usage', usage: { provider: 'codex', rate_limits: rl } })
 }
 
 // codex app-server writes `tracing` records to stderr: ANSI-colored, timestamp-led,
@@ -187,13 +187,13 @@ function classifyStderrLine(raw) {
 }
 
 // ── centrally-managed MCP servers → codex `-c mcp_servers.*` overrides ─────
-// DEVDY_CODEX_MCP is the resolved Record<name, config>. Rust forwards stdio and
+// PUPPETEER_CODEX_MCP is the resolved Record<name, config>. Rust forwards stdio and
 // streamable HTTP servers to Codex. We turn each into TOML config override flags
 // placed BEFORE 'app-server'.
 //
 // The config carries no secrets (it ends up on codex's command line). An HTTP
-// server with secret headers comes with `devdy_headers_helper` — the argv of
-// sidecar-proxy/devdy-mcp-launch.mjs, which asks the credential broker for them.
+// server with secret headers comes with `puppeteer_headers_helper` — the argv of
+// sidecar-proxy/puppeteer-mcp-launch.mjs, which asks the credential broker for them.
 // Codex has no helper hook of its own, so we run it here and hand the values to
 // codex via env (`env_http_headers`), never via `-c` — so unlike on Claude,
 // those header values do sit in the codex process env. A server whose
@@ -250,13 +250,13 @@ function envNamePart(s) {
 }
 
 function buildMcpConfig() {
-  const raw = process.env.DEVDY_CODEX_MCP
+  const raw = process.env.PUPPETEER_CODEX_MCP
   const env = { ...process.env }
   // Keep the resolved secret bundle in the Node sidecar only; Codex receives the
   // specific config/env it needs below.
-  delete env.DEVDY_CODEX_MCP
-  delete env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS
-  delete env.DEVDY_CODEX_SEED_FRAMING
+  delete env.PUPPETEER_CODEX_MCP
+  delete env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS
+  delete env.PUPPETEER_CODEX_SEED_FRAMING
   if (!raw) return { args: [], env }
   let servers
   try {
@@ -273,8 +273,8 @@ function buildMcpConfig() {
     // Shared per-server knobs (only for transports we forward below).
     const isHttp = (cfg.type === 'http' || cfg.type === 'streamable_http') && cfg.url
     let headers = cfg.headers
-    if (isHttp && cfg.devdy_headers_helper) {
-      headers = helperHeaders(name, cfg.devdy_headers_helper)
+    if (isHttp && cfg.puppeteer_headers_helper) {
+      headers = helperHeaders(name, cfg.puppeteer_headers_helper)
       if (!headers) continue
     }
     const forwarded = (cfg.type === 'stdio' && cfg.command) || isHttp
@@ -302,7 +302,7 @@ function buildMcpConfig() {
         const headerEnvRefs = {}
         let i = 0
         for (const [header, value] of Object.entries(headers)) {
-          const envName = `DEVDY_MCP_HTTP_${envNamePart(name)}_${currentServerIndex}_${i++}`
+          const envName = `PUPPETEER_MCP_HTTP_${envNamePart(name)}_${currentServerIndex}_${i++}`
           env[envName] = String(value)
           headerEnvRefs[header] = envName
         }
@@ -358,9 +358,9 @@ function noToolsArgs() {
 // The child env without the broker's MCP bundle / framing inputs.
 function noToolsEnv() {
   const env = { ...process.env }
-  delete env.DEVDY_CODEX_MCP
-  delete env.DEVDY_CODEX_DEVELOPER_INSTRUCTIONS
-  delete env.DEVDY_CODEX_SEED_FRAMING
+  delete env.PUPPETEER_CODEX_MCP
+  delete env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS
+  delete env.PUPPETEER_CODEX_SEED_FRAMING
   return env
 }
 
@@ -373,24 +373,24 @@ try {
   // Never start a tool-less session we could not strip: report and stop.
   // Written synchronously so the error is not lost on exit.
   writeSync(1, JSON.stringify({
-    type: '_devdy_error',
+    type: '_puppeteer_error',
     error: `Refusing to start a tool-less codex session: ${e?.message || e}`,
   }) + '\n')
   process.exit(1)
 }
-// Agents never read the macOS Keychain through the `security` CLI: Devdy's item
+// Agents never read the macOS Keychain through the `security` CLI: Puppeteer's item
 // holds PATs / tokens (and the sealed secret notes vault). Codex applies the
 // execpolicy rules under $CODEX_HOME/rules in every approval mode, bypass
-// included (verified with codex-cli 0.165), so keep Devdy's rule file there —
+// included (verified with codex-cli 0.165), so keep Puppeteer's rule file there —
 // like the Claude sidecar's disallowedTools. User-level on purpose: a project's
 // `.codex/rules` would land in the user's repo. Best effort: a write failure is
 // reported, the session still starts.
-const KEYCHAIN_RULES_FILE = 'devdy-keychain.rules'
-const KEYCHAIN_RULES = `# Managed by Devdy: agents never read the macOS Keychain. Rewritten on every Devdy Codex session.
+const KEYCHAIN_RULES_FILE = 'puppeteer-keychain.rules'
+const KEYCHAIN_RULES = `# Managed by Puppeteer: agents never read the macOS Keychain. Rewritten on every Puppeteer Codex session.
 prefix_rule(
     pattern = ["security", ["find-generic-password", "find-internet-password", "dump-keychain", "export"]],
     decision = "forbidden",
-    justification = "Devdy: agents never read the macOS Keychain",
+    justification = "Puppeteer: agents never read the macOS Keychain",
 )
 `
 
@@ -403,7 +403,7 @@ function ensureKeychainRules(env) {
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, KEYCHAIN_RULES)
   } catch (e) {
-    note(`⚠ Could not install Devdy's Keychain rule for Codex (${file}): ${e?.message || e}`, 'warn')
+    note(`⚠ Could not install Puppeteer's Keychain rule for Codex (${file}): ${e?.message || e}`, 'warn')
   }
 }
 ensureKeychainRules(mcpConfig.env || process.env)
@@ -466,12 +466,12 @@ function policyFor(mode) {
     default:                  base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }
   }
   // Explicit overrides (tuning knob / tests).
-  if (process.env.DEVDY_CODEX_APPROVAL) base.approvalPolicy = process.env.DEVDY_CODEX_APPROVAL
-  if (process.env.DEVDY_CODEX_SANDBOX) base.sandbox = process.env.DEVDY_CODEX_SANDBOX
+  if (process.env.PUPPETEER_CODEX_APPROVAL) base.approvalPolicy = process.env.PUPPETEER_CODEX_APPROVAL
+  if (process.env.PUPPETEER_CODEX_SANDBOX) base.sandbox = process.env.PUPPETEER_CODEX_SANDBOX
   return base
 }
 
-// ── pending permission requests: codex rpc id ↔ devdy requestId ────────────
+// ── pending permission requests: codex rpc id ↔ puppeteer requestId ────────────
 const permWaiters = new Map() // requestId → { rpcId, command, kind, ... }
 // Commands the user denied — so the matching commandExecution item renders as
 // rejected (not as a succeeded run).
@@ -483,17 +483,17 @@ function emitPermission(rpcReqId, { tool_name, tool_input, title, description, d
   permWaiters.set(requestId, { rpcId: rpcReqId, command: tool_input?.command, kind: 'approval', ...waiter })
   if (NO_TOOLS) {
     settleWaiter(requestId, false)
-    ctrl('_devdy_log', { level: 'warn', text: `⚠ ${tool_name} was denied: this session has no tool access.` })
+    ctrl('_puppeteer_log', { level: 'warn', text: `⚠ ${tool_name} was denied: this session has no tool access.` })
     return
   }
   if (inputClosed) {
     // No answer can reach us any more: decline now instead of raising a prompt
     // nobody could ever answer (the turn then winds down on its own).
     settleWaiter(requestId, false)
-    ctrl('_devdy_log', { level: 'warn', text: `⚠ ${tool_name} was denied: the session can no longer receive permission answers.` })
+    ctrl('_puppeteer_log', { level: 'warn', text: `⚠ ${tool_name} was denied: the session can no longer receive permission answers.` })
     return
   }
-  ctrl('_devdy_permission_request', { requestId, tool_name, tool_input, title, description, display_name })
+  ctrl('_puppeteer_permission_request', { requestId, tool_name, tool_input, title, description, display_name })
 }
 
 // Answer a pending codex approval / elicitation (from the user's response, or
@@ -521,7 +521,7 @@ function settleWaiter(requestId, accept, { answers, remember } = {}) {
   //
   // An "always" allow additionally opts into codex's OWN session-scoped
   // approval cache (`acceptForSession`), so matching commands / file changes
-  // later in the session never come back as a prompt at all — Devdy's
+  // later in the session never come back as a prompt at all — Puppeteer's
   // per-project list would auto-answer them, but only after a full
   // sidecar → host → UI → sidecar round trip.
   const allowDecision = remember
@@ -622,7 +622,7 @@ function mcpToolKeyPart(value, fallback) {
   return clean || fallback
 }
 
-// Stable key for Devdy's "allow always" / "deny always" store. Codex's
+// Stable key for Puppeteer's "allow always" / "deny always" store. Codex's
 // `mcpServer/elicitation/request` carries only `serverName` — there is no
 // `toolName` in the app-server v2 protocol — so the finest grain we can offer
 // is PER SERVER (`mcp__pms`). Returning a bare `MCP` here is what used to make
@@ -836,7 +836,7 @@ function onServerMessage(msg) {
         emitPermission(msg.id, { tool_name: 'Edit', tool_input: p, title: p.reason || 'Apply a patch' }, { legacy: true })
         return
       case 'mcpServer/elicitation/request':
-        if (process.env.DEVDY_CODEX_MCP_TRACE) {
+        if (process.env.PUPPETEER_CODEX_MCP_TRACE) {
           note(`[codex] MCP elicitation from ${p.serverName ?? 'server'}: ${p.mode ?? 'unknown'}`, 'debug')
         }
         emitMcpElicitation(msg.id, p)
@@ -855,7 +855,7 @@ function onServerMessage(msg) {
       case 'attestation/generate':
       default:
         note(`[codex] unsupported server request: ${msg.method}`, 'warn')
-        rpcError(msg.id, `unsupported by devdy sidecar: ${msg.method}`)
+        rpcError(msg.id, `unsupported by puppeteer sidecar: ${msg.method}`)
         return
     }
   }
@@ -895,14 +895,14 @@ function onServerMessage(msg) {
         if (modelName) result.model = modelName
         if (turnStartedAt != null) result.duration_ms = Date.now() - turnStartedAt
         out(result)
-        ctrl('_devdy_done')
+        ctrl('_puppeteer_done')
         turnActive = false
         turnCompleted = true
         shutdown(0)
         break
       }
       case 'error':
-        ctrl('_devdy_error', { error: typeof p === 'string' ? p : JSON.stringify(p) })
+        ctrl('_puppeteer_error', { error: typeof p === 'string' ? p : JSON.stringify(p) })
         break
       default: break // ignore deltas/status/etc for v1
     }
@@ -920,7 +920,7 @@ codex.stdout.on('data', (chunk) => {
     if (!line) continue
     let msg
     try { msg = JSON.parse(line) } catch { continue }
-    try { onServerMessage(msg) } catch (e) { ctrl('_devdy_error', { error: String(e?.stack || e) }) }
+    try { onServerMessage(msg) } catch (e) { ctrl('_puppeteer_error', { error: String(e?.stack || e) }) }
   }
 })
 let estderrBuf = ''
@@ -940,10 +940,10 @@ codex.stderr.on('data', (d) => {
 codex.on('exit', (code, signal) => {
   const ourKill = shutdownCode !== null && (signal === 'SIGTERM' || signal == null)
   if (ourKill && (shutdownCode !== 0 || turnCompleted || !turnActive)) {
-    ctrl('_devdy_closed', { code: shutdownCode, signal: null })
+    ctrl('_puppeteer_closed', { code: shutdownCode, signal: null })
     process.exit(shutdownCode)
   }
-  ctrl('_devdy_closed', { code, signal: signal ?? null })
+  ctrl('_puppeteer_closed', { code, signal: signal ?? null })
   process.exit(code ?? (signal ? 1 : 0))
 })
 
@@ -960,7 +960,7 @@ const promptQueue = []
 
 async function bringUp() {
   rpcResult(await request('initialize', {
-    clientInfo: { name: 'devdy-codex', title: 'Devdy', version: '0.1.0' },
+    clientInfo: { name: 'puppeteer-codex', title: 'Puppeteer', version: '0.1.0' },
     capabilities: { experimentalApi: true, requestAttestation: false },
   }), 'initialize')
   rpcNotify('initialized', undefined)
@@ -984,14 +984,14 @@ async function bringUp() {
     modelName = result?.model || null
     // The new thread carries the framing from now on; the broker persists this
     // so a later resume doesn't seed it again.
-    if (threadId && DEVELOPER_INSTRUCTIONS) ctrl('_devdy_framing_seeded')
+    if (threadId && DEVELOPER_INSTRUCTIONS) ctrl('_puppeteer_framing_seeded')
   }
 
   if (!threadId) throw new Error('Codex initialized without a thread id')
 
   // system.init lets the broker capture session_id (= threadId) for resume.
   out({ type: 'system', subtype: 'init', session_id: threadId, model: modelName, cwd: CWD, tools: NO_TOOLS ? [] : ['Bash', 'Edit'] })
-  ctrl('_devdy_ready', { threadId, capabilities: { heartbeat_ms: HEARTBEAT_MS } })
+  ctrl('_puppeteer_ready', { threadId, capabilities: { heartbeat_ms: HEARTBEAT_MS } })
 
   // Snapshot plan usage right away (cheap, no turn) so the badge is fresh from
   // the start of the run. Fire-and-forget; failures are non-fatal.
@@ -1006,11 +1006,11 @@ async function bringUp() {
 // Lightweight usage probe: initialize the app-server, read the account's plan
 // rate-limits WITHOUT starting a thread or running a turn (no quota spend), emit
 // them, then exit. Mirrors the Claude sidecar's `usage_probe`. Triggered by the
-// Rust `refresh_codex_plan_usage` command via DEVDY_CODEX_USAGE_PROBE=1.
+// Rust `refresh_codex_plan_usage` command via PUPPETEER_CODEX_USAGE_PROBE=1.
 async function usageProbe() {
   try {
     rpcResult(await request('initialize', {
-      clientInfo: { name: 'devdy-codex', title: 'Devdy', version: '0.1.0' },
+      clientInfo: { name: 'puppeteer-codex', title: 'Puppeteer', version: '0.1.0' },
       capabilities: { experimentalApi: true, requestAttestation: false },
     }), 'initialize')
     rpcNotify('initialized', undefined)
@@ -1019,9 +1019,9 @@ async function usageProbe() {
       'account/rateLimits/read',
     )
     emitCodexRateLimits(result)
-    ctrl('_devdy_done')
+    ctrl('_puppeteer_done')
   } catch (e) {
-    ctrl('_devdy_error', { error: String(e?.stack || e) })
+    ctrl('_puppeteer_error', { error: String(e?.stack || e) })
   } finally {
     shutdown(0)
   }
@@ -1041,7 +1041,7 @@ function sandboxPolicyObject(sandbox) {
 }
 
 async function startTurn(text, images) {
-  if (!threadId) { ctrl('_devdy_error', { error: 'no thread' }); return }
+  if (!threadId) { ctrl('_puppeteer_error', { error: 'no thread' }); return }
   turnActive = true
   turnStartedAt = Date.now()
   const input = []
@@ -1073,12 +1073,12 @@ async function startTurn(text, images) {
   })
   if (res?.error) {
     turnActive = false
-    ctrl('_devdy_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
+    ctrl('_puppeteer_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
     if (inputClosed) shutdown(1)
     if (seed) SEED_FRAMING = seed // not delivered — retry on the next turn
   } else if (seed) {
     // Accepted: the framing is now in the thread history. Seed only once.
-    ctrl('_devdy_framing_seeded')
+    ctrl('_puppeteer_framing_seeded')
   }
 }
 
@@ -1103,7 +1103,7 @@ process.stdin.on('end', () => {
   inputClosed = true
   for (const requestId of [...permWaiters.keys()]) {
     if (settleWaiter(requestId, false)) {
-      ctrl('_devdy_permission_cancelled', {
+      ctrl('_puppeteer_permission_cancelled', {
         requestId,
         level: 'warn',
         text: '⚠ An open permission request was denied: the session can no longer receive answers.',
@@ -1144,8 +1144,8 @@ function shutdown(code) {
   setTimeout(() => process.exit(code), 50)
 }
 
-if (process.env.DEVDY_CODEX_USAGE_PROBE === '1') {
+if (process.env.PUPPETEER_CODEX_USAGE_PROBE === '1') {
   usageProbe()
 } else {
-  bringUp().catch((e) => { ctrl('_devdy_error', { error: String(e?.stack || e) }); shutdown(1) })
+  bringUp().catch((e) => { ctrl('_puppeteer_error', { error: String(e?.stack || e) }); shutdown(1) })
 }

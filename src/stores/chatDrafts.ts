@@ -27,7 +27,7 @@ export interface ChatDraft {
   files: DraftFile[]
 }
 
-const STORAGE_KEY = 'devdy.chatDrafts'
+const STORAGE_KEY = 'puppeteer.chatDrafts'
 
 function emptyDraft(): ChatDraft {
   return { text: '', images: [], files: [] }

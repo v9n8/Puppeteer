@@ -1,7 +1,7 @@
-// Tolerant readers for Devdy run transcripts.
+// Tolerant readers for Puppeteer run transcripts.
 //
-// Devdy persists each turn to two possible places:
-//   1. `<project>/.devdy/runs/<run_id>.log` — NDJSON stream-json written by the
+// Puppeteer persists each turn to two possible places:
+//   1. `<project>/.puppeteer/runs/<run_id>.log` — NDJSON stream-json written by the
 //      start/resume drain task (both engines).
 //   2. the shared transcript store the CLI / IDE also write (Claude JSONL under
 //      ~/.claude/projects, Codex rollout JSONL) — cached per run in
@@ -74,7 +74,7 @@ export function parseTranscript(raw) {
 export function readRunTranscript(run, projectPath) {
   const candidates = [];
   if (projectPath) {
-    candidates.push(path.join(projectPath, '.devdy', 'runs', `${run.id}.log`));
+    candidates.push(path.join(projectPath, '.puppeteer', 'runs', `${run.id}.log`));
   }
   if (run.transcript_path) candidates.push(run.transcript_path);
   for (const file of candidates) {

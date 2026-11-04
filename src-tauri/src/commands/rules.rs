@@ -1339,7 +1339,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     fn tmp(label: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-rules-{}-{}", label, Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-rules-{}-{}", label, Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

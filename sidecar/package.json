@@ -1,9 +1,9 @@
 {
-  "name": "devdy-claude-sidecar",
+  "name": "puppeteer-claude-sidecar",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Node sidecar hosting @anthropic-ai/claude-agent-sdk, bridged to the Devdy Rust broker over NDJSON (stdin/stdout).",
+  "description": "Node sidecar hosting @anthropic-ai/claude-agent-sdk, bridged to the Puppeteer Rust broker over NDJSON (stdin/stdout).",
   "main": "index.mjs",
   "scripts": {
     "preinstall": "npx only-allow npm",

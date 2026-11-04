@@ -360,7 +360,7 @@ async fn session_read(
     let project_path: String = row.get("project_path");
 
     let log_path = Path::new(&project_path)
-        .join(".devdy")
+        .join(".puppeteer")
         .join("runs")
         .join(format!("{}.log", worker_id));
     let reply = extract_latest_reply(&log_path);

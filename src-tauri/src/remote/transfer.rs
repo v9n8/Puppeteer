@@ -1,5 +1,5 @@
 //! Remote desktop file transfer: copy files and folders between the
-//! controlling Devdy (A, the machine the user sits at) and the controlled one
+//! controlling Puppeteer (A, the machine the user sits at) and the controlled one
 //! (B), both ways (`src/views/FileTransferWindow.vue`).
 //!
 //! - The file-system helpers here ([`walk`], [`hash_file`], [`make_dir`],
@@ -371,7 +371,7 @@ mod tests {
     use super::*;
 
     fn tmp() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("devdy-transfer-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("puppeteer-transfer-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

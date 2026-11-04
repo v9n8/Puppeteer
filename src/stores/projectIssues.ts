@@ -58,7 +58,7 @@ const DONE = new Set(['done', 'closed', 'complete', 'completed', 'hoàn thành',
 // each fetched board there: a new window (or an app restart) can hydrate the
 // chart instantly from the last snapshot instead of blocking on a full GitHub
 // round-trip, then revalidate in the background when the snapshot is stale.
-const PERSIST_PREFIX = 'devdy:ganttBoard:'
+const PERSIST_PREFIX = 'puppeteer:ganttBoard:'
 // Snapshots newer than this are served as-is with no network call at all.
 const REVALIDATE_MS = 5 * 60 * 1000
 

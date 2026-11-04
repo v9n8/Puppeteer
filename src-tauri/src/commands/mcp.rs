@@ -782,7 +782,7 @@ fn initialize_request() -> serde_json::Value {
         "params": {
             "protocolVersion": "2024-11-05",
             "capabilities": {},
-            "clientInfo": { "name": "devdy", "version": "1.0.0" }
+            "clientInfo": { "name": "puppeteer", "version": "1.0.0" }
         }
     })
 }
@@ -1134,11 +1134,11 @@ fn extract_initialize_result(body: &str) -> Option<String> {
 /// `-c mcp_servers.*`) and ends up in process environments, both readable by any
 /// process of the same user. So it only names a server; the values come from the
 /// credential broker when the server starts (stdio env, via
-/// `sidecar-proxy/devdy-mcp-launch.mjs`) or connects (HTTP headers, via Claude's
+/// `sidecar-proxy/puppeteer-mcp-launch.mjs`) or connects (HTTP headers, via Claude's
 /// `headersHelper` / the Codex sidecar). See `runs::broker::mcp_creds`.
 pub struct McpLaunch {
     pub node_bin: String,
-    /// `devdy-mcp-launch.mjs` in the shim dir.
+    /// `puppeteer-mcp-launch.mjs` in the shim dir.
     pub launcher: std::path::PathBuf,
     pub broker_sock: std::path::PathBuf,
     pub project_id: String,
@@ -1150,9 +1150,9 @@ impl McpLaunch {
     /// minimal env, so it is set explicitly rather than inherited. Not secret.
     pub fn broker_env(&self) -> serde_json::Map<String, serde_json::Value> {
         let mut env = serde_json::Map::new();
-        env.insert("DEVDY_BROKER_SOCK".into(), self.broker_sock.to_string_lossy().into());
-        env.insert("DEVDY_PROJECT_ID".into(), self.project_id.clone().into());
-        env.insert("DEVDY_RUN_ID".into(), self.run_id.clone().into());
+        env.insert("PUPPETEER_BROKER_SOCK".into(), self.broker_sock.to_string_lossy().into());
+        env.insert("PUPPETEER_PROJECT_ID".into(), self.project_id.clone().into());
+        env.insert("PUPPETEER_RUN_ID".into(), self.run_id.clone().into());
         env
     }
 
@@ -1182,12 +1182,12 @@ impl McpLaunch {
 
     /// Point an HTTP/SSE server config at the broker for its headers. Claude runs
     /// `headersHelper` through a shell and merges the JSON it prints; the Codex
-    /// sidecar runs `devdy_headers_helper` itself (Codex has no helper of its own)
+    /// sidecar runs `puppeteer_headers_helper` itself (Codex has no helper of its own)
     /// and maps the result onto `env_http_headers`.
     pub fn set_headers_helper(&self, cfg: &mut serde_json::Value, engine: &str, server: &str) {
         let argv = self.launcher_argv("headers", server);
         if engine == "codex" {
-            cfg["devdy_headers_helper"] = serde_json::json!(argv);
+            cfg["puppeteer_headers_helper"] = serde_json::json!(argv);
         } else {
             // The CLI passes its own env through, which already carries these;
             // spelling them out keeps the helper working if that ever changes.
@@ -1246,7 +1246,7 @@ pub async fn resolve_project_mcp_servers(
             "stdio" => {
                 let command = server.command.clone().unwrap_or_default();
                 // `npx` servers launch their installed bin directly (no
-                // per-run `npm exec` wrapper) once Devdy has installed them.
+                // per-run `npm exec` wrapper) once Puppeteer has installed them.
                 let (command, args) =
                     crate::commands::mcp_packages::direct_launch(&command, &server.args)
                         .unwrap_or((command, server.args.clone()));
@@ -1305,7 +1305,7 @@ pub async fn resolve_project_mcp_servers(
 /// The built-in native servers injected at run launch. They can be switched
 /// off app-wide (`mcp_builtin_<name>_enabled` setting) or for one project
 /// (`project_builtin_mcp_disabled`), never deleted.
-pub const BUILTIN_MCP_NAMES: &[&str] = &["devdy", "google"];
+pub const BUILTIN_MCP_NAMES: &[&str] = &["puppeteer", "google"];
 
 fn validate_builtin_name(name: &str) -> Result<(), String> {
     if BUILTIN_MCP_NAMES.contains(&name) {
@@ -1327,9 +1327,9 @@ pub async fn builtin_mcp_globally_enabled(db: &Db, name: &str) -> bool {
     !matches!(v.as_deref(), Some("false"))
 }
 
-/// Whether the built-in `devdy` MCP server is on app-wide.
-pub async fn builtin_devdy_enabled(db: &Db) -> bool {
-    builtin_mcp_globally_enabled(db, "devdy").await
+/// Whether the built-in `puppeteer` MCP server is on app-wide.
+pub async fn builtin_puppeteer_enabled(db: &Db) -> bool {
+    builtin_mcp_globally_enabled(db, "puppeteer").await
 }
 
 async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str) -> bool {
@@ -1433,15 +1433,15 @@ pub async fn set_builtin_mcp_enabled(
     .await
 }
 
-/// Add the built-in `devdy` stdio MCP server (quick notes + cross-session
+/// Add the built-in `puppeteer` stdio MCP server (quick notes + cross-session
 /// recall) to an already-resolved MCP map. Injected into every run so the AI
-/// can read/write Devdy's own store, scoped to the current project via env.
+/// can read/write Puppeteer's own store, scoped to the current project via env.
 ///
 /// `mcp` may be `Null` (no user servers) or an `Object`. Returns an `Object`
-/// that also carries `devdy` — unless the server script is missing (dev/bundle
+/// that also carries `puppeteer` — unless the server script is missing (dev/bundle
 /// mismatch), in which case `mcp` is returned unchanged so the run still works.
-/// A user server literally named `devdy` takes precedence (not overwritten).
-pub fn with_builtin_devdy(
+/// A user server literally named `puppeteer` takes precedence (not overwritten).
+pub fn with_builtin_puppeteer(
     mcp: serde_json::Value,
     node_bin: &str,
     script: &std::path::Path,
@@ -1456,15 +1456,15 @@ pub fn with_builtin_devdy(
         serde_json::Value::Object(m) => m,
         _ => serde_json::Map::new(),
     };
-    map.entry("devdy".to_string()).or_insert_with(|| {
+    map.entry("puppeteer".to_string()).or_insert_with(|| {
         serde_json::json!({
             "type": "stdio",
             "command": node_bin,
             "args": [script.to_string_lossy()],
             "env": {
-                "DEVDY_DB_PATH": db_path.to_string_lossy(),
-                "DEVDY_PROJECT_ID": project_id,
-                "DEVDY_PROJECT_PATH": project_path,
+                "PUPPETEER_DB_PATH": db_path.to_string_lossy(),
+                "PUPPETEER_PROJECT_ID": project_id,
+                "PUPPETEER_PROJECT_PATH": project_path,
             }
         })
     });
@@ -1473,7 +1473,7 @@ pub fn with_builtin_devdy(
 
 /// Add the built-in `google` stdio MCP server (Drive + Gmail + Calendar) to an
 /// already-resolved MCP map when at least one Google account is connected. It
-/// runs the same Node binary as the Claude/devdy sidecar and learns the
+/// runs the same Node binary as the Claude/puppeteer sidecar and learns the
 /// connected accounts via env (`GOOGLE_ACCOUNTS` = JSON array of
 /// {label,email,default} — no credentials). It asks the broker for a
 /// short-lived access token per account as needed, so a run can outlive the 1h
@@ -1618,7 +1618,7 @@ mod tests {
     fn launch() -> McpLaunch {
         McpLaunch {
             node_bin: "/opt/node".into(),
-            launcher: "/App Support/devdy-mcp-launch.mjs".into(),
+            launcher: "/App Support/puppeteer-mcp-launch.mjs".into(),
             broker_sock: "/tmp/b.sock".into(),
             project_id: "p1".into(),
             run_id: "r1".into(),
@@ -1631,12 +1631,12 @@ mod tests {
         assert_eq!(cfg["command"], "/opt/node");
         assert_eq!(
             cfg["args"],
-            serde_json::json!(["/App Support/devdy-mcp-launch.mjs", "env", "srv-1", "--", "npx", "-y", "pkg"])
+            serde_json::json!(["/App Support/puppeteer-mcp-launch.mjs", "env", "srv-1", "--", "npx", "-y", "pkg"])
         );
         // Only the broker coordinates — no secret.
         assert_eq!(
             cfg["env"],
-            serde_json::json!({ "DEVDY_BROKER_SOCK": "/tmp/b.sock", "DEVDY_PROJECT_ID": "p1", "DEVDY_RUN_ID": "r1" })
+            serde_json::json!({ "PUPPETEER_BROKER_SOCK": "/tmp/b.sock", "PUPPETEER_PROJECT_ID": "p1", "PUPPETEER_RUN_ID": "r1" })
         );
     }
 
@@ -1647,16 +1647,16 @@ mod tests {
         assert!(claude.get("headers").is_none());
         assert_eq!(
             claude["headersHelper"],
-            "DEVDY_BROKER_SOCK='/tmp/b.sock' DEVDY_PROJECT_ID='p1' DEVDY_RUN_ID='r1' \
-             '/opt/node' '/App Support/devdy-mcp-launch.mjs' 'headers' 'srv-1'"
+            "PUPPETEER_BROKER_SOCK='/tmp/b.sock' PUPPETEER_PROJECT_ID='p1' PUPPETEER_RUN_ID='r1' \
+             '/opt/node' '/App Support/puppeteer-mcp-launch.mjs' 'headers' 'srv-1'"
         );
 
         let mut codex = serde_json::json!({ "type": "http", "url": "https://x" });
         launch().set_headers_helper(&mut codex, "codex", "srv-1");
         assert!(codex.get("headers").is_none());
         assert_eq!(
-            codex["devdy_headers_helper"],
-            serde_json::json!(["/opt/node", "/App Support/devdy-mcp-launch.mjs", "headers", "srv-1"])
+            codex["puppeteer_headers_helper"],
+            serde_json::json!(["/opt/node", "/App Support/puppeteer-mcp-launch.mjs", "headers", "srv-1"])
         );
     }
 
@@ -1713,27 +1713,27 @@ mod tests {
         }
 
         // On by default everywhere.
-        assert!(builtin_mcp_enabled(&db, "devdy", "p1").await);
+        assert!(builtin_mcp_enabled(&db, "puppeteer", "p1").await);
         assert!(builtin_mcp_enabled(&db, "google", "p1").await);
 
         // Off for p1 only, idempotently.
-        set_project_builtin_mcp(&db, "p1", "devdy", false).await.unwrap();
-        set_project_builtin_mcp(&db, "p1", "devdy", false).await.unwrap();
-        assert!(!builtin_mcp_enabled(&db, "devdy", "p1").await);
-        assert!(builtin_mcp_enabled(&db, "devdy", "p2").await);
+        set_project_builtin_mcp(&db, "p1", "puppeteer", false).await.unwrap();
+        set_project_builtin_mcp(&db, "p1", "puppeteer", false).await.unwrap();
+        assert!(!builtin_mcp_enabled(&db, "puppeteer", "p1").await);
+        assert!(builtin_mcp_enabled(&db, "puppeteer", "p2").await);
         assert!(builtin_mcp_enabled(&db, "google", "p1").await);
 
         // Off app-wide wins over a project that is on.
-        crate::commands::settings::set_setting(&db, "mcp_builtin_devdy_enabled", "false")
+        crate::commands::settings::set_setting(&db, "mcp_builtin_puppeteer_enabled", "false")
             .await
             .unwrap();
-        assert!(!builtin_mcp_enabled(&db, "devdy", "p2").await);
+        assert!(!builtin_mcp_enabled(&db, "puppeteer", "p2").await);
 
-        set_project_builtin_mcp(&db, "p1", "devdy", true).await.unwrap();
-        crate::commands::settings::set_setting(&db, "mcp_builtin_devdy_enabled", "true")
+        set_project_builtin_mcp(&db, "p1", "puppeteer", true).await.unwrap();
+        crate::commands::settings::set_setting(&db, "mcp_builtin_puppeteer_enabled", "true")
             .await
             .unwrap();
-        assert!(builtin_mcp_enabled(&db, "devdy", "p1").await);
+        assert!(builtin_mcp_enabled(&db, "puppeteer", "p1").await);
 
         // Only the known built-ins can be switched.
         assert!(set_project_builtin_mcp(&db, "p1", "github", false).await.is_err());

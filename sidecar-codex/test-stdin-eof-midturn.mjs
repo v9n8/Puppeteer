@@ -8,15 +8,15 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const work = mkdtempSync(join(tmpdir(), 'devdy-codex-eof-'))
+const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-eof-'))
 const marker = join(work, 'COMMAND_RAN')
 const env = {
   ...process.env,
-  DEVDY_PERMISSION_MODE: 'default',
-  DEVDY_CODEX_PATH: join(here, 'test-fixture-app-server.mjs'),
-  DEVDY_DENY_TEST_MARKER: marker,
+  PUPPETEER_PERMISSION_MODE: 'default',
+  PUPPETEER_CODEX_PATH: join(here, 'test-fixture-app-server.mjs'),
+  PUPPETEER_DENY_TEST_MARKER: marker,
 }
-delete env.DEVDY_RESUME_SESSION
+delete env.PUPPETEER_RESUME_SESSION
 const child = spawn('node', [join(here, 'index.mjs')], { cwd: work, stdio: ['pipe', 'pipe', 'pipe'], env })
 
 const order = [] // message types in arrival order
@@ -36,20 +36,20 @@ child.stdout.on('data', (chunk) => {
     let msg
     try { msg = JSON.parse(line) } catch { continue }
     order.push(msg.type)
-    if (msg.type === '_devdy_ready') child.stdin.write(JSON.stringify({ type: 'prompt', text: 'go' }) + '\n')
-    if (msg.type === '_devdy_permission_request') {
+    if (msg.type === '_puppeteer_ready') child.stdin.write(JSON.stringify({ type: 'prompt', text: 'go' }) + '\n')
+    if (msg.type === '_puppeteer_permission_request') {
       requestId = msg.requestId
       child.stdin.end() // never answer: the input channel closes mid-turn
     }
-    if (msg.type === '_devdy_permission_cancelled') cancelledId = msg.requestId
-    if (msg.type === '_devdy_closed') closed = msg
+    if (msg.type === '_puppeteer_permission_cancelled') cancelledId = msg.requestId
+    if (msg.type === '_puppeteer_closed') closed = msg
   }
 })
 child.on('exit', (code) => { clearTimeout(timer); report(code) })
 
 function report(exitCode) {
   const resultAt = order.indexOf('result')
-  const closedAt = order.indexOf('_devdy_closed')
+  const closedAt = order.indexOf('_puppeteer_closed')
   const checks = {
     waiterCancelled: requestId !== null && cancelledId === requestId,
     turnCompleted: resultAt !== -1,

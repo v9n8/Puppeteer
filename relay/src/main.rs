@@ -1,12 +1,12 @@
-//! Devdy Remote Control Relay — binary entrypoint.
+//! Puppeteer Remote Control Relay — binary entrypoint.
 //!
 //! Reads configuration from the environment (see `config.rs` / README), binds
 //! `RELAY_BIND` (default `127.0.0.1:8787`), and serves until SIGINT/SIGTERM.
 
 use std::process::ExitCode;
 
-use devdy_relay::config::Config;
-use devdy_relay::server;
+use puppeteer_relay::config::Config;
+use puppeteer_relay::server;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -33,7 +33,7 @@ async fn main() -> ExitCode {
         event = "relay_start",
         bind = %config.bind,
         liveness_secs = config.peer_liveness_timeout.as_secs(),
-        "starting devdy relay"
+        "starting puppeteer relay"
     );
 
     let (handle, accept_loop) = match server::serve(config).await {

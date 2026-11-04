@@ -1,5 +1,5 @@
 // Unit tests for lib/remoteUploadCore.ts (copying dropped files onto the
-// controlled Devdy). Run: node --test src/lib/__tests__/remoteUpload.test.mjs
+// controlled Puppeteer). Run: node --test src/lib/__tests__/remoteUpload.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { progressPercent, uploadFiles } from '../remoteUploadCore.ts'

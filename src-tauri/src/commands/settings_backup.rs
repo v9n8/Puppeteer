@@ -1,7 +1,7 @@
-//! Export / import of the whole Devdy configuration as one file, to carry a setup to another
+//! Export / import of the whole Puppeteer configuration as one file, to carry a setup to another
 //! machine.
 //!
-//! The file is JSON (`*.devdy-backup`). It holds the portable app settings, the Skills / Rules
+//! The file is JSON (`*.puppeteer-backup`). It holds the portable app settings, the Skills / Rules
 //! library (file contents included) with their groups, MCP servers, VPS servers, account metadata
 //! (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
@@ -9,7 +9,7 @@
 //! usage history stay on the machine.
 //!
 //! Secrets (PATs, MCP env/header VALUEs, Google OAuth client + refresh tokens, SSH passphrases and
-//! Devdy-managed private key files) are only exported when the user gives a password: they are
+//! Puppeteer-managed private key files) are only exported when the user gives a password: they are
 //! sealed with XChaCha20-Poly1305 under an Argon2id key derived from it. Without a password the
 //! file carries no secret at all and the accounts must be re-authenticated after import.
 //!
@@ -42,10 +42,10 @@ use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
-const FORMAT: &str = "devdy-settings-backup";
+const FORMAT: &str = "puppeteer-settings-backup";
 const VERSION: u32 = 1;
 /// Bound into the AEAD tag so a sealed blob can't be replayed into another format/version.
-const AAD: &[u8] = b"devdy-settings-backup:v1";
+const AAD: &[u8] = b"puppeteer-settings-backup:v1";
 const KDF_NAME: &str = "argon2id13";
 const KDF_OPSLIMIT: u64 = 3;
 const KDF_MEMLIMIT: usize = 64 * 1024 * 1024;
@@ -254,10 +254,10 @@ struct VpsEntry {
     port: i64,
     username: String,
     auth_method: String,
-    /// A user path such as `~/.ssh/id_ed25519`; `None` for a Devdy-managed key.
+    /// A user path such as `~/.ssh/id_ed25519`; `None` for a Puppeteer-managed key.
     #[serde(default)]
     private_key_path: Option<String>,
-    /// The key was copied into Devdy's key store; its contents travel in the sealed secrets.
+    /// The key was copied into Puppeteer's key store; its contents travel in the sealed secrets.
     #[serde(default)]
     managed_key: bool,
     #[serde(default)]
@@ -569,7 +569,7 @@ struct ServerSecretEntry {
     passphrase: Option<String>,
     #[serde(default)]
     key_file_name: Option<String>,
-    /// Base64 contents of a Devdy-managed private key file.
+    /// Base64 contents of a Puppeteer-managed private key file.
     #[serde(default)]
     key_data: Option<String>,
 }
@@ -809,18 +809,18 @@ fn write_private_file(path: &str, data: &[u8]) -> Result<(), String> {
 fn read_bundle(path: &str) -> Result<Bundle, String> {
     let raw = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
     let bundle: Bundle =
-        serde_json::from_slice(&raw).map_err(|_| "Not a Devdy settings backup file".to_string())?;
+        serde_json::from_slice(&raw).map_err(|_| "Not a Puppeteer settings backup file".to_string())?;
     check_bundle(&bundle)?;
     Ok(bundle)
 }
 
 fn check_bundle(bundle: &Bundle) -> Result<(), String> {
     if bundle.format != FORMAT {
-        return Err("Not a Devdy settings backup file".to_string());
+        return Err("Not a Puppeteer settings backup file".to_string());
     }
     if bundle.version > VERSION {
         return Err(format!(
-            "This backup was made by a newer Devdy (format v{}); update Devdy first",
+            "This backup was made by a newer Puppeteer (format v{}); update Puppeteer first",
             bundle.version
         ));
     }
@@ -940,7 +940,7 @@ async fn collect(
             };
             if let Some(path) = key_path.as_deref().filter(|_| managed) {
                 if let Ok(data) = std::fs::read(path) {
-                    // Strip the "<uuid>-" prefix Devdy adds when it copies a key in.
+                    // Strip the "<uuid>-" prefix Puppeteer adds when it copies a key in.
                     let file = Path::new(path).file_name().map(|f| f.to_string_lossy().into_owned());
                     entry.key_file_name =
                         file.map(|f| f.get(37..).filter(|s| !s.is_empty()).unwrap_or(f.as_str()).to_string());
@@ -1530,7 +1530,7 @@ pub async fn export_settings_backup(
             .map_err(|e| e.to_string())??;
         bundle.secrets = Some(sealed);
     }
-    // A remote desktop writes only where it may (never `~/.devdy`, app data…).
+    // A remote desktop writes only where it may (never `~/.puppeteer`, app data…).
     let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
     let path = crate::remote::fs_policy::write(policy.as_ref(), std::path::Path::new(&path))?;
     let json = serde_json::to_vec_pretty(&bundle).map_err(|e| e.to_string())?;
@@ -3165,7 +3165,7 @@ mod tests {
     #[tokio::test]
     async fn notes_and_todos_merge_by_id_and_relink_projects() {
         let db = test_db().await;
-        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p-local', 'devdy', '/x/devdy', 'now')")
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p-local', 'puppeteer', '/x/puppeteer', 'now')")
             .execute(&db)
             .await
             .unwrap();
@@ -3178,8 +3178,8 @@ mod tests {
             updated_at: "u".into(),
             // Same name, different path on the other machine → matched by name.
             project: Some(ProjectRef {
-                name: "devdy".into(),
-                path: "/other/devdy".into(),
+                name: "puppeteer".into(),
+                path: "/other/puppeteer".into(),
             }),
         };
         assert_eq!(import_note(&db, &note).await.unwrap(), Upsert::Created);
@@ -3454,7 +3454,7 @@ mod tests {
         }
         let mut projects = collect_projects(&source).await.unwrap();
         assert_eq!(projects.len(), 1);
-        let home = std::env::temp_dir().join(format!("devdy-backup-{}", Uuid::new_v4()));
+        let home = std::env::temp_dir().join(format!("puppeteer-backup-{}", Uuid::new_v4()));
         let new_path = home.join("shop");
         projects[0].path = new_path.to_string_lossy().into_owned();
 

@@ -26,8 +26,6 @@ import PermissionWindow from '@/views/PermissionWindow.vue'
 import ThemeDecorations from '@/components/ThemeDecorations.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
-import CyberFoxHost from '@/components/CyberFoxHost.vue'
-import MascotWindow from '@/views/MascotWindow.vue'
 import ItemWindow from '@/views/ItemWindow.vue'
 import ItemListWindow from '@/views/ItemListWindow.vue'
 import SecretNotesWindow from '@/views/SecretNotesWindow.vue'
@@ -94,7 +92,6 @@ const isSlackWindow = new URLSearchParams(window.location.search).get('slackWind
 const isPrInboxWindow = new URLSearchParams(window.location.search).get('prInboxWindow') === '1'
 const isCalendarWindow = new URLSearchParams(window.location.search).get('calendarWindow') === '1'
 const isFocusWindow = new URLSearchParams(window.location.search).get('focusWindow') === '1'
-const isMascotWindow = new URLSearchParams(window.location.search).get('mascotWindow') === '1'
 const isFileTransferWindow = new URLSearchParams(window.location.search).get('fileTransferWindow') === '1'
 // A session pop-out is different from the bare pop-outs above: it reuses the full
 // RunView (routed to one run) with the app chrome hidden, so it still needs the
@@ -114,7 +111,6 @@ const isPopoutWindow =
   isPrInboxWindow ||
   isCalendarWindow ||
   isFocusWindow ||
-  isMascotWindow ||
   isFileTransferWindow
 
 const route = useRoute()
@@ -364,7 +360,7 @@ let unlistenSlackApiReceived: UnlistenFn | null = null
 // Listener for the Slack threads window asking to navigate (e.g. to the MCP settings).
 let unlistenSlackRoute: UnlistenFn | null = null
 
-// Listener for the PR Inbox window asking to navigate (e.g. "Add to devdy").
+// Listener for the PR Inbox window asking to navigate (e.g. "Add to puppeteer").
 let unlistenPrInboxRoute: UnlistenFn | null = null
 let unlistenCalendarRoute: UnlistenFn | null = null
 
@@ -407,7 +403,7 @@ const sidebarVisible = computed(
 function bindGlobalMenuActions() {
   const unbinds = [
     // A NEW todo / note is ALWAYS captured in the standalone capture window, from
-    // every entry point — menu, shortcut, mascot, run screen (existing ones are
+    // every entry point — menu, shortcut, run screen (existing ones are
     // read and edited in the Notes / Todos windows).
     registerMenuAction('file.newTodo', () =>
       openItemCreateWindow('todo', routeCaptureContext()),
@@ -454,8 +450,8 @@ function bindGlobalMenuActions() {
   return () => unbinds.forEach((off) => off())
 }
 
-const DOCS_URL = 'https://github.com/thainph/devdy#readme'
-const NEW_ISSUE_URL = 'https://github.com/thainph/devdy/issues/new'
+const DOCS_URL = 'https://github.com/v9n8/Puppeteer#readme'
+const NEW_ISSUE_URL = 'https://github.com/v9n8/Puppeteer/issues/new'
 
 let unbindMenuActions: (() => void) | null = null
 let unlistenMenu: UnlistenFn | null = null
@@ -727,7 +723,7 @@ onMounted(async () => {
     // Ignore (e.g. running outside the Tauri shell during dev in a browser).
   }
 
-  // Same for the PR Inbox window (e.g. "Add to devdy" → the Projects screen).
+  // Same for the PR Inbox window (e.g. "Add to puppeteer" → the Projects screen).
   try {
     unlistenPrInboxRoute = await listen<PrInboxWindowOpenRoute>(PR_INBOX_WINDOW_OPEN_ROUTE, (e) => {
       void openRouteFromWindow(e.payload?.path)
@@ -804,7 +800,7 @@ onMounted(async () => {
   <!-- THE Focus window: the Focus board on its own OS window. -->
   <FocusWindow v-else-if="isFocusWindow" />
 
-  <!-- THE File Transfer window (remote desktop only): this machine ⇄ the controlled Devdy. -->
+  <!-- THE File Transfer window (remote desktop only): this machine ⇄ the controlled Puppeteer. -->
   <FileTransferWindow v-else-if="isFileTransferWindow" />
 
   <!-- Pop-out Gantt window: bare Gantt chart on its own OS window. -->
@@ -818,9 +814,6 @@ onMounted(async () => {
     <ConfirmModal />
     <ToastHost />
   </div>
-
-  <!-- Desktop-pet window: transparent, frameless host that floats only the fox. -->
-  <MascotWindow v-else-if="isMascotWindow" />
 
   <!-- Session pop-out: one run in its own OS window. Reuses the full RunView via
        the router, but with no sidebar / nav / docks / app-wide notifiers — just
@@ -860,8 +853,8 @@ onMounted(async () => {
       v-if="!(uiLayout.focusMode && isRunRoute)"
       class="app-titlebar flex items-center gap-2 h-11 px-3 shrink-0 bg-sidebar border-b border-border/50"
     >
-      <img src="/logo.png" alt="Devdy" class="h-[18px] w-[18px] rounded shrink-0" />
-      <p class="text-[13px] font-semibold leading-none tracking-tight shrink-0">Devdy</p>
+      <img src="/logo.png" alt="Puppeteer" class="h-[18px] w-[18px] rounded shrink-0" />
+      <p class="text-[13px] font-semibold leading-none tracking-tight shrink-0">Puppeteer</p>
       <div v-if="tabsStore.tabs.length > 0" class="h-4 w-px bg-border shrink-0 mx-1" aria-hidden="true" />
 
       <WorkspaceTabs />
@@ -1005,7 +998,7 @@ onMounted(async () => {
           <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border/50">
             <p v-if="appVersion" class="text-[10px] text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
             <!-- This machine's Remote Control dot, or (remote-desktop window) the
-                 link to the controlled Devdy; each hides itself elsewhere. -->
+                 link to the controlled Puppeteer; each hides itself elsewhere. -->
             <RemoteIndicator />
             <RemoteDesktopIndicator />
           </div>
@@ -1068,9 +1061,6 @@ onMounted(async () => {
 
     <!-- App-wide side-by-side image comparison (banner + picker + compare view) -->
     <ImageCompareHost />
-
-    <!-- DY mascot: app-wide operator. Host picks in-app floating vs desktop pet. -->
-    <CyberFoxHost />
   </div>
 </template>
 

@@ -49,7 +49,7 @@ pub struct RemoteStatus {
     pub session_authenticated: bool,
     /// Sliding idle expiry (Unix secs) of the bound session, when known.
     pub session_idle_expires_at: Option<u64>,
-    /// Whether another Devdy is driving this one over remote-desktop IPC.
+    /// Whether another Puppeteer is driving this one over remote-desktop IPC.
     pub desktop_controlled: bool,
     /// When that remote-desktop Controller attached (Unix secs).
     pub desktop_controlled_since: Option<u64>,
@@ -282,7 +282,7 @@ pub async fn remote_set_master_password(
 }
 
 /// Name this device (or clear the name with an empty string). The alias picks
-/// the password-login code (`devdy-login-v1/<alias>`), so a controller can tell
+/// the password-login code (`puppeteer-login-v1/<alias>`), so a controller can tell
 /// several hosts on one relay apart.
 #[tauri::command]
 pub async fn remote_set_device_alias(

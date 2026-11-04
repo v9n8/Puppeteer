@@ -1,5 +1,5 @@
 /**
- * The controlling side's link to the controlled Devdy, for the sidebar dot
+ * The controlling side's link to the controlled Puppeteer, for the sidebar dot
  * (components/remote/RemoteDesktopIndicator.vue) and the problem pill
  * (components/remote/RemoteDesktopAlert.vue).
  *

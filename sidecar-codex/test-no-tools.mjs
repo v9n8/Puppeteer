@@ -1,4 +1,4 @@
-// Tool-less session (DEVDY_CODEX_NO_TOOLS=1, the translation engine): codex
+// Tool-less session (PUPPETEER_CODEX_NO_TOOLS=1, the translation engine): codex
 // must start with exec/app/plugin features off, every MCP server disabled, a
 // read-only sandbox, and any approval request declined without a prompt — even
 // when the broker passes MCP servers or a looser policy override.
@@ -12,11 +12,11 @@ import assert from 'node:assert/strict'
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'test-fixture-app-server.mjs')
 
-const work = mkdtempSync(join(tmpdir(), 'devdy-codex-notools-'))
+const work = mkdtempSync(join(tmpdir(), 'puppeteer-codex-notools-'))
 const marker = join(work, 'executed')
 const log = join(work, 'fixture.jsonl')
 const childEnv = { ...process.env }
-delete childEnv.DEVDY_RESUME_SESSION
+delete childEnv.PUPPETEER_RESUME_SESSION
 
 const messages = await new Promise((resolve) => {
   const child = spawn('node', [join(here, 'index.mjs')], {
@@ -24,14 +24,14 @@ const messages = await new Promise((resolve) => {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...childEnv,
-      DEVDY_CODEX_NO_TOOLS: '1',
-      DEVDY_PERMISSION_MODE: 'bypassPermissions',
-      DEVDY_CODEX_APPROVAL: 'never',
-      DEVDY_CODEX_SANDBOX: 'danger-full-access',
-      DEVDY_CODEX_MCP: JSON.stringify({ broker: { type: 'stdio', command: 'evil-mcp' } }),
-      DEVDY_CODEX_PATH: fixture,
-      DEVDY_DENY_TEST_MARKER: marker,
-      DEVDY_FIXTURE_LOG: log,
+      PUPPETEER_CODEX_NO_TOOLS: '1',
+      PUPPETEER_PERMISSION_MODE: 'bypassPermissions',
+      PUPPETEER_CODEX_APPROVAL: 'never',
+      PUPPETEER_CODEX_SANDBOX: 'danger-full-access',
+      PUPPETEER_CODEX_MCP: JSON.stringify({ broker: { type: 'stdio', command: 'evil-mcp' } }),
+      PUPPETEER_CODEX_PATH: fixture,
+      PUPPETEER_DENY_TEST_MARKER: marker,
+      PUPPETEER_FIXTURE_LOG: log,
     },
   })
   const seen = []
@@ -53,7 +53,7 @@ const messages = await new Promise((resolve) => {
       let message
       try { message = JSON.parse(line) } catch { continue }
       seen.push(message)
-      if (message.type === 'result' || message.type === '_devdy_error') setTimeout(finish, 150)
+      if (message.type === 'result' || message.type === '_puppeteer_error') setTimeout(finish, 150)
     }
   })
   child.on('exit', finish)
@@ -78,8 +78,8 @@ assert.equal(threadStart.approvalPolicy, 'untrusted')
 assert.equal(threadStart.sandbox, 'read-only')
 assert.equal(turnStart.approvalPolicy, 'untrusted')
 assert.deepEqual(turnStart.sandboxPolicy, { type: 'readOnly' })
-assert.equal(messages.filter((m) => m.type === '_devdy_permission_request').length, 0, 'raised a permission prompt')
-assert.ok(messages.some((m) => m.type === '_devdy_log' && /no tool access/.test(m.text)))
+assert.equal(messages.filter((m) => m.type === '_puppeteer_permission_request').length, 0, 'raised a permission prompt')
+assert.ok(messages.some((m) => m.type === '_puppeteer_log' && /no tool access/.test(m.text)))
 assert.equal(existsSync(marker), false, 'command approval was not declined')
 
 console.log('ok   tool-less session: no exec/MCP, read-only, approvals declined')

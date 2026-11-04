@@ -10,7 +10,7 @@
   "retry": "Retry",
   "empty": {
     "title": "Nothing to do yet",
-    "hint": "Create a todo here, or with “+ Todo” from a Slack thread, an issue, a PR or a session. Devdy ranks them by deadline, estimate and priority.",
+    "hint": "Create a todo here, or with “+ Todo” from a Slack thread, an issue, a PR or a session. Puppeteer ranks them by deadline, estimate and priority.",
     "filtered": "No todo matches the filters."
   },
   "buckets": {
@@ -215,7 +215,7 @@
     "noDays": "Pick at least one working day.",
     "reminders": {
       "title": "Reminders",
-      "hint": "macOS notifications while Devdy is running; several at once are grouped into one. Clicking one opens Focus on that todo.",
+      "hint": "macOS notifications while Puppeteer is running; several at once are grouped into one. Clicking one opens Focus on that todo.",
       "morningTime": "Morning summary at",
       "invalidMorning": "The morning summary time must be HH:MM.",
       "workHoursOnly": "Outside working hours and on days off, only reminders you set yourself are sent.",

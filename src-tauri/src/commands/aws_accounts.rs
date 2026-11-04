@@ -147,7 +147,7 @@ async fn validate_aws_identity(profile_name: &str, region: &str) -> Result<AwsVa
     // login PATH like the sidecar/ssh commands do.
     crate::runs::sidecar::augment_command_path(&mut cmd);
     // The app may have inherited a per-run AWS_CONFIG_FILE / credentials override
-    // (Devdy's sandbox writes a minimal one for run children). Force the CLI back
+    // (Puppeteer's sandbox writes a minimal one for run children). Force the CLI back
     // to the user's real ~/.aws config so `--profile` resolves against the same
     // file the profile picker reads.
     cmd.env_remove("AWS_CONFIG_FILE");

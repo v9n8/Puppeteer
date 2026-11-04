@@ -71,12 +71,12 @@ export function prKey(item: Pick<PrInboxItem, 'owner' | 'repo' | 'number'>): str
 }
 
 // Inbox view preferences — lasting reading choices, persisted like uiLayout's.
-const GROUP_BY_KEY = 'devdy.prInbox.groupBy'
-const HIDE_BOTS_KEY = 'devdy.prInbox.hideBots'
-const COLLAPSED_KEY = 'devdy.prInbox.collapsedGroups'
-const FILTERS_KEY = 'devdy.prInbox.filters'
-const DENSITY_KEY = 'devdy.prInbox.density'
-const BOT_LOGINS_KEY = 'devdy.prInbox.botLogins'
+const GROUP_BY_KEY = 'puppeteer.prInbox.groupBy'
+const HIDE_BOTS_KEY = 'puppeteer.prInbox.hideBots'
+const COLLAPSED_KEY = 'puppeteer.prInbox.collapsedGroups'
+const FILTERS_KEY = 'puppeteer.prInbox.filters'
+const DENSITY_KEY = 'puppeteer.prInbox.density'
+const BOT_LOGINS_KEY = 'puppeteer.prInbox.botLogins'
 
 /** Read + JSON-parse a stored value, or undefined when missing/corrupt. */
 function readJson(key: string): unknown {

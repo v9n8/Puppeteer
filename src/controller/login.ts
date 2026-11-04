@@ -105,7 +105,7 @@ export async function loginWithPassword(password: string, opts: LoginOptions = {
         return
       }
       if (env.t === 'error' && (env.code === 'pair_invalid' || env.code === 'room_not_found')) {
-        // Nobody listening: Devdy is offline, or no master password is set.
+        // Nobody listening: Puppeteer is offline, or no master password is set.
         finish(new LoginError('host_offline'))
         return
       }

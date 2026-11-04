@@ -68,7 +68,7 @@ export async function openPermissionWindow(
   const params = new URLSearchParams({ permissionWindow: '1', runId })
   const win = new WebviewWindow(label, {
     url: popoutUrl(`index.html?${params.toString()}`),
-    title: 'Permission — Devdy',
+    title: 'Permission — Puppeteer',
     width: PERMISSION_WINDOW_WIDTH,
     height: dock?.height ?? 640,
     minWidth: 360,

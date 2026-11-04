@@ -22,7 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.devdy/*
+.puppeteer/*
 .claude
 .vscode
 .codex
@@ -37,3 +37,5 @@ CLAUDE.md
 src-tauri/*.db
 src-tauri/*.db-shm
 src-tauri/*.db-wal
+# AWOG working files (drafts, throwaway scripts) — never part of a commit.
+.awog/scratch/

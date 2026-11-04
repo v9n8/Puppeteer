@@ -1,6 +1,6 @@
 name: build-macos-binary
 description: >-
-  Build the Devdy release binary (frontend embedded) for one macOS target,
+  Build the Puppeteer release binary (frontend embedded) for one macOS target,
   without bundling. Shared by release-macos.yml and the cache-warming job in
   ci.yml so both produce the exact same Rust cache key.
 

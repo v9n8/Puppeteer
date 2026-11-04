@@ -42,7 +42,7 @@ export interface RemoteStatus {
   session_authenticated: boolean
   /** Unix seconds at which the idle session token expires (sliding 3h). */
   session_idle_expires_at: number | null
-  /** Whether another Devdy is driving this one over remote-desktop IPC. */
+  /** Whether another Puppeteer is driving this one over remote-desktop IPC. */
   desktop_controlled: boolean
   /** Unix seconds at which that remote-desktop controller attached. */
   desktop_controlled_since: number | null

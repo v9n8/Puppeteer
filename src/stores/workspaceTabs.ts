@@ -12,7 +12,7 @@ export interface WorkspaceTab {
   lastRunId: string | null
 }
 
-const STORAGE_KEY = 'devdy.workspaceTabs'
+const STORAGE_KEY = 'puppeteer.workspaceTabs'
 
 function load(): WorkspaceTab[] {
   try {

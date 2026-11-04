@@ -1,5 +1,5 @@
 // Project-context helpers for the current run's working directory
-// (DEVDY_PROJECT_PATH): a bounded file tree and read-only git introspection.
+// (PUPPETEER_PROJECT_PATH): a bounded file tree and read-only git introspection.
 // Git calls shell out to the `git` binary with a hard timeout and never mutate.
 
 import fs from 'node:fs';
@@ -9,12 +9,12 @@ import { execFileSync } from 'node:child_process';
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'target', 'dist', 'build', '.next', '.nuxt',
   '.svelte-kit', 'vendor', '.venv', 'venv', '__pycache__', '.cache',
-  '.devdy', '.idea', '.vscode', 'coverage', '.turbo', 'out',
+  '.puppeteer', '.idea', '.vscode', 'coverage', '.turbo', 'out',
 ]);
 
 function projectRoot() {
-  const p = process.env.DEVDY_PROJECT_PATH;
-  if (!p) throw new Error('DEVDY_PROJECT_PATH is not set — no current project');
+  const p = process.env.PUPPETEER_PROJECT_PATH;
+  if (!p) throw new Error('PUPPETEER_PROJECT_PATH is not set — no current project');
   return p;
 }
 

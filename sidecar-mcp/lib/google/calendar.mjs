@@ -22,13 +22,13 @@ const sendUpdates = (a) => (a.notify ? 'all' : 'none');
  *  percent-encoded when used as a path component. */
 const calPath = (id) => enc(id || 'primary');
 
-/** Accounts connected before Devdy asked for the Calendar scopes get a 401/403
+/** Accounts connected before Puppeteer asked for the Calendar scopes get a 401/403
  *  from every call; say so instead of leaking a raw Google error. */
 function enrich(e) {
   const msg = String((e && e.message) || e);
   if (/→ 40[13]/.test(msg)) {
     return new Error(
-      `${msg}\nHint: this Google account may predate Devdy's Calendar scopes. Reconnect it in Devdy Settings → Google Account.`,
+      `${msg}\nHint: this Google account may predate Puppeteer's Calendar scopes. Reconnect it in Puppeteer Settings → Google Account.`,
     );
   }
   return e;
@@ -183,7 +183,7 @@ async function buildEvent(a) {
   if (a.add_meet) {
     body.conferenceData = {
       createRequest: {
-        requestId: `devdy-${process.pid}-${Date.now()}`,
+        requestId: `puppeteer-${process.pid}-${Date.now()}`,
         conferenceSolutionKey: { type: 'hangoutsMeet' },
       },
     };
@@ -196,7 +196,7 @@ const WRITE_QUERY = (a) => `conferenceDataVersion=1&sendUpdates=${sendUpdates(a)
 const NOTIFY_PROP = {
   type: 'boolean',
   description:
-    'Email the attendees about this change. Defaults to false — Devdy stays silent unless you explicitly ask to notify.',
+    'Email the attendees about this change. Defaults to false — Puppeteer stays silent unless you explicitly ask to notify.',
 };
 const CALENDAR_PROP = {
   type: 'string',

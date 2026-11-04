@@ -1,7 +1,7 @@
 //! One-shot `ps` snapshot of every process on the machine.
 //!
 //! The tracker identifies a process by `(pid, start stamp)` so a pid the OS
-//! recycled after a restart is never mistaken for one Devdy started. Reading
+//! recycled after a restart is never mistaken for one Puppeteer started. Reading
 //! other processes' environment (`ps -E`) is not possible on recent macOS, so
 //! descendants are found through the parent / process-group links sampled here.
 

@@ -1,18 +1,18 @@
-//! Mirroring externally-created Claude sessions into Devdy.
+//! Mirroring externally-created Claude sessions into Puppeteer.
 //!
-//! Devdy spawns the Claude Agent SDK, which reads/writes its conversation
+//! Puppeteer spawns the Claude Agent SDK, which reads/writes its conversation
 //! transcripts to the SAME store the `claude` CLI / VS Code extension use:
 //! `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`. That's why sessions
-//! started in Devdy show up in the CLI. This module does the reverse: it
+//! started in Puppeteer show up in the CLI. This module does the reverse: it
 //! discovers the transcripts living there for a project's working dir and mirrors
-//! each as a Devdy `session` run — automatically, via `reconcile_claude_sessions`
+//! each as a Puppeteer `session` run — automatically, via `reconcile_claude_sessions`
 //! (on project open) and the live `session_watcher` — so the user can read their
 //! history and continue them via the normal resume path (`resume_run`). There is
 //! no manual import step; the Codex counterpart works the same way.
 //!
 //! The transcript's `user` / `assistant` entries already carry the
-//! `{ type, message }` shape Devdy's stream-json renderer expects, so mirroring
-//! is mostly: filter to those lines, re-emit them into a `.devdy/runs/<id>.log`,
+//! `{ type, message }` shape Puppeteer's stream-json renderer expects, so mirroring
+//! is mostly: filter to those lines, re-emit them into a `.puppeteer/runs/<id>.log`,
 //! and create a run row pointing at the captured `session_id`.
 
 use crate::db::Db;
@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 /// Encode an absolute path the way Claude Code names its per-project session
 /// directory: every non-alphanumeric character becomes `-`
-/// (e.g. `/Users/x/Tools/devdy` → `-Users-x-Tools-devdy`).
+/// (e.g. `/Users/x/Tools/puppeteer` → `-Users-x-Tools-puppeteer`).
 pub(crate) fn encode_project_dir(path: &str) -> String {
     path.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
@@ -73,7 +73,7 @@ pub(crate) struct UsageTotals {
 
 /// Everything `import`/sync needs out of a native Claude transcript in one pass.
 pub(crate) struct ParsedTranscript {
-    /// Devdy stream-json log: one `{ type, message }` line per user/assistant
+    /// Puppeteer stream-json log: one `{ type, message }` line per user/assistant
     /// turn (sidechains skipped), which `parseStreamLog` renders directly.
     pub log: String,
     /// Resolved display title (ai-title, else first user message).
@@ -89,7 +89,7 @@ pub(crate) struct ParsedTranscript {
 /// conversation for `project_path` (e.g. an encoded-dir hash collision).
 ///
 /// The SDK / `claude` CLI / VS Code extension all write the SAME transcript, so
-/// this is the single reader Devdy uses to mirror externally-created or
+/// this is the single reader Puppeteer uses to mirror externally-created or
 /// externally-continued sessions back into its own run/log/usage model.
 pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<ParsedTranscript> {
     let raw = fs::read_to_string(file).ok()?;
@@ -262,7 +262,7 @@ fn file_size(path: &Path) -> Option<i64> {
     fs::metadata(path).ok().map(|m| m.len() as i64)
 }
 
-/// Result of mirroring one transcript into Devdy's run/log/usage model.
+/// Result of mirroring one transcript into Puppeteer's run/log/usage model.
 pub(crate) enum SyncOutcome {
     /// A new `session` run row was created for an externally-started session.
     Imported(String),
@@ -279,9 +279,9 @@ pub(crate) enum SyncOutcome {
 /// (the transcript carries no SDK `total_cost_usd`); `created_at` should be the
 /// transcript mtime so the row sorts with the session.
 ///
-/// For a run that originated in Devdy this *replaces* the live drain's accurate
+/// For a run that originated in Puppeteer this *replaces* the live drain's accurate
 /// per-turn cost rows with one estimated lump — the tradeoff for counting turns
-/// that were added outside Devdy, whose real cost the transcript never recorded.
+/// that were added outside Puppeteer, whose real cost the transcript never recorded.
 async fn sync_run_usage(
     db: &sqlx::SqlitePool,
     run_id: &str,
@@ -334,14 +334,14 @@ async fn sync_run_usage(
     .await;
 }
 
-/// Mirror a single session transcript into Devdy. Engine-agnostic core shared by
+/// Mirror a single session transcript into Puppeteer. Engine-agnostic core shared by
 /// Claude (`upsert_claude_session`) and Codex (`codex_sessions`). The caller
 /// resolves the engine's transcript `file` (it must exist) and supplies the
 /// engine's `parse` fn. This reconciles the shared transcript store with runs:
 /// - existing run for the session → refresh its rendered log on disk;
 /// - no run yet → import it as a `session` run (history + token usage);
 /// - the transcript was written by two-way sync → skip (it is already mirrored);
-/// - the session is owned by a *running* Devdy run → leave it to the live
+/// - the session is owned by a *running* Puppeteer run → leave it to the live
 ///   stream; and if any run in the project is still `running` we defer importing
 ///   *new* sessions, since that run may just not have captured its `session_id`
 ///   yet (avoids creating a duplicate of a live run).
@@ -362,7 +362,7 @@ pub(crate) async fn upsert_session_run_core(
 ) -> Result<SyncOutcome, String> {
     use sqlx::Row;
 
-    let runs_dir = Path::new(project_path).join(".devdy").join("runs");
+    let runs_dir = Path::new(project_path).join(".puppeteer").join("runs");
 
     // Was this session explicitly deleted? If so, never re-import it from the
     // lingering shared transcript — that's exactly the reappear-after-delete bug
@@ -404,7 +404,7 @@ pub(crate) async fn upsert_session_run_core(
             // are append-only, rebuild iff the size changed — exact, so a short
             // final tail written just after a previous sync is never missed.
             Some(s) => cur_size.is_some_and(|c| c != s),
-            // Never mirrored from a transcript before — e.g. a Devdy-native run
+            // Never mirrored from a transcript before — e.g. a Puppeteer-native run
             // whose richer log (result/cost summary, stderr) the drain wrote
             // directly. Keep the original guard so the engine's own finishing
             // write doesn't clobber it; a real external edit advances the
@@ -427,7 +427,7 @@ pub(crate) async fn upsert_session_run_core(
         fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
         fs::write(&conv_path, &parsed.log).map_err(|e| e.to_string())?;
         // Re-tally usage from the now-larger transcript so stats track the turns
-        // added outside Devdy. created_at = transcript mtime.
+        // added outside Puppeteer. created_at = transcript mtime.
         let created_at = file_modified_rfc3339(file);
         let created_at = if created_at.is_empty() {
             chrono::Utc::now().to_rfc3339()
@@ -436,12 +436,12 @@ pub(crate) async fn upsert_session_run_core(
         };
         sync_run_usage(db, &id, project_id, project_name, engine, &parsed, &created_at).await;
         // Remember where the transcript lives and how far we've mirrored it.
-        // The transcript grew, so the session WAS worked on — outside Devdy, in
+        // The transcript grew, so the session WAS worked on — outside Puppeteer, in
         // `claude`/`codex` at a terminal. Stamp last_activity_at with the
         // transcript mtime; without it those turns are invisible to the History
         // order and the session stays buried at its original created_at.
-        // Only when the transcript was written after Devdy's own last turn ended,
-        // though: the tail a Devdy turn flushes right before its sidecar exits is
+        // Only when the transcript was written after Puppeteer's own last turn ended,
+        // though: the tail a Puppeteer turn flushes right before its sidecar exits is
         // not user activity and must not reorder History.
         let external_work = finished_at
             .as_deref()
@@ -520,7 +520,7 @@ pub(crate) async fn upsert_session_run_core(
     .bind(&finished_at)
     .bind(&created_at)
     // last_activity_at = transcript mtime (not `finished_at`, which is merely
-    // when Devdy noticed the session): the import must sort where the work
+    // when Puppeteer noticed the session): the import must sort where the work
     // actually happened.
     .bind(&created_at)
     .bind(&parsed.title)
@@ -580,7 +580,7 @@ pub(crate) async fn upsert_claude_session(
     .await
 }
 
-/// Reconcile every Claude session stored for a project's working dir into Devdy
+/// Reconcile every Claude session stored for a project's working dir into Puppeteer
 /// runs — importing externally-created ones and refreshing existing ones. Called
 /// on project open (and by the live watcher) so the run list mirrors the shared
 /// transcript store. Returns the number of runs imported or refreshed.
@@ -649,7 +649,7 @@ mod tests {
 
     fn temp_file(name: &str, content: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("devdy_claude_test_{}_{}.jsonl", name, std::process::id()));
+        p.push(format!("puppeteer_claude_test_{}_{}.jsonl", name, std::process::id()));
         let mut f = fs::File::create(&p).unwrap();
         f.write_all(content.as_bytes()).unwrap();
         p

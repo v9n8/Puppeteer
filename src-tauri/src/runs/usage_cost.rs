@@ -2,7 +2,7 @@
 //!
 //! Since @anthropic-ai/claude-agent-sdk 0.3.288 every `result` event carries the
 //! session's RUNNING cost total — across turns, and across resumes (a resumed
-//! session continues from the total its transcript saved). Each Devdy turn is a
+//! session continues from the total its transcript saved). Each Puppeteer turn is a
 //! fresh resumed process, so summing those figures counts every earlier turn
 //! again. The ledger (`run_usage.cost_usd`) must stay per-turn because every
 //! consumer SUMs it, so a turn's cost is the difference from the previous

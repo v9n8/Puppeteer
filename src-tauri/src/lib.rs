@@ -56,7 +56,6 @@ use commands::gitlab_accounts::{
     update_gitlab_account, validate_gitlab_account,
 };
 use commands::health::health_check;
-use commands::mascot_speak::{cancel_mascot_speak, mascot_speak, MascotSpeakState};
 use commands::mcp::{
     create_mcp_server, delete_mcp_server, export_mcp_server, get_mcp_server, import_mcp_server,
     list_mcp_servers, list_project_builtin_mcp, list_project_mcp_servers, set_builtin_mcp_enabled,
@@ -184,7 +183,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
-        // Remote desktop: files of the controlled Devdy as URLs in a
+        // Remote desktop: files of the controlled Puppeteer as URLs in a
         // remote-desktop window (see remote::file_proxy).
         .register_asynchronous_uri_scheme_protocol(remote::file_proxy::SCHEME, remote::file_proxy::handle)
         .manage(remote::file_proxy::FileProxy::default())
@@ -211,7 +210,7 @@ pub fn run() {
             // Persist logs so the credential broker's audit trail and its
             // "broker unreachable / accept error" warnings are actually recorded.
             // Before this, no `tracing` subscriber was installed, so every
-            // `tracing::*` call (including `devdy::broker::audit`) was dropped and
+            // `tracing::*` call (including `puppeteer::broker::audit`) was dropped and
             // broker failures could not be diagnosed after the fact. Rolls daily;
             // override verbosity with RUST_LOG. The non-blocking worker guard is
             // parked in a process-lifetime static so the writer never shuts down
@@ -223,7 +222,7 @@ pub fn run() {
                 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
                 let logs_dir = app_data_dir.join("logs");
                 let _ = std::fs::create_dir_all(&logs_dir);
-                let file_appender = tracing_appender::rolling::daily(&logs_dir, "devdy.log");
+                let file_appender = tracing_appender::rolling::daily(&logs_dir, "puppeteer.log");
                 let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
                 let filter = tracing_subscriber::EnvFilter::try_from_default_env()
                     .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
@@ -249,10 +248,10 @@ pub fn run() {
                 });
             }
             // Background-process tracker: sweeps what a previous session left
-            // behind, then follows every process Devdy spawns from here on.
+            // behind, then follows every process Puppeteer spawns from here on.
             procs::commands::install(app, &app_data_dir);
             // Watch the shared Claude transcript store so sessions created or
-            // continued outside Devdy (claude CLI / VS Code) mirror in live.
+            // continued outside Puppeteer (claude CLI / VS Code) mirror in live.
             runs::session_watcher::start(db.clone(), app.handle().clone());
 
             // Materialize per-project AWS sandboxes for already-linked projects
@@ -281,7 +280,7 @@ pub fn run() {
                 db.clone(),
                 BrokerConfig {
                     // Tách socket theo build để bản dev và bản đã cài không
-                    // giành chung /tmp/devdy-broker/app.sock (start_broker xoá
+                    // giành chung /tmp/puppeteer-broker/app.sock (start_broker xoá
                     // socket cũ khi khởi động; nếu trùng label sẽ kill broker
                     // của bản kia khi chạy song song).
                     socket_label: if cfg!(debug_assertions) { "app-dev" } else { "app" }.to_string(),
@@ -320,7 +319,6 @@ pub fn run() {
             // Focus reminders (focus::scheduler): a 60 s tick while the app runs.
             focus::scheduler::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
             commands::secret_vault::spawn_auto_lock(app.handle().clone());
-            app.manage(MascotSpeakState::default());
             app.manage(BalanceGuard::default());
             app.manage(new_registry());
             app.manage(approvals);
@@ -337,13 +335,6 @@ pub fn run() {
                     // Restore ownership of any conductor sessions still running from
                     // before an app restart, then start the loopback MCP server.
                     let db_for_conductor = app_handle.state::<db::Db>().inner().clone();
-                    // Single session type: upgrade any legacy plain top-level run
-                    // to a conductor first (idempotent), so reconnect registers it.
-                    if let Err(e) =
-                        conductor::commands::migrate_legacy_sessions(&db_for_conductor).await
-                    {
-                        tracing::error!(event = "conductor_legacy_migration_failed", error = %e);
-                    }
                     conductor::commands::reconnect_running(&db_for_conductor, &conductor_state)
                         .await;
                     if let Err(e) =
@@ -650,8 +641,6 @@ pub fn run() {
             translate_text,
             cancel_translate,
             prewarm_translate,
-            mascot_speak,
-            cancel_mascot_speak,
             validate_claude_models,
             refresh_codex_models,
             get_model_caches,
@@ -806,9 +795,8 @@ pub fn run() {
         .run(|app_handle, event| {
             match event {
                 // Closing the MAIN window quits the whole app. On macOS this would
-                // otherwise leave the process alive because the frameless,
-                // always-on-top mascot pet (and any quick-create / gantt / file
-                // pop-outs) keep running — so the hidden sidecars never get killed.
+                // otherwise leave the process alive because pop-outs (quick-create /
+                // gantt / file viewer) keep running — so the hidden sidecars never get killed.
                 // Ask first when work is still running (see `procs::quit`), then
                 // close every auxiliary window and exit.
                 tauri::RunEvent::WindowEvent {
