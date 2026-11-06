@@ -332,7 +332,7 @@ watch(() => props.runId, () => {
           <p class="text-xs text-warning">
             {{ t('remote.session.cannotDeriveController') }}
           </p>
-          <pre class="rounded-md bg-muted/40 p-2 text-[11px] font-mono whitespace-pre-wrap break-all">{{ rawFields }}</pre>
+          <pre class="rounded-md bg-muted/40 p-2 text-2xs font-mono whitespace-pre-wrap break-all">{{ rawFields }}</pre>
           <Button variant="outline" size="sm" @click="copyLinkOrFields">
             <Check v-if="copied" class="h-3.5 w-3.5 text-success" :stroke-width="2" />
             <Copy v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -369,7 +369,7 @@ watch(() => props.runId, () => {
         <p class="text-center text-xs text-muted-foreground">
           {{ t('remote.session.phoneControlling') }}
         </p>
-        <p v-if="idleRemainingLabel" class="text-center text-[11px] text-muted-foreground">
+        <p v-if="idleRemainingLabel" class="text-center text-2xs text-muted-foreground">
           {{ t('remote.session.idleExpiry', { time: idleRemainingLabel }) }}
         </p>
         <Button variant="destructive" @click="stopControl">{{ t('remote.session.stopControl') }}</Button>

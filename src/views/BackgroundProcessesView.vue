@@ -219,8 +219,8 @@ const sections = computed(() => [
                 :class="s.warn ? 'bg-warning' : 'bg-primary'"
               />
               <span class="text-xs font-semibold">{{ s.title }}</span>
-              <span class="text-[11px] text-muted-foreground">({{ s.items.length }})</span>
-              <span v-if="s.hint" class="ml-2 truncate text-[11px] text-muted-foreground">{{ s.hint }}</span>
+              <span class="text-2xs text-muted-foreground">({{ s.items.length }})</span>
+              <span v-if="s.hint" class="ml-2 truncate text-2xs text-muted-foreground">{{ s.hint }}</span>
             </template>
             <ProcessEntryRow
               v-for="e in s.items"
@@ -251,8 +251,8 @@ const sections = computed(() => [
                 :stroke-width="2"
               />
               <span class="text-xs font-semibold">{{ t('processes.sections.services') }}</span>
-              <span class="text-[11px] text-muted-foreground">({{ groups.services.length }})</span>
-              <span class="ml-2 truncate text-[11px] text-muted-foreground">{{ t('processes.sections.servicesHint') }}</span>
+              <span class="text-2xs text-muted-foreground">({{ groups.services.length }})</span>
+              <span class="ml-2 truncate text-2xs text-muted-foreground">{{ t('processes.sections.servicesHint') }}</span>
             </button>
           </template>
           <template v-if="servicesOpen">

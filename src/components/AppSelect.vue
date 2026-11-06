@@ -266,7 +266,7 @@ watch(isOpen, (val) => {
           <li
             v-if="option.header"
             role="presentation"
-            class="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground select-none"
+            class="px-2 pt-2 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground select-none"
           >{{ option.label }}</li>
           <li
             v-else
@@ -293,7 +293,7 @@ watch(isOpen, (val) => {
             />
             <span class="flex min-w-0 flex-col">
               <span class="truncate">{{ option.label }}</span>
-              <span v-if="option.description" class="truncate text-[11px] leading-tight text-muted-foreground">
+              <span v-if="option.description" class="truncate text-2xs leading-tight text-muted-foreground">
                 {{ option.description }}
               </span>
             </span>

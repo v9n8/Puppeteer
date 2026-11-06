@@ -854,7 +854,7 @@ onMounted(async () => {
       class="app-titlebar flex items-center gap-2 h-11 px-3 shrink-0 bg-sidebar border-b border-border/50"
     >
       <img src="/logo.png" alt="Puppeteer" class="h-[18px] w-[18px] rounded shrink-0" />
-      <p class="text-[13px] font-semibold leading-none tracking-tight shrink-0">Puppeteer</p>
+      <p class="text-sm font-semibold leading-none tracking-tight shrink-0">Puppeteer</p>
       <div v-if="tabsStore.tabs.length > 0" class="h-4 w-px bg-border shrink-0 mx-1" aria-hidden="true" />
 
       <WorkspaceTabs />
@@ -973,14 +973,14 @@ onMounted(async () => {
                 <span class="flex-1 truncate">{{ item.label }}</span>
                 <span
                   v-if="item.path === '/focus' && focusStore.overdueCount > 0"
-                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground leading-none"
+                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-2xs font-medium text-destructive-foreground leading-none"
                   :title="t('focus.buckets.overdue')"
                 >
                   {{ focusStore.overdueCount }}
                 </span>
                 <span
                   v-if="item.path === '/projects' && (projectsStore.conflicts.length + projectsStore.ruleConflicts.length) > 0"
-                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-[10px] font-medium text-warning-foreground leading-none"
+                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
                 >
                   {{ projectsStore.conflicts.length + projectsStore.ruleConflicts.length }}
                 </span>
@@ -996,7 +996,7 @@ onMounted(async () => {
 
           <!-- Version footer -->
           <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border/50">
-            <p v-if="appVersion" class="text-[10px] text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
+            <p v-if="appVersion" class="text-2xs text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
             <!-- This machine's Remote Control dot, or (remote-desktop window) the
                  link to the controlled Puppeteer; each hides itself elsewhere. -->
             <RemoteIndicator />

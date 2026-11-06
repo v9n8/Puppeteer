@@ -141,7 +141,7 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
 
         <template v-else>
           <section v-for="s in sections" :key="s.kind">
-            <h2 class="mt-4 mb-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <h2 class="mt-4 mb-1.5 px-0.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
               {{ s.label }}
             </h2>
             <div class="overflow-hidden rounded-xl border border-border bg-card">
@@ -152,7 +152,7 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
               >
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-medium">{{ t('controller.projectToggles.builtin') }}</p>
-                  <p class="truncate text-[11px] text-muted-foreground">
+                  <p class="truncate text-2xs text-muted-foreground">
                     {{
                       current.builtin_puppeteer.global
                         ? t('controller.projectToggles.builtinGlobal')
@@ -182,7 +182,7 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
 
               <p
                 v-if="s.hint"
-                class="px-3 py-2 border-b border-border/60 last:border-b-0 text-[11px] text-muted-foreground"
+                class="px-3 py-2 border-b border-border/60 last:border-b-0 text-2xs text-muted-foreground"
               >
                 {{ s.hint }}
               </p>
@@ -194,7 +194,7 @@ function isDefaultAccount(item: ToggleItem | ClaudeAccountToggle): boolean {
               >
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-medium">{{ item.name }}</p>
-                  <p v-if="isDefaultAccount(item)" class="truncate text-[11px] text-muted-foreground">
+                  <p v-if="isDefaultAccount(item)" class="truncate text-2xs text-muted-foreground">
                     {{ t('controller.projectToggles.defaultAccount') }}
                   </p>
                 </div>

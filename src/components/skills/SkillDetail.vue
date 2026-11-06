@@ -362,7 +362,7 @@ defineExpose({ dirty, save })
         <DetailSection :title="t('skills.detail.details')" :hint="t('skills.detail.detailsHint')">
           <div class="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label class="block space-y-1">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('skills.detail.name') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('skills.detail.name') }}</span>
               <Input
                 :model-value="nameDraft"
                 class="font-mono"
@@ -371,11 +371,11 @@ defineExpose({ dirty, save })
               />
             </label>
             <label class="block space-y-1">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('skills.editor.target') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('skills.editor.target') }}</span>
               <AppSelect :model-value="fm.target || 'both'" :options="targetOptions" @update:model-value="setTarget" />
             </label>
             <label class="col-span-2 block space-y-1">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('skills.detail.description') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('skills.detail.description') }}</span>
               <Input
                 :model-value="descriptionDraft"
                 :placeholder="t('skills.detail.descriptionPlaceholder')"
@@ -393,7 +393,7 @@ defineExpose({ dirty, save })
             v-for="path in [SKILL_MD, ...files]"
             :key="path"
             type="button"
-            class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-1 font-mono text-[11px] transition-colors"
+            class="flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-1 font-mono text-2xs transition-colors"
             :class="activeFile === path
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'"
@@ -463,7 +463,7 @@ defineExpose({ dirty, save })
 
       <!-- Any other file: read-only. -->
       <div v-if="activeFile !== SKILL_MD" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex shrink-0 items-center gap-2 border-b border-border/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+        <div class="flex shrink-0 items-center gap-2 border-b border-border/40 px-3 py-1.5 text-2xs text-muted-foreground">
           <Badge tone="neutral" size="xs">{{ t('skills.detail.readOnly') }}</Badge>
           <span class="min-w-0 flex-1 truncate">{{ t('skills.detail.readOnlyHint') }}</span>
           <Button v-if="sourcePath" variant="outline" size="xs" @click="openFolder">

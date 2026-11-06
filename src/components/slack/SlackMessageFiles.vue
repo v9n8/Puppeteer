@@ -114,8 +114,8 @@ async function openFile(f: SlackFile) {
           <component :is="fileIcon(f)" class="h-4.5 w-4.5 text-muted-foreground" :stroke-width="1.5" />
         </span>
         <span class="min-w-0 flex-1">
-          <span class="block truncate text-[13px] font-medium text-foreground">{{ f.title || f.name }}</span>
-          <span class="block truncate text-[11px] text-muted-foreground">
+          <span class="block truncate text-sm font-medium text-foreground">{{ f.title || f.name }}</span>
+          <span class="block truncate text-2xs text-muted-foreground">
             <template v-if="f.downloadStatus === 'done'">
               {{ [f.filetype?.toUpperCase(), formatSize(f.size)].filter(Boolean).join(' · ') }}
             </template>
@@ -124,7 +124,7 @@ async function openFile(f: SlackFile) {
         </span>
         <span
           v-if="f.downloadStatus !== 'done' && f.permalink"
-          class="flex shrink-0 items-center gap-1 text-[11px] text-primary"
+          class="flex shrink-0 items-center gap-1 text-2xs text-primary"
         >
           <ExternalLink class="h-3 w-3" :stroke-width="1.75" />
           {{ t('slackThread.file.openInSlack') }}

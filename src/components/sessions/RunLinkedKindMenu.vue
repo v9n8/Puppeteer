@@ -88,14 +88,14 @@ function open(id: string) {
         <component :is="ICONS[kind]" class="h-3.5 w-3.5" :stroke-width="1.75" />
         <span
           v-if="count"
-          class="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold leading-none text-primary-foreground"
+          class="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-0.5 text-2xs font-semibold leading-none text-primary-foreground"
         >
           {{ count }}
         </span>
       </Button>
     </template>
     <div class="w-[22rem]">
-      <div class="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+      <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
         {{ heading }}
       </div>
       <div class="max-h-[22rem] overflow-y-auto">
@@ -109,14 +109,14 @@ function open(id: string) {
           >
             <Slack class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
             <span class="min-w-0 flex-1 truncate">{{ th.title || t('slackThread.untitled') }}</span>
-            <span v-if="channelOf(th)" class="flex shrink-0 items-center text-[11px] text-muted-foreground">
+            <span v-if="channelOf(th)" class="flex shrink-0 items-center text-2xs text-muted-foreground">
               <Hash class="h-3 w-3" :stroke-width="2" />{{ channelOf(th) }}
             </span>
           </DropdownItem>
         </template>
 
         <template v-else>
-          <p v-if="!items.length" class="px-2.5 py-1.5 text-[11px] text-muted-foreground" @click.stop>
+          <p v-if="!items.length" class="px-2.5 py-1.5 text-2xs text-muted-foreground" @click.stop>
             {{ kind === 'todo' ? t('sessionLink.emptyTodos') : t('sessionLink.emptyNotes') }}
           </p>
           <!-- Todos: checkbox state + first line -->
@@ -150,7 +150,7 @@ function open(id: string) {
               <StickyNote class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
               <span class="block min-w-0 flex-1">
                 <span class="block truncate">{{ itemLabel(n) }}</span>
-                <span v-if="notePreview(n)" class="block truncate text-[11px] text-muted-foreground">
+                <span v-if="notePreview(n)" class="block truncate text-2xs text-muted-foreground">
                   {{ notePreview(n) }}
                 </span>
               </span>

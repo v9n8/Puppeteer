@@ -110,7 +110,7 @@ watch(active, (i) => {
       <div class="max-h-72 overflow-y-auto">
         <p
           v-if="filtered.length === 0"
-          class="px-2.5 py-4 text-center text-[11px] text-muted-foreground"
+          class="px-2.5 py-4 text-center text-2xs text-muted-foreground"
           @click.stop
         >
           {{ t('item.noResults') }}
@@ -129,10 +129,10 @@ watch(active, (i) => {
         >
           <BookMarked class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
           <span class="block min-w-0 flex-1">
-            <span class="block w-full truncate text-[13px] text-popover-foreground">{{ promptLabel(p) }}</span>
+            <span class="block w-full truncate text-sm text-popover-foreground">{{ promptLabel(p) }}</span>
             <span
               v-if="preview(p)"
-              class="block w-full truncate text-[11px] text-muted-foreground"
+              class="block w-full truncate text-2xs text-muted-foreground"
             >{{ preview(p) }}</span>
           </span>
         </button>

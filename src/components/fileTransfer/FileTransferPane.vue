@@ -202,7 +202,7 @@ defineExpose({ dir, selectedEntries, refresh })
     @keydown="selectAll"
   >
     <div class="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3">
-      <span class="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{{ title }}</span>
+      <span class="truncate text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{{ title }}</span>
       <div class="flex shrink-0 items-center gap-0.5">
         <Button variant="ghost" size="icon-xs" :title="t('fileTransfer.up')" :aria-label="t('fileTransfer.up')" :disabled="!parentDir(dir)" @click="goUp">
           <ArrowUp class="h-3.5 w-3.5" />
@@ -239,7 +239,7 @@ defineExpose({ dir, selectedEntries, refresh })
       </div>
     </div>
 
-    <nav class="flex min-h-8 shrink-0 flex-wrap items-center gap-0.5 border-b border-border/60 px-2 py-1 font-mono text-[11px]">
+    <nav class="flex min-h-8 shrink-0 flex-wrap items-center gap-0.5 border-b border-border/60 px-2 py-1 font-mono text-2xs">
       <template v-for="(c, i) in crumbs" :key="c.path">
         <span v-if="i > 1" class="text-muted-foreground/60">/</span>
         <button
@@ -254,11 +254,11 @@ defineExpose({ dir, selectedEntries, refresh })
     </nav>
 
     <p v-if="error" class="whitespace-pre-line break-all px-3 pt-2 text-xs text-destructive">{{ error }}</p>
-    <p v-else-if="truncated" class="px-3 pt-2 text-[11px] text-warning">
+    <p v-else-if="truncated" class="px-3 pt-2 text-2xs text-warning">
       {{ t('fileTransfer.truncated', { count: entries.length }) }}
     </p>
 
-    <div class="flex shrink-0 items-center gap-2 px-3.5 pb-1 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+    <div class="flex shrink-0 items-center gap-2 px-3.5 pb-1 pt-2 text-2xs uppercase tracking-wide text-muted-foreground/70">
       <span class="flex-1">{{ t('fileTransfer.colName') }}</span>
       <span class="w-20 text-right">{{ t('fileTransfer.colSize') }}</span>
       <span class="w-36 text-right">{{ t('fileTransfer.colModified') }}</span>

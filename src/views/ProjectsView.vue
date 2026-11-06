@@ -512,9 +512,9 @@ async function handleOpenInFolder(project: { path: string }) {
                 </label>
                 <span
                   v-if="pendingRepos.length"
-                  class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                  class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
                 >{{ pendingRepos.length }}</span>
-                <span v-if="pending.repos.length > 0" class="text-[10px] text-success font-medium">
+                <span v-if="pending.repos.length > 0" class="text-2xs text-success font-medium">
                   {{ t('projects.autoDetected', { count: pending.repos.length }) }}
                 </span>
               </div>
@@ -546,7 +546,7 @@ async function handleOpenInFolder(project: { path: string }) {
                 <!-- Parsed preview: what will be added -->
                 <div
                   v-if="parsedRepo"
-                  class="flex items-center gap-1.5 flex-wrap text-[11px] px-0.5"
+                  class="flex items-center gap-1.5 flex-wrap text-2xs px-0.5"
                 >
                   <Badge :tone="parsedRepo.provider === 'gitlab' ? 'warning' : 'info'" size="xs">
                     <component :is="parsedRepo.provider === 'gitlab' ? Gitlab : Github" class="h-2.5 w-2.5" :stroke-width="2" />
@@ -562,7 +562,7 @@ async function handleOpenInFolder(project: { path: string }) {
                 </div>
 
                 <!-- Invalid URL hint -->
-                <p v-else-if="repoUrlInvalid" class="text-[11px] text-muted-foreground px-0.5">
+                <p v-else-if="repoUrlInvalid" class="text-2xs text-muted-foreground px-0.5">
                   {{ t('projects.repoUrlHint') }}
                 </p>
               </div>
@@ -581,7 +581,7 @@ async function handleOpenInFolder(project: { path: string }) {
                   />
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-medium truncate">{{ repo.name }}</p>
-                    <p class="text-[11px] text-muted-foreground font-mono truncate">{{ repoCoords(repo) }}</p>
+                    <p class="text-2xs text-muted-foreground font-mono truncate">{{ repoCoords(repo) }}</p>
                   </div>
                   <Button
                     variant="destructive-ghost"
@@ -595,7 +595,7 @@ async function handleOpenInFolder(project: { path: string }) {
                 </div>
               </div>
 
-              <p v-else class="text-[11px] text-muted-foreground text-center py-2">
+              <p v-else class="text-2xs text-muted-foreground text-center py-2">
                 {{ t('projects.noReposHint') }}
               </p>
             </div>

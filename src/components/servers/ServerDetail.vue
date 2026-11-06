@@ -276,7 +276,7 @@ async function copySsh() {
   }
 }
 
-const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase tracking-wider'
+const labelClass = 'text-2xs font-medium text-muted-foreground uppercase tracking-wider'
 </script>
 
 <template>
@@ -317,24 +317,24 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
           <div class="space-y-1.5">
             <label :class="labelClass">{{ t('servers.editor.label') }}</label>
             <Input v-model="label" size="sm" :placeholder="t('servers.editor.labelPlaceholder')" />
-            <p v-if="fieldError('label')" class="text-[11px] text-destructive">{{ fieldError('label') }}</p>
+            <p v-if="fieldError('label')" class="text-2xs text-destructive">{{ fieldError('label') }}</p>
           </div>
           <div class="flex gap-3">
             <div class="flex-1 space-y-1.5">
               <label :class="labelClass">{{ t('servers.editor.host') }}</label>
               <Input v-model="host" size="sm" :placeholder="t('servers.editor.hostPlaceholder')" class="font-mono" />
-              <p v-if="fieldError('host')" class="text-[11px] text-destructive">{{ fieldError('host') }}</p>
+              <p v-if="fieldError('host')" class="text-2xs text-destructive">{{ fieldError('host') }}</p>
             </div>
             <div class="w-24 space-y-1.5">
               <label :class="labelClass">{{ t('servers.editor.port') }}</label>
               <Input v-model="port" size="sm" type="number" placeholder="22" class="font-mono" />
             </div>
           </div>
-          <p v-if="fieldError('port')" class="-mt-1.5 text-[11px] text-destructive">{{ fieldError('port') }}</p>
+          <p v-if="fieldError('port')" class="-mt-1.5 text-2xs text-destructive">{{ fieldError('port') }}</p>
           <div class="space-y-1.5">
             <label :class="labelClass">{{ t('servers.editor.username') }}</label>
             <Input v-model="username" size="sm" :placeholder="t('servers.editor.usernamePlaceholder')" class="font-mono" />
-            <p v-if="fieldError('username')" class="text-[11px] text-destructive">{{ fieldError('username') }}</p>
+            <p v-if="fieldError('username')" class="text-2xs text-destructive">{{ fieldError('username') }}</p>
           </div>
         </DetailSection>
 
@@ -342,7 +342,7 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
         <DetailSection :title="t('servers.editor.authentication')">
           <div class="space-y-1.5">
             <SegmentedControl v-model="authMethod" :options="authOptions" class="max-w-md" />
-            <p v-if="!isKey" class="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <p v-if="!isKey" class="flex items-center gap-1 text-2xs text-muted-foreground">
               <AlertCircle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
               {{ t('servers.editor.agentHint') }}
             </p>
@@ -359,7 +359,7 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
                 </div>
                 <span
                   v-if="privateKeyName"
-                  class="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                  class="shrink-0 rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground"
                 >
                   {{ privateKeyStateLabel }}
                 </span>
@@ -378,8 +378,8 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
                 <X class="h-3.5 w-3.5" :stroke-width="1.75" />
               </Button>
             </div>
-            <p v-if="fieldError('key')" class="text-[11px] text-destructive">{{ fieldError('key') }}</p>
-            <p class="text-[10px] text-muted-foreground">
+            <p v-if="fieldError('key')" class="text-2xs text-destructive">{{ fieldError('key') }}</p>
+            <p class="text-2xs text-muted-foreground">
               {{ t('servers.editor.keyCopiedHint') }}
             </p>
           </div>
@@ -392,7 +392,7 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
               :placeholder="hasStoredPassphrase ? t('servers.editor.passphraseUnchanged') : t('servers.editor.passphraseOptional')"
               class="font-mono"
             />
-            <p class="text-[10px] text-muted-foreground">
+            <p class="text-2xs text-muted-foreground">
               {{ t('servers.editor.passphraseHint') }}
             </p>
           </div>
@@ -406,7 +406,7 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
             <span
               v-for="tag in tags"
               :key="tag"
-              class="flex items-center gap-0.5 rounded bg-muted py-0.5 pl-1.5 pr-0.5 text-[11px]"
+              class="flex items-center gap-0.5 rounded bg-muted py-0.5 pl-1.5 pr-0.5 text-2xs"
             >
               {{ tag }}
               <button
@@ -435,7 +435,7 @@ const labelClass = 'text-[11px] font-medium text-muted-foreground uppercase trac
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <div class="text-xs font-medium">{{ t('servers.detail.lastTest') }}</div>
-              <p class="text-[11px] text-muted-foreground">
+              <p class="text-2xs text-muted-foreground">
                 {{ isNew ? t('servers.editor.saveFirstThenTest') : testing ? t('servers.editor.testing') : testResult ? t('servers.detail.testHint') : t('servers.detail.notTested') }}
               </p>
             </div>

@@ -114,7 +114,7 @@ function toggleRecovery() {
       >
         {{ recoveryKey }}
       </p>
-      <p class="mt-2 text-[11px] text-warning">{{ t('secretNotes.recovery.warning') }}</p>
+      <p class="mt-2 text-2xs text-warning">{{ t('secretNotes.recovery.warning') }}</p>
       <Button size="sm" class="mt-4" @click="emit('ackRecovery')">{{ t('secretNotes.recovery.done') }}</Button>
     </div>
 
@@ -125,13 +125,13 @@ function toggleRecovery() {
       </div>
       <h2 class="text-sm font-semibold">{{ t('secretNotes.setup.title') }}</h2>
       <p class="mt-1 text-xs text-muted-foreground">{{ t('secretNotes.setup.help') }}</p>
-      <p v-if="status.pending_count" class="mt-2 text-[11px] text-warning">
+      <p v-if="status.pending_count" class="mt-2 text-2xs text-warning">
         {{ t('secretNotes.pending', { n: status.pending_count }) }}
       </p>
       <div class="mt-4 space-y-2 text-left">
         <Input v-model="setupPw" type="password" autocomplete="new-password" :placeholder="t('secretNotes.setup.password')" />
         <Input v-model="setupPw2" type="password" autocomplete="new-password" :placeholder="t('secretNotes.setup.confirm')" />
-        <p v-if="setupProblem" class="text-[11px] text-destructive">{{ t(`secretNotes.password.${setupProblem}`) }}</p>
+        <p v-if="setupProblem" class="text-2xs text-destructive">{{ t(`secretNotes.password.${setupProblem}`) }}</p>
       </div>
       <Button type="submit" size="sm" class="mt-3 w-full" :disabled="settingUp || !!passwordProblem(setupPw, setupPw2)">
         <component
@@ -170,7 +170,7 @@ function toggleRecovery() {
           class="font-mono"
           :placeholder="t('secretNotes.unlock.recovery')"
         />
-        <p v-if="unlockError" class="text-[11px] text-destructive">{{ unlockError }}</p>
+        <p v-if="unlockError" class="text-2xs text-destructive">{{ unlockError }}</p>
       </div>
       <Button
         type="submit"
@@ -189,7 +189,7 @@ function toggleRecovery() {
       <button
         v-if="status.has_recovery"
         type="button"
-        class="mt-3 cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        class="mt-3 cursor-pointer text-2xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         @click="toggleRecovery"
       >
         {{ useRecovery ? t('secretNotes.unlock.usePassword') : t('secretNotes.unlock.useRecovery') }}

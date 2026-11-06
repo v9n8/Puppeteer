@@ -181,7 +181,7 @@ const CHIP_TONES: Record<string, string> = {
 
       <template v-else-if="tab === 'active'">
         <section v-for="g in groups" :key="g.key" class="mb-3">
-          <h2 class="mb-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <h2 class="mb-1.5 px-0.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
             {{ t(`controller.todo.groups.${g.key}`) }}
           </h2>
           <div class="overflow-hidden rounded-xl border border-border bg-card">
@@ -208,14 +208,14 @@ const CHIP_TONES: Record<string, string> = {
                 >
                   <span
                     v-if="dueChip(todo)"
-                    class="rounded-full border px-1.5 py-px text-[10px]"
+                    class="rounded-full border px-1.5 py-px text-2xs"
                     :class="CHIP_TONES[dueChip(todo)!.tone]"
                   >
                     {{ dueChip(todo)!.label }}
                   </span>
                   <span
                     v-if="todo.project_id && projectNames.get(todo.project_id)"
-                    class="rounded-full border px-1.5 py-px text-[10px]"
+                    class="rounded-full border px-1.5 py-px text-2xs"
                     :class="CHIP_TONES.muted"
                   >
                     {{ projectNames.get(todo.project_id) }}
@@ -235,7 +235,7 @@ const CHIP_TONES: Record<string, string> = {
           @click="emit('open', todo)"
         >
           <button
-            class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 border-success bg-success text-[11px] font-black text-success-foreground cursor-pointer"
+            class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 border-success bg-success text-2xs font-black text-success-foreground cursor-pointer"
             :title="t('controller.todo.markOpen')"
             :aria-label="t('controller.todo.markOpen')"
             @click.stop="emit('toggle', todo.id)"
@@ -245,7 +245,7 @@ const CHIP_TONES: Record<string, string> = {
           <div class="min-w-0 flex-1">
             <p class="text-sm text-muted-foreground line-through break-words">{{ splitTodoText(todo.text).title }}</p>
             <div v-if="todo.project_id && projectNames.get(todo.project_id)" class="mt-1 flex flex-wrap gap-1">
-              <span class="rounded-full border px-1.5 py-px text-[10px]" :class="CHIP_TONES.muted">
+              <span class="rounded-full border px-1.5 py-px text-2xs" :class="CHIP_TONES.muted">
                 {{ projectNames.get(todo.project_id) }}
               </span>
             </div>

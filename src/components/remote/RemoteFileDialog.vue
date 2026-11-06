@@ -224,9 +224,9 @@ onMounted(async () => {
           @keydown.enter="navigate(pathInput.trim())"
         />
       </div>
-      <p class="px-3 pt-2 text-[11px] text-muted-foreground">{{ t('remoteFiles.hint') }}</p>
+      <p class="px-3 pt-2 text-2xs text-muted-foreground">{{ t('remoteFiles.hint') }}</p>
       <p v-if="error" class="px-3 pt-1 text-xs text-destructive break-all">{{ error }}</p>
-      <p v-else-if="truncated" class="px-3 pt-1 text-[11px] text-warning">
+      <p v-else-if="truncated" class="px-3 pt-1 text-2xs text-warning">
         {{ t('remoteFiles.truncated', { count: entries.length }) }}
       </p>
       <div ref="listEl" class="flex-1 min-h-0 overflow-auto px-1.5 py-1.5">
@@ -269,7 +269,7 @@ onMounted(async () => {
           size="sm"
           class="w-56 shrink-0"
         />
-        <span v-if="existingSaveTarget" class="text-[11px] text-warning shrink-0">{{ t('remoteFiles.willReplace') }}</span>
+        <span v-if="existingSaveTarget" class="text-2xs text-warning shrink-0">{{ t('remoteFiles.willReplace') }}</span>
       </div>
       <Button variant="ghost" @click="cancel">{{ mode === 'browse' ? t('common.close') : t('common.cancel') }}</Button>
       <Button :disabled="!canConfirm" @click="confirm">

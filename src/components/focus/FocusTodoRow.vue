@@ -107,25 +107,25 @@ const DUE_TONE = {
       </button>
       <span
         v-if="!hideProject && project"
-        class="max-w-28 shrink-0 truncate rounded border px-1.5 py-px text-[10px] font-medium"
+        class="max-w-28 shrink-0 truncate rounded border px-1.5 py-px text-2xs font-medium"
         :style="chipStyle"
       >{{ project.name }}</span>
       <Play v-if="doing && layout === 'row'" class="h-3 w-3 shrink-0 text-primary" :stroke-width="2" :aria-label="t('focus.status.doing')" />
       <span
-        class="min-w-0 truncate text-[13px]"
+        class="min-w-0 truncate text-sm"
         :class="[isDone ? 'text-muted-foreground line-through' : '', layout === 'row' ? 'flex-1' : 'flex-1 font-medium']"
       >{{ title }}</span>
     </div>
 
     <!-- Meta: due · estimate · P1 · source · sessions -->
-    <div class="flex shrink-0 items-center gap-2 text-[11px]" :class="layout === 'card' ? 'flex-wrap pl-6' : ''">
+    <div class="flex shrink-0 items-center gap-2 text-2xs" :class="layout === 'card' ? 'flex-wrap pl-6' : ''">
       <span v-if="due" class="whitespace-nowrap" :class="DUE_TONE[due.tone]">{{ due.text }}</span>
       <span
         class="whitespace-nowrap tabular-nums text-muted-foreground"
         :class="item.estimate_missing ? 'opacity-70' : ''"
         :title="estimateTitle"
       >~{{ estimate }}<span v-if="item.estimate_missing" class="text-warning">?</span></span>
-      <span v-if="todo.priority === 1" class="rounded bg-destructive px-1 py-px text-[9px] font-bold text-destructive-foreground">P1</span>
+      <span v-if="todo.priority === 1" class="rounded bg-destructive px-1 py-px text-2xs font-bold text-destructive-foreground">P1</span>
       <button
         v-if="todo.source_url"
         type="button"
@@ -135,7 +135,7 @@ const DUE_TONE = {
         @click.stop="actions.openSource(todo)"
       >
         <component :is="SOURCE_ICON[todo.source_type ?? 'url']" class="h-3 w-3" :stroke-width="1.75" />
-        <span v-if="sourceLabel" class="font-mono text-[10px]">{{ sourceLabel }}</span>
+        <span v-if="sourceLabel" class="font-mono text-2xs">{{ sourceLabel }}</span>
       </button>
       <span
         v-if="todo.linked_run_count > 0"

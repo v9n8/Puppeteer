@@ -1082,19 +1082,19 @@ watch(() => settings.value.language, (v) => {
           <span class="truncate">{{ t(s.labelKey) }}</span>
           <span
             v-if="s.id === 'github' && ghCount"
-            class="ml-auto text-[10px] tabular-nums text-muted-foreground"
+            class="ml-auto text-2xs tabular-nums text-muted-foreground"
           >{{ ghCount }}</span>
           <span
             v-if="s.id === 'gitlab' && glCount"
-            class="ml-auto text-[10px] tabular-nums text-muted-foreground"
+            class="ml-auto text-2xs tabular-nums text-muted-foreground"
           >{{ glCount }}</span>
           <span
             v-if="s.id === 'aws' && awsCount"
-            class="ml-auto text-[10px] tabular-nums text-muted-foreground"
+            class="ml-auto text-2xs tabular-nums text-muted-foreground"
           >{{ awsCount }}</span>
           <span
             v-if="s.id === 'azure' && azureCount"
-            class="ml-auto text-[10px] tabular-nums text-muted-foreground"
+            class="ml-auto text-2xs tabular-nums text-muted-foreground"
           >{{ azureCount }}</span>
         </button>
       </nav>
@@ -1115,7 +1115,7 @@ watch(() => settings.value.language, (v) => {
             <span class="text-xs font-semibold">{{ t('settings.sections.general') }}</span>
           </template>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.language') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.language') }}</label>
               <AppSelect
                 size="sm"
                 v-model="settings.language"
@@ -1123,7 +1123,7 @@ watch(() => settings.value.language, (v) => {
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.theme') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.theme') }}</label>
               <AppSelect
                 size="sm"
                 v-model="settings.theme"
@@ -1135,12 +1135,12 @@ watch(() => settings.value.language, (v) => {
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.colorTheme') }}</label>
-              <p class="text-[11px] text-muted-foreground">{{ t('settings.general.colorThemeHint') }}</p>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.colorTheme') }}</label>
+              <p class="text-2xs text-muted-foreground">{{ t('settings.general.colorThemeHint') }}</p>
               <ColorThemePicker v-model="settings.color_theme" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.animatedBackground') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.animatedBackground') }}</label>
               <AppSelect
                 size="sm"
                 v-model="settings.animated_background"
@@ -1149,10 +1149,10 @@ watch(() => settings.value.language, (v) => {
                   { value: 'false', label: t('settings.general.off') },
                 ]"
               />
-              <p class="text-[11px] text-muted-foreground">{{ t('settings.general.animatedBackgroundHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t('settings.general.animatedBackgroundHint') }}</p>
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.terminalApp') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.terminalApp') }}</label>
               <AppSelect
                 size="sm"
                 v-model="settings.terminal_app"
@@ -1163,7 +1163,7 @@ watch(() => settings.value.language, (v) => {
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.quitPolicy') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.quitPolicy') }}</label>
               <AppSelect
                 size="sm"
                 v-model="settings.quit_background_policy"
@@ -1173,17 +1173,17 @@ watch(() => settings.value.language, (v) => {
                   { value: 'keep_leftovers', label: t('settings.general.quitPolicyKeep') },
                 ]"
               />
-              <p class="text-[11px] text-muted-foreground">{{ t('settings.general.quitPolicyHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t('settings.general.quitPolicyHint') }}</p>
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.launchAtLogin') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.launchAtLogin') }}</label>
               <AppSelect
                 size="sm"
                 :model-value="launchAtLogin"
                 :options="launchAtLoginOptions"
                 @update:model-value="(v) => setLaunchAtLogin(v as LaunchAtLogin)"
               />
-              <p class="text-[11px] text-muted-foreground">{{ t('settings.general.launchAtLoginHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t('settings.general.launchAtLoginHint') }}</p>
             </div>
         </Card>
 
@@ -1194,7 +1194,7 @@ watch(() => settings.value.language, (v) => {
             <span class="text-xs font-semibold">{{ t('settings.google.title') }}</span>
           </template>
 
-          <p class="text-[11px] text-muted-foreground leading-relaxed">
+          <p class="text-2xs text-muted-foreground leading-relaxed">
             {{ t('settings.google.intro') }}
           </p>
 
@@ -1217,9 +1217,9 @@ watch(() => settings.value.language, (v) => {
                     <div class="text-sm font-medium truncate flex items-center gap-1.5">
                       <CheckCircle2 class="h-3.5 w-3.5 text-success" :stroke-width="1.75" />
                       {{ acc.label }}
-                      <span v-if="acc.is_default" class="text-[10px] font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
+                      <span v-if="acc.is_default" class="text-2xs font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
                     </div>
-                    <div class="text-[11px] text-muted-foreground truncate">{{ acc.email || t('settings.google.driveGmail') }}</div>
+                    <div class="text-2xs text-muted-foreground truncate">{{ acc.email || t('settings.google.driveGmail') }}</div>
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
                     <Button
@@ -1272,7 +1272,7 @@ watch(() => settings.value.language, (v) => {
                 >
                   <span>{{ googleBusyAccount === acc.id ? t('settings.google.loggingIn') : t('settings.google.loginExpired') }}</span>
                 </Banner>
-                <p v-if="googleAccountError[acc.id]" class="text-[11px] text-destructive">{{ googleAccountError[acc.id] }}</p>
+                <p v-if="googleAccountError[acc.id]" class="text-2xs text-destructive">{{ googleAccountError[acc.id] }}</p>
               </template>
               <template v-else>
                 <div class="flex items-center gap-2">
@@ -1286,11 +1286,11 @@ watch(() => settings.value.language, (v) => {
 
           <!-- Add account -->
           <div class="border border-border/60 rounded-md p-3 space-y-2.5">
-            <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
               {{ googleAccounts.length ? t('settings.google.addAnother') : t('settings.google.connectAccount') }}
             </div>
 
-            <div v-if="googleHasClient && !showGoogleClientForm" class="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <div v-if="googleHasClient && !showGoogleClientForm" class="text-2xs text-muted-foreground flex items-center gap-1.5">
               <CheckCircle2 class="h-3.5 w-3.5 text-success" :stroke-width="1.75" />
               {{ t('settings.google.credsSaved') }}
             </div>
@@ -1298,21 +1298,21 @@ watch(() => settings.value.language, (v) => {
             <!-- Credential form (first time, or when changing creds) -->
             <template v-if="!googleHasClient || showGoogleClientForm">
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.clientId') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.clientId') }}</label>
                 <Input v-model="googleClientId" size="sm" placeholder="xxxxx.apps.googleusercontent.com" />
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.clientSecret') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.clientSecret') }}</label>
                 <Input v-model="googleClientSecret" type="password" size="sm" placeholder="GOCSPX-…" />
               </div>
             </template>
 
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.accountLabel') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.accountLabel') }}</label>
               <Input v-model="googleNewLabel" size="sm" :placeholder="t('settings.google.labelPlaceholder')" @keyup.enter="addGoogleAccount" />
             </div>
 
-            <div v-if="googleError" class="text-[11px] text-destructive flex items-start gap-1.5">
+            <div v-if="googleError" class="text-2xs text-destructive flex items-start gap-1.5">
               <AlertTriangle class="h-3.5 w-3.5 shrink-0 mt-0.5" :stroke-width="1.75" />
               <span>{{ googleError }}</span>
             </div>
@@ -1336,8 +1336,8 @@ watch(() => settings.value.language, (v) => {
           </div>
 
           <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
-            <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.availableTools') }}</div>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.availableTools') }}</div>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-muted-foreground">
               <span>📁 drive_list / search / read / download</span>
               <span>✏️ drive_create / upload / update / rename / move</span>
               <span>🗑️ drive_delete (permanent) · share / permissions</span>
@@ -1359,7 +1359,7 @@ watch(() => settings.value.language, (v) => {
             <Github class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
             <span class="text-xs font-semibold">{{ t('settings.github.title') }}</span>
           </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('settings.github.intro') }}
             </p>
 
@@ -1381,7 +1381,7 @@ watch(() => settings.value.language, (v) => {
                   <div class="flex items-center justify-between gap-2">
                     <div class="min-w-0">
                       <div class="text-sm font-medium truncate">{{ acc.label }}</div>
-                      <div class="text-[11px] text-muted-foreground truncate">
+                      <div class="text-2xs text-muted-foreground truncate">
                         <span v-if="acc.username">@{{ acc.username }}</span>
                         <span v-else>{{ t('settings.github.notValidated') }}</span>
                         <span v-if="acc.scopes.length" class="ml-1">· {{ acc.scopes.join(', ') }}</span>
@@ -1459,13 +1459,13 @@ watch(() => settings.value.language, (v) => {
                   </div>
                 </template>
 
-                <p v-if="accountError[acc.id]" class="text-[11px] text-destructive">{{ accountError[acc.id] }}</p>
+                <p v-if="accountError[acc.id]" class="text-2xs text-destructive">{{ accountError[acc.id] }}</p>
               </div>
             </div>
 
             <!-- Add account -->
             <div class="border-t border-border/60 pt-3 space-y-2">
-              <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.github.addAccount') }}</div>
+              <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.github.addAccount') }}</div>
               <Input
                 v-model="newLabel"
                 size="sm"
@@ -1488,7 +1488,7 @@ watch(() => settings.value.language, (v) => {
                   {{ adding ? t('settings.github.adding') : t('common.add') }}
                 </Button>
               </div>
-              <p v-if="addError" class="text-[11px] text-destructive">{{ addError }}</p>
+              <p v-if="addError" class="text-2xs text-destructive">{{ addError }}</p>
             </div>
         </Card>
 
@@ -1498,7 +1498,7 @@ watch(() => settings.value.language, (v) => {
             <Gitlab class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
             <span class="text-xs font-semibold">{{ t('settings.gitlab.title') }}</span>
           </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('settings.gitlab.intro') }}
             </p>
 
@@ -1520,7 +1520,7 @@ watch(() => settings.value.language, (v) => {
                   <div class="flex items-center justify-between gap-2">
                     <div class="min-w-0">
                       <div class="text-sm font-medium truncate">{{ acc.label }}</div>
-                      <div class="text-[11px] text-muted-foreground truncate">
+                      <div class="text-2xs text-muted-foreground truncate">
                         <span v-if="acc.username">@{{ acc.username }}</span>
                         <span v-else>{{ t('settings.gitlab.notValidated') }}</span>
                         <span v-if="acc.host" class="ml-1">· {{ acc.host }}</span>
@@ -1608,13 +1608,13 @@ watch(() => settings.value.language, (v) => {
                   </div>
                 </template>
 
-                <p v-if="glAccountError[acc.id]" class="text-[11px] text-destructive">{{ glAccountError[acc.id] }}</p>
+                <p v-if="glAccountError[acc.id]" class="text-2xs text-destructive">{{ glAccountError[acc.id] }}</p>
               </div>
             </div>
 
             <!-- Add account -->
             <div class="border-t border-border/60 pt-3 space-y-2">
-              <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.gitlab.addAccount') }}</div>
+              <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.gitlab.addAccount') }}</div>
               <Input
                 v-model="glNewLabel"
                 size="sm"
@@ -1647,7 +1647,7 @@ watch(() => settings.value.language, (v) => {
                   {{ glAdding ? t('settings.gitlab.adding') : t('common.add') }}
                 </Button>
               </div>
-              <p v-if="glAddError" class="text-[11px] text-destructive">{{ glAddError }}</p>
+              <p v-if="glAddError" class="text-2xs text-destructive">{{ glAddError }}</p>
             </div>
         </Card>
 
@@ -1657,7 +1657,7 @@ watch(() => settings.value.language, (v) => {
             <Cloud class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
             <span class="text-xs font-semibold">{{ t('settings.aws.title') }}</span>
           </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('settings.aws.intro') }}
             </p>
 
@@ -1678,7 +1678,7 @@ watch(() => settings.value.language, (v) => {
                   <div class="flex items-center justify-between gap-2">
                     <div class="min-w-0">
                       <div class="text-sm font-medium truncate">{{ acc.label }}</div>
-                      <div class="text-[11px] text-muted-foreground truncate">
+                      <div class="text-2xs text-muted-foreground truncate">
                         <span v-if="acc.profile_name" class="font-mono">{{ acc.profile_name }}</span>
                         <span> · {{ acc.region }}</span>
                         <span v-if="acc.account_id"> · {{ acc.account_id }}</span>
@@ -1758,20 +1758,20 @@ watch(() => settings.value.language, (v) => {
                   </div>
                 </template>
 
-                <p v-if="awsAccountError[acc.id]" class="text-[11px] text-destructive">{{ awsAccountError[acc.id] }}</p>
+                <p v-if="awsAccountError[acc.id]" class="text-2xs text-destructive">{{ awsAccountError[acc.id] }}</p>
               </div>
             </div>
 
             <!-- Add account: one-click from the local ~/.aws profiles -->
             <div class="border-t border-border/60 pt-3 space-y-2">
               <div class="flex items-center justify-between">
-                <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.aws.addFromProfile') }}</div>
+                <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.aws.addFromProfile') }}</div>
                 <Button variant="ghost" size="icon-sm" :title="t('common.refresh')" :aria-label="t('common.refresh')" :disabled="awsProfilesLoading" @click="loadAwsProfiles">
                   <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': awsProfilesLoading }" :stroke-width="1.75" />
                 </Button>
               </div>
-              <p v-if="awsProfilesLoading" class="text-[11px] text-muted-foreground">{{ t('common.loading') }}</p>
-              <p v-else-if="!addableAwsProfiles.length" class="text-[11px] text-muted-foreground">{{ t('settings.aws.profileAllAdded') }}</p>
+              <p v-if="awsProfilesLoading" class="text-2xs text-muted-foreground">{{ t('common.loading') }}</p>
+              <p v-else-if="!addableAwsProfiles.length" class="text-2xs text-muted-foreground">{{ t('settings.aws.profileAllAdded') }}</p>
               <div
                 v-for="p in addableAwsProfiles"
                 :key="p.name"
@@ -1779,7 +1779,7 @@ watch(() => settings.value.language, (v) => {
               >
                 <div class="min-w-0">
                   <div class="text-sm font-medium truncate font-mono">{{ p.name }}</div>
-                  <div class="text-[11px] text-muted-foreground truncate">{{ awsProfileCaption(p) }}</div>
+                  <div class="text-2xs text-muted-foreground truncate">{{ awsProfileCaption(p) }}</div>
                 </div>
                 <Button
                   v-if="awsSsoLoginProfile === p.name"
@@ -1801,7 +1801,7 @@ watch(() => settings.value.language, (v) => {
                   {{ awsAddingProfile === p.name ? t('settings.aws.adding') : t('common.add') }}
                 </Button>
               </div>
-              <p v-if="awsAddError" class="text-[11px] text-destructive">{{ awsAddError }}</p>
+              <p v-if="awsAddError" class="text-2xs text-destructive">{{ awsAddError }}</p>
             </div>
         </Card>
 
@@ -1814,7 +1814,7 @@ watch(() => settings.value.language, (v) => {
             <UserCircle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
             <span class="text-xs font-semibold">{{ t('settings.claude.title') }}</span>
           </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('settings.claude.intro') }}
             </p>
 
@@ -1838,13 +1838,13 @@ watch(() => settings.value.language, (v) => {
                         <span class="text-sm font-medium truncate">{{ acc.label }}</span>
                         <span
                           v-if="acc.is_default"
-                          class="inline-flex items-center gap-0.5 text-[10px] text-primary font-medium"
+                          class="inline-flex items-center gap-0.5 text-2xs text-primary font-medium"
                         >
                           <Star class="h-2.5 w-2.5" :stroke-width="2" fill="currentColor" />
                           {{ t('settings.claude.default') }}
                         </span>
                       </div>
-                      <div class="text-[11px] truncate" :class="claudeStatusTone(acc.status)">
+                      <div class="text-2xs truncate" :class="claudeStatusTone(acc.status)">
                         {{ t(`settings.claude.status.${acc.status}`) }}
                         <span v-if="claudeLoginWaiting[acc.id]" class="text-muted-foreground"> · {{ t('settings.claude.waitingLogin') }}</span>
                         <span v-if="acc.email" class="text-muted-foreground"> · {{ acc.email }}</span>
@@ -1922,7 +1922,7 @@ watch(() => settings.value.language, (v) => {
                   </div>
                   <div
                     v-if="claudeLoginWaiting[acc.id]"
-                    class="p-2 bg-muted/40 border border-border rounded-md text-[11px] space-y-1.5"
+                    class="p-2 bg-muted/40 border border-border rounded-md text-2xs space-y-1.5"
                   >
                     <p class="text-muted-foreground">{{ t('settings.claude.loginWaitingHint') }}</p>
                     <template v-if="claudeLoginUrl[acc.id]">
@@ -1987,7 +1987,7 @@ watch(() => settings.value.language, (v) => {
                   </div>
                 </template>
 
-                <p v-if="claudeAccountError[acc.id]" class="text-[11px] text-destructive">{{ claudeAccountError[acc.id] }}</p>
+                <p v-if="claudeAccountError[acc.id]" class="text-2xs text-destructive">{{ claudeAccountError[acc.id] }}</p>
               </div>
             </div>
 
@@ -1995,8 +1995,8 @@ watch(() => settings.value.language, (v) => {
             <div v-if="claudeStore.accounts.length > 1" class="border-t border-border/60 pt-3 space-y-3">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.claude.balance.title') }}</div>
-                  <p class="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{{ t('settings.claude.balance.hint') }}</p>
+                  <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.claude.balance.title') }}</div>
+                  <p class="text-2xs text-muted-foreground leading-relaxed mt-0.5">{{ t('settings.claude.balance.hint') }}</p>
                 </div>
                 <ToggleSwitch
                   size="md"
@@ -2008,11 +2008,11 @@ watch(() => settings.value.language, (v) => {
 
               <div v-if="settings.claude_auto_balance !== 'false'" class="grid grid-cols-2 gap-3">
                 <div class="space-y-1">
-                  <label class="text-[11px] text-muted-foreground">{{ t('settings.claude.balance.cooldown') }}</label>
+                  <label class="text-2xs text-muted-foreground">{{ t('settings.claude.balance.cooldown') }}</label>
                   <Input v-model="settings.claude_auto_balance_min_swap_minutes" type="number" min="0" max="1440" placeholder="10" />
                 </div>
                 <div class="space-y-1">
-                  <label class="text-[11px] text-muted-foreground">{{ t('settings.claude.balance.threshold') }}</label>
+                  <label class="text-2xs text-muted-foreground">{{ t('settings.claude.balance.threshold') }}</label>
                   <Input v-model="settings.claude_auto_balance_swap_threshold_pct" type="number" min="0" max="100" placeholder="10" />
                 </div>
               </div>
@@ -2033,8 +2033,8 @@ watch(() => settings.value.language, (v) => {
 
             <!-- Add account -->
             <div class="border-t border-border/60 pt-3 space-y-2">
-              <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.claude.addAccount') }}</div>
-              <p class="text-[11px] text-muted-foreground leading-relaxed">{{ t('settings.claude.addHint') }}</p>
+              <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.claude.addAccount') }}</div>
+              <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.claude.addHint') }}</p>
               <Input
                 v-model="claudeNewLabel"
                 size="sm"
@@ -2050,7 +2050,7 @@ watch(() => settings.value.language, (v) => {
                   {{ claudeAdding ? t('settings.aws.adding') : t('common.add') }}
                 </Button>
               </div>
-              <p v-if="claudeAddError" class="text-[11px] text-destructive">{{ claudeAddError }}</p>
+              <p v-if="claudeAddError" class="text-2xs text-destructive">{{ claudeAddError }}</p>
             </div>
         </Card>
 
@@ -2061,7 +2061,7 @@ watch(() => settings.value.language, (v) => {
             <span class="text-xs font-semibold">{{ t('settings.engine.title') }}</span>
           </template>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engine.claudePath') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engine.claudePath') }}</label>
               <Input
                 v-model="settings.claude_path"
                 size="sm"
@@ -2070,7 +2070,7 @@ watch(() => settings.value.language, (v) => {
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engine.codexPath') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engine.codexPath') }}</label>
               <Input
                 v-model="settings.codex_path"
                 size="sm"
@@ -2079,7 +2079,7 @@ watch(() => settings.value.language, (v) => {
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
                 {{ t('settings.engine.extraArgs') }}
                 <span class="normal-case font-normal text-muted-foreground ml-1">{{ t('settings.engine.extraArgsHint') }}</span>
               </label>
@@ -2103,10 +2103,10 @@ watch(() => settings.value.language, (v) => {
             <div class="space-y-4">
               <div class="flex items-center gap-1.5 text-muted-foreground">
                 <Cpu class="h-3 w-3" :stroke-width="1.75" />
-                <span class="text-[11px] font-semibold uppercase tracking-wider">{{ t('settings.ai.runDefaults') }}</span>
+                <span class="text-2xs font-semibold uppercase tracking-wider">{{ t('settings.ai.runDefaults') }}</span>
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEngine') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEngine') }}</label>
                 <AppSelect
                   size="sm"
                   v-model="settings.default_engine"
@@ -2118,9 +2118,9 @@ watch(() => settings.value.language, (v) => {
               </div>
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
                   <button
-                    class="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                    class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
                     :disabled="modelCatalog.validating"
                     :title="t('settings.ai.validateModelsTitle')"
                     @click="modelCatalog.validateClaude()"
@@ -2130,17 +2130,17 @@ watch(() => settings.value.language, (v) => {
                   </button>
                 </div>
                 <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
-                <p v-if="modelCatalog.validationError" class="text-[11px] text-warning">{{ t('settings.ai.validateError') }}</p>
-                <p v-else-if="modelCatalog.validating" class="text-[11px] text-muted-foreground">{{ t('settings.ai.validateRunning') }}</p>
-                <p v-else-if="modelCatalog.unsupportedModels.length" class="text-[11px] text-warning">{{ t('settings.ai.validateSomeFailed', { models: modelCatalog.unsupportedModels.join(', '), when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
-                <p v-else-if="modelCatalog.validationCheckedAt" class="text-[11px] text-muted-foreground">{{ t('settings.ai.validateAllOk', { when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
-                <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.ai.validateHint') }}</p>
+                <p v-if="modelCatalog.validationError" class="text-2xs text-warning">{{ t('settings.ai.validateError') }}</p>
+                <p v-else-if="modelCatalog.validating" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateRunning') }}</p>
+                <p v-else-if="modelCatalog.unsupportedModels.length" class="text-2xs text-warning">{{ t('settings.ai.validateSomeFailed', { models: modelCatalog.unsupportedModels.join(', '), when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
+                <p v-else-if="modelCatalog.validationCheckedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateAllOk', { when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
+                <p v-else class="text-2xs text-muted-foreground">{{ t('settings.ai.validateHint') }}</p>
               </div>
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
                   <button
-                    class="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                    class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
                     :disabled="modelCatalog.codexLoading"
                     :title="t('settings.ai.reloadCodexModelsTitle')"
                     @click="modelCatalog.refreshCodex()"
@@ -2150,12 +2150,12 @@ watch(() => settings.value.language, (v) => {
                   </button>
                 </div>
                 <AppSelect size="sm" v-model="settings.codex_model" :options="codexModelOptions" />
-                <p v-if="modelCatalog.codexError" class="text-[11px] text-warning">{{ t('settings.ai.modelsRefreshError') }}</p>
-                <p v-else-if="modelCatalog.codexRefreshedAt" class="text-[11px] text-muted-foreground">{{ t('settings.ai.modelsCached', { count: modelCatalog.codexModels.length, when: fmtRefreshed(modelCatalog.codexRefreshedAt) }) }}</p>
-                <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.ai.codexRefreshHint') }}</p>
+                <p v-if="modelCatalog.codexError" class="text-2xs text-warning">{{ t('settings.ai.modelsRefreshError') }}</p>
+                <p v-else-if="modelCatalog.codexRefreshedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.modelsCached', { count: modelCatalog.codexModels.length, when: fmtRefreshed(modelCatalog.codexRefreshedAt) }) }}</p>
+                <p v-else class="text-2xs text-muted-foreground">{{ t('settings.ai.codexRefreshHint') }}</p>
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <ShieldAlert class="h-3 w-3" :stroke-width="1.75" />{{ t('settings.ai.defaultPermissionMode') }}
                 </label>
                 <AppSelect
@@ -2169,7 +2169,7 @@ watch(() => settings.value.language, (v) => {
                     { value: 'bypassPermissions', label: t('settings.ai.permBypass') },
                   ]"
                 />
-                <p class="text-[11px] text-muted-foreground leading-relaxed">
+                <p class="text-2xs text-muted-foreground leading-relaxed">
                   {{ t('settings.ai.permissionHint') }}
                 </p>
               </div>
@@ -2181,13 +2181,13 @@ watch(() => settings.value.language, (v) => {
             <div class="space-y-4">
               <div class="flex items-center gap-1.5 text-muted-foreground">
                 <Sparkles class="h-3 w-3" :stroke-width="1.75" />
-                <span class="text-[11px] font-semibold uppercase tracking-wider">{{ t('settings.ai.translation') }}</span>
+                <span class="text-2xs font-semibold uppercase tracking-wider">{{ t('settings.ai.translation') }}</span>
               </div>
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
+              <p class="text-2xs text-muted-foreground leading-relaxed">
                 {{ t('settings.ai.translationHint') }}
               </p>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateEngine') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateEngine') }}</label>
                 <AppSelect
                   size="sm"
                   v-model="settings.translate_engine"
@@ -2198,16 +2198,16 @@ watch(() => settings.value.language, (v) => {
                 />
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateModel') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateModel') }}</label>
                 <AppSelect size="sm" v-model="settings.translate_model" :options="translateModelOptions" />
-                <p class="text-[11px] text-muted-foreground">{{ t('settings.ai.translateModelHint') }}</p>
+                <p class="text-2xs text-muted-foreground">{{ t('settings.ai.translateModelHint') }}</p>
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.targetLanguage') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.targetLanguage') }}</label>
                 <AppSelect size="sm" v-model="settings.translate_target_lang" :options="TRANSLATE_TARGET_OPTIONS" />
               </div>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translationStyle') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translationStyle') }}</label>
                 <AppSelect size="sm" v-model="settings.translate_style" :options="TRANSLATE_STYLE_OPTIONS" />
               </div>
             </div>
@@ -2224,21 +2224,21 @@ watch(() => settings.value.language, (v) => {
             <div class="space-y-3">
               <div>
                 <h3 class="text-xs font-semibold">{{ t('settings.usage.contextMeter') }}</h3>
-                <p class="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                <p class="text-2xs text-muted-foreground leading-relaxed mt-0.5">
                   {{ t('settings.usage.contextMeterHint') }}
                 </p>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.warnAt') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.warnAt') }}</label>
                   <Input v-model="settings.context_warn_percent" type="number" min="1" max="100" placeholder="80" />
                 </div>
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.limitOverride') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.limitOverride') }}</label>
                   <Input v-model="settings.context_limit_override" type="number" min="0" :placeholder="t('settings.usage.limitOverridePlaceholder')" />
                 </div>
               </div>
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
+              <p class="text-2xs text-muted-foreground leading-relaxed">
                 {{ t('settings.usage.limitOverrideHint') }}
               </p>
             </div>
@@ -2249,17 +2249,17 @@ watch(() => settings.value.language, (v) => {
             <div class="space-y-3">
               <div>
                 <h3 class="text-xs font-semibold">{{ t('settings.usage.budgetTitle') }}</h3>
-                <p class="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                <p class="text-2xs text-muted-foreground leading-relaxed mt-0.5">
                   {{ t('settings.usage.budgetHint') }}
                 </p>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.block5h') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.block5h') }}</label>
                   <Input v-model="settings.budget_5h_percent" type="number" min="1" max="100" :placeholder="t('settings.usage.emptyOff')" />
                 </div>
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.blockWeekly') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.usage.blockWeekly') }}</label>
                   <Input v-model="settings.budget_week_percent" type="number" min="1" max="100" :placeholder="t('settings.usage.emptyOff')" />
                 </div>
               </div>
@@ -2278,7 +2278,7 @@ watch(() => settings.value.language, (v) => {
               <div class="flex items-center justify-between gap-2">
                 <div class="space-y-0.5">
                   <h3 class="text-xs font-semibold text-foreground">{{ t('settings.prompts.library') }}</h3>
-                  <p class="text-[11px] text-muted-foreground">{{ t('settings.prompts.libraryHint') }}</p>
+                  <p class="text-2xs text-muted-foreground">{{ t('settings.prompts.libraryHint') }}</p>
                 </div>
                 <Button variant="outline" size="sm" class="shrink-0" @click="addSavedPrompt">
                   <Plus class="h-3.5 w-3.5" :stroke-width="2" />

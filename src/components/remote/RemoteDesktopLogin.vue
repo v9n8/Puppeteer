@@ -128,7 +128,7 @@ async function submit(): Promise<void> {
       </form>
 
       <p v-if="error" class="text-sm text-destructive text-center">{{ error }}</p>
-      <p class="text-[11px] leading-relaxed text-foreground/40 text-center">
+      <p class="text-2xs leading-relaxed text-foreground/40 text-center">
         <template v-if="relayUrl">{{ t('remote.desktop.login.relayVia', { url: relayUrl }) }}</template>
         <template v-else-if="!loadingRelay">{{ t('remote.desktop.login.noRelay') }}</template>
       </p>

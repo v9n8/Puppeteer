@@ -75,7 +75,7 @@ function onActualKey(e: KeyboardEvent) {
         :class="actualMin === undefined ? 'border-destructive' : ''"
         @keydown="onActualKey"
       />
-      <p v-if="actualMin === undefined" class="text-[11px] text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
+      <p v-if="actualMin === undefined" class="text-2xs text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
     </div>
     <template #footer>
       <Button variant="ghost" @click="closeActual">{{ t('focus.actual.skip') }}</Button>

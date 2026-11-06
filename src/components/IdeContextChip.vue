@@ -22,7 +22,7 @@ function baseName(path: string): string {
     <button
       v-for="(item, ii) in items"
       :key="ii"
-      class="group inline-flex items-center gap-1.5 max-w-full text-[11px] transition-colors"
+      class="group inline-flex items-center gap-1.5 max-w-full text-2xs transition-colors"
       :class="[
         item.path ? 'cursor-pointer' : 'cursor-default',
         variant === 'inside'
@@ -38,7 +38,7 @@ function baseName(path: string): string {
         class="h-3 w-3 shrink-0 opacity-60"
         :stroke-width="1.75"
       />
-      <span class="uppercase tracking-wide text-[9px] font-semibold opacity-70">{{
+      <span class="uppercase tracking-wide text-2xs font-semibold opacity-70">{{
         item.kind === 'selection' ? 'Selected' : 'Opened'
       }}</span>
       <span

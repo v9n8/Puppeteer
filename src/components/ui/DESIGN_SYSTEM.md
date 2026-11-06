@@ -10,6 +10,13 @@ Primitives live in `src/components/ui/` and are imported from `@/components/ui`.
 
 ### Colors (`src/assets/main.css`)
 
+The default theme is flat **Zinc + Indigo**, tuned for mid-range IPS monitors:
+neutral surfaces, one indigo accent, 1px hairline borders, no glass and no
+shadows on in-page surfaces (shadows only on popovers, menus, toasts, modals).
+Dark mode is charcoal (`#131315` page → `#1f1f23` card → `#27272c` popover),
+not deep navy, so the tiers stay apart on a panel with washed-out blacks.
+Measured pairs and the reviewed proposal: `docs/design/design-system-preview.html`.
+
 Use the semantic utilities — they follow light/dark mode and the color themes.
 
 | Purpose | Utility | Never |
@@ -18,6 +25,7 @@ Use the semantic utilities — they follow light/dark mode and the color themes.
 | Text | `text-foreground`, `text-muted-foreground` | `text-gray-*` |
 | Brand / selected | `primary` (`bg-primary`, `text-primary`, `bg-primary/15` for a selected row) | `indigo-*` |
 | Hover | `bg-accent` (`hover:bg-accent/50` for rows) | |
+| Field / outline-button border | `border-input` (`border-border` is the decorative hairline for cards, dividers, menus) | |
 | Error / delete | `destructive` | `red-*` |
 | Success / done / connected | `success` | `emerald-*`, `green-*` |
 | Warning / pending / overdue-soon | `warning` | `amber-*`, `yellow-*` |
@@ -29,7 +37,10 @@ Solid fills pair with their foreground: `bg-success text-success-foreground`,
 `bg-destructive text-destructive-foreground` (never `text-white` / `text-black`).
 Question / plan prompts and the "ok" segment of usage meters use `info` (fixed hue — `primary` changes per color theme and can collide with warning/destructive).
 
-Exceptions (raw palette is OK): `Badge` solid tones, charts/Gantt series colors,
+`dark:` variants follow the app's `.dark` class (`@custom-variant dark` in
+`main.css`), not the OS setting.
+
+Exceptions (raw palette is OK): `Badge` `info` tone (violet), charts/Gantt series colors,
 calendar event colors, decorations — data-driven palettes, not UI state.
 
 ### Radius
@@ -39,18 +50,19 @@ cards & floating toolbars · `rounded-full` dots, count pills, avatars.
 
 ### Typography scale
 
+`text-2xs` and `text-xs` are redefined in `main.css` (`@theme`) so nothing
+renders below 12px — smaller text breaks up on low-density IPS panels.
+
 | Size | Use |
 |---|---|
-| `text-[10px]` | count pills, Button `xs` text, micro labels, kbd hints |
-| `text-[11px]` | meta lines, hints under fields, list secondary text, segmented controls, banners |
-| `text-xs` (12px) | default UI text: form fields, Button `sm`, list content, menu items |
-| `text-[13px]` | list row titles that need slightly more weight than body |
-| `text-sm` (14px) | page titles (`PageHeader`), list row primary titles, body copy |
-| `text-[15px]` | detail-pane title (`DetailHeader`) |
+| `text-2xs` (12px) | the floor: badges, count pills, Button `xs` text, meta lines, hints under fields, list secondary text, segmented controls, banners, kbd hints |
+| `text-xs` (13px) | default UI text: form fields, Button `sm`, list content |
+| `text-sm` (14px) | page titles (`PageHeader`), list row primary titles, menu items, body copy |
+| `text-base` (16px) | detail-pane title (`DetailHeader`) |
 | `text-lg`+ | empty states / About only |
 
-`text-[9px]` is reserved for `Badge size="xs"`. Don't use `text-[12px]` / `text-[14px]`
-(use `text-xs` / `text-sm`).
+Never use arbitrary sizes (`text-[11px]`, `text-[13px]`…): pick a step from the
+table. Weights: 400 body, 500 labels/badges, 600 titles — no 300.
 
 ### Icons (lucide)
 
@@ -66,7 +78,7 @@ cards & floating toolbars · `rounded-full` dots, count pills, avatars.
 | Size | Height | Button | Input / AppSelect / DatePicker | Icon button |
 |---|---|---|---|---|
 | — | 24px `h-6` | — | — | `size="icon-xs"` (dense spots only) |
-| `xs` | 28px `h-7` | `size="xs"` (10px text) | `size="xs"` | `size="icon-sm"` |
+| `xs` | 28px `h-7` | `size="xs"` (12px text) | `size="xs"` | `size="icon-sm"` |
 | `sm` | 32px `h-8` | `size="sm"` (default) | `size="sm"` (default) | `size="icon"` |
 | `md` | 36px `h-9` | `size="md"` | `size="md"` | `size="icon-lg"` |
 
@@ -123,7 +135,7 @@ desktop `xs`/`icon-sm` sizes here.
 | `ControllerHeader` | h-12, px-3, title `text-base font-semibold` | header of every tab/editor |
 | `HeaderButton` | 32px, icon `h-4 w-4` | back / refresh / disconnect, plain icon buttons in the composer |
 | `FabButton` | 56px round, bottom-right | "+ new" on list tabs |
-| `BottomTabBar` | icon `h-5`, label `text-[10px]` | tab navigation |
+| `BottomTabBar` | icon `h-5`, label `text-2xs` | tab navigation |
 | `SearchField` | full width | top of list tabs |
 | Sheets (`ThemeSheet`, `PushSheet`) | scrim `bg-black/50`, `rounded-t-xl` panel | secondary settings |
 | List rows | `px-3 py-2.5`, whole row tappable, `border-b border-border/40` | inbox / runs / notes |

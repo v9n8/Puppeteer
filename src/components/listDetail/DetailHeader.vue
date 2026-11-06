@@ -43,7 +43,7 @@ function commit(value: string) {
         <slot name="leading" />
         <InlineRenameInput
           v-if="renaming"
-          class="w-full text-[15px] font-bold leading-snug"
+          class="w-full text-base font-bold leading-snug"
           :value="title"
           :placeholder="placeholder"
           @commit="commit"
@@ -51,7 +51,7 @@ function commit(value: string) {
         />
         <h1
           v-else
-          class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-[15px] font-bold leading-snug"
+          class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug"
           :class="[
             renamable && 'cursor-text transition-colors hover:bg-accent/50',
             !title && 'text-muted-foreground',

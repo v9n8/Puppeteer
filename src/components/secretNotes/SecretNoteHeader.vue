@@ -65,7 +65,7 @@ const metaTitle = computed(() => {
   <div class="flex shrink-0 items-center gap-3 border-b border-border/60 px-5 py-2.5">
     <div class="min-w-[6rem] flex-1">
       <h1
-        class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-[15px] font-bold leading-snug"
+        class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug"
         :class="note && !editing && 'cursor-text transition-colors hover:bg-accent/50'"
         :title="note && !editing ? `${heading}\n${t('item.editTitle')}` : heading"
         @click="note && !editing && emit('edit')"

@@ -61,7 +61,7 @@ const show = computed(() => props.tokens > 0 || !!fiveHourText.value)
 <template>
   <div
     v-if="show"
-    class="flex items-center gap-2 px-3 py-1.5 text-[10px] border-t border-border/60 bg-muted/20"
+    class="flex items-center gap-2 px-3 py-1.5 text-2xs border-t border-border/60 bg-muted/20"
   >
     <!-- Context-window meter -->
     <template v-if="tokens > 0">

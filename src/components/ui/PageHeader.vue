@@ -33,7 +33,7 @@ defineSlots<{
       </h1>
       <span
         v-if="count !== null && count !== undefined"
-        class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground"
+        class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-2xs font-medium text-muted-foreground"
         :title="countTitle"
       >
         {{ count }}

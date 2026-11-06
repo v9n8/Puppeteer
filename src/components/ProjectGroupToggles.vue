@@ -29,7 +29,7 @@ const { t } = useI18n()
       <span class="text-xs font-semibold">{{ t('groups.projectGroupsTitle') }}</span>
       <RouterLink
         :to="kind === 'skill' ? '/skills' : '/rules'"
-        class="ml-auto text-[11px] text-primary hover:underline"
+        class="ml-auto text-2xs text-primary hover:underline"
       >{{ t('projectDetail.manage') }}</RouterLink>
     </template>
 
@@ -51,15 +51,15 @@ const { t } = useI18n()
             </Badge>
             <button
               v-if="group.state === 'mixed' && group.member_count > 0"
-              class="text-[10px] text-primary hover:underline cursor-pointer"
+              class="text-2xs text-primary hover:underline cursor-pointer"
               :disabled="toggling === group.group_id"
               @click="emit('reapply', group)"
             >{{ t('groups.reapply') }}</button>
           </div>
-          <p v-if="group.member_count === 0" class="text-[10px] text-muted-foreground mt-0.5">
+          <p v-if="group.member_count === 0" class="text-2xs text-muted-foreground mt-0.5">
             {{ t('groups.groupEmptyHint') }}
           </p>
-          <p v-else-if="group.description" class="text-[10px] text-muted-foreground truncate mt-0.5">
+          <p v-else-if="group.description" class="text-2xs text-muted-foreground truncate mt-0.5">
             {{ group.description }}
           </p>
         </div>

@@ -146,7 +146,7 @@ const TEXT: Record<Row['tone'], string> = {
     <div
       v-for="r in rows"
       :key="r.key"
-      class="flex items-center gap-1 text-[10px] leading-none"
+      class="flex items-center gap-1 text-2xs leading-none"
     >
       <!-- The run in view executes with this account: a dot, not a colour, so it
            never competes with the warning/over tones. -->

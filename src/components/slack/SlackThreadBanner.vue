@@ -67,7 +67,7 @@ const errorDetail = computed(() => {
       class="rounded-none border-x-0 border-t-0 px-5 py-2 text-xs"
     >
       <p>{{ errorMessage }}</p>
-      <p v-if="errorDetail" class="mt-0.5 break-words font-mono text-[10px] text-muted-foreground">
+      <p v-if="errorDetail" class="mt-0.5 break-words font-mono text-2xs text-muted-foreground">
         {{ errorDetail }}
       </p>
       <template #actions>

@@ -123,10 +123,10 @@ async function push(blockId?: string) {
           </li>
         </ol>
         <p v-if="!plan.blocks.length" class="text-xs text-muted-foreground">{{ t('focus.plan.noBlocks') }}</p>
-        <p v-if="plan.dropped" class="text-[11px] text-muted-foreground">{{ t('focus.plan.dropped', { n: plan.dropped }, plan.dropped) }}</p>
+        <p v-if="plan.dropped" class="text-2xs text-muted-foreground">{{ t('focus.plan.dropped', { n: plan.dropped }, plan.dropped) }}</p>
 
         <section v-if="plan.deferred.length" class="space-y-1">
-          <h4 class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('focus.plan.deferred') }}</h4>
+          <h4 class="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('focus.plan.deferred') }}</h4>
           <button
             v-for="d in plan.deferred"
             :key="d.todo_id"
@@ -139,7 +139,7 @@ async function push(blockId?: string) {
           </button>
         </section>
 
-        <p class="text-[11px] text-muted-foreground">{{ t('focus.plan.createdAt', { time: stamp(plan.created_at) }) }}</p>
+        <p class="text-2xs text-muted-foreground">{{ t('focus.plan.createdAt', { time: stamp(plan.created_at) }) }}</p>
       </template>
     </div>
 

@@ -107,11 +107,11 @@ onMounted(load)
       <span class="text-xs font-semibold">{{ t('settings.inboxApi.title') }}</span>
     </template>
 
-    <p class="text-[11px] text-muted-foreground">{{ t('settings.inboxApi.help') }}</p>
+    <p class="text-2xs text-muted-foreground">{{ t('settings.inboxApi.help') }}</p>
 
     <div v-if="loading" class="h-24 animate-pulse rounded-md border border-border bg-card" />
 
-    <p v-else-if="error" class="text-[11px] text-destructive">{{ error }}</p>
+    <p v-else-if="error" class="text-2xs text-destructive">{{ error }}</p>
 
     <template v-else-if="info">
       <!-- Master on/off switch (same pattern as Remote Control settings). -->
@@ -120,7 +120,7 @@ onMounted(load)
       >
         <div class="min-w-0">
           <p class="text-sm font-medium text-foreground">{{ t('settings.inboxApi.enable') }}</p>
-          <p class="mt-0.5 text-[11px] text-muted-foreground">{{ t('settings.inboxApi.enableHint') }}</p>
+          <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('settings.inboxApi.enableHint') }}</p>
         </div>
         <ToggleSwitch
           size="md"
@@ -133,7 +133,7 @@ onMounted(load)
 
       <!-- Status -->
       <div class="space-y-1.5">
-        <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('settings.inboxApi.status') }}
         </label>
         <div class="flex items-center gap-2 text-xs">
@@ -166,11 +166,11 @@ onMounted(load)
       <template v-if="info.enabled">
         <!-- Base URL -->
         <div class="space-y-1.5">
-          <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
             {{ t('settings.inboxApi.baseUrl') }}
           </label>
           <div class="flex items-center gap-1.5">
-            <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-[11px]">
+            <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-2xs">
               {{ info.baseUrl || '—' }}
             </code>
             <Button
@@ -188,11 +188,11 @@ onMounted(load)
 
         <!-- Token -->
         <div class="space-y-1.5">
-          <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
             {{ t('settings.inboxApi.token') }}
           </label>
           <div class="flex items-center gap-1.5">
-            <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-[11px]">
+            <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-2xs">
               {{ maskedToken || '—' }}
             </code>
             <Button
@@ -226,12 +226,12 @@ onMounted(load)
               />
               {{ t('settings.inboxApi.regenerate') }}
             </Button>
-            <span class="text-[11px] text-muted-foreground">{{ t('settings.inboxApi.regenerateHint') }}</span>
+            <span class="text-2xs text-muted-foreground">{{ t('settings.inboxApi.regenerateHint') }}</span>
           </div>
         </div>
 
         <!-- How the extension uses it -->
-        <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5 text-[11px] text-muted-foreground">
+        <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5 text-2xs text-muted-foreground">
           <div class="font-medium uppercase tracking-wider">{{ t('settings.inboxApi.usage') }}</div>
           <code class="block whitespace-pre-wrap break-all font-mono">{{ endpoints }}
 Authorization: Bearer &lt;token&gt;

@@ -266,7 +266,7 @@ watch(
       <template v-for="(row, i) in rows" v-else :key="row.message.ts">
         <div
           v-if="i === firstNewIndex"
-          class="my-2 flex items-center gap-2 px-5 text-[11px] font-semibold text-destructive"
+          class="my-2 flex items-center gap-2 px-5 text-2xs font-semibold text-destructive"
         >
           <span class="h-px flex-1 bg-destructive/50" />
           {{ t('slackThread.message.newDivider') }}

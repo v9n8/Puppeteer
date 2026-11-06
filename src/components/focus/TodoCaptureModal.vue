@@ -84,7 +84,7 @@ function onKeydown(e: KeyboardEvent) {
         :placeholder="t('focus.capture.textPlaceholder')"
       />
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.project') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.capture.project') }}</label>
         <ProjectSelect v-model="projectId" variant="default" size="sm" />
       </div>
       <TodoMetaFields v-model="draft">
@@ -94,7 +94,7 @@ function onKeydown(e: KeyboardEvent) {
       </TodoMetaFields>
     </div>
     <template #footer>
-      <span class="mr-auto text-[11px] text-muted-foreground/70">⌘/Ctrl + Enter</span>
+      <span class="mr-auto text-2xs text-muted-foreground/70">⌘/Ctrl + Enter</span>
       <Button variant="ghost" @click="emit('close')">{{ t('common.cancel') }}</Button>
       <Button :disabled="!input || saving" @click="submit">{{ t('focus.capture.save') }}</Button>
     </template>

@@ -159,7 +159,7 @@ defineExpose({ submit, canSubmit, saving, focus: focusFirstField })
 
     <!-- Project link (pre-selected from the capture context) -->
     <div class="shrink-0 space-y-1">
-      <label class="block text-[11px] font-medium text-muted-foreground">
+      <label class="block text-2xs font-medium text-muted-foreground">
         {{ t('item.projectLabel') }}
       </label>
       <AppSelect
@@ -167,7 +167,7 @@ defineExpose({ submit, canSubmit, saving, focus: focusFirstField })
         :options="projectOptions"
         :placeholder="t('item.noProject')"
       />
-      <p v-if="effectiveRunId" class="text-[11px] text-muted-foreground/80">
+      <p v-if="effectiveRunId" class="text-2xs text-muted-foreground/80">
         {{ t('item.runLinked') }}
       </p>
     </div>

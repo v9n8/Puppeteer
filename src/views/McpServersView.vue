@@ -494,19 +494,19 @@ function dotClass(row: McpRow): string {
           </span>
           <span
             v-if="row.transport === 'sse' && defaultIsCodex"
-            class="shrink-0 rounded bg-warning/15 px-1 text-[9px] font-semibold text-warning"
+            class="shrink-0 rounded bg-warning/15 px-1 text-2xs font-semibold text-warning"
             :title="t('mcp.list.claudeOnlyTitle')"
           >
             {{ t('mcp.list.claudeOnly') }}
           </span>
           <span
             v-if="row.kind === 'catalog'"
-            class="shrink-0 rounded bg-muted px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+            class="shrink-0 rounded bg-muted px-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground"
           >
             {{ row.transport }}
           </span>
         </span>
-        <span class="mt-1 truncate pl-3 font-mono text-[11px] text-muted-foreground/70" :title="row.line">
+        <span class="mt-1 truncate pl-3 font-mono text-2xs text-muted-foreground/70" :title="row.line">
           {{ row.line || '—' }}
         </span>
       </template>
@@ -556,7 +556,7 @@ function dotClass(row: McpRow): string {
       :text="store.items.length === 0 && !store.loading ? t('mcp.list.empty.title') : t('mcp.list.noSelection')"
     >
       <template v-if="store.items.length === 0 && !store.loading">
-        <p class="mx-auto mt-1 max-w-60 text-[11px] text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
+        <p class="mx-auto mt-1 max-w-60 text-2xs text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
         <Button class="mt-4" @click="startNew()">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('common.new') }}

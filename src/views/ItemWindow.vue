@@ -138,7 +138,7 @@ onBeforeUnmount(() => {
 
     <!-- Submit bar: the shortcut on the left, the capture form's submit on the right. -->
     <div class="flex shrink-0 items-center gap-2 border-t border-border/60 px-3 py-2.5">
-      <span class="mr-auto text-[11px] text-muted-foreground/70">⌘/Ctrl + Enter</span>
+      <span class="mr-auto text-2xs text-muted-foreground/70">⌘/Ctrl + Enter</span>
       <Button
         variant="primary"
         size="sm"

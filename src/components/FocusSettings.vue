@@ -150,11 +150,11 @@ async function save() {
       <Target class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
       <span class="text-xs font-semibold">{{ t('focus.settings.title') }}</span>
     </div>
-    <p class="text-[11px] leading-relaxed text-muted-foreground">{{ t('focus.settings.hint') }}</p>
+    <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.hint') }}</p>
 
     <!-- Working hours -->
     <div class="space-y-1.5">
-      <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.settings.workHours') }}</label>
+      <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.settings.workHours') }}</label>
       <div class="flex items-center gap-2">
         <Input v-model="form.work_start" type="time" size="sm" class="w-28" :disabled="loading" :aria-label="t('focus.settings.workStart')" />
         <span class="text-muted-foreground">–</span>
@@ -163,7 +163,7 @@ async function save() {
     </div>
 
     <div class="space-y-1.5">
-      <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.settings.workDays') }}</label>
+      <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.settings.workDays') }}</label>
       <div class="flex flex-wrap gap-1">
         <button
           v-for="d in DAYS"
@@ -190,7 +190,7 @@ async function save() {
             <Bell class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
             {{ t('focus.settings.reminders.title') }}
           </p>
-          <p class="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.hint') }}</p>
+          <p class="mt-0.5 text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.hint') }}</p>
         </div>
         <ToggleSwitch
           size="md"
@@ -206,12 +206,12 @@ async function save() {
             <input v-model="form.notify_kinds[k]" type="checkbox" class="mt-0.5 accent-primary" :disabled="loading" />
             <span class="min-w-0">
               <span class="block">{{ t(`focus.settings.reminders.kinds.${k}`) }}</span>
-              <span class="block text-[10px] leading-snug text-muted-foreground">{{ t(`focus.settings.reminders.kindHints.${k}`) }}</span>
+              <span class="block text-2xs leading-snug text-muted-foreground">{{ t(`focus.settings.reminders.kindHints.${k}`) }}</span>
             </span>
           </label>
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-[11px] text-muted-foreground">{{ t('focus.settings.reminders.morningTime') }}</label>
+          <label class="text-2xs text-muted-foreground">{{ t('focus.settings.reminders.morningTime') }}</label>
           <Input
             v-model="form.morning_time"
             type="time"
@@ -221,7 +221,7 @@ async function save() {
             :aria-label="t('focus.settings.reminders.morningTime')"
           />
         </div>
-        <p class="text-[10px] leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.workHoursOnly') }}</p>
+        <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.workHoursOnly') }}</p>
       </div>
     </div>
 
@@ -231,21 +231,21 @@ async function save() {
         <CalendarClock class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
         {{ t('focus.settings.calendar.title') }}
       </p>
-      <p class="text-[11px] leading-relaxed text-muted-foreground">{{ t('focus.settings.calendar.hint') }}</p>
-      <p v-if="!loading && !accounts.length" class="text-[11px] text-muted-foreground">{{ t('focus.settings.calendar.noAccount') }}</p>
+      <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.calendar.hint') }}</p>
+      <p v-if="!loading && !accounts.length" class="text-2xs text-muted-foreground">{{ t('focus.settings.calendar.noAccount') }}</p>
       <template v-else>
         <div class="w-80 max-w-full">
           <AppSelect v-model="accountValue" :options="accountOptions" size="sm" :disabled="loading" />
         </div>
-        <p v-if="calendarsLoading" class="text-[11px] text-muted-foreground">{{ t('focus.settings.calendar.loading') }}</p>
-        <p v-else-if="calendarsError" class="text-[11px] text-destructive">{{ calendarsError }}</p>
+        <p v-if="calendarsLoading" class="text-2xs text-muted-foreground">{{ t('focus.settings.calendar.loading') }}</p>
+        <p v-else-if="calendarsError" class="text-2xs text-destructive">{{ calendarsError }}</p>
         <div v-else-if="calendars.length" class="space-y-1">
-          <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.settings.calendar.busyCalendars') }}</label>
+          <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.settings.calendar.busyCalendars') }}</label>
           <label v-for="c in calendars" :key="c.calendar_id" class="flex cursor-pointer items-center gap-2 text-xs">
             <input type="checkbox" class="accent-primary" :checked="calendarChecked(c)" :disabled="loading" @change="toggleCalendar(c)" />
             <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: c.bg_color ?? 'var(--muted-foreground)' }" />
             <span class="truncate">{{ c.summary || c.calendar_id }}</span>
-            <span v-if="c.primary" class="shrink-0 text-[10px] text-muted-foreground">{{ t('focus.settings.calendar.primary') }}</span>
+            <span v-if="c.primary" class="shrink-0 text-2xs text-muted-foreground">{{ t('focus.settings.calendar.primary') }}</span>
           </label>
         </div>
       </template>
@@ -260,12 +260,12 @@ async function save() {
             <Gauge class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
             {{ t('focus.settings.calibration.title') }}
           </span>
-          <span class="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">{{ t('focus.settings.calibration.hint') }}</span>
+          <span class="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.calibration.hint') }}</span>
         </span>
       </label>
     </div>
 
-    <p v-if="error" class="text-[11px] text-destructive">{{ error }}</p>
+    <p v-if="error" class="text-2xs text-destructive">{{ error }}</p>
 
     <div class="flex justify-end">
       <Button size="sm" :disabled="loading || !dirty || !!error || saving" @click="save">{{ t('focus.settings.save') }}</Button>

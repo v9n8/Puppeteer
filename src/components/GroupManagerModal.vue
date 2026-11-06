@@ -200,7 +200,7 @@ const emptyItemsLabel = computed(() => t(props.kind === 'skill' ? 'groups.noItem
         <div v-if="store.groups.length === 0" class="px-3 py-6 text-center">
           <Layers class="h-5 w-5 mx-auto mb-2 text-muted-foreground" :stroke-width="1.5" />
           <p class="text-xs font-medium">{{ t('groups.noGroups') }}</p>
-          <p class="text-[10px] text-muted-foreground mt-1">{{ t('groups.noGroupsHint') }}</p>
+          <p class="text-2xs text-muted-foreground mt-1">{{ t('groups.noGroupsHint') }}</p>
         </div>
 
         <div v-else ref="listRef" class="flex-1 overflow-y-auto overflow-x-hidden py-1 min-h-0">
@@ -229,7 +229,7 @@ const emptyItemsLabel = computed(() => t(props.kind === 'skill' ? 'groups.noItem
             />
             <span class="flex-1 min-w-0">
               <span class="block text-xs font-medium truncate">{{ group.name }}</span>
-              <span class="block text-[10px] text-muted-foreground">{{ t('groups.memberCount', { count: group.member_count }) }}</span>
+              <span class="block text-2xs text-muted-foreground">{{ t('groups.memberCount', { count: group.member_count }) }}</span>
             </span>
             <Badge :tone="group.color ?? 'neutral'" size="xs" class="shrink-0">{{ group.member_count }}</Badge>
           </button>
@@ -278,14 +278,14 @@ const emptyItemsLabel = computed(() => t(props.kind === 'skill' ? 'groups.noItem
         <!-- Members -->
         <div class="flex items-center gap-2 px-4 py-2 border-b border-border/60 shrink-0">
           <span class="text-xs font-semibold">{{ membersLabel }}</span>
-          <span class="text-[10px] text-muted-foreground">{{ t('groups.selectedCount', { count: memberIds.length }) }}</span>
+          <span class="text-2xs text-muted-foreground">{{ t('groups.selectedCount', { count: memberIds.length }) }}</span>
           <div class="ml-auto flex items-center gap-2">
             <button
-              class="text-[10px] text-primary hover:underline cursor-pointer"
+              class="text-2xs text-primary hover:underline cursor-pointer"
               @click="memberIds = items.map(i => i.id)"
             >{{ t('groups.selectAll') }}</button>
             <button
-              class="text-[10px] text-muted-foreground hover:underline cursor-pointer"
+              class="text-2xs text-muted-foreground hover:underline cursor-pointer"
               @click="memberIds = []"
             >{{ t('groups.clearAll') }}</button>
           </div>
@@ -309,7 +309,7 @@ const emptyItemsLabel = computed(() => t(props.kind === 'skill' ? 'groups.noItem
             <input type="checkbox" class="sr-only" :checked="memberIds.includes(item.id)" @change="toggleMember(item.id)" />
             <span class="min-w-0 flex-1">
               <span class="block text-xs font-medium font-mono truncate">{{ item.name }}</span>
-              <span v-if="item.description" class="block text-[10px] text-muted-foreground truncate">{{ item.description }}</span>
+              <span v-if="item.description" class="block text-2xs text-muted-foreground truncate">{{ item.description }}</span>
             </span>
           </label>
         </div>

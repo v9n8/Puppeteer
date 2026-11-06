@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
   <div class="flex flex-col h-full min-h-0">
     <!-- Header -->
     <div class="flex items-center justify-between gap-2 px-3 h-9 shrink-0 border-b border-border/60">
-      <span class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground truncate">{{ t('files.tree.explorer') }}</span>
+      <span class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground truncate">{{ t('files.tree.explorer') }}</span>
       <div class="flex items-center gap-0.5 shrink-0">
         <Button
           variant="ghost"
@@ -321,8 +321,8 @@ onBeforeUnmount(() => {
         }"
       >
         <div class="text-xs text-foreground break-all">{{ tip.name }}</div>
-        <div v-if="tip.path !== tip.name" class="text-[11px] text-muted-foreground break-all">{{ tip.path }}</div>
-        <div v-if="tip.ignored" class="text-[11px] text-muted-foreground/80 italic">{{ t('files.tree.gitIgnored') }}</div>
+        <div v-if="tip.path !== tip.name" class="text-2xs text-muted-foreground break-all">{{ tip.path }}</div>
+        <div v-if="tip.ignored" class="text-2xs text-muted-foreground/80 italic">{{ t('files.tree.gitIgnored') }}</div>
       </div>
     </Teleport>
 

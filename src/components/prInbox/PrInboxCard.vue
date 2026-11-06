@@ -181,7 +181,7 @@ function relativeTime(iso: string): string {
 
       <!-- Meta: at most repo#num · project (narrow) · author · time · labels · reviewers -->
       <div
-        class="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground"
+        class="flex min-w-0 items-center gap-2 text-2xs text-muted-foreground"
         :class="compact ? 'max-w-[45%]' : 'mt-1'"
       >
         <span class="min-w-0 font-mono truncate" :title="fullRef">
@@ -245,7 +245,7 @@ function relativeTime(iso: string): string {
                 </span>
               </span>
             </span>
-            <span v-if="reviewers.length > shownReviewers.length" class="text-[10px]">
+            <span v-if="reviewers.length > shownReviewers.length" class="text-2xs">
               +{{ reviewers.length - shownReviewers.length }}
             </span>
           </template>
@@ -269,7 +269,7 @@ function relativeTime(iso: string): string {
              the user's accounts were asked) -->
         <span
           v-if="showAccountChip && accounts.length > 0"
-          class="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground"
+          class="flex shrink-0 items-center gap-1 text-2xs text-muted-foreground"
           :title="accountTitle"
           :aria-label="accountTitle"
           role="img"
@@ -278,7 +278,7 @@ function relativeTime(iso: string): string {
           <span class="max-w-24 truncate" :class="compact ? 'hidden' : 'hidden @[44rem]/list:inline'">
             {{ accounts[0].account_label }}
           </span>
-          <span v-if="accounts.length > 1" class="text-[10px]">+{{ accounts.length - 1 }}</span>
+          <span v-if="accounts.length > 1" class="text-2xs">+{{ accounts.length - 1 }}</span>
         </span>
         <!-- Linked review session → open it; button shows its state -->
         <Button

@@ -62,7 +62,7 @@ const meta = computed(() =>
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <div class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</div>
-              <p class="text-[11px] text-muted-foreground">{{ t('mcp.detail.enabledHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t('mcp.detail.enabledHint') }}</p>
             </div>
             <ToggleSwitch
               :checked="!!enabled"
@@ -79,13 +79,13 @@ const meta = computed(() =>
 
         <DetailSection v-if="isBuiltin" :title="t('mcp.detail.tools')">
           <code class="font-mono text-xs">{{ row.line }}</code>
-          <ul v-if="toolGroups?.length" class="mt-2 space-y-1 text-[11px] text-muted-foreground">
+          <ul v-if="toolGroups?.length" class="mt-2 space-y-1 text-2xs text-muted-foreground">
             <li v-for="group in toolGroups" :key="group">{{ group }}</li>
           </ul>
         </DetailSection>
 
         <DetailSection v-if="isBuiltin" :title="t('mcp.detail.perProject')">
-          <p class="text-[11px] leading-relaxed text-muted-foreground">{{ t('mcp.detail.perProjectHint') }}</p>
+          <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('mcp.detail.perProjectHint') }}</p>
         </DetailSection>
 
         <template v-else-if="entry">
@@ -96,7 +96,7 @@ const meta = computed(() =>
             <div v-if="entry.env?.length" class="flex flex-wrap gap-1">
               <Badge v-for="key in entry.env" :key="key" tone="neutral" size="sm" class="font-mono">{{ key }}</Badge>
             </div>
-            <p v-else class="text-[11px] text-muted-foreground">{{ t('mcp.detail.noSecrets') }}</p>
+            <p v-else class="text-2xs text-muted-foreground">{{ t('mcp.detail.noSecrets') }}</p>
           </DetailSection>
         </template>
       </div>

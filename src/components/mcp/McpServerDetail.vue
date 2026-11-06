@@ -256,7 +256,7 @@ defineExpose({ dirty })
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <div class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</div>
-              <p class="text-[11px] text-muted-foreground">{{ t(isNew ? 'mcp.detail.enabledHintDraft' : 'mcp.detail.enabledHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t(isNew ? 'mcp.detail.enabledHintDraft' : 'mcp.detail.enabledHint') }}</p>
             </div>
             <ToggleSwitch
               :checked="enabled"
@@ -268,7 +268,7 @@ defineExpose({ dirty })
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <div class="text-xs font-medium">{{ t('mcp.editor.testConnection') }}</div>
-              <p class="text-[11px] text-muted-foreground">{{ t('mcp.detail.testHint') }}</p>
+              <p class="text-2xs text-muted-foreground">{{ t('mcp.detail.testHint') }}</p>
             </div>
             <Button variant="outline" size="xs" class="shrink-0" :disabled="testing" @click="handleTest">
               <Loader2 v-if="testing" class="h-3 w-3 animate-spin" :stroke-width="2" />
@@ -299,22 +299,22 @@ defineExpose({ dirty })
 
         <DetailSection :title="t('mcp.editor.general')" :hint="t('mcp.detail.generalHint')">
           <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.name') }}</label>
+            <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.name') }}</label>
             <Input v-model="form.name" size="sm" :placeholder="t('mcp.editor.namePlaceholder')" class="font-mono" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.description') }}</label>
+            <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.description') }}</label>
             <Input v-model="form.description" size="sm" :placeholder="t('mcp.editor.descriptionPlaceholder')" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.transport') }}</label>
+            <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.transport') }}</label>
             <AppSelect
               size="sm"
               :model-value="form.transport"
               :options="transportOptions"
               @update:model-value="(v: string) => (form.transport = v as McpTransport)"
             />
-            <p v-if="isSse" class="flex items-center gap-1 text-[10px] text-warning">
+            <p v-if="isSse" class="flex items-center gap-1 text-2xs text-warning">
               <AlertTriangle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
               {{ t('mcp.editor.sseWarning') }}
             </p>
@@ -325,11 +325,11 @@ defineExpose({ dirty })
         <template v-if="!remote">
           <DetailSection :title="t('mcp.editor.process')">
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.command') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.command') }}</label>
               <Input v-model="form.command" size="sm" :placeholder="t('mcp.editor.commandPlaceholder')" class="font-mono" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.args') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.args') }}</label>
               <Textarea
                 v-model="form.argsText"
                 rows="3"
@@ -346,7 +346,7 @@ defineExpose({ dirty })
                 {{ t('common.add') }}
               </Button>
             </template>
-            <div v-if="form.envRows.length === 0" class="text-[11px] text-muted-foreground">{{ t('mcp.editor.noEnv') }}</div>
+            <div v-if="form.envRows.length === 0" class="text-2xs text-muted-foreground">{{ t('mcp.editor.noEnv') }}</div>
             <div v-for="(row, i) in form.envRows" :key="i" class="flex items-center gap-1.5">
               <Input v-model="row.key" size="sm" :placeholder="t('mcp.editor.keyPlaceholder')" class="flex-1 font-mono" />
               <Input
@@ -378,7 +378,7 @@ defineExpose({ dirty })
         <template v-else>
           <DetailSection :title="t('mcp.editor.endpoint')">
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground">{{ t('mcp.editor.url') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground">{{ t('mcp.editor.url') }}</label>
               <Input v-model="form.url" size="sm" :placeholder="t('mcp.editor.urlPlaceholder')" class="font-mono" />
             </div>
           </DetailSection>
@@ -390,7 +390,7 @@ defineExpose({ dirty })
                 {{ t('common.add') }}
               </Button>
             </template>
-            <div v-if="form.headerRows.length === 0" class="text-[11px] text-muted-foreground">{{ t('mcp.editor.noHeaders') }}</div>
+            <div v-if="form.headerRows.length === 0" class="text-2xs text-muted-foreground">{{ t('mcp.editor.noHeaders') }}</div>
             <div v-for="(row, i) in form.headerRows" :key="i" class="flex items-center gap-1.5">
               <Input v-model="row.key" size="sm" :placeholder="t('mcp.editor.authorizationPlaceholder')" class="flex-1 font-mono" />
               <Input

@@ -184,15 +184,15 @@ const groups = computed(() => {
           </div>
         </Banner>
       </form>
-      <p v-if="pendingCount" class="mb-2 px-1.5 text-[11px] text-muted-foreground">
+      <p v-if="pendingCount" class="mb-2 px-1.5 text-2xs text-muted-foreground">
         {{ t('secretNotes.pending', { n: pendingCount }) }}
       </p>
 
       <div v-if="emptyVault" class="px-3 py-8 text-center">
         <p class="text-xs text-muted-foreground">{{ t('secretNotes.empty') }}</p>
-        <p class="mt-1 text-[11px] text-muted-foreground/70">{{ t('secretNotes.emptyHint') }}</p>
+        <p class="mt-1 text-2xs text-muted-foreground/70">{{ t('secretNotes.emptyHint') }}</p>
       </div>
-      <p v-else-if="notes.length === 0" class="px-3 py-8 text-center text-[11px] text-muted-foreground">
+      <p v-else-if="notes.length === 0" class="px-3 py-8 text-center text-2xs text-muted-foreground">
         {{ t('item.noResults') }}
       </p>
 
@@ -210,7 +210,7 @@ const groups = computed(() => {
           />
           <Folder class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />
           <span class="min-w-0 flex-1 truncate">{{ g.label }}</span>
-          <span class="shrink-0 text-[10px] font-normal tabular-nums text-muted-foreground/80">
+          <span class="shrink-0 text-2xs font-normal tabular-nums text-muted-foreground/80">
             {{ g.notes.length }}
           </span>
         </button>
@@ -226,8 +226,8 @@ const groups = computed(() => {
               :title="n.title || t('secretNotes.untitled')"
               @click="emit('select', n.id)"
             >
-              <span class="min-w-0 flex-1 truncate text-[13px]">{{ n.title || t('secretNotes.untitled') }}</span>
-              <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/80" :title="formatFullDate(n.updated_at)">
+              <span class="min-w-0 flex-1 truncate text-sm">{{ n.title || t('secretNotes.untitled') }}</span>
+              <span class="shrink-0 text-2xs tabular-nums text-muted-foreground/80" :title="formatFullDate(n.updated_at)">
                 {{ relativeAge(n.updated_at) }}
               </span>
             </button>
@@ -237,7 +237,7 @@ const groups = computed(() => {
     </div>
 
     <!-- The vault: auto-lock + change password. -->
-    <div class="flex shrink-0 items-center gap-2 border-t border-border/60 px-3 py-2 text-[10px] text-muted-foreground">
+    <div class="flex shrink-0 items-center gap-2 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">
       <span class="min-w-0 flex-1">{{ t('secretNotes.autoLock', { n: autoLockMinutes }) }}</span>
       <button
         type="button"

@@ -640,7 +640,7 @@ onBeforeUnmount(() => {
             spellcheck="false"
             :placeholder="t('secretNotes.contentPlaceholder')"
           />
-          <p class="mt-2 shrink-0 text-[11px]" :class="tooLarge ? 'text-destructive' : 'text-muted-foreground'">
+          <p class="mt-2 shrink-0 text-2xs" :class="tooLarge ? 'text-destructive' : 'text-muted-foreground'">
             {{ tooLarge ? t('secretNotes.errors.too_large') : t('secretNotes.editHint', { save: '⌘/Ctrl+Enter', esc: 'Esc' }) }}
           </p>
         </div>
@@ -660,9 +660,9 @@ onBeforeUnmount(() => {
           >
             <Eye class="h-4 w-4" :stroke-width="1.75" />
             <span class="font-mono text-xs tracking-widest">••••••••••••</span>
-            <span class="text-[11px]">{{ t('secretNotes.clickToReveal') }}</span>
+            <span class="text-2xs">{{ t('secretNotes.clickToReveal') }}</span>
           </button>
-          <p class="mt-3 text-[11px] text-muted-foreground">{{ t('secretNotes.revealHint', { n: REVEAL_SECS }) }}</p>
+          <p class="mt-3 text-2xs text-muted-foreground">{{ t('secretNotes.revealHint', { n: REVEAL_SECS }) }}</p>
         </div>
       </section>
 
@@ -696,7 +696,7 @@ onBeforeUnmount(() => {
         />
         <Input v-model="newPw" type="password" autocomplete="new-password" :placeholder="t('secretNotes.setup.password')" />
         <Input v-model="newPw2" type="password" autocomplete="new-password" :placeholder="t('secretNotes.setup.confirm')" />
-        <p v-if="newPwProblem" class="text-[11px] text-destructive">{{ t(`secretNotes.password.${newPwProblem}`) }}</p>
+        <p v-if="newPwProblem" class="text-2xs text-destructive">{{ t(`secretNotes.password.${newPwProblem}`) }}</p>
         <div class="flex items-center justify-end gap-2 pt-2">
           <Button v-if="!mustChangePassword" variant="outline" size="sm" @click="closePasswordDialog()">
             {{ t('common.cancel') }}

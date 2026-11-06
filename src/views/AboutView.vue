@@ -29,7 +29,7 @@ onMounted(async () => {
 
         <h2 class="text-xl font-bold tracking-tight">Puppeteer</h2>
         <p class="text-sm text-muted-foreground mt-1">{{ t('about.tagline') }}</p>
-        <Badge v-if="appVersion" class="mt-2 px-2 py-0.5 text-[10px] font-mono font-medium">
+        <Badge v-if="appVersion" class="mt-2 px-2 py-0.5 text-2xs font-mono font-medium">
           v{{ appVersion }}
         </Badge>
 

@@ -212,9 +212,9 @@ export function mrkdwnToHtml(text: string, ctx: MrkdwnContext): string {
   if (!text) return ''
   const cut = cutOut(text, (inner) => tokenHtml(resolveToken(inner, ctx)), {
     block: (body) =>
-      `<pre class="slack-code-block my-1 rounded-md border border-border/60 bg-muted/50 px-2.5 py-2 font-mono text-[12px] whitespace-pre-wrap break-words"><code>${escapeHtml(decodeEntities(body.replace(/^\n/, '').replace(/\n$/, '')))}</code></pre>`,
+      `<pre class="slack-code-block my-1 rounded-md border border-border/60 bg-muted/50 px-2.5 py-2 font-mono text-2xs whitespace-pre-wrap break-words"><code>${escapeHtml(decodeEntities(body.replace(/^\n/, '').replace(/\n$/, '')))}</code></pre>`,
     inline: (body) =>
-      `<code class="slack-code rounded border border-border/60 bg-muted/60 px-1 py-px font-mono text-[12px] text-destructive">${escapeHtml(decodeEntities(body))}</code>`,
+      `<code class="slack-code rounded border border-border/60 bg-muted/60 px-1 py-px font-mono text-2xs text-destructive">${escapeHtml(decodeEntities(body))}</code>`,
   })
 
   // Steps 2–3, line by line, so quotes can be grouped afterwards.

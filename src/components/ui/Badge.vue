@@ -7,25 +7,25 @@ import { cn } from '@/lib/utils'
 
 defineOptions({ inheritAttrs: false })
 
-// Solid-fill tones: a deep saturated -600 background with white text — high
-// contrast and cleaner than the old translucent /15 + -400 text (which was
-// low-contrast at these 9-10px sizes). One rule for every chip, app-wide.
+// Tinted tones: a /10–/15 fill with same-hue text, plus a currentColor inset
+// ring so the pill keeps its edge on a selected row. The status tokens are
+// dark enough to hold 4.5:1 on their own tint now that badges are 12px.
 const badge = cva(
-  'ui-badge inline-flex items-center gap-1 rounded border font-semibold whitespace-nowrap',
+  'ui-badge inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap ring-1 ring-inset ring-current/15',
   {
     variants: {
       tone: {
-        neutral: 'bg-slate-600 text-white border-slate-600',
-        running: 'bg-blue-600 text-white border-blue-600',
-        success: 'bg-emerald-600 text-white border-emerald-600',
-        error: 'bg-red-600 text-white border-red-600',
-        warning: 'bg-amber-600 text-white border-amber-600',
-        info: 'bg-violet-600 text-white border-violet-600',
-        primary: 'bg-indigo-600 text-white border-indigo-600',
+        neutral: 'bg-secondary text-muted-foreground',
+        running: 'bg-info/15 text-info',
+        success: 'bg-success/15 text-success',
+        error: 'bg-destructive/10 text-destructive',
+        warning: 'bg-warning/15 text-warning',
+        info: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+        primary: 'bg-primary/12 text-primary',
       },
       size: {
-        xs: 'px-1.5 py-0.5 text-[9px]',
-        sm: 'px-1.5 py-0.5 text-[10px]',
+        xs: 'px-1.5 py-px text-2xs',
+        sm: 'px-2 py-0.5 text-2xs',
       },
     },
     defaultVariants: { tone: 'neutral', size: 'sm' },

@@ -390,7 +390,7 @@ async function handleExport(rule: Rule) {
             {{ targetLabel[row.rule.target] }}
           </Badge>
         </span>
-        <span class="mt-1 truncate text-[11px] text-muted-foreground/70">{{ row.rule.description }}</span>
+        <span class="mt-1 truncate text-2xs text-muted-foreground/70">{{ row.rule.description }}</span>
         <span v-if="row.otherGroupIds.length > 0" class="mt-1.5 flex flex-wrap gap-1">
           <template v-for="gid in row.otherGroupIds" :key="gid">
             <Badge v-if="groupById.get(gid)" :tone="groupById.get(gid)!.color ?? 'neutral'" size="xs">

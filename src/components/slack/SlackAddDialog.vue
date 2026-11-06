@@ -101,10 +101,10 @@ function onKeydown(e: KeyboardEvent) {
       <div class="space-y-1">
         <label class="text-xs font-medium text-foreground">{{ t('slackThread.add.urlLabel') }}</label>
         <Input v-model="url" :placeholder="t('slackThread.add.urlPlaceholder')" spellcheck="false" />
-        <p v-if="clientError || serverError" class="text-[11px] text-destructive">
+        <p v-if="clientError || serverError" class="text-2xs text-destructive">
           {{ serverError ?? clientError }}
         </p>
-        <p v-else class="text-[11px] text-muted-foreground">{{ t('slackThread.add.urlHint') }}</p>
+        <p v-else class="text-2xs text-muted-foreground">{{ t('slackThread.add.urlHint') }}</p>
       </div>
 
       <div class="space-y-1">

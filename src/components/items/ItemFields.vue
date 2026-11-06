@@ -29,7 +29,7 @@ const { t } = useI18n()
   <div class="shrink-0 border-b border-border/60 px-5 py-3">
     <div class="grid max-w-xl grid-cols-2 gap-2.5">
       <div class="min-w-0 space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('item.fieldProject') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('item.fieldProject') }}</label>
         <ProjectSelect
           :model-value="item.project_id"
           variant="outline"
@@ -38,7 +38,7 @@ const { t } = useI18n()
         />
       </div>
       <div v-if="todo" class="min-w-0 space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('item.fieldDue') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('item.fieldDue') }}</label>
         <div class="flex items-center">
           <DatePicker
             :model-value="todo.due_date ?? ''"

@@ -748,7 +748,7 @@ function toolResult(e: StreamEntry): unknown {
       <!-- System init banner -->
       <div
         v-if="entry.kind === 'system'"
-        class="flex items-center gap-2 text-[10px] font-mono text-foreground/40 border-b border-border pb-2"
+        class="flex items-center gap-2 text-2xs font-mono text-foreground/40 border-b border-border pb-2"
       >
         <Cpu class="h-3 w-3" :stroke-width="1.5" />
         <span>{{ t('streamLog.session') }}</span>
@@ -813,7 +813,7 @@ function toolResult(e: StreamEntry): unknown {
         <div class="flex items-center gap-2 text-foreground/40">
           <span class="h-px flex-1 bg-border" />
           <button
-            class="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide hover:text-foreground/70 transition-colors"
+            class="inline-flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide hover:text-foreground/70 transition-colors"
             :title="expandedCompacts.has(i) ? t('streamLog.hideSummary') : t('streamLog.showSummary')"
             @click="toggleCompact(i)"
           >
@@ -838,20 +838,20 @@ function toolResult(e: StreamEntry): unknown {
       <div v-else-if="entry.kind === 'command'" class="my-1.5 flex flex-col items-center gap-1">
         <div
           v-if="entry.name"
-          class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-[11px]"
+          class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-2xs"
         >
           <Terminal class="h-3 w-3 text-foreground/50" :stroke-width="1.75" />
           <span class="font-mono font-medium text-foreground/75">{{ entry.name }}</span>
           <span v-if="entry.args" class="font-mono text-foreground/55">{{ entry.args }}</span>
         </div>
-        <div v-if="entry.stdout" class="text-[11px] font-mono text-foreground/45">{{ entry.stdout }}</div>
+        <div v-if="entry.stdout" class="text-2xs font-mono text-foreground/45">{{ entry.stdout }}</div>
       </div>
 
       <!-- Harness-injected message (skill body, conductor nudge, meta) — a slim
            marker the user can expand; it isn't something they typed. -->
       <div v-else-if="entry.kind === 'injected'" class="my-1.5 flex flex-col items-start gap-1">
         <button
-          class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-[11px] text-foreground/60 hover:text-foreground/80 transition-colors"
+          class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-2xs text-foreground/60 hover:text-foreground/80 transition-colors"
           :title="expandedCompacts.has(i) ? t('streamLog.hideInjected') : t('streamLog.showInjected')"
           @click="toggleCompact(i)"
         >
@@ -894,7 +894,7 @@ function toolResult(e: StreamEntry): unknown {
         v-else-if="entry.kind === 'thinking'"
         class="text-xs italic text-foreground/40 border-l-2 border-foreground/10 pl-3 py-1"
       >
-        <div class="flex items-center gap-1 mb-1 text-[10px] uppercase tracking-wider not-italic">
+        <div class="flex items-center gap-1 mb-1 text-2xs uppercase tracking-wider not-italic">
           <Brain class="h-3 w-3" :stroke-width="1.5" />
           {{ t('streamLog.thinking') }}
         </div>
@@ -925,22 +925,22 @@ function toolResult(e: StreamEntry): unknown {
           <span class="text-xs text-foreground/80 truncate">{{ bashHeadline(entry.name, entry.input) }}</span>
           <span
             v-if="bashInfo(entry.input).background"
-            class="text-[9px] uppercase tracking-wider text-foreground/40 border border-border rounded px-1 shrink-0"
+            class="text-2xs uppercase tracking-wider text-foreground/40 border border-border rounded px-1 shrink-0"
           >bg</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5">
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5">
             <XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}
           </span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5">
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <!-- Real command executed on the machine — terminal look + copy.
                Shell-management tools (BashOutput/KillShell) carry no command,
                so skip the block entirely rather than render an empty `$`. -->
           <div v-if="bashInfo(entry.input).command" class="px-3 py-2 bg-zinc-950/90 dark:bg-black/40 relative group/cmd">
-            <div class="text-[10px] uppercase tracking-wider text-white/40 mb-1 flex items-center justify-between">
+            <div class="text-2xs uppercase tracking-wider text-white/40 mb-1 flex items-center justify-between">
               <span>{{ t('streamLog.command') }}</span>
               <button
                 class="inline-flex items-center gap-1 text-white/60 hover:text-white cursor-pointer"
@@ -948,22 +948,22 @@ function toolResult(e: StreamEntry): unknown {
                 @click.stop="copyCommand(i, entry.input)"
               >
                 <component :is="copiedCmd[i] ? Check : Copy" class="h-3 w-3" :stroke-width="1.75" />
-                <span class="text-[9px]">{{ copiedCmd[i] ? t('streamLog.copiedShort') : t('streamLog.copyShort') }}</span>
+                <span class="text-2xs">{{ copiedCmd[i] ? t('streamLog.copiedShort') : t('streamLog.copyShort') }}</span>
               </button>
             </div>
-            <pre class="text-[11px] font-mono text-emerald-300/90 whitespace-pre-wrap break-words leading-relaxed"><span class="select-none text-emerald-500/60">$ </span>{{ bashInfo(entry.input).command }}</pre>
+            <pre class="text-2xs font-mono text-emerald-300/90 whitespace-pre-wrap break-words leading-relaxed"><span class="select-none text-emerald-500/60">$ </span>{{ bashInfo(entry.input).command }}</pre>
           </div>
           <!-- Command output (stdout/stderr). -->
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">
               {{ entry.result.is_error ? t('streamLog.error') : t('streamLog.output') }}
             </div>
             <pre
               v-if="entry.result.content"
-              class="text-[11px] font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
+              class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
               :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'"
             >{{ entry.result.content }}</pre>
-            <div v-else class="text-[11px] font-mono text-foreground/30 italic">{{ t('streamLog.noOutput') }}</div>
+            <div v-else class="text-2xs font-mono text-foreground/30 italic">{{ t('streamLog.noOutput') }}</div>
           </div>
         </div>
       </div>
@@ -994,7 +994,7 @@ function toolResult(e: StreamEntry): unknown {
           <span class="text-xs font-mono font-semibold shrink-0" :class="toolStyle(entry.name).nameClass">{{ entry.name }}</span>
           <span
             v-if="fileTarget(entry.input)"
-            class="text-[11px] font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
+            class="text-2xs font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
             :title="t('streamLog.openFile', { path: fileTarget(entry.input) })"
             role="button"
             @click.stop="emit('open-file', fileTarget(entry.input)!)"
@@ -1002,24 +1002,24 @@ function toolResult(e: StreamEntry): unknown {
           <!-- One Codex patch can span several files; the rest are listed below. -->
           <span
             v-if="extraFileCount(entry.input)"
-            class="text-[10px] font-mono text-foreground/45 shrink-0"
+            class="text-2xs font-mono text-foreground/45 shrink-0"
             :title="toolFileTargets(entry.input).join('\n')"
           >{{ t('streamLog.moreFiles', { count: extraFileCount(entry.input) }) }}</span>
           <!-- +added / −removed stat badge -->
           <span
             v-if="editStats(entry.name, entry.input).added || editStats(entry.name, entry.input).removed"
-            class="text-[10px] font-mono shrink-0 flex items-center gap-1"
+            class="text-2xs font-mono shrink-0 flex items-center gap-1"
           >
             <span v-if="editStats(entry.name, entry.input).added" class="text-emerald-600 dark:text-emerald-400/80">+{{ editStats(entry.name, entry.input).added }}</span>
             <span v-if="editStats(entry.name, entry.input).removed" class="text-red-600 dark:text-red-400/80">−{{ editStats(entry.name, entry.input).removed }}</span>
           </span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5">
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5">
             <XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}
           </span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5">
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border p-2 space-y-2">
           <template v-for="(part, pi) in editParts(entry.name, entry.input)" :key="pi">
@@ -1027,7 +1027,7 @@ function toolResult(e: StreamEntry): unknown {
                  A single-file call already names it in the header. -->
             <div
               v-if="part.path && extraFileCount(entry.input) && part.path !== editParts(entry.name, entry.input)[pi - 1]?.path"
-              class="px-1 pt-1 text-[11px] font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
+              class="px-1 pt-1 text-2xs font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
               :title="t('streamLog.openFile', { path: part.path })"
               role="button"
               @click="emit('open-file', part.path!)"
@@ -1035,8 +1035,8 @@ function toolResult(e: StreamEntry): unknown {
             <DiffView :before="part.before" :after="part.after" />
           </template>
           <div v-if="entry.result?.is_error" class="px-1">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ t('streamLog.error') }}</div>
-            <pre class="text-[11px] font-mono text-destructive whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ entry.result.content }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ t('streamLog.error') }}</div>
+            <pre class="text-2xs font-mono text-destructive whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ entry.result.content }}</pre>
           </div>
         </div>
       </div>
@@ -1051,18 +1051,18 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <Bot class="h-3.5 w-3.5 shrink-0 text-fuchsia-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-fuchsia-600 dark:text-fuchsia-300">{{ agentInfo(entry.input).subagent || t('streamLog.agent') }}</span>
-          <span class="text-[11px] text-foreground/60 truncate">{{ agentInfo(entry.input).description }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span class="text-2xs text-foreground/60 truncate">{{ agentInfo(entry.input).description }}</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div v-if="agentInfo(entry.input).prompt" class="px-3 py-2 bg-black/20 dark:bg-black/25">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ t('streamLog.task') }}</div>
-            <pre class="text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ agentInfo(entry.input).prompt }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ t('streamLog.task') }}</div>
+            <pre class="text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ agentInfo(entry.input).prompt }}</pre>
           </div>
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? t('streamLog.error') : t('streamLog.result') }}</div>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? t('streamLog.error') : t('streamLog.result') }}</div>
             <div
               v-if="!entry.result.is_error"
               v-file-links v-mermaid v-copy-code
@@ -1070,7 +1070,7 @@ function toolResult(e: StreamEntry): unknown {
               class="markdown-output text-sm leading-relaxed text-foreground"
               @click="onProseClick"
             />
-            <pre v-else class="text-[11px] font-mono text-destructive whitespace-pre-wrap break-words max-h-96 overflow-auto">{{ entry.result.content }}</pre>
+            <pre v-else class="text-2xs font-mono text-destructive whitespace-pre-wrap break-words max-h-96 overflow-auto">{{ entry.result.content }}</pre>
           </div>
         </div>
       </div>
@@ -1085,21 +1085,21 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <MessageCircleQuestion class="h-3.5 w-3.5 shrink-0 text-blue-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-blue-600 dark:text-blue-300">{{ t('streamLog.question') }}</span>
-          <span class="text-[11px] text-foreground/60 truncate">{{ askQuestions(entry.input)[0]?.question }}</span>
-          <span v-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.waiting') }}</span>
+          <span class="text-2xs text-foreground/60 truncate">{{ askQuestions(entry.input)[0]?.question }}</span>
+          <span v-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.waiting') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border px-3 py-2 space-y-3">
           <div v-for="(q, qi) in askQuestions(entry.input)" :key="qi" class="space-y-1.5">
             <div class="text-xs font-medium text-foreground/85">{{ q.question }}</div>
-            <div v-for="(opt, oi) in q.options" :key="oi" class="flex gap-2 text-[11px] pl-2">
+            <div v-for="(opt, oi) in q.options" :key="oi" class="flex gap-2 text-2xs pl-2">
               <Circle class="h-3 w-3 mt-0.5 shrink-0 text-foreground/30" :stroke-width="1.75" />
               <div><span class="font-medium text-foreground/80">{{ opt.label }}</span><span v-if="opt.description" class="text-foreground/45"> — {{ opt.description }}</span></div>
             </div>
           </div>
           <div v-if="entry.result" class="pt-1 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1 mt-2">{{ t('streamLog.answer') }}</div>
-            <pre class="text-[11px] font-mono text-success whitespace-pre-wrap break-words">{{ entry.result.content }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1 mt-2">{{ t('streamLog.answer') }}</div>
+            <pre class="text-2xs font-mono text-success whitespace-pre-wrap break-words">{{ entry.result.content }}</pre>
           </div>
         </div>
       </div>
@@ -1114,8 +1114,8 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <ListTodo class="h-3.5 w-3.5 shrink-0 text-blue-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-blue-600 dark:text-blue-300">{{ t('streamLog.todos') }}</span>
-          <span class="text-[11px] text-foreground/50 tabular-nums shrink-0">{{ todoStats(entry.input).done }}/{{ todoStats(entry.input).total }}</span>
-          <span class="text-[11px] text-foreground/45 truncate">{{ todoItems(entry.input).find((t) => t.status === 'in_progress')?.content }}</span>
+          <span class="text-2xs text-foreground/50 tabular-nums shrink-0">{{ todoStats(entry.input).done }}/{{ todoStats(entry.input).total }}</span>
+          <span class="text-2xs text-foreground/45 truncate">{{ todoItems(entry.input).find((t) => t.status === 'in_progress')?.content }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border px-3 py-2 space-y-1">
           <div v-for="(t, ti) in todoItems(entry.input)" :key="ti" class="flex items-start gap-2 text-xs">
@@ -1141,15 +1141,15 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <Search class="h-3.5 w-3.5 shrink-0 text-teal-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-teal-600 dark:text-teal-300">{{ t('streamLog.toolSearch') }}</span>
-          <span class="text-[11px] font-mono text-foreground/50 truncate">{{ toolSearchQuery(entry.input) }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.searching') }}</span>
+          <span class="text-2xs font-mono text-foreground/50 truncate">{{ toolSearchQuery(entry.input) }}</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.searching') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div v-if="entry.result" class="px-3 py-2">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? t('streamLog.error') : t('streamLog.matches') }}</div>
-            <pre class="text-[11px] font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto" :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'">{{ entry.result.content }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? t('streamLog.error') : t('streamLog.matches') }}</div>
+            <pre class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto" :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'">{{ entry.result.content }}</pre>
           </div>
         </div>
       </div>
@@ -1164,10 +1164,10 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <Globe class="h-3.5 w-3.5 shrink-0 text-cyan-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-cyan-600 dark:text-cyan-300">{{ entry.name.toLowerCase() === 'websearch' ? t('streamLog.webSearch') : t('streamLog.webFetch') }}</span>
-          <span class="text-[11px] font-mono text-foreground/50 truncate">{{ previewInput(entry.input) }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">{{ t('streamLog.loading') }}</span>
+          <span class="text-2xs font-mono text-foreground/50 truncate">{{ previewInput(entry.input) }}</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.loading') }}</span>
         </button>
         <div v-if="expanded[i] && entry.result" class="border-t border-border px-3 py-2">
           <div
@@ -1177,7 +1177,7 @@ function toolResult(e: StreamEntry): unknown {
             class="markdown-output text-sm leading-relaxed text-foreground max-h-[32rem] overflow-auto"
             @click="onProseClick"
           />
-          <pre v-else class="text-[11px] font-mono text-destructive whitespace-pre-wrap break-words max-h-96 overflow-auto">{{ entry.result.content }}</pre>
+          <pre v-else class="text-2xs font-mono text-destructive whitespace-pre-wrap break-words max-h-96 overflow-auto">{{ entry.result.content }}</pre>
         </div>
       </div>
 
@@ -1191,7 +1191,7 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <ClipboardList class="h-3.5 w-3.5 shrink-0 text-indigo-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-indigo-600 dark:text-indigo-300">{{ t('streamLog.plan') }}</span>
-          <span class="text-[11px] text-foreground/45 truncate">{{ t('streamLog.proposedPlan') }}</span>
+          <span class="text-2xs text-foreground/45 truncate">{{ t('streamLog.proposedPlan') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border px-3 py-2">
           <div
@@ -1213,17 +1213,17 @@ function toolResult(e: StreamEntry): unknown {
           <ChevronRight class="h-3 w-3 text-foreground/40 transition-transform shrink-0" :stroke-width="1.75" :class="{ 'rotate-90': expanded[i] }" />
           <Server class="h-3.5 w-3.5 shrink-0 text-teal-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-teal-600 dark:text-teal-300">{{ t('streamLog.mcp') }}</span>
-          <span class="text-[10px] font-mono shrink-0 rounded border border-border bg-foreground/4 px-1.5 py-0.5 text-foreground/55 truncate max-w-[10rem]" :title="mcpServerLabel(entry)">
+          <span class="text-2xs font-mono shrink-0 rounded border border-border bg-foreground/4 px-1.5 py-0.5 text-foreground/55 truncate max-w-[10rem]" :title="mcpServerLabel(entry)">
             {{ mcpServerLabel(entry) }}
           </span>
           <span class="text-xs text-foreground/80 truncate">{{ mcpActionLabel(entry) }}</span>
-          <span v-if="mcpSummary(entry)" class="text-[11px] text-foreground/45 truncate">{{ mcpSummary(entry) }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />denied</span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">waiting…</span>
+          <span v-if="mcpSummary(entry)" class="text-2xs text-foreground/45 truncate">{{ mcpSummary(entry) }}</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />denied</span>
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">waiting…</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
-          <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 bg-black/20 dark:bg-black/25 text-[11px]">
+          <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 bg-black/20 dark:bg-black/25 text-2xs">
             <div class="uppercase tracking-wider text-foreground/35">server</div>
             <div class="font-mono text-foreground/75 truncate">{{ mcpServerLabel(entry) }}</div>
             <div class="uppercase tracking-wider text-foreground/35">action</div>
@@ -1234,13 +1234,13 @@ function toolResult(e: StreamEntry): unknown {
             </template>
           </div>
           <div class="px-3 py-2 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">input</div>
-            <pre class="text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ prettyInput(entry.input) }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">input</div>
+            <pre class="text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ prettyInput(entry.input) }}</pre>
           </div>
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? 'status' : 'output' }}</div>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? 'status' : 'output' }}</div>
             <pre
-              class="text-[11px] font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
+              class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
               :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'"
             >{{ entry.result.content }}</pre>
           </div>
@@ -1274,31 +1274,31 @@ function toolResult(e: StreamEntry): unknown {
           <!-- File-based tool: the path is clickable to preview the file. -->
           <span
             v-if="fileTarget(entry.input)"
-            class="text-[11px] font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
+            class="text-2xs font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
             :title="'Open ' + fileTarget(entry.input)"
             role="button"
             @click.stop="emit('open-file', fileTarget(entry.input)!)"
           >{{ fileTarget(entry.input) }}</span>
-          <span v-else class="text-[11px] font-mono text-foreground/40 truncate">{{ previewInput(entry.input) }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-[10px] text-destructive shrink-0 flex items-center gap-0.5">
+          <span v-else class="text-2xs font-mono text-foreground/40 truncate">{{ previewInput(entry.input) }}</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5">
             <XCircle class="h-3 w-3" :stroke-width="1.75" />error
           </span>
-          <span v-else-if="entry.result" class="ml-auto text-[10px] text-success/80 shrink-0 flex items-center gap-0.5">
+          <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-[10px] text-warning/80 animate-pulse shrink-0">running…</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">running…</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div class="px-3 py-2 bg-black/20 dark:bg-black/25">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">input</div>
-            <pre class="text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words">{{ prettyInput(entry.input) }}</pre>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">input</div>
+            <pre class="text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words">{{ prettyInput(entry.input) }}</pre>
           </div>
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
-            <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">
               {{ entry.result.is_error ? 'error' : 'output' }}
             </div>
             <pre
-              class="text-[11px] font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
+              class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
               :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'"
             >{{ entry.result.content }}</pre>
           </div>
@@ -1318,7 +1318,7 @@ function toolResult(e: StreamEntry): unknown {
         <div v-if="entry.is_error" class="flex items-center gap-2 mb-2">
           <component :is="XCircle" class="h-4 w-4 text-destructive" :stroke-width="2" />
           <span class="text-xs font-medium text-destructive">Failed</span>
-          <div class="ml-auto flex items-center gap-3 text-[10px] font-mono text-foreground/40">
+          <div class="ml-auto flex items-center gap-3 text-2xs font-mono text-foreground/40">
             <span v-if="entry.duration_ms">{{ formatDuration(entry.duration_ms) }}</span>
             <span v-if="entry.num_turns">{{ entry.num_turns }} turns</span>
             <span v-if="entry.total_tokens">{{ formatTokens(entry.total_tokens) }} tok</span>
@@ -1339,11 +1339,11 @@ function toolResult(e: StreamEntry): unknown {
       <!-- diagnostic log line (codex tracing / sidecar notes) -->
       <div
         v-else-if="entry.kind === 'log'"
-        class="flex items-start gap-2 text-[11px] font-mono text-foreground/45 leading-relaxed"
+        class="flex items-start gap-2 text-2xs font-mono text-foreground/45 leading-relaxed"
       >
         <Info class="h-3 w-3 mt-0.75 shrink-0 opacity-50" :stroke-width="1.75" />
         <span
-          class="shrink-0 uppercase text-[9px] font-semibold tracking-wide px-1 py-px rounded mt-px"
+          class="shrink-0 uppercase text-2xs font-semibold tracking-wide px-1 py-px rounded mt-px"
           :class="logBadgeClass(entry.level)"
         >{{ entry.level }}</span>
         <span class="whitespace-pre-wrap break-all">{{ entry.text }}</span>

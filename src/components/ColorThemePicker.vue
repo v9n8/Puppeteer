@@ -27,7 +27,7 @@ onUnmounted(() => observer?.disconnect())
 <template>
   <div class="space-y-3">
     <div v-for="group in COLOR_THEME_GROUPS" :key="group" class="space-y-1.5">
-      <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+      <p class="text-2xs font-medium uppercase tracking-wider text-muted-foreground/80">
         {{ t(`settings.general.colorGroup.${group}`) }}
       </p>
       <div class="grid grid-cols-3 gap-1.5">
@@ -57,7 +57,7 @@ onUnmounted(() => observer?.disconnect())
             </span>
           </span>
           <span class="flex items-center gap-1 px-0.5">
-            <span class="min-w-0 flex-1 truncate text-[11px]">{{ t(colorThemeLabelKey(theme.id)) }}</span>
+            <span class="min-w-0 flex-1 truncate text-2xs">{{ t(colorThemeLabelKey(theme.id)) }}</span>
             <Check v-if="model === theme.id" class="h-3 w-3 shrink-0 text-primary" :stroke-width="2.5" />
           </span>
         </button>

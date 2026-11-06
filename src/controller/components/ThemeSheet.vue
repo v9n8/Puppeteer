@@ -57,10 +57,10 @@ function setPalette(color_theme: string): void {
     >
       <div class="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-foreground/20" />
       <p class="mb-1 text-sm font-semibold">{{ t('controller.theme.title') }}</p>
-      <p class="mb-2 text-[11px] text-muted-foreground">{{ t('controller.theme.hint') }}</p>
+      <p class="mb-2 text-2xs text-muted-foreground">{{ t('controller.theme.hint') }}</p>
 
       <div class="min-h-0 overflow-auto">
-        <h2 class="mt-2 mb-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <h2 class="mt-2 mb-1.5 px-0.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
           {{ t('controller.theme.mode') }}
         </h2>
         <div class="grid grid-cols-3 gap-1.5">
@@ -68,7 +68,7 @@ function setPalette(color_theme: string): void {
             v-for="o in modeOptions"
             :key="o.value"
             type="button"
-            class="rounded-md border px-2 py-2 text-[13px] transition-colors cursor-pointer"
+            class="rounded-md border px-2 py-2 text-sm transition-colors cursor-pointer"
             :class="[
               o.value === FOLLOW_HOST ? 'col-span-full' : '',
               appearanceOverride.theme === o.value
@@ -82,7 +82,7 @@ function setPalette(color_theme: string): void {
           </button>
         </div>
 
-        <h2 class="mt-4 mb-1.5 px-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <h2 class="mt-4 mb-1.5 px-0.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
           {{ t('controller.theme.palette') }}
         </h2>
         <div class="overflow-hidden rounded-xl border border-border">

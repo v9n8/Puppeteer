@@ -3506,7 +3506,7 @@ function handleRefInput(val: string) {
         >
           <component :is="acc.icon" class="h-3 w-3" :stroke-width="1.75" />
           {{ acc.username }}
-          <span v-if="acc.tag" class="font-sans text-[10px] uppercase tracking-wide opacity-70">{{ acc.tag }}</span>
+          <span v-if="acc.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ acc.tag }}</span>
         </Badge>
         <!-- VPS servers wired to this project (transparent SSH per run). -->
         <Badge
@@ -3541,7 +3541,7 @@ function handleRefInput(val: string) {
           <Cloud class="h-3 w-3" :stroke-width="2" />
           {{ awsChip.label }}
           <span class="opacity-90 font-mono">{{ awsChip.region }}</span>
-          <span v-if="awsChip.tag" class="font-sans text-[10px] uppercase tracking-wide opacity-70">{{ awsChip.tag }}</span>
+          <span v-if="awsChip.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ awsChip.tag }}</span>
         </Badge>
         <!-- Default Azure account (az login isolated per account); +N other enabled. -->
         <Badge
@@ -3554,7 +3554,7 @@ function handleRefInput(val: string) {
           <CloudCog class="h-3 w-3" :stroke-width="2" />
           {{ azureChip.label }}
           <span v-if="azureChip.subscription" class="opacity-90">{{ azureChip.subscription }}</span>
-          <span v-if="azureChip.tag" class="font-sans text-[10px] uppercase tracking-wide opacity-70">{{ azureChip.tag }}</span>
+          <span v-if="azureChip.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ azureChip.tag }}</span>
         </Badge>
       </div>
       <!-- Icon-only actions: the linked Slack / todo / note menus, then one ⋯
@@ -3599,7 +3599,7 @@ function handleRefInput(val: string) {
           </template>
           <div class="min-w-[15rem]">
             <!-- Open the project elsewhere -->
-            <div class="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
               {{ t('run.openProjectIn') }}
             </div>
             <DropdownItem :disabled="!project" @click="handleOpenInVscode">
@@ -3729,9 +3729,9 @@ function handleRefInput(val: string) {
             ref="fetchPanelEl"
             class="absolute left-0 right-0 top-full z-30 mt-1.5 space-y-3 rounded-md border border-border bg-popover p-3 shadow-lg shadow-black/20"
           >
-          <p class="text-[11px] font-medium text-foreground/80">{{ t('run.fetchIssuePr') }}</p>
+          <p class="text-2xs font-medium text-foreground/80">{{ t('run.fetchIssuePr') }}</p>
 
-          <div v-if="repos.length === 0" class="text-[10px] text-warning/80 leading-relaxed">
+          <div v-if="repos.length === 0" class="text-2xs text-warning/80 leading-relaxed">
             {{ t('run.noReposConfigured') }}
           </div>
 
@@ -3744,13 +3744,13 @@ function handleRefInput(val: string) {
               :placeholder="t('run.refPlaceholder')"
               @keyup.enter="handleFetch()"
             />
-            <p v-if="fetchError" class="mt-1 text-[10px] text-destructive">{{ fetchError }}</p>
+            <p v-if="fetchError" class="mt-1 text-2xs text-destructive">{{ fetchError }}</p>
           </div>
 
           <!-- Echo back what the URL was understood to mean. -->
           <div
             v-if="detectedRef"
-            class="flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-md bg-muted text-muted-foreground"
+            class="flex items-center gap-1.5 px-2 py-1 text-2xs rounded-md bg-muted text-muted-foreground"
           >
             <component
               :is="detectedRef.kind === 'pr' ? GitPullRequest : Bug"
@@ -3825,12 +3825,12 @@ function handleRefInput(val: string) {
               </div>
             </div>
             <div class="flex items-center justify-between px-4 py-1.5">
-              <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <p class="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {{ t('run.history') }}<span v-if="displayRuns.length" class="font-normal"> · {{ displayRuns.length }}</span>
               </p>
               <button
                 v-if="runsStore.orderStale"
-                class="ml-auto mr-3 flex items-center gap-1 text-[10px] text-primary/80 hover:text-primary transition-colors cursor-pointer"
+                class="ml-auto mr-3 flex items-center gap-1 text-2xs text-primary/80 hover:text-primary transition-colors cursor-pointer"
                 :title="t('run.resortSessionsTitle')"
                 @click="runsStore.sortRuns()"
               >
@@ -3839,7 +3839,7 @@ function handleRefInput(val: string) {
               </button>
               <button
                 v-if="runsStore.runs.length > 0"
-                class="flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex items-center gap-1 text-2xs text-muted-foreground/70 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="clearingAll"
                 :title="clearingAll ? t('run.clearing') : t('run.clearAllRunsTitle')"
                 @click="handleClearAllRuns"
@@ -3928,13 +3928,13 @@ function handleRefInput(val: string) {
                   />
                   <span
                     class="flex-1 min-w-0 truncate font-medium leading-tight"
-                    :class="historyDensity === 'dense' ? 'text-xs' : 'text-[13px]'"
+                    :class="historyDensity === 'dense' ? 'text-xs' : 'text-sm'"
                     :title="historyDensity === 'dense' ? undefined : runLabel(run)"
                   >{{ runLabel(run) }}</span>
                   <!-- Worker count (its workers never get rows of their own). -->
                   <span
                     v-if="runWorkerCount(run) > 0"
-                    class="flex shrink-0 items-center gap-0.5 font-mono text-[10px] text-muted-foreground"
+                    class="flex shrink-0 items-center gap-0.5 font-mono text-2xs text-muted-foreground"
                     :title="t('conductor.workerCountShort', { n: runWorkerCount(run) })"
                   >
                     <Network class="h-3 w-3" :stroke-width="1.75" />{{ runWorkerCount(run) }}
@@ -3961,7 +3961,7 @@ function handleRefInput(val: string) {
                        takes this slot on hover, so the time steps aside. -->
                   <span
                     v-if="historyDensity !== 'comfortable'"
-                    class="shrink-0 min-w-[1.25rem] text-right font-mono text-[10px] text-muted-foreground/70"
+                    class="shrink-0 min-w-[1.25rem] text-right font-mono text-2xs text-muted-foreground/70"
                     :class="historyDensity === 'dense'
                       ? ['group-hover:invisible group-focus-within:invisible', { invisible: actionsMenuRunId === run.id }]
                       : ''"
@@ -3974,7 +3974,7 @@ function handleRefInput(val: string) {
                      `pr-6` keeps it clear of the hover actions (⋯). -->
                 <p
                   v-if="historyDensity === 'compact'"
-                  class="mt-0.5 pl-5 pr-6 truncate text-[10px] leading-tight text-muted-foreground/70"
+                  class="mt-0.5 pl-5 pr-6 truncate text-2xs leading-tight text-muted-foreground/70"
                   :class="{ invisible: !runStarted(run) }"
                   :title="runAccountModelLine(run, false)"
                 >
@@ -3985,7 +3985,7 @@ function handleRefInput(val: string) {
                      its own line underneath. -->
                 <div
                   v-else-if="historyDensity === 'comfortable'"
-                  class="mt-2 pl-6 pr-3 text-[10px] text-muted-foreground/70"
+                  class="mt-2 pl-6 pr-3 text-2xs text-muted-foreground/70"
                   :class="{ invisible: !runStarted(run) }"
                 >
                   <!-- Account badge shown alongside the model when the run has a
@@ -3995,14 +3995,14 @@ function handleRefInput(val: string) {
                   <div class="flex flex-wrap items-center gap-1.5 pr-6">
                     <span
                       v-if="runClaudeAccountLabel(run)"
-                      class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-[9px] font-medium tracking-wide text-primary"
+                      class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-2xs font-medium tracking-wide text-primary"
                       :title="runClaudeAccountLabel(run)"
                     >
                       {{ runClaudeAccountLabel(run) }}
                     </span>
                     <!-- The model this run actually runs on (falls back to engine). -->
                     <span
-                      class="min-w-0 max-w-full truncate px-1.5 py-0.5 rounded bg-muted/60 font-mono text-[9px] tracking-wide text-muted-foreground"
+                      class="min-w-0 max-w-full truncate px-1.5 py-0.5 rounded bg-muted/60 font-mono text-2xs tracking-wide text-muted-foreground"
                       :title="runModelLabel(run)"
                     >
                       {{ runModelLabel(run) }}
@@ -4058,7 +4058,7 @@ function handleRefInput(val: string) {
                   :ref="setRenameInputRef"
                   v-model="renameDraft"
                   type="text"
-                  class="flex-1 min-w-0 bg-transparent text-[13px] font-medium leading-tight outline-none border-b border-primary/60 pb-0.5"
+                  class="flex-1 min-w-0 bg-transparent text-sm font-medium leading-tight outline-none border-b border-primary/60 pb-0.5"
                   :placeholder="t('run.runNamePlaceholder')"
                   @keyup.enter="commitRename(run.id)"
                   @keyup.esc="cancelRename()"
@@ -4120,7 +4120,7 @@ function handleRefInput(val: string) {
                  header, so all three border lines meet up. -->
             <div class="flex items-center gap-2 px-3 h-8 bg-card border-b border-border shrink-0">
               <FileText class="h-3.5 w-3.5 text-foreground/40" :stroke-width="1.5" />
-              <span class="text-[11px] font-mono text-foreground/60">{{ t('run.content') }}</span>
+              <span class="text-2xs font-mono text-foreground/60">{{ t('run.content') }}</span>
             </div>
             <div class="flex-1 min-h-0 overflow-auto p-4">
               <template v-if="!currentRunId">
@@ -4200,7 +4200,7 @@ function handleRefInput(val: string) {
                        worth showing once there is more than one prompt. -->
                   <div
                     v-if="showTurnNav"
-                    class="flex items-center h-6 rounded border border-border text-[11px] font-mono text-foreground/70"
+                    class="flex items-center h-6 rounded border border-border text-2xs font-mono text-foreground/70"
                   >
                     <button
                       type="button"
@@ -4222,7 +4222,7 @@ function handleRefInput(val: string) {
                         </button>
                       </template>
                       <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
-                        <div class="px-2.5 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-foreground/40">
+                        <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
                           {{ t('run.promptList') }}
                         </div>
                         <DropdownItem
@@ -4233,7 +4233,7 @@ function handleRefInput(val: string) {
                           @click="jumpToSessionTurn(ti, true)"
                         >
                           <span
-                            class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-[10px] font-mono tabular-nums"
+                            class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-2xs font-mono tabular-nums"
                             :class="ti === activeTurnSeq ? 'bg-primary/15 text-primary' : 'bg-muted text-foreground/45'"
                           >{{ ti + 1 }}</span>
                           <span
@@ -4257,7 +4257,7 @@ function handleRefInput(val: string) {
                   <button
                     v-if="canToggleContent"
                     type="button"
-                    class="flex items-center gap-1 rounded h-6 px-1.5 text-[11px] font-medium transition-colors cursor-pointer"
+                    class="flex items-center gap-1 rounded h-6 px-1.5 text-2xs font-medium transition-colors cursor-pointer"
                     :class="contentVisible ? 'bg-primary/15 text-primary' : 'text-foreground/50 hover:text-foreground/80 hover:bg-accent/60'"
                     :title="t('run.toggleContentPanel')"
                     :aria-pressed="contentVisible"
@@ -4293,7 +4293,7 @@ function handleRefInput(val: string) {
                 <div v-if="historyHasMore" class="mb-3 flex justify-center">
                   <button
                     type="button"
-                    class="rounded-full border border-border bg-muted/60 px-3 py-1 text-[11px] text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
+                    class="rounded-full border border-border bg-muted/60 px-3 py-1 text-2xs text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
                     :disabled="historyLoadingMore"
                     @click="showEarlierHistory"
                   >
@@ -4313,7 +4313,7 @@ function handleRefInput(val: string) {
                 <div v-if="historyHasMoreBelow" class="mt-3 flex justify-center">
                   <button
                     type="button"
-                    class="rounded-full border border-border bg-muted/60 px-3 py-1 text-[11px] text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
+                    class="rounded-full border border-border bg-muted/60 px-3 py-1 text-2xs text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
                     :disabled="historyLoadingMore"
                     @click="showLaterHistory"
                   >
@@ -4370,7 +4370,7 @@ function handleRefInput(val: string) {
                   <p class="text-xs font-medium text-warning/80 font-mono mb-1">{{ t('run.notRun') }}</p>
                   <!-- A fresh session needs a typed goal; an issue/PR can Run on its
                        default prompt. -->
-                  <p class="text-[11px] text-foreground/40 leading-relaxed">
+                  <p class="text-2xs text-foreground/40 leading-relaxed">
                     {{ currentIsSession ? t('run.notRunSessionHint') : t('run.notRunHint') }}
                   </p>
                 </template>
@@ -4385,7 +4385,7 @@ function handleRefInput(val: string) {
                  now lives in the toolbar, so this always sits at the bottom. -->
             <button
               v-if="hasLiveOutput && !isViewingHistory && !stickToBottom"
-              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
               :title="t('run.scrollToLatest')"
               @click="stickToBottom = true; scrollOutputToBottom()"
             >
@@ -4394,7 +4394,7 @@ function handleRefInput(val: string) {
             </button>
             <button
               v-else-if="isViewingHistory && historyHasStream && !historyLoading && (historyAwayFromBottom || historyHasMoreBelow)"
-              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
               :title="t('run.scrollToLatest')"
               @click="scrollHistoryToLatest"
             >
@@ -4510,7 +4510,7 @@ function handleRefInput(val: string) {
                 :rate-limit="contextRateLimit"
                 @compact="sendSlashCommand('/compact')"
               />
-              <span v-if="contextTokens > 0" class="shrink-0 text-[10px] text-muted-foreground/40">·</span>
+              <span v-if="contextTokens > 0" class="shrink-0 text-2xs text-muted-foreground/40">·</span>
               <BudgetBadge />
             </div>
 
@@ -4593,7 +4593,7 @@ function handleRefInput(val: string) {
                     <span class="text-xs font-medium shrink-0">{{ engineBadgeLabel }}</span>
                     <span
                       v-if="composerModelLabel"
-                      class="max-w-[9rem] truncate font-mono text-[10px] text-muted-foreground"
+                      class="max-w-[9rem] truncate font-mono text-2xs text-muted-foreground"
                       :title="composerModelLabel"
                     >· {{ composerModelLabel }}</span>
                     <ChevronDown
@@ -4616,7 +4616,7 @@ function handleRefInput(val: string) {
                     >
                       <div class="space-y-3">
                         <div class="space-y-1.5">
-                          <div class="flex items-center gap-1.5 text-[10px] font-medium uppercase text-muted-foreground">
+                          <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
                             <Sparkles class="h-3 w-3 shrink-0" :stroke-width="1.5" />
                             <span>{{ t('run.modelSetting') }}</span>
                           </div>
@@ -4635,7 +4635,7 @@ function handleRefInput(val: string) {
                           </AppSelect>
                         </div>
                         <div v-if="showClaudeAccountSelect" class="space-y-1.5">
-                          <div class="flex items-center gap-1.5 text-[10px] font-medium uppercase text-muted-foreground">
+                          <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
                             <UserCircle class="h-3 w-3 shrink-0" :stroke-width="1.5" />
                             <span>{{ t('run.claudeAccountSetting') }}</span>
                           </div>
@@ -4654,7 +4654,7 @@ function handleRefInput(val: string) {
                           </AppSelect>
                         </div>
                         <div class="space-y-1.5">
-                          <div class="flex items-center gap-1.5 text-[10px] font-medium uppercase text-muted-foreground">
+                          <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
                             <ShieldQuestion class="h-3 w-3 shrink-0" :stroke-width="1.5" />
                             <span>{{ t('run.permissionSetting') }}</span>
                           </div>
@@ -4667,7 +4667,7 @@ function handleRefInput(val: string) {
                             :title="t('run.permissionModeTitle')"
                           >
                             <template #leading>
-                              <span class="text-[10px] font-mono text-muted-foreground shrink-0">{{ t('run.perm') }}</span>
+                              <span class="text-2xs font-mono text-muted-foreground shrink-0">{{ t('run.perm') }}</span>
                             </template>
                           </AppSelect>
                         </div>
@@ -4744,14 +4744,14 @@ function handleRefInput(val: string) {
               class="ml-auto flex items-center gap-1 shrink-0 rounded-md border border-border bg-background pl-1.5 pr-1 h-6"
             >
               <Cpu class="h-3 w-3 text-muted-foreground shrink-0" :stroke-width="1.75" />
-              <span class="text-[11px] font-mono text-muted-foreground">{{ conductorWorkers.length }}/</span>
+              <span class="text-2xs font-mono text-muted-foreground">{{ conductorWorkers.length }}/</span>
               <Input
                 v-model="workerCapDraft"
                 type="number"
                 min="1"
                 max="100"
                 autofocus
-                class="h-5 w-10 px-1 text-center text-[11px]"
+                class="h-5 w-10 px-1 text-center text-2xs"
                 @keyup.enter="commitWorkerCap"
                 @keyup.esc="cancelEditWorkerCap"
                 @blur="commitWorkerCap"
@@ -4760,7 +4760,7 @@ function handleRefInput(val: string) {
             <button
               v-else
               type="button"
-              class="group/cap ml-auto flex items-center gap-1 shrink-0 rounded-md border border-transparent px-1.5 h-6 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:border-border hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
+              class="group/cap ml-auto flex items-center gap-1 shrink-0 rounded-md border border-transparent px-1.5 h-6 text-2xs font-mono text-muted-foreground hover:text-foreground hover:border-border hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
               :title="t('conductor.editMaxWorkers')"
               :aria-label="t('conductor.editMaxWorkers')"
               :disabled="savingWorkerCap"
@@ -4784,7 +4784,7 @@ function handleRefInput(val: string) {
         <button
           v-if="!workerPanelOpen"
           type="button"
-          class="mx-auto mt-1.5 flex shrink-0 flex-col items-center gap-0.5 rounded-md px-1 py-1 font-mono text-[10px] leading-none text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+          class="mx-auto mt-1.5 flex shrink-0 flex-col items-center gap-0.5 rounded-md px-1 py-1 font-mono text-2xs leading-none text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
           :title="pendingConductor ? t('conductor.preLaunchHint') : t('conductor.editMaxWorkers')"
           :aria-label="t('conductor.editMaxWorkers')"
           @click="editWorkerCapFromRail"
@@ -4796,7 +4796,7 @@ function handleRefInput(val: string) {
              and send the goal, rather than showing an empty worker tree. -->
         <div
           v-if="workerPanelOpen && pendingConductor"
-          class="p-3 text-[11px] leading-relaxed text-muted-foreground"
+          class="p-3 text-2xs leading-relaxed text-muted-foreground"
         >
           {{ t('conductor.preLaunchHint') }}
         </div>
@@ -4861,7 +4861,7 @@ function handleRefInput(val: string) {
         :style="{ left: translateTrigger.x + 'px', top: translateTrigger.y + 'px' }"
       >
         <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-primary hover:bg-accent/60 transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-primary hover:bg-accent/60 transition-colors cursor-pointer"
           :title="t('run.translateSelection')"
           @mousedown.prevent
           @click="openTranslate"
@@ -4871,7 +4871,7 @@ function handleRefInput(val: string) {
         </button>
         <span class="h-4 w-px bg-border" />
         <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
           :title="t('run.saveSelectionAsNoteTitle')"
           @mousedown.prevent
           @click="captureSelectionAsNote"
@@ -4881,7 +4881,7 @@ function handleRefInput(val: string) {
         </button>
         <span class="h-4 w-px bg-border" />
         <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
           :title="t('run.saveSelectionAsTodoTitle')"
           @mousedown.prevent
           @click="captureSelectionAsTodo"

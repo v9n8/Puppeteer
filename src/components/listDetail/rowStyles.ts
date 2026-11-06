@@ -23,4 +23,4 @@ export function rowClass(selected: boolean): string {
 export const rowTitleClass = 'text-sm font-medium leading-snug'
 
 /** A row's secondary line (description, preview, user@host…). */
-export const rowSubClass = 'mt-1 truncate text-[11px] text-muted-foreground/70'
+export const rowSubClass = 'mt-1 truncate text-2xs text-muted-foreground/70'

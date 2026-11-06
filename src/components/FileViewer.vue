@@ -988,7 +988,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         >
           <AArrowDown class="h-3.5 w-3.5" :stroke-width="1.75" />
         </button>
-        <span class="px-1.5 text-[10px] tabular-nums text-foreground/50 border-x border-border select-none">{{ fontSize }}</span>
+        <span class="px-1.5 text-2xs tabular-nums text-foreground/50 border-x border-border select-none">{{ fontSize }}</span>
         <button
           class="flex items-center justify-center h-7 w-7 text-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
           :title="t('files.viewer.largerFont')"
@@ -1009,7 +1009,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
           <ZoomOut class="h-3.5 w-3.5" :stroke-width="1.75" />
         </button>
         <button
-          class="px-1.5 h-7 text-[10px] tabular-nums text-foreground/60 hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
+          class="px-1.5 h-7 text-2xs tabular-nums text-foreground/60 hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
           :title="t('files.viewer.resetZoom')"
           @click="resetZoom"
         >{{ Math.round(zoom * 100) }}%</button>
@@ -1141,7 +1141,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         @keydown.shift.enter.prevent="gotoMatch(-1)"
         @keydown.esc.prevent="closeSearch"
       />
-      <span class="text-[10px] tabular-nums text-foreground/50 select-none shrink-0 min-w-[3rem] text-right">
+      <span class="text-2xs tabular-nums text-foreground/50 select-none shrink-0 min-w-[3rem] text-right">
         {{ searchQuery ? `${currentMatch}/${matchCount}` : '' }}
       </span>
       <Button

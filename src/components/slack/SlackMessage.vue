@@ -104,7 +104,7 @@ function onBodyClick(e: MouseEvent) {
       />
       <span
         v-else
-        class="block pt-0.5 text-right text-[10px] tabular-nums leading-5 text-muted-foreground opacity-0 group-hover:opacity-100"
+        class="block pt-0.5 text-right text-2xs tabular-nums leading-5 text-muted-foreground opacity-0 group-hover:opacity-100"
         :title="formatFullDate(message.postedAt)"
       >
         {{ formatClock(message.postedAt) }}
@@ -118,12 +118,12 @@ function onBodyClick(e: MouseEvent) {
         </span>
         <span
           v-if="isBot"
-          class="shrink-0 self-center rounded bg-muted px-1 py-px text-[9px] font-semibold text-muted-foreground"
+          class="shrink-0 self-center rounded bg-muted px-1 py-px text-2xs font-semibold text-muted-foreground"
         >
           {{ t('slackThread.message.app') }}
         </span>
         <span
-          class="shrink-0 text-[11px] tabular-nums text-muted-foreground hover:underline"
+          class="shrink-0 text-2xs tabular-nums text-muted-foreground hover:underline"
           :title="formatFullDate(message.postedAt)"
         >
           {{ formatClock(message.postedAt) }}
@@ -143,7 +143,7 @@ function onBodyClick(e: MouseEvent) {
         />
         <div
           v-if="message.editedTs || untranslatedTag"
-          class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground"
+          class="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground"
         >
           <span v-if="message.editedTs">{{ t('slackThread.message.edited') }}</span>
           <span

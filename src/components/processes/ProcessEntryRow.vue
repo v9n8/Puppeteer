@@ -52,18 +52,18 @@ const expanded = ref(false)
       <ProcessKindBadge :kind="entry.kind" />
 
       <button type="button" class="min-w-0 flex-1 text-left cursor-pointer" @click="expanded = !expanded">
-        <span class="block truncate text-[13px] leading-tight" :title="entry.label">{{ entry.label }}</span>
-        <span class="block truncate text-[11px] text-muted-foreground leading-tight">
+        <span class="block truncate text-sm leading-tight" :title="entry.label">{{ entry.label }}</span>
+        <span class="block truncate text-2xs text-muted-foreground leading-tight">
           {{ entry.project_name || t('processes.noProject') }}
         </span>
       </button>
 
-      <span class="w-24 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+      <span class="w-24 shrink-0 text-right text-2xs text-muted-foreground tabular-nums">
         {{ t('processes.processCount', { n: entry.processes.length }, entry.processes.length) }}
       </span>
-      <span class="w-12 shrink-0 text-right text-[11px] tabular-nums" :title="t('processes.col.cpu')">{{ formatCpu(entry.cpu) }}</span>
-      <span class="w-16 shrink-0 text-right text-[11px] tabular-nums" :title="t('processes.col.ram')">{{ formatRss(entry.rss_kb) }}</span>
-      <span class="w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums" :title="t('processes.col.age')">
+      <span class="w-12 shrink-0 text-right text-2xs tabular-nums" :title="t('processes.col.cpu')">{{ formatCpu(entry.cpu) }}</span>
+      <span class="w-16 shrink-0 text-right text-2xs tabular-nums" :title="t('processes.col.ram')">{{ formatRss(entry.rss_kb) }}</span>
+      <span class="w-14 shrink-0 text-right text-2xs text-muted-foreground tabular-nums" :title="t('processes.col.age')">
         {{ formatAge(entry.created_at, now) }}
       </span>
 
@@ -97,7 +97,7 @@ const expanded = ref(false)
 
     <!-- Per-process table -->
     <div v-if="expanded" class="px-3 pb-2 pl-12">
-      <table class="w-full table-fixed text-[11px]">
+      <table class="w-full table-fixed text-2xs">
         <thead class="text-muted-foreground">
           <tr class="border-b border-border/50">
             <th class="w-16 py-1 text-left font-medium">{{ t('processes.col.pid') }}</th>

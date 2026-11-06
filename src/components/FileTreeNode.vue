@@ -192,7 +192,7 @@ async function dragOut() {
 
   <!-- Children (recursive) -->
   <template v-if="entry.is_dir && expanded">
-    <div v-if="!loading && children.length === 0" class="py-0.5 text-[11px] text-muted-foreground/60" :style="{ paddingLeft: `${(depth + 1) * 12 + 22}px` }">
+    <div v-if="!loading && children.length === 0" class="py-0.5 text-2xs text-muted-foreground/60" :style="{ paddingLeft: `${(depth + 1) * 12 + 22}px` }">
       empty
     </div>
     <FileTreeNode

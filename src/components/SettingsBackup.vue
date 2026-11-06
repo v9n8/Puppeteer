@@ -117,18 +117,18 @@ function cancelImport() {
       <span class="text-xs font-semibold">{{ t('settings.backup.title') }}</span>
     </template>
 
-    <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.help') }}</p>
+    <p class="text-2xs text-muted-foreground">{{ t('settings.backup.help') }}</p>
 
     <!-- Export -->
     <section class="space-y-3">
-      <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
         {{ t('settings.backup.export.title') }}
       </label>
 
       <div class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3">
         <div class="min-w-0">
           <p class="text-sm font-medium text-foreground">{{ t('settings.backup.export.includeSecrets') }}</p>
-          <p class="mt-0.5 text-[11px] text-muted-foreground">{{ t('settings.backup.export.includeSecretsHint') }}</p>
+          <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('settings.backup.export.includeSecretsHint') }}</p>
         </div>
         <ToggleSwitch
           size="md"
@@ -151,13 +151,13 @@ function cancelImport() {
           autocomplete="new-password"
           :placeholder="t('settings.backup.export.passwordConfirm')"
         />
-        <p class="flex items-start gap-1.5 text-[11px] text-warning">
+        <p class="flex items-start gap-1.5 text-2xs text-warning">
           <KeyRound class="mt-px h-3 w-3 shrink-0" :stroke-width="1.75" />
           {{ t('settings.backup.export.passwordWarning') }}
         </p>
-        <p v-if="exportError && exportPassword" class="text-[11px] text-destructive">{{ exportError }}</p>
+        <p v-if="exportError && exportPassword" class="text-2xs text-destructive">{{ exportError }}</p>
       </div>
-      <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.backup.export.noSecretsHint') }}</p>
+      <p v-else class="text-2xs text-muted-foreground">{{ t('settings.backup.export.noSecretsHint') }}</p>
 
       <Button size="sm" :disabled="exporting || !!exportError" @click="runExport">
         <component :is="exporting ? Loader2 : Download" class="h-3.5 w-3.5" :class="{ 'animate-spin': exporting }" :stroke-width="1.75" />
@@ -169,10 +169,10 @@ function cancelImport() {
 
     <!-- Import -->
     <section class="space-y-3">
-      <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
         {{ t('settings.backup.import.title') }}
       </label>
-      <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.help') }}</p>
+      <p class="text-2xs text-muted-foreground">{{ t('settings.backup.import.help') }}</p>
 
       <Button v-if="!importInfo" variant="outline" size="sm" @click="chooseFile">
         <FileUp class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -180,7 +180,7 @@ function cancelImport() {
       </Button>
 
       <div v-else class="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-        <div class="text-[11px] text-muted-foreground space-y-0.5">
+        <div class="text-2xs text-muted-foreground space-y-0.5">
           <div class="truncate font-mono" :title="importPath ?? ''">{{ importPath }}</div>
           <div>
             {{ t('settings.backup.import.exportedAt', { at: formatExportedAt(importInfo.exportedAt), version: importInfo.appVersion || '?' }) }}
@@ -195,15 +195,15 @@ function cancelImport() {
             autocomplete="off"
             :placeholder="t('settings.backup.import.password')"
           />
-          <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.passwordHint') }}</p>
+          <p class="text-2xs text-muted-foreground">{{ t('settings.backup.import.passwordHint') }}</p>
         </div>
-        <p v-else class="text-[11px] text-muted-foreground">{{ t('settings.backup.import.noSecrets') }}</p>
+        <p v-else class="text-2xs text-muted-foreground">{{ t('settings.backup.import.noSecrets') }}</p>
 
         <label v-if="importInfo.counts.projects" class="flex items-start gap-2 text-xs">
           <input v-model="createMissingDirs" type="checkbox" class="mt-0.5 accent-primary">
           <span>
             {{ t('settings.backup.import.createMissingDirs') }}
-            <span class="block text-[11px] text-muted-foreground">{{ t('settings.backup.import.createMissingDirsHint') }}</span>
+            <span class="block text-2xs text-muted-foreground">{{ t('settings.backup.import.createMissingDirsHint') }}</span>
           </span>
         </label>
 

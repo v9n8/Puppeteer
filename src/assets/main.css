@@ -64,44 +64,63 @@
   --radius-lg: calc(var(--radius) + 4px);
 }
 
+/* `dark:` follows the app's `.dark` class (App.vue / controller appearance), not
+ * the OS setting — otherwise picking Light on a dark-mode Mac still gets the
+ * dark variants. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Type scale, one step up from Tailwind's defaults so nothing renders below
+ * 12px — 10–11px text breaks up on low-density IPS panels. `text-2xs` (12px)
+ * is the floor (badges, meta lines, hints); `text-xs` (13px) is default UI
+ * text. sm/base/lg keep Tailwind's 14/16/18px. */
+@theme {
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+}
+
 @layer base {
   /* ---------------------------------------------------------------------------
-   * Aurora Glass (default indigo). Deep midnight-violet base + indigo accent.
-   * Surfaces are kept as HSL tokens; the frosted look comes from the primitives
-   * (Card/Modal use a translucent fill + backdrop-blur) layered over the aurora
-   * background (see `body::before` below). Larger --radius softens panels.
+   * Default theme: flat "Zinc + Indigo", tuned for mid-range IPS panels
+   * (washed-out blacks, narrow gamut, low pixel density). Neutral zinc
+   * surfaces + one indigo accent; hairline borders, no glass, no in-page
+   * shadows. Dark mode is charcoal, not deep navy: near-black tiers merge on
+   * an IPS panel, so card/popover each sit one clear step above the page.
+   * Secondary text stays >= 4.5:1 on every surface it lands on (see
+   * docs/design/design-system-preview.html for the measured pairs).
    * `.theme-scope` re-declares the tokens on an element so a theme preview tile
    * (with its own `data-theme` / `.dark`) doesn't inherit the active palette.
    * ------------------------------------------------------------------------- */
   :root,
   .theme-scope {
-    --background: 240 40% 98%;
-    --foreground: 235 42% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 235 42% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 235 42% 11%;
-    --primary: 243 76% 59%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 22% 94%;
-    --secondary-foreground: 235 42% 22%;
-    --muted: 240 22% 94%;
-    --muted-foreground: 235 12% 45%;
-    --accent: 243 40% 92%;
-    --accent-foreground: 243 60% 32%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 20% 88%;
-    --input: 240 20% 88%;
-    --ring: 243 76% 59%;
-    --radius: 0.625rem;
-    --sidebar: 240 30% 96%;
-    --success: 161 94% 27%; /* emerald-600, darkened for AA on white text */
-    --warning: 32 95% 36%; /* amber-600, darkened for AA */
-    --info: 200 98% 37%; /* sky-600, darkened for AA */
-    --success-foreground: 0 0% 100%;
-    --warning-foreground: 0 0% 100%;
-    --info-foreground: 0 0% 100%;
+    --background: 240 9.1% 95.7%; /* #f3f3f5 */
+    --foreground: 240 5.9% 10%; /* #18181b */
+    --card: 0 0% 100%; /* #ffffff */
+    --card-foreground: 240 5.9% 10%; /* #18181b */
+    --popover: 0 0% 100%; /* #ffffff */
+    --popover-foreground: 240 5.9% 10%; /* #18181b */
+    --primary: 243.4 75.4% 58.6%; /* #4f46e5 */
+    --primary-foreground: 0 0% 100%; /* #ffffff */
+    --secondary: 240 6.9% 88.6%; /* #e0e0e4 */
+    --secondary-foreground: 240 5.9% 10%; /* #18181b */
+    --muted: 240 8.6% 93.1%; /* #ececef */
+    --muted-foreground: 240 5% 35.1%; /* #55555e */
+    --accent: 240 6.7% 91.2%; /* #e7e7ea */
+    --accent-foreground: 240 5.9% 10%; /* #18181b */
+    --destructive: 0 73.7% 41.8%; /* #b91c1c */
+    --destructive-foreground: 0 0% 100%; /* #ffffff */
+    --border: 240 8.3% 90.6%; /* #e5e5e9 */
+    --input: 240 7.2% 81%; /* #cbcbd2 */
+    --ring: 243.4 75.4% 58.6%; /* #4f46e5 */
+    --radius: 0.5rem; /* md 8px controls, lg 12px cards, sm 6px chips */
+    --sidebar: 240 9.1% 97.8%; /* #f9f9fa */
+    --success: 163.1 88.1% 19.8%; /* #065f46 */
+    --warning: 22.7 82.5% 31.4%; /* #92400e */
+    --info: 201 90% 27.5%; /* #075985 */
+    --success-foreground: 0 0% 100%; /* #ffffff */
+    --warning-foreground: 0 0% 100%; /* #ffffff */
+    --info-foreground: 0 0% 100%; /* #ffffff */
     /* Non-primary tints of the aurora background; themes may override. */
     --aurora-1: 280 85% 60%;
     --aurora-2: 200 90% 60%;
@@ -110,33 +129,33 @@
   }
 
   .dark {
-    --background: 235 42% 7%;
-    --foreground: 220 32% 96%;
-    --card: 234 34% 13%;
-    --card-foreground: 220 32% 96%;
-    --popover: 234 36% 12%;
-    --popover-foreground: 220 32% 96%;
-    --primary: 243 88% 72%;
-    --primary-foreground: 240 60% 8%;
-    --secondary: 235 26% 20%;
-    --secondary-foreground: 220 32% 96%;
-    --muted: 235 24% 19%;
-    --muted-foreground: 226 24% 77%;
-    --accent: 243 42% 28%;
-    --accent-foreground: 220 32% 98%;
-    --destructive: 0 74% 62%;
-    --destructive-foreground: 0 70% 8%;
-    --border: 235 28% 26%;
-    --input: 235 28% 26%;
-    --ring: 243 92% 76%;
-    --sidebar: 236 46% 6%;
-    --success: 158 64% 52%; /* emerald-400 */
-    --warning: 43 96% 56%; /* amber-400 */
-    --info: 198 93% 60%; /* sky-400 */
+    --background: 240 5% 7.8%; /* #131315 */
+    --foreground: 240 8.6% 93.1%; /* #ececef */
+    --card: 240 6.1% 12.9%; /* #1f1f23 */
+    --card-foreground: 240 8.6% 93.1%; /* #ececef */
+    --popover: 240 6% 16.3%; /* #27272c */
+    --popover-foreground: 240 8.6% 93.1%; /* #ececef */
+    --primary: 235.6 88.6% 75.9%; /* #8b93f8 */
+    --primary-foreground: 237.9 50% 11%; /* #0e0f2a */
+    --secondary: 240 5.1% 23.1%; /* #38383e */
+    --secondary-foreground: 240 8.6% 93.1%; /* #ececef */
+    --muted: 240 5.7% 10.4%; /* #19191c */
+    --muted-foreground: 240 5.7% 65.9%; /* #a3a3ad */
+    --accent: 240 4.8% 20.6%; /* #323237 */
+    --accent-foreground: 240 8.6% 93.1%; /* #ececef */
+    --destructive: 0 93.7% 75.3%; /* #fb8585 */
+    --destructive-foreground: 0 61.5% 10.2%; /* #2a0a0a */
+    --border: 240 4.6% 21.4%; /* #343439 */
+    --input: 240 4.5% 30.4%; /* #4a4a51 */
+    --ring: 235.6 88.6% 75.9%; /* #8b93f8 */
+    --sidebar: 240 6.3% 6.3%; /* #0f0f11 */
+    --success: 158.1 64.4% 51.6%; /* #34d399 */
+    --warning: 27 96% 61%; /* #fb923c */
+    --info: 198.4 93.2% 59.6%; /* #38bdf8 */
     /* Light fills in dark mode → dark text on solid success/warning/info. */
-    --success-foreground: 164 86% 10%;
-    --warning-foreground: 26 83% 14%;
-    --info-foreground: 204 80% 12%;
+    --success-foreground: 165.7 91.3% 9%; /* #022c22 */
+    --warning-foreground: 23.1 86.7% 8.8%; /* #2a1203 */
+    --info-foreground: 204 80.2% 15.9%; /* #082f49 */
     --aurora-1: 280 90% 62%;
     --aurora-2: 200 90% 60%;
   }

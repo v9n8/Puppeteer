@@ -22,7 +22,7 @@ export const calendarNav =
   'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ' +
   'disabled:opacity-30 disabled:pointer-events-none'
 export const calendarGrid = 'w-full border-collapse select-none'
-export const calendarHeadCell = 'h-7 w-8 text-[10px] font-medium uppercase text-muted-foreground'
+export const calendarHeadCell = 'h-7 w-8 text-2xs font-medium uppercase text-muted-foreground'
 export const calendarCell = 'p-0 text-center'
 
 const cellBase =

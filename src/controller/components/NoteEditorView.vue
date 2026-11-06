@@ -206,7 +206,7 @@ function clearBanner(): void {
       <template v-else-if="mode === 'view'">
         <span
           v-if="projectName"
-          class="mb-2 inline-block rounded-full border border-border bg-secondary px-1.5 py-px text-[10px] text-muted-foreground"
+          class="mb-2 inline-block rounded-full border border-border bg-secondary px-1.5 py-px text-2xs text-muted-foreground"
         >
           {{ projectName }}
         </span>
@@ -216,7 +216,7 @@ function clearBanner(): void {
 
       <form v-else class="flex min-h-full flex-col" @submit.prevent="submit">
         <label class="mb-3 block">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.notes.titleLabel') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.notes.titleLabel') }}</span>
           <Input
             v-model="title"
             size="md"
@@ -226,15 +226,15 @@ function clearBanner(): void {
           />
         </label>
         <div class="mb-3">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.data.project') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.data.project') }}</span>
           <AppSelect v-model="projectId" size="md" class="w-full" :options="projectOptions" />
         </div>
         <label class="mb-3 flex flex-1 flex-col">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.notes.contentLabel') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.notes.contentLabel') }}</span>
           <Textarea
             v-model="content"
             size="md"
-            class="min-h-[16rem] w-full flex-1 resize-none font-mono text-[13px]"
+            class="min-h-[16rem] w-full flex-1 resize-none font-mono text-sm"
             :placeholder="t('controller.notes.contentPlaceholder')"
           />
         </label>

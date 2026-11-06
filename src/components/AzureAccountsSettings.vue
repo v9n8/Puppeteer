@@ -210,7 +210,7 @@ onMounted(() => {
       <CloudCog class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.azure.title') }}</span>
     </template>
-    <p class="text-[11px] text-muted-foreground leading-relaxed">
+    <p class="text-2xs text-muted-foreground leading-relaxed">
       {{ t('settings.azure.intro') }}
     </p>
 
@@ -220,7 +220,7 @@ onMounted(() => {
       </span>
     </Banner>
 
-    <p v-if="store.error" class="text-[11px] text-destructive">{{ store.error }}</p>
+    <p v-if="store.error" class="text-2xs text-destructive">{{ store.error }}</p>
 
     <!-- Account list -->
     <div v-if="store.accounts.length" class="space-y-2">
@@ -233,13 +233,13 @@ onMounted(() => {
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <div class="text-sm font-medium truncate">{{ acc.label }}</div>
-              <div class="text-[11px] text-muted-foreground truncate">
+              <div class="text-2xs text-muted-foreground truncate">
                 <span v-if="acc.subscription_name">{{ acc.subscription_name }}</span>
                 <span v-else-if="acc.subscription_id" class="font-mono">{{ acc.subscription_id }}</span>
                 <span v-else>{{ t('settings.azure.noSubscription') }}</span>
                 <span v-if="acc.tenant_id || acc.tenant"> · <span class="font-mono">{{ acc.tenant_id ?? acc.tenant }}</span></span>
               </div>
-              <div class="text-[11px] text-muted-foreground truncate">
+              <div class="text-2xs text-muted-foreground truncate">
                 <span v-if="acc.user_name">{{ acc.user_name }} · </span>
                 <span>{{ acc.last_validated_at
                   ? t('settings.azure.lastValidated', { time: fmtTime(acc.last_validated_at) })
@@ -314,8 +314,8 @@ onMounted(() => {
         <template v-else>
           <Input v-model="editLabel[acc.id]" size="sm" :placeholder="t('settings.azure.labelPlaceholder')" />
           <div class="space-y-1.5">
-            <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.subscriptionLabel') }}</label>
-            <p v-if="subscriptionsLoading === acc.id" class="text-[11px] text-muted-foreground">{{ t('settings.azure.subscriptionsLoading') }}</p>
+            <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.subscriptionLabel') }}</label>
+            <p v-if="subscriptionsLoading === acc.id" class="text-2xs text-muted-foreground">{{ t('settings.azure.subscriptionsLoading') }}</p>
             <Input
               v-else-if="subscriptionsFailed[acc.id]"
               v-model="editSubscription[acc.id]"
@@ -343,14 +343,14 @@ onMounted(() => {
           </div>
         </template>
 
-        <p v-if="accountError[acc.id]" class="text-[11px] text-destructive">{{ accountError[acc.id] }}</p>
+        <p v-if="accountError[acc.id]" class="text-2xs text-destructive">{{ accountError[acc.id] }}</p>
       </div>
     </div>
 
     <!-- Add account: browser az login into an isolated config dir -->
     <div class="border-t border-border/60 pt-3 space-y-2">
-      <div class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.addAccount') }}</div>
-      <p class="text-[11px] text-muted-foreground leading-relaxed">{{ t('settings.azure.addHint') }}</p>
+      <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.addAccount') }}</div>
+      <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.azure.addHint') }}</p>
       <Input
         v-model="newLabel"
         size="sm"
@@ -371,7 +371,7 @@ onMounted(() => {
           {{ adding ? t('settings.azure.loggingIn') : t('common.add') }}
         </Button>
       </div>
-      <p v-if="addError" class="text-[11px] text-destructive">{{ addError }}</p>
+      <p v-if="addError" class="text-2xs text-destructive">{{ addError }}</p>
     </div>
   </Card>
 </template>

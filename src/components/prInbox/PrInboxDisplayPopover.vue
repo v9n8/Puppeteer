@@ -79,7 +79,7 @@ function manageBots() {
     >
       <!-- Group by -->
       <div class="mb-3">
-        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.groupByLabel') }}</div>
+        <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.groupByLabel') }}</div>
         <div ref="radiogroup" role="radiogroup" :aria-label="t('prInbox.groupByLabel')">
           <button
             v-for="g in PR_GROUP_BY_OPTIONS"
@@ -101,7 +101,7 @@ function manageBots() {
 
       <!-- Density -->
       <div class="mb-3">
-        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.density.label') }}</div>
+        <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.density.label') }}</div>
         <SegmentedControl
           :model-value="store.density"
           :options="densityOptions"
@@ -122,7 +122,7 @@ function manageBots() {
           <EyeOff class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
           <span class="min-w-0 flex-1">
             <span class="block text-sm text-foreground">{{ t('prInbox.hideBots') }}</span>
-            <span class="block text-[11px] text-muted-foreground truncate">{{ t('prInbox.display.hideBotsHint') }}</span>
+            <span class="block text-2xs text-muted-foreground truncate">{{ t('prInbox.display.hideBotsHint') }}</span>
           </span>
           <span
             class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
@@ -141,7 +141,7 @@ function manageBots() {
         >
           <KeyRound class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
           <span class="min-w-0 flex-1 text-sm text-foreground truncate">{{ t('prInbox.botAccounts.button') }}</span>
-          <span v-if="store.botLogins.length > 0" class="text-[11px] text-muted-foreground tabular-nums">{{ store.botLogins.length }}</span>
+          <span v-if="store.botLogins.length > 0" class="text-2xs text-muted-foreground tabular-nums">{{ store.botLogins.length }}</span>
           <ChevronRight class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         </button>
       </div>

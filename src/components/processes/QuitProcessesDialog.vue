@@ -80,17 +80,17 @@ async function answer(action: QuitAction) {
   <Modal :open="request !== null" :title="t('processes.quit.title')" size="md" :dismiss-on-overlay="false" @close="answer('cancel')">
     <div class="space-y-4 px-4 py-4">
       <div v-if="sessions.length > 0" class="space-y-1.5">
-        <p class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <p class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('processes.quit.sessions') }} ({{ sessions.length }})
         </p>
         <ProcessEntrySummary :entries="sessions" />
       </div>
       <div v-if="strays.length > 0" class="space-y-1.5">
-        <p class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <p class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('processes.quit.stray') }} ({{ strays.length }})
         </p>
         <ProcessEntrySummary :entries="strays" />
-        <p class="text-[11px] text-muted-foreground">{{ t('processes.quit.strayHint') }}</p>
+        <p class="text-2xs text-muted-foreground">{{ t('processes.quit.strayHint') }}</p>
       </div>
     </div>
     <template #footer>

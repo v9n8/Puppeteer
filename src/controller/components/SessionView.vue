@@ -239,7 +239,7 @@ onUnmounted(() => {
       </template>
       <span
         v-if="decodeErrors > 0"
-        class="inline-flex items-center gap-1 text-[10px] text-warning"
+        class="inline-flex items-center gap-1 text-2xs text-warning"
         :title="t('controller.session.decodeErrorsTitle')"
       >
         <AlertTriangle class="h-3 w-3" :stroke-width="2" /> {{ decodeErrors }}

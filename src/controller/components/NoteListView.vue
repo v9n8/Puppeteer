@@ -116,14 +116,14 @@ function previewOf(note: NoteSummary): string {
             <span class="min-w-0 flex-1 truncate text-sm font-medium">
               {{ noteDisplayTitle({ title: note.title, content: note.preview }) || t('controller.notes.untitled') }}
             </span>
-            <span class="shrink-0 text-[10px] text-muted-foreground">{{ relativeAge(note.updated_at) }}</span>
+            <span class="shrink-0 text-2xs text-muted-foreground">{{ relativeAge(note.updated_at) }}</span>
           </span>
           <span v-if="previewOf(note)" class="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
             {{ previewOf(note) }}
           </span>
           <span
             v-if="note.project_id && projectNames.get(note.project_id)"
-            class="mt-1.5 inline-block rounded-full border border-border bg-secondary px-1.5 py-px text-[10px] text-muted-foreground"
+            class="mt-1.5 inline-block rounded-full border border-border bg-secondary px-1.5 py-px text-2xs text-muted-foreground"
           >
             {{ projectNames.get(note.project_id) }}
           </span>

@@ -236,11 +236,11 @@ const groups = computed(() => {
         <p class="text-xs text-muted-foreground">
           {{ kind === 'note' ? t('item.emptyNote') : t('item.emptyTodo') }}
         </p>
-        <p class="mt-1 text-[11px] text-muted-foreground/70">
+        <p class="mt-1 text-2xs text-muted-foreground/70">
           {{ kind === 'note' ? t('item.emptyNoteHint') : t('item.emptyTodoHint') }}
         </p>
       </div>
-      <p v-else-if="rows.length === 0" class="px-3 py-8 text-center text-[11px] text-muted-foreground">
+      <p v-else-if="rows.length === 0" class="px-3 py-8 text-center text-2xs text-muted-foreground">
         {{ t('item.noResults') }}
       </p>
 
@@ -259,7 +259,7 @@ const groups = computed(() => {
             />
             <Folder class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />
             <span class="min-w-0 flex-1 truncate">{{ g.label }}</span>
-            <span class="shrink-0 text-[10px] font-normal tabular-nums text-muted-foreground/80">
+            <span class="shrink-0 text-2xs font-normal tabular-nums text-muted-foreground/80">
               {{ g.rows.length }}
             </span>
           </button>
@@ -310,7 +310,7 @@ const groups = computed(() => {
                   </span>
                   <span
                     v-if="dueBadges[row.id]"
-                    class="flex shrink-0 items-center gap-0.5 rounded px-1 text-[10px] tabular-nums"
+                    class="flex shrink-0 items-center gap-0.5 rounded px-1 text-2xs tabular-nums"
                     :class="dueBadges[row.id].tone"
                     :title="dueBadges[row.id].title"
                   >
@@ -319,13 +319,13 @@ const groups = computed(() => {
                   </span>
                   <span
                     v-if="row.linkedRunCount > 0"
-                    class="flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground"
+                    class="flex shrink-0 items-center gap-0.5 text-2xs tabular-nums text-muted-foreground"
                     :title="t('sessionLink.linkedCount', row.linkedRunCount)"
                   >
                     <Link2 class="h-3 w-3" :stroke-width="2" />
                     <template v-if="row.linkedRunCount > 1">{{ row.linkedRunCount }}</template>
                   </span>
-                  <span class="shrink-0 text-[10px] tabular-nums text-muted-foreground/80" :title="formatFullDate(row.at)">
+                  <span class="shrink-0 text-2xs tabular-nums text-muted-foreground/80" :title="formatFullDate(row.at)">
                     {{ relativeAge(row.at) }}
                   </span>
                 </span>

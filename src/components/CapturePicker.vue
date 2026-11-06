@@ -332,7 +332,7 @@ onBeforeUnmount(() => {
         <button
           v-if="showDoneToggle"
           type="button"
-          class="flex cursor-pointer items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+          class="flex cursor-pointer items-center gap-1.5 px-0.5 text-2xs text-muted-foreground hover:text-foreground"
           :aria-pressed="showDone"
           @click="toggleShowDone"
         >
@@ -349,14 +349,14 @@ onBeforeUnmount(() => {
       <div class="max-h-72 overflow-y-auto">
         <p
           v-if="ofFilter.length === 0"
-          class="px-2.5 py-4 text-center text-[11px] text-muted-foreground"
+          class="px-2.5 py-4 text-center text-2xs text-muted-foreground"
           @click.stop
         >
           {{ emptyText }}
         </p>
         <p
           v-else-if="flat.length === 0"
-          class="px-2.5 py-4 text-center text-[11px] text-muted-foreground"
+          class="px-2.5 py-4 text-center text-2xs text-muted-foreground"
           @click.stop
         >
           {{ t('item.noResults') }}
@@ -364,7 +364,7 @@ onBeforeUnmount(() => {
         <template v-for="group in groups" v-else :key="group.key">
           <div
             v-if="group.label"
-            class="px-2.5 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70"
+            class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70"
             @click.stop
           >
             {{ group.label }}
@@ -386,10 +386,10 @@ onBeforeUnmount(() => {
             />
             <span class="block min-w-0 flex-1">
               <span
-                class="block w-full truncate text-[13px] text-popover-foreground"
+                class="block w-full truncate text-sm text-popover-foreground"
                 :class="it.done && 'text-muted-foreground line-through'"
               >{{ it.title }}</span>
-              <span class="block w-full truncate text-[11px] text-muted-foreground">{{ it.meta }}</span>
+              <span class="block w-full truncate text-2xs text-muted-foreground">{{ it.meta }}</span>
             </span>
             <SlackStatusIcon
               v-if="it.thread && it.thread.fetchStatus !== 'ready'"

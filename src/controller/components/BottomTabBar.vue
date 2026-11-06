@@ -45,7 +45,7 @@ const visible = computed(() => TABS.filter((item) => !props.hidden?.includes(ite
       type="button"
       role="tab"
       :aria-selected="tab === item.id"
-      class="relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[10px] font-medium transition-colors cursor-pointer"
+      class="relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-2xs font-medium transition-colors cursor-pointer"
       :class="tab === item.id ? 'text-primary' : 'text-foreground/50 hover:text-foreground'"
       @click="emit('update:tab', item.id)"
     >
@@ -53,7 +53,7 @@ const visible = computed(() => TABS.filter((item) => !props.hidden?.includes(ite
         <component :is="item.icon" class="h-5 w-5" :stroke-width="2" />
         <span
           v-if="item.id === 'inbox' && inboxCount > 0"
-          class="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-warning text-[10px] leading-4 text-warning-foreground text-center"
+          class="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-warning text-2xs leading-4 text-warning-foreground text-center"
         >
           {{ inboxCount > 99 ? '99+' : inboxCount }}
         </span>

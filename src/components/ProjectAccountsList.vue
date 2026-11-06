@@ -56,12 +56,12 @@ const enabledCount = computed(() => props.accounts.filter(a => enabled.value.has
       <span class="text-xs font-semibold">{{ t(`projectDetail.${config.title}`) }}</span>
       <span
         v-if="enabledCount > 0"
-        class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+        class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
       >{{ enabledCount }}</span>
-      <RouterLink :to="config.settings" class="ml-auto text-[11px] text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+      <RouterLink :to="config.settings" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
     </template>
 
-    <p class="px-4 pt-3 text-[11px] text-muted-foreground leading-relaxed">
+    <p class="px-4 pt-3 text-2xs text-muted-foreground leading-relaxed">
       {{ t(`projectDetail.${config.hint}`) }}
       <code class="text-primary">{{ config.envVar }}=&lt;label&gt;</code>.
     </p>
@@ -90,12 +90,12 @@ const enabledCount = computed(() => props.accounts.filter(a => enabled.value.has
             <button
               v-else-if="enabled.has(account.id)"
               type="button"
-              class="text-[10px] text-primary hover:underline disabled:opacity-50"
+              class="text-2xs text-primary hover:underline disabled:opacity-50"
               :disabled="busy !== null"
               @click="emit('makeDefault', account)"
             >{{ t('projectDetail.makeDefault') }}</button>
           </div>
-          <p v-if="account.username || account.detail || account.warning" class="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+          <p v-if="account.username || account.detail || account.warning" class="text-2xs text-muted-foreground font-mono truncate mt-0.5">
             <span v-if="account.username">@{{ account.username }}</span>
             <span v-if="account.username && account.detail"> · </span>
             <span v-if="account.detail">{{ account.detail }}</span>

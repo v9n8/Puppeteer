@@ -339,7 +339,7 @@ onUnmounted(() => {
     <div
       v-for="v in views"
       :key="v.key"
-      class="group relative flex h-[19px] shrink-0 items-center gap-1.5 rounded-full border pl-1.5 pr-2 text-[10px] leading-none transition-colors"
+      class="group relative flex h-[19px] shrink-0 items-center gap-1.5 rounded-full border pl-1.5 pr-2 text-2xs leading-none transition-colors"
       :class="TONE_ROW[tone(v)]"
       :title="tooltip(v)"
     >

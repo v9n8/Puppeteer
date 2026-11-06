@@ -276,7 +276,7 @@ function relativeTime(iso: string | null): string {
         />
       </template>
       <template #actions>
-        <label class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <label class="flex items-center gap-1.5 text-2xs text-muted-foreground">
           {{ t('gantt.stalledLabel') }}
           <Input
             v-model.number="store.staleDays"
@@ -367,29 +367,29 @@ function relativeTime(iso: string | null): string {
         <!-- Summary cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 animate-fade-rise">
           <Card body-class="p-3">
-            <div class="text-[11px] text-muted-foreground">{{ t('gantt.summaryOpen') }}</div>
+            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryOpen') }}</div>
             <div class="text-xl font-semibold mt-0.5">{{ store.summary.open }}</div>
           </Card>
           <Card body-class="p-3">
-            <div class="text-[11px] text-muted-foreground">{{ t('gantt.summaryOverdue') }}</div>
+            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryOverdue') }}</div>
             <div class="text-xl font-semibold mt-0.5" :class="store.summary.overdue > 0 ? 'text-destructive' : ''">{{ store.summary.overdue }}</div>
           </Card>
           <Card body-class="p-3">
-            <div class="text-[11px] text-muted-foreground">{{ t('gantt.summaryAtRisk') }}</div>
+            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryAtRisk') }}</div>
             <div class="text-xl font-semibold mt-0.5" :class="store.summary.atRisk > 0 ? 'text-warning' : ''">{{ store.summary.atRisk }}</div>
           </Card>
           <Card body-class="p-3">
-            <div class="text-[11px] text-muted-foreground">{{ t('gantt.summaryStalled') }}</div>
+            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryStalled') }}</div>
             <div class="text-xl font-semibold mt-0.5" :class="store.summary.stale > 0 ? 'text-yellow-500' : ''">{{ store.summary.stale }}</div>
           </Card>
         </div>
 
         <!-- Repo filter -->
         <div v-if="allRepos.length > 1" class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-[11px] text-muted-foreground mr-1">{{ t('gantt.repos') }}</span>
+          <span class="text-2xs text-muted-foreground mr-1">{{ t('gantt.repos') }}</span>
           <button
             v-for="repo in allRepos" :key="repo"
-            class="rounded-full border px-2.5 py-0.5 text-[11px] transition-colors"
+            class="rounded-full border px-2.5 py-0.5 text-2xs transition-colors"
             :class="repoActive(repo)
               ? 'border-primary/40 bg-primary/10 text-primary'
               : 'border-border/60 text-muted-foreground hover:text-foreground'"
@@ -402,7 +402,7 @@ function relativeTime(iso: string | null): string {
         <!-- Group mode + assignee filter -->
         <div class="flex items-center gap-x-4 gap-y-2 flex-wrap">
           <div class="flex items-center gap-1.5">
-            <span class="text-[11px] text-muted-foreground mr-0.5">{{ t('gantt.groupBy') }}</span>
+            <span class="text-2xs text-muted-foreground mr-0.5">{{ t('gantt.groupBy') }}</span>
             <SegmentedControl
               :model-value="groupMode"
               :options="groupModeOptions"
@@ -412,7 +412,7 @@ function relativeTime(iso: string | null): string {
           </div>
 
           <div class="flex items-center gap-1.5">
-            <span class="text-[11px] text-muted-foreground mr-0.5">{{ t('gantt.sortBy') }}</span>
+            <span class="text-2xs text-muted-foreground mr-0.5">{{ t('gantt.sortBy') }}</span>
             <SegmentedControl
               :model-value="sortMode"
               :options="sortModeOptions"
@@ -422,10 +422,10 @@ function relativeTime(iso: string | null): string {
           </div>
 
           <div v-if="allAssignees.length > 0 || hasUnassigned" class="flex items-center gap-1.5 flex-wrap">
-            <span class="text-[11px] text-muted-foreground mr-1">{{ t('gantt.assigneesLabel') }}</span>
+            <span class="text-2xs text-muted-foreground mr-1">{{ t('gantt.assigneesLabel') }}</span>
             <button
               v-for="a in allAssignees" :key="a"
-              class="rounded-full border px-2.5 py-0.5 text-[11px] transition-colors"
+              class="rounded-full border px-2.5 py-0.5 text-2xs transition-colors"
               :class="selectedAssignees.has(a)
                 ? 'border-primary/40 bg-primary/10 text-primary'
                 : 'border-border/60 text-muted-foreground hover:text-foreground'"
@@ -435,7 +435,7 @@ function relativeTime(iso: string | null): string {
             </button>
             <button
               v-if="hasUnassigned"
-              class="rounded-full border px-2.5 py-0.5 text-[11px] transition-colors"
+              class="rounded-full border px-2.5 py-0.5 text-2xs transition-colors"
               :class="selectedAssignees.has(UNASSIGNED)
                 ? 'border-primary/40 bg-primary/10 text-primary'
                 : 'border-border/60 text-muted-foreground hover:text-foreground'"
@@ -472,7 +472,7 @@ function relativeTime(iso: string | null): string {
           @toggle-closed="toggleClosed"
         />
 
-        <div class="shrink-0 text-[10px] text-muted-foreground/60 text-right pt-2">
+        <div class="shrink-0 text-2xs text-muted-foreground/60 text-right pt-2">
           {{ t('gantt.updated', { time: relativeTime(store.lastRefreshedAt) }) }}
         </div>
         </div>

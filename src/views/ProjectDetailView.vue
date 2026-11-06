@@ -839,7 +839,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
       <template #meta>
         <span
           v-if="project"
-          class="text-[11px] text-muted-foreground font-mono truncate hidden md:inline"
+          class="text-2xs text-muted-foreground font-mono truncate hidden md:inline"
           :title="project.path"
         >{{ project.path }}</span>
       </template>
@@ -874,7 +874,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
         >
           <GitMerge class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span class="truncate">{{ t('projectDetail.conflictsNav') }}</span>
-          <span class="ml-auto text-[10px] tabular-nums">{{ totalConflicts }}</span>
+          <span class="ml-auto text-2xs tabular-nums">{{ totalConflicts }}</span>
         </button>
       </nav>
 
@@ -911,12 +911,12 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.general') }}</span>
             </template>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.projectNameLabel') }}</label>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.projectNameLabel') }}</label>
               <Input v-model="editName" size="sm" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.pathLabel') }}</label>
-              <p class="text-[11px] text-muted-foreground font-mono break-all">{{ project.path }}</p>
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.pathLabel') }}</label>
+              <p class="text-2xs text-muted-foreground font-mono break-all">{{ project.path }}</p>
             </div>
           </Card>
 
@@ -927,7 +927,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.repositories') }}</span>
               <span
                 v-if="repos.length"
-                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
               >{{ repos.length }}</span>
             </template>
 
@@ -958,7 +958,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <!-- Parsed preview: what will be added -->
               <div
                 v-if="repoFieldsValid"
-                class="flex items-center gap-1.5 flex-wrap text-[11px] px-0.5"
+                class="flex items-center gap-1.5 flex-wrap text-2xs px-0.5"
               >
                 <Badge :tone="newRepoProvider === 'gitlab' ? 'warning' : 'info'" size="xs">
                   <component :is="newRepoProvider === 'gitlab' ? Gitlab : Github" class="h-2.5 w-2.5" :stroke-width="2" />
@@ -974,7 +974,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               </div>
 
               <!-- Invalid URL hint -->
-              <p v-else-if="repoUrlInvalid" class="text-[11px] text-muted-foreground px-0.5">
+              <p v-else-if="repoUrlInvalid" class="text-2xs text-muted-foreground px-0.5">
                 {{ t('projectDetail.repoUrlHint') }}
               </p>
             </div>
@@ -1007,7 +1007,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                     <ExternalLink class="h-3 w-3 shrink-0 opacity-0 group-hover/repo:opacity-100 transition-opacity" :stroke-width="2" />
                   </button>
                   <p v-else class="text-xs font-medium truncate">{{ repo.name }}</p>
-                  <p class="text-[11px] text-muted-foreground font-mono truncate">
+                  <p class="text-2xs text-muted-foreground font-mono truncate">
                     {{ (repo.provider ?? 'github') === 'gitlab'
                       ? (repo.gitlab_project_path || '—')
                       : ((repo.github_owner && repo.github_repo) ? `${repo.github_owner}/${repo.github_repo}` : '—') }}
@@ -1051,9 +1051,9 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.skills') }}</span>
               <span
                 v-if="appliedSkills.length > 0"
-                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
               >{{ appliedSkills.length }}</span>
-              <RouterLink to="/skills" class="ml-auto text-[11px] text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+              <RouterLink to="/skills" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
             </template>
 
             <!-- Loading -->
@@ -1094,7 +1094,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                     <Badge v-if="skill.has_claude" tone="primary" size="xs" class="shrink-0">.claude/skills</Badge>
                     <Badge v-if="skill.has_codex" tone="neutral" size="xs" class="shrink-0">.agents/skills</Badge>
                   </div>
-                  <p v-if="skill.description" class="text-[10px] text-muted-foreground truncate mt-0.5">{{ skill.description }}</p>
+                  <p v-if="skill.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ skill.description }}</p>
                 </div>
                 <!-- Controls the direct link; a skill a group provides stays applied either way. -->
                 <ToggleSwitch
@@ -1134,9 +1134,9 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.rules') }}</span>
               <span
                 v-if="appliedRules.length > 0"
-                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
               >{{ appliedRules.length }}</span>
-              <RouterLink to="/rules" class="ml-auto text-[11px] text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+              <RouterLink to="/rules" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
             </template>
 
             <!-- Loading -->
@@ -1177,7 +1177,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                     <Badge v-if="rule.has_claude" tone="primary" size="xs" class="shrink-0">.claude/rules</Badge>
                     <Badge v-if="rule.has_codex" tone="neutral" size="xs" class="shrink-0">{{ rule.codex_skill ? '.agents/skills' : 'AGENTS.md' }}</Badge>
                   </div>
-                  <p v-if="rule.description" class="text-[10px] text-muted-foreground truncate mt-0.5">{{ rule.description }}</p>
+                  <p v-if="rule.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ rule.description }}</p>
                 </div>
                 <!-- Controls the direct link; a rule a group provides stays applied either way. -->
                 <ToggleSwitch
@@ -1202,9 +1202,9 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.mcpServers') }}</span>
               <span
                 v-if="mcpServers.filter(s => s.enabled_for_project).length > 0"
-                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
               >{{ mcpServers.filter(s => s.enabled_for_project).length }}</span>
-              <RouterLink to="/mcp" class="ml-auto text-[11px] text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+              <RouterLink to="/mcp" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
             </template>
 
             <!-- Codex warning banner -->
@@ -1235,7 +1235,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                       :title="t('projectDetail.builtinMcpOffGloballyTitle')"
                     >{{ t('projectDetail.disabled') }}</Badge>
                   </div>
-                  <p class="text-[10px] text-muted-foreground truncate mt-0.5">mcp__{{ item.name }}__*</p>
+                  <p class="text-2xs text-muted-foreground truncate mt-0.5">mcp__{{ item.name }}__*</p>
                 </div>
                 <ToggleSwitch
                   :checked="item.enabled_for_project"
@@ -1288,7 +1288,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                       :title="t('projectDetail.claudeOnlyTitle')"
                     >{{ t('projectDetail.claudeOnly') }}</Badge>
                   </div>
-                  <p v-if="server.description" class="text-[10px] text-muted-foreground truncate mt-0.5">{{ server.description }}</p>
+                  <p v-if="server.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ server.description }}</p>
                 </div>
                 <ToggleSwitch
                   :checked="server.enabled_for_project"
@@ -1310,9 +1310,9 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <span class="text-xs font-semibold">{{ t('projectDetail.deployTargets') }}</span>
               <span
                 v-if="projectServers.length > 0"
-                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium text-muted-foreground leading-none"
+                class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
               >{{ projectServers.length }}</span>
-              <RouterLink to="/servers" class="ml-auto text-[11px] text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+              <RouterLink to="/servers" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
             </template>
 
             <!-- Loading -->
@@ -1354,7 +1354,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                     >{{ t('projectDetail.enabled') }}</Badge>
                     <Badge v-if="server.has_passphrase" tone="neutral" size="xs" class="shrink-0">{{ t('projectDetail.passphrase') }}</Badge>
                   </div>
-                  <p class="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+                  <p class="text-2xs text-muted-foreground font-mono truncate mt-0.5">
                     {{ server.username }}@{{ server.host }}:{{ server.port }}
                   </p>
                 </div>
@@ -1390,7 +1390,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <KanbanSquare class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
               <span class="text-xs font-semibold">{{ t('projectDetail.githubProjectBoard') }}</span>
             </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('projectDetail.boardIntroPrefix') }}
               <code class="text-primary">read:project</code>{{ t('projectDetail.boardIntroScope') }}
             </p>
@@ -1401,7 +1401,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
 
             <template v-else>
               <div class="space-y-1.5">
-                <label class="text-[11px] font-medium text-muted-foreground">{{ t('projectDetail.boardUrl') }}</label>
+                <label class="text-2xs font-medium text-muted-foreground">{{ t('projectDetail.boardUrl') }}</label>
                 <div class="flex gap-2">
                   <Input
                     v-model="boardUrl"
@@ -1423,20 +1423,20 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               </Banner>
 
               <div v-if="boardInfo" class="space-y-3">
-                <div class="text-[11px] text-muted-foreground">
+                <div class="text-2xs text-muted-foreground">
                   {{ t('projectDetail.boardLabel') }} <span class="text-foreground font-medium">{{ boardInfo.title }}</span>
                   · {{ t('projectDetail.fieldsCount', { count: boardInfo.fields.length }) }}
                 </div>
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground">{{ t('projectDetail.startDateField') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground">{{ t('projectDetail.startDateField') }}</label>
                   <AppSelect size="sm" v-model="mapStart" :options="dateFieldOptions" />
                 </div>
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground">{{ t('projectDetail.deadlineField') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground">{{ t('projectDetail.deadlineField') }}</label>
                   <AppSelect size="sm" v-model="mapDeadline" :options="dateFieldOptions" />
                 </div>
                 <div class="space-y-1.5">
-                  <label class="text-[11px] font-medium text-muted-foreground">{{ t('projectDetail.statusField') }}</label>
+                  <label class="text-2xs font-medium text-muted-foreground">{{ t('projectDetail.statusField') }}</label>
                   <AppSelect size="sm" v-model="mapStatus" :options="statusFieldOptions" />
                 </div>
                 <div class="flex gap-2 pt-1">
@@ -1448,7 +1448,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                 </div>
               </div>
 
-              <div v-else-if="project?.github_project_board_url" class="text-[11px] text-muted-foreground">
+              <div v-else-if="project?.github_project_board_url" class="text-2xs text-muted-foreground">
                 {{ t('projectDetail.savedBoardPrefix') }} <span class="text-foreground">{{ project.github_project_board_url }}</span>.
                 {{ t('projectDetail.savedBoardSuffix') }}
                 <div class="pt-2">
@@ -1505,12 +1505,12 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               <UserCircle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
               <span class="text-xs font-semibold">{{ t('projectDetail.linkedClaudeAccount') }}</span>
             </template>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
+            <p class="text-2xs text-muted-foreground leading-relaxed">
               {{ t('projectDetail.claudeAccountHint') }}
               <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.settings') }}</RouterLink>.
             </p>
 
-            <div v-if="claudeStore.accounts.length === 0" class="text-[11px] text-muted-foreground">
+            <div v-if="claudeStore.accounts.length === 0" class="text-2xs text-muted-foreground">
               {{ t('projectDetail.noClaudeAccounts') }}
               <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.addInSettings') }}</RouterLink>
               {{ t('projectDetail.toLinkHere') }}
@@ -1524,7 +1524,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               @update:model-value="handleSelectClaudeAccount"
             />
 
-            <div v-if="linkedClaudeAccount" class="text-[11px] text-muted-foreground">
+            <div v-if="linkedClaudeAccount" class="text-2xs text-muted-foreground">
               {{ t('settings.claude.status.' + linkedClaudeAccount.status) }}
               <span v-if="linkedClaudeAccount.email"> · {{ linkedClaudeAccount.email }}</span>
             </div>
@@ -1546,7 +1546,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
               >{{ t('projectDetail.resetAll') }}</Button>
             </template>
 
-            <p class="px-4 py-3 text-[11px] text-muted-foreground leading-relaxed">
+            <p class="px-4 py-3 text-2xs text-muted-foreground leading-relaxed">
               {{ t('projectDetail.toolPermsIntro') }}
             </p>
 
@@ -1554,8 +1554,8 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
             <div class="px-4 py-3">
               <div class="flex items-center gap-2 mb-2">
                 <CheckCircle2 class="h-3.5 w-3.5 text-success" :stroke-width="1.75" />
-                <span class="text-[11px] font-semibold">{{ t('projectDetail.allowAlways') }}</span>
-                <span class="text-[10px] text-muted-foreground tabular-nums">{{ allowTools.length }}</span>
+                <span class="text-2xs font-semibold">{{ t('projectDetail.allowAlways') }}</span>
+                <span class="text-2xs text-muted-foreground tabular-nums">{{ allowTools.length }}</span>
               </div>
               <div v-if="allowTools.length" class="space-y-1.5">
                 <div
@@ -1571,15 +1571,15 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                   </Button>
                 </div>
               </div>
-              <p v-else class="text-[11px] text-muted-foreground">{{ t('projectDetail.noTools') }}</p>
+              <p v-else class="text-2xs text-muted-foreground">{{ t('projectDetail.noTools') }}</p>
             </div>
 
             <!-- Deny always -->
             <div class="px-4 py-3">
               <div class="flex items-center gap-2 mb-2">
                 <XCircle class="h-3.5 w-3.5 text-destructive" :stroke-width="1.75" />
-                <span class="text-[11px] font-semibold">{{ t('projectDetail.denyAlways') }}</span>
-                <span class="text-[10px] text-muted-foreground tabular-nums">{{ denyTools.length }}</span>
+                <span class="text-2xs font-semibold">{{ t('projectDetail.denyAlways') }}</span>
+                <span class="text-2xs text-muted-foreground tabular-nums">{{ denyTools.length }}</span>
               </div>
               <div v-if="denyTools.length" class="space-y-1.5">
                 <div
@@ -1595,7 +1595,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
                   </Button>
                 </div>
               </div>
-              <p v-else class="text-[11px] text-muted-foreground">{{ t('projectDetail.noTools') }}</p>
+              <p v-else class="text-2xs text-muted-foreground">{{ t('projectDetail.noTools') }}</p>
             </div>
           </Card>
         </div>

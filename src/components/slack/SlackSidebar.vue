@@ -185,16 +185,16 @@ function rowAgeTitle(th: SlackThreadSummary): string {
       </Banner>
       <div v-if="emptyStore && !error" class="px-3 py-8 text-center">
         <p class="text-xs text-muted-foreground">{{ t('slackThread.sidebar.empty') }}</p>
-        <p class="mt-1 text-[11px] text-muted-foreground/70">{{ t('slackThread.sidebar.emptyHint') }}</p>
+        <p class="mt-1 text-2xs text-muted-foreground/70">{{ t('slackThread.sidebar.emptyHint') }}</p>
       </div>
-      <p v-else-if="threads.length === 0" class="px-3 py-8 text-center text-[11px] text-muted-foreground">
+      <p v-else-if="threads.length === 0" class="px-3 py-8 text-center text-2xs text-muted-foreground">
         {{ t('slackThread.sidebar.noResults') }}
       </p>
 
       <div v-for="ws in tree" v-else :key="ws.key" class="mb-2">
         <button
           type="button"
-          class="flex w-full cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-left text-[13px] font-semibold text-foreground hover:bg-accent/50"
+          class="flex w-full cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-left text-sm font-semibold text-foreground hover:bg-accent/50"
           :aria-expanded="!collapsed.has(ws.key)"
           :title="collapsed.has(ws.key) ? t('slackThread.sidebar.expand') : t('slackThread.sidebar.collapse')"
           @click="toggle(ws.key)"
@@ -238,21 +238,21 @@ function rowAgeTitle(th: SlackThreadSummary): string {
                   @click="emit('select', th.id)"
                 >
                   <span
-                    class="min-w-0 flex-1 truncate text-[13px]"
+                    class="min-w-0 flex-1 truncate text-sm"
                     :class="th.newCount > 0 ? 'font-semibold text-foreground' : ''"
                   >
                     {{ th.title || t('slackThread.untitled') }}
                   </span>
                   <span
                     v-if="th.legacy"
-                    class="shrink-0 rounded border border-border px-1 text-[9px] font-semibold uppercase text-muted-foreground"
+                    class="shrink-0 rounded border border-border px-1 text-2xs font-semibold uppercase text-muted-foreground"
                   >
                     {{ t('slackThread.legacy.badge') }}
                   </span>
                   <SlackStatusIcon :thread="th" :progress="progress[th.id]" />
                   <span
                     v-if="th.linkedRunCount > 0"
-                    class="flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground"
+                    class="flex shrink-0 items-center gap-0.5 text-2xs tabular-nums text-muted-foreground"
                     :title="t('sessionLink.linkedCount', th.linkedRunCount)"
                   >
                     <Link2 class="h-3 w-3" :stroke-width="2" />
@@ -260,13 +260,13 @@ function rowAgeTitle(th: SlackThreadSummary): string {
                   </span>
                   <span
                     v-if="th.newCount > 0"
-                    class="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground"
+                    class="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-2xs font-semibold leading-none text-primary-foreground"
                     :title="t('slackThread.sidebar.newCount', { count: th.newCount })"
                   >
                     {{ th.newCount }}
                   </span>
                   <span
-                    class="shrink-0 text-[10px] tabular-nums text-muted-foreground/80"
+                    class="shrink-0 text-2xs tabular-nums text-muted-foreground/80"
                     :title="rowAgeTitle(th)"
                   >
                     {{ rowAge(th) }}

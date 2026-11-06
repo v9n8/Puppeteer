@@ -108,7 +108,7 @@ const sinceLabel = computed(() =>
 
     <main class="flex-1 min-h-0 overflow-auto">
       <!-- ── Waiting for you ─────────────────────────────────────────────── -->
-      <h2 class="px-3 pt-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-foreground/50">
+      <h2 class="px-3 pt-3 pb-1.5 text-2xs font-medium uppercase tracking-wider text-foreground/50">
         {{ t('controller.inbox.waiting', { count: pending.length }) }}
       </h2>
       <p v-if="!pending.length" class="px-3 py-4 text-center text-sm text-foreground/50">
@@ -130,7 +130,7 @@ const sinceLabel = computed(() =>
 
       <!-- ── Since last visit ────────────────────────────────────────────── -->
       <h2
-        class="mt-4 px-3 pt-3 pb-1.5 flex items-baseline justify-between gap-2 text-[10px] font-medium uppercase tracking-wider text-foreground/50 border-t border-border/40"
+        class="mt-4 px-3 pt-3 pb-1.5 flex items-baseline justify-between gap-2 text-2xs font-medium uppercase tracking-wider text-foreground/50 border-t border-border/40"
       >
         <span>{{ t('controller.inbox.sinceLastVisit') }}</span>
         <span class="normal-case tracking-normal font-normal">{{ sinceLabel }}</span>
@@ -153,7 +153,7 @@ const sinceLabel = computed(() =>
         <CheckCircle2 v-else class="shrink-0 h-4 w-4 text-success" :stroke-width="2" />
         <span class="min-w-0 flex-1">
           <span class="block text-sm truncate">{{ runTitle(run, run.id) }}</span>
-          <span class="block text-[10px] text-foreground/45 truncate">{{ finishedLabel(run) }}</span>
+          <span class="block text-2xs text-foreground/45 truncate">{{ finishedLabel(run) }}</span>
         </span>
         <span
           v-if="!read.has(run.id)"

@@ -146,7 +146,7 @@ onMounted(() => {
           :key="i"
           class="border-l border-border/40 px-1 py-1"
         >
-          <div class="flex items-center justify-center gap-1 text-[11px]">
+          <div class="flex items-center justify-center gap-1 text-2xs">
             <span class="text-muted-foreground">{{ WEEKDAYS[i] }}</span>
             <span
               :class="sameDay(d, today)
@@ -156,7 +156,7 @@ onMounted(() => {
           </div>
           <div
             v-if="showLunar"
-            class="text-center text-[10px] leading-none tabular-nums"
+            class="text-center text-2xs leading-none tabular-nums"
             :class="lunarInfo(d).highlight
               ? 'font-bold text-red-500 dark:text-red-400'
               : 'font-normal text-muted-foreground/60'"
@@ -169,7 +169,7 @@ onMounted(() => {
               v-for="p in allDayFor(d)"
               :key="p.ev.id + p.ev.calendar_id"
               type="button"
-              class="truncate rounded px-1 py-0.5 text-left text-[10px] text-white"
+              class="truncate rounded px-1 py-0.5 text-left text-2xs text-white"
               :style="{ backgroundColor: colorFor(p.ev.account_id) }"
               :title="p.ev.title"
               @click="emit('select', p.ev)"
@@ -190,7 +190,7 @@ onMounted(() => {
             class="relative border-b border-border/30"
             :style="{ height: `${HOUR_HEIGHT}px` }"
           >
-            <span class="absolute -top-1.5 right-1 text-[10px] text-muted-foreground">
+            <span class="absolute -top-1.5 right-1 text-2xs text-muted-foreground">
               {{ h > 0 ? String(h).padStart(2, '0') + ':00' : '' }}
             </span>
           </div>
@@ -216,7 +216,7 @@ onMounted(() => {
               v-for="b in timedBlocks(d)"
               :key="b.ev.id + b.ev.calendar_id"
               type="button"
-              class="absolute overflow-hidden rounded px-1 py-0.5 text-left text-[10px] leading-tight text-white shadow-sm ring-1 ring-black/10 hover:brightness-110 transition"
+              class="absolute overflow-hidden rounded px-1 py-0.5 text-left text-2xs leading-tight text-white shadow-sm ring-1 ring-black/10 hover:brightness-110 transition"
               :style="{
                 top: `${b.top}px`,
                 height: `${b.height}px`,

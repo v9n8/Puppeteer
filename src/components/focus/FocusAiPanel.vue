@@ -80,14 +80,14 @@ async function savePlan() {
 <template>
   <section class="space-y-2 rounded-md border border-border/60 bg-muted/10 p-3">
     <div class="flex flex-wrap items-center gap-2">
-      <h4 class="mr-auto text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <h4 class="mr-auto text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         {{ t('focus.drawer.aiPlan') }}
         <span v-if="todo.ai_analyzed_at" class="ml-1 normal-case tracking-normal">
           · {{ t('focus.drawer.aiAnalyzedAt', { time: stamp(todo.ai_analyzed_at) }) }}
         </span>
       </h4>
       <template v-if="running">
-        <span class="flex items-center gap-1 text-[11px] text-muted-foreground">
+        <span class="flex items-center gap-1 text-2xs text-muted-foreground">
           <Loader2 class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
           {{ t('focus.ai.analyzing') }}
         </span>
@@ -154,6 +154,6 @@ async function savePlan() {
         <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
     </div>
-    <p v-else-if="!running" class="text-[11px] text-muted-foreground">{{ t('focus.ai.noPlan') }}</p>
+    <p v-else-if="!running" class="text-2xs text-muted-foreground">{{ t('focus.ai.noPlan') }}</p>
   </section>
 </template>

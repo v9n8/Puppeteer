@@ -143,7 +143,7 @@ function clearBanner(): void {
     <main class="flex-1 min-h-0 overflow-auto px-3 py-3">
       <form class="flex min-h-full flex-col" @submit.prevent="submit">
         <label class="mb-3 block">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.todo.sheet.title') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.todo.sheet.title') }}</span>
           <Input
             v-model="title"
             size="md"
@@ -155,12 +155,12 @@ function clearBanner(): void {
         </label>
 
         <div class="mb-3">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.data.project') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.data.project') }}</span>
           <AppSelect v-model="projectId" size="md" class="w-full" :options="projectOptions" />
         </div>
 
         <label class="mb-2 block">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.todo.sheet.due') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.todo.sheet.due') }}</span>
           <Input v-model="dueDate" type="date" size="md" class="w-full" />
         </label>
         <div class="mb-3 flex flex-wrap gap-1.5">
@@ -181,7 +181,7 @@ function clearBanner(): void {
         </div>
 
         <label class="mb-3 flex flex-1 flex-col">
-          <span class="mb-1 block text-[11px] text-muted-foreground">{{ t('controller.todo.sheet.note') }}</span>
+          <span class="mb-1 block text-2xs text-muted-foreground">{{ t('controller.todo.sheet.note') }}</span>
           <Textarea
             v-model="note"
             size="md"

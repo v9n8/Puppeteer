@@ -424,7 +424,7 @@ const isEdit = computed(() => props.mode === 'edit')
       <!-- Attendees -->
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.attendees') }}</label>
-        <p v-if="isEdit" class="text-[11px] text-muted-foreground">
+        <p v-if="isEdit" class="text-2xs text-muted-foreground">
           {{ t('calendar.editor.attendeesEditHint') }}
         </p>
         <div v-if="form.attendees.length" class="flex flex-wrap gap-1.5">
@@ -459,7 +459,7 @@ const isEdit = computed(() => props.mode === 'edit')
       <!-- Reminders -->
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.reminders') }}</label>
-        <p v-if="isEdit" class="text-[11px] text-muted-foreground">
+        <p v-if="isEdit" class="text-2xs text-muted-foreground">
           {{ t('calendar.editor.remindersEditHint') }}
         </p>
         <div v-for="(r, i) in form.reminders" :key="i" class="flex items-center gap-2">
@@ -492,7 +492,7 @@ const isEdit = computed(() => props.mode === 'edit')
       <!-- Recurrence -->
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.recurrence') }}</label>
-        <p v-if="isEdit" class="text-[11px] text-muted-foreground">
+        <p v-if="isEdit" class="text-2xs text-muted-foreground">
           {{ t('calendar.editor.recurrenceEditHint') }}
         </p>
         <AppSelect

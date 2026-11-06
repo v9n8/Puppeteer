@@ -198,7 +198,7 @@ onBeforeUnmount(() => {
   <div class="flex h-full flex-col">
     <PageHeader :title="t('focus.title')" :count="store.loaded && openCount > 0 ? openCount : null">
       <template #meta>
-        <span v-if="calibration" class="flex min-w-0 items-center gap-1 truncate text-[11px] text-muted-foreground">
+        <span v-if="calibration" class="flex min-w-0 items-center gap-1 truncate text-2xs text-muted-foreground">
           <Gauge class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span class="truncate">
             {{ calibration > 1 ? t('focus.calibration.slower', { factor: calibration }) : t('focus.calibration.faster', { factor: calibration }) }}
@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
     </div>
     <div
       v-else-if="capacityError && capacityError !== CAPACITY_LOADING"
-      class="flex shrink-0 items-center gap-2 border-b border-border/60 px-6 py-1.5 text-[11px] text-muted-foreground"
+      class="flex shrink-0 items-center gap-2 border-b border-border/60 px-6 py-1.5 text-2xs text-muted-foreground"
     >
       <CalendarClock class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       <span v-if="capacityError === CAPACITY_NO_ACCOUNT" class="truncate">{{ t('focus.capacity.connect') }}</span>
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
     <!-- By time -->
     <div v-else-if="view === 'time'" class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
       <Card v-if="top.length" class="border-primary/30" body-class="p-2">
-        <h2 class="flex items-center gap-1.5 px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+        <h2 class="flex items-center gap-1.5 px-2 pb-1 pt-0.5 text-2xs font-semibold uppercase tracking-wide text-primary">
           <Target class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('focus.nowSection') }}
         </h2>
@@ -350,8 +350,8 @@ onBeforeUnmount(() => {
         <div class="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
           <span v-if="col.projectId" class="h-2.5 w-2.5 shrink-0 rounded-full" :style="chipStyle(col.projectId)" />
           <span class="min-w-0 flex-1 truncate text-xs font-semibold">{{ projectName(col.projectId) }}</span>
-          <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">~{{ formatEstimate(col.estimateMin) }}</span>
-          <span v-if="col.overdue" class="shrink-0 text-[11px] font-medium text-destructive">
+          <span class="shrink-0 text-2xs tabular-nums text-muted-foreground">~{{ formatEstimate(col.estimateMin) }}</span>
+          <span v-if="col.overdue" class="shrink-0 text-2xs font-medium text-destructive">
             {{ t('focus.columns.overdue', { n: col.overdue }) }}
           </span>
         </div>
@@ -384,12 +384,12 @@ onBeforeUnmount(() => {
           ]"
         >
           <div class="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-1.5">
-            <span class="flex-1 truncate text-[11px] font-semibold" :class="col.date === today ? 'text-primary' : ''">{{ weekdayLabel(col.date) }}</span>
-            <span v-if="col.estimateMin" class="text-[10px] tabular-nums text-muted-foreground" :title="t('focus.week.estimateHint')">
+            <span class="flex-1 truncate text-2xs font-semibold" :class="col.date === today ? 'text-primary' : ''">{{ weekdayLabel(col.date) }}</span>
+            <span v-if="col.estimateMin" class="text-2xs tabular-nums text-muted-foreground" :title="t('focus.week.estimateHint')">
               ~{{ formatEstimate(col.estimateMin) }}
             </span>
           </div>
-          <p v-if="dayOverloaded(col.date)" class="px-2 pt-1 text-[10px] font-medium text-destructive">
+          <p v-if="dayOverloaded(col.date)" class="px-2 pt-1 text-2xs font-medium text-destructive">
             {{ t('focus.week.overloaded') }} · {{ span(overloadMin) }}
           </p>
           <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">

@@ -472,7 +472,7 @@ async function reviewAll(group: PrGroup) {
       <span
         v-for="chip in activeFilterChips"
         :key="chip.key"
-        class="inline-flex max-w-full items-center gap-1 rounded-md bg-muted py-1 pl-2 pr-1 text-[11px] text-foreground"
+        class="inline-flex max-w-full items-center gap-1 rounded-md bg-muted py-1 pl-2 pr-1 text-2xs text-foreground"
       >
         <span class="shrink-0 text-muted-foreground">{{ chip.title }}:</span>
         <span class="min-w-0 truncate max-w-40" :title="chip.label">{{ chip.label }}</span>
@@ -488,7 +488,7 @@ async function reviewAll(group: PrGroup) {
       </span>
       <button
         type="button"
-        class="ml-1 text-[11px] font-medium text-primary hover:underline cursor-pointer"
+        class="ml-1 text-2xs font-medium text-primary hover:underline cursor-pointer"
         @click="store.clearFilters()"
       >
         {{ t('prInbox.filters.clearAll') }}
@@ -615,10 +615,10 @@ async function reviewAll(group: PrGroup) {
               >
                 {{ groupLabel(group) }}
               </span>
-              <span class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+              <span class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-2xs font-medium text-muted-foreground">
                 {{ group.items.length }}
               </span>
-              <span v-if="group.unreviewedCount > 0" class="hidden @[36rem]/list:inline shrink-0 text-[10px] text-warning">
+              <span v-if="group.unreviewedCount > 0" class="hidden @[36rem]/list:inline shrink-0 text-2xs text-warning">
                 {{ t('prInbox.unreviewed', group.unreviewedCount) }}
               </span>
             </button>
@@ -701,7 +701,7 @@ async function reviewAll(group: PrGroup) {
         <!-- Hidden bot PRs: one summary row instead of the noise. -->
         <div
           v-if="grouped.hiddenBotCount > 0"
-          class="flex items-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-[11px] text-muted-foreground"
+          class="flex items-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-2xs text-muted-foreground"
         >
           <EyeOff class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span>{{ t('prInbox.botsHidden', grouped.hiddenBotCount) }}</span>

@@ -120,7 +120,7 @@ const newSessionLabel = computed(() =>
       <div class="flex min-w-0 items-center gap-1.5">
         <InlineRenameInput
           v-if="renaming && note"
-          class="w-full text-[15px] font-bold leading-snug"
+          class="w-full text-base font-bold leading-snug"
           :value="note.title"
           :placeholder="t('item.titlePlaceholder')"
           @commit="emit('commitRename', $event)"
@@ -128,7 +128,7 @@ const newSessionLabel = computed(() =>
         />
         <h1
           v-else
-          class="min-w-0 cursor-text truncate rounded px-0.5 -mx-0.5 text-[15px] font-bold leading-snug transition-colors hover:bg-accent/50"
+          class="min-w-0 cursor-text truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug transition-colors hover:bg-accent/50"
           :class="todo?.done && 'text-muted-foreground line-through decoration-muted-foreground/60'"
           :title="`${heading}\n${note ? t('item.renameHint') : t('item.editTitle')}`"
           @click="note ? emit('startRename') : emit('edit')"

@@ -244,30 +244,30 @@ function onKeydown(e: KeyboardEvent) {
 
     <div v-if="item && todo" class="space-y-4 p-4 text-sm" @keydown="onKeydown">
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.drawer.text') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.drawer.text') }}</label>
         <Textarea v-model="draft.text" class="min-h-[4.5rem] w-full" />
       </div>
 
       <div class="grid grid-cols-2 gap-2.5">
         <div class="space-y-1">
-          <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.drawer.project') }}</label>
+          <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.drawer.project') }}</label>
           <ProjectSelect v-model="projectId" variant="default" size="sm" />
         </div>
         <div class="space-y-1">
-          <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.status.label') }}</label>
+          <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.status.label') }}</label>
           <AppSelect v-model="status" :options="statusOptions" :disabled="todo.done" />
         </div>
       </div>
 
       <TodoMetaFields v-model="draft" />
-      <p v-if="item.effective_estimate_min !== todo.estimate_min" class="-mt-2 text-[11px] text-muted-foreground">
+      <p v-if="item.effective_estimate_min !== todo.estimate_min" class="-mt-2 text-2xs text-muted-foreground">
         {{ t('focus.drawer.effectiveEstimate', { estimate: formatEstimate(item.effective_estimate_min) }) }}
         <template v-if="todo.estimate_source === 'ai'"> · {{ t('focus.estimate.ai') }}</template>
       </p>
 
       <div class="grid grid-cols-2 gap-2.5">
         <div class="space-y-1">
-          <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.drawer.snoozedUntil') }}</label>
+          <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.drawer.snoozedUntil') }}</label>
           <div class="flex items-center gap-1">
             <Input v-model="snoozedUntil" type="datetime-local" size="sm" class="min-w-0 flex-1" />
             <Button v-if="snoozedUntil" variant="ghost" size="icon-sm" :title="t('focus.drawer.clear')" :aria-label="t('focus.drawer.clear')" @click="snoozedUntil = ''">
@@ -276,7 +276,7 @@ function onKeydown(e: KeyboardEvent) {
           </div>
         </div>
         <div class="space-y-1">
-          <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.drawer.remindAt') }}</label>
+          <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.drawer.remindAt') }}</label>
           <div class="flex items-center gap-1">
             <Input v-model="remindAt" type="datetime-local" size="sm" class="min-w-0 flex-1" />
             <Button v-if="remindAt" variant="ghost" size="icon-sm" :title="t('focus.drawer.clear')" :aria-label="t('focus.drawer.clear')" @click="remindAt = ''">
@@ -287,7 +287,7 @@ function onKeydown(e: KeyboardEvent) {
       </div>
 
       <div v-if="todo.done || todo.started_at || todo.actual_min != null" class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.drawer.actual') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.drawer.actual') }}</label>
         <Input
           v-model="actual"
           size="sm"
@@ -295,7 +295,7 @@ function onKeydown(e: KeyboardEvent) {
           :class="actualMin === undefined ? 'border-destructive' : ''"
           :placeholder="t('focus.drawer.estimatePlaceholder')"
         />
-        <p v-if="actualMin === undefined" class="text-[11px] text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
+        <p v-if="actualMin === undefined" class="text-2xs text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
       </div>
 
       <!-- Source + linked sessions -->
@@ -319,7 +319,7 @@ function onKeydown(e: KeyboardEvent) {
 
       <FocusAiPanel :todo="todo" @apply="onAiApply" />
 
-      <div class="space-y-0.5 text-[11px] text-muted-foreground">
+      <div class="space-y-0.5 text-2xs text-muted-foreground">
         <p>{{ t('focus.drawer.created', { time: stamp(todo.created_at) }) }}</p>
         <p v-if="todo.started_at">{{ t('focus.drawer.started', { time: stamp(todo.started_at) }) }}</p>
         <p v-if="todo.completed_at">{{ t('focus.drawer.completed', { time: stamp(todo.completed_at) }) }}</p>

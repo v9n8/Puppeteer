@@ -185,7 +185,7 @@ function onKeydown(e: KeyboardEvent) {
     />
 
     <div v-if="autoTranslate && (trimmed || english)" class="mt-2 space-y-1">
-      <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <div class="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <Languages class="h-3.5 w-3.5" />
         <span class="font-medium">{{ t('slackThread.reply.englishLabel') }}</span>
         <span v-if="translating" class="inline-flex items-center gap-1">
@@ -209,11 +209,11 @@ function onKeydown(e: KeyboardEvent) {
 
     <div class="mt-2 flex items-center justify-between gap-2">
       <div class="flex min-w-0 items-center gap-3">
-        <label class="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
+        <label class="flex shrink-0 cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground">
           <ToggleSwitch :checked="autoTranslate" :disabled="sending" @toggle="toggleAutoTranslate" />
           {{ t('slackThread.reply.autoTranslate') }}
         </label>
-        <span class="truncate text-[11px] text-muted-foreground">
+        <span class="truncate text-2xs text-muted-foreground">
           {{ autoTranslate ? t('slackThread.reply.hint') : t('slackThread.reply.hintRaw') }}
         </span>
       </div>

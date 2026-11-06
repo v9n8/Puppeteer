@@ -25,7 +25,7 @@ function reloadApp() {
   <div class="space-y-2 rounded-lg border border-border/60 p-3">
     <p class="text-xs font-medium">{{ t('settings.backup.report.title') }}</p>
     <table class="w-full text-xs">
-      <thead class="text-[10px] uppercase tracking-wider text-muted-foreground">
+      <thead class="text-2xs uppercase tracking-wider text-muted-foreground">
         <tr>
           <th class="text-left font-medium" />
           <th class="text-right font-medium">{{ t('settings.backup.report.created') }}</th>
@@ -42,11 +42,11 @@ function reloadApp() {
         </tr>
       </tbody>
     </table>
-    <p class="text-[11px] text-muted-foreground">
+    <p class="text-2xs text-muted-foreground">
       {{ report.secretsImported ? t('settings.backup.report.secretsImported') : t('settings.backup.report.secretsNotImported') }}
     </p>
-    <p class="text-[11px] text-muted-foreground">{{ t('settings.backup.report.reloginHint') }}</p>
-    <ul v-if="report.warnings.length" class="space-y-1 text-[11px] text-warning">
+    <p class="text-2xs text-muted-foreground">{{ t('settings.backup.report.reloginHint') }}</p>
+    <ul v-if="report.warnings.length" class="space-y-1 text-2xs text-warning">
       <li v-for="(w, i) in report.warnings" :key="i" class="flex items-start gap-1.5">
         <AlertTriangle class="mt-px h-3 w-3 shrink-0" :stroke-width="1.75" />
         <span class="break-all">{{ w }}</span>

@@ -13,15 +13,17 @@ const button = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-primary text-primary-foreground shadow-sm hover:opacity-90 active:scale-[.97]',
-        outline: 'border border-border bg-secondary text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-primary/40 active:scale-[.97]',
+        primary: 'bg-primary text-primary-foreground hover:opacity-90 active:scale-[.97]',
+        // Hover only swaps the fill; the border stays put.
+        outline: 'border border-input bg-card text-foreground hover:bg-accent active:scale-[.97]',
         ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[.97]',
-        destructive: 'border border-destructive/50 text-destructive hover:bg-destructive/10',
+        // Tinted, never solid red: the warning reads before the click without shouting.
+        destructive: 'bg-destructive/10 text-destructive hover:bg-destructive/15',
         'destructive-ghost': 'text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10',
         subtle: 'bg-muted text-muted-foreground border border-border/60',
       },
       size: {
-        xs: 'h-7 gap-1 px-2.5 text-[10px]',
+        xs: 'h-7 gap-1 px-2.5 text-2xs',
         sm: 'h-8 gap-1.5 px-3 text-xs',
         md: 'h-9 gap-2 px-4 text-sm',
         icon: 'h-8 w-8',

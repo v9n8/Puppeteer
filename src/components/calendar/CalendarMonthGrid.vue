@@ -74,7 +74,7 @@ function hhmm(d: Date) {
       <div
         v-for="w in WEEKDAYS"
         :key="w"
-        class="px-2 py-1.5 text-[11px] font-medium text-muted-foreground text-center"
+        class="px-2 py-1.5 text-2xs font-medium text-muted-foreground text-center"
       >
         {{ w }}
       </div>
@@ -92,7 +92,7 @@ function hhmm(d: Date) {
         <div class="flex items-baseline justify-between px-0.5">
           <!-- Solar day: primary, bolder -->
           <span
-            class="text-[13px] font-semibold leading-none"
+            class="text-sm font-semibold leading-none"
             :class="[
               d.getMonth() !== currentMonth ? 'text-muted-foreground/60' : 'text-foreground',
               sameDay(d, today)
@@ -105,7 +105,7 @@ function hhmm(d: Date) {
           <!-- Lunar day: smaller, lighter; mùng 1 & rằm in bold red -->
           <span
             v-if="showLunar"
-            class="text-[10px] leading-none tabular-nums"
+            class="text-2xs leading-none tabular-nums"
             :class="lunarInfo(d).highlight
               ? 'font-bold text-red-500 dark:text-red-400'
               : 'font-normal text-muted-foreground/60'"
@@ -119,7 +119,7 @@ function hhmm(d: Date) {
             v-for="{ ev, start, allDay } in eventsFor(d).slice(0, 3)"
             :key="ev.id + ev.calendar_id"
             type="button"
-            class="flex items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-accent transition-colors"
+            class="flex items-center gap-1 rounded px-1 py-0.5 text-left text-2xs leading-tight hover:bg-accent transition-colors"
             :title="ev.title"
             @click="emit('select', ev)"
           >
@@ -134,7 +134,7 @@ function hhmm(d: Date) {
           <button
             v-if="eventsFor(d).length > 3"
             type="button"
-            class="rounded px-1 py-0.5 text-left text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="rounded px-1 py-0.5 text-left text-2xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             @click="emit('moreClick', { date: d, events: allEventsFor(d) })"
           >
             {{ t('calendar.month.more', { n: eventsFor(d).length - 3 }) }}

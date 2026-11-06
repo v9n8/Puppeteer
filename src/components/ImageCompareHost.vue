@@ -131,8 +131,8 @@ const bannerVisible = computed(
         >
           <Images class="h-3.5 w-3.5 text-foreground/40 shrink-0" :stroke-width="1.75" />
           <span class="flex-1 min-w-0">
-            <span class="block text-[13px] text-foreground truncate">{{ basename(img) }}</span>
-            <span class="block text-[10px] font-mono text-foreground/40 truncate">{{ img }}</span>
+            <span class="block text-sm text-foreground truncate">{{ basename(img) }}</span>
+            <span class="block text-2xs font-mono text-foreground/40 truncate">{{ img }}</span>
           </span>
         </button>
       </div>

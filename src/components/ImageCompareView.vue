@@ -109,7 +109,7 @@ function onDblClick() {
     <!-- Header -->
     <div class="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5 shrink-0">
       <span class="text-xs font-semibold text-foreground/90 shrink-0">{{ t('files.compare.title') }}</span>
-      <div class="flex-1 min-w-0 flex items-center gap-2 text-[11px] font-mono text-foreground/60">
+      <div class="flex-1 min-w-0 flex items-center gap-2 text-2xs font-mono text-foreground/60">
         <span class="truncate flex-1 text-right" :title="left">{{ basename(left) }}</span>
         <span class="text-foreground/30 shrink-0">↔</span>
         <span class="truncate flex-1" :title="right">{{ basename(right) }}</span>
@@ -126,7 +126,7 @@ function onDblClick() {
           <ZoomOut class="h-3.5 w-3.5" :stroke-width="1.75" />
         </button>
         <button
-          class="px-1.5 h-7 text-[10px] tabular-nums text-foreground/60 hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
+          class="px-1.5 h-7 text-2xs tabular-nums text-foreground/60 hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
           :title="t('files.viewer.resetZoom')"
           @click="resetZoom"
         >{{ Math.round(zoom * 100) }}%</button>
@@ -204,7 +204,7 @@ function onDblClick() {
     </div>
 
     <!-- Hint -->
-    <div class="shrink-0 border-t border-border px-4 py-1.5 text-[10px] text-foreground/40 text-center">
+    <div class="shrink-0 border-t border-border px-4 py-1.5 text-2xs text-foreground/40 text-center">
       {{ t('files.compare.hint') }}
     </div>
   </div>

@@ -51,12 +51,12 @@ function errorText(error: string | null): string {
 <template>
   <section class="flex min-h-0 flex-col rounded-lg border border-border/70 bg-card">
     <div class="flex h-9 shrink-0 items-center gap-3 border-b border-border/60 px-3">
-      <span class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{{ t('fileTransfer.queue.title') }}</span>
+      <span class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('fileTransfer.queue.title') }}</span>
       <template v-if="items.length">
         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
           <div class="h-full rounded-full bg-primary transition-[width]" :style="{ width: `${progress.percent}%` }" />
         </div>
-        <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        <span class="shrink-0 text-2xs tabular-nums text-muted-foreground">
           {{
             t('fileTransfer.queue.summary', {
               done: formatSize(progress.done),
@@ -93,7 +93,7 @@ function errorText(error: string | null): string {
           <div v-if="it.status === 'running'" class="mt-0.5 h-1 overflow-hidden rounded-full bg-muted">
             <div class="h-full rounded-full bg-primary transition-[width]" :style="{ width: `${itemPercent(it)}%` }" />
           </div>
-          <p v-if="it.status === 'failed'" class="truncate text-[11px] text-destructive" :title="errorText(it.error)">
+          <p v-if="it.status === 'failed'" class="truncate text-2xs text-destructive" :title="errorText(it.error)">
             {{ errorText(it.error) }}
           </p>
         </div>

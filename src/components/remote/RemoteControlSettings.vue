@@ -149,7 +149,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
         >
           <div class="min-w-0">
             <p class="text-sm font-medium text-foreground">{{ t('remote.settings.enable') }}</p>
-            <p class="mt-0.5 text-[11px] text-muted-foreground">
+            <p class="mt-0.5 text-2xs text-muted-foreground">
               <template v-if="enabled && connected">{{ t('remote.settings.state.connected') }}</template>
               <template v-else-if="enabled">{{ t('remote.settings.state.running') }}</template>
               <template v-else-if="!canToggle">{{ t('remote.settings.state.needsRelay') }}</template>
@@ -166,7 +166,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
           />
         </div>
 
-        <p class="text-[11px] text-muted-foreground/70 border-t border-border/50 pt-3">
+        <p class="text-2xs text-muted-foreground/70 border-t border-border/50 pt-3">
           <i18n-t keypath="remote.settings.perRunHint" tag="span">
             <template #remote>
               <span class="font-medium text-foreground/80">{{ t('remote.settings.remote') }}</span>
@@ -184,7 +184,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
         >
           <div class="min-w-0">
             <p class="text-sm font-medium text-foreground">{{ t('remote.settings.controlOther') }}</p>
-            <p class="mt-0.5 text-[11px] text-muted-foreground">{{ t('remote.settings.controlOtherHint') }}</p>
+            <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('remote.settings.controlOtherHint') }}</p>
           </div>
           <Button variant="outline" class="shrink-0" @click="openRemoteDesktop">
             <MonitorSmartphone class="h-3.5 w-3.5" :stroke-width="1.75" />

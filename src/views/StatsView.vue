@@ -446,19 +446,19 @@ async function loadStorage() {
             <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.claudeTitle') }}
             </h2>
-            <p class="text-[11px] text-muted-foreground/70 leading-relaxed mt-1">
+            <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
               {{ t('stats.plan.claudeDescPrefix') }} <b>{{ t('stats.plan.real') }}</b> {{ t('stats.plan.claudeDescSuffix') }}
               <code class="font-mono bg-muted px-1 rounded">/usage</code> {{ t('stats.plan.claudeDescEnd') }}
             </p>
           </div>
           <div v-for="g in claudePlanGroups" :key="g.key" class="space-y-2">
-            <p v-if="g.label" class="flex items-center gap-1.5 text-[11px] font-semibold">
+            <p v-if="g.label" class="flex items-center gap-1.5 text-2xs font-semibold">
               {{ g.label }}
-              <span v-if="g.isDefault" class="rounded bg-muted px-1 py-px text-[10px] font-normal text-muted-foreground">{{ t('stats.account.default') }}</span>
+              <span v-if="g.isDefault" class="rounded bg-muted px-1 py-px text-2xs font-normal text-muted-foreground">{{ t('stats.account.default') }}</span>
             </p>
             <div v-if="g.rows.length" class="space-y-2">
               <div v-for="row in g.rows" :key="row.label" class="space-y-1">
-                <div class="flex items-baseline justify-between text-[11px]">
+                <div class="flex items-baseline justify-between text-2xs">
                   <span class="font-medium">{{ row.label }}</span>
                   <span class="font-mono text-muted-foreground">
                     {{ Math.round(row.utilization!) }}%
@@ -473,11 +473,11 @@ async function loadStorage() {
                   />
                 </div>
               </div>
-              <p v-if="g.usage?.subscription_type" class="text-[11px] text-muted-foreground">
+              <p v-if="g.usage?.subscription_type" class="text-2xs text-muted-foreground">
                 {{ t('stats.plan.label') }} <b class="capitalize">{{ g.usage.subscription_type }}</b>
               </p>
             </div>
-            <p v-else class="text-[11px] text-muted-foreground italic">
+            <p v-else class="text-2xs text-muted-foreground italic">
               {{ g.label ? t('stats.plan.emptyAccount') : t('stats.plan.empty') }}
             </p>
           </div>
@@ -489,14 +489,14 @@ async function loadStorage() {
             <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.codexTitle') }}
             </h2>
-            <p class="text-[11px] text-muted-foreground/70 leading-relaxed mt-1">
+            <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
               {{ t('stats.plan.codexDescPrefix') }} <b>{{ t('stats.plan.real') }}</b> {{ t('stats.plan.codexDescSuffix') }}
               <code class="font-mono bg-muted px-1 rounded">/status</code>{{ t('stats.plan.codexDescEnd') }}
             </p>
           </div>
           <div v-if="planRowsCodex.length" class="space-y-2">
             <div v-for="row in planRowsCodex" :key="row.label" class="space-y-1">
-              <div class="flex items-baseline justify-between text-[11px]">
+              <div class="flex items-baseline justify-between text-2xs">
                 <span class="font-medium">{{ row.label }}</span>
                 <span class="font-mono text-muted-foreground">
                   {{ Math.round(row.utilization!) }}%
@@ -511,11 +511,11 @@ async function loadStorage() {
                 />
               </div>
             </div>
-            <p v-if="planUsageCodex?.subscription_type" class="text-[11px] text-muted-foreground">
+            <p v-if="planUsageCodex?.subscription_type" class="text-2xs text-muted-foreground">
               {{ t('stats.plan.label') }} <b class="capitalize">{{ planUsageCodex.subscription_type }}</b>
             </p>
           </div>
-          <p v-else class="text-[11px] text-muted-foreground italic">
+          <p v-else class="text-2xs text-muted-foreground italic">
             {{ t('stats.plan.emptyCodex') }}
           </p>
         </Card>
@@ -541,7 +541,7 @@ async function loadStorage() {
               <Coins class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.totalTokens') }}
             </div>
             <p class="text-xl font-semibold tabular-nums">{{ fmtNum(stats.summary.total_tokens) }}</p>
-            <p class="text-[11px] text-muted-foreground/70 mt-1">
+            <p class="text-2xs text-muted-foreground/70 mt-1">
               {{ t('stats.summary.tokensBreakdown', { input: fmtCompact(stats.summary.total_input), output: fmtCompact(stats.summary.total_output), cache: fmtCompact(stats.summary.total_cache) }) }}
             </p>
           </Card>
@@ -553,7 +553,7 @@ async function loadStorage() {
               </span>
             </div>
             <p class="text-xl font-semibold tabular-nums">{{ fmtCost(stats.summary.total_cost) }}</p>
-            <p class="text-[11px] text-muted-foreground/70 mt-1">
+            <p class="text-2xs text-muted-foreground/70 mt-1">
               {{ t('stats.summary.estimated', { cost: fmtCost(stats.summary.estimated_cost) }) }}
             </p>
           </Card>
@@ -715,7 +715,7 @@ async function loadStorage() {
                     <Info class="h-3 w-3 text-muted-foreground/50" />
                   </span>
                 </div>
-                <p class="font-mono text-[10px] text-muted-foreground/60 mt-0.5">{{ c.path }}</p>
+                <p class="font-mono text-2xs text-muted-foreground/60 mt-0.5">{{ c.path }}</p>
               </td>
               <td class="py-2 text-right tabular-nums text-muted-foreground">{{ fmtNum(c.file_count) }}</td>
               <td class="py-2 text-right tabular-nums">{{ fmtBytes(c.size_bytes) }}</td>
@@ -725,7 +725,7 @@ async function loadStorage() {
             </tr>
           </tbody>
         </table>
-        <p class="text-[11px] text-muted-foreground/70 mt-3">
+        <p class="text-2xs text-muted-foreground/70 mt-3">
           {{ t('stats.storage.note') }}
         </p>
       </Card>

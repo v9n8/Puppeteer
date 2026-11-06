@@ -263,10 +263,10 @@ const inputPreview = computed(() => {
         <div class="flex items-center gap-2 flex-wrap">
           <span
             v-if="q.header"
-            class="text-[10px] uppercase tracking-wider rounded bg-info/15 text-info px-1.5 py-0.5"
+            class="text-2xs uppercase tracking-wider rounded bg-info/15 text-info px-1.5 py-0.5"
             >{{ q.header }}</span
           >
-          <span class="text-[10px] uppercase tracking-wider text-foreground/40">
+          <span class="text-2xs uppercase tracking-wider text-foreground/40">
             {{ q.multiSelect ? t('permission.selectAll') : t('permission.selectOne') }}
           </span>
         </div>
@@ -321,11 +321,11 @@ const inputPreview = computed(() => {
       :class="inbox ? 'px-3 py-3 max-h-[40dvh]' : 'px-4 py-4'"
     >
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[10px] uppercase tracking-wider text-foreground/40">{{ t('permission.tool') }}</span>
+        <span class="text-2xs uppercase tracking-wider text-foreground/40">{{ t('permission.tool') }}</span>
         <span class="font-mono text-sm text-primary">{{ request.tool_name }}</span>
         <span v-if="filePath" class="font-mono text-xs text-foreground/50 truncate">{{ filePath }}</span>
       </div>
-      <span v-if="request.cwd" class="block font-mono text-[11px] text-foreground/40 truncate">
+      <span v-if="request.cwd" class="block font-mono text-2xs text-foreground/40 truncate">
         cwd: {{ request.cwd }}
       </span>
 
@@ -337,16 +337,16 @@ const inputPreview = computed(() => {
         v-else-if="commandPreview"
         class="rounded-md bg-foreground/5 border border-border px-3 py-2"
       >
-        <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ t('permission.commandTarget') }}</div>
+        <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ t('permission.commandTarget') }}</div>
         <pre class="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{{ commandPreview }}</pre>
       </div>
 
       <details class="rounded-md bg-foreground/5 border border-border">
         <summary class="px-3 py-2 text-xs text-foreground/60 cursor-pointer select-none">{{ t('permission.fullInput') }}</summary>
-        <pre class="px-3 pb-2 text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-80 overflow-auto">{{ inputPreview }}</pre>
+        <pre class="px-3 pb-2 text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-80 overflow-auto">{{ inputPreview }}</pre>
       </details>
 
-      <p v-if="broadRememberWarning" class="text-[11px] text-warning">
+      <p v-if="broadRememberWarning" class="text-2xs text-warning">
         {{ t('permission.broadScopeWarning') }}
       </p>
     </div>

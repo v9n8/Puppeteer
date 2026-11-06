@@ -86,7 +86,7 @@ function toggle(dimension: PrFilterDimension, value: string) {
       <span class="hidden @[30rem]/toolbar:inline">{{ t('prInbox.filters.button') }}</span>
       <span
         v-if="activeCount > 0"
-        class="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground"
+        class="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-2xs font-medium text-primary-foreground"
       >
         {{ activeCount }}
       </span>
@@ -101,8 +101,8 @@ function toggle(dimension: PrFilterDimension, value: string) {
     >
       <div class="min-h-0 flex-1 overflow-y-auto p-3">
         <section v-for="s in sections" :key="s.key" class="mb-3 last:mb-0">
-          <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ s.title }}</div>
-          <p v-if="s.empty" class="px-1 text-[11px] text-muted-foreground/70">{{ t('prInbox.filters.noOptions') }}</p>
+          <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ s.title }}</div>
+          <p v-if="s.empty" class="px-1 text-2xs text-muted-foreground/70">{{ t('prInbox.filters.noOptions') }}</p>
           <template v-else>
             <Input
               v-if="s.searchable"
@@ -132,9 +132,9 @@ function toggle(dimension: PrFilterDimension, value: string) {
                 />
                 <img v-if="o.avatarUrl" :src="o.avatarUrl" alt="" class="h-4 w-4 shrink-0 rounded-full bg-muted" />
                 <span class="min-w-0 flex-1 truncate text-xs">{{ optionLabel(s.key, o) }}</span>
-                <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ o.count }}</span>
+                <span class="shrink-0 text-2xs text-muted-foreground tabular-nums">{{ o.count }}</span>
               </label>
-              <p v-if="s.options.length === 0" class="px-1.5 py-1 text-[11px] text-muted-foreground/70">
+              <p v-if="s.options.length === 0" class="px-1.5 py-1 text-2xs text-muted-foreground/70">
                 {{ t('prInbox.filters.noMatchSection') }}
               </p>
             </div>

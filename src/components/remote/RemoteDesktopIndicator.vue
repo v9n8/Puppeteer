@@ -37,7 +37,7 @@ function run(action: () => void) {
     <PopoverTrigger as-child>
       <button
         type="button"
-        class="flex min-w-0 items-center gap-1.5 rounded px-1 text-[10px] text-muted-foreground/70 hover:text-foreground"
+        class="flex min-w-0 items-center gap-1.5 rounded px-1 text-2xs text-muted-foreground/70 hover:text-foreground"
         :class="floating && 'fixed bottom-3 left-3 z-[90] border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur'"
         :title="`${t('remote.desktop.banner.controlling', { device: label })} · ${stateText}`"
         :aria-label="`${t('remote.desktop.banner.controlling', { device: label })} · ${stateText}`"
@@ -59,7 +59,7 @@ function run(action: () => void) {
             <span class="min-w-0 truncate">{{ t('remote.desktop.banner.controlling', { device: label }) }}</span>
           </p>
           <p
-            class="flex items-center gap-1.5 text-[11px]"
+            class="flex items-center gap-1.5 text-2xs"
             :class="tone === 'failed' ? 'text-destructive' : 'text-muted-foreground'"
           >
             <span class="inline-flex h-2 w-2 shrink-0 rounded-full" :class="dotClass" />
@@ -95,7 +95,7 @@ function run(action: () => void) {
         <button
           v-if="!needsSignIn"
           type="button"
-          class="flex w-full items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          class="flex w-full items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground"
           @click="run(link.signOut)"
         >
           <LogOut class="h-3 w-3" :stroke-width="1.75" />

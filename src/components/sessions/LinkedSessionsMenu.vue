@@ -139,7 +139,7 @@ watch(
         <Link2 class="h-3.5 w-3.5" :stroke-width="1.75" />
         {{ t('sessionLink.button') }}
         <span
-          class="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-[9px] font-semibold leading-none"
+          class="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full px-0.5 text-2xs font-semibold leading-none"
           :class="links.length ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
         >
           {{ links.length }}
@@ -148,17 +148,17 @@ watch(
     </template>
     <div class="w-[22rem]">
       <!-- Linked sessions -->
-      <div class="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+      <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
         {{ t('sessionLink.label') }}
       </div>
-      <p v-if="links.length === 0" class="px-2.5 py-1.5 text-[11px] text-muted-foreground" @click.stop>
+      <p v-if="links.length === 0" class="px-2.5 py-1.5 text-2xs text-muted-foreground" @click.stop>
         {{ t('sessionLink.empty') }}
       </p>
       <div v-for="link in links" :key="link.runId" class="group relative">
         <DropdownItem class="pr-7" :title="rowTitle(link)" @click="emit('openRun', link)">
           <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="runStatusDot(link.status)" />
           <span class="min-w-0 flex-1 truncate">{{ runLabel(link) }}</span>
-          <span v-if="link.lastActivityAt" class="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+          <span v-if="link.lastActivityAt" class="shrink-0 text-2xs tabular-nums text-muted-foreground">
             {{ relativeAge(link.lastActivityAt) }}
           </span>
         </DropdownItem>
@@ -178,10 +178,10 @@ watch(
 
       <!-- Link a session (clicks stop here: the menu stays open) -->
       <div @click.stop>
-        <div class="px-2.5 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        <div class="px-2.5 pb-1 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
           {{ t('sessionLink.linkSession') }}
         </div>
-        <p v-if="!projectId" class="px-2.5 pb-1.5 text-[11px] text-muted-foreground">
+        <p v-if="!projectId" class="px-2.5 pb-1.5 text-2xs text-muted-foreground">
           {{ t('sessionLink.needProject') }}
         </p>
         <template v-else>
@@ -199,10 +199,10 @@ watch(
             >
           </div>
           <div class="max-h-48 overflow-y-auto">
-            <p v-if="loadError" class="px-2.5 py-2 text-center text-[11px] text-destructive">
+            <p v-if="loadError" class="px-2.5 py-2 text-center text-2xs text-destructive">
               {{ t('sessionLink.loadFailed', { error: loadError }) }}
             </p>
-            <p v-else-if="linkEmpty" class="px-2.5 py-2 text-center text-[11px] text-muted-foreground">
+            <p v-else-if="linkEmpty" class="px-2.5 py-2 text-center text-2xs text-muted-foreground">
               {{ linkEmpty }}
             </p>
             <DropdownItem
@@ -214,7 +214,7 @@ watch(
             >
               <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="runStatusDot(c.status)" />
               <span class="min-w-0 flex-1 truncate">{{ c.label }}</span>
-              <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+              <span class="shrink-0 text-2xs tabular-nums text-muted-foreground">
                 {{ relativeAge(c.activity) }}
               </span>
             </DropdownItem>

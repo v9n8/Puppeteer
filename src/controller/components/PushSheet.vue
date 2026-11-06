@@ -42,7 +42,7 @@ const kinds = computed(() => {
 
       <ol
         v-if="ui === 'needs_install'"
-        class="mt-2 list-decimal space-y-1 pl-5 text-[13px] text-foreground/70"
+        class="mt-2 list-decimal space-y-1 pl-5 text-sm text-foreground/70"
       >
         <li>
           {{ t('controller.push.install.share') }}
@@ -52,10 +52,10 @@ const kinds = computed(() => {
         <li>{{ t('controller.push.install.open') }}</li>
       </ol>
 
-      <p v-if="ui === 'on' && kinds" class="mt-1 text-[11px] text-muted-foreground">
+      <p v-if="ui === 'on' && kinds" class="mt-1 text-2xs text-muted-foreground">
         {{ t('controller.push.sends', { kinds }) }}
       </p>
-      <p v-if="ui === 'on' || ui === 'off'" class="mt-1 text-[11px] text-muted-foreground">
+      <p v-if="ui === 'on' || ui === 'off'" class="mt-1 text-2xs text-muted-foreground">
         {{ t('controller.push.privacy') }}
       </p>
 

@@ -9,7 +9,7 @@
 /** Horizontal/vertical padding + font per control size. */
 export const controlSize = {
   /** Same font as Button `xs` (compact controls in a row of xs buttons). */
-  xs: 'px-2.5 py-1 text-[10px]',
+  xs: 'px-2.5 py-1 text-2xs',
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-3 py-2 text-sm',
 } as const
@@ -33,4 +33,4 @@ export const controlHeight = {
  * radius, focus ring, disabled + placeholder styling. Size is applied on top.
  */
 export const fieldBase =
-  'ui-field w-full bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring transition-colors disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted-foreground'
+  'ui-field w-full bg-card border border-input rounded-md focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted-foreground'

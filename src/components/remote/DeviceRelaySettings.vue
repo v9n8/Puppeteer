@@ -122,7 +122,7 @@ async function clearMasterPassword() {
           :placeholder="t('remote.settings.authTokenPlaceholder')"
           :disabled="savingConfig"
         />
-        <p class="text-[11px] text-muted-foreground/70">
+        <p class="text-2xs text-muted-foreground/70">
           {{ t('remote.settings.authTokenHint') }}
         </p>
       </div>
@@ -140,7 +140,7 @@ async function clearMasterPassword() {
           class="font-mono"
           @keyup.enter="saveConfig"
         />
-        <p class="text-[11px] text-muted-foreground/70">
+        <p class="text-2xs text-muted-foreground/70">
           {{ t('remote.settings.deviceNameHint') }}
         </p>
       </div>
@@ -157,7 +157,7 @@ async function clearMasterPassword() {
             v-if="status?.has_master_password"
             type="button"
             :disabled="savingMasterPw"
-            class="ml-auto font-normal text-[11px] text-muted-foreground/80 hover:text-destructive transition-colors disabled:opacity-50"
+            class="ml-auto font-normal text-2xs text-muted-foreground/80 hover:text-destructive transition-colors disabled:opacity-50"
             @click="clearMasterPassword"
           >
             {{ t('common.clear') }}
@@ -172,7 +172,7 @@ async function clearMasterPassword() {
           :disabled="savingConfig || savingMasterPw"
           @keyup.enter="saveConfig"
         />
-        <p class="text-[11px] text-muted-foreground/70">
+        <p class="text-2xs text-muted-foreground/70">
           {{ t('remote.settings.masterPasswordHint') }}
         </p>
       </div>
@@ -181,7 +181,7 @@ async function clearMasterPassword() {
         <Button variant="outline" :disabled="savingConfig" @click="saveConfig">
           {{ t('remote.settings.saveSettings') }}
         </Button>
-        <span v-if="status?.device_id" class="ml-auto text-[11px] text-muted-foreground/60 font-mono">
+        <span v-if="status?.device_id" class="ml-auto text-2xs text-muted-foreground/60 font-mono">
           {{ t('remote.settings.hostLabel', { id: status.device_id.slice(0, 8) }) }}
         </span>
       </div>

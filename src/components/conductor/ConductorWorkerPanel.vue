@@ -271,7 +271,7 @@ onBeforeUnmount(onDragEnd)
         <ChevronLeft class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
         {{ t('conductor.backToConductor') }}
       </button>
-      <p v-if="!workers.length" class="px-3 py-6 text-center text-[11px] text-muted-foreground">
+      <p v-if="!workers.length" class="px-3 py-6 text-center text-2xs text-muted-foreground">
         {{ t('conductor.noWorkers') }}
       </p>
       <div
@@ -300,7 +300,7 @@ onBeforeUnmount(onDragEnd)
             />
             <span
               class="flex-1 min-w-0 truncate font-medium leading-tight"
-              :class="density === 'dense' ? 'text-xs' : 'text-[13px]'"
+              :class="density === 'dense' ? 'text-xs' : 'text-sm'"
               :title="density === 'comfortable' ? (w.title ?? w.worker_id) : undefined"
             >
               {{ workerTitle(w) }}
@@ -317,31 +317,31 @@ onBeforeUnmount(onDragEnd)
             </span>
             <span
               v-if="density !== 'comfortable'"
-              class="shrink-0 font-mono text-[10px]"
+              class="shrink-0 font-mono text-2xs"
               :class="isRunning(w) ? 'text-info/80' : 'text-muted-foreground/70'"
             >{{ workerTime(w) }}</span>
           </div>
           <!-- Compact: "account · model" (model without "claude-"). -->
           <p
             v-if="density === 'compact'"
-            class="mt-0.5 pl-5 truncate text-[10px] leading-tight text-muted-foreground/70"
+            class="mt-0.5 pl-5 truncate text-2xs leading-tight text-muted-foreground/70"
           >
             {{ workerAccountModel(w) }}
           </p>
           <!-- Comfortable meta: account + model badges + short id. -->
           <div
             v-else-if="density === 'comfortable'"
-            class="mt-2 pl-6 pr-3 flex items-center gap-1.5 text-[10px] text-muted-foreground/70"
+            class="mt-2 pl-6 pr-3 flex items-center gap-1.5 text-2xs text-muted-foreground/70"
           >
             <span
               v-if="workerAccountLabel(w)"
-              class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-[9px] font-medium tracking-wide text-primary"
+              class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-2xs font-medium tracking-wide text-primary"
               :title="workerAccountLabel(w)"
             >
               {{ workerAccountLabel(w) }}
             </span>
             <span
-              class="min-w-0 truncate px-1.5 py-0.5 rounded bg-muted/60 font-mono text-[9px] tracking-wide text-muted-foreground"
+              class="min-w-0 truncate px-1.5 py-0.5 rounded bg-muted/60 font-mono text-2xs tracking-wide text-muted-foreground"
               :title="workerModelLabel(w)"
             >
               {{ workerModelLabel(w) }}
@@ -377,13 +377,13 @@ onBeforeUnmount(onDragEnd)
           :class="{ 'rotate-90': uiLayout.timelineOpen }"
           :stroke-width="2"
         />
-        <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span class="shrink-0 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {{ t('conductor.timeline') }}
         </span>
         <!-- Collapsed: the newest event inline, so the header still informs. -->
         <span
           v-if="!uiLayout.timelineOpen && latestEvent"
-          class="flex-1 min-w-0 truncate text-[11px] text-foreground/70"
+          class="flex-1 min-w-0 truncate text-2xs text-foreground/70"
           :title="`${formatWhen(latestEvent.ts)} ${eventSummary(latestEvent)}`"
         >
           · <span class="font-mono text-muted-foreground/70">{{ formatWhen(latestEvent.ts) }}</span>
@@ -395,10 +395,10 @@ onBeforeUnmount(onDragEnd)
         class="min-h-0 overflow-y-auto px-3 py-2 space-y-1"
         :style="{ height: `${timelineHeight}px` }"
       >
-        <p v-if="!events.length" class="text-[11px] text-muted-foreground text-center py-4">
+        <p v-if="!events.length" class="text-2xs text-muted-foreground text-center py-4">
           {{ t('conductor.noEvents') }}
         </p>
-        <div v-for="(e, i) in events" :key="i" class="flex items-start gap-2 text-[11px]">
+        <div v-for="(e, i) in events" :key="i" class="flex items-start gap-2 text-2xs">
           <span class="font-mono text-muted-foreground/70 shrink-0">{{ formatWhen(e.ts) }}</span>
           <span class="text-foreground/80">{{ eventSummary(e) }}</span>
         </div>

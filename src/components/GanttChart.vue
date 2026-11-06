@@ -284,7 +284,7 @@ function fmt(iso: string | null): string {
   <div class="flex flex-col gap-3 h-full min-h-0">
     <!-- Toolbar + legend -->
     <div class="flex items-center justify-between gap-4 flex-wrap shrink-0">
-      <div class="flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground">
+      <div class="flex items-center gap-3 flex-wrap text-2xs text-muted-foreground">
         <span>{{ t('gantt.chart.colourLateness') }}</span>
         <span v-for="l in LEGEND" :key="l.label" class="flex items-center gap-1">
           <span class="h-2.5 w-2.5 rounded-sm" :class="l.class" />
@@ -319,7 +319,7 @@ function fmt(iso: string | null): string {
         <!-- Header: date ticks -->
         <div class="flex sticky top-0 z-20 bg-card border-b border-border/60" :style="{ height: '28px' }">
           <div
-            class="sticky left-0 z-30 shrink-0 bg-card border-r border-border/60 flex items-center px-3 text-[10px] font-medium text-muted-foreground"
+            class="sticky left-0 z-30 shrink-0 bg-card border-r border-border/60 flex items-center px-3 text-2xs font-medium text-muted-foreground"
             :style="{ width: `${LEFT_WIDTH}px` }"
           >
             {{ groupMode === 'assignee' ? t('gantt.chart.columnHeaderAssignee') : t('gantt.chart.columnHeader') }}
@@ -327,7 +327,7 @@ function fmt(iso: string | null): string {
           <div class="relative" :style="{ width: `${chartWidth}px` }">
             <div
               v-for="(tk, i) in ticks" :key="i"
-              class="absolute top-0 bottom-0 flex items-center border-l border-border/30 pl-1 text-[9px] text-muted-foreground/70"
+              class="absolute top-0 bottom-0 flex items-center border-l border-border/30 pl-1 text-2xs text-muted-foreground/70"
               :style="{ left: `${tk.x}px` }"
             >
               {{ tk.label }}
@@ -340,17 +340,17 @@ function fmt(iso: string | null): string {
           <!-- Milestone header row -->
           <div class="flex border-b border-border/40 bg-muted/30" :style="{ height: `${ROW_H}px` }">
             <div
-              class="sticky left-0 z-10 shrink-0 bg-muted/40 border-r border-border/60 flex items-center px-3 gap-2 text-[11px] font-semibold"
+              class="sticky left-0 z-10 shrink-0 bg-muted/40 border-r border-border/60 flex items-center px-3 gap-2 text-2xs font-semibold"
               :style="{ width: `${LEFT_WIDTH}px` }"
               :title="lane.group.title"
             >
               <span class="truncate">{{ lane.group.title }}</span>
-              <span v-if="lane.group.dueOn" class="ml-auto shrink-0 text-[10px] font-normal text-muted-foreground">
+              <span v-if="lane.group.dueOn" class="ml-auto shrink-0 text-2xs font-normal text-muted-foreground">
                 {{ t('gantt.chart.due', { date: fmt(lane.group.dueOn) }) }}
               </span>
               <button
                 v-if="groupMode !== 'assignee' && lane.group.title !== NO_MILESTONE"
-                class="shrink-0 flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[9px] font-normal text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                class="shrink-0 flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-2xs font-normal text-muted-foreground hover:text-foreground hover:border-border transition-colors"
                 :class="{ 'ml-auto': !lane.group.dueOn }"
                 :title="isExpanded(lane.group.title) ? t('gantt.chart.hideClosed') : t('gantt.chart.showClosed')"
                 @click="emit('toggle-closed', lane.group.title)"
@@ -382,23 +382,23 @@ function fmt(iso: string | null): string {
             :style="{ height: `${ROW_H}px` }"
           >
             <div
-              class="sticky left-0 z-10 shrink-0 bg-card border-r border-border/60 flex items-center gap-1.5 px-3 text-[11px] cursor-pointer hover:text-primary"
+              class="sticky left-0 z-10 shrink-0 bg-card border-r border-border/60 flex items-center gap-1.5 px-3 text-2xs cursor-pointer hover:text-primary"
               :style="{ width: `${LEFT_WIDTH}px` }"
               :title="`${b.issue.repo}#${b.issue.number} — ${b.issue.title}`"
               @click="open(b.issue)"
               @contextmenu.prevent="openRowMenu($event, b.issue)"
             >
-              <span class="font-mono text-[10px] text-muted-foreground/70 shrink-0">#{{ b.issue.number }}</span>
+              <span class="font-mono text-2xs text-muted-foreground/70 shrink-0">#{{ b.issue.number }}</span>
               <span class="flex-1 min-w-0 truncate">{{ b.issue.title }}</span>
               <span
                 v-if="assigneeText(b.issue)"
-                class="shrink-0 flex items-center gap-0.5 text-[9px] text-muted-foreground max-w-24 truncate"
+                class="shrink-0 flex items-center gap-0.5 text-2xs text-muted-foreground max-w-24 truncate"
                 :title="t('gantt.chart.assignees', { names: b.issue.assignees.join(', ') })"
               >
                 <User class="h-2.5 w-2.5" />{{ assigneeText(b.issue) }}
               </span>
               <span
-                class="shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium max-w-24 truncate"
+                class="shrink-0 rounded-full border px-1.5 py-0.5 text-2xs font-medium max-w-24 truncate"
                 :class="statusClass(b.issue)"
                 :title="statusText(b.issue)"
               >
@@ -420,7 +420,7 @@ function fmt(iso: string | null): string {
               >
                 <span
                   v-if="barGeom(b).width > 46"
-                  class="px-1.5 text-[9px] font-medium text-white/90 truncate pointer-events-none"
+                  class="px-1.5 text-2xs font-medium text-white/90 truncate pointer-events-none"
                 >
                   {{ statusText(b.issue) }}
                 </span>
@@ -437,21 +437,21 @@ function fmt(iso: string | null): string {
 
     <!-- Unscheduled -->
     <div v-if="unscheduled.length > 0" class="shrink-0 max-h-40 overflow-auto rounded-lg border border-border/60 bg-card/20 p-4 space-y-2">
-      <div class="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
+      <div class="flex items-center gap-2 text-2xs font-semibold text-muted-foreground">
         <CalendarOff class="h-3.5 w-3.5" />
         {{ t('gantt.chart.unscheduled', { count: unscheduled.length }) }}
       </div>
       <div class="flex flex-col gap-1">
         <button
           v-for="it in unscheduled" :key="`${it.repo}#${it.number}`"
-          class="flex items-center gap-2 text-left text-[11px] hover:text-primary truncate"
+          class="flex items-center gap-2 text-left text-2xs hover:text-primary truncate"
           :title="it.title"
           @click="open(it)"
           @contextmenu.prevent="openRowMenu($event, it)"
         >
-          <span class="font-mono text-[10px] text-muted-foreground/70 shrink-0">{{ it.repo }}#{{ it.number }}</span>
+          <span class="font-mono text-2xs text-muted-foreground/70 shrink-0">{{ it.repo }}#{{ it.number }}</span>
           <span class="truncate">{{ it.title }}</span>
-          <span class="shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium" :class="statusClass(it)">
+          <span class="shrink-0 rounded-full border px-1.5 py-0.5 text-2xs font-medium" :class="statusClass(it)">
             {{ statusText(it) }}
           </span>
         </button>

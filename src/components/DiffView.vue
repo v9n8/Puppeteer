@@ -16,7 +16,7 @@ const result = computed(() => computeDiff(props.before, props.after, { context: 
 </script>
 
 <template>
-  <div class="rounded-md border border-border overflow-hidden font-mono text-[11px] leading-relaxed max-h-[28rem] overflow-y-auto">
+  <div class="rounded-md border border-border overflow-hidden font-mono text-2xs leading-relaxed max-h-[28rem] overflow-y-auto">
     <div
       v-for="(row, i) in result.rows"
       :key="i"
@@ -29,7 +29,7 @@ const result = computed(() => computeDiff(props.before, props.after, { context: 
     >
       <!-- Fold marker for collapsed unchanged runs -->
       <template v-if="row.type === 'fold'">
-        <span class="w-full px-3 py-0.5 text-center text-[10px] text-foreground/35 select-none">
+        <span class="w-full px-3 py-0.5 text-center text-2xs text-foreground/35 select-none">
           {{ t('misc.diff.unchangedLines', { count: row.count }) }}
         </span>
       </template>

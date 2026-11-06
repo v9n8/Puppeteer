@@ -155,9 +155,9 @@ function showHeaders(): boolean {
       </div>
       <div v-else-if="emptyStore && !error" class="px-3 py-8 text-center">
         <p class="text-xs text-muted-foreground">{{ emptyTitle }}</p>
-        <p v-if="emptyHint" class="mt-1 text-[11px] text-muted-foreground/70">{{ emptyHint }}</p>
+        <p v-if="emptyHint" class="mt-1 text-2xs text-muted-foreground/70">{{ emptyHint }}</p>
       </div>
-      <p v-else-if="groups.length === 0 && !error" class="px-3 py-8 text-center text-[11px] text-muted-foreground">
+      <p v-else-if="groups.length === 0 && !error" class="px-3 py-8 text-center text-2xs text-muted-foreground">
         {{ t('common.noResults') }}
       </p>
 
@@ -176,7 +176,7 @@ function showHeaders(): boolean {
             />
             <Folder class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />
             <span class="min-w-0 flex-1 truncate">{{ g.label }}</span>
-            <span class="shrink-0 text-[10px] font-normal tabular-nums text-muted-foreground/80">
+            <span class="shrink-0 text-2xs font-normal tabular-nums text-muted-foreground/80">
               {{ g.rows.length }}
             </span>
           </button>

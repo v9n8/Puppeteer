@@ -460,7 +460,7 @@ function openForAccount(url: string) {
           >
             <!-- View mode -->
             <div class="mb-3">
-              <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.viewLabel') }}</div>
+              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.viewLabel') }}</div>
               <SegmentedControl
                 :model-value="store.viewMode"
                 :options="viewModeOptions"
@@ -481,7 +481,7 @@ function openForAccount(url: string) {
                 <Moon class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.lunarCalendar') }}</span>
-                  <span class="block text-[11px] text-muted-foreground truncate">
+                  <span class="block text-2xs text-muted-foreground truncate">
                     {{ t('calendar.view.lunarHint') }}
                   </span>
                 </span>
@@ -499,7 +499,7 @@ function openForAccount(url: string) {
 
             <!-- Navigation -->
             <div class="mb-3">
-              <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.navigation') }}</div>
+              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.navigation') }}</div>
               <div class="flex items-center gap-1">
                 <Button variant="outline" size="icon" :aria-label="t('calendar.view.previous')" :title="t('calendar.view.previous')" @click="store.step(-1)">
                   <ChevronLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -513,7 +513,7 @@ function openForAccount(url: string) {
 
             <!-- Account show/hide -->
             <div>
-              <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.accounts') }}</div>
+              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.accounts') }}</div>
               <div class="flex flex-col gap-0.5 max-h-52 overflow-auto">
                 <button
                   v-for="a in store.accounts"
@@ -554,7 +554,7 @@ function openForAccount(url: string) {
                 <Languages class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.autoTranslate') }}</span>
-                  <span class="block text-[11px] text-muted-foreground truncate">
+                  <span class="block text-2xs text-muted-foreground truncate">
                     {{ t('calendar.view.autoTranslateHint', { lang: targetLangName }) }}
                   </span>
                 </span>
@@ -584,7 +584,7 @@ function openForAccount(url: string) {
                 <Bell class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.eventReminders') }}</span>
-                  <span class="block text-[11px] text-muted-foreground truncate">
+                  <span class="block text-2xs text-muted-foreground truncate">
                     {{ t('calendar.view.eventRemindersHint') }}
                   </span>
                 </span>
@@ -599,7 +599,7 @@ function openForAccount(url: string) {
                 </span>
               </button>
               <div v-if="store.reminderEnabled" class="mt-2 flex items-center gap-2 px-1">
-                <span class="text-[11px] text-muted-foreground">{{ t('calendar.view.remindBefore') }}</span>
+                <span class="text-2xs text-muted-foreground">{{ t('calendar.view.remindBefore') }}</span>
                 <AppSelect
                   :model-value="String(store.reminderLeadMin)"
                   :options="LEAD_OPTIONS"
@@ -713,7 +713,7 @@ function openForAccount(url: string) {
               <CalendarRange class="h-4 w-4" :stroke-width="1.75" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.date') }}</div>
+              <div class="text-2xs uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.date') }}</div>
               <div class="text-sm text-foreground">{{ dateLabel }}</div>
               <div v-if="lunarDateLabel" class="text-xs text-muted-foreground">{{ lunarDateLabel }}</div>
             </div>
@@ -725,7 +725,7 @@ function openForAccount(url: string) {
               <Clock class="h-4 w-4" :stroke-width="1.75" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.time') }}</div>
+              <div class="text-2xs uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.time') }}</div>
               <div class="text-sm text-foreground flex items-center gap-2 flex-wrap">
                 <span>{{ timeLabel }}</span>
                 <span v-if="durationLabel" class="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -746,7 +746,7 @@ function openForAccount(url: string) {
               <MapPin class="h-4 w-4" :stroke-width="1.75" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.location') }}</div>
+              <div class="text-2xs uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.location') }}</div>
               <div class="text-sm text-primary group-hover:underline break-words">{{ store.translated(selected.location) }}</div>
             </div>
           </a>
@@ -757,7 +757,7 @@ function openForAccount(url: string) {
               <User class="h-4 w-4" :stroke-width="1.75" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.account') }}</div>
+              <div class="text-2xs uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.account') }}</div>
               <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
                 <span class="inline-flex items-center gap-1.5 text-sm text-foreground">
                   <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: store.colorFor(selected.account_id) }" />
@@ -771,7 +771,7 @@ function openForAccount(url: string) {
 
         <!-- Description -->
         <div v-if="descSegments.length" class="px-5 py-4 border-t border-border/60">
-          <div class="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+          <div class="mb-2 flex items-center gap-2 text-2xs uppercase tracking-wide text-muted-foreground">
             <AlignLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
             {{ t('calendar.view.description') }}
           </div>
@@ -790,7 +790,7 @@ function openForAccount(url: string) {
 
         <!-- Attachments -->
         <div v-if="selected.attachments.length" class="px-5 py-4 border-t border-border/60">
-          <div class="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+          <div class="mb-2 flex items-center gap-2 text-2xs uppercase tracking-wide text-muted-foreground">
             <Paperclip class="h-3.5 w-3.5" :stroke-width="1.75" />
             {{ t('calendar.view.attachments', { n: selected.attachments.length }) }}
           </div>

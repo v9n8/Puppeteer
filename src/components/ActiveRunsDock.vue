@@ -226,16 +226,16 @@ function open(row: DockRow) {
   <div v-if="rows.length > 0" class="px-2 pb-2 border-t border-border/50 pt-2">
     <div class="flex items-center gap-1.5 px-2 mb-1">
       <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
-      <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1">
+      <span class="text-2xs font-semibold uppercase tracking-wider text-muted-foreground flex-1">
         Active runs
       </span>
       <span
         v-if="waitingCount > 0"
-        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-[10px] font-medium text-warning-foreground leading-none"
+        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
       >{{ waitingCount }}</span>
       <span
         v-else-if="doneCount > 0"
-        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-[10px] font-medium text-success-foreground leading-none"
+        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-2xs font-medium text-success-foreground leading-none"
       >{{ doneCount }}</span>
     </div>
 
@@ -271,13 +271,13 @@ function open(row: DockRow) {
             />
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-[13px] leading-tight">{{ label(row) }}</span>
-            <span class="block truncate text-[10px] text-muted-foreground/70 leading-tight">{{ projectName(row.projectId) }}</span>
+            <span class="block truncate text-sm leading-tight">{{ label(row) }}</span>
+            <span class="block truncate text-2xs text-muted-foreground/70 leading-tight">{{ projectName(row.projectId) }}</span>
           </span>
           <!-- Active-worker count for a conductor. -->
           <span
             v-if="isGroup"
-            class="shrink-0 flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary"
+            class="shrink-0 flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary"
             :title="t('conductor.workerCountShort', { n: workerCount })"
           >
             <Network class="h-2.5 w-2.5" :stroke-width="2" />
@@ -285,21 +285,21 @@ function open(row: DockRow) {
           </span>
           <span
             v-if="row.pending > 0"
-            class="flex items-center gap-0.5 rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium text-warning shrink-0"
+            class="flex items-center gap-0.5 rounded bg-warning/15 px-1 py-0.5 text-2xs font-medium text-warning shrink-0"
           >
             <ShieldAlert class="h-3 w-3" :stroke-width="2" />
             Review
           </span>
           <span
             v-else-if="row.done && isFailure(row.status)"
-            class="flex items-center gap-0.5 rounded bg-destructive/15 px-1 py-0.5 text-[10px] font-medium text-destructive shrink-0"
+            class="flex items-center gap-0.5 rounded bg-destructive/15 px-1 py-0.5 text-2xs font-medium text-destructive shrink-0"
           >
             <XCircle class="h-3 w-3" :stroke-width="2" />
             {{ row.status === 'cancelled' ? 'Stopped' : 'Failed' }}
           </span>
           <span
             v-else-if="row.done"
-            class="flex items-center gap-0.5 rounded bg-success/15 px-1 py-0.5 text-[10px] font-medium text-success shrink-0"
+            class="flex items-center gap-0.5 rounded bg-success/15 px-1 py-0.5 text-2xs font-medium text-success shrink-0"
           >
             <CheckCircle2 class="h-3 w-3" :stroke-width="2" />
             Done

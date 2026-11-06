@@ -285,7 +285,7 @@ async function handleDelete(server: VpsServer) {
       </template>
       <template #row="{ row }">
         <span class="min-w-0 truncate text-sm font-medium leading-snug">{{ row.label }}</span>
-        <span class="mt-1 truncate font-mono text-[11px] text-muted-foreground/70">
+        <span class="mt-1 truncate font-mono text-2xs text-muted-foreground/70">
           {{ row.username }}@{{ row.host }}:{{ row.port }}
         </span>
       </template>

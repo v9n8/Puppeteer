@@ -324,7 +324,7 @@ defineExpose({ dirty, save })
             :class="target !== 'claude' ? 'grid-cols-[minmax(0,1fr)_8rem_8rem]' : 'grid-cols-[minmax(0,1fr)_8rem]'"
           >
             <label class="block space-y-1">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('rules.detail.name') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('rules.detail.name') }}</span>
               <Input
                 :model-value="nameDraft"
                 class="font-mono"
@@ -333,7 +333,7 @@ defineExpose({ dirty, save })
               />
             </label>
             <label class="block space-y-1">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('rules.editor.target') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('rules.editor.target') }}</span>
               <AppSelect
                 :model-value="target"
                 :options="[
@@ -345,7 +345,7 @@ defineExpose({ dirty, save })
               />
             </label>
             <label v-if="target !== 'claude'" class="block space-y-1" :title="t('rules.editor.codexModeHint')">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('rules.editor.codexMode') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('rules.editor.codexMode') }}</span>
               <AppSelect
                 :model-value="codexMode"
                 :options="[
@@ -356,7 +356,7 @@ defineExpose({ dirty, save })
               />
             </label>
             <label class="block space-y-1" :class="target !== 'claude' ? 'col-span-3' : 'col-span-2'">
-              <span class="text-[11px] font-medium text-muted-foreground">{{ t('rules.detail.description') }}</span>
+              <span class="text-2xs font-medium text-muted-foreground">{{ t('rules.detail.description') }}</span>
               <Input
                 :model-value="descriptionDraft"
                 :placeholder="t('rules.detail.descriptionPlaceholder')"
@@ -364,7 +364,7 @@ defineExpose({ dirty, save })
               />
             </label>
           </div>
-          <p v-if="target !== 'claude'" class="text-[11px] text-muted-foreground/80">
+          <p v-if="target !== 'claude'" class="text-2xs text-muted-foreground/80">
             {{ t('rules.editor.codexModeHint') }}
           </p>
         </DetailSection>
@@ -374,7 +374,7 @@ defineExpose({ dirty, save })
       <div class="flex shrink-0 items-center gap-2 border-y border-border/60 bg-muted/30 px-3 py-1">
         <div class="flex min-w-0 flex-1 items-center gap-0.5">
           <span
-            class="flex shrink-0 items-center gap-1 rounded bg-background px-2 py-1 font-mono text-[11px] text-foreground shadow-sm"
+            class="flex shrink-0 items-center gap-1 rounded bg-background px-2 py-1 font-mono text-2xs text-foreground shadow-sm"
             :title="rule?.source_path ?? fileName"
           >
             <FileText class="h-3 w-3 shrink-0" :stroke-width="1.75" />

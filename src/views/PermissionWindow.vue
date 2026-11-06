@@ -135,7 +135,7 @@ async function togglePin() {
     <div class="flex items-center gap-2 px-3 h-11 border-b border-border/60 shrink-0">
       <div class="flex min-w-0 flex-col leading-tight">
         <!-- Project on top, session name below; generic label until the first sync. -->
-        <span class="truncate text-[10px] uppercase tracking-wide text-foreground/50" :title="session?.project">
+        <span class="truncate text-2xs uppercase tracking-wide text-foreground/50" :title="session?.project">
           {{ session?.project || t('permission.window.headerLabel') }}
         </span>
         <span v-if="session" class="truncate text-xs font-medium text-foreground/85" :title="session.name">

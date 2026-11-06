@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="vi" data-dir="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Puppeteer Design System</title>
+<style>
+/* Inter self-host của repo, dùng chung file với app (src/assets/fonts). */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../../src/assets/fonts/Inter.woff2") format("woff2"); }
+
+/* Token sinh ra từ object THEMES trong <script> cuối trang — một nguồn cho cả CSS lẫn bảng mã màu. */
+
+:root {
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Thang chữ đề xuất: sàn 12px; 9/10/11px hiện tại gộp về 12px, 12→13, 15→16. */
+  --text-2xs: 12px; --text-xs: 12px; --text-sm: 13px; --text-base: 14px; --text-md: 16px; --text-lg: 20px;
+  /* Bo góc theo chiều cao: control < 40px bo 8px, card 12px. */
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+}
+
+/* ===== Thanh cuộn (khối chuẩn, giữ bề rộng 4px) ===== */
+* { --scrollbar-thumb: transparent; }
+*:hover { --scrollbar-thumb: color-mix(in srgb, var(--foreground) 16%, transparent); }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--foreground) 40%, transparent); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  *:hover { scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+body {
+  margin: 0; background: var(--background); color: var(--foreground);
+  font-family: var(--font-ui); font-size: var(--text-sm); line-height: 20px;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; }
+/* Giống main.css của repo: Tab tới thì có vòng focus. Ô nhập có focus riêng. */
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.input:focus-visible { outline: none; }
+code { overflow-wrap: anywhere; }
+
+/* ---------- khung trang ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 10; background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-inner { max-width: 1120px; margin: 0 auto; padding: 10px 24px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.topbar h1 { font-size: var(--text-base); line-height: 22px; font-weight: 600; margin-right: auto; }
+.ctl-group { display: flex; align-items: center; gap: 8px; }
+.lbl-short { display: none; }
+@media (max-width: 640px) { .lbl-long { display: none; } .lbl-short { display: inline; } .topbar h1 { width: 100%; } }
+.ctl-label { font-size: var(--text-xs); color: var(--muted-foreground); }
+main { max-width: 1120px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+.grid > * { min-width: 0; }
+section > h2 { font-size: var(--text-md); line-height: 24px; font-weight: 600; margin-bottom: 4px; }
+section > .sec-sub { color: var(--muted-foreground); margin-bottom: 16px; max-width: 75ch; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.demo-label { display: block; font-size: var(--text-xs); line-height: 16px; color: var(--muted-foreground); margin-bottom: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ---------- card ---------- */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.card-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: var(--text-base); line-height: 22px; }
+.card-body { padding: 16px; }
+.card-body.stack { display: grid; gap: 16px; }
+
+/* ---------- brief ---------- */
+.brief { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; }
+.brief dt { color: var(--muted-foreground); }
+.brief dd { margin: 0; }
+@media (max-width: 640px) { main { padding: 16px; } .brief { grid-template-columns: 1fr; } .brief dd { margin-bottom: 8px; } }
+
+/* ---------- bảng ---------- */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+th { text-align: left; font-weight: 500; color: var(--muted-foreground); font-size: var(--text-xs); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+code, .mono { font-family: var(--font-mono); font-size: 12px; }
+.swatch { display: inline-block; width: 28px; height: 20px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong-demo); vertical-align: middle; }
+.flag { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); font-weight: 500; color: var(--warning); }
+
+/* ---------- chữ ---------- */
+.type-row { display: grid; grid-template-columns: 150px 1fr; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); align-items: baseline; }
+.type-row:last-child { border-bottom: 0; }
+.type-meta { font-size: var(--text-xs); color: var(--muted-foreground); line-height: 16px; }
+@media (max-width: 640px) { .type-row { grid-template-columns: 1fr; gap: 4px; } }
+
+/* ---------- nút (khớp Button.vue: xs 28 / sm 32 / md 36) ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: var(--radius-md); border: 1px solid transparent;
+  font-size: var(--text-sm); font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: background-color .15s, color .15s; outline: none;
+}
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-xs { height: 28px; padding: 0 10px; font-size: var(--text-xs); gap: 4px; }
+.btn-xs svg { width: 12px; height: 12px; }
+.btn-md { height: 36px; padding: 0 16px; font-size: var(--text-base); gap: 8px; }
+.btn-md svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover, [data-demo-state="hover"] .btn-primary { background: var(--primary-hover); }
+.btn-outline { background: var(--card); border-color: var(--input); color: var(--foreground); }
+.btn-outline:hover, [data-demo-state="hover"] .btn-outline { background: var(--button-hover); }
+.btn-secondary { background: var(--secondary); color: var(--foreground); }
+.btn-secondary:hover, [data-demo-state="hover"] .btn-secondary { background: var(--secondary-hover); }
+.btn-ghost { background: transparent; color: var(--muted-foreground); }
+.btn-ghost:hover, [data-demo-state="hover"] .btn-ghost { background: var(--accent); color: var(--foreground); }
+.btn-danger { background: var(--destructive-bg); color: var(--destructive); }
+.btn-danger:hover, [data-demo-state="hover"] .btn-danger { background: var(--destructive-bg-hover); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-icon { width: 32px; padding: 0; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.btn-table td { padding: 10px 12px; }
+.btn-table td:first-child { color: var(--muted-foreground); font-size: var(--text-xs); white-space: nowrap; }
+
+/* ---------- ô nhập ---------- */
+.field { display: grid; gap: 6px; }
+.field label { font-size: var(--text-sm); font-weight: 500; }
+.field .hint { font-size: var(--text-xs); line-height: 16px; color: var(--muted-foreground); }
+.field .err { font-size: var(--text-xs); line-height: 16px; color: var(--destructive); }
+.input {
+  height: 32px; width: 100%; padding: 0 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--input); background: var(--card); color: var(--foreground);
+  font: inherit; font-size: var(--text-sm); outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.input::placeholder { color: var(--muted-foreground); }
+.input:focus, [data-demo-state="focus"] .input { border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--ring-focus); }
+.input.is-error { border-color: var(--error); box-shadow: 0 0 0 2px var(--error-ring); }
+.input:disabled { opacity: .5; cursor: not-allowed; background: var(--muted); }
+.fields { display: grid; gap: 20px; }
+
+/* ---------- badge ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 9999px;
+  font-size: var(--text-2xs); font-weight: 500; white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--badge-ring);
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+.b-neutral { background: var(--neutral-bg); color: var(--muted-foreground); }
+.b-success { background: var(--success-bg); color: var(--success); }
+.b-warning { background: var(--warning-bg); color: var(--warning); }
+.b-error { background: var(--destructive-bg); color: var(--destructive); }
+.b-info { background: var(--info-bg); color: var(--info); }
+
+/* ---------- segmented ---------- */
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-md); background: var(--seg-track); box-shadow: var(--seg-track-shadow); }
+.seg button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted-foreground); font-size: var(--text-sm); font-weight: 500; cursor: pointer; }
+.seg button:hover { color: var(--foreground); }
+.seg button.is-active { background: var(--seg-thumb); color: var(--foreground); box-shadow: var(--seg-thumb-shadow); }
+
+/* ---------- công tắc ---------- */
+.switch { position: relative; width: 40px; height: 24px; border-radius: 9999px; border: 0; padding: 0; background: var(--switch-off); cursor: pointer; flex-shrink: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 9999px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s; }
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"]::after { transform: translateX(16px); }
+html.dark .switch[aria-checked="true"]::after { background: var(--primary-foreground); }
+.switch:disabled { opacity: .5; cursor: not-allowed; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: 0; }
+.setting-row .t { font-weight: 500; }
+.setting-row .s { font-size: var(--text-xs); line-height: 16px; color: var(--muted-foreground); }
+
+/* ---------- dòng danh sách (ListDetailSidebar) ---------- */
+.list { display: grid; gap: 4px; padding: 8px; background: var(--sidebar); border-right: 1px solid var(--border); }
+.li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; border-radius: var(--radius-md); cursor: pointer; }
+.li:hover, [data-demo-state="hover"].li { background: var(--accent); }
+.li.is-selected { background: var(--secondary); }
+.li.is-selected .li-title { font-weight: 600; }
+.li-title { font-size: var(--text-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.li-meta { grid-column: 1 / -1; font-size: var(--text-xs); line-height: 16px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li-time { font-size: var(--text-xs); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.split { display: grid; grid-template-columns: 280px 1fr; min-height: 300px; }
+.split > *, .split-detail > * { min-width: 0; }
+.split-detail { padding: 20px; display: grid; align-content: start; gap: 12px; }
+@media (max-width: 720px) { .split { grid-template-columns: 1fr; } .list { border-right: 0; border-bottom: 1px solid var(--border); } }
+
+/* ---------- banner ---------- */
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-md); font-size: var(--text-sm); }
+.banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+.banner .bt { font-weight: 600; }
+.banner p { color: var(--foreground); }
+.bn-info { background: var(--info-bg); } .bn-info svg { color: var(--info); }
+.bn-success { background: var(--success-bg); } .bn-success svg { color: var(--success); }
+.bn-warning { background: var(--warning-bg); } .bn-warning svg { color: var(--warning); }
+.bn-error { background: var(--destructive-bg); } .bn-error svg { color: var(--destructive); }
+
+/* ---------- lớp nổi ---------- */
+.overlay-stage { position: relative; border-radius: var(--radius-lg); background: var(--background); border: 1px solid var(--border); padding: 32px 16px; display: grid; place-items: center; overflow: hidden; }
+.overlay-stage::before { content: ""; position: absolute; inset: 0; background: rgb(0 0 0 / .45); }
+.modal { position: relative; width: min(440px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--elevation-modal); }
+.modal-head { padding: 16px 20px 0; font-size: var(--text-md); line-height: 24px; font-weight: 600; }
+.modal-body { padding: 8px 20px 20px; color: var(--muted-foreground); }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
+.menu { width: 220px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--elevation-popover); padding: 4px; display: grid; gap: 4px; }
+.menu-item { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: var(--radius-md); font-size: var(--text-sm); }
+.menu-item svg { width: 14px; height: 14px; color: var(--muted-foreground); }
+.menu-item.is-hl { background: var(--accent); }
+.menu-item.is-danger { color: var(--destructive); } .menu-item.is-danger svg { color: var(--destructive); }
+.menu-sep { height: 1px; background: var(--border); margin: 0 -4px; }
+
+/* ---------- trạng thái rỗng ---------- */
+.empty { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 32px 16px; }
+.empty-ico { width: 48px; height: 48px; border-radius: var(--radius-lg); background: var(--muted); display: grid; place-items: center; color: var(--muted-foreground); margin-bottom: 6px; }
+.empty-ico svg { width: 24px; height: 24px; }
+.empty h3 { font-size: var(--text-base); line-height: 22px; font-weight: 600; }
+.empty p { color: var(--muted-foreground); max-width: 36ch; }
+.empty .row { margin-top: 10px; justify-content: center; }
+
+/* ---------- markdown / code (StreamLog) ---------- */
+.md { font-size: var(--text-base); line-height: 1.7; }
+.md p { margin-bottom: 10px; }
+.md code.inline { background: var(--muted); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; color: var(--code-inline); }
+.md pre { margin: 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; overflow-x: auto; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; }
+.tok-k { color: var(--code-keyword); } .tok-s { color: var(--code-string); } .tok-c { color: var(--muted-foreground); } .tok-f { color: var(--code-fn); }
+
+/* ---------- token khác ---------- */
+.scale { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.scale .bar { background: var(--primary); height: 12px; border-radius: 2px; }
+.scale figure { margin: 0; display: grid; gap: 6px; }
+.scale figcaption { font-size: var(--text-xs); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.radius-box { width: 64px; height: 40px; background: var(--card); border: 1px solid var(--input); }
+.shadow-box { width: 140px; height: 72px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-lg); display: grid; place-items: center; font-size: var(--text-xs); color: var(--muted-foreground); }
+.border-demo { display: grid; gap: 10px; }
+.border-demo div { height: 40px; border-radius: var(--radius-md); background: var(--card); display: flex; align-items: center; padding: 0 12px; font-size: var(--text-xs); color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1>Puppeteer Design System · bản đề xuất</h1>
+    <div class="ctl-group">
+      <span class="ctl-label">Hướng</span>
+      <div class="seg" role="radiogroup" aria-label="Hướng màu" id="dirSeg">
+        <button role="radio" data-dir="a" class="is-active" aria-checked="true" title="A · Zinc + Indigo"><span class="lbl-long">A · Zinc + Indigo</span><span class="lbl-short">A</span></button>
+        <button role="radio" data-dir="b" aria-checked="false" title="B · Giấy ấm"><span class="lbl-long">B · Giấy ấm</span><span class="lbl-short">B</span></button>
+        <button role="radio" data-dir="c" aria-checked="false" title="C · Mực đơn sắc"><span class="lbl-long">C · Mực đơn sắc</span><span class="lbl-short">C</span></button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">Chế độ</span>
+      <div class="seg" role="radiogroup" aria-label="Chế độ sáng tối" id="modeSeg">
+        <button role="radio" data-mode="light" class="is-active" aria-checked="true">Sáng</button>
+        <button role="radio" data-mode="dark" aria-checked="false">Tối</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ BRIEF ============ -->
+  <section>
+    <h2>Brief</h2>
+    <p class="sec-sub">Xếp lại design system đang có (token shadcn-style trong <code>src/assets/main.css</code>, primitive trong <code>src/components/ui</code>), không dựng bộ thứ hai.</p>
+    <div class="card"><div class="card-body">
+      <dl class="brief">
+        <dt>Sản phẩm</dt><dd>App desktop Tauri điều phối agent AI: luồng log dài, màn list–detail, dùng cả ngày.</dd>
+        <dt>Màn hình mục tiêu</dt><dd>Tấm IPS phổ thông: đen không sâu (hở sáng), gam màu hẹp, có thể 6-bit + FRC, mật độ điểm ảnh thấp.</dd>
+        <dt>Phong cách</dt><dd>Flat đường tóc, <strong>bỏ Aurora Glass làm mặc định</strong> (gradient loang + kính mờ). Aurora có thể giữ lại thành một theme tuỳ chọn.</dd>
+        <dt>Chế độ</dt><dd>Sáng / Tối / Theo hệ thống (app đã có sẵn <code>THEME_MODES</code>). Các theme khác thêm sau theo đúng khuôn file <code>themes/&lt;id&gt;.css</code>.</dd>
+        <dt>Font</dt><dd>Inter (đã self-host), một họ chữ, phân vai bằng độ đậm 400 / 500 / 600. Không dùng 300.</dd>
+        <dt>Ngôn ngữ copy</dt><dd>en + vi (vue-i18n). Trang này viết tiếng Việt để kiểm dấu.</dd>
+      </dl>
+    </div></div>
+  </section>
+
+  <!-- ============ MÀU ============ -->
+  <section>
+    <h2>Màu</h2>
+    <p class="sec-sub">Tên token giữ nguyên như <code>main.css</code> để 186 file Vue không phải đổi class. Mã ghi cả hai chế độ của hướng đang chọn. Vùng tô ở nền tối là trắng phủ mờ, nên ô màu hiện đúng như trên card.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="card-head">Bảng token</div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Token</th><th>Vai</th><th>Sáng</th><th>Tối</th></tr></thead>
+          <tbody id="tokTable"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Tương phản (đo trực tiếp)</div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Cặp</th><th>Tỉ lệ</th><th>Ngưỡng</th><th></th></tr></thead>
+          <tbody id="crTable"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHỮ ============ -->
+  <section>
+    <h2>Chữ</h2>
+    <p class="sec-sub">Năm bậc, sàn 12px. Trên tấm IPS mật độ thấp, chữ 10–11px là thứ khó đọc nhất của app (đang có 711 chỗ dùng <code>text-[10px]</code> / <code>text-[11px]</code>).</p>
+    <div class="card">
+      <div class="type-row"><div class="type-meta">20px · 600<br>Trạng thái rỗng, About</div><div style="font-size:20px;line-height:28px;font-weight:600">Chưa có phiên chạy nào hôm nay</div></div>
+      <div class="type-row"><div class="type-meta">16px · 600<br>Tên ở đầu pane chi tiết (đang 15px)</div><div style="font-size:16px;line-height:24px;font-weight:600">Sửa lỗi đồng bộ ghi chú giữa hai thiết bị</div></div>
+      <div class="type-row"><div class="type-meta">14px · 400 / 600<br>Nội dung đọc, tên trang (giữ)</div><div style="font-size:14px;line-height:22px">Agent đã đọc 12 tệp, sửa 3 tệp và đang chờ bạn duyệt thay đổi trong <strong>sidecar/index.mjs</strong> trước khi chạy tiếp.</div></div>
+      <div class="type-row"><div class="type-meta">13px · 400 / 500<br>Chữ UI mặc định (đang 12px)</div><div style="font-size:13px;line-height:20px">Lưu thay đổi · Tìm trong ghi chú · Bộ lọc: Đang chạy, Lỗi, Cần duyệt</div></div>
+      <div class="type-row"><div class="type-meta">12px · 400<br>Dòng phụ, gợi ý dưới ô (đang 10–11px)</div><div style="font-size:12px;line-height:16px;color:var(--muted-foreground)">Cập nhật 3 phút trước · nhánh feature/đồng-bộ · 2.418 token</div></div>
+      <div class="type-row"><div class="type-meta">12px · 500<br>Badge, phím tắt, số đếm (đang 9–10px). Sàn mới: không chữ nào dưới 12px</div><div style="font-size:12px;line-height:16px;font-weight:500">ĐANG CHẠY · ⌘K · 128 mục chưa đọc</div></div>
+    </div>
+  </section>
+
+  <!-- ============ KHOẢNG CÁCH, BO GÓC, VIỀN, BÓNG ============ -->
+  <section>
+    <h2>Khoảng cách, bo góc, viền, bóng</h2>
+    <p class="sec-sub">Giữ thang chiều cao control của repo (28 / 32 / 36px). Bo góc theo chiều cao, không theo loại phần tử.</p>
+    <div class="grid g2">
+      <div class="card"><div class="card-head">Khoảng cách</div><div class="card-body">
+        <div class="scale">
+          <figure><div class="bar" style="width:4px"></div><figcaption>4</figcaption></figure>
+          <figure><div class="bar" style="width:8px"></div><figcaption>8</figcaption></figure>
+          <figure><div class="bar" style="width:12px"></div><figcaption>12</figcaption></figure>
+          <figure><div class="bar" style="width:16px"></div><figcaption>16</figcaption></figure>
+          <figure><div class="bar" style="width:20px"></div><figcaption>20</figcaption></figure>
+          <figure><div class="bar" style="width:24px"></div><figcaption>24</figcaption></figure>
+          <figure><div class="bar" style="width:32px"></div><figcaption>32</figcaption></figure>
+          <figure><div class="bar" style="width:40px"></div><figcaption>40</figcaption></figure>
+        </div>
+      </div></div>
+      <div class="card"><div class="card-head">Bo góc</div><div class="card-body">
+        <div class="scale">
+          <figure><div class="radius-box" style="border-radius:6px"></div><figcaption>6 · chip, ô trong segmented</figcaption></figure>
+          <figure><div class="radius-box" style="border-radius:8px"></div><figcaption>8 · nút, ô nhập, mục menu</figcaption></figure>
+          <figure><div class="radius-box" style="border-radius:12px"></div><figcaption>12 · card, modal, menu</figcaption></figure>
+          <figure><div class="radius-box" style="border-radius:9999px;width:40px"></div><figcaption>tròn · badge, avatar</figcaption></figure>
+        </div>
+      </div></div>
+      <div class="card"><div class="card-head">Hai vai viền</div><div class="card-body border-demo">
+        <div style="border:1px solid var(--border)"><code>--border</code>&nbsp;· trang trí: viền card, đường chia, header</div>
+        <div style="border:1px solid var(--input)"><code>--input</code>&nbsp;· chức năng: ô nhập, nút viền, checkbox</div>
+      </div></div>
+      <div class="card"><div class="card-head">Bóng · chỉ cho lớp nổi</div><div class="card-body">
+        <div class="scale" style="gap:24px">
+          <div class="shadow-box" style="box-shadow:var(--elevation-popover)">popover, menu, toast</div>
+          <div class="shadow-box" style="box-shadow:var(--elevation-modal)">modal, drawer</div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ NÚT ============ -->
+  <section>
+    <h2>Nút</h2>
+    <p class="sec-sub">Năm dạng khớp <code>Button.vue</code>: <code>primary</code>, <code>outline</code>, <code>secondary</code> (thay <code>subtle</code>), <code>ghost</code>, <code>danger</code> (nền đỏ mờ, thay cả <code>destructive</code> lẫn <code>destructive-ghost</code>). Rê vào chỉ đổi nền, không phóng to.</p>
+    <div class="card"><div class="tbl-wrap"><table class="btn-table">
+      <thead><tr><th></th><th>Thường</th><th>Rê</th><th>Khoá</th><th>Đang tải</th></tr></thead>
+      <tbody>
+        <tr><td>primary</td>
+          <td><button class="btn btn-primary">Chạy agent</button></td>
+          <td><div inert data-demo-state="hover"><button class="btn btn-primary">Chạy agent</button></div></td>
+          <td><button class="btn btn-primary" disabled>Chạy agent</button></td>
+          <td><button class="btn btn-primary" aria-busy="true"><svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Đang chạy</button></td></tr>
+        <tr><td>outline</td>
+          <td><button class="btn btn-outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Làm mới</button></td>
+          <td><div inert data-demo-state="hover"><button class="btn btn-outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Làm mới</button></div></td>
+          <td><button class="btn btn-outline" disabled>Làm mới</button></td>
+          <td><button class="btn btn-outline" aria-busy="true"><svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Đang tải</button></td></tr>
+        <tr><td>secondary</td>
+          <td><button class="btn btn-secondary">Xem diff</button></td>
+          <td><div inert data-demo-state="hover"><button class="btn btn-secondary">Xem diff</button></div></td>
+          <td><button class="btn btn-secondary" disabled>Xem diff</button></td>
+          <td>—</td></tr>
+        <tr><td>ghost</td>
+          <td><button class="btn btn-ghost">Bỏ qua</button></td>
+          <td><div inert data-demo-state="hover"><button class="btn btn-ghost">Bỏ qua</button></div></td>
+          <td><button class="btn btn-ghost" disabled>Bỏ qua</button></td>
+          <td>—</td></tr>
+        <tr><td>danger</td>
+          <td><button class="btn btn-danger">Dừng phiên</button></td>
+          <td><div inert data-demo-state="hover"><button class="btn btn-danger">Dừng phiên</button></div></td>
+          <td><button class="btn btn-danger" disabled>Dừng phiên</button></td>
+          <td>—</td></tr>
+        <tr><td>cỡ xs · sm · md</td>
+          <td colspan="4"><div class="row"><button class="btn btn-outline btn-xs">Thêm</button><button class="btn btn-outline">Thêm</button><button class="btn btn-outline btn-md">Thêm</button>
+            <button class="btn btn-outline btn-icon" title="Tìm" aria-label="Tìm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div></td></tr>
+      </tbody>
+    </table></div></div>
+  </section>
+
+  <!-- ============ Ô NHẬP ============ -->
+  <section>
+    <h2>Ô nhập</h2>
+    <p class="sec-sub">Nền card (không trong suốt), viền <code>--input</code>. Focus: viền màu nhấn + vòng mờ 2px. Nhãn luôn nằm trên ô.</p>
+    <div class="grid g2">
+      <div class="card"><div class="card-body fields">
+        <div><span class="demo-label">Thường</span>
+          <div class="field"><label for="f1">Tên phiên</label><input id="f1" class="input" placeholder="Ví dụ: Sửa lỗi đăng nhập" /><span class="hint">Hiện trên thanh bên và trong thông báo.</span></div></div>
+        <div><span class="demo-label">Đang gõ</span>
+          <div inert data-demo-state="focus"><div class="field"><label>Tên phiên</label><input class="input" value="Rà soát PR #128" /></div></div></div>
+      </div></div>
+      <div class="card"><div class="card-body fields">
+        <div><span class="demo-label">Lỗi</span>
+          <div class="field"><label for="f3">Đường dẫn dự án</label><input id="f3" class="input is-error" value="~/repos/khong-ton-tai" aria-invalid="true" /><span class="err">Không tìm thấy thư mục này.</span></div></div>
+        <div><span class="demo-label">Khoá</span>
+          <div class="field"><label for="f4">Model</label><input id="f4" class="input" value="claude-opus-5-5" disabled /></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ BADGE + CONTROL NHỎ ============ -->
+  <section>
+    <h2>Badge, segmented, công tắc</h2>
+    <p class="sec-sub">Badge: chấm + chữ cùng tông trên nền mờ 14–18% (cao hơn mức 10% thường dùng, vì gam màu hẹp làm nền nhạt biến mất), thêm viền trong 1px để không tan vào dòng đang chọn.</p>
+    <div class="grid g3">
+      <div class="card" style="grid-column:1 / -1"><div class="card-head">Badge trạng thái</div><div class="card-body"><div class="row">
+        <span class="badge b-neutral"><span class="dot"></span>Chờ</span>
+        <span class="badge b-info"><span class="dot"></span>Đang chạy</span>
+        <span class="badge b-warning"><span class="dot"></span>Cần duyệt</span>
+        <span class="badge b-success"><span class="dot"></span>Hoàn tất</span>
+        <span class="badge b-error"><span class="dot"></span>Lỗi</span>
+      </div></div></div>
+      <div class="card"><div class="card-head">Segmented</div><div class="card-body"><div class="seg" role="radiogroup" aria-label="Cách xem">
+        <button role="radio" class="is-active" aria-checked="true">Luồng</button><button role="radio" aria-checked="false">Cột</button><button role="radio" aria-checked="false">Diff</button>
+      </div></div></div>
+      <div class="card">
+        <div class="card-head">Công tắc</div>
+        <div class="setting-row"><div><div class="t">Tự duyệt lệnh đọc</div><div class="s">Bật</div></div><button class="switch" role="switch" aria-checked="true" aria-label="Tự duyệt lệnh đọc"></button></div>
+        <div class="setting-row"><div><div class="t">Gửi thông báo</div><div class="s">Tắt</div></div><button class="switch" role="switch" aria-checked="false" aria-label="Gửi thông báo"></button></div>
+        <div class="setting-row"><div><div class="t">Đồng bộ đám mây</div><div class="s">Khoá</div></div><button class="switch" role="switch" aria-checked="false" aria-label="Đồng bộ đám mây" disabled></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CARD + DÒNG DANH SÁCH ============ -->
+  <section>
+    <h2>Card và dòng danh sách</h2>
+    <p class="sec-sub">Khuôn list–detail (thanh bên 280px). Rê: nền <code>--accent</code>. Đang chọn: nền <code>--secondary</code> + chữ đậm, không màu nhấn. Các dòng cách nhau 4px.</p>
+    <div class="card"><div class="split">
+      <div class="list">
+        <div class="li is-selected"><span class="li-title">Rà soát PR #128 — refactor sidecar</span><span class="li-time">09:42</span><span class="li-meta">Đang chọn · Puppeteer · 14 lượt</span></div>
+        <div class="li" inert data-demo-state="hover"><span class="li-title">Viết test cho fileTransferCore</span><span class="li-time">Hôm qua</span><span class="li-meta">Rê · Puppeteer · 6 lượt</span></div>
+        <div class="li"><span class="li-title">Một tên phiên rất dài để xem chữ bị cắt đúng chỗ khi vượt quá bề rộng thanh bên</span><span class="li-time">3/11</span><span class="li-meta">Thường · relay · 0 lượt</span></div>
+        <div class="li"><span class="li-title">Dịch i18n màn Cài đặt</span><span class="li-time">1/11</span><span class="li-meta">Thường · Puppeteer · 22 lượt</span></div>
+      </div>
+      <div class="split-detail">
+        <div class="row" style="justify-content:space-between">
+          <span style="font-size:16px;line-height:24px;font-weight:600">Rà soát PR #128 — refactor sidecar</span>
+          <div class="row"><button class="btn btn-outline">Mở diff</button><button class="btn btn-primary">Duyệt</button></div>
+        </div>
+        <div class="row"><span class="badge b-warning"><span class="dot"></span>Cần duyệt</span><span style="font-size:12px;color:var(--muted-foreground)">Cập nhật 3 phút trước · 2.418 token</span></div>
+        <div class="md">
+          <p>Agent đề xuất tách <code class="inline">spawnSidecar()</code> thành hai hàm để xử lý tín hiệu thoát riêng:</p>
+          <pre><span class="tok-c">// sidecar/index.mjs</span>
+<span class="tok-k">export async function</span> <span class="tok-f">spawnSidecar</span>(opts) {
+  <span class="tok-k">const</span> child = <span class="tok-f">spawn</span>(opts.bin, [<span class="tok-s">'--stdio'</span>])
+  <span class="tok-k">return</span> <span class="tok-f">attachExitHandler</span>(child)
+}</pre>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============ BANNER ============ -->
+  <section>
+    <h2>Banner trong trang</h2>
+    <p class="sec-sub">Nền mờ theo tông, icon cùng tông, chữ giữ màu chữ chính để đọc được trên mọi tấm nền.</p>
+    <div class="grid g2">
+      <div class="banner bn-info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg><p><span class="bt">Agent đang hỏi.</span> Chọn một phương án để chạy tiếp.</p></div>
+      <div class="banner bn-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><p><span class="bt">Đã kết nối relay.</span> Điện thoại có thể điều khiển phiên này.</p></div>
+      <div class="banner bn-warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg><p><span class="bt">Sắp hết hạn mức.</span> Còn 8% lượt dùng trong tuần này.</p></div>
+      <div class="banner bn-error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg><p><span class="bt">Sidecar đã dừng.</span> Mã thoát 137, xem log để biết nguyên nhân.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ LỚP NỔI ============ -->
+  <section>
+    <h2>Modal và menu</h2>
+    <p class="sec-sub">Lớp nổi là chỗ duy nhất có bóng, luôn đi kèm viền 1px. Lớp phủ sau modal là đen mờ ở cả hai chế độ. Nút cuối modal: Huỷ <code>ghost</code>, xác nhận bên phải.</p>
+    <div class="grid g2">
+      <div inert data-demo-state="open" class="overlay-stage">
+        <div class="modal" role="dialog" aria-label="Dừng phiên">
+          <div class="modal-head">Dừng phiên đang chạy?</div>
+          <div class="modal-body">Agent sẽ dừng ngay. Những thay đổi đã ghi vào tệp vẫn giữ nguyên.</div>
+          <div class="modal-foot"><button class="btn btn-ghost">Huỷ</button><button class="btn btn-danger">Dừng phiên</button></div>
+        </div>
+      </div>
+      <div inert data-demo-state="open" class="overlay-stage" style="background:var(--background)">
+        <div class="menu" role="menu" style="position:relative">
+          <div class="menu-item is-hl" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Đổi tên</div>
+          <div class="menu-item" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/></svg>Nhân bản</div>
+          <div class="menu-sep"></div>
+          <div class="menu-item is-danger" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Xoá phiên</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRẠNG THÁI RỖNG ============ -->
+  <section>
+    <h2>Trạng thái rỗng</h2>
+    <div class="card"><div class="empty">
+      <div class="empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
+      <h3>Chưa có ghi chú nào</h3>
+      <p>Ghi chú giúp bạn lưu ngữ cảnh để agent đọc lại ở các phiên sau.</p>
+      <div class="row"><button class="btn btn-primary">Tạo ghi chú</button><button class="btn btn-outline">Nhập từ tệp</button></div>
+    </div></div>
+  </section>
+
+</main>
+
+<script>
+/* Một nguồn token cho cả 3 hướng × 2 chế độ. Tên khớp main.css của repo (+ vài token mới đánh dấu "mới"). */
+const ROLES = {
+  'background': 'Nền trang', 'sidebar': 'Thanh bên', 'card': 'Card, header, ô nhập', 'popover': 'Menu, dropdown',
+  'foreground': 'Chữ chính', 'muted-foreground': 'Chữ phụ, placeholder', 'muted': 'Nền khối phụ, ô icon',
+  'secondary': 'Nút phụ, mục đang chọn', 'secondary-hover': 'Rê nút phụ (mới)', 'accent': 'Nền rê dòng, mục menu',
+  'button-hover': 'Rê nút viền (mới)', 'border': 'Viền trang trí', 'input': 'Viền ô nhập, nút viền',
+  'primary': 'Màu nhấn', 'primary-hover': 'Rê nút chính (mới)', 'primary-foreground': 'Chữ trên màu nhấn',
+  'success': 'Xong, kết nối', 'warning': 'Cần chú ý', 'destructive': 'Lỗi, nguy hiểm', 'info': 'Đang chạy, agent hỏi',
+};
+const STATUS_LIGHT = { 'success': '#065f46', 'warning': '#92400e', 'destructive': '#b91c1c', 'info': '#075985' };
+const STATUS_DARK = { 'success': '#34d399', 'warning': '#fb923c', 'destructive': '#fb8585', 'info': '#38bdf8' };
+const OVERLAY_LIGHT = { 'secondary': 'rgba(0, 0, 0, 0.07)', 'secondary-hover': 'rgba(0, 0, 0, 0.11)', 'accent': 'rgba(0, 0, 0, 0.045)' };
+const OVERLAY_DARK = { 'secondary': 'rgba(255, 255, 255, 0.09)', 'secondary-hover': 'rgba(255, 255, 255, 0.13)', 'accent': 'rgba(255, 255, 255, 0.06)' };
+const THEMES = {
+  a: {
+    name: 'Zinc + Indigo',
+    light: { 'background': '#f3f3f5', 'sidebar': '#ebebee', 'card': '#ffffff', 'popover': '#ffffff', 'foreground': '#18181b', 'muted-foreground': '#55555e', 'muted': '#f0f0f2', ...OVERLAY_LIGHT, 'button-hover': '#f0f0f2', 'border': '#e5e5e9', 'input': '#cbcbd2', 'primary': '#4f46e5', 'primary-hover': '#5f57ea', 'primary-foreground': '#ffffff', ...STATUS_LIGHT,
+      'code-bg': '#f6f6f8', 'code-inline': '#4338ca', 'code-keyword': '#7c3aed', 'code-string': '#047857', 'code-fn': '#0369a1' },
+    dark: { 'background': '#131315', 'sidebar': '#0f0f11', 'card': '#1f1f23', 'popover': '#2a2a2f', 'foreground': '#ececef', 'muted-foreground': '#a3a3ad', 'muted': '#26262b', ...OVERLAY_DARK, 'button-hover': '#2a2a2f', 'border': 'rgba(255, 255, 255, 0.10)', 'input': 'rgba(255, 255, 255, 0.18)', 'primary': '#8b93f8', 'primary-hover': '#7a82ee', 'primary-foreground': '#0e0f2a', ...STATUS_DARK,
+      'code-bg': '#18181b', 'code-inline': '#a5b4fc', 'code-keyword': '#c4b5fd', 'code-string': '#6ee7b7', 'code-fn': '#7dd3fc' },
+  },
+  b: {
+    name: 'Giấy ấm',
+    light: { 'background': '#f4f3ef', 'sidebar': '#ecebe5', 'card': '#ffffff', 'popover': '#ffffff', 'foreground': '#26251e', 'muted-foreground': '#5d5b53', 'muted': '#f1efea', ...OVERLAY_LIGHT, 'button-hover': '#f1efea', 'border': '#e7e5de', 'input': '#ccc9bf', 'primary': '#c2410c', 'primary-hover': '#a8380a', 'primary-foreground': '#ffffff', ...STATUS_LIGHT,
+      'code-bg': '#f7f6f2', 'code-inline': '#b4380a', 'code-keyword': '#9a3412', 'code-string': '#047857', 'code-fn': '#0369a1' },
+    dark: { 'background': '#171614', 'sidebar': '#12110f', 'card': '#23221f', 'popover': '#2e2c28', 'foreground': '#eeece6', 'muted-foreground': '#aaa69c', 'muted': '#2a2925', ...OVERLAY_DARK, 'button-hover': '#2e2c28', 'border': 'rgba(255, 255, 255, 0.10)', 'input': 'rgba(255, 255, 255, 0.18)', 'primary': '#f39a63', 'primary-hover': '#e48a53', 'primary-foreground': '#2a1206', ...STATUS_DARK, 'warning': '#fbbf24',
+      'code-bg': '#1b1a18', 'code-inline': '#fdba74', 'code-keyword': '#fdba74', 'code-string': '#6ee7b7', 'code-fn': '#7dd3fc' },
+  },
+  c: {
+    name: 'Mực đơn sắc',
+    light: { 'background': '#f4f4f4', 'sidebar': '#ececec', 'card': '#ffffff', 'popover': '#ffffff', 'foreground': '#171717', 'muted-foreground': '#545454', 'muted': '#f0f0f0', ...OVERLAY_LIGHT, 'button-hover': '#f0f0f0', 'border': '#e5e5e5', 'input': '#cccccc', 'primary': '#171717', 'primary-hover': '#333333', 'primary-foreground': '#ffffff', ...STATUS_LIGHT,
+      'code-bg': '#f6f6f6', 'code-inline': '#171717', 'code-keyword': '#7c3aed', 'code-string': '#047857', 'code-fn': '#0369a1' },
+    dark: { 'background': '#121212', 'sidebar': '#0e0e0e', 'card': '#1e1e1e', 'popover': '#292929', 'foreground': '#ededed', 'muted-foreground': '#a3a3a3', 'muted': '#262626', ...OVERLAY_DARK, 'button-hover': '#292929', 'border': 'rgba(255, 255, 255, 0.10)', 'input': 'rgba(255, 255, 255, 0.18)', 'primary': '#ededed', 'primary-hover': '#d4d4d4', 'primary-foreground': '#171717', ...STATUS_DARK, 'success': '#3ecf8e',
+      'code-bg': '#171717', 'code-inline': '#ededed', 'code-keyword': '#c4b5fd', 'code-string': '#6ee7b7', 'code-fn': '#7dd3fc' },
+  },
+};
+
+function blockFor(t, dark) {
+  const v = Object.entries(t).map(([k, val]) => `--${k}: ${val};`).join(' ');
+  // Token suy ra: nền mờ trạng thái, focus, bóng. Nền mờ đặt 14% sáng / 18% tối vì gam màu hẹp ăn mất tint nhạt.
+  const tint = dark ? 18 : 14;
+  const derived = `
+    --success-bg: color-mix(in srgb, var(--success) ${tint}%, transparent);
+    --warning-bg: color-mix(in srgb, var(--warning) ${tint}%, transparent);
+    --info-bg: color-mix(in srgb, var(--info) ${tint}%, transparent);
+    --destructive-bg: color-mix(in srgb, var(--destructive) ${dark ? 12 : 10}%, transparent);
+    --destructive-bg-hover: color-mix(in srgb, var(--destructive) ${dark ? 16 : 15}%, transparent);
+    --neutral-bg: var(--secondary);
+    --badge-ring: ${dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.05)'};
+    --error: ${dark ? '#f87171' : '#ef4444'};
+    --error-ring: color-mix(in srgb, var(--error) 15%, transparent);
+    --border-focus: ${dark ? 'color-mix(in srgb, var(--primary) 60%, transparent)' : 'var(--primary)'};
+    --ring-focus: color-mix(in srgb, var(--primary) ${dark ? 22 : 15}%, transparent);
+    --switch-off: ${dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.20)'};
+    --seg-track: var(--secondary);
+    --seg-track-shadow: inset 0 0 0 1px ${dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'};
+    --seg-thumb: ${dark ? 'rgba(255,255,255,0.14)' : 'var(--card)'};
+    --seg-thumb-shadow: ${dark ? 'inset 0 0 0 1px rgba(255,255,255,0.08)' : '0 0 0 1px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.08)'};
+    --border-strong-demo: ${dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'};
+    --elevation-popover: ${dark ? '0 10px 24px -4px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.5)' : '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'};
+    --elevation-modal: ${dark ? '0 24px 48px -8px rgb(0 0 0 / 0.65), 0 8px 16px -8px rgb(0 0 0 / 0.5)' : '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)'};`;
+  return v + derived;
+}
+const css = Object.entries(THEMES).map(([id, th]) =>
+  `html[data-dir="${id}"]:not(.dark){${blockFor(th.light, false)}}\nhtml[data-dir="${id}"].dark{${blockFor(th.dark, true)}}`).join('\n');
+const styleEl = document.createElement('style'); styleEl.textContent = css; document.head.appendChild(styleEl);
+
+/* ---------- đo tương phản bằng màu trình duyệt thật sự vẽ ---------- */
+const probe = document.createElement('span'); probe.style.display = 'none'; document.body.appendChild(probe);
+function rgba(value) {
+  probe.style.color = ''; probe.style.color = value;
+  const s = getComputedStyle(probe).color;
+  let m = s.match(/rgba?\(([^)]+)\)/);
+  if (m) { const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p[3] ?? 1]; }
+  m = s.match(/color\(srgb ([^)]+)\)/);
+  if (m) { const p = m[1].split(/[ /]+/).filter(Boolean).map(Number); return [p[0] * 255, p[1] * 255, p[2] * 255, p[3] ?? 1]; }
+  return [0, 0, 0, 1];
+}
+const over = (top, base) => { const a = top[3]; return [0, 1, 2].map(i => top[i] * a + base[i] * (1 - a)).concat(1); };
+const lum = c => { const [r, g, b] = c.slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const tv = n => `var(--${n})`;
+// [nhãn, chữ, nền, nền lót dưới nền (khi nền trong suốt), ngưỡng]
+const PAIRS = [
+  ['Chữ chính / card', 'foreground', 'card', 'card', 4.5],
+  ['Chữ chính / nền trang', 'foreground', 'background', 'background', 4.5],
+  ['Chữ phụ / card', 'muted-foreground', 'card', 'card', 4.5],
+  ['Chữ phụ / nền trang', 'muted-foreground', 'background', 'background', 4.5],
+  ['Chữ phụ / thanh bên', 'muted-foreground', 'sidebar', 'sidebar', 4.5],
+  ['Chữ phụ / mục đang chọn', 'muted-foreground', 'secondary', 'card', 4.5],
+  ['Chữ phụ / menu', 'muted-foreground', 'popover', 'popover', 4.5],
+  ['Chữ trên nút chính', 'primary-foreground', 'primary', 'card', 4.5],
+  ['Link màu nhấn / card', 'primary', 'card', 'card', 4.5],
+  ['Badge Hoàn tất', 'success', 'success-bg', 'card', 4.5],
+  ['Badge Cần duyệt', 'warning', 'warning-bg', 'card', 4.5],
+  ['Badge Lỗi, nút nguy hiểm', 'destructive', 'destructive-bg', 'card', 4.5],
+  ['Badge Đang chạy', 'info', 'info-bg', 'card', 4.5],
+  ['Viền ô nhập / card', 'input', 'card', 'card', 0],
+  ['Card / nền trang (tầng)', 'card', 'background', 'background', 0],
+  ['Menu / card (tầng)', 'popover', 'card', 'card', 0],
+];
+function renderContrast() {
+  const rows = PAIRS.map(([label, fg, bg, base, min]) => {
+    const baseC = rgba(tv(base));
+    const bgC = over(rgba(tv(bg)), baseC);
+    const fgC = over(rgba(tv(fg)), bgC);
+    const r = ratio(fgC, bgC);
+    const fail = min && r < min;
+    return `<tr><td>${label}</td><td class="num">${r.toFixed(2)} : 1</td><td class="num">${min ? min + ' : 1' : '—'}</td><td>${fail ? `<span class="flag">Dưới ${min} : 1</span>` : ''}</td></tr>`;
+  });
+  document.getElementById('crTable').innerHTML = rows.join('');
+}
+function renderTokens(dir) {
+  const th = THEMES[dir];
+  document.getElementById('tokTable').innerHTML = Object.keys(ROLES).map(k =>
+    `<tr><td><code>--${k}</code></td><td>${ROLES[k]}</td>
+      <td class="num"><span class="swatch" style="background:${th.light[k]}"></span> <span class="mono">${th.light[k].replace(/^rgba\((\d+), \d+, \d+, ([\d.]+)\)$/, (m, c, a) => (c === '0' ? 'đen ' : 'trắng ') + Math.round(a * 100) + '%')}</span></td>
+      <td class="num"><span class="swatch" style="background:${th.dark[k]}"></span> <span class="mono">${th.dark[k].replace(/^rgba\((\d+), \d+, \d+, ([\d.]+)\)$/, (m, c, a) => (c === '0' ? 'đen ' : 'trắng ') + Math.round(a * 100) + '%')}</span></td></tr>`).join('');
+}
+
+/* ---------- đổi hướng / chế độ ---------- */
+const html = document.documentElement;
+function setSeg(seg, attr, value) {
+  seg.querySelectorAll('button').forEach(b => { const on = b.dataset[attr] === value; b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on)); });
+}
+function apply(dir, mode) {
+  html.dataset.dir = dir; html.classList.toggle('dark', mode === 'dark');
+  setSeg(document.getElementById('dirSeg'), 'dir', dir); setSeg(document.getElementById('modeSeg'), 'mode', mode);
+  renderTokens(dir); renderContrast();
+  try { localStorage.setItem('ds-preview', JSON.stringify({ dir, mode })); } catch (e) {}
+}
+let state = { dir: 'a', mode: 'light' };
+try { const s = JSON.parse(localStorage.getItem('ds-preview') || 'null'); if (s && THEMES[s.dir]) state = s; } catch (e) {}
+const q = new URLSearchParams(location.search);
+if (THEMES[q.get('dir')]) state.dir = q.get('dir');
+if (q.get('mode') === 'dark' || q.get('mode') === 'light') state.mode = q.get('mode');
+document.getElementById('dirSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { state.dir = b.dataset.dir; apply(state.dir, state.mode); } });
+document.getElementById('modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { state.mode = b.dataset.mode; apply(state.dir, state.mode); } });
+apply(state.dir, state.mode);
+</script>
+</body>
+</html>

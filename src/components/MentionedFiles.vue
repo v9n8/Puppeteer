@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="files.length" ref="rootEl" class="relative">
     <button
-      class="flex items-center gap-1.5 rounded-md h-6 px-2 text-[11px] font-medium leading-none transition-colors cursor-pointer"
+      class="flex items-center gap-1.5 rounded-md h-6 px-2 text-2xs font-medium leading-none transition-colors cursor-pointer"
       :class="open ? 'bg-primary/15 text-primary' : 'text-foreground/50 hover:text-foreground/80 hover:bg-card'"
       :title="t('misc.mentionedFiles.countTitle', { count: files.length })"
       @click.stop="toggle"
@@ -122,7 +122,7 @@ onBeforeUnmount(() => {
       class="absolute right-0 top-full z-30 mt-1 w-80 max-w-[80vw] overflow-hidden rounded-md border border-border bg-popover shadow-lg"
     >
       <div class="px-3 py-2 border-b border-border">
-        <span class="text-[11px] font-medium text-foreground/60">{{ t('misc.mentionedFiles.filesInSession', { count: files.length }) }}</span>
+        <span class="text-2xs font-medium text-foreground/60">{{ t('misc.mentionedFiles.filesInSession', { count: files.length }) }}</span>
       </div>
       <ul class="max-h-72 overflow-y-auto py-1">
         <li v-for="f in files" :key="f.path">
@@ -139,11 +139,11 @@ onBeforeUnmount(() => {
             />
             <span class="min-w-0 flex-1">
               <span class="block truncate text-xs font-medium text-foreground/90">{{ f.name }}</span>
-              <span v-if="f.dir" class="block truncate text-[10px] font-mono text-foreground/40">{{ f.dir }}</span>
+              <span v-if="f.dir" class="block truncate text-2xs font-mono text-foreground/40">{{ f.dir }}</span>
             </span>
             <span
               v-if="f.count > 1"
-              class="shrink-0 rounded-full bg-foreground/10 px-1.5 text-[10px] font-mono text-foreground/50"
+              class="shrink-0 rounded-full bg-foreground/10 px-1.5 text-2xs font-mono text-foreground/50"
             >{{ f.count }}</span>
           </button>
         </li>

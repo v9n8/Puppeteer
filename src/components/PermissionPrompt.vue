@@ -416,9 +416,9 @@ function onKeydown(e: KeyboardEvent) {
           <div class="flex items-center gap-2 flex-wrap">
             <span
               v-if="currentQuestion.header"
-              class="text-[10px] uppercase tracking-wider rounded bg-info/15 text-info px-1.5 py-0.5"
+              class="text-2xs uppercase tracking-wider rounded bg-info/15 text-info px-1.5 py-0.5"
             >{{ currentQuestion.header }}</span>
-            <span class="text-[10px] uppercase tracking-wider text-foreground/40">
+            <span class="text-2xs uppercase tracking-wider text-foreground/40">
               {{ currentQuestion.multiSelect ? t('permission.selectAll') : t('permission.selectOne') }}
             </span>
           </div>
@@ -459,7 +459,7 @@ function onKeydown(e: KeyboardEvent) {
                 </span>
                 <pre
                   v-if="opt.preview"
-                  class="mt-1.5 rounded bg-foreground/5 border border-border px-2 py-1.5 text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-48 overflow-auto"
+                  class="mt-1.5 rounded bg-foreground/5 border border-border px-2 py-1.5 text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-48 overflow-auto"
                 >{{ opt.preview }}</pre>
               </span>
             </div>
@@ -492,7 +492,7 @@ function onKeydown(e: KeyboardEvent) {
 
       <div v-else class="flex-1 min-h-0 px-5 py-4 space-y-3 overflow-auto">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-[10px] uppercase tracking-wider text-foreground/40">{{ t('permission.tool') }}</span>
+          <span class="text-2xs uppercase tracking-wider text-foreground/40">{{ t('permission.tool') }}</span>
           <span class="font-mono text-sm text-primary">{{ request.display_name || request.tool_name }}</span>
           <span v-if="filePath" class="font-mono text-xs text-foreground/50 truncate">{{ filePath }}</span>
         </div>
@@ -502,7 +502,7 @@ function onKeydown(e: KeyboardEvent) {
           <div
             v-for="(part, i) in diffParts"
             :key="i"
-            class="rounded-md border border-border overflow-hidden font-mono text-[11px] leading-relaxed"
+            class="rounded-md border border-border overflow-hidden font-mono text-2xs leading-relaxed"
           >
             <div v-if="part.before" class="bg-red-500/10 dark:bg-red-500/5">
               <div
@@ -532,26 +532,26 @@ function onKeydown(e: KeyboardEvent) {
           v-else-if="commandPreview"
           class="rounded-md bg-foreground/5 border border-border px-3 py-2"
         >
-          <div class="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{{ t('permission.commandTarget') }}</div>
+          <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ t('permission.commandTarget') }}</div>
           <pre class="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{{ commandPreview }}</pre>
         </div>
 
         <details class="rounded-md bg-foreground/5 border border-border">
           <summary class="px-3 py-2 text-xs text-foreground/60 cursor-pointer select-none">{{ t('permission.fullInput') }}</summary>
-          <pre class="px-3 pb-2 text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-80 overflow-auto">{{ inputPreview }}</pre>
+          <pre class="px-3 pb-2 text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-80 overflow-auto">{{ inputPreview }}</pre>
         </details>
       </div>
 
       <div class="@container/footer px-5 py-3 border-t border-border shrink-0">
         <div
           v-if="broadRememberWarning"
-          class="flex items-start gap-2 mb-2 text-[11px] leading-snug text-warning"
+          class="flex items-start gap-2 mb-2 text-2xs leading-snug text-warning"
         >
           <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
           <span>{{ t('permission.broadScopeWarning') }}</span>
         </div>
         <div class="flex flex-col gap-2 @[26rem]/footer:flex-row @[26rem]/footer:items-center">
-          <span class="hidden min-w-0 truncate text-[10px] text-foreground/40 @[26rem]/footer:mr-auto @[26rem]/footer:block">
+          <span class="hidden min-w-0 truncate text-2xs text-foreground/40 @[26rem]/footer:mr-auto @[26rem]/footer:block">
             <template v-if="isQuestions">{{ t('permission.hintQuestions') }}</template>
             <template v-else-if="isPlan">{{ t('permission.hintPlan') }}</template>
             <template v-else>{{ t('permission.hintPermission') }}</template>
@@ -561,7 +561,7 @@ function onKeydown(e: KeyboardEvent) {
             <template v-if="isQuestions">
               <span
                 v-if="stepCount > 1"
-                class="self-center text-[11px] font-medium text-foreground/50 tabular-nums"
+                class="self-center text-2xs font-medium text-foreground/50 tabular-nums"
               >{{ step + 1 }}/{{ stepCount }}</span>
               <Button
                 v-if="stepCount > 1"

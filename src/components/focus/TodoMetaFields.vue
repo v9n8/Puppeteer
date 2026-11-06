@@ -44,7 +44,7 @@ function set<K extends keyof TodoDraft>(key: K, value: TodoDraft[K]) {
     <div class="grid grid-cols-2 gap-2.5">
       <!-- Deadline: date (× clears it, and the time with it) + optional time -->
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.due') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.capture.due') }}</label>
         <div class="flex items-center">
           <DatePicker
             :model-value="draft.dueDate"
@@ -67,7 +67,7 @@ function set<K extends keyof TodoDraft>(key: K, value: TodoDraft[K]) {
         </div>
       </div>
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.dueTime') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.capture.dueTime') }}</label>
         <Input
           :model-value="draft.dueTime"
           type="time"
@@ -81,7 +81,7 @@ function set<K extends keyof TodoDraft>(key: K, value: TodoDraft[K]) {
 
     <div class="grid grid-cols-2 gap-2.5">
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.priority') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.capture.priority') }}</label>
         <div class="flex h-8 overflow-hidden rounded-md border border-border" role="radiogroup" :aria-label="t('focus.capture.priority')">
           <button
             v-for="p in PRIORITIES"
@@ -101,7 +101,7 @@ function set<K extends keyof TodoDraft>(key: K, value: TodoDraft[K]) {
         </div>
       </div>
       <div class="space-y-1">
-        <label class="block text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.estimate') }}</label>
+        <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.capture.estimate') }}</label>
         <Input
           :model-value="draft.estimate"
           size="sm"
@@ -113,13 +113,13 @@ function set<K extends keyof TodoDraft>(key: K, value: TodoDraft[K]) {
         />
       </div>
     </div>
-    <p v-if="estimateInvalid" class="text-[11px] text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
+    <p v-if="estimateInvalid" class="text-2xs text-destructive">{{ t('focus.drawer.estimateInvalid') }}</p>
 
     <div v-if="draft.sourceUrl || $slots.suggest" class="flex items-center gap-2">
-      <span v-if="draft.sourceUrl" class="text-[11px] font-medium text-muted-foreground">{{ t('focus.capture.source') }}</span>
+      <span v-if="draft.sourceUrl" class="text-2xs font-medium text-muted-foreground">{{ t('focus.capture.source') }}</span>
       <span
         v-if="draft.sourceUrl"
-        class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2 pr-1 text-[11px]"
+        class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2 pr-1 text-2xs"
         :title="draft.sourceUrl"
       >
         <component :is="SOURCE_ICON[sourceType ?? 'url']" class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />

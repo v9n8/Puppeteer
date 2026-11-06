@@ -119,7 +119,7 @@ function fmtTime(ts: string | null): string {
         <div v-for="k in KINDS" :key="k" class="flex items-center justify-between gap-4">
           <div class="min-w-0">
             <p class="text-xs font-medium text-foreground">{{ t(`remote.push.kinds.${k}`) }}</p>
-            <p class="mt-0.5 text-[11px] text-muted-foreground">{{ t(`remote.push.kindHints.${k}`) }}</p>
+            <p class="mt-0.5 text-2xs text-muted-foreground">{{ t(`remote.push.kindHints.${k}`) }}</p>
           </div>
           <ToggleSwitch
             size="md"
@@ -133,7 +133,7 @@ function fmtTime(ts: string | null): string {
 
       <div class="border-t border-border/50 pt-3">
         <p class="mb-2 text-xs font-medium text-foreground">{{ t('remote.push.devices') }}</p>
-        <p v-if="loaded && !devices.length" class="text-[11px] text-muted-foreground">
+        <p v-if="loaded && !devices.length" class="text-2xs text-muted-foreground">
           {{ t('remote.push.noDevices') }}
         </p>
         <ul v-else class="divide-y divide-border/50 rounded-lg border border-border/60">
@@ -141,7 +141,7 @@ function fmtTime(ts: string | null): string {
             <Smartphone class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
             <div class="min-w-0 flex-1">
               <p class="truncate text-xs font-medium text-foreground">{{ d.label || t('remote.push.unnamed') }}</p>
-              <p class="text-[11px] text-muted-foreground">
+              <p class="text-2xs text-muted-foreground">
                 {{ t('remote.push.added', { at: fmtTime(d.created_at) }) }} ·
                 {{ t('remote.push.lastOk', { at: fmtTime(d.last_ok_at) }) }}
               </p>

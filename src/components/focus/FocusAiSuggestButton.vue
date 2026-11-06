@@ -41,7 +41,7 @@ async function suggest() {
 <template>
   <span v-if="draft.sourceUrl" class="ml-auto flex items-center gap-1">
     <template v-if="running">
-      <span class="flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span class="flex items-center gap-1 text-2xs text-muted-foreground">
         <Loader2 class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
         {{ t('focus.ai.suggesting') }}
       </span>

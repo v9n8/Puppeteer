@@ -114,7 +114,7 @@ onBeforeUnmount(() => stopWatch?.())
     <PopoverTrigger as-child>
       <button
         type="button"
-        class="flex items-center gap-1.5 rounded px-1 text-[10px] text-muted-foreground/70 hover:text-foreground"
+        class="flex items-center gap-1.5 rounded px-1 text-2xs text-muted-foreground/70 hover:text-foreground"
         :class="floating && [
           'fixed bottom-3 left-3 z-[90] border bg-background/95 p-1.5 shadow-lg backdrop-blur',
           tone === 'desktop' ? 'border-warning/40' : 'border-success/40',
@@ -144,12 +144,12 @@ onBeforeUnmount(() => stopWatch?.())
           <span class="font-semibold">{{ t('misc.remoteIndicator.title') }}</span>
           <span class="text-muted-foreground">·</span>
           <span
-            class="min-w-0 truncate text-[11px]"
+            class="min-w-0 truncate text-2xs"
             :class="tone === 'error' ? 'text-destructive' :'text-muted-foreground'"
           >{{ relayLine }}</span>
         </p>
 
-        <div class="space-y-1 text-[11px]">
+        <div class="space-y-1 text-2xs">
           <p v-if="status?.desktop_controlled" class="flex items-center gap-1.5 text-warning">
             <MonitorSmartphone class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
             {{ t('misc.remoteIndicator.desktopSince', { time: desktopSince }) }}
@@ -179,7 +179,7 @@ onBeforeUnmount(() => stopWatch?.())
 
         <button
           type="button"
-          class="flex w-full items-center justify-between text-[11px] text-muted-foreground hover:text-foreground"
+          class="flex w-full items-center justify-between text-2xs text-muted-foreground hover:text-foreground"
           @click="openSettings"
         >
           {{ t('misc.remoteIndicator.settings') }}

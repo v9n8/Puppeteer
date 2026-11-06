@@ -111,7 +111,7 @@ function onTabClick(projectId: string) {
       :key="tab.projectId"
       type="button"
       :data-drag-index="index"
-      class="group relative flex h-7 min-w-0 shrink items-center gap-2 pl-3 pr-2 rounded-md text-[13px] max-w-[200px] transition-colors select-none touch-none"
+      class="group relative flex h-7 min-w-0 shrink items-center gap-2 pl-3 pr-2 rounded-md text-sm max-w-[200px] transition-colors select-none touch-none"
       :class="[
         dragFrom === index
           ? 'bg-accent text-foreground shadow-md cursor-grabbing'
@@ -146,7 +146,7 @@ function onTabClick(projectId: string) {
       <!-- pending-permission badge (summed across the project's runs) -->
       <span
         v-if="stateOf(tab.projectId).pending > 0"
-        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-[10px] font-medium text-warning-foreground leading-none shrink-0"
+        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none shrink-0"
       >{{ stateOf(tab.projectId).pending }}</span>
 
       <!-- close -->

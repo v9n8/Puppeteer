@@ -377,7 +377,7 @@ async function handleExport(skill: Skill) {
             </Badge>
           </template>
         </span>
-        <span v-if="row.skill.description" class="mt-1 truncate text-[11px] text-muted-foreground/70">
+        <span v-if="row.skill.description" class="mt-1 truncate text-2xs text-muted-foreground/70">
           {{ row.skill.description }}
         </span>
       </template>

@@ -160,12 +160,12 @@ watch(() => props.text, () => runTranslate())
       <!-- Header -->
       <div class="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/40">
         <Languages class="h-3.5 w-3.5 text-primary/80 shrink-0" :stroke-width="1.75" />
-        <span class="text-[11px] font-semibold text-foreground/80">{{ t('misc.translate.heading') }}</span>
+        <span class="text-2xs font-semibold text-foreground/80">{{ t('misc.translate.heading') }}</span>
         <div class="ml-auto flex items-center gap-0.5">
           <button
             v-for="opt in LANG_OPTIONS"
             :key="opt.value"
-            class="text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+            class="text-2xs px-1.5 py-0.5 rounded transition-colors cursor-pointer"
             :class="opt.value === lang
               ? 'bg-primary/15 text-primary font-medium'
               : 'text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5'"
@@ -190,7 +190,7 @@ watch(() => props.text, () => runTranslate())
         <div v-else-if="phase === 'error'" class="text-xs text-destructive space-y-2">
           <p class="whitespace-pre-wrap break-words">{{ errorMsg }}</p>
           <button
-            class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+            class="inline-flex items-center gap-1 text-2xs text-primary hover:underline cursor-pointer"
             @click="runTranslate"
           >
             <RefreshCw class="h-3 w-3" :stroke-width="2" />{{ t('misc.translate.retry') }}
@@ -206,7 +206,7 @@ watch(() => props.text, () => runTranslate())
       <!-- Footer -->
       <div v-if="phase === 'done'" class="flex items-center justify-end px-3 py-1.5 border-t border-border bg-muted/20">
         <button
-          class="inline-flex items-center gap-1 text-[11px] text-foreground/60 hover:text-foreground transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1 text-2xs text-foreground/60 hover:text-foreground transition-colors cursor-pointer"
           @click="copyResult"
         >
           <component :is="copied ? Check : Copy" class="h-3 w-3" :stroke-width="1.75" />

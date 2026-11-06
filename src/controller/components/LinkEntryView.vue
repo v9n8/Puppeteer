@@ -174,12 +174,12 @@ onMounted(() => {
           </Button>
         </form>
         <p v-if="loginError" class="text-sm text-destructive text-center">{{ loginError }}</p>
-        <p class="text-[11px] leading-relaxed text-foreground/40 text-center">
+        <p class="text-2xs leading-relaxed text-foreground/40 text-center">
           {{ t('controller.link.passwordHint') }}
         </p>
       </div>
 
-      <p class="text-[11px] leading-relaxed text-foreground/40 text-center">
+      <p class="text-2xs leading-relaxed text-foreground/40 text-center">
         {{ t('controller.link.e2eNote') }}
       </p>
     </div>

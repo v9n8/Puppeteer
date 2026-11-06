@@ -58,7 +58,7 @@ onMounted(load)
 
 <template>
   <div class="space-y-1">
-    <label class="text-[11px] font-medium text-muted-foreground">{{ t('settings.aws.profileLabel') }}</label>
+    <label class="text-2xs font-medium text-muted-foreground">{{ t('settings.aws.profileLabel') }}</label>
     <AppSelect
       size="sm"
       :model-value="modelValue"
@@ -67,7 +67,7 @@ onMounted(load)
       :disabled="loading"
       @update:model-value="onSelect"
     />
-    <p v-if="selected" class="text-[11px] text-muted-foreground">
+    <p v-if="selected" class="text-2xs text-muted-foreground">
       <span v-if="selected.isSso">
         {{ t('settings.aws.ssoRoleLabel') }}:
         <span class="text-foreground">{{ selected.ssoRoleName ?? '—' }}</span>
@@ -75,9 +75,9 @@ onMounted(load)
       </span>
       <template v-if="selected.region"> · {{ selected.region }}</template>
     </p>
-    <p v-else-if="!loading && !profiles.length" class="text-[11px] text-muted-foreground">
+    <p v-else-if="!loading && !profiles.length" class="text-2xs text-muted-foreground">
       {{ t('settings.aws.profileNoneFound') }}
     </p>
-    <p v-if="error" class="text-[11px] text-destructive">{{ error }}</p>
+    <p v-if="error" class="text-2xs text-destructive">{{ error }}</p>
   </div>
 </template>

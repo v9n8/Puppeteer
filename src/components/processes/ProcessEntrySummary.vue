@@ -14,15 +14,15 @@ const { t } = useI18n()
     <li v-for="e in entries" :key="e.id" class="flex items-center gap-2 px-3 py-1.5">
       <ProcessKindBadge :kind="e.kind" />
       <span class="min-w-0 flex-1">
-        <span class="block truncate text-[13px] leading-tight" :title="e.label">{{ e.label }}</span>
-        <span class="block truncate text-[11px] text-muted-foreground leading-tight">
+        <span class="block truncate text-sm leading-tight" :title="e.label">{{ e.label }}</span>
+        <span class="block truncate text-2xs text-muted-foreground leading-tight">
           {{ e.project_name || t('processes.noProject') }}
         </span>
       </span>
-      <span class="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+      <span class="shrink-0 text-2xs text-muted-foreground tabular-nums">
         {{ t('processes.processCount', { n: e.processes.length }, e.processes.length) }}
       </span>
-      <span class="w-16 shrink-0 text-right text-[11px] tabular-nums">{{ formatRss(e.rss_kb) }}</span>
+      <span class="w-16 shrink-0 text-right text-2xs tabular-nums">{{ formatRss(e.rss_kb) }}</span>
     </li>
   </ul>
 </template>

@@ -198,7 +198,7 @@ defineExpose({ canSave, dirty, saving, save, reset, focus, draftText })
       class="min-h-[8rem] flex-1 resize-none font-mono leading-relaxed"
       :placeholder="isNote ? t('item.notePlaceholder') : t('item.todoPlaceholder')"
     />
-    <p class="mt-2 shrink-0 text-[11px] text-muted-foreground">
+    <p class="mt-2 shrink-0 text-2xs text-muted-foreground">
       {{ t('item.hint', { save: '⌘/Ctrl+Enter', esc: 'Esc' }) }}
     </p>
   </div>

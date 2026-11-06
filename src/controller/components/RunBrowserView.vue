@@ -157,20 +157,20 @@ function statusDotClass(run: RunInfo): string {
           <FolderGit2 class="shrink-0 h-4 w-4 text-foreground/40" :stroke-width="2" />
           <span class="min-w-0 flex-1">
             <span class="block text-sm truncate">{{ p.name }}</span>
-            <span class="block text-[10px] text-foreground/45">
+            <span class="block text-2xs text-foreground/45">
               {{ t('controller.browser.runCount', p.total) }}
             </span>
           </span>
           <span
             v-if="p.pending"
-            class="shrink-0 inline-flex items-center gap-1 rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning"
+            class="shrink-0 inline-flex items-center gap-1 rounded-md bg-warning/15 px-1.5 py-0.5 text-2xs font-medium text-warning"
             :title="t('controller.browser.needsApproval')"
           >
             <AlertTriangle class="h-3 w-3" :stroke-width="2" /> {{ p.pending }}
           </span>
           <ChevronRight class="shrink-0 h-4 w-4 text-foreground/30" :stroke-width="2" />
         </button>
-        <p v-if="pendingRunIds.length" class="px-3 py-3 text-center text-[11px] text-foreground/45">
+        <p v-if="pendingRunIds.length" class="px-3 py-3 text-center text-2xs text-foreground/45">
           {{ t('controller.browser.pendingInInbox') }}
         </p>
       </template>
@@ -190,7 +190,7 @@ function statusDotClass(run: RunInfo): string {
           <span class="shrink-0 h-2 w-2 rounded-full" :class="statusDotClass(run)" />
           <span class="min-w-0 flex-1">
             <span class="block text-sm truncate">{{ runTitle(run) }}</span>
-            <span class="block text-[10px] text-foreground/45 truncate">
+            <span class="block text-2xs text-foreground/45 truncate">
               <!-- While searching the project matters more than the engine: the
                    results span projects, so it is the disambiguator. -->
               {{ searching ? projectName(run) : run.engine || run.type }}
@@ -198,7 +198,7 @@ function statusDotClass(run: RunInfo): string {
           </span>
           <span
             v-if="pending.has(run.id)"
-            class="shrink-0 inline-flex items-center gap-1 rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning"
+            class="shrink-0 inline-flex items-center gap-1 rounded-md bg-warning/15 px-1.5 py-0.5 text-2xs font-medium text-warning"
             :title="t('controller.browser.needsApproval')"
           >
             <AlertTriangle class="h-3 w-3" :stroke-width="2" />
