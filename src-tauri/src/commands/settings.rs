@@ -71,7 +71,8 @@ pub struct AppSettings {
 
 /// `AppSettings` keys carried by a settings backup. `claude_path` / `codex_path` are left out:
 /// they are machine-specific binary paths. Internal bookkeeping keys (usage snapshots, balancer
-/// state, Inbox API token…) are never exported.
+/// state, Inbox API token, the `feature._seeded` flag…) are never exported. The feature switches
+/// travel too, but come from the registry: see [`is_portable_setting`].
 pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "default_engine",
     "claude_model",
@@ -109,6 +110,12 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "focus.ai_engine",
     "focus.ai_model",
 ];
+
+/// Whether a settings backup carries `key`: [`PORTABLE_SETTING_KEYS`] and every key of the
+/// feature registry (`feature.*` and the legacy keys it reads, such as `inbox_api_enabled`).
+pub fn is_portable_setting(key: &str) -> bool {
+    PORTABLE_SETTING_KEYS.contains(&key) || crate::features::owner(key).is_some()
+}
 
 #[tauri::command]
 pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {

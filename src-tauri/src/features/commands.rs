@@ -9,7 +9,8 @@ use crate::db::Db;
 use std::collections::HashMap;
 use tauri::{AppHandle, State};
 
-async fn load(db: &Db) -> Result<Vec<ModuleState>, String> {
+/// The resolved tree from the `settings` table.
+pub(crate) async fn load(db: &Db) -> Result<Vec<ModuleState>, String> {
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings")
         .fetch_all(db)
         .await

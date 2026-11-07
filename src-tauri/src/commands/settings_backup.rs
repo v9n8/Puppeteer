@@ -22,7 +22,7 @@
 
 use crate::commands::groups::{set_group_members_inner, GroupKind};
 use crate::commands::mcp::McpServer;
-use crate::commands::settings::PORTABLE_SETTING_KEYS;
+use crate::commands::settings::is_portable_setting;
 use crate::commands::{mcp, rules, skills, vps_servers};
 use crate::db::Db;
 use crate::secrets::{self, GoogleClientCreds, McpSecrets};
@@ -837,17 +837,7 @@ async fn collect(
     let mut secret = SecretPayload::default();
     let err = |e: sqlx::Error| e.to_string();
 
-    let mut settings = BTreeMap::new();
-    for row in sqlx::query("SELECT key, value FROM settings")
-        .fetch_all(db)
-        .await
-        .map_err(err)?
-    {
-        let key: String = row.get("key");
-        if PORTABLE_SETTING_KEYS.contains(&key.as_str()) {
-            settings.insert(key, row.get("value"));
-        }
-    }
+    let settings = collect_settings(db).await?;
 
     let mut skill_entries = Vec::new();
     for row in
@@ -1164,6 +1154,21 @@ async fn collect(
         secrets: None,
     };
     Ok((bundle, secret))
+}
+
+async fn collect_settings(db: &Db) -> Result<BTreeMap<String, String>, String> {
+    let mut settings = BTreeMap::new();
+    for row in sqlx::query("SELECT key, value FROM settings")
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        let key: String = row.get("key");
+        if is_portable_setting(&key) {
+            settings.insert(key, row.get("value"));
+        }
+    }
+    Ok(settings)
 }
 
 async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
@@ -1602,23 +1607,27 @@ pub async fn import_settings_backup(
         bundle,
         secret.unwrap_or_default(),
         create_missing_dirs.unwrap_or(false),
+        from_remote(&webview),
         report,
     )
     .await)
 }
 
-/// Merge `bundle` into this machine.
+/// Merge `bundle` into this machine. `from_remote`: called by a Remote Control controller, so the
+/// settings it may not write are skipped ([`import_settings`]).
 async fn apply_bundle(
     app: &AppHandle,
     db: &Db,
     mut bundle: Bundle,
     secret: SecretPayload,
     create_missing_dirs: bool,
+    from_remote: bool,
     mut report: ImportReport,
 ) -> ImportReport {
     remap_bundle_paths(&mut bundle, std::env::var("HOME").ok().as_deref());
 
-    import_settings(db, &bundle, &mut report).await;
+    let features_before = crate::features::commands::load(db).await;
+    import_settings(db, &bundle, from_remote, &mut report).await;
 
     for entry in &bundle.skills {
         let result = import_skill(&app, db, entry).await;
@@ -1748,6 +1757,15 @@ async fn apply_bundle(
         crate::slack_threads::emit_all_changed(&app);
     }
 
+    // Last, so a service a switch turns on finds everything else imported.
+    match (features_before, crate::features::commands::load(db).await) {
+        (Ok(before), Ok(after)) if before != after => {
+            crate::features::apply::changed(app, &before, &after)
+        }
+        (Ok(_), Ok(_)) => {}
+        (Err(e), _) | (_, Err(e)) => report.warnings.push(format!("Feature switches: {e}")),
+    }
+
     report
 }
 
@@ -1813,9 +1831,12 @@ fn record_with_sync(
     }
 }
 
-async fn import_settings(db: &Db, bundle: &Bundle, report: &mut ImportReport) {
+/// Write the portable settings of `bundle`. From a remote desktop, the keys it may not set
+/// (`remote::guard::remote_may_set_setting`: the feature switches) are skipped with a warning.
+async fn import_settings(db: &Db, bundle: &Bundle, from_remote: bool, report: &mut ImportReport) {
+    let mut refused = Vec::new();
     for (key, value) in &bundle.settings {
-        if !PORTABLE_SETTING_KEYS.contains(&key.as_str()) {
+        if !is_portable_setting(key) {
             continue;
         }
         let current: Option<String> =
@@ -1827,6 +1848,10 @@ async fn import_settings(db: &Db, bundle: &Bundle, report: &mut ImportReport) {
                 .flatten();
         if current.as_ref() == Some(value) {
             report.tally("settings", Upsert::Unchanged);
+            continue;
+        }
+        if from_remote && !crate::remote::guard::remote_may_set_setting(key) {
+            refused.push(key.as_str());
             continue;
         }
         let result = sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
@@ -1843,6 +1868,12 @@ async fn import_settings(db: &Db, bundle: &Bundle, report: &mut ImportReport) {
             })
             .map_err(|e| e.to_string());
         report.record("settings", key, result);
+    }
+    if !refused.is_empty() {
+        report.warnings.push(format!(
+            "Settings only changeable on this machine were skipped: {}",
+            refused.join(", ")
+        ));
     }
 }
 
@@ -3508,5 +3539,134 @@ mod tests {
         let mut sealed = seal(&payload, "password1").unwrap();
         sealed.memlimit = 64 * 1024 * 1024 * 1024;
         assert!(open_sealed(&sealed, "password1").is_err());
+    }
+
+    fn settings_bundle(settings: BTreeMap<String, String>) -> Bundle {
+        serde_json::from_value(serde_json::json!({
+            "format": FORMAT,
+            "version": VERSION,
+            "exported_at": "now",
+            "settings": settings,
+        }))
+        .unwrap()
+    }
+
+    async fn setting(db: &Db, key: &str) -> Option<String> {
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+            .bind(key)
+            .fetch_optional(db)
+            .await
+            .unwrap()
+    }
+
+    #[test]
+    fn feature_switches_are_portable_but_not_the_seed_flag() {
+        for key in [
+            "theme",
+            "feature.remote",
+            "feature.text_tools.selection.translate",
+            "inbox_api_enabled",
+            "animated_background",
+            "mcp_builtin_google_enabled",
+        ] {
+            assert!(is_portable_setting(key), "{key}");
+        }
+        for key in [
+            crate::features::seed::SEEDED_KEY,
+            "feature.not_registered_yet",
+            "claude_path",
+            crate::inbox_api::TOKEN_SETTING_KEY,
+            "remote_enabled",
+        ] {
+            assert!(!is_portable_setting(key), "{key}");
+        }
+    }
+
+    #[tokio::test]
+    async fn feature_switches_round_trip_through_a_backup() {
+        use crate::commands::settings::set_setting;
+        use crate::features::{commands::load, seed::SEEDED_KEY};
+        let db = test_db().await;
+        for (key, value) in [
+            ("feature.remote", "true"),
+            ("feature.productivity.todos", "true"),
+            ("feature.text_tools.selection.translate", "false"),
+            ("inbox_api_enabled", "true"),
+            (SEEDED_KEY, "1"),
+            ("theme", "dark"),
+        ] {
+            set_setting(&db, key, value).await.unwrap();
+        }
+        let exported = collect_settings(&db).await.unwrap();
+        assert!(!exported.contains_key(SEEDED_KEY));
+        assert_eq!(exported.get("feature.remote").map(String::as_str), Some("true"));
+
+        let target = test_db().await;
+        let mut report = ImportReport::default();
+        import_settings(&target, &settings_bundle(exported.clone()), false, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        for (key, value) in &exported {
+            assert_eq!(setting(&target, key).await.as_ref(), Some(value), "{key}");
+        }
+        assert_eq!(setting(&target, SEEDED_KEY).await, None);
+        assert_eq!(load(&target).await.unwrap(), load(&db).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn an_import_from_a_remote_desktop_keeps_every_feature_switch() {
+        use crate::commands::settings::set_setting;
+        use crate::features::{commands::load, seed::SEEDED_KEY};
+        let db = test_db().await;
+        for (key, value) in [
+            ("feature.remote", "false"),
+            ("inbox_api_enabled", "false"),
+            ("animated_background", "true"),
+            ("mcp_builtin_google_enabled", "true"),
+            (SEEDED_KEY, "1"),
+        ] {
+            set_setting(&db, key, value).await.unwrap();
+        }
+        let features = load(&db).await.unwrap();
+        let bundle = settings_bundle(
+            [
+                ("feature.remote", "true"),
+                ("feature.integrations.google", "true"),
+                ("inbox_api_enabled", "true"),
+                ("mcp_builtin_puppeteer_enabled", "false"),
+                ("mcp_builtin_google_enabled", "false"),
+                ("animated_background", "true"),
+                (SEEDED_KEY, "0"),
+                ("theme", "light"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        );
+
+        let mut report = ImportReport::default();
+        import_settings(&db, &bundle, true, &mut report).await;
+        assert_eq!(load(&db).await.unwrap(), features);
+        assert_eq!(setting(&db, "mcp_builtin_google_enabled").await.as_deref(), Some("true"));
+        assert_eq!(setting(&db, "mcp_builtin_puppeteer_enabled").await, None);
+        assert_eq!(setting(&db, SEEDED_KEY).await.as_deref(), Some("1"));
+        // Other settings still go through.
+        assert_eq!(setting(&db, "theme").await.as_deref(), Some("light"));
+        // One warning naming the switches that would have changed; an equal one
+        // (`animated_background`) is just unchanged.
+        assert_eq!(
+            report.warnings,
+            ["Settings only changeable on this machine were skipped: feature.integrations.google, \
+              feature.remote, inbox_api_enabled, mcp_builtin_google_enabled, mcp_builtin_puppeteer_enabled"]
+        );
+        let counts = &report.counts["settings"];
+        assert_eq!((counts.created, counts.updated, counts.unchanged), (0, 1, 1));
+
+        // The same file imported locally writes them.
+        let mut report = ImportReport::default();
+        import_settings(&db, &bundle, false, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(setting(&db, "feature.remote").await.as_deref(), Some("true"));
+        assert_eq!(setting(&db, "inbox_api_enabled").await.as_deref(), Some("true"));
+        assert_eq!(setting(&db, SEEDED_KEY).await.as_deref(), Some("1"));
     }
 }
