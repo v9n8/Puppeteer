@@ -351,7 +351,8 @@ pub fn run() {
             // Inbox API: loopback HTTP API (127.0.0.1:47821..47830) the
             // Chrome extension sends Slack links to. The token is loaded
             // (or generated) synchronously so commands never see an empty one.
-            // Only started when enabled (`inbox_api_enabled`, default on).
+            // Only started when enabled (`inbox_api_enabled`; a fresh install
+            // is seeded off by `features::seed`).
             {
                 let db_for_inbox = app.state::<db::Db>().inner().clone();
                 let inbox_state = inbox_api::InboxApiState::default();

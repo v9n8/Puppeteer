@@ -8,6 +8,9 @@ pub async fn init_db(db_path: &Path) -> Result<Db> {
     let db_url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
     let pool = SqlitePool::connect(&db_url).await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
+    // Before the startup code reads settings: the Inbox API listener must
+    // already see a fresh install's switch off.
+    crate::features::seed::seed(&pool).await?;
     reconcile_interrupted_runs(&pool).await?;
     // Best effort: a failed ledger repair must not keep the app from starting.
     if let Err(e) = crate::runs::usage_cost::repair_cumulative_costs(&pool).await {

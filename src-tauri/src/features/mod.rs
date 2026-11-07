@@ -5,7 +5,8 @@
 //!   default, lock, dependencies, legacy key. The frontend keeps no defaults.
 //! - [`resolve`]: stored `settings` rows → the effective tree (no DB access).
 //! - `commands`: the Tauri commands (`get_features`, `set_feature`,
-//!   `reset_features`); [`apply`]: what runs after a switch is written.
+//!   `reset_features`); [`apply`]: what runs after a switch is written;
+//!   [`seed`]: the one-time startup seed (fresh install vs upgrade).
 //!
 //! Storage: rows `feature.<module>` / `feature.<module>.<prop>` of the
 //! `settings` table, or the prop's legacy key when it has one. A prop id may
@@ -15,6 +16,7 @@
 
 pub mod apply;
 pub mod commands;
+pub mod seed;
 
 use serde::Serialize;
 use std::collections::HashMap;
