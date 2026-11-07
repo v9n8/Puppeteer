@@ -12,8 +12,9 @@ use std::sync::{Arc, RwLock};
 /// `settings` key holding the API bearer token.
 pub const TOKEN_SETTING_KEY: &str = "inbox_api_token";
 
-/// `settings` key for the server on/off switch (`"true"` / `"false"`; missing
-/// means enabled).
+/// `settings` key for the server on/off switch (`"true"` / `"false"`). It is
+/// the stored value of the `integrations.inbox_api` feature prop, which the
+/// server follows (`server::FEATURE`).
 pub const ENABLED_SETTING_KEY: &str = "inbox_api_enabled";
 
 /// Dir that held web page captures (feature removed); deleted at startup.
@@ -147,17 +148,6 @@ pub async fn save_token(db: &Db, token: &str) -> Result<(), sqlx::Error> {
         .execute(db)
         .await?;
     Ok(())
-}
-
-/// Whether the server should run (missing / unreadable setting → enabled).
-pub async fn load_enabled(db: &Db) -> bool {
-    let value: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
-        .bind(ENABLED_SETTING_KEY)
-        .fetch_optional(db)
-        .await
-        .ok()
-        .flatten();
-    value.is_none_or(|v| v.trim() != "false")
 }
 
 pub async fn save_enabled(db: &Db, enabled: bool) -> Result<(), sqlx::Error> {

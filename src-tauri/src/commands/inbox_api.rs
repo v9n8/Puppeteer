@@ -25,7 +25,8 @@ pub async fn regenerate_inbox_api_token(
 }
 
 /// Turn the whole Inbox API on or off: persists `inbox_api_enabled`, then
-/// starts the server (binding a port) or stops it (nothing listens).
+/// starts the server (binding a port) or stops it (nothing listens). Turning
+/// on is refused (`feature_disabled`) while the `integrations` module is off.
 #[tauri::command]
 pub async fn set_inbox_api_enabled(
     app: AppHandle,

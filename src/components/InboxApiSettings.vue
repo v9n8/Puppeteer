@@ -56,9 +56,12 @@ async function toggleEnabled() {
     info.value = await store.setInboxApiEnabled(!info.value.enabled)
   } catch (e) {
     // From a remote desktop the switch is local-only (it opens a port on the
-    // controlled machine), refused as `remote_denied_local_only`.
+    // controlled machine), refused as `remote_denied_local_only`. Turning it on
+    // is refused as `feature_disabled` while the Integrations module is off.
     const msg = String(e)
-    toast.error(msg.includes('remote_denied_local_only') ? t('settings.inboxApi.remoteDenied') : msg)
+    if (msg.includes('remote_denied_local_only')) toast.error(t('settings.inboxApi.remoteDenied'))
+    else if (msg.includes('feature_disabled')) toast.error(t('settings.inboxApi.moduleOff'))
+    else toast.error(msg)
   } finally {
     toggling.value = false
   }

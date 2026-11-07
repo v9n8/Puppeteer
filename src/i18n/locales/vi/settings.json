@@ -308,6 +308,7 @@
     "enable": "Bật Inbox API",
     "enableHint": "Khi tắt, không có gì lắng nghe trên cổng.",
     "remoteDenied": "Chỉ bật hoặc tắt được Inbox API ngay trên máy host, không đổi được từ remote desktop.",
+    "moduleOff": "Hãy bật module Dịch vụ ngoài trong Cài đặt → Tính năng trước.",
     "disabled": "Đã tắt",
     "status": "Trạng thái",
     "running": "Đang lắng nghe ở cổng {port}",

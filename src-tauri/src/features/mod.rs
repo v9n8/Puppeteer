@@ -18,6 +18,7 @@ pub mod apply;
 pub mod commands;
 pub mod seed;
 
+use crate::db::Db;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -187,8 +188,8 @@ pub fn entry(id: &str) -> Option<(&'static Module, Option<&'static Prop>)> {
 }
 
 /// The fresh-install value of every switch that can be turned off, as the rows
-/// `reset_features` writes. Legacy keys get an explicit value too: a missing
-/// `inbox_api_enabled` means on to the Inbox API.
+/// `reset_features` writes. Legacy keys get an explicit value too: builds
+/// before the registry read a missing `inbox_api_enabled` as on.
 pub fn default_rows() -> HashMap<String, String> {
     MODULES
         .iter()
@@ -215,6 +216,31 @@ pub fn turned_off(before: &[ModuleState], after: &[ModuleState]) -> Vec<String> 
         .filter(|(b, a)| b.effective && !a.effective)
         .map(|(_, a)| a.id.clone());
     modules.chain(props).collect()
+}
+
+/// Whether `id` is on in `tree`: a module (`integrations`) or a full prop id
+/// (`integrations.inbox_api`). Unknown ids are off.
+pub fn effective(tree: &[ModuleState], id: &str) -> bool {
+    tree.iter()
+        .find_map(|m| {
+            if m.module == id {
+                return Some(m.enabled);
+            }
+            m.props.iter().find(|p| p.id == id).map(|p| p.effective)
+        })
+        .unwrap_or(false)
+}
+
+/// [`effective`] on the switches stored now. A failed read counts as off, so a
+/// service that cannot tell stays stopped.
+pub async fn is_on(db: &Db, id: &str) -> bool {
+    match commands::load(db).await {
+        Ok(tree) => effective(&tree, id),
+        Err(e) => {
+            tracing::warn!(event = "features_load_failed", id = %id, error = %e);
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -503,6 +529,19 @@ mod tests {
         assert!(!defaults.contains_key("feature.sessions"), "locked module");
         assert!(!defaults.contains_key("feature.code_hosting.issue_pr_runs"), "locked prop");
         assert!(defaults.keys().all(|k| owner(k).is_some()));
+    }
+
+    #[test]
+    fn effective_reads_modules_and_props() {
+        let tree = resolve(&rows(&[("feature.integrations", "false"), ("inbox_api_enabled", "true")]));
+        assert!(!effective(&tree, "integrations"));
+        assert!(!effective(&tree, "integrations.inbox_api"), "on, but its module is off");
+        assert!(effective(&tree, "productivity"));
+        assert!(effective(&tree, "text_tools.selection.translate"));
+        assert!(!effective(&tree, "productivity.todos"));
+        for id in ["nope", "inbox_api_enabled", "text_tools.selection"] {
+            assert!(!effective(&tree, id), "{id}");
+        }
     }
 
     #[test]

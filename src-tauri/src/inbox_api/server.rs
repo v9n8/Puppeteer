@@ -8,13 +8,15 @@
 //! (`/v1/slack-threads`) / `MAX_TRANSLATE_BODY_BYTES` (`/v1/translate`,
 //! `/v1/grammar`).
 //!
-//! The server can be switched off (`inbox_api_enabled`): `start_server` /
-//! `stop_server` bind and release the port at runtime.
+//! The server runs only while the feature [`FEATURE`] is on (the
+//! `integrations` module and its `inbox_api` prop, stored in
+//! `inbox_api_enabled`); turning either off releases the port at runtime.
 
 use super::InboxApiState;
 use crate::commands::grammar;
 use crate::commands::translate::{self, TranslateState, TurnEvent, MAX_INPUT_CHARS};
 use crate::db::Db;
+use crate::features::{self, apply::Change};
 use crate::slack_threads::SlackThreadsState;
 use axum::{
     extract::{Request, State},
@@ -36,9 +38,14 @@ use std::ops::RangeInclusive;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
+
+/// The feature switch the server follows.
+pub const FEATURE: &str = "integrations.inbox_api";
+/// Turning the prop on is refused while this module is off.
+const MODULE: &str = "integrations";
 
 /// Ports tried in order; the first free one wins.
 pub const PORT_RANGE: RangeInclusive<u16> = 47821..=47830;
@@ -150,16 +157,31 @@ pub async fn set_enabled(
     slack: SlackThreadsState,
     enabled: bool,
 ) -> Result<(), String> {
-    let persist_db = db.clone();
-    let persist = async move {
-        super::save_enabled(&persist_db, enabled)
-            .await
-            .map_err(|e| e.to_string())
-    };
-    toggle(&api, enabled, persist, PORT_RANGE, |port, shutdown| {
+    let toggle_db = db.clone();
+    toggle(&api, &toggle_db, enabled, PORT_RANGE, |port, shutdown| {
         app_state(app, db, &api, translate_state, slack, port, shutdown)
     })
     .await
+}
+
+/// `features::apply` hook: open or close the port as soon as [`FEATURE`]
+/// changes, including through its module.
+pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
+    if features::effective(change.before, FEATURE) == features::effective(change.after, FEATURE) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let db = app.state::<Db>().inner().clone();
+        let api = app.state::<InboxApiState>().inner().clone();
+        let translate_state = app.state::<TranslateState>().inner().clone();
+        let slack = app.state::<SlackThreadsState>().inner().clone();
+        let follow_db = db.clone();
+        follow(&api, &follow_db, PORT_RANGE, |port, shutdown| {
+            app_state(app, db, &api, translate_state, slack, port, shutdown)
+        })
+        .await;
+    });
 }
 
 /// `HttpState` wired to the real app: the shared translator (also used for
@@ -232,27 +254,56 @@ fn app_state(
     }
 }
 
-/// Persist `enabled` and apply it, all under the server lock.
-async fn toggle<P, F>(
+/// Persist `enabled` and apply it, all under the server lock. Turning on is
+/// refused while the `integrations` module is off.
+async fn toggle<F>(
     api: &InboxApiState,
+    db: &Db,
     enabled: bool,
-    persist: P,
     ports: RangeInclusive<u16>,
     make_state: F,
 ) -> Result<(), String>
 where
-    P: Future<Output = Result<(), String>>,
     F: FnOnce(u16, watch::Receiver<bool>) -> HttpState,
 {
     let mut slot = api.server.lock().await;
-    persist.await?;
+    if enabled && !features::is_on(db, MODULE).await {
+        return Err(format!("feature_disabled: {MODULE}"));
+    }
+    super::save_enabled(db, enabled)
+        .await
+        .map_err(|e| e.to_string())?;
+    apply_locked(&mut slot, api, enabled, ports, make_state).await;
+    Ok(())
+}
+
+/// Start or stop the server to match [`FEATURE`] as stored now. The switch is
+/// read under the server lock, so racing calls end on the latest write.
+async fn follow<F>(api: &InboxApiState, db: &Db, ports: RangeInclusive<u16>, make_state: F)
+where
+    F: FnOnce(u16, watch::Receiver<bool>) -> HttpState,
+{
+    let mut slot = api.server.lock().await;
+    let enabled = features::is_on(db, FEATURE).await;
+    apply_locked(&mut slot, api, enabled, ports, make_state).await;
+}
+
+/// Record `enabled` and start or stop the server. Caller holds the server lock.
+async fn apply_locked<F>(
+    slot: &mut Option<ServerHandle>,
+    api: &InboxApiState,
+    enabled: bool,
+    ports: RangeInclusive<u16>,
+    make_state: F,
+) where
+    F: FnOnce(u16, watch::Receiver<bool>) -> HttpState,
+{
     api.set_enabled(enabled);
     if enabled {
-        start_locked(&mut slot, api, ports, make_state).await;
+        start_locked(slot, api, ports, make_state).await;
     } else {
-        stop_locked(&mut slot, api).await;
+        stop_locked(slot, api).await;
     }
-    Ok(())
 }
 
 /// Bind the first free port in `ports`, record it in `InboxApiState` and serve
@@ -869,6 +920,7 @@ fn translate_sse(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::settings::set_setting;
     use sqlx::sqlite::SqlitePoolOptions;
     use std::sync::atomic::Ordering;
     use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
@@ -1521,17 +1573,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&h.app_data);
     }
 
-    #[tokio::test]
-    async fn enabled_setting_defaults_to_true() {
-        let h = spawn().await;
-        assert!(super::super::load_enabled(&h.db).await);
-        super::super::save_enabled(&h.db, false).await.unwrap();
-        assert!(!super::super::load_enabled(&h.db).await);
-        super::super::save_enabled(&h.db, true).await.unwrap();
-        assert!(super::super::load_enabled(&h.db).await);
-        let _ = std::fs::remove_dir_all(&h.app_data);
-    }
-
     /// Poll until all translate permits are free again (or fail after 5 s).
     async fn wait_all_permits(slots: &Semaphore) {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
@@ -1810,16 +1851,21 @@ mod tests {
         }
 
         /// `set_enabled` without an `AppHandle`, on an ephemeral port.
+        async fn try_set(&self, enabled: bool) -> Result<(), String> {
+            toggle(&self.api, &self.db, enabled, 0..=0, self.make()).await
+        }
+
         async fn set(&self, enabled: bool) {
-            let db = self.db.clone();
-            let persist = async move {
-                super::super::save_enabled(&db, enabled)
-                    .await
-                    .map_err(|e| e.to_string())
-            };
-            toggle(&self.api, enabled, persist, 0..=0, self.make())
-                .await
-                .unwrap();
+            self.try_set(enabled).await.unwrap();
+        }
+
+        /// What the `features::apply` hook runs.
+        async fn follow(&self) {
+            follow(&self.api, &self.db, 0..=0, self.make()).await;
+        }
+
+        async fn feature_on(&self) -> bool {
+            features::is_on(&self.db, FEATURE).await
         }
 
         async fn health(&self) -> bool {
@@ -1844,7 +1890,7 @@ mod tests {
 
         l.set(false).await;
         assert!(!l.api.info().running && !l.api.info().enabled);
-        assert!(!super::super::load_enabled(&l.db).await);
+        assert!(!l.feature_on().await);
         // Port released: nothing listens, it can be bound again.
         assert!(tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
@@ -1902,10 +1948,73 @@ mod tests {
         for t in tasks {
             t.await.unwrap();
         }
-        let stored = super::super::load_enabled(&l.db).await;
+        let stored = l.feature_on().await;
         assert_eq!(stored, l.api.enabled());
         assert_eq!(stored, l.api.info().running);
         assert_eq!(stored, l.health().await);
         l.set(false).await;
+    }
+
+    async fn stored_switch(db: &Db) -> Option<String> {
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+            .bind(super::super::ENABLED_SETTING_KEY)
+            .fetch_optional(db)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn fresh_install_binds_no_port() {
+        let l = Lifecycle::new().await;
+        crate::features::seed::seed(&l.db).await.unwrap();
+        // Startup (lib.rs): the feature decides, then the spawn re-checks.
+        l.api.set_enabled(l.feature_on().await);
+        let mut slot = l.api.server.lock().await;
+        start_locked(&mut slot, &l.api, 0..=0, l.make()).await;
+        assert!(slot.is_none());
+        drop(slot);
+        // The hook path stays closed too.
+        l.follow().await;
+        assert!(l.api.server.lock().await.is_none());
+        assert!(!l.api.info().enabled && !l.api.info().running);
+    }
+
+    #[tokio::test]
+    async fn turning_the_module_off_stops_the_server_and_keeps_the_prop() {
+        let l = Lifecycle::new().await;
+        l.set(true).await;
+        let port = l.api.port().expect("listening");
+
+        set_setting(&l.db, "feature.integrations", "false").await.unwrap();
+        l.follow().await;
+        assert!(!l.api.info().enabled && !l.api.info().running);
+        assert!(tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .is_err());
+        assert_eq!(stored_switch(&l.db).await.as_deref(), Some("true"), "prop choice kept");
+
+        set_setting(&l.db, "feature.integrations", "true").await.unwrap();
+        l.follow().await;
+        assert!(l.health().await, "module back on: the prop is on again");
+
+        // Turning the prop off goes through the same hook.
+        set_setting(&l.db, super::super::ENABLED_SETTING_KEY, "false").await.unwrap();
+        l.follow().await;
+        assert!(!l.api.info().running);
+    }
+
+    #[tokio::test]
+    async fn turning_on_is_refused_while_the_module_is_off() {
+        let l = Lifecycle::new().await;
+        set_setting(&l.db, "feature.integrations", "false").await.unwrap();
+        assert_eq!(
+            l.try_set(true).await.unwrap_err(),
+            "feature_disabled: integrations"
+        );
+        assert_eq!(stored_switch(&l.db).await, None, "nothing written");
+        assert!(l.api.server.lock().await.is_none());
+        // Turning off is always allowed.
+        l.set(false).await;
+        assert_eq!(stored_switch(&l.db).await.as_deref(), Some("false"));
     }
 }

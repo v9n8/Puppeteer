@@ -8,8 +8,6 @@ use tauri::{AppHandle, Emitter};
 pub const CHANGED_EVENT: &str = "features:changed";
 
 /// The resolved tree before and after one write.
-// Read by the service hooks; none is registered yet.
-#[allow(dead_code)]
 pub struct Change<'a> {
     pub before: &'a [ModuleState],
     pub after: &'a [ModuleState],
@@ -20,7 +18,7 @@ pub struct Change<'a> {
 pub type Hook = fn(&AppHandle, &Change<'_>);
 
 /// One hook per background service (D0-09 … D0-17).
-const HOOKS: &[Hook] = &[];
+const HOOKS: &[Hook] = &[crate::inbox_api::server::on_features_changed];
 
 /// Run the hooks, then emit [`CHANGED_EVENT`].
 pub fn changed(app: &AppHandle, before: &[ModuleState], after: &[ModuleState]) {

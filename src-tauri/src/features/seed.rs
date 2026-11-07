@@ -2,8 +2,8 @@
 //! migrations and before anything else reads or writes settings.
 //!
 //! - Fresh install (no project yet): the registry defaults apply as they are.
-//!   Only `inbox_api_enabled` is written (`"false"`), because the listener
-//!   reads a missing key as on.
+//!   Only `inbox_api_enabled` is written (`"false"`), because builds before
+//!   the registry read a missing key as on.
 //! - Upgrade: every switch that can be turned off and has no stored value is
 //!   written `"true"`, so the user keeps everything they had. Stored values,
 //!   such as a legacy key set to `"false"`, are kept.
@@ -89,7 +89,7 @@ mod tests {
         let after = rows(&db).await;
 
         assert!(same(&resolve(&after), &resolve(&HashMap::new())));
-        assert!(!crate::inbox_api::load_enabled(&db).await);
+        assert!(!crate::features::is_on(&db, crate::inbox_api::server::FEATURE).await);
         assert_eq!(after.get(SEEDED_KEY).map(String::as_str), Some("1"));
         // Only the Inbox API switch and the flag were added.
         let added: Vec<&String> = after.keys().filter(|k| !before.contains_key(*k)).collect();
@@ -113,7 +113,7 @@ mod tests {
         assert_eq!(r.get("mcp_builtin_puppeteer_enabled").map(String::as_str), Some("false"));
         // Not a registry key: the MCP page switch stays off.
         assert_eq!(r.get("mcp_builtin_google_enabled").map(String::as_str), Some("false"));
-        assert!(crate::inbox_api::load_enabled(&db).await);
+        assert!(crate::features::is_on(&db, crate::inbox_api::server::FEATURE).await);
         // Remote is on as a feature, but the relay itself stays off.
         assert_eq!(r.get(crate::remote::KEY_ENABLED), None);
         // Only switches the registry has now get a row; later props keep their default.

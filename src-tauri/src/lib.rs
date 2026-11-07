@@ -351,8 +351,9 @@ pub fn run() {
             // Inbox API: loopback HTTP API (127.0.0.1:47821..47830) the
             // Chrome extension sends Slack links to. The token is loaded
             // (or generated) synchronously so commands never see an empty one.
-            // Only started when enabled (`inbox_api_enabled`; a fresh install
-            // is seeded off by `features::seed`).
+            // Only started when the `integrations.inbox_api` feature is on (a
+            // fresh install is seeded off by `features::seed`); its
+            // `features::apply` hook opens / closes the port afterwards.
             {
                 let db_for_inbox = app.state::<db::Db>().inner().clone();
                 let inbox_state = inbox_api::InboxApiState::default();
@@ -362,8 +363,10 @@ pub fn run() {
                     Ok(token) => inbox_state.set_token(token),
                     Err(e) => tracing::error!(event = "inbox_api_token_load_failed", error = %e),
                 }
-                let enabled =
-                    tauri::async_runtime::block_on(inbox_api::load_enabled(&db_for_inbox));
+                let enabled = tauri::async_runtime::block_on(features::is_on(
+                    &db_for_inbox,
+                    inbox_api::server::FEATURE,
+                ));
                 inbox_state.set_enabled(enabled);
                 app.manage(inbox_state.clone());
                 if enabled {
