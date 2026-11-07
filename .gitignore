@@ -39,3 +39,5 @@ src-tauri/*.db-shm
 src-tauri/*.db-wal
 # AWOG working files (drafts, throwaway scripts) — never part of a commit.
 .awog/scratch/
+# Local product reports (evaluations, analyses) — not part of the codebase.
+docs/reports/
