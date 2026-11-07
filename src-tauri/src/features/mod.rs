@@ -4,7 +4,8 @@
 //! - [`MODULES`]: the one declaration of every module and prop — fresh-install
 //!   default, lock, dependencies, legacy key. The frontend keeps no defaults.
 //! - [`resolve`]: stored `settings` rows → the effective tree (no DB access).
-//! - `commands`: the Tauri commands (`get_features`).
+//! - `commands`: the Tauri commands (`get_features`, `set_feature`,
+//!   `reset_features`); [`apply`]: what runs after a switch is written.
 //!
 //! Storage: rows `feature.<module>` / `feature.<module>.<prop>` of the
 //! `settings` table, or the prop's legacy key when it has one. A prop id may
@@ -12,6 +13,7 @@
 //! entry by matching the registry ([`owner`]), never by splitting on `.`.
 //! Values follow the existing switches: only an explicit `"false"` is off.
 
+pub mod apply;
 pub mod commands;
 
 use serde::Serialize;
@@ -168,6 +170,49 @@ pub fn owner(key: &str) -> Option<(&'static Module, Option<&'static Prop>)> {
         }
         m.props.iter().find(|p| key == p.key(m)).map(|p| (m, Some(p)))
     })
+}
+
+/// The registry entry of a full id: a module (`productivity`, prop `None`) or
+/// one of its props (`text_tools.selection.translate`).
+pub fn entry(id: &str) -> Option<(&'static Module, Option<&'static Prop>)> {
+    MODULES.iter().find_map(|m| {
+        if id == m.id {
+            return Some((m, None));
+        }
+        let prop = id.strip_prefix(m.id)?.strip_prefix('.')?;
+        m.props.iter().find(|p| p.id == prop).map(|p| (m, Some(p)))
+    })
+}
+
+/// The fresh-install value of every switch that can be turned off, as the rows
+/// `reset_features` writes. Legacy keys get an explicit value too: a missing
+/// `inbox_api_enabled` means on to the Inbox API.
+pub fn default_rows() -> HashMap<String, String> {
+    MODULES
+        .iter()
+        .flat_map(|m| {
+            let module = (!m.locked).then(|| (m.key(), m.default));
+            let props = m.props.iter().filter(|p| !p.locked).map(move |p| (p.key(m), p.default));
+            module.into_iter().chain(props)
+        })
+        .map(|(k, v)| (k, v.to_string()))
+        .collect()
+}
+
+/// Full ids that are on in `before` and off in `after`: modules, then props.
+pub fn turned_off(before: &[ModuleState], after: &[ModuleState]) -> Vec<String> {
+    let modules = before
+        .iter()
+        .zip(after)
+        .filter(|(b, a)| b.enabled && !a.enabled)
+        .map(|(_, a)| a.module.to_string());
+    let props = before
+        .iter()
+        .zip(after)
+        .flat_map(|(b, a)| b.props.iter().zip(&a.props))
+        .filter(|(b, a)| b.effective && !a.effective)
+        .map(|(_, a)| a.id.clone());
+    modules.chain(props).collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -430,5 +475,42 @@ mod tests {
         for k in &keys {
             assert!(owner(k).is_some(), "{k}");
         }
+    }
+
+    #[test]
+    fn entry_finds_modules_and_dotted_props() {
+        let (m, p) = entry("productivity").unwrap();
+        assert_eq!(m.id, "productivity");
+        assert!(p.is_none());
+        let (m, p) = entry("text_tools.selection.translate").unwrap();
+        assert_eq!((m.id, p.unwrap().id), ("text_tools", "selection.translate"));
+        for id in ["", "nope", "text_tools.selection", "productivity.", "remote_control", "sessions.nope"] {
+            assert!(entry(id).is_none(), "{id}");
+        }
+    }
+
+    #[test]
+    fn default_rows_resolve_to_a_fresh_install() {
+        let defaults = default_rows();
+        let (reset, fresh) = (resolve(&defaults), resolve(&HashMap::new()));
+        // Same switches; only `stored` differs.
+        assert!(turned_off(&reset, &fresh).is_empty() && turned_off(&fresh, &reset).is_empty());
+        assert_eq!(defaults.get("inbox_api_enabled").map(String::as_str), Some("false"));
+        assert_eq!(defaults.get("animated_background").map(String::as_str), Some("true"));
+        assert_eq!(defaults.get("feature.remote").map(String::as_str), Some("false"));
+        assert!(!defaults.contains_key("feature.sessions"), "locked module");
+        assert!(!defaults.contains_key("feature.code_hosting.issue_pr_runs"), "locked prop");
+        assert!(defaults.keys().all(|k| owner(k).is_some()));
+    }
+
+    #[test]
+    fn turned_off_lists_modules_and_props_that_go_off() {
+        let before = resolve(&rows(&[("feature.remote", "true"), ("feature.productivity.todos", "true")]));
+        let after = resolve(&HashMap::new());
+        assert_eq!(
+            turned_off(&before, &after),
+            ["remote", "productivity.todos", "remote.web_push", "remote.remote_desktop", "remote.file_transfer"]
+        );
+        assert!(turned_off(&after, &before).is_empty());
     }
 }

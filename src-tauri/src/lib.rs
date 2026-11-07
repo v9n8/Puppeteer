@@ -449,6 +449,8 @@ pub fn run() {
             get_settings,
             update_setting,
             features::commands::get_features,
+            features::commands::set_feature,
+            features::commands::reset_features,
             export_settings_backup,
             inspect_settings_backup,
             import_settings_backup,

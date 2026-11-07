@@ -41,7 +41,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// Rule: everything that changes who can reach this machine, or wipes the
 /// record of who did (Remote Control config, master password, OTP / session
 /// links, kicking a Controller, clearing the audit, Web Push recipients, the
-/// Inbox API's local listener), plus the plumbing of the CONTROLLING side.
+/// Inbox API's local listener, the feature switches), plus the plumbing of the
+/// CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
 /// sensitive part).
@@ -62,6 +63,10 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "remote_push_test",
     // Inbox API: opening / closing its local listener.
     "set_inbox_api_enabled",
+    // Feature switches: they start / stop services (the Inbox API listener,
+    // Remote Control, …).
+    "set_feature",
+    "reset_features",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -545,6 +550,8 @@ mod tests {
             "rd_copy_secret",
             "start_file_drag",
             "set_inbox_api_enabled",
+            "set_feature",
+            "reset_features",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }
