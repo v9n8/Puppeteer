@@ -7,6 +7,10 @@
 // contain dots (`text_tools.selection.translate`).
 
 export const CMD_GET_FEATURES = 'get_features'
+/** `{ id, enabled }` → the new tree. Local-only. */
+export const CMD_SET_FEATURE = 'set_feature'
+/** `{ dryRun }` → ids it turns off; a dry run writes nothing. Local-only. */
+export const CMD_RESET_FEATURES = 'reset_features'
 /** Broadcast after every write; the payload is the whole new tree. */
 export const EVT_FEATURES_CHANGED = 'features:changed'
 
@@ -119,4 +123,50 @@ export function popoutFeature(search: string): string | undefined {
     return q.get('kind') === 'note' ? 'productivity.notes' : 'productivity.todos'
   }
   return POPOUT_FEATURES.find(([flag]) => q.get(flag) === '1')?.[1]
+}
+
+export interface PropRow {
+  id: string
+  /** The prop's own value — what it is back to once its module is on again. */
+  checked: boolean
+  /** Can be flipped here: not locked, its module on, not read-only. */
+  editable: boolean
+  /** Shown dimmed: locked, or its module is off. */
+  muted: boolean
+  reasonKey: FeatureReasonKey | null
+  /** Full ids of the dependencies that are off (prop runs degraded). */
+  degraded: string[]
+}
+
+export interface ModuleRow {
+  module: string
+  checked: boolean
+  editable: boolean
+  locked: boolean
+  /** Props in effect, for the collapsed row. */
+  onCount: number
+  props: PropRow[]
+}
+
+/**
+ * Rows of Settings → Features. A prop under a module that is off shows its own
+ * stored value (turning the module back on restores it), not `effective`.
+ * `readOnly`: a remote-desktop window, where every switch is local-only.
+ */
+export function featureRows(tree: FeatureTree, readOnly: boolean): ModuleRow[] {
+  return tree.map((m) => ({
+    module: m.module,
+    checked: m.enabled,
+    editable: !readOnly && !m.locked,
+    locked: m.locked,
+    onCount: m.props.filter((p) => p.effective).length,
+    props: m.props.map((p) => ({
+      id: p.id,
+      checked: p.locked || (p.stored ?? p.default),
+      editable: !readOnly && !p.locked && m.enabled,
+      muted: p.locked || !m.enabled,
+      reasonKey: p.reason_key,
+      degraded: p.degraded,
+    })),
+  }))
 }

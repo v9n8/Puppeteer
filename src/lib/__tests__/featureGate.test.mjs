@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import {
   MENU_ACTION_FEATURES,
   allowsFeature,
+  featureRows,
   filterByFeature,
   isFeatureOn,
   menuActionFeature,
@@ -186,20 +187,29 @@ test('popoutFeature reads the window flag; the list window goes by its kind', ()
   }
 })
 
-// Every id the UI gates on must exist in the backend registry: an unknown id
-// reads as off, so a typo would hide its entry for good.
-test('gated ids exist in the backend registry', () => {
-  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
-  const registry = new Set()
-  const modules = read('../../../src-tauri/src/features/mod.rs')
+const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+
+/** Module and full prop ids of the backend registry (src-tauri/src/features/mod.rs). */
+function registryIds() {
+  const modules = new Set()
+  const props = new Set()
+  const blocks = read('../../../src-tauri/src/features/mod.rs')
     .split('pub static MODULES')[1]
     .split('\n];')[0]
     .split(/Module \{/)
-  for (const block of modules.slice(1)) {
+  for (const block of blocks.slice(1)) {
     const module = block.match(/id: "(\w+)"/)[1]
-    registry.add(module)
-    for (const [, prop] of block.matchAll(/(?:core|on|off)\("([\w.]+)"\)/g)) registry.add(`${module}.${prop}`)
+    modules.add(module)
+    for (const [, prop] of block.matchAll(/(?:core|on|off)\("([\w.]+)"\)/g)) props.add(`${module}.${prop}`)
   }
+  return { modules, props }
+}
+
+// Every id the UI gates on must exist in the backend registry: an unknown id
+// reads as off, so a typo would hide its entry for good.
+test('gated ids exist in the backend registry', () => {
+  const { modules, props } = registryIds()
+  const registry = new Set([...modules, ...props])
   assert.ok(registry.has('text_tools.selection.translate'), 'registry parsed')
 
   const used = new Set([
@@ -222,4 +232,69 @@ test('gated ids exist in the backend registry', () => {
   }
   assert.ok(used.size >= 10, `found ${used.size} ids`)
   for (const id of used) assert.ok(registry.has(id), `${id} is not in the registry`)
+})
+
+test('featureRows: a prop under a module that is off shows its own value, dimmed', () => {
+  const [productivity, codeHosting, textTools] = featureRows(tree, false)
+
+  assert.deepEqual(
+    { checked: productivity.checked, editable: productivity.editable, locked: productivity.locked, onCount: productivity.onCount },
+    { checked: true, editable: true, locked: false, onCount: 3 },
+  )
+  assert.deepEqual(productivity.props[2], {
+    id: 'productivity.focus',
+    checked: true,
+    editable: true,
+    muted: false,
+    reasonKey: 'features.reason.missing_dependency',
+    degraded: ['productivity.calendar'],
+  })
+  // Never saved: its default.
+  assert.equal(productivity.props[3].checked, false)
+
+  assert.equal(codeHosting.checked, false)
+  assert.equal(codeHosting.onCount, 1, 'only the locked prop is in effect')
+  const [runs, prInbox] = codeHosting.props
+  // Stored on: back on once the module is; meanwhile dimmed and not editable.
+  assert.deepEqual(
+    { checked: prInbox.checked, editable: prInbox.editable, muted: prInbox.muted, reasonKey: prInbox.reasonKey },
+    { checked: true, editable: false, muted: true, reasonKey: 'features.reason.module_off' },
+  )
+  assert.deepEqual(
+    { checked: runs.checked, editable: runs.editable, muted: runs.muted, reasonKey: runs.reasonKey },
+    { checked: true, editable: false, muted: true, reasonKey: 'features.reason.locked' },
+  )
+
+  assert.deepEqual(textTools.props.map((p) => [p.id, p.checked]), [
+    ['text_tools.selection.translate', true],
+    ['text_tools.selection.save_note', false],
+  ])
+})
+
+test('featureRows: locked modules and read-only windows edit nothing', () => {
+  const locked = [{ module: 'sessions', enabled: true, locked: true, props: [prop('sessions.handoff', true)] }]
+  const [sessions] = featureRows(locked, false)
+  assert.equal(sessions.editable, false)
+  assert.equal(sessions.props[0].editable, true, 'a prop of a locked module is still a switch')
+
+  for (const row of featureRows(tree, true)) {
+    assert.equal(row.editable, false, row.module)
+    for (const p of row.props) assert.equal(p.editable, false, p.id)
+  }
+  assert.deepEqual(featureRows([], false), [])
+})
+
+// Settings → Features names every module and prop; a missing label would show
+// the raw i18n key.
+test('every registry id has a label in en and vi', () => {
+  const { modules, props } = registryIds()
+  const at = (tree, path) => path.split('.').reduce((node, key) => node?.[key], tree)
+  for (const locale of ['en', 'vi']) {
+    const messages = JSON.parse(read(`../../i18n/locales/${locale}/features.json`))
+    for (const id of modules) assert.equal(typeof messages.module[id], 'string', `${locale}: module ${id}`)
+    for (const id of props) assert.equal(typeof at(messages.prop, id), 'string', `${locale}: prop ${id}`)
+    for (const key of ['locked', 'module_off', 'missing_dependency']) {
+      assert.equal(typeof messages.reason[key], 'string', `${locale}: reason ${key}`)
+    }
+  }
 })

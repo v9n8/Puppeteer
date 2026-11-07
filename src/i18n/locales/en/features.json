@@ -2,5 +2,101 @@
   "disabled": {
     "title": "This feature is turned off",
     "body": "Turn it back on in Settings to use this window again."
+  },
+  "reason": {
+    "locked": "Core feature, always on.",
+    "module_off": "Off while its module is off. Turning the module back on restores it.",
+    "missing_dependency": "Runs degraded: missing {deps}."
+  },
+  "settings": {
+    "title": "Features",
+    "help": "Turn off what you don't use. A feature that is off stops completely (no menu entry, no background work); its data is kept.",
+    "remoteReadOnly": "Feature switches can only be changed on the host itself, not from a remote desktop.",
+    "core": "Core",
+    "onCount": "{on}/{total} on",
+    "loadError": "Could not load the features: {error}",
+    "reset": "Restore defaults",
+    "resetTitle": "Restore the default features?",
+    "resetMessage": "Every switch goes back to its fresh-install value. These will be turned off:\n{list}",
+    "resetNothingOff": "Every switch goes back to its fresh-install value. Nothing that is on now will be turned off.",
+    "resetDone": "Default features restored"
+  },
+  "module": {
+    "sessions": "Sessions & chat",
+    "text_tools": "Text tools",
+    "library": "Agent library",
+    "orchestration": "Agent orchestration",
+    "code_hosting": "GitHub / GitLab",
+    "productivity": "Productivity",
+    "integrations": "Integrations",
+    "infra_access": "Infrastructure access",
+    "remote": "Remote control",
+    "security": "Security",
+    "usage": "Usage & cost",
+    "app": "App"
+  },
+  "prop": {
+    "sessions": {
+      "core": "Chat, streaming, cancel / resume, permissions",
+      "handoff": "Hand-off between Claude and Codex",
+      "mirror_claude": "Mirror Claude CLI sessions",
+      "mirror_codex": "Mirror Codex CLI sessions"
+    },
+    "text_tools": {
+      "selection": {
+        "translate": "Translate selected text",
+        "save_note": "Save selection as a note",
+        "save_todo": "Save selection as a todo"
+      }
+    },
+    "library": {
+      "skills": "Skills",
+      "rules": "Rules",
+      "mcp": "MCP servers",
+      "groups": "Skill / rule groups",
+      "instruction_checks": "Instruction checks",
+      "builtin_mcp_puppeteer": "Built-in Puppeteer MCP"
+    },
+    "orchestration": {
+      "conductor": "Conductor"
+    },
+    "code_hosting": {
+      "issue_pr_runs": "Runs from issues and PRs",
+      "pr_inbox": "PR Reviews",
+      "gantt": "Gantt"
+    },
+    "productivity": {
+      "notes": "Notes",
+      "todos": "Todos",
+      "focus": "Focus",
+      "calendar": "Calendar"
+    },
+    "integrations": {
+      "google": "Google account (Drive, Gmail, Calendar)",
+      "slack": "Slack",
+      "inbox_api": "Inbox API (Chrome extension)"
+    },
+    "infra_access": {
+      "vps": "VPS / SSH servers",
+      "aws": "AWS",
+      "azure": "Azure"
+    },
+    "remote": {
+      "remote_control": "Remote control through the relay",
+      "web_push": "Web Push to paired phones",
+      "remote_desktop": "Remote desktop",
+      "file_transfer": "File transfer"
+    },
+    "security": {
+      "secret_vault": "Secret notes (vault)"
+    },
+    "usage": {
+      "stats": "Stats",
+      "context_meter": "Context meter",
+      "budget_guard": "Budget guardrail"
+    },
+    "app": {
+      "animated_background": "Animated background"
+    }
   }
 }

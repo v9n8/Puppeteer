@@ -15,7 +15,8 @@
     "prompts": "Mẫu Prompt",
     "inbox": "Inbox API",
     "azure": "Tài khoản Azure",
-    "focus": "Focus"
+    "focus": "Focus",
+    "features": "Tính năng"
   },
   "devicesTabs": {
     "remote": "Điều khiển từ xa",

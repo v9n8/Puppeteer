@@ -30,6 +30,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useMcpServersStore, type McpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useFeaturesStore } from '@/stores/features'
 import {
   BUILTIN_PREFIX,
   MCP_CATALOG,
@@ -77,6 +78,13 @@ function builtinOn(name: string): boolean {
   const key = `mcp_builtin_${name}_enabled` as 'mcp_builtin_puppeteer_enabled' | 'mcp_builtin_google_enabled'
   return appSettings.settings?.[key] !== 'false'
 }
+
+// Settings → Features writes the Puppeteer switch too (prop
+// `library.builtin_mcp_puppeteer`): re-read the settings when the tree changes.
+const features = useFeaturesStore()
+watch(() => features.tree, () => {
+  if (appSettings.loaded) appSettings.refresh().catch(() => {})
+})
 
 // The Google-backed built-in is injected at run launch only when an OAuth client
 // is configured AND at least one account is connected (mirrors the backend

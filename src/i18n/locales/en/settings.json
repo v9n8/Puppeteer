@@ -15,7 +15,8 @@
     "prompts": "Prompt Templates",
     "inbox": "Inbox API",
     "azure": "Azure Accounts",
-    "focus": "Focus"
+    "focus": "Focus",
+    "features": "Features"
   },
   "devicesTabs": {
     "remote": "Remote Control",

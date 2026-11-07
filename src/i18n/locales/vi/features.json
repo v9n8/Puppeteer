@@ -2,5 +2,101 @@
   "disabled": {
     "title": "Tính năng này đang tắt",
     "body": "Bật lại trong Cài đặt để dùng lại cửa sổ này."
+  },
+  "reason": {
+    "locked": "Phần lõi, luôn bật.",
+    "module_off": "Đang tắt vì module của nó tắt. Bật lại module thì trở về như cũ.",
+    "missing_dependency": "Chạy ở mức giảm: thiếu {deps}."
+  },
+  "settings": {
+    "title": "Tính năng",
+    "help": "Tắt những gì bạn không dùng. Tính năng tắt sẽ dừng hẳn (không còn mục menu, không chạy ngầm); dữ liệu vẫn được giữ.",
+    "remoteReadOnly": "Chỉ đổi được công tắc tính năng tại máy host, không đổi được từ remote desktop.",
+    "core": "Lõi",
+    "onCount": "Bật {on}/{total}",
+    "loadError": "Không tải được danh sách tính năng: {error}",
+    "reset": "Khôi phục mặc định",
+    "resetTitle": "Khôi phục tính năng mặc định?",
+    "resetMessage": "Mọi công tắc trở về giá trị của bản cài mới. Những mục sau sẽ bị tắt:\n{list}",
+    "resetNothingOff": "Mọi công tắc trở về giá trị của bản cài mới. Không mục nào đang bật bị tắt.",
+    "resetDone": "Đã khôi phục tính năng mặc định"
+  },
+  "module": {
+    "sessions": "Phiên & chat",
+    "text_tools": "Công cụ văn bản",
+    "library": "Thư viện agent",
+    "orchestration": "Điều phối agent",
+    "code_hosting": "GitHub / GitLab",
+    "productivity": "Công việc cá nhân",
+    "integrations": "Dịch vụ ngoài",
+    "infra_access": "Truy cập hạ tầng",
+    "remote": "Điều khiển từ xa",
+    "security": "Bảo mật",
+    "usage": "Sử dụng & chi phí",
+    "app": "Ứng dụng"
+  },
+  "prop": {
+    "sessions": {
+      "core": "Chat, stream, huỷ / tiếp tục, quyền",
+      "handoff": "Chuyển phiên giữa Claude và Codex",
+      "mirror_claude": "Mirror session của Claude CLI",
+      "mirror_codex": "Mirror session của Codex CLI"
+    },
+    "text_tools": {
+      "selection": {
+        "translate": "Dịch đoạn đã chọn",
+        "save_note": "Lưu đoạn chọn thành ghi chú",
+        "save_todo": "Lưu đoạn chọn thành việc cần làm"
+      }
+    },
+    "library": {
+      "skills": "Kỹ năng",
+      "rules": "Quy tắc",
+      "mcp": "MCP server",
+      "groups": "Nhóm kỹ năng / quy tắc",
+      "instruction_checks": "Kiểm tra chỉ dẫn",
+      "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn"
+    },
+    "orchestration": {
+      "conductor": "Conductor"
+    },
+    "code_hosting": {
+      "issue_pr_runs": "Chạy từ issue và PR",
+      "pr_inbox": "Duyệt PR",
+      "gantt": "Gantt"
+    },
+    "productivity": {
+      "notes": "Ghi chú",
+      "todos": "Việc cần làm",
+      "focus": "Focus",
+      "calendar": "Lịch"
+    },
+    "integrations": {
+      "google": "Tài khoản Google (Drive, Gmail, Lịch)",
+      "slack": "Slack",
+      "inbox_api": "Inbox API (Chrome extension)"
+    },
+    "infra_access": {
+      "vps": "VPS / máy chủ SSH",
+      "aws": "AWS",
+      "azure": "Azure"
+    },
+    "remote": {
+      "remote_control": "Điều khiển từ xa qua relay",
+      "web_push": "Web Push tới điện thoại đã ghép",
+      "remote_desktop": "Remote desktop",
+      "file_transfer": "Truyền file"
+    },
+    "security": {
+      "secret_vault": "Ghi chú bí mật (vault)"
+    },
+    "usage": {
+      "stats": "Thống kê",
+      "context_meter": "Đồng hồ context",
+      "budget_guard": "Rào ngân sách"
+    },
+    "app": {
+      "animated_background": "Nền động"
+    }
   }
 }

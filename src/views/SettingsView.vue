@@ -7,7 +7,7 @@ import {
   Cpu, Palette, FileText, ShieldAlert, Sparkles, Github, Gitlab, Cloud, CloudCog,
   CheckCircle2, AlertTriangle, Trash2, Plus, Pencil, Gauge, Radio,
   RefreshCw, Loader2, BadgeCheck, HardDrive, UserCircle,
-  LogIn, Star, ChevronDown, ArrowRightLeft, Inbox, GripVertical, Target,
+  LogIn, Star, ChevronDown, ArrowRightLeft, Inbox, GripVertical, Target, ToggleRight,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -16,6 +16,7 @@ import { Banner, Button, Input, Textarea, Card, AppSelect, PageHeader, ToggleSwi
 import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.vue'
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
+import FeaturesSettings from '@/components/FeaturesSettings.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useDragSort } from '@/composables/useDragSort'
@@ -29,6 +30,7 @@ import { applySystemAccent } from '@/lib/systemAccent'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useFeaturesStore } from '@/stores/features'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
@@ -213,6 +215,7 @@ async function setLaunchAtLogin(mode: LaunchAtLogin) {
 
 const SECTIONS = [
   { id: 'general', labelKey: 'settings.sections.general', icon: Palette },
+  { id: 'features', labelKey: 'settings.sections.features', icon: ToggleRight },
   { id: 'focus', labelKey: 'settings.sections.focus', icon: Target },
   { id: 'github', labelKey: 'settings.sections.github', icon: Github },
   { id: 'gitlab', labelKey: 'settings.sections.gitlab', icon: Gitlab },
@@ -1046,6 +1049,20 @@ watch(settings, () => {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(persistChanges, 400)
 }, { deep: true })
+
+// Settings → Features also writes `animated_background` (prop
+// `app.animated_background`): follow it here, in the copy auto-save diffs
+// against too, so the General select neither goes stale nor writes it back.
+const features = useFeaturesStore()
+watch(() => features.tree, (tree) => {
+  const prop = tree.find((m) => m.module === 'app')?.props.find((p) => p.id === 'app.animated_background')
+  if (!prop || !lastSaved) return
+  const value = String(prop.stored ?? prop.default)
+  if (lastSaved.animated_background === value) return
+  settings.value.animated_background = value
+  lastSaved.animated_background = value
+  appSettings.refresh().catch(() => {})
+})
 
 // Apply theme instantly (don't wait for the debounced save).
 watch(() => settings.value.theme, (v) => {
@@ -2384,6 +2401,11 @@ watch(() => settings.value.language, (v) => {
              shown, so opening the section always reads the live port / status. -->
         <div v-if="!loading && activeSection === 'inbox'" class="max-w-lg">
           <InboxApiSettings />
+        </div>
+
+        <!-- Module → prop switches. Mounted only while shown: it re-reads the tree on open. -->
+        <div v-if="!loading && activeSection === 'features'" class="max-w-lg">
+          <FeaturesSettings />
         </div>
       </div>
     </div>

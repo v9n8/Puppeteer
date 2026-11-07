@@ -80,5 +80,5 @@ export const useFeaturesStore = defineStore('features', () => {
     return isOn(id)
   }
 
-  return { tree, loaded, error, start, isOn, isOnAfterLoad }
+  return { tree, loaded, error, start, refresh, isOn, isOnAfterLoad }
 })
