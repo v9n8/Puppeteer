@@ -1332,7 +1332,7 @@ pub async fn builtin_puppeteer_enabled(db: &Db) -> bool {
     builtin_mcp_globally_enabled(db, "puppeteer").await
 }
 
-async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str) -> bool {
+pub async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str) -> bool {
     sqlx::query_scalar::<_, i64>(
         "SELECT 1 FROM project_builtin_mcp_disabled WHERE project_id = ? AND name = ?",
     )
@@ -1350,6 +1350,42 @@ async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str)
 pub async fn builtin_mcp_enabled(db: &Db, name: &str, project_id: &str) -> bool {
     builtin_mcp_globally_enabled(db, name).await
         && !builtin_mcp_disabled_for_project(db, name, project_id).await
+}
+
+/// Tool groups of the `puppeteer` server, each behind one feature. The names
+/// are what `sidecar-mcp/lib/feature-groups.mjs` reads from
+/// `PUPPETEER_MCP_DISABLED_GROUPS`.
+const PUPPETEER_TOOL_GROUPS: &[(&str, &str)] = &[
+    ("notes", "productivity.notes"),
+    ("todos", "productivity.todos"),
+    ("slack", "integrations.slack"),
+    ("vps", "infra_access.vps"),
+];
+
+/// What the feature switches let a run launched now get. Read once per start
+/// or resume: a run keeps the servers it was launched with.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BuiltinGates {
+    pub puppeteer: bool,
+    /// The MCP page switch (`mcp_builtin_google_enabled`) must be on too.
+    pub google: bool,
+    pub conductor: bool,
+    /// `puppeteer` tool groups to hide.
+    pub disabled_groups: Vec<&'static str>,
+}
+
+pub fn builtin_gates(tree: &[crate::features::ModuleState]) -> BuiltinGates {
+    use crate::features::effective;
+    BuiltinGates {
+        puppeteer: effective(tree, "library.builtin_mcp_puppeteer"),
+        google: effective(tree, "integrations.google"),
+        conductor: effective(tree, "orchestration.conductor"),
+        disabled_groups: PUPPETEER_TOOL_GROUPS
+            .iter()
+            .filter(|(_, id)| !effective(tree, id))
+            .map(|(group, _)| *group)
+            .collect(),
+    }
 }
 
 /// One built-in server's switches for the project MCP tab.
@@ -1441,6 +1477,7 @@ pub async fn set_builtin_mcp_enabled(
 /// that also carries `puppeteer` — unless the server script is missing (dev/bundle
 /// mismatch), in which case `mcp` is returned unchanged so the run still works.
 /// A user server literally named `puppeteer` takes precedence (not overwritten).
+/// `disabled_groups` (see [`BuiltinGates`]) are hidden by the server.
 pub fn with_builtin_puppeteer(
     mcp: serde_json::Value,
     node_bin: &str,
@@ -1448,6 +1485,7 @@ pub fn with_builtin_puppeteer(
     db_path: &std::path::Path,
     project_id: &str,
     project_path: &str,
+    disabled_groups: &[&str],
 ) -> serde_json::Value {
     if !script.exists() {
         return mcp;
@@ -1465,6 +1503,7 @@ pub fn with_builtin_puppeteer(
                 "PUPPETEER_DB_PATH": db_path.to_string_lossy(),
                 "PUPPETEER_PROJECT_ID": project_id,
                 "PUPPETEER_PROJECT_PATH": project_path,
+                "PUPPETEER_MCP_DISABLED_GROUPS": disabled_groups.join(","),
             }
         })
     });
@@ -1737,5 +1776,73 @@ mod tests {
 
         // Only the known built-ins can be switched.
         assert!(set_project_builtin_mcp(&db, "p1", "github", false).await.is_err());
+    }
+
+    fn gates(pairs: &[(&str, &str)]) -> super::BuiltinGates {
+        let rows = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        super::builtin_gates(&crate::features::resolve(&rows))
+    }
+
+    #[test]
+    fn builtin_gates_follow_the_feature_tree() {
+        // Fresh install: notes on; todos, slack, vps and the Google account off.
+        let g = gates(&[]);
+        assert!(g.puppeteer && g.conductor && !g.google);
+        assert_eq!(g.disabled_groups, ["todos", "slack", "vps"]);
+
+        let all_on = [
+            ("feature.productivity.todos", "true"),
+            ("feature.integrations.google", "true"),
+            ("feature.integrations.slack", "true"),
+            ("feature.infra_access.vps", "true"),
+        ];
+        let g = gates(&all_on);
+        assert!(g.puppeteer && g.google && g.conductor);
+        assert!(g.disabled_groups.is_empty());
+
+        // A module off hides its props' groups and keeps the others.
+        let mut rows = all_on.to_vec();
+        rows.push(("feature.productivity", "false"));
+        assert_eq!(gates(&rows).disabled_groups, ["notes", "todos"]);
+
+        let mut rows = all_on.to_vec();
+        rows.push(("feature.integrations", "false"));
+        let g = gates(&rows);
+        assert!(!g.google);
+        assert_eq!(g.disabled_groups, ["slack"]);
+
+        // The puppeteer prop reads the MCP page's legacy switch.
+        let mut rows = all_on.to_vec();
+        rows.extend([("mcp_builtin_puppeteer_enabled", "false"), ("feature.orchestration", "false")]);
+        let g = gates(&rows);
+        assert!(!g.puppeteer && !g.conductor && g.google);
+    }
+
+    #[test]
+    fn builtin_gates_on_an_unreadable_tree_give_nothing() {
+        let g = super::builtin_gates(&[]);
+        assert!(!g.puppeteer && !g.google && !g.conductor);
+        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps"]);
+    }
+
+    #[test]
+    fn builtin_puppeteer_carries_the_disabled_groups() {
+        // Any existing file stands in for the server script.
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let db = std::path::Path::new("/tmp/data.db");
+        let env = |groups: &[&str]| {
+            let map = super::with_builtin_puppeteer(
+                serde_json::Value::Null,
+                "node",
+                &script,
+                db,
+                "p1",
+                "/tmp/p1",
+                groups,
+            );
+            map["puppeteer"]["env"]["PUPPETEER_MCP_DISABLED_GROUPS"].clone()
+        };
+        assert_eq!(env(&["todos", "vps"]), "todos,vps");
+        assert_eq!(env(&[]), "");
     }
 }

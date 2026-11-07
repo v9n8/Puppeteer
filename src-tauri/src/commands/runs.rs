@@ -809,8 +809,10 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
 
 /// The MCP map for a run on `engine` ("claude" | "codex"): the project's
 /// enabled servers plus the built-ins — `puppeteer` and `google` unless switched off,
-/// and the loopback `conductor` server for a conductor run. Credentials are left
-/// to the broker (see `McpLaunch`), so the map is safe to put on a command line.
+/// and the loopback `conductor` server for a conductor run. Feature switches
+/// (`mcp::builtin_gates`) are read here, so a change applies from the next start
+/// or resume; a live run keeps its servers. Credentials are left to the broker
+/// (see `McpLaunch`), so the map is safe to put on a command line.
 /// Returns the map (`Null` when empty) and the servers skipped for the engine.
 #[allow(clippy::too_many_arguments)]
 async fn assemble_run_mcp(
@@ -835,8 +837,16 @@ async fn assemble_run_mcp(
         project_id: project_id.to_string(),
         run_id: run_id.to_string(),
     };
+    // Unreadable switches count as off, like `features::is_on`.
+    let tree = crate::features::commands::load(db).await.unwrap_or_else(|e| {
+        tracing::warn!(event = "features_load_failed", run_id = %run_id, error = %e);
+        Vec::new()
+    });
+    let gates = mcp::builtin_gates(&tree);
     let (map, skipped) = mcp::resolve_project_mcp_servers(db, project_id, engine, &launch).await;
-    let map = if mcp::builtin_mcp_enabled(db, "puppeteer", project_id).await {
+    let map = if gates.puppeteer
+        && !mcp::builtin_mcp_disabled_for_project(db, "puppeteer", project_id).await
+    {
         mcp::with_builtin_puppeteer(
             map,
             node_bin,
@@ -844,19 +854,25 @@ async fn assemble_run_mcp(
             &crate::runs::sidecar::resolve_db_path(app),
             project_id,
             project_path,
+            &gates.disabled_groups,
         )
     } else {
         map
     };
-    let map = mcp::with_builtin_google(
-        db,
-        map,
-        &launch,
-        &crate::runs::sidecar::resolve_mcp_script(app, "google.mjs"),
-        project_id,
-    )
-    .await;
-    let map = match (is_conductor, app.try_state::<crate::conductor::ConductorState>()) {
+    let map = if gates.google {
+        mcp::with_builtin_google(
+            db,
+            map,
+            &launch,
+            &crate::runs::sidecar::resolve_mcp_script(app, "google.mjs"),
+            project_id,
+        )
+        .await
+    } else {
+        map
+    };
+    let conductor = is_conductor && gates.conductor;
+    let map = match (conductor, app.try_state::<crate::conductor::ConductorState>()) {
         (true, Some(cst)) if engine == "codex" => {
             crate::conductor::with_conductor_codex(map, &cst.base_url(), &launch)
         }

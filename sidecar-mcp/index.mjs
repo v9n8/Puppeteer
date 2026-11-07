@@ -12,9 +12,10 @@
 //   • Skills & Rules library — CRUD the reusable skill/rule definitions (source-only)
 //
 // Scope: env `PUPPETEER_PROJECT_ID` / `PUPPETEER_PROJECT_PATH` pin the "current project";
-// `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store. Hand-rolled protocol keeps this
-// dependency-free (nothing to `npm install` / bundle). Only JSON-RPC frames go to
-// stdout; everything else must use stderr.
+// `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store; `PUPPETEER_MCP_DISABLED_GROUPS`
+// hides tool groups switched off in the app (lib/feature-groups.mjs). Hand-rolled
+// protocol keeps this dependency-free (nothing to `npm install` / bundle). Only
+// JSON-RPC frames go to stdout; everything else must use stderr.
 
 import * as store from './lib/store.mjs';
 import * as projectsStore from './lib/projects-store.mjs';
@@ -23,6 +24,7 @@ import { fileTree, gitStatus, gitDiff } from './lib/project.mjs';
 import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
+import { disabledGroups, dropGroups } from './lib/feature-groups.mjs';
 
 const SERVER_INFO = { name: 'puppeteer', version: '0.1.0' };
 const DEFAULT_PROTOCOL = '2025-06-18';
@@ -1024,6 +1026,8 @@ const tools = {
     },
   },
 };
+// Fixed for the process: a run keeps the tools it was launched with.
+dropGroups(tools, disabledGroups(process.env.PUPPETEER_MCP_DISABLED_GROUPS));
 
 function toolList() {
   return Object.entries(tools).map(([name, t]) => ({
