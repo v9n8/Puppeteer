@@ -18,7 +18,7 @@
 //!   The relay handler checks the same names first (defence in depth), and
 //!   audits those plus the sensitive ones it lets through ([`audited_command`]).
 //! - [`remote_may_set_setting`]: `update_setting` from the bridge writes any
-//!   setting but Remote Control's own.
+//!   setting but Remote Control's own and the Inbox API switch.
 //! - [`SecretPaths`]: file reads from the bridge never return on-disk
 //!   credentials (Puppeteer's app data, `~/.ssh`, cloud CLI logins, …).
 //!
@@ -40,10 +40,11 @@ pub const DENIED: &str = "remote_denied_local_only";
 ///
 /// Rule: everything that changes who can reach this machine, or wipes the
 /// record of who did (Remote Control config, master password, OTP / session
-/// links, kicking a Controller, clearing the audit, Web Push recipients), plus
-/// the plumbing of the CONTROLLING side. Everything else — credentials
-/// included — is the paired device's to manage, like the person at the
-/// keyboard ([`audited_command`] keeps a trace of the sensitive part).
+/// links, kicking a Controller, clearing the audit, Web Push recipients, the
+/// Inbox API's local listener), plus the plumbing of the CONTROLLING side.
+/// Everything else — credentials included — is the paired device's to manage,
+/// like the person at the keyboard ([`audited_command`] keeps a trace of the
+/// sensitive part).
 const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // Remote Control itself: who may connect, and how.
     "remote_enable",
@@ -59,6 +60,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "remote_push_remove",
     "remote_push_set_events",
     "remote_push_test",
+    // Inbox API: opening / closing its local listener.
+    "set_inbox_api_enabled",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -104,11 +107,11 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
     }
 }
 
-/// Whether the bridge may write setting `key`: any but Remote Control's own
-/// (`remote_*`: relay URL, enabled, device id / alias, Web Push recipients and
-/// events — who can reach this machine).
+/// Whether the bridge may write setting `key`: any but those deciding who can
+/// reach this machine — Remote Control's own (`remote_*`: relay URL, enabled,
+/// device id / alias, Web Push recipients and events) and the Inbox API switch.
 pub fn remote_may_set_setting(key: &str) -> bool {
-    !key.is_empty() && !key.starts_with("remote_")
+    !key.is_empty() && !key.starts_with("remote_") && key != crate::inbox_api::ENABLED_SETTING_KEY
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
@@ -157,10 +160,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Backups carry (or overwrite) every secret above.
     "export_settings_backup",
     "import_settings_backup",
-    // Inbox API: its bearer token, its local listener.
+    // Inbox API: its bearer token.
     "get_inbox_api_info",
     "regenerate_inbox_api_token",
-    "set_inbox_api_enabled",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -542,6 +544,7 @@ mod tests {
             "rd_download_append",
             "rd_copy_secret",
             "start_file_drag",
+            "set_inbox_api_enabled",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }
@@ -690,7 +693,6 @@ mod tests {
             "claude_path",
             "codex_path",
             "node_path",
-            "inbox_api_enabled",
             "project_path_map",
             "member",
             "secret_salt",
@@ -704,6 +706,7 @@ mod tests {
             "remote_device_alias",
             "remote_push_events",
             "remote_anything",
+            "inbox_api_enabled",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

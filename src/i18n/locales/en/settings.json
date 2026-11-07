@@ -306,6 +306,7 @@
     "help": "A local HTTP endpoint (127.0.0.1 only) the Chrome extension sends Slack thread links to (/v1/slack-threads). It also offers translation at /v1/translate. Paste the base URL and token into the extension.",
     "enable": "Enable Inbox API",
     "enableHint": "When off, nothing listens on the port.",
+    "remoteDenied": "The Inbox API can only be turned on or off on the host itself, not from a remote desktop.",
     "disabled": "Off",
     "status": "Status",
     "running": "Listening on port {port}",

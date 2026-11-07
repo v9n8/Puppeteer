@@ -1293,6 +1293,10 @@ mod tests {
         // Refused local-only commands leave a trace too.
         let (action, result, _) = audit_of("remote_clear_audit", serde_json::json!({})).unwrap();
         assert_eq!((action.as_str(), result), ("ipc:remote_clear_audit", audit::RESULT_REJECTED));
+        let (action, result, reason) = audit_of("set_inbox_api_enabled", serde_json::json!({ "enabled": true })).unwrap();
+        assert_eq!((action.as_str(), result, reason), ("ipc:set_inbox_api_enabled", audit::RESULT_REJECTED, Some("local_only")));
+        let (action, result, _) = audit_of("update_setting", serde_json::json!({ "key": "inbox_api_enabled", "value": "true" })).unwrap();
+        assert_eq!((action.as_str(), result), ("ipc:update_setting:inbox_api_enabled", audit::RESULT_REJECTED));
         // Everyday work and chatty vault polls are not audited.
         for name in ["list_runs", "start_run", "secret_vault_touch", "secret_vault_status", "secret_notes_list"] {
             assert!(audit_of(name, serde_json::json!({})).is_none(), "{name}");

@@ -306,6 +306,7 @@
     "help": "Endpoint HTTP nội bộ (chỉ 127.0.0.1) để Chrome extension gửi link thread Slack vào Puppeteer (/v1/slack-threads). Ngoài ra có dịch văn bản qua /v1/translate. Dán Base URL và token vào extension.",
     "enable": "Bật Inbox API",
     "enableHint": "Khi tắt, không có gì lắng nghe trên cổng.",
+    "remoteDenied": "Chỉ bật hoặc tắt được Inbox API ngay trên máy host, không đổi được từ remote desktop.",
     "disabled": "Đã tắt",
     "status": "Trạng thái",
     "running": "Đang lắng nghe ở cổng {port}",
