@@ -11,92 +11,137 @@
 //! the legacy `claude:sessions_changed` alias) so the UI refetches the run list
 //! and reloads the open run. Live runs are left untouched — the upsert skips
 //! sessions owned by a still-running Puppeteer run.
+//!
+//! Each store is watched only while its switch (`sessions.mirror_claude`,
+//! `sessions.mirror_codex`) is on; flipping one restarts the watcher at once.
 
-use crate::commands::codex_sessions::{rollout_meta, upsert_codex_session_file};
-use crate::commands::sessions::{encode_project_dir, upsert_claude_session, SyncOutcome};
+use crate::commands::codex_sessions::{rollout_meta, upsert_codex_session_file, CODEX_MIRROR};
+use crate::commands::sessions::{
+    encode_project_dir, upsert_claude_session, SyncOutcome, CLAUDE_MIRROR,
+};
+use crate::features::{self, apply::Change};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use sqlx::{Pool, Sqlite};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Coalesce the burst of events the engines emit while appending to a transcript.
 const DEBOUNCE: Duration = Duration::from_millis(400);
 
-/// Start watching the Claude and Codex transcript stores for changes. Spawns a
-/// background thread that owns the OS watcher and a batching loop; returns
-/// immediately. A failure to set up the watcher is logged and otherwise ignored
-/// (the on-focus / project-open reconcile paths still keep Puppeteer in sync).
+/// The OS watcher now running. Dropping it unregisters every watch and closes
+/// its channel, which ends the batching thread. The lock is held while the
+/// switches are read, so racing restarts end on the latest write.
+static WATCHER: tokio::sync::Mutex<Option<RecommendedWatcher>> =
+    tokio::sync::Mutex::const_new(None);
+
+/// Start watching the transcript stores whose switch is on (app setup). A
+/// failure to set up the watcher is logged and otherwise ignored (the on-focus /
+/// project-open reconcile paths still keep Puppeteer in sync).
 pub fn start(db: Pool<Sqlite>, app: AppHandle) {
+    tauri::async_runtime::block_on(follow(db, app));
+}
+
+/// `features::apply` hook: re-watch as soon as either mirror switch changes,
+/// including through its module.
+pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
+    let same = |id| features::effective(change.before, id) == features::effective(change.after, id);
+    if same(CLAUDE_MIRROR) && same(CODEX_MIRROR) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let db = app.state::<crate::db::Db>().inner().clone();
+        follow(db, app).await;
+    });
+}
+
+/// Replace the running watcher with one over the stores the switches allow now.
+async fn follow(db: Pool<Sqlite>, app: AppHandle) {
+    let mut slot = WATCHER.lock().await;
+    *slot = None;
     let Some(home) = std::env::var_os("HOME") else {
         return;
     };
-    let home = PathBuf::from(home);
-    let mut roots = vec![
-        home.join(".claude").join("projects"),
-        home.join(".codex").join("sessions"),
-    ];
-    // Also watch every managed Claude account's transcript store, so external
-    // CLI/VS Code sessions run under a multi-account profile mirror in live too
-    // (AC-011). Accounts added later are still picked up by the on-open reconcile.
-    for cfg in
-        tauri::async_runtime::block_on(crate::commands::claude_accounts::account_config_dirs(&db))
-    {
-        roots.push(PathBuf::from(cfg).join("projects"));
-    }
-    if roots.iter().all(|r| !r.is_dir()) {
-        return;
-    }
+    let claude = features::is_on(&db, CLAUDE_MIRROR).await;
+    let codex = features::is_on(&db, CODEX_MIRROR).await;
+    let accounts = if claude {
+        crate::commands::claude_accounts::account_config_dirs(&db).await
+    } else {
+        Vec::new()
+    };
+    let roots = watch_roots(Path::new(&home), &accounts, claude, codex);
+    *slot = watch(&roots, move |path| {
+        let db = db.clone();
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            handle_change(&db, &app, &path).await;
+        });
+    });
+}
 
-    std::thread::spawn(move || {
-        use notify::{RecursiveMode, Watcher};
+/// The directories to watch: `~/.claude/projects` plus every managed Claude
+/// account's `projects` while `claude` is on (so external CLI/VS Code sessions
+/// run under a multi-account profile mirror in live too, AC-011; accounts added
+/// later are still picked up by the on-open reconcile), and `~/.codex/sessions`
+/// while `codex` is on.
+fn watch_roots(home: &Path, account_dirs: &[String], claude: bool, codex: bool) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if claude {
+        roots.push(home.join(".claude").join("projects"));
+        roots.extend(account_dirs.iter().map(|cfg| PathBuf::from(cfg).join("projects")));
+    }
+    if codex {
+        roots.push(home.join(".codex").join("sessions"));
+    }
+    roots
+}
 
-        let (tx, rx) = std::sync::mpsc::channel();
-        let mut watcher = match notify::recommended_watcher(move |res| {
-            let _ = tx.send(res);
-        }) {
-            Ok(w) => w,
-            Err(e) => {
-                eprintln!("[session_watcher] failed to create watcher: {e}");
-                return;
-            }
-        };
-        for root in &roots {
-            if root.is_dir() {
-                if let Err(e) = watcher.watch(root, RecursiveMode::Recursive) {
-                    eprintln!("[session_watcher] failed to watch {}: {e}", root.display());
-                }
-            }
+/// Watch the `roots` that exist, handing each touched transcript to
+/// `on_change` from a background batching thread. `None` when there is nothing
+/// to watch or the OS watcher cannot be created.
+fn watch(roots: &[PathBuf], on_change: impl Fn(PathBuf) + Send + 'static) -> Option<RecommendedWatcher> {
+    let roots: Vec<&PathBuf> = roots.iter().filter(|r| r.is_dir()).collect();
+    if roots.is_empty() {
+        return None;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = match notify::recommended_watcher(move |res| {
+        let _ = tx.send(res);
+    }) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[session_watcher] failed to create watcher: {e}");
+            return None;
         }
+    };
+    for root in roots {
+        if let Err(e) = watcher.watch(root, RecursiveMode::Recursive) {
+            eprintln!("[session_watcher] failed to watch {}: {e}", root.display());
+        }
+    }
 
-        // Keep the watcher alive for the lifetime of this thread.
-        let _watcher = watcher;
-
-        loop {
-            // Block until something changes, then drain a short debounce window
-            // so a flurry of line-appends becomes one reconcile per file.
-            let first = match rx.recv() {
-                Ok(ev) => ev,
-                Err(_) => break, // sender dropped — app shutting down
-            };
-            let mut files: HashSet<PathBuf> = HashSet::new();
-            collect(first, &mut files);
-            let deadline = std::time::Instant::now() + DEBOUNCE;
-            while let Ok(ev) =
-                rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
-            {
-                collect(ev, &mut files);
-            }
-
-            for path in files {
-                let db = db.clone();
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    handle_change(&db, &app, &path).await;
-                });
-            }
+    std::thread::spawn(move || loop {
+        // Block until something changes, then drain a short debounce window
+        // so a flurry of line-appends becomes one reconcile per file.
+        let first = match rx.recv() {
+            Ok(ev) => ev,
+            Err(_) => break, // watcher dropped — switched off or app shutting down
+        };
+        let mut files: HashSet<PathBuf> = HashSet::new();
+        collect(first, &mut files);
+        let deadline = std::time::Instant::now() + DEBOUNCE;
+        while let Ok(ev) =
+            rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+        {
+            collect(ev, &mut files);
+        }
+        for path in files {
+            on_change(path);
         }
     });
+    Some(watcher)
 }
 
 /// Collect touched `*.jsonl` transcript paths from a watcher event.
@@ -210,5 +255,49 @@ async fn upsert_for_project(
             let _ = app.emit("claude:sessions_changed", &payload);
         }
         return; // a project is uniquely identified
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watch_roots_follow_the_switches() {
+        let home = Path::new("/h");
+        let accounts = ["/acc".to_string()];
+        let roots = |claude, codex| watch_roots(home, &accounts, claude, codex);
+        let claude = [PathBuf::from("/h/.claude/projects"), PathBuf::from("/acc/projects")];
+        let codex = PathBuf::from("/h/.codex/sessions");
+
+        assert_eq!(roots(true, true), [claude[0].clone(), claude[1].clone(), codex.clone()]);
+        assert_eq!(roots(true, false), claude);
+        assert_eq!(roots(false, true), [codex]);
+        assert!(roots(false, false).is_empty());
+    }
+
+    #[test]
+    fn dropping_the_watcher_ends_its_thread() {
+        let dir = std::env::temp_dir().join(format!("puppeteer_watch_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(watch(&[dir.join("missing")], |_| {}).is_none(), "nothing to watch");
+
+        let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
+        let watcher = watch(&[dir.clone()], move |p| {
+            let _ = tx.send(p);
+        })
+        .expect("watching");
+        drop(watcher);
+        // The thread owns `on_change` (and so `tx`): the channel closes only
+        // once the thread has exited.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let ended = loop {
+            match rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
+                Ok(_) => continue,
+                Err(e) => break e == std::sync::mpsc::RecvTimeoutError::Disconnected,
+            }
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(ended, "thread still running after the watcher was dropped");
     }
 }

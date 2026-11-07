@@ -23,6 +23,9 @@ use std::path::{Path, PathBuf};
 use tauri::State;
 use uuid::Uuid;
 
+/// Feature switch for mirroring the Claude transcript stores.
+pub(crate) const CLAUDE_MIRROR: &str = "sessions.mirror_claude";
+
 /// Encode an absolute path the way Claude Code names its per-project session
 /// directory: every non-alphanumeric character becomes `-`
 /// (e.g. `/Users/x/Tools/puppeteer` → `-Users-x-Tools-puppeteer`).
@@ -589,17 +592,26 @@ pub async fn reconcile_claude_sessions(
     db: State<'_, Db>,
     project_id: String,
 ) -> Result<i64, String> {
+    reconcile_claude(db.inner(), &project_id).await
+}
+
+/// [`reconcile_claude_sessions`]: 0 without reading the store while
+/// [`CLAUDE_MIRROR`] is off.
+async fn reconcile_claude(db: &Db, project_id: &str) -> Result<i64, String> {
     use sqlx::Row;
 
+    if !crate::features::is_on(db, CLAUDE_MIRROR).await {
+        return Ok(0);
+    }
     let row = sqlx::query("SELECT name, path FROM projects WHERE id = ?")
-        .bind(&project_id)
-        .fetch_one(db.inner())
+        .bind(project_id)
+        .fetch_one(db)
         .await
         .map_err(|e| e.to_string())?;
     let project_name: String = row.get("name");
     let project_path: String = row.get("path");
 
-    let dirs = claude_sessions_dirs(db.inner(), &project_path).await;
+    let dirs = claude_sessions_dirs(db, &project_path).await;
     if dirs.is_empty() {
         return Ok(0);
     }
@@ -625,8 +637,8 @@ pub async fn reconcile_claude_sessions(
                 continue;
             }
             match upsert_claude_session(
-                db.inner(),
-                &project_id,
+                db,
+                project_id,
                 &project_name,
                 &project_path,
                 session_id,
@@ -739,5 +751,23 @@ mod tests {
         let f = temp_file("usage", content);
         assert!(parse_transcript(&f, "/proj").is_none());
         let _ = fs::remove_file(&f);
+    }
+
+    #[tokio::test]
+    async fn reconcile_returns_zero_while_mirror_claude_is_off() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        // On, it looks the project up (and there is none).
+        assert!(reconcile_claude(&db, "nope").await.is_err());
+        sqlx::query("INSERT INTO settings (key, value) VALUES (?, 'false')")
+            .bind(format!("feature.{CLAUDE_MIRROR}"))
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(reconcile_claude(&db, "nope").await, Ok(0));
     }
 }

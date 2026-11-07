@@ -18,7 +18,10 @@ pub struct Change<'a> {
 pub type Hook = fn(&AppHandle, &Change<'_>);
 
 /// One hook per background service (D0-09 … D0-17).
-const HOOKS: &[Hook] = &[crate::inbox_api::server::on_features_changed];
+const HOOKS: &[Hook] = &[
+    crate::inbox_api::server::on_features_changed,
+    crate::runs::session_watcher::on_features_changed,
+];
 
 /// Run the hooks, then emit [`CHANGED_EVENT`].
 pub fn changed(app: &AppHandle, before: &[ModuleState], after: &[ModuleState]) {

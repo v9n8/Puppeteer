@@ -24,6 +24,9 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tauri::State;
 
+/// Feature switch for mirroring the Codex rollout store.
+pub(crate) const CODEX_MIRROR: &str = "sessions.mirror_codex";
+
 /// `~/.codex/sessions`, the root of the rollout store.
 pub(crate) fn codex_sessions_root() -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
@@ -363,11 +366,20 @@ pub async fn reconcile_codex_sessions(
     db: State<'_, Db>,
     project_id: String,
 ) -> Result<i64, String> {
+    reconcile_codex(db.inner(), &project_id).await
+}
+
+/// [`reconcile_codex_sessions`]: 0 without reading the store while
+/// [`CODEX_MIRROR`] is off.
+async fn reconcile_codex(db: &Db, project_id: &str) -> Result<i64, String> {
     use sqlx::Row;
 
+    if !crate::features::is_on(db, CODEX_MIRROR).await {
+        return Ok(0);
+    }
     let row = sqlx::query("SELECT name, path FROM projects WHERE id = ?")
-        .bind(&project_id)
-        .fetch_one(db.inner())
+        .bind(project_id)
+        .fetch_one(db)
         .await
         .map_err(|e| e.to_string())?;
     let project_name: String = row.get("name");
@@ -386,8 +398,8 @@ pub async fn reconcile_codex_sessions(
             continue;
         }
         match upsert_codex_session_file(
-            db.inner(),
-            &project_id,
+            db,
+            project_id,
             &project_name,
             &project_path,
             &thread_id,
@@ -404,7 +416,7 @@ pub async fn reconcile_codex_sessions(
     // Populate the Codex plan-usage snapshot from the newest rollout so the
     // budget badge / settings panel show a % even before the first live run.
     if let Some(rl) = latest_codex_rate_limits_any(&root) {
-        persist_codex_plan_usage(db.inner(), &rl).await;
+        persist_codex_plan_usage(db, &rl).await;
     }
     Ok(changed)
 }
@@ -712,5 +724,23 @@ mod tests {
         assert_eq!(got, want);
         assert!(!got.contains(&other));
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn reconcile_returns_zero_while_mirror_codex_is_off() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        // On, it looks the project up (and there is none).
+        assert!(reconcile_codex(&db, "nope").await.is_err());
+        sqlx::query("INSERT INTO settings (key, value) VALUES (?, 'false')")
+            .bind(format!("feature.{CODEX_MIRROR}"))
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(reconcile_codex(&db, "nope").await, Ok(0));
     }
 }
