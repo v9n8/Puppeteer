@@ -3,6 +3,7 @@ mod azure_sandbox;
 mod commands;
 mod conductor;
 mod db;
+mod features;
 mod focus;
 mod github;
 mod gitlab;
@@ -447,6 +448,7 @@ pub fn run() {
             commands::autostart::autostart_set,
             get_settings,
             update_setting,
+            features::commands::get_features,
             export_settings_backup,
             inspect_settings_backup,
             import_settings_backup,
