@@ -18,6 +18,9 @@ import CalendarView from '../views/CalendarView.vue'
 import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
+import { NAV_ROUTES } from '../lib/navigation'
+import { routeFeature } from '../lib/featureGate'
+import { useFeaturesStore } from '../stores/features'
 
 // Skills / Rules / MCP / Servers edit in their list's detail pane now; the old
 // editor URLs redirect there so stale links keep working.
@@ -93,6 +96,15 @@ const router = createRouter({
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
   ],
+})
+
+// A destination whose feature is off is turned away whichever way it was reached
+// (typed URL, deep link, a pop-out asking this window to navigate). Runs before
+// the `beforeEnter` diverts above, so those never open a window for it.
+router.beforeEach(async (to) => {
+  const feature = routeFeature(to.path, NAV_ROUTES)
+  if (feature === undefined) return true
+  return (await useFeaturesStore().isOnAfterLoad(feature)) ? true : '/projects'
 })
 
 export default router

@@ -42,6 +42,8 @@ import { useBackgroundProcessesStore } from '@/stores/backgroundProcesses'
 import { TRAY_PROCS_ID, trayCount } from '@/lib/backgroundProcesses'
 import { useFocusStore } from '@/stores/focus'
 import { TRAY_FOCUS_ID, trayBadge } from '@/lib/focusTray'
+import { useFeaturesStore } from '@/stores/features'
+import { MENU_ACTION_FEATURES, allowsFeature } from '@/lib/featureGate'
 
 type TrayItem =
   | { kind: 'item'; id: string; label: string }
@@ -182,6 +184,7 @@ export function buildSessionItems(): TrayItem[] {
 // window to create it — `focus:open-window`). Lives in the main-window-owned
 // section because only the main window keeps the board loaded.
 function buildFocusItems(): TrayItem[] {
+  if (!useFeaturesStore().isOn('productivity.focus')) return []
   const overdue = useFocusStore().overdueCount
   return [
     {
@@ -326,10 +329,13 @@ export async function refreshTray(): Promise<void> {
     // windows omit `title` / `sessions` entirely so they can't clobber what the
     // main window set (see tray.rs).
     // Quick capture without bringing up the main window first.
+    const tree = useFeaturesStore().tree
     const actions: TrayItem[] = [
-      { kind: 'item', id: menuActionId('file.newTodo'), label: t('menu.newTodo') },
-      { kind: 'item', id: menuActionId('file.newNote'), label: t('menu.newNote') },
+      ['file.newTodo', 'menu.newTodo'],
+      ['file.newNote', 'menu.newNote'],
     ]
+      .filter(([action]) => allowsFeature(tree, MENU_ACTION_FEATURES[action]))
+      .map(([action, labelKey]): TrayItem => ({ kind: 'item', id: menuActionId(action), label: t(labelKey) }))
 
     const spec: {
       actions: TrayItem[]

@@ -71,5 +71,14 @@ export const useFeaturesStore = defineStore('features', () => {
     return isFeatureOn(tree.value, id)
   }
 
-  return { tree, loaded, error, start, isOn }
+  /**
+   * `isOn` once the first load is done — for entries reached before the
+   * sidebar renders (a cold-start deep link, a backend event).
+   */
+  async function isOnAfterLoad(id: string): Promise<boolean> {
+    await start()
+    return isOn(id)
+  }
+
+  return { tree, loaded, error, start, isOn, isOnAfterLoad }
 })

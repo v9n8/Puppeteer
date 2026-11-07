@@ -13,7 +13,7 @@ import { useUILayoutStore } from '@/stores/uiLayout'
 import { useFeaturesStore } from '@/stores/features'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
-import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, Slack, StickyNote } from 'lucide-vue-next'
+import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, StickyNote } from 'lucide-vue-next'
 import PermissionNotifier from '@/components/PermissionNotifier.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
@@ -66,7 +66,8 @@ import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { remoteFs } from '@/lib/ipc/native'
-import { NAV_ROUTES, startsNavGroup } from '@/lib/navigation'
+import { NAV_ROUTES } from '@/lib/navigation'
+import { filterByFeature, popoutFeature, startsGroup } from '@/lib/featureGate'
 import { IS_SESSION_WINDOW, SESSION_WINDOW_PROJECT_ID, SESSION_WINDOW_RUN_ID } from '@/lib/windowMode'
 import IssuesGanttView from '@/views/IssuesGanttView.vue'
 import { getVersion } from '@tauri-apps/api/app'
@@ -113,6 +114,8 @@ const isPopoutWindow =
   isCalendarWindow ||
   isFocusWindow ||
   isFileTransferWindow
+// The feature a gated pop-out (Focus, PR Inbox, Todos, …) belongs to, if this is one.
+const gatedPopout = popoutFeature(window.location.search)
 
 const route = useRoute()
 const router = useRouter()
@@ -127,6 +130,7 @@ const runsStore = useRunsStore()
 const conductorStore = useConductorStore()
 const bgProcs = useBackgroundProcessesStore()
 const features = useFeaturesStore()
+const gatedPopoutOn = computed(() => !!gatedPopout && features.loaded && features.isOn(gatedPopout))
 // Agent-reactive aurora (`<html data-agent-state>`) — main window only.
 if (!isPopoutWindow && !isSessionWindow) useAgentAmbient()
 const draftsStore = useChatDraftsStore()
@@ -465,7 +469,13 @@ let unlistenMenu: UnlistenFn | null = null
 // setting is what *drives* the switch, `locale` is what has actually applied.
 watch(
   () =>
-    [locale.value, uiLayout.sidebarHidden, uiLayout.focusMode, isMenuActionBound('file.newSession')] as const,
+    [
+      locale.value,
+      uiLayout.sidebarHidden,
+      uiLayout.focusMode,
+      isMenuActionBound('file.newSession'),
+      features.tree,
+    ] as const,
   () => {
     if (isPopoutWindow || isSessionWindow) return
     applyAppMenu({ sidebarHidden: uiLayout.sidebarHidden, focusMode: uiLayout.focusMode })
@@ -473,8 +483,9 @@ watch(
 )
 
 // Rebuild the tray on language change so its static labels (Main Window / Quit)
-// follow the app language, matching the app menu above.
-watch(locale, () => {
+// follow the app language, matching the app menu above; and on a feature switch,
+// which adds or drops its quick actions.
+watch([locale, () => features.tree], () => {
   if (isSessionWindow) return
   void refreshTray()
 })
@@ -530,15 +541,18 @@ onMounted(async () => {
   }
 })
 
-// Same source of truth as the native "Go" menu (see lib/navigation.ts).
+// Same source of truth as the native "Go" menu (see lib/navigation.ts). Empty
+// until the feature switches load, so a gated entry never shows, then vanishes.
 const navItems = computed(() =>
-  NAV_ROUTES.map((r) => ({
-    path: r.path,
-    label: t(r.labelKey),
-    icon: r.icon,
-    group: r.group,
-    openWindow: r.openWindow,
-  })),
+  features.loaded
+    ? filterByFeature(NAV_ROUTES, features.tree).map((r) => ({
+        path: r.path,
+        label: t(r.labelKey),
+        icon: r.icon,
+        group: r.group,
+        openWindow: r.openWindow,
+      }))
+    : [],
 )
 
 const isDark = ref(false)
@@ -778,8 +792,23 @@ onMounted(async () => {
 </script>
 
 <template>
+  <!-- A gated pop-out whose feature is off (or, blank, not loaded yet): a notice
+       instead of the window, so one left open when the switch flipped stops. -->
+  <div
+    v-if="gatedPopout && !gatedPopoutOn"
+    class="app-shell flex h-screen w-screen items-center justify-center bg-background p-6 text-foreground"
+  >
+    <div v-if="features.loaded" class="flex max-w-sm flex-col items-center gap-3 text-center">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+        <PowerOff class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
+      </div>
+      <p class="text-sm font-semibold">{{ t('features.disabled.title') }}</p>
+      <p class="text-xs text-muted-foreground">{{ t('features.disabled.body') }}</p>
+    </div>
+  </div>
+
   <!-- Pop-out file viewer window: bare layout, no app chrome. -->
-  <FileViewerWindow v-if="isFileWindow" />
+  <FileViewerWindow v-else-if="isFileWindow" />
 
   <!-- Pop-out permission prompt window: bare layout, mirrors the main window. -->
   <PermissionWindow v-else-if="isPermissionWindow" />
@@ -902,8 +931,9 @@ onMounted(async () => {
                    screen (or running session) is underneath survives untouched.
                    They close out the daily-work group, right before the config
                    screens. -->
-              <template v-if="startsNavGroup(index) && item.group === 'config'">
+              <template v-if="startsGroup(navItems, index) && item.group === 'config'">
                 <button
+                  v-if="features.isOn('productivity.todos')"
                   type="button"
                   class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   :title="t('item.navTodos')"
@@ -914,6 +944,7 @@ onMounted(async () => {
                 </button>
 
                 <button
+                  v-if="features.isOn('productivity.notes')"
                   type="button"
                   class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   :title="t('item.navNotes')"
@@ -925,6 +956,7 @@ onMounted(async () => {
 
                 <!-- Secret notes: their own window. -->
                 <button
+                  v-if="features.isOn('security.secret_vault')"
                   type="button"
                   class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   :title="t('secretNotes.nav')"
@@ -936,6 +968,7 @@ onMounted(async () => {
 
                 <!-- Slack threads have their own window. -->
                 <button
+                  v-if="features.isOn('integrations.slack')"
                   type="button"
                   class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   :title="t('slackThread.nav')"
@@ -947,7 +980,7 @@ onMounted(async () => {
               </template>
 
               <!-- Divider between nav groups (daily work / agent config / app). -->
-              <div v-if="startsNavGroup(index)" class="mx-3 !my-2 border-t border-border/50" />
+              <div v-if="startsGroup(navItems, index)" class="mx-3 !my-2 border-t border-border/50" />
 
               <!-- Destinations with their own window (PR Inbox) open it, like
                    the Slack button above, instead of routing. -->

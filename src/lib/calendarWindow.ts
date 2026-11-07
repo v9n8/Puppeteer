@@ -8,6 +8,7 @@ import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import type { CalEvent } from '@/stores/googleCalendar'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const CALENDAR_WINDOW_LABEL = 'calendar'
@@ -54,6 +55,8 @@ async function focusWindow(win: WebviewWindow) {
 export async function openCalendarWindow(
   opts: OpenCalendarWindowOptions = {},
 ): Promise<WebviewWindow | null> {
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('productivity.calendar'))) return null
   // A creation started by another caller: its ready handshake delivers the event.
   if (creating) {
     if (opts.event) pendingEvent = opts.event

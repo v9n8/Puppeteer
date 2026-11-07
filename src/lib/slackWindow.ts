@@ -8,6 +8,7 @@ import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const SLACK_WINDOW_LABEL = 'slack-threads'
@@ -71,6 +72,8 @@ export interface OpenSlackWindowOptions {
 export async function openSlackWindow(
   opts: OpenSlackWindowOptions = {},
 ): Promise<WebviewWindow | null> {
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('integrations.slack'))) return null
   const projectId = opts.projectId ?? null
 
   const existing = await WebviewWindow.getByLabel(popoutLabel(SLACK_WINDOW_LABEL))

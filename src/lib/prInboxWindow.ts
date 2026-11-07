@@ -6,6 +6,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const PR_INBOX_WINDOW_LABEL = 'pr-inbox'
@@ -38,6 +39,8 @@ async function focusWindow(win: WebviewWindow) {
 }
 
 export async function openPrInboxWindow(): Promise<WebviewWindow | null> {
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('code_hosting.pr_inbox'))) return null
   // A creation started by another caller: wait for it, then just focus.
   if (creating) {
     const win = await creating

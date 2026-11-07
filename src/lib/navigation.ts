@@ -42,25 +42,25 @@ export interface NavRoute {
    * of routing, and the route itself diverts to it.
    */
   openWindow?: () => unknown
+  /**
+   * Module or prop id (lib/featureGate) the destination belongs to: while it is
+   * off, the sidebar and Go menu drop the entry and the router turns the path away.
+   */
+  feature?: string
 }
 
 export const NAV_ROUTES: NavRoute[] = [
   { path: '/projects', labelKey: 'nav.projects', icon: FolderOpen, group: 'work' },
-  { path: '/focus', labelKey: 'nav.focus', icon: Target, group: 'work', openWindow: openFocusWindow },
-  { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'work', openWindow: openPrInboxWindow },
-  { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'work', openWindow: () => openCalendarWindow() },
-  { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'work', openWindow: () => openGanttWindow() },
+  { path: '/focus', labelKey: 'nav.focus', icon: Target, group: 'work', openWindow: openFocusWindow, feature: 'productivity.focus' },
+  { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'work', openWindow: openPrInboxWindow, feature: 'code_hosting.pr_inbox' },
+  { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'work', openWindow: () => openCalendarWindow(), feature: 'productivity.calendar' },
+  { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'work', openWindow: () => openGanttWindow(), feature: 'code_hosting.gantt' },
   { path: '/skills', labelKey: 'nav.skills', icon: Puzzle, group: 'config' },
   { path: '/rules', labelKey: 'nav.rules', icon: ScrollText, group: 'config' },
   { path: '/mcp', labelKey: 'nav.mcp', icon: Server, group: 'config' },
-  { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'config' },
-  { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'app' },
+  { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'config', feature: 'infra_access.vps' },
+  { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'app', feature: 'usage.stats' },
   { path: '/processes', labelKey: 'nav.processes', icon: Cpu, group: 'app' },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings, group: 'app' },
   { path: '/about', labelKey: 'nav.about', icon: Info, group: 'app' },
 ]
-
-/** True when `NAV_ROUTES[index]` starts a new group (and so gets a divider). */
-export function startsNavGroup(index: number): boolean {
-  return index > 0 && NAV_ROUTES[index].group !== NAV_ROUTES[index - 1].group
-}

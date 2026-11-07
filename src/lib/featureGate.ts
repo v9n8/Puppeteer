@@ -54,5 +54,69 @@ export function isFeatureOn(tree: FeatureTree, id: string): boolean {
 
 /** Items without a `feature`, plus those whose feature is on (order kept). */
 export function filterByFeature<T extends { feature?: string }>(items: T[], tree: FeatureTree): T[] {
-  return items.filter((item) => item.feature === undefined || isFeatureOn(tree, item.feature))
+  return items.filter((item) => allowsFeature(tree, item.feature))
+}
+
+/** Ungated (`feature` unset) or on. */
+export function allowsFeature(tree: FeatureTree, feature: string | undefined): boolean {
+  return feature === undefined || isFeatureOn(tree, feature)
+}
+
+/**
+ * True when `items[index]` starts a new group (and so gets a divider). Run on
+ * the filtered list, so a hidden entry never leaves a doubled or dangling one.
+ */
+export function startsGroup(items: readonly { group: string }[], index: number): boolean {
+  return index > 0 && items[index].group !== items[index - 1].group
+}
+
+interface GatedRoute {
+  path: string
+  feature?: string
+}
+
+/** The feature a path needs: that of the gated route it is, or lies under. */
+export function routeFeature(path: string, routes: readonly GatedRoute[]): string | undefined {
+  return routes.find((r) => r.feature && (path === r.path || path.startsWith(`${r.path}/`)))?.feature
+}
+
+/**
+ * App-menu actions (lib/appMenu, also run by the tray's quick actions) that open
+ * a gated window. `go.<path>` actions follow their route instead.
+ */
+export const MENU_ACTION_FEATURES: Readonly<Record<string, string>> = {
+  'file.newTodo': 'productivity.todos',
+  'file.newNote': 'productivity.notes',
+  'window.todoList': 'productivity.todos',
+  'window.noteList': 'productivity.notes',
+  'window.secretNotes': 'security.secret_vault',
+  'window.slackThreads': 'integrations.slack',
+}
+
+/** The feature an app-menu action needs, if any. */
+export function menuActionFeature(id: string, routes: readonly GatedRoute[]): string | undefined {
+  if (id.startsWith('go.')) return routes.find((r) => r.path === id.slice(3))?.feature
+  return MENU_ACTION_FEATURES[id]
+}
+
+// Query flag of each gated pop-out kind (App.vue) → its feature.
+const POPOUT_FEATURES: readonly (readonly [string, string])[] = [
+  ['focusWindow', 'productivity.focus'],
+  ['prInboxWindow', 'code_hosting.pr_inbox'],
+  ['calendarWindow', 'productivity.calendar'],
+  ['ganttWindow', 'code_hosting.gantt'],
+  ['secretNotesWindow', 'security.secret_vault'],
+  ['slackWindow', 'integrations.slack'],
+]
+
+/**
+ * The feature a pop-out window needs, from its URL query (`?focusWindow=1`).
+ * The list window serves both todos and notes, so its `kind` decides.
+ */
+export function popoutFeature(search: string): string | undefined {
+  const q = new URLSearchParams(search)
+  if (q.get('itemListWindow') === '1') {
+    return q.get('kind') === 'note' ? 'productivity.notes' : 'productivity.todos'
+  }
+  return POPOUT_FEATURES.find(([flag]) => q.get(flag) === '1')?.[1]
 }

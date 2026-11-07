@@ -10,11 +10,14 @@ import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 const GANTT_WINDOW_LABEL = 'gantt'
 
 /** Open (or focus) the standalone Gantt window, optionally on a given project. */
-export async function openGanttWindow(projectId?: string): Promise<WebviewWindow> {
+export async function openGanttWindow(projectId?: string): Promise<WebviewWindow | null> {
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('code_hosting.gantt'))) return null
   const existing = await WebviewWindow.getByLabel(popoutLabel(GANTT_WINDOW_LABEL))
   if (existing) {
     try {

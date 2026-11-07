@@ -11,6 +11,7 @@ import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; the backend allows the vault commands from this window only. */
 export const SECRET_NOTES_WINDOW_LABEL = 'secret-notes'
@@ -34,7 +35,9 @@ export interface OpenSecretNotesWindowOptions {
 
 export async function openSecretNotesWindow(
   opts: OpenSecretNotesWindowOptions = {},
-): Promise<WebviewWindow> {
+): Promise<WebviewWindow | null> {
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('security.secret_vault'))) return null
   const projectId = opts.projectId ?? null
   const label = popoutLabel(SECRET_NOTES_WINDOW_LABEL)
 

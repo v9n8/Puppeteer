@@ -3,9 +3,14 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
 import { i18n } from '@/i18n'
 import { NAV_ROUTES } from '@/lib/navigation'
+import { allowsFeature, filterByFeature, menuActionFeature, startsGroup } from '@/lib/featureGate'
+import { useFeaturesStore } from '@/stores/features'
 
 /**
  * Native menu bar (File / Edit / View / Go / Window / Help).
+ *
+ * Items whose feature switch is off are left out (lib/featureGate), so the menu
+ * is also rebuilt on `features:changed`.
  *
  * Tauri ships a default menu with nothing app-specific in it. This module
  * replaces it: the spec below is sent to the `set_app_menu` command, and Rust
@@ -59,11 +64,24 @@ const SEPARATOR: ItemSpec = { kind: 'separator' }
 // leaves them out rather than listing them twice.
 const GO_MENU_EXCLUDED = new Set(['/settings', '/about'])
 
+// False while the feature the action opens is switched off.
+function actionAllowed(id: string): boolean {
+  return allowsFeature(useFeaturesStore().tree, menuActionFeature(id, NAV_ROUTES))
+}
+
+/** Drop the items whose feature is off. */
+function gated(items: ItemSpec[]): ItemSpec[] {
+  return items.filter((item) => item.kind !== 'item' || actionAllowed(item.id))
+}
+
 function goMenuItems(): ItemSpec[] {
-  const routes = NAV_ROUTES.filter((r) => !GO_MENU_EXCLUDED.has(r.path))
+  const routes = filterByFeature(
+    NAV_ROUTES.filter((r) => !GO_MENU_EXCLUDED.has(r.path)),
+    useFeaturesStore().tree,
+  )
   return routes.flatMap((route, index): ItemSpec[] => [
     // Same grouping as the sidebar dividers.
-    ...(index > 0 && route.group !== routes[index - 1].group ? [SEPARATOR] : []),
+    ...(startsGroup(routes, index) ? [SEPARATOR] : []),
     { kind: 'item', id: `go.${route.path}`, label: t(route.labelKey) },
   ])
 }
@@ -115,8 +133,10 @@ function buildSpec(state: MenuState): MenuSpec {
         // greyed out elsewhere instead of silently doing nothing.
         enabled: isMenuActionBound('file.newSession'),
       },
-      { kind: 'item', id: 'file.newTodo', label: t('menu.newTodo') },
-      { kind: 'item', id: 'file.newNote', label: t('menu.newNote') },
+      ...gated([
+        { kind: 'item', id: 'file.newTodo', label: t('menu.newTodo') },
+        { kind: 'item', id: 'file.newNote', label: t('menu.newNote') },
+      ]),
       SEPARATOR,
       ...(IS_MAC
         ? [os('closeWindow', 'menu.closeWindow')]
@@ -165,17 +185,20 @@ function buildSpec(state: MenuState): MenuSpec {
 
   submenus.push({ label: t('menu.go'), items: goMenuItems() })
 
+  const featureWindows = gated([
+    { kind: 'item', id: 'window.todoList', label: t('menu.todoList') },
+    { kind: 'item', id: 'window.noteList', label: t('menu.noteList') },
+    { kind: 'item', id: 'window.secretNotes', label: t('menu.secretNotes') },
+    { kind: 'item', id: 'window.slackThreads', label: t('menu.slackThreads') },
+  ])
   submenus.push({
     label: t('menu.window'),
     items: [
       os('minimize', 'menu.minimize'),
       os('maximize', IS_MAC ? 'menu.zoom' : 'menu.maximize'),
       SEPARATOR,
-      { kind: 'item', id: 'window.todoList', label: t('menu.todoList') },
-      { kind: 'item', id: 'window.noteList', label: t('menu.noteList') },
-      { kind: 'item', id: 'window.secretNotes', label: t('menu.secretNotes') },
-      { kind: 'item', id: 'window.slackThreads', label: t('menu.slackThreads') },
-      SEPARATOR,
+      // No doubled separator when every one of them is off.
+      ...(featureWindows.length ? [...featureWindows, SEPARATOR] : []),
       { kind: 'windowList' },
       ...(IS_MAC ? [SEPARATOR, os('bringAllToFront', 'menu.bringAllToFront')] : []),
     ],
@@ -237,6 +260,8 @@ export function isMenuActionBound(id: string): boolean {
 }
 
 function runMenuAction(id: string): void {
+  // The menu (or tray) may still show an item whose feature was just turned off.
+  if (!actionAllowed(id)) return
   handlers.get(id)?.()
 }
 

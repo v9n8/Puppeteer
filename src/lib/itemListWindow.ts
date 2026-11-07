@@ -17,6 +17,7 @@ import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import type { ItemKind } from '@/lib/itemWindow'
 import { openSlackWindow } from '@/lib/slackWindow'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { useFeaturesStore } from '@/stores/features'
 
 /**
  * The list windows' kinds: todos and notes. Slack threads have their own window
@@ -73,6 +74,10 @@ export async function openItemListWindow(
   const projectId = opts.projectId ?? null
   // Slack threads moved out of this list into their own window.
   if (kind === 'slack') return openSlackWindow({ projectId, id: opts.id ?? undefined })
+  // Off: no window, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad(kind === 'note' ? 'productivity.notes' : 'productivity.todos'))) {
+    return null
+  }
 
   const label = itemListWindowLabel(kind)
   const existing = await WebviewWindow.getByLabel(label)
