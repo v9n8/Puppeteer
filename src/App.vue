@@ -616,7 +616,19 @@ onMounted(async () => {
     }
     return
   }
-  void focusStore.start()
+  // The board behind the sidebar badge and the tray row refetches every 60 s:
+  // only while Focus is on, stopped as soon as it is switched off.
+  let focusPolling = false
+  watch(
+    () => features.loaded && features.isOn('productivity.focus'),
+    (on) => {
+      if (on === focusPolling) return
+      focusPolling = on
+      if (on) void focusStore.start()
+      else focusStore.stop()
+    },
+    { immediate: true },
+  )
   // Tracked background processes: counts for the sidebar row + tray, and the
   // first snapshot the startup orphan prompt waits on.
   void bgProcs.start()

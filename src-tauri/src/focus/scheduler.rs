@@ -22,6 +22,7 @@
 
 use super::score::{Bucket, WorkHours};
 use super::settings::FocusSettings;
+use crate::features::is_on;
 use chrono::{Duration, NaiveDateTime, NaiveTime};
 use std::collections::HashSet;
 
@@ -358,6 +359,10 @@ const TICK: std::time::Duration = std::time::Duration::from_secs(60);
 const FIRST_TICK: std::time::Duration = std::time::Duration::from_secs(10);
 /// `todo_notifications` rows kept this long.
 const KEEP_FIRED_DAYS: i64 = 30;
+/// Feature switches the tick follows: reminders need both; the refresh after
+/// outside writes needs either (each one shows todos).
+const FOCUS_FEATURE: &str = "productivity.focus";
+const TODOS_FEATURE: &str = "productivity.todos";
 
 #[derive(Clone, serde::Serialize)]
 struct OpenTodo {
@@ -469,11 +474,37 @@ pub fn signature_changed(sig: String) -> bool {
 }
 
 /// One reminder pass: refresh the boards after outside writes, decide,
-/// record, notify.
+/// record, notify. The switches are read every tick, so turning Focus or Todos
+/// off stops it within a minute without an `apply` hook.
 pub async fn tick(app: &tauri::AppHandle, db: &crate::db::Db) -> Result<usize, String> {
-    use crate::commands::focus::{board_inputs, rank_todos, to_local};
-    if signature_changed(todos_signature(db).await?) {
+    let shown = is_on(db, TODOS_FEATURE).await || is_on(db, FOCUS_FEATURE).await;
+    if shown && signature_changed(todos_signature(db).await?) {
         super::emit_todos_changed(app);
+    }
+    let Some((notices, lang)) = fire(db).await? else {
+        return Ok(0);
+    };
+    let Some((title, body, open)) = compose(&notices, &lang) else {
+        return Ok(0);
+    };
+    crate::commands::notifications::show_clickable_opts(
+        app.clone(),
+        title,
+        body,
+        "focus reminder",
+        false,
+        move |app| open_focus(app, open),
+    );
+    Ok(notices.len())
+}
+
+/// The reminders due now, already recorded in `todo_notifications`, with the
+/// UI language; `None` when nothing is due. The board is not read unless
+/// Focus and Todos are both on: the reminders are about todos on the board.
+async fn fire(db: &crate::db::Db) -> Result<Option<(Vec<Notice>, String)>, String> {
+    use crate::commands::focus::{board_inputs, rank_todos, to_local};
+    if !(is_on(db, TODOS_FEATURE).await && is_on(db, FOCUS_FEATURE).await) {
+        return Ok(None);
     }
     let (settings, todos, samples) = board_inputs(db).await?;
     let now = chrono::Local::now();
@@ -481,7 +512,7 @@ pub async fn tick(app: &tauri::AppHandle, db: &crate::db::Db) -> Result<usize, S
     let wh = settings.work_hours();
     let ranking = rank_todos(todos, &now, &wh, settings.calibration_enabled, &samples);
     if !settings.notify_enabled {
-        return Ok(0);
+        return Ok(None);
     }
     let items: Vec<SchedItem> = ranking
         .rows
@@ -502,20 +533,13 @@ pub async fn tick(app: &tauri::AppHandle, db: &crate::db::Db) -> Result<usize, S
         .collect();
     let lang = language(db).await;
     let notices = decide(now.naive_local(), &settings, &items, &fired_set(db).await?, &lang);
-    let Some((title, body, open)) = compose(&notices, &lang) else {
-        return Ok(0);
-    };
-    // Recorded first: a crash mid-notify must not repeat it every minute.
+    if notices.is_empty() {
+        return Ok(None);
+    }
+    // Recorded before the notification: a crash mid-notify must not repeat it
+    // every minute.
     record(db, &notices).await?;
-    crate::commands::notifications::show_clickable_opts(
-        app.clone(),
-        title,
-        body,
-        "focus reminder",
-        false,
-        move |app| open_focus(app, open),
-    );
-    Ok(notices.len())
+    Ok(Some((notices, lang)))
 }
 
 /// Start the 60 s reminder loop (app setup). Runs while the app runs, with
@@ -693,6 +717,70 @@ mod tests {
         assert!(!signature_changed("s1".into()));
         assert!(!signature_changed("s1".into()));
         assert!(signature_changed("s2".into()));
+    }
+
+    #[tokio::test]
+    async fn switched_off_focus_or_todos_records_nothing() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        // `remind` fires at any hour, so the test does not depend on the clock.
+        let now = chrono::Utc::now();
+        sqlx::query(
+            "INSERT INTO todos (id, text, done, position, created_at, updated_at, remind_at) \
+             VALUES ('a', 'x', 0, 0, ?, ?, ?)",
+        )
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .bind((now - Duration::minutes(1)).to_rfc3339())
+        .execute(&db)
+        .await
+        .unwrap();
+        let set = |key: &'static str, value: &'static str| {
+            let db = db.clone();
+            async move {
+                sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+                    .bind(key)
+                    .bind(value)
+                    .execute(&db)
+                    .await
+                    .unwrap();
+            }
+        };
+        let silent = || async {
+            assert!(fire(&db).await.unwrap().is_none());
+            let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM todo_notifications")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+            assert_eq!(rows, 0);
+        };
+
+        // Fresh install: both off.
+        silent().await;
+        set("feature.productivity.todos", "true").await;
+        silent().await;
+        set("feature.productivity.focus", "true").await;
+        set("feature.productivity.todos", "false").await;
+        silent().await;
+        set("feature.productivity.todos", "true").await;
+        set("feature.productivity", "false").await;
+        silent().await;
+
+        // Everything on: the same todo is reminded of and recorded.
+        set("feature.productivity", "true").await;
+        let (notices, _) = fire(&db).await.unwrap().expect("a reminder is due");
+        assert!(notices.iter().any(|n| n.kind == Kind::Remind && n.todo_id == "a"));
+        let fired: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM todo_notifications WHERE todo_id = 'a' AND kind = 'remind'",
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(fired, 1);
     }
 
     #[test]
