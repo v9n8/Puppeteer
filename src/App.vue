@@ -10,6 +10,7 @@ import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useUILayoutStore } from '@/stores/uiLayout'
+import { useFeaturesStore } from '@/stores/features'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
 import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, Slack, StickyNote } from 'lucide-vue-next'
@@ -125,6 +126,7 @@ const live = useLiveRunsStore()
 const runsStore = useRunsStore()
 const conductorStore = useConductorStore()
 const bgProcs = useBackgroundProcessesStore()
+const features = useFeaturesStore()
 // Agent-reactive aurora (`<html data-agent-state>`) — main window only.
 if (!isPopoutWindow && !isSessionWindow) useAgentAmbient()
 const draftsStore = useChatDraftsStore()
@@ -569,6 +571,9 @@ function applyColorTheme(theme: string) {
 }
 
 onMounted(async () => {
+  // Every window kind, pop-outs included: each gates its own entries and must
+  // follow a switch flipped elsewhere.
+  void features.start()
   if (isPopoutWindow) {
     // Pop-out window: only theme matters; skip the main app's data fetches.
     try {
