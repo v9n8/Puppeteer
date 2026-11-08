@@ -53,7 +53,6 @@ import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { usePageFind } from '@/composables/usePageFind'
-import { isFindShortcut } from '@/lib/pageFind'
 import FindBar from '@/components/FindBar.vue'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { appendQuote, type QuoteSource } from '@/lib/quote'
@@ -1687,8 +1686,8 @@ const selectionSurface = useSelectionSurface({
 // ── Find (⌘F) ────────────────────────────────────────────────────────────────
 // The bar highlights matches in what is on screen. The history pane holds only
 // a window of the log, so it also lists hits from the WHOLE log; picking one
-// loads a window starting at that record, where the highlight lands. ⌘F is
-// caught here until an app-wide ⌘F dispatcher routes it to the active area.
+// loads a window starting at that record, where the highlight lands. ⌘F comes
+// from App.vue's dispatcher (useFindShortcut).
 const runFind = usePageFind(turnScrollEl)
 const findOpen = runFind.open
 const logHits = shallowRef<RunLogHit[]>([])
@@ -1740,12 +1739,6 @@ async function jumpToLogHit(hit: RunLogHit) {
   await jumpToHistoryOffset(hit.offset)
   // The window now starts at the hit's record, so the first match on screen is it.
   runFind.refresh()
-}
-
-function onFindKey(e: KeyboardEvent) {
-  if (!isFindShortcut(e) || !runFind.enabled.value || !turnScrollEl.value) return
-  e.preventDefault()
-  runFind.openFind()
 }
 
 watch(currentRunId, () => {
@@ -1879,7 +1872,6 @@ onMounted(async () => {
   window.addEventListener('focus', onAppFocus)
   window.addEventListener('pointerup', onWindowPointerUp)
   window.addEventListener('keydown', onTurnNavKey)
-  window.addEventListener('keydown', onFindKey)
   setupMentionBridge()
 
   // Drag-and-drop files into the composer. Tauri intercepts OS file drops at the
@@ -1998,7 +1990,6 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', onRunSettingsPointerDown)
   window.removeEventListener('pointerup', onWindowPointerUp)
   window.removeEventListener('keydown', onTurnNavKey)
-  window.removeEventListener('keydown', onFindKey)
   if (logSearchTimer) clearTimeout(logSearchTimer)
   sessionsChangedUnlisten?.()
   sessionsChangedUnlisten = null

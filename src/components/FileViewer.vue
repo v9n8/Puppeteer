@@ -24,7 +24,6 @@ import type { FileTarget } from '@/lib/fileActions'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import type { QuoteSource } from '@/lib/quote'
 import { usePageFind } from '@/composables/usePageFind'
-import { isFindShortcut } from '@/lib/pageFind'
 import FindBar from '@/components/FindBar.vue'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
@@ -816,11 +815,9 @@ watch([content, mode, editing], () => {
   find.refresh()
 })
 
+// ⌘F comes from App.vue's dispatcher (useFindShortcut); Esc closes from anywhere.
 function onSearchKeydown(e: KeyboardEvent) {
-  if (isFindShortcut(e) && searchEnabled.value) {
-    e.preventDefault()
-    openSearch()
-  } else if (e.key === 'Escape' && searchOpen.value) {
+  if (e.key === 'Escape' && searchOpen.value) {
     e.preventDefault()
     closeSearch()
   }

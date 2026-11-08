@@ -25,6 +25,8 @@ import { invoke } from '@/lib/tauri'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { usePageFind } from '@/composables/usePageFind'
+import FindBar from '@/components/FindBar.vue'
 import {
   SKILL_TEMPLATE, normalizeFrontmatter, parseFrontmatter, setFrontmatterField, validateFrontmatter,
 } from '@/lib/skillRows'
@@ -159,6 +161,12 @@ watch([content, viewMode], ([md, mode]) => {
 // Copy MD from the preview maps the selection back onto the editor's text.
 const previewEl = ref<HTMLElement | null>(null)
 useSelectionSurface({ el: previewEl, allow: { copyMd: true }, markdownSource: () => [content.value] })
+
+// ⌘F searches the preview; a re-render detaches the old matches, and the
+// edit-only view has nothing to search.
+const find = usePageFind(previewEl)
+const findOpen = find.open
+watch([previewHtml, viewMode], () => (viewMode.value === 'edit' ? find.closeFind() : find.refresh()))
 
 // ── Extra files ─────────────────────────────────────────────────────────────
 
@@ -429,7 +437,7 @@ defineExpose({ dirty, save })
       </Banner>
 
       <!-- SKILL.md: kept mounted while another file is shown so its undo history survives. -->
-      <div v-show="activeFile === SKILL_MD" class="flex min-h-0 flex-1">
+      <div v-show="activeFile === SKILL_MD" class="relative flex min-h-0 flex-1">
         <div
           v-show="viewMode !== 'preview'"
           class="flex min-w-0 flex-1 flex-col overflow-hidden"
@@ -443,6 +451,7 @@ defineExpose({ dirty, save })
             class="flex-1"
           />
         </div>
+        <FindBar v-if="findOpen" :find="find" class="absolute top-2 right-4 z-20" />
         <div v-if="viewMode !== 'edit'" class="min-w-0 flex-1 overflow-auto p-5">
           <div
             v-mermaid

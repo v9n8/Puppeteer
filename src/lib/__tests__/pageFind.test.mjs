@@ -7,6 +7,7 @@ import {
   MAX_MATCHES,
   findMatches,
   isFindShortcut,
+  pickFindArea,
   stepMatch,
 } from '../pageFind.ts'
 
@@ -97,4 +98,82 @@ test('isFindShortcut: plain F or another key is not', () => {
 
 test('FIND_IN_PAGE_FEATURE is the registry prop id', () => {
   assert.equal(FIND_IN_PAGE_FEATURE, 'text_tools.find_in_page')
+})
+
+// ── Which area ⌘F goes to ───────────────────────────────────────────────────
+
+/** A fake DOM node: `contains` walks up the parent chain (self included). */
+function node(name, parent = null) {
+  const n = {
+    name,
+    parent,
+    contains(other) {
+      for (let x = other; x; x = x.parent) if (x === n) return true
+      return false
+    },
+  }
+  return n
+}
+
+const body = node('body')
+const runRoot = node('run', body)
+const runText = node('runText', runRoot)
+const composer = node('composer', body)
+const viewerRoot = node('viewer', body)
+const viewerText = node('viewerText', viewerRoot)
+const backdrop = node('backdrop', body)
+const modalRoot = node('modalFind', backdrop)
+const modalText = node('modalText', modalRoot)
+
+const run = { root: runRoot }
+const viewer = { root: viewerRoot }
+const inModal = { root: modalRoot }
+const hidden = { root: null }
+const rootOf = (a) => a.root
+const ctx = (over = {}) => ({ excludedWindow: false, overlay: null, hints: [], ...over })
+
+test('pickFindArea: the area holding the focus wins', () => {
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ hints: [runText] })), run)
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ hints: [viewerText] })), viewer)
+})
+
+test('pickFindArea: focus outside every area falls to the last click', () => {
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ hints: [composer, runText] })), run)
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ hints: [null, viewerText] })), viewer)
+})
+
+test('pickFindArea: no hint in an area picks the last mounted one', () => {
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ hints: [composer, body] })), viewer)
+  assert.equal(pickFindArea([run], rootOf, ctx()), run)
+})
+
+test('pickFindArea: an area off screen (null root) never takes ⌘F', () => {
+  assert.equal(pickFindArea([run, hidden], rootOf, ctx()), run)
+  assert.equal(pickFindArea([hidden], rootOf, ctx()), null)
+  assert.equal(pickFindArea([], rootOf, ctx()), null)
+})
+
+test('pickFindArea: nested areas — the innermost holding the hint wins', () => {
+  const inner = { root: node('inner', runRoot) }
+  const innerText = node('innerText', inner.root)
+  assert.equal(pickFindArea([inner, run], rootOf, ctx({ hints: [innerText] })), inner)
+  assert.equal(pickFindArea([inner, run], rootOf, ctx({ hints: [runText] })), run)
+})
+
+test('pickFindArea: under an open overlay only an area inside it takes ⌘F', () => {
+  const overlay = backdrop
+  assert.equal(pickFindArea([run, inModal], rootOf, ctx({ overlay, hints: [runText] })), inModal)
+  assert.equal(pickFindArea([inModal, run], rootOf, ctx({ overlay })), inModal)
+  assert.equal(pickFindArea([inModal], rootOf, ctx({ overlay, hints: [modalText] })), inModal)
+})
+
+test('pickFindArea: an overlay with no area blocks the page behind it', () => {
+  const overlay = node('fullscreenMessage', body)
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ overlay, hints: [runText] })), null)
+  assert.equal(pickFindArea([run], rootOf, ctx({ overlay })), null)
+})
+
+test('pickFindArea: the Secret vault window never gets ⌘F', () => {
+  assert.equal(pickFindArea([run], rootOf, ctx({ excludedWindow: true, hints: [runText] })), null)
+  assert.equal(pickFindArea([run, viewer], rootOf, ctx({ excludedWindow: true })), null)
 })

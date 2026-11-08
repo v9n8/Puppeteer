@@ -58,6 +58,7 @@ import {
 import { useChatDraftsStore } from '@/stores/chatDrafts'
 import { useToast } from '@/composables/useToast'
 import { useAgentAmbient } from '@/composables/useAgentAmbient'
+import { useFindShortcut } from '@/composables/usePageFind'
 import { applySystemAccent } from '@/lib/systemAccent'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
@@ -396,6 +397,10 @@ function onGlobalNavKeyGuard(e: KeyboardEvent) {
     e.preventDefault()
   }
 }
+
+// ⌘F opens the find bar of the area being read, in every window but the vault.
+// No native menu accelerator: lib/appMenu.ts keeps only one.
+useFindShortcut()
 
 // The sidebar is gone either because the user hid it (any route, persisted) or
 // because focus mode is collapsing a run down to its conversation.

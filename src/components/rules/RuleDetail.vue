@@ -23,6 +23,8 @@ import { useToast } from '@/composables/useToast'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { usePageFind } from '@/composables/usePageFind'
+import FindBar from '@/components/FindBar.vue'
 import { relativeAge } from '@/lib/itemText'
 import { formatFullDate } from '@/lib/slackThreadUtils'
 import { parseFrontmatter, setFrontmatterField, validateFrontmatter, type CodexMode } from '@/lib/rulesRows'
@@ -194,6 +196,12 @@ watch([content, viewMode], ([md, mode]) => {
 // Copy MD from the preview maps the selection back onto the editor's text.
 const previewEl = ref<HTMLElement | null>(null)
 useSelectionSurface({ el: previewEl, allow: { copyMd: true }, markdownSource: () => [content.value] })
+
+// ⌘F searches the preview; a re-render detaches the old matches, and the
+// edit-only view has nothing to search.
+const find = usePageFind(previewEl)
+const findOpen = find.open
+watch([previewHtml, viewMode], () => (viewMode.value === 'edit' ? find.closeFind() : find.refresh()))
 
 // ── Metadata fields ─────────────────────────────────────────────────────────
 // Local drafts: the frontmatter stores trimmed values, so binding the inputs to
@@ -405,7 +413,7 @@ defineExpose({ dirty, save })
         <p class="truncate" :title="validationError">{{ validationError }}</p>
       </Banner>
 
-      <div class="flex min-h-0 flex-1">
+      <div class="relative flex min-h-0 flex-1">
         <div
           v-show="viewMode !== 'preview'"
           class="flex min-w-0 flex-1 flex-col overflow-hidden"
@@ -419,6 +427,7 @@ defineExpose({ dirty, save })
             class="flex-1"
           />
         </div>
+        <FindBar v-if="findOpen" :find="find" class="absolute top-2 right-4 z-20" />
         <div v-if="viewMode !== 'edit'" class="min-w-0 flex-1 overflow-auto p-5">
           <div
             v-mermaid

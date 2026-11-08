@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { emit as emitEvent } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
@@ -45,6 +45,8 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { useRunStatusEvents } from '@/composables/useRunStatusEvents'
+import { usePageFind } from '@/composables/usePageFind'
+import FindBar from '@/components/FindBar.vue'
 import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
 import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
 import {
@@ -213,6 +215,13 @@ function isCollapsed(group: PrGroup): boolean {
 function toggleGroup(group: PrGroup) {
   store.setGroupCollapsed(group.key, !isCollapsed(group))
 }
+
+// ⌘F searches the list; re-filtering or folding a group re-renders it, which
+// detaches the old matches.
+const contentEl = ref<HTMLElement | null>(null)
+const find = usePageFind(contentEl)
+const findOpen = find.open
+watch([grouped, () => store.collapsedGroups], find.refresh)
 
 function groupLabel(group: PrGroup): string {
   if (group.kind === 'unmapped') return t('prInbox.notInPuppeteerGroup')
@@ -495,8 +504,13 @@ async function reviewAll(group: PrGroup) {
       </button>
     </div>
 
+    <!-- Zero-height anchor: the ⌘F bar floats over the list's top edge. -->
+    <div v-if="findOpen" class="relative z-20 h-0 shrink-0">
+      <FindBar :find="find" class="absolute top-2 right-6" />
+    </div>
+
     <!-- Content -->
-    <div class="flex-1 overflow-auto p-6">
+    <div ref="contentEl" class="flex-1 overflow-auto p-6">
       <!-- Partial-failure warning: some accounts failed to load (rate limit,
            network, bad PAT). Shown above the list so a missing PR reads as
            "some accounts failed, try refresh" rather than "no PRs". -->

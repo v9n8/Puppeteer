@@ -31,10 +31,12 @@ import ItemSidebar from '@/components/items/ItemSidebar.vue'
 import ItemHeader from '@/components/items/ItemHeader.vue'
 import ItemBody from '@/components/items/ItemBody.vue'
 import ItemFields from '@/components/items/ItemFields.vue'
+import FindBar from '@/components/FindBar.vue'
 import { noteRow, todoRow, type ItemRow } from '@/components/items/itemRow'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
+import { usePageFind } from '@/composables/usePageFind'
 import { useProjectsStore } from '@/stores/projects'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
@@ -155,6 +157,13 @@ async function loadLinks() {
 const editing = ref(false)
 const renaming = ref(false)
 const bodyRef = ref<InstanceType<typeof ItemBody> | null>(null)
+
+// ⌘F searches the item as it reads (not its edit fields); another item or an
+// edit re-renders it, which detaches the old matches.
+const bodyWrapEl = ref<HTMLElement | null>(null)
+const find = usePageFind(computed(() => (editing.value ? null : bodyWrapEl.value)))
+const findOpen = find.open
+watch([item, editing], () => (editing.value ? find.closeFind() : find.refresh()))
 
 /** Leaving unsaved edits takes a confirm; true = go ahead. */
 async function confirmDiscard(): Promise<boolean> {
@@ -600,14 +609,20 @@ onBeforeUnmount(() => {
         @set-project="setProject"
         @set-due-date="setDueDate"
       />
-      <ItemBody
-        ref="bodyRef"
-        :kind="kind"
-        :item="item"
-        :editing="editing"
-        @saved="onSaved"
-        @cancel="cancelEdit"
-      />
+      <!-- Zero-height anchor: the ⌘F bar floats over the body's top edge. -->
+      <div v-if="findOpen" class="relative z-20 h-0 shrink-0">
+        <FindBar :find="find" class="absolute top-2 right-4" />
+      </div>
+      <div ref="bodyWrapEl" class="flex min-h-0 flex-1 flex-col">
+        <ItemBody
+          ref="bodyRef"
+          :kind="kind"
+          :item="item"
+          :editing="editing"
+          @saved="onSaved"
+          @cancel="cancelEdit"
+        />
+      </div>
     </section>
     <div v-else class="flex min-w-0 flex-1 items-center justify-center p-6">
       <div class="text-center">

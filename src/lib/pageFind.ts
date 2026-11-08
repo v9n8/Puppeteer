@@ -1,7 +1,8 @@
 // In-page find (⌘F): the pure part of composables/usePageFind.ts — where a query
 // matches in a list of text chunks (the DOM text nodes of the searched area),
-// stepping between matches, and the shortcut. Kept free of Vue / DOM imports so
-// it can be unit-tested with `node --test`.
+// stepping between matches, the shortcut, and which area it goes to. Kept free
+// of Vue / DOM imports so it can be unit-tested with `node --test`.
+import { pickSurface } from './selectionSurface.ts'
 
 /** Prop that switches ⌘F on and off everywhere. */
 export const FIND_IN_PAGE_FEATURE = 'text_tools.find_in_page'
@@ -54,4 +55,36 @@ export function stepMatch(current: number, count: number, delta: number): number
 /** ⌘F on macOS, Ctrl+F elsewhere. */
 export function isFindShortcut(e: { key: string; metaKey: boolean; ctrlKey: boolean }): boolean {
   return (e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')
+}
+
+export interface FindTargetContext {
+  /** This window never gets ⌘F (lib/selectionSurface `isSelectionExcludedWindow`). */
+  excludedWindow: boolean
+  /** The topmost open modal / drawer: only an area inside it may take ⌘F. */
+  overlay: Node | null
+  /** Where the user is, strongest first: the focused element, the last one clicked. */
+  hints: readonly (Node | null)[]
+}
+
+/**
+ * The find area ⌘F opens in. `elOf` gives an area's root while it is on screen,
+ * null otherwise. None in an excluded window, or when an open overlay holds no
+ * area — the page behind it is not what is being read. Otherwise the innermost
+ * area holding the first hint that lands in one, else the last mounted.
+ */
+export function pickFindArea<A>(
+  areas: readonly A[],
+  elOf: (area: A) => Node | null,
+  ctx: FindTargetContext,
+): A | null {
+  if (ctx.excludedWindow) return null
+  const shown = areas.filter((a) => {
+    const el = elOf(a)
+    return !!el && (!ctx.overlay || ctx.overlay.contains(el))
+  })
+  for (const hint of ctx.hints) {
+    const area = pickSurface(shown, (a) => [elOf(a)], hint, null)
+    if (area) return area
+  }
+  return shown[shown.length - 1] ?? null
 }

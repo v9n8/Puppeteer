@@ -5,8 +5,14 @@
 // scrolled to, just not painted. The bar itself is components/FindBar.vue.
 //
 // Text under a `.search-skip` element (a line-number gutter) is left out.
-import { computed, nextTick, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { FIND_IN_PAGE_FEATURE, findMatches, stepMatch } from '@/lib/pageFind'
+//
+// Every area registers itself; ⌘F is caught once per window (useFindShortcut,
+// from App.vue) and opens the bar of the area being read (lib/pageFind
+// `pickFindArea`). The registry is module state: each webview has its own copy.
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { FIND_IN_PAGE_FEATURE, findMatches, isFindShortcut, pickFindArea, stepMatch } from '@/lib/pageFind'
+import { isSelectionExcludedWindow } from '@/lib/selectionSurface'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Global names: `::highlight()` styles for them live in FindBar.vue. */
@@ -46,6 +52,14 @@ function collectTextNodes(root: HTMLElement): Text[] {
   while (n) { nodes.push(n as Text); n = walker.nextNode() }
   return nodes
 }
+
+interface FindArea {
+  root: Ref<HTMLElement | null>
+  find: PageFind
+}
+
+/** Find areas mounted in this window, in mount order. */
+const findAreas: FindArea[] = []
 
 export function usePageFind(root: Ref<HTMLElement | null>): PageFind {
   const features = useFeaturesStore()
@@ -150,10 +164,63 @@ export function usePageFind(root: Ref<HTMLElement | null>): PageFind {
   watch(caseSensitive, refresh)
   watch(enabled, (on) => { if (!on) closeFind() })
 
+  const find: PageFind = { enabled, open, query, caseSensitive, count, current, inputEl, openFind, closeFind, step, refresh }
+  const area: FindArea = { root, find }
+  findAreas.push(area)
+
   onUnmounted(() => {
     if (timer) clearTimeout(timer)
     clearHighlights()
+    const i = findAreas.indexOf(area)
+    if (i !== -1) findAreas.splice(i, 1)
   })
 
-  return { enabled, open, query, caseSensitive, count, current, inputEl, openFind, closeFind, step, refresh }
+  return find
+}
+
+/** The root while it is on screen: not in a cached (KeepAlive) view, not `display: none`. */
+function shownRoot(area: FindArea): HTMLElement | null {
+  const el = area.root.value
+  return el && el.isConnected && el.getClientRects().length > 0 ? el : null
+}
+
+function windowLabel(): string | null {
+  try {
+    return getCurrentWebviewWindow().label
+  } catch {
+    return null
+  }
+}
+
+/** Route ⌘F / Ctrl+F to the find area being read. Call once per window. */
+export function useFindShortcut(): void {
+  // The Secret vault: search never touches its text.
+  const excludedWindow = isSelectionExcludedWindow(window.location.search, windowLabel())
+  let lastPointer: Node | null = null
+
+  function onPointerDown(e: PointerEvent) {
+    lastPointer = e.target as Node | null
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented || !isFindShortcut(e)) return
+    const overlays = document.querySelectorAll('.ui-backdrop')
+    const area = pickFindArea(findAreas, shownRoot, {
+      excludedWindow,
+      overlay: overlays[overlays.length - 1] ?? null,
+      hints: [document.activeElement, lastPointer],
+    })
+    if (!area || !area.find.enabled.value) return
+    e.preventDefault()
+    area.find.openFind()
+  }
+
+  onMounted(() => {
+    window.addEventListener('pointerdown', onPointerDown, true)
+    window.addEventListener('keydown', onKeydown)
+  })
+  onUnmounted(() => {
+    window.removeEventListener('pointerdown', onPointerDown, true)
+    window.removeEventListener('keydown', onKeydown)
+  })
 }

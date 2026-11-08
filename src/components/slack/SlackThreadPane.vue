@@ -30,6 +30,8 @@ import SlackMessageFiles from './SlackMessageFiles.vue'
 import SlackImageLightbox from './SlackImageLightbox.vue'
 import SlackReplyComposer from './SlackReplyComposer.vue'
 import type { SessionLink } from '@/lib/sessionLinks'
+import { usePageFind } from '@/composables/usePageFind'
+import FindBar from '@/components/FindBar.vue'
 
 const props = defineProps<{
   view: SlackThreadView
@@ -214,6 +216,16 @@ watch(
   },
   { flush: 'post' },
 )
+
+// ── Find (⌘F) ───────────────────────────────────────────────────────────────
+// Re-rendering (another thread, a refetch, original ⇄ translation) detaches
+// the old matches.
+const find = usePageFind(scroller)
+const findOpen = find.open
+watch(
+  () => [props.view.id, props.view.messages, props.view.legacyContent, props.showOriginal, flipped.value],
+  find.refresh,
+)
 </script>
 
 <template>
@@ -247,6 +259,10 @@ watch(
       @open-mcp="emit('openMcp')"
     />
 
+    <!-- Zero-height anchor: the bar floats over the thread's top edge. -->
+    <div v-if="findOpen" class="relative z-20 h-0 shrink-0">
+      <FindBar :find="find" class="absolute top-2 right-4" />
+    </div>
     <div
       ref="scroller"
       class="min-h-0 flex-1 overflow-y-auto py-3"
