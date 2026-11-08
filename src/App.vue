@@ -27,6 +27,7 @@ import PermissionWindow from '@/views/PermissionWindow.vue'
 import ThemeDecorations from '@/components/ThemeDecorations.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
+import SelectionToolbar from '@/components/SelectionToolbar.vue'
 import ItemWindow from '@/views/ItemWindow.vue'
 import ItemListWindow from '@/views/ItemListWindow.vue'
 import SecretNotesWindow from '@/views/SecretNotesWindow.vue'
@@ -1113,6 +1114,11 @@ onMounted(async () => {
     <!-- App-wide side-by-side image comparison (banner + picker + compare view) -->
     <ImageCompareHost />
   </div>
+
+  <!-- The window's one selection toolbar, for whichever screen declared a
+       selection surface. Never in the Secret vault window: its text must not
+       reach Translate or the clipboard shortcuts. -->
+  <SelectionToolbar v-if="!isSecretNotesWindow" />
 </template>
 
 <style scoped>

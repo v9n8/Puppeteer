@@ -25,8 +25,6 @@
     "loadingPdf": "Loading PDF…",
     "htmlPreview": "HTML preview",
     "csvEmpty": "This file has no data to show as a table.",
-    "translateSelection": "Translate selection",
-    "translate": "Translate",
     "searchInFile": "Search in file",
     "searchPlaceholder": "Find in file…",
     "previousMatch": "Previous match",

@@ -2,8 +2,9 @@
 // Floating result card for the "translate selection" feature. Given the selected
 // text and a viewport anchor, it calls the `translate_text` backend command
 // (one-shot LLM through the run sidecar) and renders the translation as markdown.
-// The trigger button that opens this popover lives in RunView; this component
-// owns the request lifecycle, the language quick-toggle, copy, and dismissal.
+// It is opened by the shared selection toolbar (SelectionToolbar.vue); this
+// component owns the request lifecycle, the language quick-toggle, copy, and
+// dismissal.
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Languages, Copy, Check, X, Loader2, RefreshCw } from 'lucide-vue-next'

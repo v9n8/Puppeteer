@@ -1,0 +1,12 @@
+{
+  "quote": "Trích dẫn",
+  "quoteTitle": "Trích đoạn đã chọn vào {target}",
+  "translate": "Dịch",
+  "translateTitle": "Dịch đoạn đã chọn",
+  "copyMd": "Copy MD",
+  "copyMdTitle": "Sao chép đoạn đã chọn dưới dạng Markdown",
+  "saveNote": "Ghi chú",
+  "saveNoteTitle": "Lưu đoạn đã chọn thành ghi chú",
+  "saveTodo": "Việc",
+  "saveTodoTitle": "Lưu đoạn đã chọn thành việc cần làm"
+}

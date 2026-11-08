@@ -1,0 +1,12 @@
+{
+  "quote": "Quote",
+  "quoteTitle": "Quote the selection into {target}",
+  "translate": "Translate",
+  "translateTitle": "Translate the selection",
+  "copyMd": "Copy MD",
+  "copyMdTitle": "Copy the selection as Markdown",
+  "saveNote": "Note",
+  "saveNoteTitle": "Save the selection as a note",
+  "saveTodo": "Todo",
+  "saveTodoTitle": "Save the selection as a task"
+}

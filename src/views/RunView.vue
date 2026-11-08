@@ -39,7 +39,7 @@ import {
   X, Paperclip,
   ShieldQuestion, MessageCircleQuestion,
   Pin, Shield, Pencil, Check, Github, Gitlab, UserCircle,
-  HardDrive, Cloud, CloudCog, Languages, StickyNote, ListTodo, FolderTree, Loader2,
+  HardDrive, Cloud, CloudCog, FolderTree, Loader2,
   MoreHorizontal, Search, Network, ChevronLeft, ChevronRight,
   Plus, AlignJustify, Rows2, Rows3, Rows4, CircleDashed, ArrowUpDown
 } from 'lucide-vue-next'
@@ -50,10 +50,10 @@ import CapturePicker from '@/components/CapturePicker.vue'
 import RunActionItems from '@/components/RunActionItems.vue'
 import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import StreamLog from '@/components/StreamLog.vue'
-import TranslatePopover from '@/components/TranslatePopover.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
 import ContextMeter from '@/components/ContextMeter.vue'
 import BudgetBadge from '@/components/BudgetBadge.vue'
@@ -1190,9 +1190,6 @@ function scrollOutputToBottom() {
 
 // Re-evaluate the pin whenever the user scrolls the live output.
 function onOutputScroll() {
-  // The floating translate button is anchored to a viewport rect that scrolling
-  // invalidates — hide it (the popover, once open, dismisses on its own).
-  clearTranslateTrigger()
   scheduleScrollSettle()
   scrollMemory.schedule()
 }
@@ -1527,19 +1524,6 @@ function hasOutputSelection() {
   )
 }
 
-// ── Translate selection ─────────────────────────────────────────────────────
-// Drag-selecting text inside the AI-result output (live or history) surfaces a
-// small floating "Dịch" button; clicking it opens a TranslatePopover that calls
-// the one-shot `translate_text` backend command. Detection is a window mouseup
-// listener that checks the selection lands inside the output/history container.
-const translateTrigger = ref<{ text: string; x: number; y: number } | null>(null)
-const activeTranslation = ref<{ text: string; x: number; y: number } | null>(null)
-const defaultTranslateLang = computed(() => appSettings.settings?.translate_target_lang || 'vi')
-
-function clearTranslateTrigger() {
-  translateTrigger.value = null
-}
-
 // Auto-load the history window as the reader approaches either edge: older
 // records when near the top, newer ones when near the bottom. Held off briefly
 // right after a jump (the programmatic scroll would otherwise instantly prepend).
@@ -1572,7 +1556,6 @@ function scrollHistoryToLatest() {
 }
 
 function onHistoryScroll() {
-  clearTranslateTrigger()
   scrollMemory.schedule()
   scheduleHistoryBottomCheck()
   const el = historyEl.value
@@ -1585,40 +1568,6 @@ function onHistoryScroll() {
   ) {
     void showLaterHistory()
   }
-}
-
-function nodeInOutput(node: Node | null): boolean {
-  if (!node) return false
-  return !!outputEl.value?.contains(node) || !!historyEl.value?.contains(node)
-}
-
-function onSelectionMouseUp() {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed) { translateTrigger.value = null; return }
-  const text = sel.toString().trim()
-  if (text.length < 2) { translateTrigger.value = null; return }
-  if (!nodeInOutput(sel.anchorNode) && !nodeInOutput(sel.focusNode)) {
-    translateTrigger.value = null
-    return
-  }
-  let rect: DOMRect | null = null
-  try { rect = sel.getRangeAt(0).getBoundingClientRect() } catch { rect = null }
-  if (!rect || (rect.width === 0 && rect.height === 0)) { translateTrigger.value = null; return }
-  translateTrigger.value = { text, x: rect.left, y: rect.bottom + 6 }
-  // Warm the translation sidecar now, while the user reaches for the button, so
-  // the first translation isn't paying Node/SDK cold-start.
-  void invoke('prewarm_translate').catch(() => {})
-}
-
-function openTranslate() {
-  const t = translateTrigger.value
-  if (!t) return
-  activeTranslation.value = { ...t }
-  translateTrigger.value = null
-}
-
-function closeTranslate() {
-  activeTranslation.value = null
 }
 
 // ── Quick capture from a run ────────────────────────────────────────────────
@@ -1637,24 +1586,16 @@ function openQuickCapture(kind: ItemKind) {
 // Slack threads / todos / notes linked to this session, for the header menus.
 const linked = useRunLinkedItems(currentRunId)
 
-/** Turn the current output selection into a pre-filled note. */
-function captureSelectionAsNote() {
-  const trigger = translateTrigger.value
-  if (!trigger) return
-  openItemCreateWindow('note', captureContext(), {
-    title: currentRun.value?.title ?? project.value?.name ?? '',
-    content: trigger.text,
-  })
-  translateTrigger.value = null
-}
-
-/** Turn the current output selection into a pre-filled todo. */
-function captureSelectionAsTodo() {
-  const trigger = translateTrigger.value
-  if (!trigger) return
-  openItemCreateWindow('todo', captureContext(), { content: trigger.text })
-  translateTrigger.value = null
-}
+// Selected text in the output (live or history) gets the shared selection
+// toolbar: translate it, or keep it as a note / todo filed under this run.
+const selectionSurface = useSelectionSurface({
+  el: [outputEl, historyEl],
+  allow: { translate: true, saveNote: true, saveTodo: true },
+  capture: () => ({
+    context: captureContext(),
+    noteTitle: currentRun.value?.title ?? project.value?.name ?? '',
+  }),
+})
 
 // Keep the live output pinned to the bottom as new entries/lines arrive for
 // the focused, running run — but only while the user is parked at the bottom
@@ -1701,8 +1642,7 @@ watch(currentRunId, (id) => {
   if (!memo) scrollOutputToBottom()
   scrollActiveSessionIntoView()
   closeRunSettingsMenu()
-  clearTranslateTrigger()
-  closeTranslate()
+  selectionSurface.dismiss()
   // Keep the URL in sync with the selected run. Selecting a run from the History
   // list sets `currentRunId` locally but the route would otherwise stay at
   // `/projects/:projectId` with no runId — so a reload/remount (app backgrounding
@@ -1782,7 +1722,6 @@ onMounted(async () => {
   }
   window.addEventListener('focus', onAppFocus)
   window.addEventListener('pointerup', onWindowPointerUp)
-  window.addEventListener('mouseup', onSelectionMouseUp)
   window.addEventListener('keydown', onTurnNavKey)
   setupMentionBridge()
 
@@ -1897,7 +1836,6 @@ onUnmounted(() => {
   window.removeEventListener('focus', onAppFocus)
   document.removeEventListener('mousedown', onRunSettingsPointerDown)
   window.removeEventListener('pointerup', onWindowPointerUp)
-  window.removeEventListener('mouseup', onSelectionMouseUp)
   window.removeEventListener('keydown', onTurnNavKey)
   sessionsChangedUnlisten?.()
   sessionsChangedUnlisten = null
@@ -4853,57 +4791,6 @@ function handleRefInput(val: string) {
         </Button>
       </template>
     </Modal>
-
-    <!-- Floating actions for a text selection in the AI-result output: translate
-         it, or keep it as a note filed under this run.
-         `mousedown.prevent` keeps the selection alive through the click. -->
-    <Teleport to="body">
-      <div
-        v-if="translateTrigger"
-        class="fixed z-[65] flex items-center gap-px overflow-hidden rounded-md border border-border bg-card shadow-lg shadow-black/30"
-        :style="{ left: translateTrigger.x + 'px', top: translateTrigger.y + 'px' }"
-      >
-        <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-primary hover:bg-accent/60 transition-colors cursor-pointer"
-          :title="t('run.translateSelection')"
-          @mousedown.prevent
-          @click="openTranslate"
-        >
-          <Languages class="h-3 w-3" :stroke-width="1.75" />
-          {{ t('run.translate') }}
-        </button>
-        <span class="h-4 w-px bg-border" />
-        <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
-          :title="t('run.saveSelectionAsNoteTitle')"
-          @mousedown.prevent
-          @click="captureSelectionAsNote"
-        >
-          <StickyNote class="h-3 w-3" :stroke-width="1.75" />
-          {{ t('run.saveSelectionAsNote') }}
-        </button>
-        <span class="h-4 w-px bg-border" />
-        <button
-          class="inline-flex items-center gap-1 px-2 py-1 text-2xs font-medium text-foreground/80 hover:bg-accent/60 transition-colors cursor-pointer"
-          :title="t('run.saveSelectionAsTodoTitle')"
-          @mousedown.prevent
-          @click="captureSelectionAsTodo"
-        >
-          <ListTodo class="h-3 w-3" :stroke-width="1.75" />
-          {{ t('run.saveSelectionAsTodo') }}
-        </button>
-      </div>
-    </Teleport>
-
-    <!-- Translation result popover -->
-    <TranslatePopover
-      v-if="activeTranslation"
-      :text="activeTranslation.text"
-      :x="activeTranslation.x"
-      :y="activeTranslation.y"
-      :initial-lang="defaultTranslateLang"
-      @close="closeTranslate"
-    />
   </div>
 </template>
 

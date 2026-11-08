@@ -7,7 +7,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Languages, Pencil, Save, X, Search, ChevronUp, ChevronDown, ZoomIn, ZoomOut, MoreHorizontal, Columns2,
+  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Pencil, Save, X, Search, ChevronUp, ChevronDown, ZoomIn, ZoomOut, MoreHorizontal, Columns2,
 } from 'lucide-vue-next'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -21,11 +21,9 @@ import { useFileTreeStore } from '@/stores/fileTree'
 import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import type { FileTarget } from '@/lib/fileActions'
-import TranslatePopover from '@/components/TranslatePopover.vue'
-import { invoke } from '@/lib/tauri'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
-import { useAppSettingsStore } from '@/stores/appSettings'
 import { useImageCompareStore } from '@/stores/imageCompare'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
@@ -60,7 +58,6 @@ const { toast } = useToast()
 const runsStore = useRunsStore()
 const fileTree = useFileTreeStore()
 const projectsStore = useProjectsStore()
-const appSettings = useAppSettingsStore()
 const imageCompare = useImageCompareStore()
 
 // Start a side-by-side comparison from this image; the compare host then prompts
@@ -401,8 +398,8 @@ function onPanEnd(e: PointerEvent) {
   ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
 }
 
-// Scroll container wrapping both preview and raw views — selection detection for
-// the "Dịch" translate trigger is scoped to this element.
+// Scroll container wrapping both preview and raw views — the selection surface
+// (shared selection toolbar) is scoped to this element.
 const viewerBodyEl = ref<HTMLElement | null>(null)
 
 const lines = computed(() => content.value.split('\n'))
@@ -455,7 +452,7 @@ const csvColumnCount = computed(() =>
 )
 const mode = ref<'code' | 'preview'>('code')
 // The HTML preview lives in an iframe, out of reach of the font-size control,
-// the in-page search and the selection-translate trigger.
+// the in-page search and the selection toolbar.
 const htmlPreview = computed(() => isHtml.value && mode.value === 'preview')
 
 // ── Inline editing (text / markdown only) ───────────────────────────────────
@@ -746,52 +743,12 @@ async function reload() {
   }
 }
 
-// ── Translate selection ─────────────────────────────────────────────────────
-// Drag-selecting text inside the file body (rendered markdown or raw source)
-// surfaces a floating "Dịch" button; clicking it opens a TranslatePopover that
-// calls the one-shot `translate_text` backend command. Mirrors RunView.
-const translateTrigger = ref<{ text: string; x: number; y: number } | null>(null)
-const activeTranslation = ref<{ text: string; x: number; y: number } | null>(null)
-const defaultTranslateLang = computed(() => appSettings.settings?.translate_target_lang || 'vi')
+// Selected text in the file body (rendered markdown or raw source) gets the
+// shared selection toolbar.
+const selectionSurface = useSelectionSurface({ el: viewerBodyEl, allow: { translate: true } })
 
-function clearTranslateTrigger() {
-  translateTrigger.value = null
-}
-
-function onSelectionMouseUp() {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed) { translateTrigger.value = null; return }
-  const text = sel.toString().trim()
-  if (text.length < 2) { translateTrigger.value = null; return }
-  const container = viewerBodyEl.value
-  if (!container || (!container.contains(sel.anchorNode) && !container.contains(sel.focusNode))) {
-    translateTrigger.value = null
-    return
-  }
-  let rect: DOMRect | null = null
-  try { rect = sel.getRangeAt(0).getBoundingClientRect() } catch { rect = null }
-  if (!rect || (rect.width === 0 && rect.height === 0)) { translateTrigger.value = null; return }
-  translateTrigger.value = { text, x: rect.left, y: rect.bottom + 6 }
-  // Warm the translation sidecar while the user reaches for the button.
-  void invoke('prewarm_translate').catch(() => {})
-}
-
-function openTranslate() {
-  const t = translateTrigger.value
-  if (!t) return
-  activeTranslation.value = { ...t }
-  translateTrigger.value = null
-}
-
-function closeTranslate() {
-  activeTranslation.value = null
-}
-
-// A new file replaces the body content — drop any stale translate UI.
-watch(() => [props.projectPath, props.path], () => {
-  clearTranslateTrigger()
-  closeTranslate()
-})
+// A new file replaces the body content — drop any stale selection UI.
+watch(() => [props.projectPath, props.path], () => selectionSurface.dismiss())
 
 // ── In-page search (Cmd/Ctrl+F) ─────────────────────────────────────────────
 // Full-document find across the rendered body (markdown preview or raw source).
@@ -940,12 +897,10 @@ onMounted(() => {
   loadMarkdown()
   loadProjectFiles()
   load()
-  window.addEventListener('mouseup', onSelectionMouseUp)
   window.addEventListener('keydown', onSearchKeydown)
   window.addEventListener('resize', onWindowResize)
 })
 onUnmounted(() => {
-  window.removeEventListener('mouseup', onSelectionMouseUp)
   window.removeEventListener('keydown', onSearchKeydown)
   window.removeEventListener('resize', onWindowResize)
   imageBoxObserver?.disconnect()
@@ -1179,7 +1134,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
     </div>
 
     <!-- Body -->
-    <div ref="viewerBodyEl" class="flex-1 overflow-auto min-h-0" @scroll="clearTranslateTrigger">
+    <div ref="viewerBodyEl" class="flex-1 overflow-auto min-h-0">
       <div v-if="loading" class="p-4 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
       <div v-else-if="error" class="p-6 flex flex-col items-center gap-3 text-center">
         <FileQuestion class="h-10 w-10 text-foreground/30" :stroke-width="1.5" />
@@ -1388,34 +1343,6 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         </div>
       </div>
     </div>
-
-    <!-- Floating "Dịch" trigger for a text selection in the file body.
-         `mousedown.prevent` keeps the selection alive through the click. -->
-    <Teleport to="body">
-      <Button
-        v-if="translateTrigger"
-        variant="outline"
-        size="xs"
-        class="fixed z-[65] bg-card text-primary shadow-lg shadow-black/30"
-        :style="{ left: translateTrigger.x + 'px', top: translateTrigger.y + 'px' }"
-        :title="t('files.viewer.translateSelection')"
-        @mousedown.prevent
-        @click="openTranslate"
-      >
-        <Languages class="h-3 w-3" :stroke-width="1.75" />
-        {{ t('files.viewer.translate') }}
-      </Button>
-    </Teleport>
-
-    <!-- Translation result popover -->
-    <TranslatePopover
-      v-if="activeTranslation"
-      :text="activeTranslation.text"
-      :x="activeTranslation.x"
-      :y="activeTranslation.y"
-      :initial-lang="defaultTranslateLang"
-      @close="closeTranslate"
-    />
   </div>
 </template>
 
