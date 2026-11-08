@@ -204,6 +204,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     "delete_library_item",
     "apply_library_item",
     "remove_library_item_from_project",
+    // Rules: switching one on or off for a project (the Allocation matrix's chips).
+    "apply_rule",
+    "remove_rule_from_project",
     // Conductor: merging a worker's branch commits into the project's repository.
     "conductor_worker_merge",
     // Schedules: what a schedule runs, and in which mode (a remote save switches it off).
@@ -661,6 +664,9 @@ mod tests {
             "search_sessions",
             "list_library_items",
             "apply_library_item",
+            "list_library_allocation",
+            "apply_rule",
+            "remove_rule_from_project",
             "conductor_worker_diff",
             "conductor_worker_merge",
             "list_schedules",
@@ -703,6 +709,8 @@ mod tests {
             "delete_library_item",
             "apply_library_item",
             "remove_library_item_from_project",
+            "apply_rule",
+            "remove_rule_from_project",
             "conductor_worker_merge",
             "save_schedule",
             "delete_schedule",
@@ -729,6 +737,7 @@ mod tests {
             "list_library_items",
             "get_library_item",
             "get_applied_library_items",
+            "list_library_allocation",
             "conductor_worker_diff",
             "list_schedules",
             "list_snapshots",

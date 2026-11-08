@@ -86,10 +86,10 @@ fn validate_target(target: &str) -> Result<(), String> {
     }
 }
 
-fn applies_claude(target: &str) -> bool {
+pub(crate) fn applies_claude(target: &str) -> bool {
     target == "claude" || target == "both"
 }
-fn applies_codex(target: &str) -> bool {
+pub(crate) fn applies_codex(target: &str) -> bool {
     target == "codex" || target == "both"
 }
 
@@ -116,7 +116,7 @@ fn upsert_agents_block(agents_path: &Path, name: &str, body: &str) -> Result<(),
     agents_block::upsert(agents_path, "rule", name, body)
 }
 
-fn extract_agents_block(agents_path: &Path, name: &str) -> Option<String> {
+pub(crate) fn extract_agents_block(agents_path: &Path, name: &str) -> Option<String> {
     agents_block::extract(agents_path, "rule", name)
 }
 
@@ -126,14 +126,14 @@ fn remove_agents_block(agents_path: &Path, name: &str) {
 
 // ---- Claude rule file helpers ------------------------------------------------
 
-fn claude_rule_path(project_path: &str, name: &str) -> PathBuf {
+pub(crate) fn claude_rule_path(project_path: &str, name: &str) -> PathBuf {
     Path::new(project_path)
         .join(".claude")
         .join("rules")
         .join(format!("{}.md", name))
 }
 
-fn agents_path(project_path: &str) -> PathBuf {
+pub(crate) fn agents_path(project_path: &str) -> PathBuf {
     Path::new(project_path).join("AGENTS.md")
 }
 
@@ -156,12 +156,12 @@ pub fn parse_codex_mode(content: &str) -> CodexMode {
     if mode == "skill" { CodexMode::Skill } else { CodexMode::Inline }
 }
 
-fn codex_skill_source(source_path: &str, name: &str) -> PathBuf {
+pub(crate) fn codex_skill_source(source_path: &str, name: &str) -> PathBuf {
     let rules_dir = Path::new(source_path).parent().unwrap_or(Path::new("."));
     rules_dir.join(".codex-skills").join(name)
 }
 
-fn codex_skill_dest(project_path: &str, name: &str) -> PathBuf {
+pub(crate) fn codex_skill_dest(project_path: &str, name: &str) -> PathBuf {
     Path::new(project_path).join(".agents").join("skills").join(name)
 }
 

@@ -2,7 +2,8 @@
 // Rules — a list-detail screen like the Notes window: the sidebar lists the
 // rules in their group folders (search, group select, Claude/Codex filter,
 // Manage groups · Re-apply all · Import .md), the right pane edits the
-// selected rule in place (components/rules/RuleDetail).
+// selected rule in place (components/rules/RuleDetail). The Allocation tab
+// swaps both for the rule × project matrix (components/LibraryAllocationMatrix).
 //
 // The selection lives in the URL query (`?id=<rule>`, `?new=1` for a blank
 // draft) so a reload or a link reopens it.
@@ -11,8 +12,9 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { Layers, RefreshCw, ScrollText, Upload } from 'lucide-vue-next'
-import { AppSelect, Badge, Button } from '@/components/ui'
+import { AppSelect, Badge, Button, SegmentedControl } from '@/components/ui'
 import GroupManagerModal from '@/components/GroupManagerModal.vue'
+import LibraryAllocationMatrix from '@/components/LibraryAllocationMatrix.vue'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import RuleDetail from '@/components/rules/RuleDetail.vue'
@@ -48,6 +50,11 @@ const applyingId = ref<string | null>(null)
 const reapplyingId = ref<string | null>(null)
 const importing = ref(false)
 const groupsOpen = ref(false)
+const tab = ref<'library' | 'allocation'>('library')
+const tabOptions = computed(() => [
+  { value: 'library' as const, label: t('libraryAllocation.tabLibrary') },
+  { value: 'allocation' as const, label: t('libraryAllocation.tab') },
+])
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────
 
@@ -175,6 +182,12 @@ async function select(id: string) {
   if (id === selectedId.value && !isNew.value) return
   if (!(await confirmDiscard())) return
   setSelection(id)
+}
+
+/** A rule name in the matrix opens it in the library. */
+function openFromMatrix(id: string) {
+  tab.value = 'library'
+  void select(id)
 }
 
 async function startNew() {
@@ -325,115 +338,121 @@ async function handleExport(rule: Rule) {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0">
-    <ListDetailSidebar
-      v-model:search="search"
-      :groups="sidebarGroups"
-      :selected-id="isNew ? null : selectedId"
-      collapse-key="puppeteer.rules.collapsedGroups"
-      :search-placeholder="t('rules.detail.searchPlaceholder')"
-      :loading="store.loading"
-      :error="store.error"
-      :empty-store="store.rules.length === 0"
-      :empty-title="t('rules.list.emptyTitle')"
-      :empty-hint="t('rules.list.emptyHint')"
-      @select="select"
-      @add="startNew"
-      @retry="refresh"
-    >
-      <template #toolbar>
-        <Button
-          v-if="features.allows('library.manageGroups')"
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :title="t('groups.manageRuleGroups')"
-          :aria-label="t('groups.manageRuleGroups')"
-          @click="groupsOpen = true"
-        >
-          <Layers class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :disabled="reapplyingId !== null || store.rules.length === 0"
-          :title="reapplyingId === 'all' ? t('rules.list.reapplying') : `${t('rules.list.reapplyAll')} — ${t('rules.list.reapplyAllHint')}`"
-          :aria-label="t('rules.list.reapplyAll')"
-          @click="handleReapply()"
-        >
-          <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-spin': reapplyingId === 'all' }" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :disabled="importing"
-          :title="importing ? t('rules.list.importing') : t('rules.list.importMd')"
-          :aria-label="t('rules.list.importMd')"
-          @click="handleImport"
-        >
-          <Upload class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-pulse': importing }" />
-        </Button>
-      </template>
+  <div class="flex h-full flex-col overflow-hidden">
+    <div class="flex shrink-0 items-center border-b border-border/60 px-3 py-1.5">
+      <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
+    </div>
+    <LibraryAllocationMatrix v-if="tab === 'allocation'" kind="rule" @open="openFromMatrix" />
+    <div v-show="tab === 'library'" class="flex min-h-0 flex-1 overflow-hidden">
+      <ListDetailSidebar
+        v-model:search="search"
+        :groups="sidebarGroups"
+        :selected-id="isNew ? null : selectedId"
+        collapse-key="puppeteer.rules.collapsedGroups"
+        :search-placeholder="t('rules.detail.searchPlaceholder')"
+        :loading="store.loading"
+        :error="store.error"
+        :empty-store="store.rules.length === 0"
+        :empty-title="t('rules.list.emptyTitle')"
+        :empty-hint="t('rules.list.emptyHint')"
+        @select="select"
+        @add="startNew"
+        @retry="refresh"
+      >
+        <template #toolbar>
+          <Button
+            v-if="features.allows('library.manageGroups')"
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :title="t('groups.manageRuleGroups')"
+            :aria-label="t('groups.manageRuleGroups')"
+            @click="groupsOpen = true"
+          >
+            <Layers class="h-3.5 w-3.5" :stroke-width="1.75" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :disabled="reapplyingId !== null || store.rules.length === 0"
+            :title="reapplyingId === 'all' ? t('rules.list.reapplying') : `${t('rules.list.reapplyAll')} — ${t('rules.list.reapplyAllHint')}`"
+            :aria-label="t('rules.list.reapplyAll')"
+            @click="handleReapply()"
+          >
+            <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-spin': reapplyingId === 'all' }" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :disabled="importing"
+            :title="importing ? t('rules.list.importing') : t('rules.list.importMd')"
+            :aria-label="t('rules.list.importMd')"
+            @click="handleImport"
+          >
+            <Upload class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-pulse': importing }" />
+          </Button>
+        </template>
 
-      <template #controls>
-        <AppSelect
-          v-if="groupsStore.groups.length > 0"
-          v-model="groupFilter"
-          size="sm"
-          :options="groupOptions"
-          :title="t('groups.filterByGroup')"
-        />
-      </template>
+        <template #controls>
+          <AppSelect
+            v-if="groupsStore.groups.length > 0"
+            v-model="groupFilter"
+            size="sm"
+            :options="groupOptions"
+            :title="t('groups.filterByGroup')"
+          />
+        </template>
 
-      <template #row="{ row, selected }">
-        <span class="flex min-w-0 items-center gap-1.5">
-          <span class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug" :class="selected && 'text-foreground'">
-            {{ row.rule.name }}
-          </span>
-          <Badge v-if="row.rule.target !== 'both'" tone="primary" size="xs" class="shrink-0 uppercase tracking-wide">
-            {{ targetLabel[row.rule.target] }}
-          </Badge>
-        </span>
-        <span class="mt-1 truncate text-2xs text-muted-foreground/70">{{ row.rule.description }}</span>
-        <span v-if="row.otherGroupIds.length > 0" class="mt-1.5 flex flex-wrap gap-1">
-          <template v-for="gid in row.otherGroupIds" :key="gid">
-            <Badge v-if="groupById.get(gid)" :tone="groupById.get(gid)!.color ?? 'neutral'" size="xs">
-              {{ groupById.get(gid)!.name }}
+        <template #row="{ row, selected }">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug" :class="selected && 'text-foreground'">
+              {{ row.rule.name }}
+            </span>
+            <Badge v-if="row.rule.target !== 'both'" tone="primary" size="xs" class="shrink-0 uppercase tracking-wide">
+              {{ targetLabel[row.rule.target] }}
             </Badge>
-          </template>
-        </span>
-      </template>
-    </ListDetailSidebar>
+          </span>
+          <span class="mt-1 truncate text-2xs text-muted-foreground/70">{{ row.rule.description }}</span>
+          <span v-if="row.otherGroupIds.length > 0" class="mt-1.5 flex flex-wrap gap-1">
+            <template v-for="gid in row.otherGroupIds" :key="gid">
+              <Badge v-if="groupById.get(gid)" :tone="groupById.get(gid)!.color ?? 'neutral'" size="xs">
+                {{ groupById.get(gid)!.name }}
+              </Badge>
+            </template>
+          </span>
+        </template>
+      </ListDetailSidebar>
 
-    <RuleDetail
-      v-if="isNew || selectedRule"
-      ref="detailRef"
-      :key="detailKey"
-      :rule-id="isNew ? null : selectedId"
-      :rule="isNew ? null : selectedRule"
-      :groups="isNew || !selectedId ? [] : groupsOf(selectedId)"
-      :reapplying="!!selectedId && reapplyingId === selectedId"
-      :reapply-busy="reapplyingId !== null"
-      :applying="!!selectedId && applyingId === selectedId"
-      :deleting="!!selectedId && deletingId === selectedId"
-      @saved="onSaved"
-      @reapply="selectedRule && handleReapply(selectedRule)"
-      @apply-all="selectedRule && handleApplyToAll(selectedRule)"
-      @export="selectedRule && handleExport(selectedRule)"
-      @delete="selectedRule && handleDelete(selectedRule)"
-      @discard="discardDraft"
-      @missing="setSelection(null)"
-    />
-    <DetailEmpty v-else :icon="ScrollText" :text="t('rules.detail.noSelection')" />
+      <RuleDetail
+        v-if="isNew || selectedRule"
+        ref="detailRef"
+        :key="detailKey"
+        :rule-id="isNew ? null : selectedId"
+        :rule="isNew ? null : selectedRule"
+        :groups="isNew || !selectedId ? [] : groupsOf(selectedId)"
+        :reapplying="!!selectedId && reapplyingId === selectedId"
+        :reapply-busy="reapplyingId !== null"
+        :applying="!!selectedId && applyingId === selectedId"
+        :deleting="!!selectedId && deletingId === selectedId"
+        @saved="onSaved"
+        @reapply="selectedRule && handleReapply(selectedRule)"
+        @apply-all="selectedRule && handleApplyToAll(selectedRule)"
+        @export="selectedRule && handleExport(selectedRule)"
+        @delete="selectedRule && handleDelete(selectedRule)"
+        @discard="discardDraft"
+        @missing="setSelection(null)"
+      />
+      <DetailEmpty v-else :icon="ScrollText" :text="t('rules.detail.noSelection')" />
 
-    <GroupManagerModal
-      :open="groupsOpen"
-      kind="rule"
-      :items="store.rules"
-      @close="groupsOpen = false"
-      @changed="groupsStore.fetchGroups()"
-    />
+      <GroupManagerModal
+        :open="groupsOpen"
+        kind="rule"
+        :items="store.rules"
+        @close="groupsOpen = false"
+        @changed="groupsStore.fetchGroups()"
+      />
+    </div>
   </div>
 </template>

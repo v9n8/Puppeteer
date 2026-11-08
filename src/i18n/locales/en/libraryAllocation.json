@@ -1,0 +1,30 @@
+{
+  "tab": "Allocation",
+  "tabLibrary": "Library",
+  "item": {
+    "rule": "Rule",
+    "agent": "Agent",
+    "command": "Command"
+  },
+  "searchPlaceholder": "Search",
+  "refresh": "Refresh",
+  "noProjects": "No projects yet. Add a project to switch items on for it.",
+  "noItems": "The library is empty.",
+  "noMatch": "Nothing matches the search.",
+  "ruleNote": "A rule reaches the engines of its target: a chip switches the whole rule in that project.",
+  "held": "Kept by a group enabled in this project. Switch the group off on the project's page.",
+  "state": {
+    "installed": "Installed",
+    "drifted": "Drifted",
+    "git_managed": "Git-managed",
+    "not_installed": "Not installed",
+    "off_target": "Not in target"
+  },
+  "hint": {
+    "installed": "In the project as the library has it. Click to switch off.",
+    "drifted": "Switched on, but the project differs from the library (an edited copy or AGENTS.md block, another link, or nothing there). Click to switch off.",
+    "git_managed": "The repo commits its own file of this name. Puppeteer only reads it.",
+    "not_installed": "Click to switch on in this project.",
+    "off_target": "The rule's target leaves this engine out. Change the target in the rule's editor."
+  }
+}

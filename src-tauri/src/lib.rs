@@ -519,6 +519,7 @@ pub fn run() {
             commands::library_items::get_applied_library_items,
             commands::library_items::apply_library_item,
             commands::library_items::remove_library_item_from_project,
+            commands::library_allocation::list_library_allocation,
             import::commands::list_import_sources,
             import::commands::scan_import_source,
             import::commands::import_candidates,

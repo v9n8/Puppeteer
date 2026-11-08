@@ -2,7 +2,8 @@
 // Agents and Commands — one list-detail screen per kind (`/agents`,
 // `/commands`, routed with the `kind` prop), laid out like Rules: the sidebar
 // lists the library, the right pane edits the selected item and links it into
-// projects (components/libraryItems/LibraryItemDetail).
+// projects (components/libraryItems/LibraryItemDetail). The Allocation tab
+// swaps both for the item × project matrix (components/LibraryAllocationMatrix).
 //
 // The selection lives in the URL query (`?id=<item>`, `?new=1` for a blank
 // draft) so a reload or a link reopens it.
@@ -10,7 +11,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Bot, SquareSlash } from 'lucide-vue-next'
-import { Badge } from '@/components/ui'
+import { Badge, SegmentedControl } from '@/components/ui'
+import LibraryAllocationMatrix from '@/components/LibraryAllocationMatrix.vue'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import LibraryItemDetail from '@/components/libraryItems/LibraryItemDetail.vue'
@@ -41,6 +43,11 @@ const ns = `libraryItems.${props.kind}`
 const basePath = props.kind === 'agent' ? '/agents' : '/commands'
 const emptyIcon = props.kind === 'agent' ? Bot : SquareSlash
 const deletingId = ref<string | null>(null)
+const tab = ref<'library' | 'allocation'>('library')
+const tabOptions = computed(() => [
+  { value: 'library' as const, label: t('libraryAllocation.tabLibrary') },
+  { value: 'allocation' as const, label: t('libraryAllocation.tab') },
+])
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +123,12 @@ async function select(id: string) {
   setSelection(id)
 }
 
+/** An item name in the matrix opens it in the library. */
+function openFromMatrix(id: string) {
+  tab.value = 'library'
+  void select(id)
+}
+
 async function startNew() {
   if (isNew.value && !detailRef.value?.dirty) return
   if (!(await confirmDiscard())) return
@@ -183,57 +196,63 @@ async function handleDelete(item: LibraryItem) {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0">
-    <ListDetailSidebar
-      v-model:search="search"
-      :groups="sidebarGroups"
-      :selected-id="isNew ? null : selectedId"
-      :collapse-key="`puppeteer.libraryItems.${kind}.collapsed`"
-      :search-placeholder="t(`${ns}.searchPlaceholder`)"
-      :loading="store.loading"
-      :error="listError"
-      :empty-store="store.items.length === 0"
-      :empty-title="t(`${ns}.emptyTitle`)"
-      :empty-hint="t(`${ns}.emptyHint`)"
-      @select="select"
-      @add="startNew"
-      @retry="refresh"
-    >
-      <template #row="{ row, selected }">
-        <span class="flex min-w-0 items-center gap-1.5">
-          <span class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug" :class="selected && 'text-foreground'">
-            {{ row.item.name }}
+  <div class="flex h-full flex-col overflow-hidden">
+    <div class="flex shrink-0 items-center border-b border-border/60 px-3 py-1.5">
+      <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
+    </div>
+    <LibraryAllocationMatrix v-if="tab === 'allocation'" :kind="kind" @open="openFromMatrix" />
+    <div v-show="tab === 'library'" class="flex min-h-0 flex-1 overflow-hidden">
+      <ListDetailSidebar
+        v-model:search="search"
+        :groups="sidebarGroups"
+        :selected-id="isNew ? null : selectedId"
+        :collapse-key="`puppeteer.libraryItems.${kind}.collapsed`"
+        :search-placeholder="t(`${ns}.searchPlaceholder`)"
+        :loading="store.loading"
+        :error="listError"
+        :empty-store="store.items.length === 0"
+        :empty-title="t(`${ns}.emptyTitle`)"
+        :empty-hint="t(`${ns}.emptyHint`)"
+        @select="select"
+        @add="startNew"
+        @retry="refresh"
+      >
+        <template #row="{ row, selected }">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug" :class="selected && 'text-foreground'">
+              {{ row.item.name }}
+            </span>
+            <Badge
+              v-if="row.projects > 0"
+              :tone="row.drifted > 0 ? 'warning' : 'neutral'"
+              size="xs"
+              class="shrink-0"
+              :title="row.drifted > 0
+                ? t('libraryItems.list.projectsDrifted', { count: row.projects, drifted: row.drifted })
+                : t('libraryItems.list.projectsTitle', { count: row.projects })"
+            >
+              {{ row.projects }}
+            </Badge>
           </span>
-          <Badge
-            v-if="row.projects > 0"
-            :tone="row.drifted > 0 ? 'warning' : 'neutral'"
-            size="xs"
-            class="shrink-0"
-            :title="row.drifted > 0
-              ? t('libraryItems.list.projectsDrifted', { count: row.projects, drifted: row.drifted })
-              : t('libraryItems.list.projectsTitle', { count: row.projects })"
-          >
-            {{ row.projects }}
-          </Badge>
-        </span>
-        <span class="mt-1 truncate text-2xs text-muted-foreground/70">{{ row.item.description }}</span>
-      </template>
-    </ListDetailSidebar>
+          <span class="mt-1 truncate text-2xs text-muted-foreground/70">{{ row.item.description }}</span>
+        </template>
+      </ListDetailSidebar>
 
-    <LibraryItemDetail
-      v-if="isNew || selectedItem"
-      ref="detailRef"
-      :key="detailKey"
-      :kind="kind"
-      :item-id="isNew ? null : selectedId"
-      :item="isNew ? null : selectedItem"
-      :projects="projectsStore.projects"
-      :deleting="!!selectedId && deletingId === selectedId"
-      @saved="onSaved"
-      @delete="selectedItem && handleDelete(selectedItem)"
-      @discard="discardDraft"
-      @missing="setSelection(null)"
-    />
-    <DetailEmpty v-else :icon="emptyIcon" :text="t(`${ns}.noSelection`)" />
+      <LibraryItemDetail
+        v-if="isNew || selectedItem"
+        ref="detailRef"
+        :key="detailKey"
+        :kind="kind"
+        :item-id="isNew ? null : selectedId"
+        :item="isNew ? null : selectedItem"
+        :projects="projectsStore.projects"
+        :deleting="!!selectedId && deletingId === selectedId"
+        @saved="onSaved"
+        @delete="selectedItem && handleDelete(selectedItem)"
+        @discard="discardDraft"
+        @missing="setSelection(null)"
+      />
+      <DetailEmpty v-else :icon="emptyIcon" :text="t(`${ns}.noSelection`)" />
+    </div>
   </div>
 </template>

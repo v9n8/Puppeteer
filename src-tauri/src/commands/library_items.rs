@@ -47,14 +47,14 @@ impl LibraryKind {
         }
     }
 
-    fn link_table(self) -> &'static str {
+    pub(crate) fn link_table(self) -> &'static str {
         match self {
             LibraryKind::Agent => "project_agents",
             LibraryKind::Command => "project_commands",
         }
     }
 
-    fn id_column(self) -> &'static str {
+    pub(crate) fn id_column(self) -> &'static str {
         match self {
             LibraryKind::Agent => "agent_id",
             LibraryKind::Command => "command_id",
