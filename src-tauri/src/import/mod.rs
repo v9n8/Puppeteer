@@ -17,6 +17,7 @@
 
 pub mod apply;
 pub mod claude_code;
+pub mod claude_desktop;
 pub mod codex;
 pub mod commands;
 pub mod cursor;
@@ -164,7 +165,8 @@ pub trait Adapter: Sync {
     fn scan(&self, root: &Path, scope: Scope, ctx: &ScanContext) -> ScanReport;
 }
 
-pub static ADAPTERS: &[&dyn Adapter] = &[&claude_code::ClaudeCode, &codex::Codex, &cursor::Cursor];
+pub static ADAPTERS: &[&dyn Adapter] =
+    &[&claude_code::ClaudeCode, &codex::Codex, &cursor::Cursor, &claude_desktop::ClaudeDesktop];
 
 pub fn adapter(id: &str) -> Result<&'static dyn Adapter, String> {
     ADAPTERS.iter().copied().find(|a| a.id() == id).ok_or_else(|| format!("unknown import adapter '{id}'"))

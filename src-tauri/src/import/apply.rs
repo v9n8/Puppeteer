@@ -186,6 +186,7 @@ async fn free_name(db: &Db, kind: ImportKind, base: &str) -> Result<String, Stri
 mod tests {
     use super::*;
     use crate::import::claude_code::ClaudeCode;
+    use crate::import::claude_desktop::{self, ClaudeDesktop};
     use crate::import::codex::Codex;
     use crate::import::cursor::Cursor;
     use crate::import::{scan, Adapter, ScanContext, Scope};
@@ -203,6 +204,9 @@ mod tests {
         "SECRET-CODEX-BROKEN",
         "SECRET-CURSOR-VALUE",
         "SECRET-CURSOR-CLIENT",
+        "SECRET-DESKTOP-VALUE",
+        "SECRET-DESKTOP-BROKEN",
+        "DESKTOP-PREFERENCE",
     ];
 
     struct Fixture {
@@ -501,16 +505,27 @@ mod tests {
         let cursor_outcomes = import(&f.db, &f.dirs, &cursor_report.candidates, &[pick("mcp:cu")], &sink).await;
         returned += &serde_json::to_string(&cursor_outcomes).unwrap();
         assert_eq!(cursor_outcomes[0].status, Status::Imported, "{cursor_outcomes:?}");
+        write(
+            &claude_desktop::config_path(&home),
+            r#"{"preferences": {"note": "DESKTOP-PREFERENCE"}, "mcpServers": {"cd": {"command": "cd", "env": {"CD_TOKEN": "SECRET-DESKTOP-VALUE"}},
+                "cdbad": {"command": "x", "env": {"T": ["SECRET-DESKTOP-BROKEN"]}}}}"#,
+        );
+        let desktop_report = scan(&f.db, &ClaudeDesktop, &home, Scope::Global, &f.ctx).await;
+        assert_eq!(desktop_report.problems.len(), 1, "{:?}", desktop_report.problems);
+        returned += &serde_json::to_string(&desktop_report).unwrap();
+        let desktop_outcomes = import(&f.db, &f.dirs, &desktop_report.candidates, &[pick("mcp:cd")], &sink).await;
+        returned += &serde_json::to_string(&desktop_outcomes).unwrap();
+        assert_eq!(desktop_outcomes[0].status, Status::Imported, "{desktop_outcomes:?}");
         // A failure is logged too.
         import(&f.db, &f.dirs, &report.candidates, &[Pick { name: Some("bad name!".into()), ..pick("mcp:api") }], &sink).await;
 
         let stored = stored.into_inner().unwrap();
         let values: Vec<_> = stored.iter().flat_map(|(_, env, headers)| env.values().chain(headers.values()).cloned()).collect();
-        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE", "SECRET-CURSOR-VALUE"]);
+        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE", "SECRET-CURSOR-VALUE", "SECRET-DESKTOP-VALUE"]);
 
         let db_text = db_text(&f.db).await;
         assert!(
-            db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN") && db_text.contains("X-Key"),
+            db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN") && db_text.contains("X-Key") && db_text.contains("CD_TOKEN"),
             "the dump holds the KEY names"
         );
         let logs = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();

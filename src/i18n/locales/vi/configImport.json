@@ -31,7 +31,8 @@
   "adapter": {
     "claude_code": "Claude Code",
     "codex": "Codex",
-    "cursor": "Cursor"
+    "cursor": "Cursor",
+    "claude_desktop": "Claude Desktop"
   },
   "conflict": {
     "exists": "Thư viện đã có tên này",
