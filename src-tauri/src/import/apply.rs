@@ -1,7 +1,7 @@
 //! Copying picked candidates into the libraries, through each library's own create path. A pick
 //! that fails is reported and the others still run.
 
-use super::{name_taken, with_frontmatter_name, Candidate, ImportKind, Payload};
+use super::{name_taken, same_library_skill, with_frontmatter_name, Candidate, ImportKind, Payload};
 use crate::commands::library_items::{self, CreateItemPayload, LibraryKind};
 use crate::commands::mcp::{self, McpServerExport};
 use crate::commands::{rules, skills};
@@ -41,7 +41,8 @@ pub struct Pick {
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     Imported,
-    /// The name was taken and the pick said to skip.
+    /// The name was taken and the pick said to skip, or (a skill) the library already has it:
+    /// `name` is then that library skill.
     Skipped,
     Failed,
 }
@@ -109,6 +110,11 @@ async fn import_one(
     if let Some(id) = cand.kind.feature() {
         if !crate::features::is_on(db, id).await {
             return Err(format!("feature_disabled: {id}"));
+        }
+    }
+    if let Payload::SkillDir(dir) = &cand.payload {
+        if let Some(existing) = same_library_skill(db, dir).await {
+            return Ok((Status::Skipped, existing));
         }
     }
     let wanted = pick.name.clone().unwrap_or_else(|| cand.name.clone());
@@ -180,13 +186,15 @@ async fn free_name(db: &Db, kind: ImportKind, base: &str) -> Result<String, Stri
 mod tests {
     use super::*;
     use crate::import::claude_code::ClaudeCode;
+    use crate::import::codex::Codex;
     use crate::import::{scan, Adapter, ScanContext, Scope};
     use sqlx::sqlite::SqlitePoolOptions;
     use std::fs;
     use std::io::Write;
     use std::sync::{Arc, Mutex};
 
-    const SECRETS: &[&str] = &["SECRET-ENV-VALUE", "SECRET-HEADER-VALUE", "SECRET-BROKEN-VALUE", "ACCOUNT-SECRET"];
+    const SECRETS: &[&str] =
+        &["SECRET-ENV-VALUE", "SECRET-HEADER-VALUE", "SECRET-BROKEN-VALUE", "ACCOUNT-SECRET", "SECRET-CODEX-VALUE", "SECRET-CODEX-BROKEN"];
 
     struct Fixture {
         db: Db,
@@ -303,6 +311,9 @@ mod tests {
         f.import(&all_picks(), &no_secrets()).await;
         let mut picks = all_picks();
         assert!(f.import(&picks, &no_secrets()).await.iter().all(|o| o.status == Status::Skipped));
+        // An edited skill: the same SKILL.md again would be a duplicate (below).
+        let skill_md = f.root.join(".claude/skills/pdf/SKILL.md");
+        write(&skill_md, "---\nname: pdf\ndescription: PDFs\n---\nRead PDFs, v2.");
         for p in &mut picks {
             p.on_conflict = OnConflict::Rename;
         }
@@ -313,6 +324,7 @@ mod tests {
         assert!(fs::read_to_string(f.dirs.agents.join("rev-2.md")).unwrap().starts_with("---\nname: rev-2\n"));
         assert!(fs::read_to_string(f.dirs.skills.join("pdf-2/SKILL.md")).unwrap().starts_with("---\nname: pdf-2\n"));
         // An explicit name and target.
+        write(&skill_md, "---\nname: pdf\ndescription: PDFs\n---\nRead PDFs, v3.");
         let custom = Pick { id: "skills:.claude/skills/pdf".into(), name: Some("docs".into()), target: Some("both".into()), on_conflict: OnConflict::Skip };
         assert_eq!(summary(&f.import(&[custom], &no_secrets()).await)[0].1, Status::Imported);
         let target: String = sqlx::query_scalar("SELECT target FROM skills WHERE name = 'docs'").fetch_one(&f.db).await.unwrap();
@@ -346,6 +358,35 @@ mod tests {
         assert!(f.names("mcp_servers").await.is_empty());
         let rest = f.import(&[pick("rules:.claude/rules/style.md")], &no_secrets()).await;
         assert_eq!(rest[0].status, Status::Imported);
+    }
+
+    #[tokio::test]
+    async fn a_skill_already_in_the_library_is_not_imported_again() {
+        let f = Fixture::new("dup").await;
+        // The same skill kept for Codex too, under another folder and `name:`, and in the legacy folder.
+        write(&f.root.join(".agents/skills/pdf-tools/SKILL.md"), "---\nname: pdf-tools\ndescription: PDFs\n---\nRead PDFs.");
+        write(&f.root.join(".codex/skills/pdf/SKILL.md"), "---\nname: pdf\ndescription: PDFs\n---\nRead PDFs.");
+        write(&f.root.join(".agents/skills/csv/SKILL.md"), "---\nname: csv\n---\nCSVs.");
+        f.import(&[pick("skills:.claude/skills/pdf")], &no_secrets()).await;
+
+        let report = scan(&f.db, &Codex, &f.root, Scope::Project, &f.ctx).await;
+        let dups: Vec<_> = report.candidates.iter().map(|c| (c.id.as_str(), c.duplicate_of.as_deref())).collect();
+        assert_eq!(dups, [("skills:.agents/skills/csv", None), ("skills:.agents/skills/pdf-tools", Some("pdf"))]);
+        let picks: Vec<Pick> = ["skills:.agents/skills/pdf-tools", "skills:.agents/skills/csv"]
+            .into_iter()
+            .map(|id| Pick { on_conflict: OnConflict::Rename, name: None, target: None, id: id.into() })
+            .collect();
+        let got = import(&f.db, &f.dirs, &report.candidates, &picks, &no_secrets()).await;
+        assert_eq!(
+            summary(&got),
+            [
+                ("skills:.agents/skills/pdf-tools".to_string(), Status::Skipped, Some("pdf".to_string())),
+                ("skills:.agents/skills/csv".to_string(), Status::Imported, Some("csv".to_string())),
+            ]
+        );
+        assert_eq!(f.names("skills").await, ["csv", "pdf"]);
+        let target: String = sqlx::query_scalar("SELECT target FROM skills WHERE name = 'csv'").fetch_one(&f.db).await.unwrap();
+        assert_eq!(target, "codex");
     }
 
     /// Every value of every column of every table, as text.
@@ -417,15 +458,25 @@ mod tests {
         let home_outcomes = import(&f.db, &f.dirs, &home_report.candidates, &[pick("mcp:gh")], &sink).await;
         returned += &serde_json::to_string(&home_outcomes).unwrap();
         assert!(outcomes.iter().chain(&home_outcomes).all(|o| o.status == Status::Imported), "{outcomes:?} {home_outcomes:?}");
+        write(
+            &home.join(".codex/config.toml"),
+            "model_provider = \"ACCOUNT-SECRET\"\n[mcp_servers.cx]\ncommand = \"cx\"\nenv = { CX_TOKEN = \"SECRET-CODEX-VALUE\" }\n[mcp_servers.cxbad]\ncommand = \"x\"\nenv = { T = [\"SECRET-CODEX-BROKEN\"] }\n",
+        );
+        let codex_report = scan(&f.db, &Codex, &home, Scope::Global, &f.ctx).await;
+        assert_eq!(codex_report.problems.len(), 1, "{:?}", codex_report.problems);
+        returned += &serde_json::to_string(&codex_report).unwrap();
+        let codex_outcomes = import(&f.db, &f.dirs, &codex_report.candidates, &[pick("mcp:cx")], &sink).await;
+        returned += &serde_json::to_string(&codex_outcomes).unwrap();
+        assert_eq!(codex_outcomes[0].status, Status::Imported, "{codex_outcomes:?}");
         // A failure is logged too.
         import(&f.db, &f.dirs, &report.candidates, &[Pick { name: Some("bad name!".into()), ..pick("mcp:api") }], &sink).await;
 
         let stored = stored.into_inner().unwrap();
         let values: Vec<_> = stored.iter().flat_map(|(_, env, headers)| env.values().chain(headers.values()).cloned()).collect();
-        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE"]);
+        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE"]);
 
         let db_text = db_text(&f.db).await;
-        assert!(db_text.contains("GH_TOKEN") && db_text.contains("API_KEY"), "the dump holds the KEY names");
+        assert!(db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN"), "the dump holds the KEY names");
         let logs = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
         assert!(logs.contains("import_item_failed"), "{logs}");
         for secret in SECRETS {

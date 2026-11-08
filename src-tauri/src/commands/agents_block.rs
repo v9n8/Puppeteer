@@ -76,6 +76,27 @@ pub fn remove(agents_path: &Path, kind: &str, name: &str) {
     }
 }
 
+/// `content` without any managed block: what the user wrote. Unchanged when it has none; a block
+/// with no END marker is kept.
+pub fn strip_all(content: &str) -> String {
+    let mut out = content.to_string();
+    while let Some((s, e)) = next_block(&out) {
+        out = format!("{}\n\n{}", out[..s].trim_end(), out[e..].trim_start()).trim().to_string();
+    }
+    out
+}
+
+/// Byte range of the first managed block, from its START marker to the end of its END marker.
+fn next_block(content: &str) -> Option<(usize, usize)> {
+    const OPEN: &str = "<!-- puppeteer:";
+    const START: &str = " START -->";
+    let s = content.find(OPEN)?;
+    let head = s + content[s..].find(START)?;
+    let end = format!("{OPEN}{} END -->", &content[s + OPEN.len()..head]);
+    let e = head + content[head..].find(&end)? + end.len();
+    Some((s, e))
+}
+
 fn join_block(existing: &str, block: &str) -> String {
     if existing.trim().is_empty() {
         block.to_string()
