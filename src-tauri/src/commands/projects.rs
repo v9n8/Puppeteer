@@ -1,6 +1,7 @@
 use crate::commands::rules::{ApplyAllOutcome, ApplyFailure};
 use crate::commands::skills::{
     claude_skill_dir, legacy_codex_skill_dir, remove_skill_artifacts, write_skill_artifacts,
+    SkillEngines,
 };
 use crate::db::Db;
 use serde::{Deserialize, Serialize};
@@ -69,7 +70,10 @@ pub struct AppliedSkill {
     pub skill_id: String,
     pub skill_name: String,
     pub skill_description: String,
-    pub target: String,
+    /// Engines the skill is switched on for in this project.
+    pub enabled_claude: bool,
+    pub enabled_codex: bool,
+    /// Installed (linked by Puppeteer) for that engine; false for a path git tracks.
     pub has_claude: bool,
     pub has_codex: bool,
     pub applied_at: String,
@@ -1074,7 +1078,8 @@ pub async fn get_applied_skills(
     use sqlx::Row;
     let rows = sqlx::query(
         "SELECT ps.skill_id, s.name as skill_name, s.description as skill_description,
-                ps.target, ps.synced_hash_claude, ps.synced_hash_codex, ps.applied_at, ps.manual,
+                ps.enabled_claude, ps.enabled_codex, ps.synced_hash_claude, ps.synced_hash_codex,
+                ps.applied_at, ps.manual,
                 (SELECT COUNT(*) FROM skill_group_members m
                    JOIN project_skill_groups pg
                      ON pg.group_id = m.group_id AND pg.project_id = ps.project_id
@@ -1096,11 +1101,13 @@ pub async fn get_applied_skills(
             let codex: Option<String> = row.get("synced_hash_codex");
             let manual: i64 = row.get("manual");
             let group_count: i64 = row.get("group_count");
+            let engines = SkillEngines::from_row(row);
             AppliedSkill {
                 skill_id: row.get("skill_id"),
                 skill_name: row.get("skill_name"),
                 skill_description: row.get("skill_description"),
-                target: row.get("target"),
+                enabled_claude: engines.claude,
+                enabled_codex: engines.codex,
                 has_claude: claude.is_some(),
                 has_codex: codex.is_some(),
                 applied_at: row.get("applied_at"),
@@ -1210,11 +1217,25 @@ pub async fn reapply_skills(
 /// `manual` marks who asked for it: `true` when the user flipped the skill on directly, `false`
 /// when a skill group brought it in. An existing manual row never gets downgraded, so disabling a
 /// group leaves hand-picked skills alone.
+///
+/// The engines stay what the project has; a project new to the skill starts from its target.
 pub async fn apply_skill_to_project(
     db: &Db,
     project_id: &str,
     skill_id: &str,
     manual: bool,
+) -> Result<(), String> {
+    apply_skill_with_engines(db, project_id, skill_id, manual, None).await
+}
+
+/// `apply_skill_to_project` with the engines to switch the skill on for in this project;
+/// `None` keeps the project's own (or the skill's target for a project new to it).
+pub async fn apply_skill_with_engines(
+    db: &Db,
+    project_id: &str,
+    skill_id: &str,
+    manual: bool,
+    engines: Option<SkillEngines>,
 ) -> Result<(), String> {
     use sqlx::Row;
 
@@ -1238,7 +1259,8 @@ pub async fn apply_skill_to_project(
     let project_path: String = project_row.get("path");
 
     let prev = sqlx::query(
-        "SELECT synced_hash_claude, synced_hash_codex FROM project_skills WHERE project_id = ? AND skill_id = ?",
+        "SELECT enabled_claude, enabled_codex, synced_hash_claude, synced_hash_codex
+         FROM project_skills WHERE project_id = ? AND skill_id = ?",
     )
     .bind(project_id)
     .bind(skill_id)
@@ -1247,11 +1269,15 @@ pub async fn apply_skill_to_project(
     .map_err(|e| e.to_string())?;
     let prev_claude: Option<String> = prev.as_ref().and_then(|r| r.get("synced_hash_claude"));
     let prev_codex: Option<String> = prev.as_ref().and_then(|r| r.get("synced_hash_codex"));
+    let engines = engines.unwrap_or_else(|| match &prev {
+        Some(r) => SkillEngines::from_row(r),
+        None => SkillEngines::from_target(&target),
+    });
 
     let (hash_claude, hash_codex) = write_skill_artifacts(
         &project_path,
         &skill_name,
-        &target,
+        engines,
         &source_path,
         prev_claude.as_deref(),
         prev_codex.as_deref(),
@@ -1260,10 +1286,12 @@ pub async fn apply_skill_to_project(
 
     sqlx::query(
         "INSERT INTO project_skills
-         (project_id, skill_id, target, synced_hash_claude, synced_hash_codex, applied_at, manual)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+         (project_id, skill_id, enabled_claude, enabled_codex, synced_hash_claude, synced_hash_codex,
+          applied_at, manual)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(project_id, skill_id) DO UPDATE SET
-            target = excluded.target,
+            enabled_claude = excluded.enabled_claude,
+            enabled_codex = excluded.enabled_codex,
             synced_hash_claude = excluded.synced_hash_claude,
             synced_hash_codex = excluded.synced_hash_codex,
             applied_at = excluded.applied_at,
@@ -1271,7 +1299,8 @@ pub async fn apply_skill_to_project(
     )
     .bind(project_id)
     .bind(skill_id)
-    .bind(&target)
+    .bind(engines.claude)
+    .bind(engines.codex)
     .bind(&hash_claude)
     .bind(&hash_codex)
     .bind(&now)
@@ -1427,7 +1456,8 @@ pub async fn resolve_sync_conflict(
         // is no longer applied here has nothing left to overwrite.
         let row = sqlx::query(
             "SELECT sc.project_id, sc.skill_id, sc.engine, s.source_path, s.name as skill_name,
-                    s.target, p.path as project_path, ps.synced_hash_claude, ps.synced_hash_codex
+                    ps.enabled_claude, ps.enabled_codex, p.path as project_path,
+                    ps.synced_hash_claude, ps.synced_hash_codex
              FROM sync_conflicts sc
              JOIN skills s ON s.id = sc.skill_id
              JOIN projects p ON p.id = sc.project_id
@@ -1443,7 +1473,7 @@ pub async fn resolve_sync_conflict(
             let project_path: String = row.get("project_path");
             let source_path: String = row.get("source_path");
             let skill_name: String = row.get("skill_name");
-            let target: String = row.get("target");
+            let engines = SkillEngines::from_row(&row);
             let project_id: String = row.get("project_id");
             let skill_id: String = row.get("skill_id");
             let engine: String = row.get("engine");
@@ -1468,7 +1498,7 @@ pub async fn resolve_sync_conflict(
             let (hash_claude, hash_codex) = write_skill_artifacts(
                 &project_path,
                 &skill_name,
-                &target,
+                engines,
                 &source_path,
                 prev_claude.as_deref(),
                 prev_codex.as_deref(),

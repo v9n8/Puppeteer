@@ -199,6 +199,10 @@ struct LinkedItem {
     name: String,
     #[serde(default)]
     manual: bool,
+    /// Skills only: the engines it is switched on for in the project. Backups from before these
+    /// existed have none; the skill's target then decides, as it did when they were written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    engines: Option<skills::SkillEngines>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1212,7 +1216,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             created_at: r.get("created_at"),
         })
         .collect();
-        let linked = |sql: &'static str| {
+        let linked = |sql: &'static str, with_engines: bool| {
             let id = id.clone();
             async move {
                 sqlx::query(sql)
@@ -1224,6 +1228,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
                             .map(|r| LinkedItem {
                                 name: r.get("name"),
                                 manual: r.get::<i64, _>("manual") != 0,
+                                engines: with_engines.then(|| skills::SkillEngines::from_row(r)),
                             })
                             .collect::<Vec<_>>()
                     })
@@ -1231,13 +1236,16 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             }
         };
         let skills = linked(
-            "SELECT s.name, ps.manual FROM project_skills ps JOIN skills s ON s.id = ps.skill_id \
+            "SELECT s.name, ps.manual, ps.enabled_claude, ps.enabled_codex \
+             FROM project_skills ps JOIN skills s ON s.id = ps.skill_id \
              WHERE ps.project_id = ? ORDER BY s.name",
+            true,
         )
         .await?;
         let rules = linked(
             "SELECT r.name, pr.manual FROM project_rules pr JOIN rules r ON r.id = pr.rule_id \
              WHERE pr.project_id = ? ORDER BY r.name",
+            false,
         )
         .await?;
         let names = |sql: &'static str| {
@@ -3124,21 +3132,38 @@ async fn import_project(
                 warnings.push(format!("{items_table} '{}' not found", item.name));
                 continue;
             };
-            let manual: Option<i64> = sqlx::query_scalar(&format!(
-                "SELECT manual FROM {link_table} WHERE project_id = ? AND {item_col} = ?"
+            let local = sqlx::query(&format!(
+                "SELECT * FROM {link_table} WHERE project_id = ? AND {item_col} = ?"
             ))
             .bind(&id)
             .bind(&item_id)
             .fetch_optional(db)
             .await
             .map_err(err)?;
+            // Skills: the export's engines win over the project's (an older backup has none).
+            let same_engines = match (&local, item.engines) {
+                (Some(row), Some(engines)) if is_skill => {
+                    skills::SkillEngines::from_row(row) == engines
+                }
+                _ => true,
+            };
             // Already applied (and at least as "manual" as the export says).
-            if manual.is_some_and(|m| m != 0 || !item.manual) {
+            if same_engines
+                && local
+                    .as_ref()
+                    .is_some_and(|r| r.get::<i64, _>("manual") != 0 || !item.manual)
+            {
                 continue;
             }
             let applied = if is_skill {
-                crate::commands::projects::apply_skill_to_project(db, &id, &item_id, item.manual)
-                    .await
+                crate::commands::projects::apply_skill_with_engines(
+                    db,
+                    &id,
+                    &item_id,
+                    item.manual,
+                    item.engines,
+                )
+                .await
             } else {
                 rules::apply_rule_to_project(db, &id, &item_id, item.manual).await
             };
@@ -3531,6 +3556,92 @@ mod tests {
         let (outcome, again, _) = import_project(&target, entry, false).await.unwrap();
         assert_eq!((outcome, again), (Upsert::Unchanged, id));
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// Library skills `(name, target)` with a real source folder each, so applying them links.
+    async fn add_library_skills(db: &Db, lib: &Path, skills: &[(&str, &str)]) {
+        for (name, target) in skills {
+            let source = lib.join(name);
+            std::fs::create_dir_all(&source).unwrap();
+            std::fs::write(source.join("SKILL.md"), format!("---\nname: {name}\n---\n")).unwrap();
+            sqlx::query(
+                "INSERT INTO skills (id, name, description, target, source_path, updated_at) \
+                 VALUES (?, ?, 'd', ?, ?, 'u')",
+            )
+            .bind(format!("id-{name}"))
+            .bind(name)
+            .bind(target)
+            .bind(source.to_string_lossy().into_owned())
+            .execute(db)
+            .await
+            .unwrap();
+        }
+    }
+
+    async fn skill_engines(db: &Db, project_id: &str) -> Vec<(String, i64, i64)> {
+        sqlx::query_as(
+            "SELECT s.name, ps.enabled_claude, ps.enabled_codex FROM project_skills ps \
+             JOIN skills s ON s.id = ps.skill_id WHERE ps.project_id = ? ORDER BY s.name",
+        )
+        .bind(project_id)
+        .fetch_all(db)
+        .await
+        .unwrap()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn project_skill_engines_survive_a_backup_and_old_backups_use_the_target() {
+        use crate::commands::projects::apply_skill_with_engines;
+        use crate::commands::skills::SkillEngines;
+        let root = std::env::temp_dir().join(format!("puppeteer-backup-skills-{}", Uuid::new_v4()));
+        let library = [("lint", "codex"), ("review", "both")];
+        let source = test_db().await;
+        add_library_skills(&source, &root.join("lib-a"), &library).await;
+
+        // A backup written before per-project engines: no `engines`, so each skill's target.
+        let old: ProjectEntry = serde_json::from_value(serde_json::json!({
+            "id": "p-old",
+            "name": "shop",
+            "path": root.join("shop").to_string_lossy(),
+            "default_engine": "claude",
+            "created_at": "c",
+            "skills": [{ "name": "lint", "manual": true }, { "name": "review", "manual": false }],
+        }))
+        .unwrap();
+        let (_, id, warnings) = import_project(&source, &old, true).await.unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(
+            skill_engines(&source, &id).await,
+            [("lint".into(), 0, 1), ("review".into(), 1, 1)]
+        );
+
+        // A new backup carries the project's own engines, and they win over the target.
+        let claude_only = SkillEngines { claude: true, codex: false };
+        apply_skill_with_engines(&source, &id, "id-review", false, Some(claude_only)).await.unwrap();
+        let mut projects = collect_projects(&source).await.unwrap();
+        let entry = &mut projects[0];
+        assert_eq!(entry.skills[1].engines, Some(claude_only));
+        assert_eq!(
+            serde_json::to_value(&entry.skills[1]).unwrap(),
+            serde_json::json!({ "name": "review", "manual": false, "engines": { "claude": true, "codex": false } })
+        );
+        entry.path = root.join("shop-b").to_string_lossy().into_owned();
+
+        let target = test_db().await;
+        add_library_skills(&target, &root.join("lib-b"), &library).await;
+        let (_, id, warnings) = import_project(&target, entry, true).await.unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let expected = [("lint".to_string(), 0, 1), ("review".to_string(), 1, 0)];
+        assert_eq!(skill_engines(&target, &id).await, expected);
+        assert!(!root.join("shop-b/.agents/skills/review").exists());
+
+        // Imported again over engines changed locally: the backup's come back.
+        let both = SkillEngines { claude: true, codex: true };
+        apply_skill_with_engines(&target, &id, "id-review", false, Some(both)).await.unwrap();
+        import_project(&target, entry, false).await.unwrap();
+        assert_eq!(skill_engines(&target, &id).await, expected);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

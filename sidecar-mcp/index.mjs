@@ -758,7 +758,8 @@ const tools = {
   // Manage Puppeteer's reusable skill definitions (the same library shown on the
   // Skills screen). These edit the skill definition + files under
   // <app_data>/skills. Projects symlink to that folder, so content edits are live
-  // everywhere; a rename or target change needs a re-apply in the Puppeteer app.
+  // everywhere; a rename needs a re-apply in the Puppeteer app. The target is only the
+  // default for projects the skill is applied to next (each project keeps its engines).
 
   skills_list: {
     description:
@@ -808,7 +809,7 @@ const tools = {
 
   skills_update: {
     description:
-      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename or target change, re-apply via the Puppeteer app to install it again.',
+      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename, re-apply via the Puppeteer app to install it again. `target` is only the default for projects the skill is applied to next; projects that already have it keep their engines.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -824,9 +825,10 @@ const tools = {
       const r = store.updateSkill(a);
       let msg = `Updated skill '${r.skill.name}'.`;
       if (r.applied.length) {
-        msg += r.renamed || r.retargeted
-          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. ${r.renamed ? 'Renamed — the old links were removed from those projects' : 'Target changed'}; re-apply via the Puppeteer app to install it again.`
+        msg += r.renamed
+          ? `\n⚠ Applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Renamed — the old links were removed from those projects; re-apply via the Puppeteer app to install it again.`
           : `\nApplied to ${r.applied.length} project(s) via symlink — the change is already live there.`;
+        if (r.retargeted) msg += '\nTarget changed — it is the default for projects the skill is applied to next; those projects keep their engines.';
       }
       return msg;
     },

@@ -118,6 +118,31 @@ pub fn applies_codex(target: &str) -> bool {
     target == "codex" || target == "both"
 }
 
+/// Engines a skill is switched on for in one project (`project_skills.enabled_*`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillEngines {
+    pub claude: bool,
+    pub codex: bool,
+}
+
+impl SkillEngines {
+    pub const NONE: SkillEngines = SkillEngines { claude: false, codex: false };
+
+    /// A skill's `target` is only the default for a project it is newly applied to.
+    pub fn from_target(target: &str) -> Self {
+        SkillEngines { claude: applies_claude(target), codex: applies_codex(target) }
+    }
+
+    /// From a `project_skills` row selected with its `enabled_claude` / `enabled_codex`.
+    pub fn from_row(row: &sqlx::sqlite::SqliteRow) -> Self {
+        use sqlx::Row;
+        SkillEngines {
+            claude: row.get::<i64, _>("enabled_claude") != 0,
+            codex: row.get::<i64, _>("enabled_codex") != 0,
+        }
+    }
+}
+
 // ---- Per-engine destinations -------------------------------------------------
 
 /// Claude reads skills from `<project>/.claude/skills/<name>/`.
@@ -146,7 +171,7 @@ pub fn read_skill_md(source_path: &str) -> String {
     fs::read_to_string(Path::new(source_path).join("SKILL.md")).unwrap_or_default()
 }
 
-/// Link a skill into a project for `target` and drop what no longer applies, returning
+/// Link a skill into a project for `engines` and drop what no longer applies, returning
 /// (claude_hash, codex_hash) — the source SKILL.md hash per engine it is installed for.
 ///
 /// `prev_*` are the SKILL.md hashes recorded at the last sync (None = not installed for that
@@ -157,7 +182,7 @@ pub fn read_skill_md(source_path: &str) -> String {
 pub fn write_skill_artifacts(
     project_path: &str,
     name: &str,
-    target: &str,
+    engines: SkillEngines,
     source_path: &str,
     prev_claude: Option<&str>,
     prev_codex: Option<&str>,
@@ -184,7 +209,7 @@ pub fn write_skill_artifacts(
 
     let claude_dest = claude_skill_dir(project_path, name);
     // A path git tracks is the repo's own skill: left alone and not recorded as installed.
-    let hash_claude = if applies_claude(target) {
+    let hash_claude = if engines.claude {
         match project_links::ensure_symlink(root, &claude_dest, source, unedited_for(prev_claude))? {
             Linked::Yes => Some(hash.clone()),
             Linked::TrackedByGit => None,
@@ -199,7 +224,7 @@ pub fn write_skill_artifacts(
     let codex_dest = codex_skill_dir(project_path, name);
     let legacy = legacy_codex_skill_dir(project_path, name);
     let unedited = unedited_for(prev_codex);
-    let hash_codex = if applies_codex(target) {
+    let hash_codex = if engines.codex {
         let linked = project_links::ensure_symlink(root, &codex_dest, source, &unedited)?;
         project_links::remove_installed(root, &legacy, source, &unedited)?;
         match linked {
@@ -215,7 +240,7 @@ pub fn write_skill_artifacts(
         None
     };
     // The copy era's AGENTS.md pointer; `.agents/skills` needs none.
-    if applies_codex(target) || had_codex {
+    if engines.codex || had_codex {
         agents_block::remove(&agents_path(project_path), "skill", name);
     }
     Ok((hash_claude, hash_codex))
@@ -230,7 +255,8 @@ pub fn remove_skill_artifacts(
     prev_claude: Option<&str>,
     prev_codex: Option<&str>,
 ) -> Result<(), String> {
-    write_skill_artifacts(project_path, name, "none", source_path, prev_claude, prev_codex).map(|_| ())
+    write_skill_artifacts(project_path, name, SkillEngines::NONE, source_path, prev_claude, prev_codex)
+        .map(|_| ())
 }
 
 #[tauri::command]
@@ -418,8 +444,9 @@ pub async fn update_skill(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Projects link to the source, so content is already live; sync covers target changes and
-    // renames. Failures surface so a broken link is never silent.
+    // Projects link to the source, so content is already live; sync covers renames. A new target
+    // is only the default for projects applied from now on. Failures surface so a broken link is
+    // never silent.
     let failures = sync_skill_to_projects(&db, &payload.id)
         .await
         .map_err(|e| e.to_string())?;
@@ -786,22 +813,23 @@ pub(crate) async fn import_backup_skill(
     }
 }
 
-/// Sync a skill to every project that has it applied: (re)create links for the current target
-/// and name, drop the ones no longer targeted. Content needs no copying — projects link to the
-/// source. Returns one message per project that failed.
+/// Sync a skill to every project that has it applied: (re)create links for the current name and
+/// the engines each project has it switched on for. The skill's target is not applied here — it
+/// is only the default for a project the skill is newly applied to. Content needs no copying —
+/// projects link to the source. Returns one message per project that failed.
 pub async fn sync_skill_to_projects(db: &Db, skill_id: &str) -> Result<Vec<String>> {
     use sqlx::Row;
 
-    let skill = sqlx::query("SELECT name, target, source_path FROM skills WHERE id = ?")
+    let skill = sqlx::query("SELECT name, source_path FROM skills WHERE id = ?")
         .bind(skill_id)
         .fetch_one(db)
         .await?;
     let name: String = skill.get("name");
-    let target: String = skill.get("target");
     let source_path: String = skill.get("source_path");
 
     let rows = sqlx::query(
-        "SELECT ps.project_id, ps.synced_hash_claude, ps.synced_hash_codex, p.path, p.name as project_name
+        "SELECT ps.project_id, ps.enabled_claude, ps.enabled_codex, ps.synced_hash_claude,
+                ps.synced_hash_codex, p.path, p.name as project_name
          FROM project_skills ps
          JOIN projects p ON p.id = ps.project_id
          WHERE ps.skill_id = ?"
@@ -816,12 +844,13 @@ pub async fn sync_skill_to_projects(db: &Db, skill_id: &str) -> Result<Vec<Strin
         let project_path: String = row.get("path");
         let project_name: String = row.get("project_name");
 
+        let engines = SkillEngines::from_row(&row);
         let prev_claude: Option<String> = row.get("synced_hash_claude");
         let prev_codex: Option<String> = row.get("synced_hash_codex");
         let result = write_skill_artifacts(
             &project_path,
             &name,
-            &target,
+            engines,
             &source_path,
             prev_claude.as_deref(),
             prev_codex.as_deref(),
@@ -835,9 +864,8 @@ pub async fn sync_skill_to_projects(db: &Db, skill_id: &str) -> Result<Vec<Strin
         };
 
         sqlx::query(
-            "UPDATE project_skills SET target = ?, synced_hash_claude = ?, synced_hash_codex = ? WHERE project_id = ? AND skill_id = ?"
+            "UPDATE project_skills SET synced_hash_claude = ?, synced_hash_codex = ? WHERE project_id = ? AND skill_id = ?"
         )
-        .bind(&target)
         .bind(&next_claude)
         .bind(&next_codex)
         .bind(&project_id)

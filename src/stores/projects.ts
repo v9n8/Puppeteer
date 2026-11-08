@@ -66,7 +66,9 @@ export interface AppliedSkill {
   skill_id: string
   skill_name: string
   skill_description: string
-  target: 'claude' | 'codex' | 'both'
+  /** Engines the skill is switched on for in this project (the skill's target is only the default). */
+  enabled_claude: boolean
+  enabled_codex: boolean
   has_claude: boolean
   has_codex: boolean
   applied_at: string

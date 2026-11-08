@@ -1334,8 +1334,10 @@ async fn record_conflict(
 mod tests {
     use super::*;
     use crate::commands::project_links::is_symlink;
-    use crate::commands::projects::{apply_skill_to_project, remove_skill_from_project_inner};
-    use crate::commands::skills::sync_skill_to_projects;
+    use crate::commands::projects::{
+        apply_skill_to_project, apply_skill_with_engines, remove_skill_from_project_inner,
+    };
+    use crate::commands::skills::{sync_skill_to_projects, SkillEngines};
     use sqlx::sqlite::SqlitePoolOptions;
 
     fn tmp(label: &str) -> PathBuf {
@@ -1544,12 +1546,73 @@ mod tests {
         apply_skill_to_project(&db, "p1", "review", true).await.unwrap();
         assert!(is_symlink(&stale));
 
-        set_target(&db, "skills", "review", "claude").await;
-        assert!(sync_skill_to_projects(&db, "review").await.unwrap().is_empty());
+        // Switching an engine off drops its link.
+        let claude_only = SkillEngines { claude: true, codex: false };
+        apply_skill_with_engines(&db, "p1", "review", true, Some(claude_only)).await.unwrap();
         assert!(!is_symlink(&project.join(".agents/skills/review")));
 
         remove_skill_from_project_inner(&db, "p1", "review").await.unwrap();
         assert!(!is_symlink(&project.join(".claude/skills/review")));
         assert!(source.join("SKILL.md").exists(), "source untouched");
+    }
+
+    async fn engines_of(db: &Db, project_id: &str, skill_id: &str) -> (i64, i64) {
+        sqlx::query_as(
+            "SELECT enabled_claude, enabled_codex FROM project_skills WHERE project_id = ? AND skill_id = ?",
+        )
+        .bind(project_id)
+        .bind(skill_id)
+        .fetch_one(db)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn skill_target_is_only_the_default_for_projects_new_to_it() {
+        let (db, project, lib) = setup("skill-engines").await;
+        let other = project.with_file_name("other");
+        fs::create_dir_all(&other).unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'other', ?, '2026-01-01')")
+            .bind(other.to_string_lossy().to_string())
+            .execute(&db)
+            .await
+            .unwrap();
+        let source = lib.join("skills/review");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("SKILL.md"), "---\nname: review\n---\nReview it.\n").unwrap();
+        sqlx::query(
+            "INSERT INTO skills (id, name, description, target, source_path, updated_at)
+             VALUES ('review', 'review', 'Review PRs', 'both', ?, '2026-01-01')",
+        )
+        .bind(source.to_string_lossy().to_string())
+        .execute(&db)
+        .await
+        .unwrap();
+        let claude = |p: &Path| is_symlink(&p.join(".claude/skills/review"));
+        let codex = |p: &Path| is_symlink(&p.join(".agents/skills/review"));
+
+        apply_skill_to_project(&db, "p1", "review", true).await.unwrap();
+        assert_eq!(engines_of(&db, "p1", "review").await, (1, 1));
+        assert!(claude(&project) && codex(&project));
+
+        // A new target reaches no project that already has the skill, on sync or re-apply.
+        set_target(&db, "skills", "review", "claude").await;
+        assert!(sync_skill_to_projects(&db, "review").await.unwrap().is_empty());
+        apply_skill_to_project(&db, "p1", "review", false).await.unwrap();
+        assert_eq!(engines_of(&db, "p1", "review").await, (1, 1));
+        assert!(claude(&project) && codex(&project));
+
+        // A project new to it starts from the target.
+        apply_skill_to_project(&db, "p2", "review", true).await.unwrap();
+        assert_eq!(engines_of(&db, "p2", "review").await, (1, 0));
+        assert!(claude(&other) && !codex(&other));
+
+        // Engines are per project: Codex only in p2 leaves p1 alone.
+        let codex_only = SkillEngines { claude: false, codex: true };
+        apply_skill_with_engines(&db, "p2", "review", true, Some(codex_only)).await.unwrap();
+        assert_eq!(engines_of(&db, "p2", "review").await, (0, 1));
+        assert!(!claude(&other) && codex(&other));
+        assert_eq!(engines_of(&db, "p1", "review").await, (1, 1));
+        assert!(claude(&project) && codex(&project));
     }
 }
