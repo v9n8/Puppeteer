@@ -63,6 +63,8 @@
       "mcp": "MCP server",
       "groups": "Nhóm kỹ năng / quy tắc",
       "instruction_checks": "Kiểm tra chỉ dẫn",
+      "agents": "Agent (subagent)",
+      "commands": "Lệnh slash",
       "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn"
     },
     "orchestration": {

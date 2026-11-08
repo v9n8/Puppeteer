@@ -132,9 +132,10 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
 /// audit (by name only — never their arguments): they take, mint, change or
-/// drop credentials, reach the secret notes vault, or write skill links into a
-/// project's folders. `update_setting` is audited too, with its key (see the
-/// relay handler).
+/// drop credentials, reach the secret notes vault, or write skill / agent /
+/// command links into a project's folders (agents and commands: their library
+/// files too). `update_setting` is audited too, with its key (see the relay
+/// handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
     "create_github_account",
@@ -182,6 +183,12 @@ const AUDITED_COMMANDS: &[&str] = &[
     "regenerate_inbox_api_token",
     // Skills: switching one on (or one engine of it) for a project.
     "apply_skill",
+    // Agents / Commands: the library files and their links into projects.
+    "create_library_item",
+    "update_library_item",
+    "delete_library_item",
+    "apply_library_item",
+    "remove_library_item_from_project",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -613,6 +620,8 @@ mod tests {
             "list_skill_allocation",
             "apply_skill",
             "search_sessions",
+            "list_library_items",
+            "apply_library_item",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -636,6 +645,11 @@ mod tests {
             "secret_vault_unlock",
             "update_setting",
             "apply_skill",
+            "create_library_item",
+            "update_library_item",
+            "delete_library_item",
+            "apply_library_item",
+            "remove_library_item_from_project",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -648,6 +662,9 @@ mod tests {
             "secret_notes_list",
             "search_run_log",
             "search_sessions",
+            "list_library_items",
+            "get_library_item",
+            "get_applied_library_items",
         ] {
             assert!(!audited_command(name), "{name}");
         }

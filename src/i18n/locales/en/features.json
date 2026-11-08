@@ -63,6 +63,8 @@
       "mcp": "MCP servers",
       "groups": "Skill / rule groups",
       "instruction_checks": "Instruction checks",
+      "agents": "Agents",
+      "commands": "Slash commands",
       "builtin_mcp_puppeteer": "Built-in Puppeteer MCP"
     },
     "orchestration": {

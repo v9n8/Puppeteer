@@ -173,6 +173,8 @@ mod tests {
             "text_tools.selection.quote",
             "text_tools.selection.copy_md",
             "sessions.cross_session_search",
+            "library.agents",
+            "library.commands",
         ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");

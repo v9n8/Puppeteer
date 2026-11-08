@@ -162,4 +162,36 @@ mod tests {
         // The old runs are still there and can still be deleted.
         sqlx::query("DELETE FROM runs WHERE id = 'r1'").execute(&db).await.unwrap();
     }
+
+    #[tokio::test]
+    async fn agents_and_commands_tables_on_an_existing_database() {
+        let db = db_at_0001().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+
+        for (table, link, col) in [("agents", "project_agents", "agent_id"), ("commands", "project_commands", "command_id")] {
+            for sql in [
+                format!("INSERT INTO {table} (id, name, description, source_path, updated_at) VALUES ('i1', 'x', 'd', '/lib/x.md', 'u')"),
+                format!("INSERT INTO {link} (project_id, {col}, synced_hash_claude, applied_at) VALUES ('p1', 'i1', 'h', 't'), ('p2', 'i1', NULL, 't')"),
+            ] {
+                sqlx::query(&sql).execute(&db).await.unwrap();
+            }
+            let count = |sql: String| {
+                let db = db.clone();
+                async move { sqlx::query_scalar::<_, i64>(&sql).fetch_one(&db).await.unwrap() }
+            };
+            // Removing a project or the item drops its links.
+            sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
+            assert_eq!(count(format!("SELECT COUNT(*) FROM {link}")).await, 1, "{link}");
+            sqlx::query(&format!("DELETE FROM {table} WHERE id = 'i1'")).execute(&db).await.unwrap();
+            assert_eq!(count(format!("SELECT COUNT(*) FROM {link}")).await, 0, "{link}");
+            sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')")
+                .execute(&db)
+                .await
+                .unwrap();
+        }
+    }
 }
