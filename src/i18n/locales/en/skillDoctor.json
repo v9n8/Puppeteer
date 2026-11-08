@@ -1,0 +1,34 @@
+{
+  "title": "Doctor",
+  "hint": "Checks the saved SKILL.md and its folder. Nothing is sent to a model.",
+  "run": "Check again",
+  "checking": "Checking…",
+  "noIssues": "No issues found.",
+  "failed": "The check failed: {error}",
+  "unsaved": "Unsaved edits are checked after you save.",
+  "severity": {
+    "error": "{count} error | {count} errors",
+    "warn": "{count} warning | {count} warnings",
+    "info": "{count} note | {count} notes"
+  },
+  "badgeTitle": "Doctor: {summary}. Click to open the skill.",
+  "rule": {
+    "unreadable": "SKILL.md is missing, can't be read, or is too large to read.",
+    "missing-name": "The frontmatter has no `name`.",
+    "missing-description": "The frontmatter has no `description`, so the model can't tell when to load this skill.",
+    "invalid-id": "Folder name \"{id}\" isn't a valid skill id: use lowercase letters, digits and hyphens.",
+    "name-id-mismatch": "Name \"{name}\" doesn't match the folder name \"{id}\", which the engines use as the id.",
+    "unknown-frontmatter-key": "Unknown frontmatter key \"{key}\": the engines may ignore it.",
+    "description-too-short": "The description is {chars} characters; under {min} gives the model too little to decide on.",
+    "description-too-long": "The description is {chars} characters; over {max} takes room in the skill list of every turn.",
+    "description-no-trigger": "The description says what the skill does but not when to use it (e.g. \"Use when…\").",
+    "shadowed-id": "A personal skill \"{id}\" in {engine}'s HOME folder is used instead of this one.",
+    "duplicate-name": "Skill \"{other_id}\" has the same name \"{name}\".",
+    "body-empty": "SKILL.md has no instructions after the frontmatter.",
+    "body-thin": "The instructions are only {chars} characters (under {min}).",
+    "body-too-large": "SKILL.md is {kb} KB (over {max_kb} KB): it fills the context each time the skill loads.",
+    "broken-link": "Link to \"{target}\", but no such file is in the skill folder.",
+    "link-outside-folder": "Link to \"{target}\" points outside the skill folder, which isn't copied with the skill.",
+    "oversized-asset": "\"{path}\" is {kb} KB: large files make the skill slow to copy and share."
+  }
+}

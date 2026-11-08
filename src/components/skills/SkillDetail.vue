@@ -6,12 +6,13 @@
 // to write them, so editing goes through the folder (or the puppeteer MCP tools).
 //
 // The host keys this component on the selection, so every skill starts from a
-// fresh editor (own undo history, own dirty baseline).
+// fresh editor (own undo history, own dirty baseline). With the Skill Doctor on
+// (`library.skill_doctor`), a saved skill is checked on open and after each save.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { readDir, readTextFile, stat } from '@tauri-apps/plugin-fs'
 import {
-  AlertCircle, Columns2, Download, Eye, FileText, FolderCheck, FolderOpen, LayoutTemplate,
+  AlertCircle, AlertTriangle, Columns2, Download, Eye, FileText, FolderCheck, FolderOpen, Info, LayoutTemplate,
   MoreHorizontal, Pencil, RefreshCw, Trash2,
 } from 'lucide-vue-next'
 import { AppSelect, Badge, Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, Input, SegmentedControl } from '@/components/ui'
@@ -19,6 +20,7 @@ import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import SkillEditor from '@/components/SkillEditor.vue'
 import { useSkillsStore, type Skill, type SkillTarget } from '@/stores/skills'
+import { useFeaturesStore } from '@/stores/features'
 import type { Group } from '@/stores/groups'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
@@ -29,8 +31,12 @@ import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import { usePageFind } from '@/composables/usePageFind'
 import FindBar from '@/components/FindBar.vue'
 import {
-  SKILL_TEMPLATE, normalizeFrontmatter, parseFrontmatter, setFrontmatterField, validateFrontmatter,
+  SKILL_TEMPLATE, engineLabel, normalizeFrontmatter, parseFrontmatter, setFrontmatterField, validateFrontmatter,
 } from '@/lib/skillRows'
+import {
+  CMD_DIAGNOSE_SKILLS, SKILL_DOCTOR_FEATURE, groupIssuesBySeverity,
+  type DoctorIssue, type DoctorSeverity, type SkillDoctorReport,
+} from '@/lib/skillDoctor'
 
 const props = defineProps<{
   /** null = a new, unsaved skill. */
@@ -57,8 +63,9 @@ const emit = defineEmits<{
   delete: []
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const store = useSkillsStore()
+const features = useFeaturesStore()
 const { toast } = useToast()
 
 const isNew = computed(() => props.skillId === null)
@@ -232,6 +239,57 @@ watch(activeFile, async (path) => {
   }
 })
 
+// ── Doctor ──────────────────────────────────────────────────────────────────
+// It reads the folder, not the editor: run it on what is saved.
+
+const doctorOn = computed(() => features.isOn(SKILL_DOCTOR_FEATURE))
+const doctorReport = ref<SkillDoctorReport | null>(null)
+const doctorError = ref<string | null>(null)
+const doctorRunning = ref(false)
+const doctorGroups = computed(() => groupIssuesBySeverity(doctorReport.value?.issues ?? []))
+
+const severityStyle: Record<DoctorSeverity, { icon: typeof AlertCircle; tone: 'error' | 'warning' | 'info'; text: string }> = {
+  error: { icon: AlertCircle, tone: 'error', text: 'text-destructive' },
+  warn: { icon: AlertTriangle, tone: 'warning', text: 'text-warning' },
+  info: { icon: Info, tone: 'info', text: 'text-violet-700 dark:text-violet-300' },
+}
+
+let doctorSeq = 0
+async function runDoctor() {
+  if (!props.skillId || !doctorOn.value) return
+  const seq = ++doctorSeq
+  doctorRunning.value = true
+  try {
+    const reports = await invoke<SkillDoctorReport[]>(CMD_DIAGNOSE_SKILLS, { skillId: props.skillId })
+    if (seq !== doctorSeq) return
+    doctorReport.value = reports[0] ?? null
+    doctorError.value = null
+  } catch (e) {
+    if (seq === doctorSeq) doctorError.value = String(e)
+  } finally {
+    if (seq === doctorSeq) doctorRunning.value = false
+  }
+}
+
+// Switched on while the skill is open: check it; off: forget the old report.
+watch(doctorOn, (on) => {
+  if (on) void runDoctor()
+  else {
+    doctorSeq++
+    doctorReport.value = null
+    doctorError.value = null
+    doctorRunning.value = false
+  }
+})
+
+function issueText(issue: DoctorIssue): string {
+  const key = `skillDoctor.rule.${issue.rule}`
+  if (!te(key)) return issue.rule
+  const params = { ...issue.params }
+  if (typeof params.engine === 'string') params.engine = engineLabel(params.engine)
+  return t(key, params)
+}
+
 // ── Load / save ─────────────────────────────────────────────────────────────
 
 onMounted(async () => {
@@ -243,6 +301,7 @@ onMounted(async () => {
     original.value = sc.content
     sourcePath.value = sc.skill.source_path
     void loadFiles()
+    void runDoctor()
   } catch (e) {
     toast.error(String(e))
     emit('missing')
@@ -278,6 +337,7 @@ async function save() {
       sourcePath.value = saved.source_path
       void loadFiles()
     }
+    void runDoctor()
     toast.success(t('skills.editor.toastSaved'))
     emit('saved', saved, !props.skillId)
   } catch (e) {
@@ -398,6 +458,40 @@ defineExpose({ dirty, save })
               />
             </label>
           </div>
+        </DetailSection>
+        <DetailSection v-if="doctorOn && !isNew" :title="t('skillDoctor.title')" :hint="t('skillDoctor.hint')">
+          <template #actions>
+            <Badge v-for="g in doctorGroups" :key="g.severity" :tone="severityStyle[g.severity].tone" size="xs">
+              {{ t(`skillDoctor.severity.${g.severity}`, g.issues.length) }}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              :disabled="doctorRunning"
+              :title="t('skillDoctor.run')"
+              :aria-label="t('skillDoctor.run')"
+              @click="runDoctor"
+            >
+              <RefreshCw class="h-3 w-3" :stroke-width="1.75" :class="{ 'animate-spin': doctorRunning }" />
+            </Button>
+          </template>
+          <p v-if="doctorError" class="text-2xs text-destructive">{{ t('skillDoctor.failed', { error: doctorError }) }}</p>
+          <p v-else-if="!doctorReport" class="text-2xs text-muted-foreground">{{ t('skillDoctor.checking') }}</p>
+          <p v-else-if="!doctorGroups.length" class="text-2xs text-muted-foreground">{{ t('skillDoctor.noIssues') }}</p>
+          <ul v-else class="max-h-36 space-y-1 overflow-auto text-xs">
+            <template v-for="g in doctorGroups" :key="g.severity">
+              <li v-for="(issue, i) in g.issues" :key="`${g.severity}-${i}`" class="flex items-start gap-1.5">
+                <component
+                  :is="severityStyle[g.severity].icon"
+                  class="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  :class="severityStyle[g.severity].text"
+                  :stroke-width="1.75"
+                />
+                <span class="min-w-0 break-words text-foreground/90">{{ issueText(issue) }}</span>
+              </li>
+            </template>
+          </ul>
+          <p v-if="dirty && doctorReport" class="text-2xs text-muted-foreground">{{ t('skillDoctor.unsaved') }}</p>
         </DetailSection>
       </div>
 

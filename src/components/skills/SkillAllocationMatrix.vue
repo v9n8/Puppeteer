@@ -6,14 +6,18 @@
 // first: its chips link the skill into the engine's folder in HOME (local
 // only, so a remote desktop sees them read-only). "Bulk" switches many
 // skills × projects at once after a preview of the files (SkillBulkDialog).
-import { computed, onActivated, onMounted, ref } from 'vue'
+// With the Skill Doctor on, a skill with errors or warnings gets a badge that
+// opens its detail, where the issues are listed.
+import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ListChecks, Lock, RotateCw, Search } from 'lucide-vue-next'
+import { AlertCircle, AlertTriangle, ListChecks, Lock, RotateCw, Search } from 'lucide-vue-next'
 import { useSkillsStore } from '@/stores/skills'
+import { useFeaturesStore } from '@/stores/features'
 import { useToast } from '@/composables/useToast'
 import { Banner, Button, Input } from '@/components/ui'
 import SkillBulkDialog from '@/components/skills/SkillBulkDialog.vue'
 import { isRemoteMode } from '@/lib/ipc/remote'
+import { invoke } from '@/lib/tauri'
 import {
   CHIP_STATES,
   buildAllocationMatrix,
@@ -23,12 +27,17 @@ import {
   type MatrixChip,
   type SkillAllocation,
 } from '@/lib/skillRows'
+import {
+  BADGE_SEVERITIES, CMD_DIAGNOSE_SKILLS, SKILL_DOCTOR_FEATURE, doctorBadge, reportsById,
+  type BadgeSeverity, type DoctorBadge, type SkillDoctorReport,
+} from '@/lib/skillDoctor'
 
 const emit = defineEmits<{ open: [skillId: string] }>()
 
 const { t } = useI18n()
 const { toast } = useToast()
 const store = useSkillsStore()
+const features = useFeaturesStore()
 
 const allocation = ref<SkillAllocation | null>(null)
 const loading = ref(false)
@@ -56,6 +65,7 @@ const chipClass: Record<ChipState, string> = {
 async function load() {
   loading.value = true
   error.value = null
+  void loadDoctor()
   try {
     allocation.value = await store.getAllocation()
   } catch (e) {
@@ -63,6 +73,51 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// ── Doctor badges ───────────────────────────────────────────────────────────
+
+const doctorOn = computed(() => features.isOn(SKILL_DOCTOR_FEATURE))
+const doctorReports = ref<Record<string, SkillDoctorReport>>({})
+let doctorSeq = 0
+
+async function loadDoctor() {
+  const seq = ++doctorSeq
+  if (!doctorOn.value) {
+    doctorReports.value = {}
+    return
+  }
+  try {
+    const reports = await invoke<SkillDoctorReport[]>(CMD_DIAGNOSE_SKILLS)
+    if (seq === doctorSeq) doctorReports.value = reportsById(reports)
+  } catch {
+    // A badge is a hint: the matrix works without it.
+    if (seq === doctorSeq) doctorReports.value = {}
+  }
+}
+
+watch(doctorOn, () => void loadDoctor())
+
+/** Skill id → badge; skills without errors or warnings are left out. */
+const badges = computed(() => {
+  const out: Record<string, DoctorBadge> = {}
+  for (const [id, report] of Object.entries(doctorReports.value)) {
+    const badge = doctorBadge(report)
+    if (badge) out[id] = badge
+  }
+  return out
+})
+
+const badgeStyle: Record<BadgeSeverity, { icon: typeof AlertCircle; class: string }> = {
+  error: { icon: AlertCircle, class: 'bg-destructive/10 text-destructive ring-destructive/30' },
+  warn: { icon: AlertTriangle, class: 'bg-warning/15 text-warning ring-warning/30' },
+}
+
+function badgeTitle(badge: DoctorBadge): string {
+  const summary = BADGE_SEVERITIES.filter((s) => badge.counts[s] > 0)
+    .map((s) => t(`skillDoctor.severity.${s}`, badge.counts[s]))
+    .join(', ')
+  return t('skillDoctor.badgeTitle', { summary })
 }
 
 onMounted(load)
@@ -183,6 +238,17 @@ async function toggle(skillId: string, projectId: string | null, chip: MatrixChi
                 @click="emit('open', row.skill.id)"
               >
                 {{ row.skill.name }}
+              </button>
+              <button
+                v-if="badges[row.skill.id]"
+                type="button"
+                class="ml-1.5 inline-flex items-center gap-0.5 rounded-full px-1 py-px align-middle text-2xs font-medium ring-1 ring-inset"
+                :class="badgeStyle[badges[row.skill.id]!.severity].class"
+                :title="badgeTitle(badges[row.skill.id]!)"
+                @click="emit('open', row.skill.id)"
+              >
+                <component :is="badgeStyle[badges[row.skill.id]!.severity].icon" class="h-2.5 w-2.5" :stroke-width="2" />
+                {{ badges[row.skill.id]!.count }}
               </button>
             </th>
             <td v-if="row.global" class="border-b border-r border-border/40 px-3 py-1.5">
