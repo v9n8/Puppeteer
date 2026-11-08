@@ -1,0 +1,75 @@
+{
+  "agent": {
+    "title": "Agent",
+    "searchPlaceholder": "Tìm agent",
+    "emptyTitle": "Chưa có agent",
+    "emptyHint": "Agent là subagent của Claude Code: một vai trò có prompt riêng, Claude có thể giao việc cho nó.",
+    "noSelection": "Chọn một agent, hoặc tạo agent mới",
+    "untitled": "Agent mới",
+    "namePlaceholder": "code-reviewer",
+    "descriptionPlaceholder": "Khi nào Claude nên giao việc cho agent này",
+    "detailsHint": "Lưu trong frontmatter của file (Claude đọc ở đó); tên file theo tên agent.",
+    "projectsHint": "Mỗi project được bật sẽ có một link trong .claude/agents (chỉ Claude). File cùng tên mà project đã có sẵn thì không bao giờ bị thay.",
+    "toastSaved": "Đã lưu agent",
+    "toastDeleted": "Đã xoá agent",
+    "confirmDeleteTitle": "Xoá agent?",
+    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi project."
+  },
+  "command": {
+    "title": "Lệnh slash",
+    "searchPlaceholder": "Tìm lệnh",
+    "emptyTitle": "Chưa có lệnh",
+    "emptyHint": "Lệnh là slash command của Claude Code: một prompt lưu sẵn, chạy bằng /tên.",
+    "noSelection": "Chọn một lệnh, hoặc tạo lệnh mới",
+    "untitled": "Lệnh mới",
+    "namePlaceholder": "review-pr",
+    "descriptionPlaceholder": "Lệnh này làm gì",
+    "detailsHint": "Tên là tên file: Claude chạy nó bằng /tên. Mô tả lưu trong frontmatter.",
+    "projectsHint": "Mỗi project được bật sẽ có một link trong .claude/commands (chỉ Claude). File cùng tên mà project đã có sẵn thì không bao giờ bị thay.",
+    "toastSaved": "Đã lưu lệnh",
+    "toastDeleted": "Đã xoá lệnh",
+    "confirmDeleteTitle": "Xoá lệnh?",
+    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi project."
+  },
+  "list": {
+    "projectsTitle": "Đã link vào {count} project",
+    "projectsDrifted": "Đã link vào {count} project; {drifted} project đang có thứ khác ở đường dẫn đó"
+  },
+  "detail": {
+    "metaDraft": "Chưa lưu",
+    "metaUpdated": "Cập nhật {age}",
+    "saveHint": "Lưu (⌘/Ctrl+S)",
+    "saving": "Đang lưu…",
+    "moreActions": "Thao tác khác",
+    "insertTemplate": "Chèn mẫu",
+    "discardDraft": "Bỏ bản nháp",
+    "confirmDiscardTitle": "Bỏ thay đổi?",
+    "confirmDiscardMessage": "Mục này có thay đổi chưa lưu. Bỏ các thay đổi đó?",
+    "confirmDiscard": "Bỏ",
+    "details": "Thông tin",
+    "name": "Tên",
+    "description": "Mô tả",
+    "markdown": "Markdown",
+    "split": "Song song",
+    "preview": "Xem trước",
+    "projects": "Project ({count})",
+    "noProjects": "Chưa có project nào.",
+    "toastLinked": "Đã link vào {project}",
+    "toastUnlinked": "Đã gỡ khỏi {project}",
+    "state": {
+      "installed": "Đã link",
+      "drifted": "Lệch",
+      "git_managed": "Git quản lý"
+    },
+    "stateHint": {
+      "installed": "Project đang link về file trong thư viện.",
+      "drifted": "Project đang có thứ khác ở đường dẫn này (file riêng, link khác) hoặc không có gì. Dời nó đi rồi tắt và bật lại để link lại.",
+      "git_managed": "Git đang theo dõi một file cùng tên: đó là file của repo, app không đụng tới."
+    }
+  },
+  "editor": {
+    "errMissingName": "Cần có tên",
+    "errNameSlug": "Tên chỉ được chứa chữ cái, số, gạch ngang và gạch dưới",
+    "errMissingDescription": "Frontmatter cần có description"
+  }
+}

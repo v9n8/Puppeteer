@@ -14,6 +14,8 @@ import {
   Settings,
   Info,
   Search,
+  Bot,
+  SquareSlash,
 } from 'lucide-vue-next'
 import { openPrInboxWindow } from '@/lib/prInboxWindow'
 import { openCalendarWindow } from '@/lib/calendarWindow'
@@ -59,6 +61,8 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'work', openWindow: () => openGanttWindow(), feature: 'code_hosting.gantt' },
   { path: '/skills', labelKey: 'nav.skills', icon: Puzzle, group: 'config' },
   { path: '/rules', labelKey: 'nav.rules', icon: ScrollText, group: 'config' },
+  { path: '/agents', labelKey: 'nav.agents', icon: Bot, group: 'config', feature: 'library.agents' },
+  { path: '/commands', labelKey: 'nav.commands', icon: SquareSlash, group: 'config', feature: 'library.commands' },
   { path: '/mcp', labelKey: 'nav.mcp', icon: Server, group: 'config' },
   { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'config', feature: 'infra_access.vps' },
   { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'app', feature: 'usage.stats' },

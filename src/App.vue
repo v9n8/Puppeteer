@@ -338,6 +338,7 @@ const routeKey = computed(() =>
 const CACHED_VIEWS = [
   'SkillsView',
   'RulesView',
+  'LibraryItemsView',
   'McpServersView',
   'ServersView',
   'SessionSearchView',

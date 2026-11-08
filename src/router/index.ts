@@ -19,6 +19,7 @@ import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
+import LibraryItemsView from '../views/LibraryItemsView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
@@ -40,6 +41,8 @@ const router = createRouter({
     ...editorRedirects('/skills'),
     { path: '/rules', name: 'rules', component: RulesView },
     ...editorRedirects('/rules'),
+    { path: '/agents', name: 'agents', component: LibraryItemsView, props: { kind: 'agent' } },
+    { path: '/commands', name: 'commands', component: LibraryItemsView, props: { kind: 'command' } },
     { path: '/mcp', name: 'mcp', component: McpServersView },
     ...editorRedirects('/mcp'),
     { path: '/servers', name: 'servers', component: ServersView },

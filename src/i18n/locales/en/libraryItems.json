@@ -1,0 +1,75 @@
+{
+  "agent": {
+    "title": "Agents",
+    "searchPlaceholder": "Search agents",
+    "emptyTitle": "No agents yet",
+    "emptyHint": "An agent is a Claude Code subagent: a role with its own prompt that Claude can hand a task to.",
+    "noSelection": "Select an agent, or create a new one",
+    "untitled": "New agent",
+    "namePlaceholder": "code-reviewer",
+    "descriptionPlaceholder": "When Claude should hand a task to this agent",
+    "detailsHint": "Kept in the file's frontmatter, which Claude reads; the file is named after the agent.",
+    "projectsHint": "Each project switched on gets a link in .claude/agents (Claude only). A file of the same name the project already has is never replaced.",
+    "toastSaved": "Agent saved",
+    "toastDeleted": "Agent deleted",
+    "confirmDeleteTitle": "Delete agent?",
+    "confirmDeleteMessage": "Delete \"{name}\"? Its links are removed from every project."
+  },
+  "command": {
+    "title": "Commands",
+    "searchPlaceholder": "Search commands",
+    "emptyTitle": "No commands yet",
+    "emptyHint": "A command is a Claude Code slash command: a saved prompt run as /name.",
+    "noSelection": "Select a command, or create a new one",
+    "untitled": "New command",
+    "namePlaceholder": "review-pr",
+    "descriptionPlaceholder": "What this command does",
+    "detailsHint": "The name is the file name: Claude runs it as /name. The description is kept in the frontmatter.",
+    "projectsHint": "Each project switched on gets a link in .claude/commands (Claude only). A file of the same name the project already has is never replaced.",
+    "toastSaved": "Command saved",
+    "toastDeleted": "Command deleted",
+    "confirmDeleteTitle": "Delete command?",
+    "confirmDeleteMessage": "Delete \"{name}\"? Its links are removed from every project."
+  },
+  "list": {
+    "projectsTitle": "Linked into {count} project(s)",
+    "projectsDrifted": "Linked into {count} project(s); {drifted} of them hold something else at its path"
+  },
+  "detail": {
+    "metaDraft": "Not saved yet",
+    "metaUpdated": "Updated {age}",
+    "saveHint": "Save (⌘/Ctrl+S)",
+    "saving": "Saving…",
+    "moreActions": "More actions",
+    "insertTemplate": "Insert template",
+    "discardDraft": "Discard draft",
+    "confirmDiscardTitle": "Discard changes?",
+    "confirmDiscardMessage": "This item has unsaved changes. Discard them?",
+    "confirmDiscard": "Discard",
+    "details": "Details",
+    "name": "Name",
+    "description": "Description",
+    "markdown": "Markdown",
+    "split": "Side by side",
+    "preview": "Preview",
+    "projects": "Projects ({count})",
+    "noProjects": "No projects yet.",
+    "toastLinked": "Linked into {project}",
+    "toastUnlinked": "Removed from {project}",
+    "state": {
+      "installed": "Linked",
+      "drifted": "Drifted",
+      "git_managed": "Git-managed"
+    },
+    "stateHint": {
+      "installed": "The project links to the library file.",
+      "drifted": "The project holds something else at this path (its own file, another link) or nothing. Move it away, then switch off and on to link again.",
+      "git_managed": "Git tracks a file of this name: it is the repo's own and is left alone."
+    }
+  },
+  "editor": {
+    "errMissingName": "A name is required",
+    "errNameSlug": "The name may only contain letters, numbers, hyphens and underscores",
+    "errMissingDescription": "The frontmatter needs a description"
+  }
+}

@@ -149,7 +149,7 @@ test('an excluded window is always empty, whatever the tree and surface', () => 
 
 // ── Reading screens ─────────────────────────────────────────────────────────
 
-const SCREENS = ['skill', 'rule', 'item', 'slackThread', 'prInbox']
+const SCREENS = ['skill', 'rule', 'libraryItem', 'item', 'slackThread', 'prInbox']
 
 test('every reading screen is configured', () => {
   assert.deepEqual(Object.keys(SCREEN_SELECTION).sort(), [...SCREENS].sort())
