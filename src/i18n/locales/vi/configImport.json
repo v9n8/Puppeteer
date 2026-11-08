@@ -1,0 +1,51 @@
+{
+  "title": "Nhập cấu hình từ công cụ AI khác",
+  "refresh": "Làm mới",
+  "hint": "Chép MCP server, quy tắc, kỹ năng, agent và lệnh slash từ cấu hình của công cụ AI khác vào thư viện của Puppeteer. Chọn công cụ và nơi đọc, rồi tick những mục muốn nhập.",
+  "remote": "Nhập cấu hình đọc file cấu hình AI trên máy đang chạy Puppeteer, nên chỉ dùng được trong app trên máy đó, không dùng được từ remote desktop.",
+  "noSources": "Không thấy cấu hình công cụ AI nào có thứ để nhập trong thư mục home hay trong project nào.",
+  "tool": "Công cụ",
+  "from": "Đọc từ",
+  "scopeHome": "Thư mục home (global)",
+  "problems": "{count} mục không đọc được nên đã bỏ qua:",
+  "scanning": "Đang đọc cấu hình…",
+  "noCandidates": "Ở đây không còn gì để nhập.",
+  "pickAll": "Tick hoặc bỏ tick tất cả",
+  "name": "Tên trong thư viện",
+  "secretKeys": "secret: {keys} (lưu vào Keychain)",
+  "import": "Nhập ({count})",
+  "importing": "Đang nhập…",
+  "copyOnly": "Chỉ chép file; cấu hình của công cụ kia không bị đổi.",
+  "kind": {
+    "mcp": "MCP server",
+    "rule": "Quy tắc",
+    "skill": "Kỹ năng",
+    "agent": "Agent",
+    "command": "Lệnh slash"
+  },
+  "target": {
+    "claude": "Claude",
+    "codex": "Codex",
+    "both": "Cả hai"
+  },
+  "adapter": {
+    "claude_code": "Claude Code",
+    "codex": "Codex"
+  },
+  "conflict": {
+    "exists": "Thư viện đã có tên này",
+    "duplicate": "Trùng tên với mục ở trên",
+    "rename": "Nhập với tên mới",
+    "skip": "Bỏ qua"
+  },
+  "nameError": {
+    "empty": "Nhập tên.",
+    "invalid": "Chỉ dùng chữ, số, - và _."
+  },
+  "outcome": {
+    "summary": "Đã nhập {imported}, bỏ qua {skipped}, lỗi {failed}.",
+    "renamed": "đã nhập với tên {name}",
+    "skipped": "bỏ qua, thư viện đã có {name}",
+    "failed": "lỗi"
+  }
+}

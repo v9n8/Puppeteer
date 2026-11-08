@@ -10,6 +10,7 @@
   "agents": "Agent",
   "commands": "Lệnh slash",
   "mcp": "MCP",
+  "import": "Nhập cấu hình",
   "servers": "Máy chủ",
   "stats": "Thống kê",
   "calendar": "Lịch",

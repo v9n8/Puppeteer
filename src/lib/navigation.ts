@@ -16,6 +16,7 @@ import {
   Search,
   Bot,
   SquareSlash,
+  Import,
 } from 'lucide-vue-next'
 import { openPrInboxWindow } from '@/lib/prInboxWindow'
 import { openCalendarWindow } from '@/lib/calendarWindow'
@@ -64,6 +65,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/agents', labelKey: 'nav.agents', icon: Bot, group: 'config', feature: 'library.agents' },
   { path: '/commands', labelKey: 'nav.commands', icon: SquareSlash, group: 'config', feature: 'library.commands' },
   { path: '/mcp', labelKey: 'nav.mcp', icon: Server, group: 'config' },
+  { path: '/import', labelKey: 'nav.import', icon: Import, group: 'config', feature: 'library.import_external' },
   { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'config', feature: 'infra_access.vps' },
   { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'app', feature: 'usage.stats' },
   { path: '/processes', labelKey: 'nav.processes', icon: Cpu, group: 'app' },

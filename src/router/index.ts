@@ -20,6 +20,7 @@ import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
 import LibraryItemsView from '../views/LibraryItemsView.vue'
+import ConfigImportView from '../views/ConfigImportView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
@@ -45,6 +46,7 @@ const router = createRouter({
     { path: '/commands', name: 'commands', component: LibraryItemsView, props: { kind: 'command' } },
     { path: '/mcp', name: 'mcp', component: McpServersView },
     ...editorRedirects('/mcp'),
+    { path: '/import', name: 'config-import', component: ConfigImportView },
     { path: '/servers', name: 'servers', component: ServersView },
     ...editorRedirects('/servers'),
     { path: '/projects', name: 'projects', component: ProjectsView },

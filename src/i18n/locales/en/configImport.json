@@ -1,0 +1,51 @@
+{
+  "title": "Import from other AI tools",
+  "refresh": "Refresh",
+  "hint": "Copies MCP servers, rules, skills, agents and commands from another AI tool's config into Puppeteer's libraries. Pick the tool and where to read it, then tick what to import.",
+  "remote": "Import reads the AI tool configs of the computer running Puppeteer, so it only works in the app on that computer, not from a remote desktop.",
+  "noSources": "No AI tool config with something to import was found in your home folder or in any project.",
+  "tool": "Tool",
+  "from": "From",
+  "scopeHome": "Home folder (global)",
+  "problems": "{count} item(s) could not be read and were left out:",
+  "scanning": "Reading the config…",
+  "noCandidates": "Nothing left to import here.",
+  "pickAll": "Tick or untick all",
+  "name": "Name in the library",
+  "secretKeys": "secrets: {keys} (stored in the Keychain)",
+  "import": "Import ({count})",
+  "importing": "Importing…",
+  "copyOnly": "Files are copied; the tool's own config is not changed.",
+  "kind": {
+    "mcp": "MCP servers",
+    "rule": "Rules",
+    "skill": "Skills",
+    "agent": "Agents",
+    "command": "Commands"
+  },
+  "target": {
+    "claude": "Claude",
+    "codex": "Codex",
+    "both": "Both"
+  },
+  "adapter": {
+    "claude_code": "Claude Code",
+    "codex": "Codex"
+  },
+  "conflict": {
+    "exists": "Name already in the library",
+    "duplicate": "Same name as an item above",
+    "rename": "Import under a new name",
+    "skip": "Skip it"
+  },
+  "nameError": {
+    "empty": "Enter a name.",
+    "invalid": "Use only letters, digits, - and _."
+  },
+  "outcome": {
+    "summary": "Imported {imported}, skipped {skipped}, failed {failed}.",
+    "renamed": "imported as {name}",
+    "skipped": "skipped, the library already has {name}",
+    "failed": "failed"
+  }
+}

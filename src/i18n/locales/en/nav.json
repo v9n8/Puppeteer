@@ -10,6 +10,7 @@
   "agents": "Agents",
   "commands": "Commands",
   "mcp": "MCP",
+  "import": "Import",
   "servers": "Servers",
   "stats": "Stats",
   "calendar": "Calendar",
