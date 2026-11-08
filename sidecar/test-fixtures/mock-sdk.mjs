@@ -6,6 +6,7 @@
 //   abort       — the CLI withdraws the request (signal aborts) after 200ms.
 //   after-close — waits for the input to end, THEN a tool asks permission.
 //   throw       — the session loop fails (like a CLI crash).
+//   echo        — after init, echoes every later input message (`mock_input`).
 
 export function query({ prompt, options }) {
   const scenario = process.env.MOCK_SCENARIO || 'permission'
@@ -23,6 +24,12 @@ export function query({ prompt, options }) {
     if (scenario === 'throw') throw new Error('mock CLI crashed')
     // Echo the (JSON-safe) options so tests can assert what reached the SDK.
     yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function' }
+    if (scenario === 'echo') {
+      for (let next = await input.next(); !next.done; next = await input.next()) {
+        yield { type: 'mock_echo', mock_input: next.value }
+      }
+      return
+    }
     if (scenario === 'after-close') {
       while (!(await input.next()).done) { /* drain follow-ups until stdin closes */ }
       yield await ask('Edit')

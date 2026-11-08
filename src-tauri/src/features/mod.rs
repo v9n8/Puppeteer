@@ -72,6 +72,8 @@ pub static MODULES: &[Module] = &[
             on("mirror_codex"),
             on("cross_session_search"),
             on("rewind"),
+            // Steer (D4-06): send instructions into the turn in flight.
+            on("steer"),
         ],
     },
     Module {
@@ -408,6 +410,7 @@ mod tests {
         assert!(prop(&tree, "app.auto_update").effective);
         assert!(prop(&tree, "app.whats_new").effective);
         assert!(prop(&tree, "app.command_palette").effective);
+        assert!(prop(&tree, "sessions.steer").effective);
         assert!(tree.iter().flat_map(|m| &m.props).all(|p| p.stored.is_none()));
     }
 

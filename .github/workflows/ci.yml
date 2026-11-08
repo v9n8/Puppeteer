@@ -150,7 +150,7 @@ jobs:
           run() { echo "::group::$1/$2"; (cd "$1" && node "$2"); echo "::endgroup::"; }
           run sidecar test-mocked.mjs
           for t in always-allow deny exit-signal framing-seed keychain-rules mcp-permission-key \
-                   no-tools-fail-closed no-tools rewind stdin-eof-midturn; do
+                   no-tools-fail-closed no-tools rewind steer stdin-eof-midturn; do
             run sidecar-codex "test-$t.mjs"
           done
           for t in code-index dev-servers feature-groups google-server item-links projects schedules skills slack-threads todos; do

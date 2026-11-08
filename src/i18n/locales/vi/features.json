@@ -53,7 +53,8 @@
       "mirror_claude": "Mirror session của Claude CLI",
       "mirror_codex": "Mirror session của Codex CLI",
       "cross_session_search": "Tìm xuyên các session",
-      "rewind": "Tua lại: chụp file trước mỗi lượt"
+      "rewind": "Tua lại: chụp file trước mỗi lượt",
+      "steer": "Lái hướng: chen chỉ dẫn vào lượt đang chạy"
     },
     "text_tools": {
       "find_in_page": "Tìm trong trang",

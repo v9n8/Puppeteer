@@ -222,6 +222,8 @@
   "attentionUnmonitored": "No activity from the session for {mins} minutes, and this session can't report whether it is still alive. It may be working or stuck — stop it if it should have finished.",
   "attentionInputStalled": "The session is not reading its input (a message to it has been waiting). It may be busy or stuck — stop the session if it doesn't recover.",
   "attentionStop": "Stop session",
+  "steer": "Steer",
+  "steerTitle": "Add this to the running turn: the agent reads it at its next step, without a new turn",
   "sendMessageEnter": "Send message (Enter)",
   "startRunEnter": "Start run (Enter — empty uses the default prompt)",
   "resumeAndSend": "Resume session and send (Enter)",

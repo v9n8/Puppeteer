@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// JSON-RPC fixture for test-framing-seed.mjs and test-rewind.mjs: records
-// thread/start, thread/resume, thread/rollback and turn/start params to
-// PUPPETEER_FRAMING_RPC_OUT (NDJSON).
+// JSON-RPC fixture for test-framing-seed.mjs, test-rewind.mjs and
+// test-steer.mjs: records thread/start, thread/resume, thread/rollback,
+// turn/start and turn/steer params to PUPPETEER_FRAMING_RPC_OUT (NDJSON). A
+// turn never completes, so it stays steerable.
 import { appendFileSync } from 'node:fs'
 
 const out = process.env.PUPPETEER_FRAMING_RPC_OUT
@@ -17,8 +18,8 @@ process.stdin.on('data', (chunk) => {
     if (!line) continue
     let m
     try { m = JSON.parse(line) } catch { continue }
-    if (['thread/start', 'thread/resume', 'thread/rollback', 'turn/start'].includes(m.method)) {
-      appendFileSync(out, JSON.stringify({ method: m.method, params: m.params }) + '\n')
+    if (['thread/start', 'thread/resume', 'thread/rollback', 'turn/start', 'turn/steer'].includes(m.method)) {
+      appendFileSync(out, JSON.stringify({ id: m.id, method: m.method, params: m.params }) + '\n')
     }
     if (m.id === undefined) continue
     if (m.method === 'thread/start') {
@@ -30,6 +31,12 @@ process.stdin.on('data', (chunk) => {
       send({ jsonrpc: '2.0', id: m.id, result: { thread: { id: m.params.threadId, ...turns }, model: 'fixture' } })
     } else if (m.method === 'turn/start') {
       send({ jsonrpc: '2.0', id: m.id, result: { turn: { id: `turn-${m.id}` } } })
+    } else if (m.method === 'turn/steer') {
+      // PUPPETEER_FIXTURE_STEER_ERROR: refuse it like a turn that just ended.
+      const refuse = process.env.PUPPETEER_FIXTURE_STEER_ERROR
+      send(refuse
+        ? { jsonrpc: '2.0', id: m.id, error: { code: -32600, message: refuse } }
+        : { jsonrpc: '2.0', id: m.id, result: { turnId: m.params.expectedTurnId } })
     } else {
       send({ jsonrpc: '2.0', id: m.id, result: {} })
     }

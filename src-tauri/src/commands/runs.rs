@@ -96,6 +96,14 @@ fn prompt_log_line(text: &str, images: &[ImageAttachment], turn: Option<i64>) ->
     format!("{line}\n")
 }
 
+/// The persisted log's record of a steer ([`steer_run`]): rendered like a
+/// prompt, but marked `steer` and never given a `turn` — it is no turn of its
+/// own, so Rewind must neither cut there nor count it (`runs::rewind`).
+fn steer_log_line(text: &str, images: &[ImageAttachment]) -> String {
+    let line = serde_json::json!({ "type": "user", "message": { "role": "user", "content": log_user_content(text, images) }, "steer": true });
+    format!("{line}\n")
+}
+
 async fn claude_usage_capture_mode(db: &Db, claude_account_id: Option<&str>) -> &'static str {
     match crate::commands::stats::budget_status_for(db, "claude", claude_account_id).await {
         Ok(status) if status.source == "plan" && (status.is_warning || status.is_over) => "warning",
@@ -1289,6 +1297,60 @@ pub(crate) async fn send_user_message_inner(
             .await;
     }
     Ok(turn)
+}
+
+/// Switch of [`steer_run`].
+pub const STEER_FEATURE: &str = "sessions.steer";
+
+/// Steer (D4-06): hand the turn in flight more instructions without starting a
+/// new turn. Claude folds it in between tool calls (priority `next`), Codex
+/// takes it through `turn/steer`; when the turn has already ended, Claude runs
+/// it as the next prompt and Codex refuses it with a warning in the log.
+///
+/// Not a turn for Rewind: no snapshot is taken and the log line carries no
+/// `turn` ([`steer_log_line`]), so "Rewind to here" is never offered on it.
+#[tauri::command]
+pub async fn steer_run(
+    db: State<'_, Db>,
+    registry: State<'_, RunRegistry>,
+    payload: SendUserMessagePayload,
+) -> Result<(), String> {
+    use sqlx::Row;
+    let db = db.inner();
+    crate::features::require(db, STEER_FEATURE).await?;
+    // It extends a turn that consumes tokens: same guardrail as a follow-up.
+    let run_meta = sqlx::query("SELECT engine, claude_account_id FROM runs WHERE id = ?")
+        .bind(&payload.run_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let engine: String = run_meta.get("engine");
+    let claude_account_id: Option<String> = run_meta.get("claude_account_id");
+    crate::commands::stats::enforce_budget(db, &engine, claude_account_id.as_deref(), payload.override_budget).await?;
+
+    let text = payload.content.trim();
+    if text.is_empty() && payload.images.is_empty() {
+        return Err("empty message".to_string());
+    }
+    let send_line = format!(
+        "{}\n",
+        serde_json::json!({ "type": "steer", "text": text, "images": images_payload(&payload.images) })
+    );
+    let log_buf = {
+        let reg = registry.lock().await;
+        let handle = reg
+            .get(&payload.run_id)
+            .ok_or_else(|| "run not active".to_string())?;
+        handle.log_buf.clone()
+    };
+    write_run_stdin(registry.inner(), &payload.run_id, &send_line, "run does not accept steering").await?;
+    log_buf.lock().await.push_str(&steer_log_line(text, &payload.images));
+    let _ = sqlx::query("UPDATE runs SET last_activity_at = ? WHERE id = ?")
+        .bind(chrono::Utc::now().to_rfc3339())
+        .bind(&payload.run_id)
+        .execute(db)
+        .await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -4734,5 +4796,13 @@ mod prompt_log_tests {
         assert_eq!(tagged, serde_json::json!({ "type": "user", "message": { "role": "user", "content": "hi" }, "turn": 3 }));
         let plain = prompt_log_line("hi", &[], None);
         assert!(plain.ends_with('\n') && !plain.contains("turn"));
+    }
+
+    #[test]
+    fn a_steer_line_is_marked_and_never_carries_a_turn() {
+        let line = steer_log_line("use tabs", &[]);
+        assert!(line.ends_with('\n'));
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v, serde_json::json!({ "type": "user", "message": { "role": "user", "content": "use tabs" }, "steer": true }));
     }
 }

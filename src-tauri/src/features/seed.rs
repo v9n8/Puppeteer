@@ -174,6 +174,7 @@ mod tests {
             "text_tools.selection.copy_md",
             "sessions.cross_session_search",
             "sessions.rewind",
+            "sessions.steer",
             "library.agents",
             "library.commands",
             "library.skill_doctor",

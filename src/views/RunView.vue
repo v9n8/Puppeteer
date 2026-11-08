@@ -44,7 +44,7 @@ import {
   Pin, Shield, Pencil, Check, Github, Gitlab, UserCircle,
   HardDrive, Cloud, CloudCog, FolderTree, Loader2,
   MoreHorizontal, Search, Network, ChevronLeft, ChevronRight,
-  Plus, AlignJustify, Rows2, Rows3, Rows4, CircleDashed, ArrowUpDown, Bookmark
+  Plus, AlignJustify, Rows2, Rows3, Rows4, CircleDashed, ArrowUpDown, Bookmark, Navigation
 } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 import AppSelect from '@/components/AppSelect.vue'
@@ -3202,7 +3202,9 @@ function onComposerKeydown(e: KeyboardEvent) {
   }
 }
 
-async function handleSendFollowUp() {
+// `steer`: add the message to the turn in flight (sessions.steer) instead of
+// sending a follow-up. A turn that ended meanwhile gets a plain follow-up.
+async function handleSendFollowUp(steer = false) {
   mentionOpen.value = false
   const text = followUpInput.value.trim()
   const hasImages = pendingImages.value.length > 0
@@ -3258,9 +3260,14 @@ async function handleSendFollowUp() {
       await runsStore.resumeRun(id, permissionMode.value || undefined, modelOverride.value || undefined, override)
     }
 
-    const turn = await runsStore.sendUserMessage(id, prompt, images, override)
-    // The snapshot turn it was logged under: "Rewind to here" finds it by this.
-    if (turn !== null && sent.kind === 'user') sent.turn = turn
+    if (steer && wasRunning) {
+      // No turn of its own, so no snapshot and no "Rewind to here".
+      await runsStore.steerRun(id, prompt, images, override)
+    } else {
+      const turn = await runsStore.sendUserMessage(id, prompt, images, override)
+      // The snapshot turn it was logged under: "Rewind to here" finds it by this.
+      if (turn !== null && sent.kind === 'user') sent.turn = turn
+    }
     followUpInput.value = ''
   } catch (e) {
     live.appendOutput(id, t('run.sendFailed', { error: String(e) }))
@@ -5107,6 +5114,17 @@ function handleRefInput(val: string) {
                   >
                     <Square class="h-3.5 w-3.5" :stroke-width="2" fill="currentColor" />
                     {{ t('run.cancel') }}
+                  </Button>
+                  <!-- Steer: both engines take input mid-turn (D4-06 spike). -->
+                  <Button
+                    v-if="currentStatus === 'running' && !primaryDisabled && features.isOn('sessions.steer')"
+                    variant="outline"
+                    class="shrink-0"
+                    :title="t('run.steerTitle')"
+                    @click="handleSendFollowUp(true)"
+                  >
+                    <Navigation class="h-3.5 w-3.5" :stroke-width="2" />
+                    {{ t('run.steer') }}
                   </Button>
                   <!-- While running, Cancel is the only action unless there is a
                        follow-up typed — a disabled Send next to it is just noise. -->

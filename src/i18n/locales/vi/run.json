@@ -222,6 +222,8 @@
   "attentionUnmonitored": "Phiên không có hoạt động nào trong {mins} phút, và phiên này không báo được trạng thái còn sống. Có thể vẫn đang chạy hoặc đã kẹt — hãy dừng nếu lẽ ra nó đã xong.",
   "attentionInputStalled": "Phiên đang không đọc đầu vào (một tin nhắn gửi tới nó đang phải chờ). Có thể đang bận hoặc bị kẹt — hãy dừng phiên nếu nó không hồi phục.",
   "attentionStop": "Dừng phiên",
+  "steer": "Lái hướng",
+  "steerTitle": "Chen vào lượt đang chạy: agent đọc ở bước kế tiếp, không mở lượt mới",
   "sendMessageEnter": "Gửi tin nhắn (Enter)",
   "startRunEnter": "Bắt đầu run (Enter — để trống sẽ dùng prompt mặc định)",
   "resumeAndSend": "Tiếp tục session và gửi (Enter)",

@@ -380,6 +380,19 @@ export const useRunsStore = defineStore('runs', () => {
     return turn ?? null
   }
 
+  /** Steer (D4-06): add instructions to the turn in flight; starts no turn. */
+  async function steerRun(
+    run_id: string,
+    content: string,
+    images?: ImageAttachment[],
+    override_budget?: boolean,
+  ): Promise<void> {
+    await invoke('steer_run', {
+      payload: { run_id, content, images: images ?? [], override_budget: override_budget ?? false },
+    })
+    touchRun(run_id)
+  }
+
   async function listSnapshots(run_id: string): Promise<RunSnapshot[]> {
     return invoke<RunSnapshot[]>('list_snapshots', { runId: run_id })
   }
@@ -685,7 +698,7 @@ export const useRunsStore = defineStore('runs', () => {
     fetchRuns, sortRuns, refreshMeta, fetchIssue, fetchPr,
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
-    respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, endRunInput,
+    respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, steerRun, endRunInput,
     listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, exportTranscript,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,

@@ -241,6 +241,35 @@ const tests = {
     const f = fresh.messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
     assert.equal(f.resumeSessionAt, undefined)
   },
+
+  // Steer (D4-06): a steer reaches the SDK as a user message with priority
+  // `next` (folded into the running turn); a plain follow-up keeps the CLI
+  // default. Before any turn there is nothing to steer: a warning, no crash.
+  async 'steer reaches the SDK with priority next; a follow-up does not'() {
+    const img = { media_type: 'image/png', data: 'AAAA' }
+    const { messages, code } = await runSidecar('echo', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') {
+        ctl.send({ type: 'steer', text: 'too early' })
+        startPrompt(ctl)
+      }
+      if (msg.type === 'system' && msg.subtype === 'init') {
+        ctl.send({ type: 'steer', text: 'focus on the tests', images: [img] })
+        ctl.send({ type: 'prompt', text: 'then this' })
+        ctl.closeInput()
+      }
+    })
+    const early = of(messages, '_puppeteer_log').filter((m) => m.level === 'warn' && /Steer not applied/.test(m.text))
+    assert.equal(early.length, 1)
+    const [steer, followUp] = of(messages, 'mock_echo').map((m) => m.mock_input)
+    assert.equal(steer.priority, 'next')
+    assert.deepEqual(steer.message.content, [
+      { type: 'text', text: 'focus on the tests' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+    ])
+    assert.equal(followUp.priority, undefined)
+    assert.equal(followUp.message.content, 'then this')
+    assert.equal(code, 0)
+  },
 }
 
 let failed = 0

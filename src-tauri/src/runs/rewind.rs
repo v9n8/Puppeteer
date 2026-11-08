@@ -67,9 +67,9 @@ fn init_session(v: &Value) -> Option<Option<String>> {
 
 /// A prompt Puppeteer handed the engine: a `user` record it wrote (no `uuid`,
 /// unlike the engine's own records) that is neither a tool result nor one of
-/// its own notes.
+/// its own notes, nor a steer (added to a running turn, so no turn of its own).
 fn is_prompt(v: &Value) -> bool {
-    if kind(v) != Some("user") || v.get("uuid").is_some() || v.get("note").is_some() {
+    if kind(v) != Some("user") || v.get("uuid").is_some() || v.get("note").is_some() || v.get("steer").is_some() {
         return false;
     }
     match v.pointer("/message/content") {
@@ -467,6 +467,23 @@ mod tests {
         ]);
         let c = engine(&cut(&text, "codex", Some("th"), 2)).unwrap();
         assert_eq!((c.fresh, c.drop_turns, c.resume_at), (false, 3, None));
+    }
+
+    #[test]
+    fn a_steer_is_no_turn_to_drop_or_cut_at() {
+        let steer = json!({ "type": "user", "message": { "role": "user", "content": "use tabs" }, "steer": true });
+        let text = log(&[
+            init("th"),
+            prompt("one", Some(1)),
+            prompt("two", Some(2)),
+            steer.clone(),
+            json!({ "type": "result" }),
+            prompt("three", Some(3)),
+            steer,
+        ]);
+        // Codex took the steers through turn/steer: only turns 2 and 3 exist to drop.
+        assert_eq!(engine(&cut(&text, "codex", Some("th"), 2)).unwrap().drop_turns, 2);
+        assert_eq!(engine(&cut(&text, "codex", Some("th"), 3)).unwrap().drop_turns, 1);
     }
 
     #[test]

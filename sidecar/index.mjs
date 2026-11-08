@@ -645,6 +645,16 @@ rl.on('line', (raw) => {
         inputQueue.push(userMessage(cmd.text ?? '', cmd.images))
       }
       break
+    // Steer: a message for the turn in flight. Priority `next` has the CLI fold
+    // it into the running turn between tool calls instead of queueing a new
+    // turn; a turn that has just ended takes it as the next prompt.
+    case 'steer':
+      if (started && inputQueue) {
+        inputQueue.push({ ...userMessage(cmd.text ?? '', cmd.images), priority: 'next' })
+      } else {
+        send({ type: '_puppeteer_log', level: 'warn', text: '⚠ Steer not applied: no turn is running.' })
+      }
+      break
     case 'permission_response': {
       const resolve = pendingPermissions.get(cmd.requestId)
       if (resolve) {

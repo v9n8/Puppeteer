@@ -900,6 +900,7 @@ function onServerMessage(msg) {
         ctrl('_puppeteer_done')
         turnActive = false
         turnCompleted = true
+        currentTurn = null
         shutdown(0)
         break
       }
@@ -958,6 +959,9 @@ let turnActive = false
 let turnCompleted = false
 // The broker closed our stdin: no prompt or permission answer can arrive.
 let inputClosed = false
+// The turn in flight, as a promise of its id (null once refused or completed):
+// `turn/steer` must name it, and a steer can arrive before turn/start answers.
+let currentTurn = null
 const promptQueue = []
 
 async function bringUp() {
@@ -1011,7 +1015,7 @@ async function bringUp() {
     .catch(() => {})
 
   ready = true
-  for (const t of promptQueue.splice(0)) startTurn(t.text, t.images)
+  for (const t of promptQueue.splice(0)) (t.steer ? steerTurn : startTurn)(t.text, t.images)
 }
 
 // Lightweight usage probe: initialize the app-server, read the account's plan
@@ -1040,6 +1044,18 @@ async function usageProbe() {
 
 // `images` is an array of { media_type, data(base64) }. Codex app-server takes
 // images as an `image` input item whose `url` is a base64 `data:` URL.
+function userInput(text, images) {
+  const input = []
+  if (text) input.push({ type: 'text', text, text_elements: [] })
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      input.push({ type: 'image', url: `data:${img.media_type};base64,${img.data}` })
+    }
+  }
+  if (!input.length) input.push({ type: 'text', text: '', text_elements: [] })
+  return input
+}
+
 // Map the thread/start `sandbox` string onto the turn/start `sandboxPolicy`
 // object shape (all variants only require `type`).
 function sandboxPolicyObject(sandbox) {
@@ -1055,19 +1071,11 @@ async function startTurn(text, images) {
   if (!threadId) { ctrl('_puppeteer_error', { error: 'no thread' }); return }
   turnActive = true
   turnStartedAt = Date.now()
-  const input = []
   // Prepend the one-time framing seed to the first turn of a resumed thread.
   // Claimed up front so a second turn queued meanwhile can't seed it twice.
   const seed = SEED_FRAMING
   SEED_FRAMING = null
   if (seed) text = text ? `${seed}\n\n${text}` : seed
-  if (text) input.push({ type: 'text', text, text_elements: [] })
-  if (Array.isArray(images)) {
-    for (const img of images) {
-      input.push({ type: 'image', url: `data:${img.media_type};base64,${img.data}` })
-    }
-  }
-  if (!input.length) input.push({ type: 'text', text: '', text_elements: [] })
   // Re-apply the permission policy on EVERY turn (it overrides "for this turn
   // and subsequent turns"). This is essential for RESUMED threads: `thread/resume`
   // does NOT accept a policy, so a resumed session would otherwise keep whatever
@@ -1076,12 +1084,14 @@ async function startTurn(text, images) {
   const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
   // Surface a rejected turn/start (e.g. bad input shape) instead of hanging: the
   // turn outcome otherwise arrives only via the turn/completed notification.
-  const res = await request('turn/start', {
+  const starting = request('turn/start', {
     threadId,
-    input,
+    input: userInput(text, images),
     approvalPolicy,
     sandboxPolicy: sandboxPolicyObject(sandbox),
   })
+  currentTurn = starting.then((r) => r?.result?.turn?.id ?? null)
+  const res = await starting
   if (res?.error) {
     turnActive = false
     ctrl('_puppeteer_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
@@ -1090,6 +1100,21 @@ async function startTurn(text, images) {
   } else if (seed) {
     // Accepted: the framing is now in the thread history. Seed only once.
     ctrl('_puppeteer_framing_seeded')
+  }
+}
+
+// Steer (D4-06): add input to the turn in flight with `turn/steer`, which
+// starts no turn. A turn that is over (or a codex without turn/steer) refuses
+// it: say so, never replay it as a new turn behind the user's back.
+async function steerTurn(text, images) {
+  // Still starting up with the first prompt waiting: steer the turn it starts.
+  if (!ready && promptQueue.length) { promptQueue.push({ text, images, steer: true }); return }
+  const turnId = await currentTurn
+  const res = turnId
+    ? await request('turn/steer', { threadId, input: userInput(text, images), expectedTurnId: turnId })
+    : null
+  if (!turnId || res?.error) {
+    note(`⚠ Steer not applied: ${res?.error?.message || 'no turn is running'}. Send it as a new message instead.`, 'warn')
   }
 }
 
@@ -1129,6 +1154,9 @@ function handleCommand(cmd) {
     case 'prompt':
       if (!ready) promptQueue.push({ text: cmd.text, images: cmd.images })
       else startTurn(cmd.text, cmd.images)
+      break
+    case 'steer':
+      steerTurn(cmd.text, cmd.images)
       break
     case 'permission_response':
       settleWaiter(cmd.requestId, cmd.decision === 'allow', { answers: cmd.answers, remember: cmd.remember })
