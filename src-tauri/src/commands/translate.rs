@@ -38,7 +38,7 @@ use crate::runs::sidecar::{
 };
 use serde_json::Value;
 use sqlx::Row;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -46,6 +46,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::ChildStdin;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::oneshot;
 use tokio::sync::Mutex as TokioMutex;
 
 /// Cap on how much text we translate in one call — keeps the turn snappy and
@@ -122,6 +123,9 @@ struct TurnRouting {
     final_text: String,
     /// Error reported by the sidecar for the front turn, if any.
     error: Option<String>,
+    /// Turns whose caller wants the raw `result` message (its usage / cost);
+    /// sent just before the turn's terminal event.
+    result_sinks: HashMap<u64, oneshot::Sender<Value>>,
 }
 
 /// A resident translation sidecar plus everything needed to route turns to it.
@@ -490,15 +494,18 @@ fn build_prompt(source: &str, target_name: &str, style: &str) -> String {
     )
 }
 
+/// Claude model of the warm session when the settings leave it empty.
+const DEFAULT_CLAUDE_MODEL: &str = "haiku";
+
 /// Options that open the warm claude session. Every caller of this engine (UI
-/// translate, Inbox API, Slack thread translate, Focus AI) feeds it
+/// translate, Inbox API, Slack thread translate, Focus AI, Skill eval) feeds it
 /// UNTRUSTED text, so the session is tool-less: `noTools` makes the sidecar
 /// strip every tool/MCP source and deny any call — a prompt injection in a Slack
 /// message or GitHub comment must not reach Bash/Write/WebFetch. Never pair it
 /// with `bypassPermissions`, which would auto-approve before any check runs.
 fn session_options(model: &str, cwd: &str) -> serde_json::Value {
     let model = match model.trim() {
-        "" => "haiku",
+        "" => DEFAULT_CLAUDE_MODEL,
         m => m,
     };
     serde_json::json!({
@@ -592,6 +599,7 @@ fn proc_label(kind: crate::procs::ProcKind, is_codex: bool) -> String {
     let what = match kind {
         ProcKind::SlackTranslate => "Slack translation session",
         ProcKind::FocusAi => "Focus AI session",
+        ProcKind::SkillEval => "Skill eval session",
         _ => "Translation session",
     };
     format!("{what} ({})", if is_codex { "codex" } else { "claude" })
@@ -729,6 +737,9 @@ fn route_message(r: &mut TurnRouting, v: &Value) -> (Vec<(u64, TurnEvent)>, bool
         // Turn finished → resolve the front turn.
         Some("result") => {
             if let Some((turn, tx)) = r.queue.pop_front() {
+                if let Some(sink) = r.result_sinks.remove(&turn) {
+                    let _ = sink.send(v.clone());
+                }
                 let ev = if let Some(err) = r.error.take() {
                     TurnEvent::Error(err)
                 } else {
@@ -755,6 +766,7 @@ fn route_message(r: &mut TurnRouting, v: &Value) -> (Vec<(u64, TurnEvent)>, bool
 /// Fail every turn still queued (the sidecar's stdout closed).
 fn fail_pending(r: &mut TurnRouting) -> Vec<(u64, TurnEvent)> {
     let pending: Vec<_> = r.queue.drain(..).collect();
+    r.result_sinks.clear();
     let err = r
         .error
         .take()
@@ -852,7 +864,7 @@ pub async fn submit(
         .unwrap_or_else(|| settings.default_target.clone());
     let target_name = target_language_name(&target);
     let prompt = build_prompt(source, &target_name, &settings.style);
-    let (turn_id, rx) = submit_with(app, state, &settings, prompt, want_events).await?;
+    let (turn_id, rx) = submit_with(app, state, &settings, prompt, want_events, None).await?;
     Ok((turn_id, rx, target))
 }
 
@@ -870,7 +882,38 @@ pub async fn submit_prompt(
         return Err(ERR_NOTHING_TO_TRANSLATE.to_string());
     }
     let settings = load_settings(db).await?;
-    submit_with(app, state, &settings, prompt, want_events).await
+    submit_with(app, state, &settings, prompt, want_events, None).await
+}
+
+/// [`submit_prompt`] with an event channel plus the turn's raw `result`
+/// message (usage, and `total_cost_usd` on Claude), for callers that meter
+/// what they spend. The result receiver errors when the turn fails before it.
+pub async fn submit_prompt_metered(
+    app: &AppHandle,
+    db: &Db,
+    state: &TranslateState,
+    prompt: String,
+) -> Result<(u64, UnboundedReceiver<TurnEvent>, oneshot::Receiver<Value>), String> {
+    if prompt.trim().is_empty() {
+        return Err(ERR_NOTHING_TO_TRANSLATE.to_string());
+    }
+    let settings = load_settings(db).await?;
+    let (sink, result) = oneshot::channel();
+    let (turn, rx) = submit_with(app, state, &settings, prompt, true, Some(sink)).await?;
+    Ok((turn, rx.ok_or("no result channel")?, result))
+}
+
+/// Engine (`claude` | `codex`) and model the translate settings run on; an
+/// empty model is the engine's default (`haiku` for claude, see
+/// `session_options`; Codex's own default, unknown here, stays empty).
+pub async fn engine_and_model(db: &Db) -> Result<(String, String), String> {
+    let s = load_settings(db).await?;
+    let engine = s.engine.trim().to_lowercase();
+    let model = match s.model.trim() {
+        "" if engine != "codex" => DEFAULT_CLAUDE_MODEL.to_string(),
+        m => m.to_string(),
+    };
+    Ok((engine, model))
 }
 
 /// [`submit_prompt`] with the engine / model swapped for `engine` / `model`
@@ -895,7 +938,7 @@ pub async fn submit_prompt_as(
     if !model.trim().is_empty() {
         settings.model = model.trim().to_string();
     }
-    submit_with(app, state, &settings, prompt, true).await
+    submit_with(app, state, &settings, prompt, true, None).await
 }
 
 /// Shared body of `submit` / `submit_prompt` / `submit_prompt_as`: ensure a
@@ -906,6 +949,7 @@ async fn submit_with(
     settings: &TranslateSettings,
     prompt: String,
     want_events: bool,
+    result_sink: Option<oneshot::Sender<Value>>,
 ) -> Result<(u64, Option<UnboundedReceiver<TurnEvent>>), String> {
     let sig = signature(settings);
     let is_codex = settings.engine.trim().eq_ignore_ascii_case("codex");
@@ -950,7 +994,13 @@ async fn submit_with(
     } else {
         (None, None)
     };
-    w.routing.lock().await.queue.push_back((turn_id, tx));
+    {
+        let mut r = w.routing.lock().await;
+        r.queue.push_back((turn_id, tx));
+        if let Some(sink) = result_sink {
+            r.result_sinks.insert(turn_id, sink);
+        }
+    }
 
     // First prompt carries the session options; follow-ups are bare user turns.
     let line = if !w.started && !is_codex {
@@ -963,7 +1013,11 @@ async fn submit_with(
     if let Err(e) = w.stdin.write_all(format!("{line}\n").as_bytes()).await {
         // The pipe died between the liveness check and the write — drop the turn
         // and surface a clean error; the next call will respawn.
-        w.routing.lock().await.queue.pop_back();
+        {
+            let mut r = w.routing.lock().await;
+            r.queue.pop_back();
+            r.result_sinks.remove(&turn_id);
+        }
         w.alive.store(false, Ordering::SeqCst);
         return Err(format!("{ERR_SEND_PREFIX}{e}"));
     }
@@ -1185,6 +1239,33 @@ mod tests {
         let (out, _) = route_message(&mut r, &empty_result);
         assert_eq!(out, vec![(1, TurnEvent::Error(ERR_EMPTY_RESULT.into()))]);
         assert_eq!(r.queue.len(), 1);
+    }
+
+    #[test]
+    fn a_metered_turn_gets_its_own_result_message() {
+        let mut r = TurnRouting::default();
+        let (tx, _rx) = unbounded_channel();
+        let (sink, mut result) = oneshot::channel();
+        r.queue.push_back((1, None));
+        r.queue.push_back((2, Some(tx)));
+        r.result_sinks.insert(2, sink);
+        let first = serde_json::json!({ "type": "result", "total_cost_usd": 0.5 });
+        route_message(&mut r, &serde_json::from_str(&assistant("a")).unwrap());
+        route_message(&mut r, &first);
+        assert!(result.try_recv().is_err(), "turn 1's result is not turn 2's");
+        let second = serde_json::json!({ "type": "result", "total_cost_usd": 0.01 });
+        route_message(&mut r, &serde_json::from_str(&assistant("b")).unwrap());
+        route_message(&mut r, &second);
+        assert_eq!(result.try_recv().unwrap(), second);
+        assert!(r.result_sinks.is_empty());
+
+        // The sidecar dies first: the sink is dropped, its receiver errors.
+        let (sink, mut result) = oneshot::channel();
+        r.queue.push_back((3, None));
+        r.result_sinks.insert(3, sink);
+        fail_pending(&mut r);
+        assert!(result.try_recv().is_err());
+        assert!(r.result_sinks.is_empty());
     }
 
     #[tokio::test]

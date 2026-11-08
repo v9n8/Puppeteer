@@ -77,6 +77,7 @@
       "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn",
       "skills_global": "Skill global (thư mục HOME)",
       "skill_doctor": "Skill Doctor (kiểm tra skill)",
+      "skill_eval": "Skill eval (gửi prompt mẫu cho model, tốn hạn mức)",
       "import_external": "Nhập cấu hình từ công cụ AI khác",
       "code_index": "Chỉ mục mã nguồn cho agent (nơi khai báo, nơi dùng một symbol, và file bị ảnh hưởng khi sửa)"
     },

@@ -1,0 +1,48 @@
+{
+  "section": "Eval",
+  "sectionHint": "Model có nạp skill này cho đúng yêu cầu không? Gửi prompt mẫu cho model.",
+  "open": "Chạy eval…",
+  "lastRun": "Lần chạy gần nhất: đạt {passed} / {scored}",
+  "title": "Skill eval: {name}",
+  "intro": "Mỗi ca là một yêu cầu. Model (engine và model của mục Dịch trong Cài đặt) thấy tên và mô tả của mọi skill trong thư viện rồi nói nó sẽ nạp skill nào. Ca đạt khi model nạp skill này đúng như kỳ vọng, hoặc không nạp khi không nên nạp. Mỗi ca là một lượt gọi model và tốn hạn mức.",
+  "cases": "Ca kiểm ({count} / {max})",
+  "addCase": "Thêm ca",
+  "removeCase": "Xoá ca",
+  "promptPlaceholder": "Một yêu cầu người dùng có thể gõ…",
+  "expect": {
+    "activate": "Nên nạp",
+    "skip": "Không nên nạp"
+  },
+  "budget": "Trần chi phí",
+  "maxCalls": "Số lượt gọi model",
+  "maxCostUsd": "Chi phí (USD)",
+  "maxMinutes": "Thời gian (phút)",
+  "budgetHint": "Chạm trần nào trước thì dừng, các ca còn lại bị bỏ qua. Chi phí được kiểm trước mỗi lượt nên có thể vượt tối đa một lượt.",
+  "run": "Chạy",
+  "running": "Đang chạy…",
+  "failed": "Eval thất bại: {error}",
+  "results": "Kết quả",
+  "summary": "Đạt {passed} / {scored}, bỏ qua {skipped}, lỗi {errors}",
+  "cost": "${cost} cho {calls} lượt",
+  "costEstimated": "~${cost} cho {calls} lượt (ước lượng)",
+  "stopped": {
+    "calls": "Dừng vì chạm trần số lượt: các ca còn lại bị bỏ qua.",
+    "cost": "Dừng vì chạm trần chi phí: các ca còn lại bị bỏ qua.",
+    "wallclock": "Dừng vì chạm trần thời gian: các ca còn lại bị bỏ qua.",
+    "error": "Dừng sau hai lượt lỗi liên tiếp (đăng nhập hoặc mạng?): các ca còn lại bị bỏ qua."
+  },
+  "pass": "Đạt",
+  "fail": "Trượt",
+  "status": {
+    "skipped": "Bỏ qua",
+    "error": "Lỗi"
+  },
+  "chosen": "chọn: {skill}",
+  "none": "không skill nào",
+  "problem": {
+    "noCases": "Thêm ít nhất một ca.",
+    "tooMany": "Tối đa {max} ca.",
+    "emptyPrompt": "Ca {index} chưa có prompt.",
+    "promptTooLong": "Ca {index} dài quá {max} ký tự."
+  }
+}

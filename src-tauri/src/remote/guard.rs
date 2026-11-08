@@ -216,6 +216,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Dev servers: start a command the project's repo declares, or stop one.
     "devserver_start",
     "devserver_stop",
+    // Skill eval: sends prompts to a model, spends quota.
+    "run_skill_eval",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -671,6 +673,7 @@ mod tests {
             "devserver_start",
             "devserver_stop",
             "devserver_logs",
+            "run_skill_eval",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -707,6 +710,7 @@ mod tests {
             "export_run_transcript",
             "devserver_start",
             "devserver_stop",
+            "run_skill_eval",
         ] {
             assert!(audited_command(name), "{name}");
         }

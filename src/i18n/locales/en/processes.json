@@ -19,6 +19,7 @@
     "translate": "Translate",
     "slack_translate": "Slack translate",
     "focus_ai": "Focus AI",
+    "skill_eval": "Skill eval",
     "probe": "Model probe",
     "mcp_test": "MCP test",
     "ssh_agent": "ssh-agent",

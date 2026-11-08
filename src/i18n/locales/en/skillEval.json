@@ -1,0 +1,48 @@
+{
+  "section": "Eval",
+  "sectionHint": "Does the model load this skill for the right requests? Sends sample prompts to a model.",
+  "open": "Run eval…",
+  "lastRun": "Last run: {passed} of {scored} passed",
+  "title": "Skill eval: {name}",
+  "intro": "Each case is one request. The model (the Translate engine and model in Settings) sees every library skill's name and description and says which one it would load. A case passes when it loads this skill as expected, or leaves it alone when it shouldn't load it. Each case is one model call and spends quota.",
+  "cases": "Cases ({count} / {max})",
+  "addCase": "Add case",
+  "removeCase": "Remove case",
+  "promptPlaceholder": "A request a user might type…",
+  "expect": {
+    "activate": "Should load it",
+    "skip": "Should not load it"
+  },
+  "budget": "Spend caps",
+  "maxCalls": "Model calls",
+  "maxCostUsd": "Cost (USD)",
+  "maxMinutes": "Time (minutes)",
+  "budgetHint": "The run stops at the first cap reached and skips the remaining cases. Cost is checked before each call, so it can go over by at most one call.",
+  "run": "Run",
+  "running": "Running…",
+  "failed": "The eval failed: {error}",
+  "results": "Results",
+  "summary": "{passed} of {scored} passed, {skipped} skipped, {errors} errors",
+  "cost": "${cost} in {calls} calls",
+  "costEstimated": "~${cost} in {calls} calls (estimated)",
+  "stopped": {
+    "calls": "Stopped at the call cap: the remaining cases were skipped.",
+    "cost": "Stopped at the cost cap: the remaining cases were skipped.",
+    "wallclock": "Stopped at the time cap: the remaining cases were skipped.",
+    "error": "Stopped after two failed calls in a row (login or network?): the remaining cases were skipped."
+  },
+  "pass": "Pass",
+  "fail": "Fail",
+  "status": {
+    "skipped": "Skipped",
+    "error": "Error"
+  },
+  "chosen": "picked: {skill}",
+  "none": "no skill",
+  "problem": {
+    "noCases": "Add at least one case.",
+    "tooMany": "At most {max} cases.",
+    "emptyPrompt": "Case {index} has no prompt.",
+    "promptTooLong": "Case {index} is over {max} characters."
+  }
+}

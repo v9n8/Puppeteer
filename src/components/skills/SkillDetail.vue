@@ -8,17 +8,19 @@
 // The host keys this component on the selection, so every skill starts from a
 // fresh editor (own undo history, own dirty baseline). With the Skill Doctor on
 // (`library.skill_doctor`), a saved skill is checked on open and after each save.
+// With Skill eval on (`library.skill_eval`), its dialog runs sample requests.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { readDir, readTextFile, stat } from '@tauri-apps/plugin-fs'
 import {
-  AlertCircle, AlertTriangle, Columns2, Download, Eye, FileText, FolderCheck, FolderOpen, Info, LayoutTemplate,
+  AlertCircle, AlertTriangle, Columns2, Download, Eye, FileText, FlaskConical, FolderCheck, FolderOpen, Info, LayoutTemplate,
   MoreHorizontal, Pencil, RefreshCw, Trash2,
 } from 'lucide-vue-next'
 import { AppSelect, Badge, Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, Input, SegmentedControl } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import SkillEditor from '@/components/SkillEditor.vue'
+import SkillEvalDialog from '@/components/skills/SkillEvalDialog.vue'
 import { useSkillsStore, type Skill, type SkillTarget } from '@/stores/skills'
 import { useFeaturesStore } from '@/stores/features'
 import type { Group } from '@/stores/groups'
@@ -37,6 +39,7 @@ import {
   CMD_DIAGNOSE_SKILLS, SKILL_DOCTOR_FEATURE, groupIssuesBySeverity,
   type DoctorIssue, type DoctorSeverity, type SkillDoctorReport,
 } from '@/lib/skillDoctor'
+import { SKILL_EVAL_FEATURE, evalSummary, type SkillEvalRun } from '@/lib/skillEval'
 
 const props = defineProps<{
   /** null = a new, unsaved skill. */
@@ -290,6 +293,18 @@ function issueText(issue: DoctorIssue): string {
   return t(key, params)
 }
 
+// ── Eval ────────────────────────────────────────────────────────────────────
+// Like the Doctor it reads the library, not the editor: it runs on what is saved.
+
+const evalOn = computed(() => features.isOn(SKILL_EVAL_FEATURE))
+const evalOpen = ref(false)
+const evalLast = ref<SkillEvalRun | null>(null)
+const evalLastText = computed(() => {
+  if (!evalLast.value) return ''
+  const s = evalSummary(evalLast.value)
+  return t('skillEval.lastRun', { passed: s.passed, scored: s.scored })
+})
+
 // ── Load / save ─────────────────────────────────────────────────────────────
 
 onMounted(async () => {
@@ -493,6 +508,22 @@ defineExpose({ dirty, save })
           </ul>
           <p v-if="dirty && doctorReport" class="text-2xs text-muted-foreground">{{ t('skillDoctor.unsaved') }}</p>
         </DetailSection>
+        <DetailSection v-if="evalOn && !isNew" :title="t('skillEval.section')">
+          <template #actions>
+            <Button variant="outline" size="xs" @click="evalOpen = true">
+              <FlaskConical class="h-3 w-3" :stroke-width="1.75" />
+              {{ t('skillEval.open') }}
+            </Button>
+          </template>
+          <p class="-mt-1 text-2xs text-muted-foreground">{{ evalLastText || t('skillEval.sectionHint') }}</p>
+        </DetailSection>
+        <SkillEvalDialog
+          v-if="evalOn && skillId"
+          v-model:open="evalOpen"
+          :skill-id="skillId"
+          :skill-name="skill?.name ?? ''"
+          @finished="(r: SkillEvalRun) => (evalLast = r)"
+        />
       </div>
 
       <!-- File tabs + view mode -->

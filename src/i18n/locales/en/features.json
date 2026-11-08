@@ -77,6 +77,7 @@
       "builtin_mcp_puppeteer": "Built-in Puppeteer MCP",
       "skills_global": "Global skills (home folder)",
       "skill_doctor": "Skill Doctor",
+      "skill_eval": "Skill eval (sends sample prompts to a model, spends quota)",
       "import_external": "Import from other AI tools",
       "code_index": "Code index for agents (where a symbol is declared, used, and what a change affects)"
     },

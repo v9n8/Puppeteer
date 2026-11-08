@@ -39,6 +39,7 @@ pub mod settings_backup;
 pub mod skill_allocation;
 pub mod skill_bulk;
 pub mod skill_doctor;
+pub mod skill_eval;
 pub mod skill_effective;
 pub mod skills;
 pub mod slack_threads;
