@@ -401,6 +401,17 @@ async fn process_line(
     // Audit under the run that issued the request (falls back to "?").
     let run_id = req.run_id.as_deref().unwrap_or("?");
 
+    // A switched-off cloud is denied before any account lookup or prompt.
+    let (aws_on, azure_on) = if is_cloud_tool(&req.tool) {
+        cloud_switches(db).await
+    } else {
+        (false, false)
+    };
+    if let Some(reason) = cloud_feature_off(&req.tool, aws_on, azure_on) {
+        audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(&reason));
+        return BrokerResponse::deny(reason);
+    }
+
     // 2. Pure policy.
     let decision = policy::evaluate_policy(&req.tool, &req.argv);
     let decision = match req.tool.as_str() {
@@ -451,7 +462,7 @@ async fn process_line(
         }
     };
     let decision = if is_cloud_tool(&req.tool) && !matches!(decision, PolicyDecision::Deny { .. }) {
-        match cloud_ask_suffix(db, &req, aws_sel.as_deref(), azure_sel.as_deref()).await {
+        match cloud_ask_suffix(db, &req, aws_sel.as_deref(), azure_sel.as_deref(), aws_on, azure_on).await {
             Err(e) if e.starts_with(token::UNKNOWN_CLOUD_ACCOUNT) => {
                 // Lists enabled account labels/ids only — no secret.
                 audit::audit_request(run_id, &req.tool, &req.argv, "deny", Some(token::UNKNOWN_CLOUD_ACCOUNT));
@@ -532,15 +543,24 @@ async fn process_line(
 
     // terraform rides on the project's linked cloud accounts: AWS (provider / S3
     // backend via env creds) and/or Azure (azurerm via Azure CLI auth). Allowed
-    // when at least one is linked; every linked account must resolve.
+    // when at least one is linked; every linked account must resolve. A cloud
+    // whose switch is off is treated as not linked.
     if req.tool == "terraform" {
-        let aws = match token::resolve_aws_credentials_for_project(db, &req.project_id, aws_sel.as_deref()).await {
-            Ok(v) => v,
-            Err(e) => return aws_resolve_error_deny(app, &req, run_id, &e),
+        let aws = if aws_on {
+            match token::resolve_aws_credentials_for_project(db, &req.project_id, aws_sel.as_deref()).await {
+                Ok(v) => v,
+                Err(e) => return aws_resolve_error_deny(app, &req, run_id, &e),
+            }
+        } else {
+            None
         };
-        let azure = match token::resolve_azure_for_project(db, &req.project_id, azure_sel.as_deref()).await {
-            Ok(v) => v,
-            Err(e) => return azure_resolve_error_deny(app, &req, run_id, &e),
+        let azure = if azure_on {
+            match token::resolve_azure_for_project(db, &req.project_id, azure_sel.as_deref()).await {
+                Ok(v) => v,
+                Err(e) => return azure_resolve_error_deny(app, &req, run_id, &e),
+            }
+        } else {
+            None
         };
         if aws.is_none() && azure.is_none() {
             let reason = "no AWS or Azure account linked for this project or credential unavailable";
@@ -764,6 +784,37 @@ fn is_cloud_tool(tool: &str) -> bool {
     matches!(tool, "aws" | "az" | "terraform")
 }
 
+const AWS_FEATURE: &str = "infra_access.aws";
+const AZURE_FEATURE: &str = "infra_access.azure";
+
+/// Whether `infra_access.aws` / `infra_access.azure` are on. A failed read
+/// counts as off, as in `features::is_on`.
+async fn cloud_switches(db: &Db) -> (bool, bool) {
+    match crate::features::commands::load(db).await {
+        Ok(tree) => (
+            crate::features::effective(&tree, AWS_FEATURE),
+            crate::features::effective(&tree, AZURE_FEATURE),
+        ),
+        Err(e) => {
+            tracing::warn!(event = "features_load_failed", error = %e);
+            (false, false)
+        }
+    }
+}
+
+/// Deny reason for a cloud call whose switch is off. `terraform` needs only one
+/// of the two: it then gets just that cloud's account.
+fn cloud_feature_off(tool: &str, aws_on: bool, azure_on: bool) -> Option<String> {
+    match tool {
+        "aws" if !aws_on => Some(format!("feature_disabled: {AWS_FEATURE}")),
+        "az" if !azure_on => Some(format!("feature_disabled: {AZURE_FEATURE}")),
+        "terraform" if !aws_on && !azure_on => {
+            Some(format!("feature_disabled: {AWS_FEATURE}, {AZURE_FEATURE}"))
+        }
+        _ => None,
+    }
+}
+
 /// The AWS / Azure account selectors of a cloud call. `aws --profile <p>`
 /// selects the enabled account it names; a profile naming none is ignored with
 /// a single enabled account (the old behavior) and denied with several, so a
@@ -809,14 +860,16 @@ async fn cloud_ask_suffix(
     req: &BrokerRequest,
     aws_sel: Option<&str>,
     azure_sel: Option<&str>,
+    aws_on: bool,
+    azure_on: bool,
 ) -> Result<Option<String>, String> {
     let mut parts = Vec::new();
-    if matches!(req.tool.as_str(), "aws" | "terraform") {
+    if aws_on && matches!(req.tool.as_str(), "aws" | "terraform") {
         if let Some(a) = token::pick_aws_account(db, &req.project_id, aws_sel).await? {
             parts.push(format!("as AWS account {}", token::aws_display(&a)));
         }
     }
-    if matches!(req.tool.as_str(), "az" | "terraform") {
+    if azure_on && matches!(req.tool.as_str(), "az" | "terraform") {
         if let Some(a) = token::pick_azure_account(db, &req.project_id, azure_sel).await? {
             parts.push(format!("as Azure account {}", token::azure_display(&a)));
         }
@@ -909,7 +962,25 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        // Both cloud switches on (fresh-install default is off), so the cloud
+        // tests below exercise the broker past its feature gate.
+        sqlx::query("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for id in [AWS_FEATURE, AZURE_FEATURE] {
+            set_switch(&pool, id, true).await;
+        }
         pool
+    }
+
+    async fn set_switch(db: &Db, id: &str, on: bool) {
+        sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+            .bind(format!("{}{id}", crate::features::PREFIX))
+            .bind(on.to_string())
+            .execute(db)
+            .await
+            .unwrap();
     }
 
     /// Unique socket label for a test broker. Short on purpose: macOS caps a Unix
@@ -1120,6 +1191,101 @@ mod tests {
         assert_eq!(resp.azure_subscription_id.as_deref(), Some("sub-1"));
         assert!(resp.aws_access_key_id.is_none());
         assert!(resp.aws_region.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cloud_feature_off_table() {
+        let aws = Some("feature_disabled: infra_access.aws".to_string());
+        let azure = Some("feature_disabled: infra_access.azure".to_string());
+        let both = Some("feature_disabled: infra_access.aws, infra_access.azure".to_string());
+        for (tool, aws_on, azure_on, want) in [
+            ("aws", true, true, None),
+            ("aws", false, true, aws.clone()),
+            ("az", true, true, None),
+            ("az", true, false, azure.clone()),
+            ("terraform", true, false, None),
+            ("terraform", false, true, None),
+            ("terraform", false, false, both),
+            // Not a cloud tool: never gated here.
+            ("gh", false, false, None),
+        ] {
+            assert_eq!(cloud_feature_off(tool, aws_on, azure_on), want, "{tool} aws={aws_on} azure={azure_on}");
+        }
+    }
+
+    #[tokio::test]
+    async fn round_trip_az_feature_off_is_deny_even_when_signed_in() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        set_switch(&db, AZURE_FEATURE, false).await;
+        // An approver that would allow anything: the gate must deny first.
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert_eq!(resp.reason.as_deref(), Some("feature_disabled: infra_access.azure"));
+        assert!(resp.azure_config_dir.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_aws_module_off_is_deny() {
+        // The prop is on but its module is off: the prop is off.
+        let db = mem_db().await;
+        sqlx::query("INSERT INTO projects (id) VALUES ('p1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        set_switch(&db, "infra_access", false).await;
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert_eq!(resp.reason.as_deref(), Some("feature_disabled: infra_access.aws"));
+        assert!(resp.aws_access_key_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn round_trip_terraform_skips_switched_off_cloud() {
+        // Azure linked and signed in, but switched off; AWS on with no account →
+        // terraform has nothing to run as.
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        set_switch(&db, AZURE_FEATURE, false).await;
+        let resp = round_trip(
+            db,
+            Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.reason.unwrap().contains("no AWS or Azure account linked"));
+        assert!(resp.azure_config_dir.is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn round_trip_cloud_unreadable_switches_is_deny() {
+        // No settings table: the switches cannot be read, so they count as off.
+        let db = mem_db().await;
+        sqlx::query("DROP TABLE settings").execute(&db).await.unwrap();
+        let dir = link_azure(&db, "p1", true).await;
+        let resp = round_trip(
+            db,
+            Arc::new(FixedApprover(true)),
+            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.reason.unwrap().starts_with("feature_disabled:"));
+        assert!(resp.azure_config_dir.is_none());
         let _ = std::fs::remove_dir_all(dir);
     }
 

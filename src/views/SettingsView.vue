@@ -31,6 +31,7 @@ import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
+import { allowsFeature } from '@/lib/featureGate'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
@@ -219,8 +220,8 @@ const SECTIONS = [
   { id: 'focus', labelKey: 'settings.sections.focus', icon: Target },
   { id: 'github', labelKey: 'settings.sections.github', icon: Github },
   { id: 'gitlab', labelKey: 'settings.sections.gitlab', icon: Gitlab },
-  { id: 'aws', labelKey: 'settings.sections.aws', icon: Cloud },
-  { id: 'azure', labelKey: 'settings.sections.azure', icon: CloudCog },
+  { id: 'aws', labelKey: 'settings.sections.aws', icon: Cloud, feature: 'infra_access.aws' },
+  { id: 'azure', labelKey: 'settings.sections.azure', icon: CloudCog, feature: 'infra_access.azure' },
   { id: 'claude', labelKey: 'settings.sections.claude', icon: UserCircle },
   { id: 'engine', labelKey: 'settings.sections.engine', icon: Cpu },
   { id: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
@@ -1064,6 +1065,15 @@ watch(() => features.tree, (tree) => {
   appSettings.refresh().catch(() => {})
 })
 
+// A section whose feature is off (AWS, Azure) is hidden; when it is the open
+// one (switched off meanwhile, or a deep link), fall back to General.
+const visibleSections = computed(() =>
+  SECTIONS.filter((s) => allowsFeature(features.tree, 'feature' in s ? s.feature : undefined)),
+)
+watch([visibleSections, activeSection, () => features.loaded], ([list, active, loaded]) => {
+  if (loaded && !list.some((s) => s.id === active)) activeSection.value = 'general'
+}, { immediate: true })
+
 // Apply theme instantly (don't wait for the debounced save).
 watch(() => settings.value.theme, (v) => {
   if (!loading.value) applyTheme(v)
@@ -1087,7 +1097,7 @@ watch(() => settings.value.language, (v) => {
       <!-- Section nav -->
       <nav class="w-48 shrink-0 border-r border-border/60 p-3 overflow-auto">
         <button
-          v-for="s in SECTIONS"
+          v-for="s in visibleSections"
           :key="s.id"
           class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
           :class="activeSection === s.id

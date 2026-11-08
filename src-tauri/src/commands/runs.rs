@@ -949,7 +949,8 @@ async fn wire_broker(
     wire_azure_config(app, cmd);
 
     // ssh-transparent-connect: wire per-run transparent SSH for this project's
-    // mapped VPS servers. No mapping → Ok(None) (no env set, no agent — AC-305).
+    // mapped VPS servers. No mapping or `infra_access.vps` off → Ok(None) (no
+    // env set, no agent — AC-305).
     // The shim dir is already on PATH (prepend_shim_path above), so the ssh/scp
     // shims resolve; prepare_ssh_access only adds PUPPETEER_SSH_CONFIG + SSH_AUTH_SOCK.
     // Fail-soft: a genuine setup error degrades to no-ssh rather than aborting.

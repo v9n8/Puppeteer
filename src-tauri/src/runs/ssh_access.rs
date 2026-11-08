@@ -241,11 +241,22 @@ async fn mapped_servers_for_project(
     Ok(out)
 }
 
+const FEATURE: &str = "infra_access.vps";
+
+/// [`mapped_servers_for_project`], or none while [`FEATURE`] is off: the run
+/// then gets neither the ssh config nor the context naming the servers.
+async fn granted_servers(db: &Db, project_id: &str) -> Result<Vec<MappedServerWithId>, String> {
+    if !crate::features::is_on(db, FEATURE).await {
+        return Ok(Vec::new());
+    }
+    mapped_servers_for_project(db, project_id).await
+}
+
 /// Resolve the ssh context block for a project's mapped servers (AC-308). Empty
-/// string when the project maps no server (AC-305 no-op). Called by
-/// `build_account_context` (token.rs) so `start_run` is not touched.
+/// string when the project maps no server (AC-305 no-op) or [`FEATURE`] is off.
+/// Called by `build_account_context` (token.rs) so `start_run` is not touched.
 pub async fn build_project_ssh_context(db: &Db, project_id: &str) -> String {
-    match mapped_servers_for_project(db, project_id).await {
+    match granted_servers(db, project_id).await {
         Ok(list) => {
             let servers: Vec<MappedServer> = list.into_iter().map(|m| m.server).collect();
             build_ssh_context(&servers)
@@ -282,8 +293,9 @@ impl Drop for SshAccessGuard {
 
 /// Prepare transparent SSH for one Claude run of `project_id`.
 ///
-/// Returns `Ok(None)` when the project maps no server (AC-305 no-op): no config
-/// is written, `PUPPETEER_SSH_CONFIG` is not set, no agent is spawned. Otherwise it:
+/// Returns `Ok(None)` when the project maps no server (AC-305 no-op) or the VPS
+/// switch is off: no config is written, `PUPPETEER_SSH_CONFIG` is not set, no
+/// agent is spawned. Otherwise it:
 ///   - writes `<app_data>/ssh-runs/<run_id>/config` (dir 0700, file 0600) from
 ///     `build_ssh_config`,
 ///   - spawns a per-run `ssh-agent -a <dir>/agent.sock`,
@@ -304,7 +316,7 @@ pub async fn prepare_ssh_access(
     run_id: &str,
     project_id: &str,
 ) -> Result<Option<SshAccessGuard>, String> {
-    let mapped = mapped_servers_for_project(db, project_id).await?;
+    let mapped = granted_servers(db, project_id).await?;
     if mapped.is_empty() {
         return Ok(None); // AC-305: no-op.
     }
@@ -740,6 +752,15 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
+        // VPS switch on (fresh-install default is off).
+        sqlx::query("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('feature.infra_access.vps', 'true')")
+            .execute(&pool)
+            .await
+            .unwrap();
         pool
     }
 
@@ -800,5 +821,40 @@ mod tests {
             .unwrap();
         let list = mapped_servers_for_project(&db, "p1").await.unwrap();
         assert_eq!(list.len(), 1, "multi-role mapping must de-dupe to one server");
+    }
+
+    #[tokio::test]
+    async fn vps_off_grants_no_server_and_no_context() {
+        let db = mem_db().await;
+        sqlx::query(
+            "INSERT INTO servers (id, label, host, port, username, auth_method, private_key_path) \
+             VALUES ('s1','Web','h1',22,'deploy','key','/k')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO project_servers (project_id, server_id, role) VALUES ('p1','s1','production')")
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(granted_servers(&db, "p1").await.unwrap().len(), 1);
+
+        // The prop off, then the prop on inside a module that is off.
+        for rows in [
+            [("feature.infra_access", "true"), ("feature.infra_access.vps", "false")],
+            [("feature.infra_access", "false"), ("feature.infra_access.vps", "true")],
+        ] {
+            sqlx::query("DELETE FROM settings").execute(&db).await.unwrap();
+            for (key, value) in rows {
+                sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)")
+                    .bind(key)
+                    .bind(value)
+                    .execute(&db)
+                    .await
+                    .unwrap();
+            }
+            assert!(granted_servers(&db, "p1").await.unwrap().is_empty(), "{rows:?}");
+            assert_eq!(build_project_ssh_context(&db, "p1").await, "", "{rows:?}");
+        }
     }
 }
