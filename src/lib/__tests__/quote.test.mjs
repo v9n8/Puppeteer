@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/quote.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { appendQuote } from '../quote.ts'
+import { appendQuote, pickQuoteRun } from '../quote.ts'
 
 test('appendQuote: into an empty draft, leaving a blank line to type below', () => {
   assert.equal(appendQuote('', 'hello'), '> hello\n\n')
@@ -48,4 +48,36 @@ test('appendQuote: a source line range, a single line shown once', () => {
     '> `a.ts:12-20`\n> x\n\n',
   )
   assert.equal(appendQuote('', 'x', { path: 'a.ts', lines: { start: 7, end: 7 } }), '> `a.ts:7`\n> x\n\n')
+})
+
+// ── pickQuoteRun: where a quote from a file window goes ─────────────────────
+const at = (r) => r.at
+const runs = [
+  { id: 'old', at: '2026-11-01T00:00:00Z' },
+  { id: 'new', at: '2026-11-07T00:00:00Z' },
+  { id: 'worker', at: '2026-11-08T00:00:00Z', conductor_run_id: 'new' },
+  { id: 'mid', at: '2026-11-05T00:00:00Z' },
+]
+
+test('pickQuoteRun: the run that opened the file wins, even an older one', () => {
+  assert.equal(pickQuoteRun(runs, 'old', at)?.id, 'old')
+})
+
+test('pickQuoteRun: the opener may be a worker', () => {
+  assert.equal(pickQuoteRun(runs, 'worker', at)?.id, 'worker')
+})
+
+test('pickQuoteRun: no opener → the latest session, workers skipped', () => {
+  assert.equal(pickQuoteRun(runs, null, at)?.id, 'new')
+  assert.equal(pickQuoteRun(runs, undefined, at)?.id, 'new')
+})
+
+test('pickQuoteRun: an opener that is gone → the latest session', () => {
+  assert.equal(pickQuoteRun(runs, 'deleted', at)?.id, 'new')
+})
+
+test('pickQuoteRun: a project without sessions → none (Quote hidden)', () => {
+  assert.equal(pickQuoteRun([], null, at), null)
+  assert.equal(pickQuoteRun([], 'x', at), null)
+  assert.equal(pickQuoteRun([{ id: 'w', at: 'x', conductor_run_id: 'c' }], null, at), null)
 })

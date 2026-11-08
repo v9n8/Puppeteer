@@ -6,9 +6,20 @@
 // One window per file (deduped by a deterministic label) — opening the same file
 // again just focuses the existing window.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
 import { nextCascadePosition } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { fileWindowQuery } from '@/lib/fileWindowCore'
+
+/** Sent to an already-open file window: the run that opened it again. */
+export const FILE_WINDOW_ORIGIN = 'file-window:origin'
+
+export interface FileWindowOrigin {
+  /** Window label (the file window's own `getCurrentWindow().label`). */
+  label: string
+  originRunId: string | null
+}
 
 // Small deterministic string hash (djb2) → safe, stable window label per file.
 function hashLabel(s: string): string {
@@ -23,36 +34,35 @@ function basename(path: string): string {
 
 /**
  * Open (or focus) a standalone window showing `path` from the project at
- * `projectPath`. `line`, when given, is highlighted/scrolled to.
+ * `projectPath`. `line`, when given, is highlighted/scrolled to. `originRunId`
+ * is the run it was opened from: the window's Quote goes there (none = the
+ * project's latest session).
  */
 export async function openFileWindow(
   projectPath: string,
   path: string,
   line?: number | null,
+  originRunId?: string | null,
 ): Promise<void> {
   if (!projectPath || !path) return
   const label = hashLabel(`${projectPath}|${path}`)
 
-  // Already open for this file → just bring it to front.
+  // Already open for this file → bring it to front; whoever opened it last now
+  // owns its Quote.
   const existing = await WebviewWindow.getByLabel(label)
   if (existing) {
     try {
       await existing.unminimize()
       await existing.show()
       await existing.setFocus()
+      await emit(FILE_WINDOW_ORIGIN, { label, originRunId: originRunId ?? null } satisfies FileWindowOrigin)
     } catch { /* window may be mid-teardown */ }
     return
   }
 
-  const params = new URLSearchParams({
-    fileWindow: '1',
-    projectPath,
-    path,
-  })
-  if (line != null) params.set('line', String(line))
-
+  const query = fileWindowQuery({ projectPath, path, line: line ?? null, originRunId: originRunId ?? null })
   const win = new WebviewWindow(label, {
-    url: popoutUrl(`index.html?${params.toString()}`),
+    url: popoutUrl(`index.html?${query}`),
     title: basename(path),
     width: 900,
     height: 820,

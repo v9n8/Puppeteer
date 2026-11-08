@@ -2,8 +2,9 @@
 // Bare, chrome-less host for the FileViewer, shown in a standalone OS window
 // (opened via openFileWindow / `index.html?fileWindow=1&…`). Lets a file be read
 // side-by-side with the main app window. Clicking a file link inside opens yet
-// another pop-out window, keeping the "one window per file" model.
-import { ref, onBeforeUnmount, onMounted } from 'vue'
+// another pop-out window, keeping the "one window per file" model. Quote sends a
+// selection to the session that opened the file (lib/quoteAppend).
+import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -12,18 +13,24 @@ import { Pin, PinOff } from 'lucide-vue-next'
 import { FILE_DELETED_EVENT, FILE_MOVED_EVENT } from '@/lib/fileEvents'
 import FileViewer from '@/components/FileViewer.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
-import { openFileWindow } from '@/lib/fileWindow'
+import { FILE_WINDOW_ORIGIN, openFileWindow, type FileWindowOrigin } from '@/lib/fileWindow'
+import { parseFileWindowQuery } from '@/lib/fileWindowCore'
+import { pickQuoteRun, type QuoteSource } from '@/lib/quote'
+import { sendQuote } from '@/lib/quoteAppend'
+import { invoke } from '@/lib/tauri'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
+import { useProjectsStore } from '@/stores/projects'
+import { runActivityAt, type RunRecord } from '@/stores/runs'
 
 const { t } = useI18n()
 // Floats above other apps while focused; pin to keep it on top deliberately.
 const { pinned, togglePin } = useFloatingWindow()
 
-const params = new URLSearchParams(window.location.search)
-const projectPath = ref(params.get('projectPath') ?? '')
-const path = ref(params.get('path') ?? '')
-const lineParam = params.get('line')
-const line = ref<number | null>(lineParam != null ? Number(lineParam) : null)
+const params = parseFileWindowQuery(window.location.search)
+const projectPath = ref(params.projectPath)
+const path = ref(params.path)
+const line = ref<number | null>(params.line)
+const originRunId = ref<string | null>(params.originRunId)
 
 function setTitle(p: string) {
   document.title = (p.split('/').pop() || p) + ' — Puppeteer'
@@ -34,10 +41,54 @@ function covers(candidate: string): boolean {
   return path.value === candidate || path.value.startsWith(`${candidate}/`)
 }
 
+// ── Quote target ────────────────────────────────────────────────────────────
+// The run that opened the file, else the project's latest session; none = no
+// Quote. Read from the backend: this webview has no runs loaded, and the main
+// window's runs store holds only the project on its screen.
+const projects = useProjectsStore()
+const quoteRun = ref<{ id: string; label: string } | null>(null)
+let quoteRunSeq = 0
+
+// Same naming as RunView's session list.
+function runLabel(run: RunRecord): string {
+  if (run.title?.trim()) return run.title.trim()
+  if (run.run_type === 'session') return t('run.labelSession')
+  return `${run.run_type === 'analyze_issue' ? t('run.labelIssue') : t('run.labelPr')} #${run.ref_number}`
+}
+
+async function resolveQuoteRun() {
+  const seq = ++quoteRunSeq
+  let next: { id: string; label: string } | null = null
+  try {
+    if (!projects.projects.length) await projects.fetchProjects()
+    const project = projects.projects.find((p) => p.path === projectPath.value)
+    if (project) {
+      const runs = await invoke<RunRecord[]>('list_runs', { projectId: project.id })
+      const run = pickQuoteRun(runs, originRunId.value, runActivityAt)
+      if (run) next = { id: run.id, label: runLabel(run) }
+    }
+  } catch {
+    next = null
+  }
+  if (seq === quoteRunSeq) quoteRun.value = next
+}
+
+const quoteTarget = computed(() => {
+  const run = quoteRun.value
+  if (!run) return null
+  return {
+    label: run.label,
+    append: (text: string, source: QuoteSource) => {
+      sendQuote(run.id, text, source).catch(() => { /* event bus unavailable */ })
+    },
+  }
+})
+
 let unlisten: UnlistenFn[] = []
 
 onMounted(async () => {
   setTitle(path.value)
+  void resolveQuoteRun()
 
   // This window shows ONE path and has no other way to learn that the path
   // stopped being valid — the explorer that deleted or renamed it is a different
@@ -58,6 +109,16 @@ onMounted(async () => {
           onRenamed(payload.to + path.value.slice(payload.from.length))
         }
       }),
+      // Opened again from another session: Quote follows it.
+      await listen<FileWindowOrigin>(FILE_WINDOW_ORIGIN, (e) => {
+        if (e.payload?.label !== getCurrentWindow().label) return
+        originRunId.value = e.payload.originRunId
+        void resolveQuoteRun()
+      }),
+      // Sessions come, go and get renamed while this window sits open.
+      await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+        if (focused) void resolveQuoteRun()
+      }),
     )
   } catch {
     /* running outside the Tauri shell */
@@ -70,7 +131,7 @@ onBeforeUnmount(() => {
 })
 
 function onOpenFile(p: string, l: number | null) {
-  openFileWindow(projectPath.value, p, l)
+  openFileWindow(projectPath.value, p, l, originRunId.value)
 }
 function onOpenUrl(url: string) {
   openUrl(url).catch(() => { /* opener unavailable */ })
@@ -96,6 +157,7 @@ function closeWindow() {
       :project-path="projectPath"
       :path="path"
       :line="line"
+      :quote-target="quoteTarget"
       @open-file="onOpenFile"
       @open-url="onOpenUrl"
       @renamed="onRenamed"

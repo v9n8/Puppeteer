@@ -1376,6 +1376,11 @@ mod tests {
             ),
             ("plugin:event|emit_to", serde_json::json!({ "target": { "kind": "AnyLabel", "label": "remote-bridge" }, "event": "remote-bridge://request" })),
             ("plugin:event|emit", serde_json::json!({ "event": "menu://action", "payload": "quit" })),
+            // A quote is FE-only: it must not reach a session's draft from afar.
+            (
+                "plugin:event|emit",
+                serde_json::json!({ "event": "quote:append", "payload": { "runId": "r", "text": "x", "source": { "path": "a.ts" }, "writer": "main" } }),
+            ),
             ("plugin:fs|read_file", serde_json::json!({ "path": "$APPDATA/server-keys/k" })),
             ("plugin:opener|open_path", serde_json::json!({ "path": "/Applications/Calculator.app" })),
             ("plugin:webview|create_webview_window", serde_json::json!({})),

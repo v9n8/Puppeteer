@@ -22,6 +22,7 @@ import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import type { FileTarget } from '@/lib/fileActions'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import type { QuoteSource } from '@/lib/quote'
 import { usePageFind } from '@/composables/usePageFind'
 import { isFindShortcut } from '@/lib/pageFind'
 import FindBar from '@/components/FindBar.vue'
@@ -39,9 +40,12 @@ const props = withDefaults(defineProps<{
   /** Enables the "Compare" button on images (only where a compare host exists,
    *  i.e. the main window — not the bare pop-out viewer). */
   canCompare?: boolean
+  /** Where Quote sends a selection (a session the host picked); null = no Quote. */
+  quoteTarget?: { label: string; append: (text: string, source: QuoteSource) => void } | null
 }>(), {
   line: null,
   canCompare: false,
+  quoteTarget: null,
 })
 
 const emit = defineEmits<{
@@ -747,12 +751,53 @@ async function reload() {
 }
 
 // Selected text in the file body (rendered markdown or raw source) gets the
-// shared selection toolbar; Copy MD maps it back onto the file's text.
+// shared selection toolbar; Copy MD maps it back onto the file's text, Quote
+// sends it to the host's session.
 const selectionSurface = useSelectionSurface({
   el: viewerBodyEl,
-  allow: { translate: true, copyMd: true },
+  allow: { quote: true, translate: true, copyMd: true },
   markdownSource: () => [content.value],
+  // Asked when the bar shows, while the selection still exists: the quote
+  // names the file and, in the raw source, the lines it spans.
+  quoteTarget: () => {
+    const target = props.quoteTarget
+    if (!target) return null
+    const lines = selectedLines()
+    const source: QuoteSource = lines ? { path: quotePath(), lines } : { path: quotePath() }
+    return { label: target.label, append: (text: string) => target.append(text, source) }
+  },
 })
+
+/** The file's path as the session sees it: relative to the project when inside. */
+function quotePath(): string {
+  const root = props.projectPath.replace(/\/$/, '')
+  return curPath.value.startsWith(`${root}/`) ? curPath.value.slice(root.length + 1) : curPath.value
+}
+
+/** Source lines the selection spans in the raw view; undefined elsewhere. */
+function selectedLines(): QuoteSource['lines'] {
+  const body = bodyEl.value
+  const sel = window.getSelection()
+  if (!body || !sel || sel.rangeCount === 0) return undefined
+  const range = sel.getRangeAt(0)
+  const rowOf = (node: Node) =>
+    (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>('[data-line]') ?? null
+  const startRow = rowOf(range.startContainer)
+  const endRow = rowOf(range.endContainer)
+  if (!startRow || !endRow || !body.contains(startRow) || !body.contains(endRow)) return undefined
+  const start = Number(startRow.dataset.line)
+  let end = Number(endRow.dataset.line)
+  // A selection ending at the very start of a row (a triple-click) doesn't take
+  // that row: nothing of its code is selected.
+  const code = endRow.lastElementChild
+  if (end > start && code) {
+    const head = document.createRange()
+    head.setStart(code, 0)
+    head.setEnd(range.endContainer, range.endOffset)
+    if (!head.toString()) end -= 1
+  }
+  return { start, end }
+}
 
 // A new file replaces the body content — drop any stale selection UI.
 watch(() => [props.projectPath, props.path], () => selectionSurface.dismiss())

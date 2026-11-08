@@ -56,7 +56,8 @@ import { usePageFind } from '@/composables/usePageFind'
 import { isFindShortcut } from '@/lib/pageFind'
 import FindBar from '@/components/FindBar.vue'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
-import { appendQuote } from '@/lib/quote'
+import { appendQuote, type QuoteSource } from '@/lib/quote'
+import { appendQuoteToDraft, registerQuoteComposer } from '@/lib/quoteAppend'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import StreamLog from '@/components/StreamLog.vue'
@@ -2431,6 +2432,26 @@ watch(
   { deep: true },
 )
 
+// A quote sent from a file window (lib/quoteAppend) for the run on screen goes
+// into the composer, not the stored draft the watcher above would overwrite. No
+// focus: the user is still reading in that other window.
+function takeQuote(text: string, source: QuoteSource) {
+  if (!sendingFollowUp.value) {
+    followUpInput.value = appendQuote(followUpInput.value, text, source)
+    return
+  }
+  // The send clears the composer when it returns: add the quote after that.
+  const runId = currentRunId.value
+  if (!runId) return
+  const stop = watch(sendingFollowUp, (busy) => {
+    if (busy) return
+    stop()
+    if (currentRunId.value === runId) followUpInput.value = appendQuote(followUpInput.value, text, source)
+    else appendQuoteToDraft(runId, text, source)
+  })
+}
+onBeforeUnmount(registerQuoteComposer({ runId: () => currentRunId.value, append: takeQuote }))
+
 // Extensions we treat as inline images (base64 + thumbnail). Everything else is
 // attached by path.
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp)$/i
@@ -2765,7 +2786,7 @@ function fileMatcher(raw: string): string | null {
 function openFile(path: string, line?: number | null) {
   const projectPath = project.value?.path
   if (!projectPath || !path) return
-  openFileWindow(projectPath, path, line ?? null)
+  openFileWindow(projectPath, path, line ?? null, currentRunId.value)
 }
 
 // Directive for RunView's own markdown containers (issue/PR Content, legacy
@@ -3170,7 +3191,7 @@ async function viewLogFile(run: RunRecord) {
   try {
     const path = await runsStore.getRunLogPath(run.id)
     if (!path) { toast.info(t('run.noLogFileYet')); return }
-    await openFileWindow(p.path, path)
+    await openFileWindow(p.path, path, null, run.id)
   } catch (e) {
     toast.error(String(e))
   }
