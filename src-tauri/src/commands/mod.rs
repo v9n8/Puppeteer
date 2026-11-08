@@ -48,4 +48,5 @@ pub mod secret_vault;
 pub mod todos;
 pub mod translate;
 pub mod tray;
+pub mod updates;
 pub mod vps_servers;

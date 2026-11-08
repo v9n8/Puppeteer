@@ -17,6 +17,7 @@ import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, 
 import PermissionNotifier from '@/components/PermissionNotifier.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
+import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -1102,6 +1103,11 @@ onMounted(async () => {
          clicking opens the event's detail drawer on the Calendar screen.
          Unmounted (timers cleared) while the Calendar or Google is off. -->
     <CalendarReminder v-if="features.isOn('productivity.calendar') && features.isOn('integrations.google')" />
+
+    <!-- Offers a newer release of THIS app; a remote-desktop window drives
+         another machine, which cannot be updated from here (install_update is
+         local-only). -->
+    <UpdateNotifier v-if="features.isOn('app.auto_update') && !isRemoteMode()" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />

@@ -172,7 +172,10 @@ pub static MODULES: &[Module] = &[
         id: "app",
         default: true,
         locked: false,
-        props: &[Prop { legacy_key: Some("animated_background"), ..on("animated_background") }],
+        props: &[
+            Prop { legacy_key: Some("animated_background"), ..on("animated_background") },
+            on("auto_update"),
+        ],
     },
 ];
 
@@ -395,6 +398,7 @@ mod tests {
         assert!(!prop(&tree, "integrations.inbox_api").effective);
         assert!(prop(&tree, "library.builtin_mcp_puppeteer").effective);
         assert!(prop(&tree, "app.animated_background").effective);
+        assert!(prop(&tree, "app.auto_update").effective);
         assert!(tree.iter().flat_map(|m| &m.props).all(|p| p.stored.is_none()));
     }
 
@@ -675,6 +679,7 @@ mod tests {
             crate::commands::translate::SELECTION_FEATURE,
             crate::remote::PUSH_FEATURE,
             crate::schedules::FEATURE,
+            crate::commands::updates::FEATURE,
         ] {
             let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
             let key = p.unwrap().key(m);

@@ -1,0 +1,10 @@
+{
+  "available": "Puppeteer {version} is available.",
+  "install": "Update",
+  "installing": "Updating…",
+  "later": "Later",
+  "confirmTitle": "Update to Puppeteer {version}?",
+  "confirmMessage": "The update is downloaded and installed now. It takes effect the next time you open Puppeteer; running sessions keep going until then.",
+  "installed": "Puppeteer {version} is installed. Quit and reopen Puppeteer to use it.",
+  "failed": "Could not update: {error}"
+}

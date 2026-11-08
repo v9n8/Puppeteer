@@ -119,7 +119,8 @@
       "budget_guard": "Budget guardrail"
     },
     "app": {
-      "animated_background": "Animated background"
+      "animated_background": "Animated background",
+      "auto_update": "Check for updates and install them when you agree"
     }
   }
 }

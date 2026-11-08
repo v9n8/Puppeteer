@@ -45,7 +45,7 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
 /// skills installed into HOME, importing from this machine's other AI tools,
 /// switching a schedule on (it starts runs while nobody is at this machine),
-/// plus the plumbing of the CONTROLLING side.
+/// installing an app update, plus the plumbing of the CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
 /// sensitive part).
@@ -82,6 +82,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "import_candidates",
     // Schedules: a schedule switched on starts agent runs with nobody at this machine.
     "set_schedule_enabled",
+    // Auto-update: replaces this machine's app with a downloaded build.
+    "install_update",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -599,6 +601,7 @@ mod tests {
             "scan_import_source",
             "import_candidates",
             "set_schedule_enabled",
+            "install_update",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }
@@ -656,6 +659,7 @@ mod tests {
             "list_schedules",
             "save_schedule",
             "delete_schedule",
+            "check_update",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }

@@ -190,6 +190,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        // Reached only through commands::updates (no window is granted its commands).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Remote desktop: files of the controlled Puppeteer as URLs in a
         // remote-desktop window (see remote::file_proxy).
         .register_asynchronous_uri_scheme_protocol(remote::file_proxy::SCHEME, remote::file_proxy::handle)
@@ -466,6 +468,8 @@ pub fn run() {
             set_tray_menu,
             commands::autostart::autostart_get,
             commands::autostart::autostart_set,
+            commands::updates::check_update,
+            commands::updates::install_update,
             get_settings,
             update_setting,
             features::commands::get_features,

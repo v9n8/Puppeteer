@@ -119,7 +119,8 @@
       "budget_guard": "Rào ngân sách"
     },
     "app": {
-      "animated_background": "Nền động"
+      "animated_background": "Nền động",
+      "auto_update": "Kiểm tra bản mới và cài khi bạn đồng ý"
     }
   }
 }
