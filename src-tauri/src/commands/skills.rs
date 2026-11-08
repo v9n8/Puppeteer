@@ -141,7 +141,46 @@ impl SkillEngines {
             codex: row.get::<i64, _>("enabled_codex") != 0,
         }
     }
+
+    /// Whether the engine with this `SKILL_ENGINES` id is switched on.
+    pub fn get(&self, engine: &str) -> bool {
+        match engine {
+            "claude" => self.claude,
+            "codex" => self.codex,
+            _ => false,
+        }
+    }
+
+    /// Switch one engine on or off; an id this table has no column for is an error.
+    pub fn set(&mut self, engine: &str, on: bool) -> Result<(), String> {
+        match engine {
+            "claude" => self.claude = on,
+            "codex" => self.codex = on,
+            _ => return Err(format!("Unknown engine: {}", engine)),
+        }
+        Ok(())
+    }
 }
+
+/// An engine skills can be switched on for, and where it reads them.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct SkillEngineDecl {
+    pub id: &'static str,
+    /// Folder holding `<name>/` links, relative to the project root.
+    pub project_dir: &'static str,
+    /// Same, relative to HOME; `None` while the engine's global folder is unverified. A skill
+    /// there wins over the project's own copy of that name.
+    #[serde(skip)]
+    pub home_dir: Option<&'static str>,
+}
+
+/// The engines, in chip order. The allocation matrix is built from this list, so another
+/// engine is one more entry here (plus its `project_skills` switch and `SkillEngines` field).
+pub const SKILL_ENGINES: &[SkillEngineDecl] = &[
+    // Personal skills beat project ones in Claude Code ("personal over project").
+    SkillEngineDecl { id: "claude", project_dir: ".claude/skills", home_dir: Some(".claude/skills") },
+    SkillEngineDecl { id: "codex", project_dir: ".agents/skills", home_dir: None },
+];
 
 // ---- Per-engine destinations -------------------------------------------------
 

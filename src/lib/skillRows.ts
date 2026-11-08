@@ -1,5 +1,6 @@
-// Pure helpers behind the Skills list-detail screen: the sidebar rows (search,
-// group filter, folders) and the SKILL.md frontmatter handling of the editor.
+// Pure helpers behind the Skills screen: the sidebar rows (search, group
+// filter, folders), the Allocation tab's skill × project matrix, and the
+// SKILL.md frontmatter handling of the editor.
 
 import { GROUP_NONE, haystack, matchesSearch, type RowGroup } from './listGroups.ts'
 
@@ -63,6 +64,76 @@ export function buildSkillGroups<S extends SkillLike>(
     if (rows.length) out.push({ key: GROUP_NONE, label: opts.ungroupedLabel, rows })
   }
   return out
+}
+
+// ── Allocation matrix ──────────────────────────────────────────────────────
+
+/** What one engine chip of a skill × project cell shows (`list_skill_allocation`). */
+export type ChipState = 'installed' | 'drifted' | 'git_managed' | 'shadowed' | 'not_installed'
+
+export const CHIP_STATES: readonly ChipState[] = ['installed', 'drifted', 'git_managed', 'shadowed', 'not_installed']
+
+export interface AllocationChip {
+  skill_id: string
+  project_id: string
+  engine: string
+  enabled: boolean
+  state: ChipState
+}
+
+export interface SkillAllocation {
+  /** Chip columns, in order — an open list, so the matrix never names an engine itself. */
+  engines: { id: string; project_dir: string }[]
+  projects: { id: string; name: string }[]
+  /** Only the chips that aren't plain "not installed, switched off". */
+  chips: AllocationChip[]
+}
+
+export interface MatrixChip {
+  engine: string
+  enabled: boolean
+  state: ChipState
+}
+
+export interface MatrixCell {
+  projectId: string
+  chips: MatrixChip[]
+}
+
+export interface MatrixRow<S extends SkillLike = SkillLike> {
+  skill: S
+  cells: MatrixCell[]
+}
+
+/** Rows in the skills' order (search applied), one cell per project, one chip per engine. */
+export function buildAllocationMatrix<S extends SkillLike>(
+  skills: readonly S[],
+  allocation: SkillAllocation,
+  search: string,
+): MatrixRow<S>[] {
+  const byKey = new Map(allocation.chips.map((c) => [`${c.skill_id}\n${c.project_id}\n${c.engine}`, c]))
+  return skills
+    .filter((s) => skillMatches(s, search))
+    .map((skill) => ({
+      skill,
+      cells: allocation.projects.map((p) => ({
+        projectId: p.id,
+        chips: allocation.engines.map((e): MatrixChip => {
+          const c = byKey.get(`${skill.id}\n${p.id}\n${e.id}`)
+          return { engine: e.id, enabled: c?.enabled ?? false, state: c?.state ?? 'not_installed' }
+        }),
+      })),
+    }))
+}
+
+/** A skill the repo commits to git is the repo's: Puppeteer never switches it. */
+export function chipSwitchable(chip: MatrixChip): boolean {
+  return chip.state !== 'git_managed'
+}
+
+/** Engine ids are lower-case CLI names; the chip shows them capitalised (claude → Claude). */
+export function engineLabel(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
 // ── SKILL.md frontmatter ───────────────────────────────────────────────────

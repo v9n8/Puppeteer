@@ -73,5 +73,27 @@
     "discardTitle": "Bỏ thay đổi",
     "discardMessage": "Rời skill này và bỏ các thay đổi chưa lưu?",
     "discard": "Bỏ"
+  },
+  "allocation": {
+    "tab": "Phân bổ",
+    "tabLibrary": "Thư viện",
+    "skill": "Skill",
+    "refresh": "Làm mới",
+    "noProjects": "Chưa có project nào. Thêm project để bật skill cho nó.",
+    "noMatch": "Không có skill nào khớp với từ tìm.",
+    "state": {
+      "installed": "Đã cài",
+      "drifted": "Lệch",
+      "git_managed": "Git quản lý",
+      "shadowed": "Bị che",
+      "not_installed": "Chưa cài"
+    },
+    "hint": {
+      "installed": "Đã link về thư viện. Bấm để tắt.",
+      "drifted": "Đang bật, nhưng thư mục trong project khác thư viện (bản copy đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
+      "git_managed": "Repo tự commit skill cùng tên. Puppeteer chỉ đọc.",
+      "shadowed": "Đã cài, nhưng agent dùng skill cùng tên trong thư mục HOME.",
+      "not_installed": "Bấm để bật cho engine này trong project này."
+    }
   }
 }

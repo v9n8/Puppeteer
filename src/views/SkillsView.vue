@@ -2,6 +2,7 @@
 // Skills as a list-detail screen (the Notes window's layout): the sidebar
 // lists the skills in their groups, the right pane edits the selected one.
 // The selection lives in the URL — `?id=<id>` or `?new=1` for a draft.
+// The Allocation tab swaps all of it for the skill × project matrix.
 import { computed, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteUpdate, useRoute, useRouter, type LocationQuery } from 'vue-router'
@@ -12,11 +13,12 @@ import { useSkillsStore, type Skill } from '@/stores/skills'
 import { useProjectsStore } from '@/stores/projects'
 import { useSkillGroupsStore } from '@/stores/groups'
 import { useFeaturesStore } from '@/stores/features'
-import { AppSelect, Badge, Button } from '@/components/ui'
+import { AppSelect, Badge, Button, SegmentedControl } from '@/components/ui'
 import GroupManagerModal from '@/components/GroupManagerModal.vue'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import SkillDetail from '@/components/skills/SkillDetail.vue'
+import SkillAllocationMatrix from '@/components/skills/SkillAllocationMatrix.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { FILTER_UNGROUPED, buildSkillGroups } from '@/lib/skillRows'
@@ -43,6 +45,11 @@ const applyingId = ref<string | null>(null)
 const reapplyingId = ref<string | null>(null)
 const importingZip = ref(false)
 const groupsOpen = ref(false)
+const tab = ref<'library' | 'allocation'>('library')
+const tabOptions = computed(() => [
+  { value: 'library' as const, label: t('skills.allocation.tabLibrary') },
+  { value: 'allocation' as const, label: t('skills.allocation.tab') },
+])
 const search = ref('')
 /** '' = all groups, a group id, or FILTER_UNGROUPED. */
 const groupFilter = ref('')
@@ -161,6 +168,12 @@ onBeforeRouteUpdate(async (to) => {
 
 function select(id: string | null) {
   void router.replace({ query: id ? { id } : {} })
+}
+
+/** A skill name in the matrix opens it in the library. */
+function openFromMatrix(id: string) {
+  tab.value = 'library'
+  select(id)
 }
 
 function openNew() {
@@ -316,120 +329,126 @@ async function handleExport(skill: Skill) {
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden">
-    <ListDetailSidebar
-      v-model:search="search"
-      :groups="rowGroups"
-      :selected-id="selectedId"
-      collapse-key="puppeteer.skills.collapsed"
-      :search-placeholder="t('skills.detail.searchPlaceholder')"
-      :loading="store.loading"
-      :error="store.error"
-      :empty-store="!store.loading && store.skills.length === 0"
-      :empty-title="t('skills.list.emptyTitle')"
-      :empty-hint="t('skills.list.emptyHint')"
-      @select="select"
-      @add="openNew"
-      @retry="refresh"
-    >
-      <template #toolbar>
-        <Button
-          v-if="features.allows('library.manageGroups')"
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :title="t('groups.manageSkillGroups')"
-          :aria-label="t('groups.manageSkillGroups')"
-          @click="groupsOpen = true"
-        >
-          <Layers class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
-        <Button
-          v-if="store.skills.length > 0"
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :disabled="reapplyingId !== null"
-          :title="reapplyingId === 'all' ? t('skills.list.reapplying') : `${t('skills.list.reapplyAll')} — ${t('skills.list.reapplyAllHint')}`"
-          :aria-label="t('skills.list.reapplyAll')"
-          @click="handleReapply()"
-        >
-          <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-spin': reapplyingId === 'all' }" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :disabled="importingZip"
-          :title="importingZip ? t('skills.list.importing') : t('skills.detail.importHint')"
-          :aria-label="t('skills.list.import')"
-          @click="handleImport"
-        >
-          <Upload class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-pulse': importingZip }" />
-        </Button>
-      </template>
+  <div class="flex h-full flex-col overflow-hidden">
+    <div class="flex shrink-0 items-center border-b border-border/60 px-3 py-1.5">
+      <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
+    </div>
+    <SkillAllocationMatrix v-if="tab === 'allocation'" @open="openFromMatrix" />
+    <div v-show="tab === 'library'" class="flex min-h-0 flex-1 overflow-hidden">
+      <ListDetailSidebar
+        v-model:search="search"
+        :groups="rowGroups"
+        :selected-id="selectedId"
+        collapse-key="puppeteer.skills.collapsed"
+        :search-placeholder="t('skills.detail.searchPlaceholder')"
+        :loading="store.loading"
+        :error="store.error"
+        :empty-store="!store.loading && store.skills.length === 0"
+        :empty-title="t('skills.list.emptyTitle')"
+        :empty-hint="t('skills.list.emptyHint')"
+        @select="select"
+        @add="openNew"
+        @retry="refresh"
+      >
+        <template #toolbar>
+          <Button
+            v-if="features.allows('library.manageGroups')"
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :title="t('groups.manageSkillGroups')"
+            :aria-label="t('groups.manageSkillGroups')"
+            @click="groupsOpen = true"
+          >
+            <Layers class="h-3.5 w-3.5" :stroke-width="1.75" />
+          </Button>
+          <Button
+            v-if="store.skills.length > 0"
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :disabled="reapplyingId !== null"
+            :title="reapplyingId === 'all' ? t('skills.list.reapplying') : `${t('skills.list.reapplyAll')} — ${t('skills.list.reapplyAllHint')}`"
+            :aria-label="t('skills.list.reapplyAll')"
+            @click="handleReapply()"
+          >
+            <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-spin': reapplyingId === 'all' }" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :disabled="importingZip"
+            :title="importingZip ? t('skills.list.importing') : t('skills.detail.importHint')"
+            :aria-label="t('skills.list.import')"
+            @click="handleImport"
+          >
+            <Upload class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-pulse': importingZip }" />
+          </Button>
+        </template>
 
-      <template #controls>
-        <AppSelect v-if="groupsStore.groups.length > 0" v-model="groupFilter" :options="groupOptions" />
-      </template>
+        <template #controls>
+          <AppSelect v-if="groupsStore.groups.length > 0" v-model="groupFilter" :options="groupOptions" />
+        </template>
 
-      <template #row="{ row }">
-        <span class="flex min-w-0 items-center gap-1.5">
-          <span class="min-w-0 truncate font-mono text-sm font-medium leading-snug">{{ row.skill.name }}</span>
-          <Badge v-if="row.skill.target !== 'both'" tone="primary" size="xs" class="shrink-0 uppercase tracking-wide">{{ targetLabel[row.skill.target] }}</Badge>
-          <template v-for="gid in row.otherGroupIds" :key="gid">
-            <Badge v-if="groupById(gid)" :tone="groupById(gid)?.color ?? 'neutral'" size="xs" class="shrink-0">
-              {{ groupById(gid)?.name }}
-            </Badge>
-          </template>
-        </span>
-        <span v-if="row.skill.description" class="mt-1 truncate text-2xs text-muted-foreground/70">
-          {{ row.skill.description }}
-        </span>
-      </template>
-    </ListDetailSidebar>
+        <template #row="{ row }">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span class="min-w-0 truncate font-mono text-sm font-medium leading-snug">{{ row.skill.name }}</span>
+            <Badge v-if="row.skill.target !== 'both'" tone="primary" size="xs" class="shrink-0 uppercase tracking-wide">{{ targetLabel[row.skill.target] }}</Badge>
+            <template v-for="gid in row.otherGroupIds" :key="gid">
+              <Badge v-if="groupById(gid)" :tone="groupById(gid)?.color ?? 'neutral'" size="xs" class="shrink-0">
+                {{ groupById(gid)?.name }}
+              </Badge>
+            </template>
+          </span>
+          <span v-if="row.skill.description" class="mt-1 truncate text-2xs text-muted-foreground/70">
+            {{ row.skill.description }}
+          </span>
+        </template>
+      </ListDetailSidebar>
 
-    <SkillDetail
-      v-if="detailKey"
-      ref="detailRef"
-      :key="detailKey"
-      :skill-id="selectedId"
-      :skill="selectedSkill"
-      :groups="selectedId ? groupsOf(selectedId) : []"
-      :applying="applyingId === selectedId"
-      :reapply-busy="reapplyingId !== null"
-      :reapplying="reapplyingId === selectedId"
-      :deleting="deletingId === selectedId"
-      @saved="onSaved"
-      @missing="replaceWithoutCheck({})"
-      @apply-all="selectedSkill && handleApplyToAll(selectedSkill)"
-      @reapply="selectedSkill && handleReapply(selectedSkill)"
-      @export="selectedSkill && handleExport(selectedSkill)"
-      @delete="selectedSkill && handleDelete(selectedSkill)"
-    />
-    <DetailEmpty
-      v-else
-      :icon="Puzzle"
-      :text="store.skills.length ? t('skills.detail.noSelection') : t('skills.list.emptyHint')"
-    >
-      <div class="mt-4 flex items-center justify-center gap-2">
-        <Button variant="outline" size="sm" :disabled="importingZip" @click="handleImport">
-          <Upload class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ importingZip ? t('skills.list.importing') : t('skills.list.import') }}
-        </Button>
-        <Button size="sm" @click="openNew">
-          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('common.new') }}
-        </Button>
-      </div>
-    </DetailEmpty>
+      <SkillDetail
+        v-if="detailKey"
+        ref="detailRef"
+        :key="detailKey"
+        :skill-id="selectedId"
+        :skill="selectedSkill"
+        :groups="selectedId ? groupsOf(selectedId) : []"
+        :applying="applyingId === selectedId"
+        :reapply-busy="reapplyingId !== null"
+        :reapplying="reapplyingId === selectedId"
+        :deleting="deletingId === selectedId"
+        @saved="onSaved"
+        @missing="replaceWithoutCheck({})"
+        @apply-all="selectedSkill && handleApplyToAll(selectedSkill)"
+        @reapply="selectedSkill && handleReapply(selectedSkill)"
+        @export="selectedSkill && handleExport(selectedSkill)"
+        @delete="selectedSkill && handleDelete(selectedSkill)"
+      />
+      <DetailEmpty
+        v-else
+        :icon="Puzzle"
+        :text="store.skills.length ? t('skills.detail.noSelection') : t('skills.list.emptyHint')"
+      >
+        <div class="mt-4 flex items-center justify-center gap-2">
+          <Button variant="outline" size="sm" :disabled="importingZip" @click="handleImport">
+            <Upload class="h-3.5 w-3.5" :stroke-width="1.75" />
+            {{ importingZip ? t('skills.list.importing') : t('skills.list.import') }}
+          </Button>
+          <Button size="sm" @click="openNew">
+            <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+            {{ t('common.new') }}
+          </Button>
+        </div>
+      </DetailEmpty>
 
-    <GroupManagerModal
-      :open="groupsOpen"
-      kind="skill"
-      :items="store.skills"
-      @close="groupsOpen = false"
-      @changed="groupsStore.fetchGroups()"
-    />
+      <GroupManagerModal
+        :open="groupsOpen"
+        kind="skill"
+        :items="store.skills"
+        @close="groupsOpen = false"
+        @changed="groupsStore.fetchGroups()"
+      />
+    </div>
   </div>
 </template>

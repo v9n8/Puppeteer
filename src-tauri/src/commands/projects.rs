@@ -1118,13 +1118,55 @@ pub async fn get_applied_skills(
         .collect())
 }
 
+/// One engine switched on or off (a chip of the Skills allocation matrix).
+#[derive(Debug, Deserialize)]
+pub struct EngineSwitch {
+    pub engine: String,
+    pub on: bool,
+}
+
 #[tauri::command]
 pub async fn apply_skill(
     db: State<'_, Db>,
     project_id: String,
     skill_id: String,
+    set_engine: Option<EngineSwitch>,
 ) -> Result<(), String> {
-    apply_skill_to_project(db.inner(), &project_id, &skill_id, true).await
+    match set_engine {
+        Some(s) => switch_skill_engine(db.inner(), &project_id, &skill_id, &s.engine, s.on).await,
+        None => apply_skill_to_project(db.inner(), &project_id, &skill_id, true).await,
+    }
+}
+
+/// Switch a skill on or off for one engine in one project, leaving its other engines as they are.
+/// A project new to the skill starts from no engine, not the skill's target: the user asked for
+/// exactly one. With the last engine off the skill leaves the project unless an enabled group
+/// still provides it; then it stays, with no engine on.
+pub async fn switch_skill_engine(
+    db: &Db,
+    project_id: &str,
+    skill_id: &str,
+    engine: &str,
+    on: bool,
+) -> Result<(), String> {
+    let row = sqlx::query("SELECT enabled_claude, enabled_codex FROM project_skills WHERE project_id = ? AND skill_id = ?")
+        .bind(project_id)
+        .bind(skill_id)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut engines = row.as_ref().map(SkillEngines::from_row).unwrap_or(SkillEngines::NONE);
+    engines.set(engine, on)?;
+    if engines == SkillEngines::NONE {
+        if row.is_none() {
+            return Ok(());
+        }
+        let kind = crate::commands::groups::GroupKind::Skill;
+        if !crate::commands::groups::claimed_by_enabled_group(db, kind, project_id, skill_id).await? {
+            return remove_skill_from_project_inner(db, project_id, skill_id).await;
+        }
+    }
+    apply_skill_with_engines(db, project_id, skill_id, row.is_none(), Some(engines)).await
 }
 
 #[tauri::command]

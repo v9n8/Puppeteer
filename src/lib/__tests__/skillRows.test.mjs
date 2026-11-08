@@ -1,11 +1,14 @@
-// Unit tests for lib/skillRows.ts (Skills sidebar rows + SKILL.md frontmatter).
+// Unit tests for lib/skillRows.ts (Skills sidebar rows, allocation matrix, SKILL.md frontmatter).
 // Run: node --test src/lib/__tests__/skillRows.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { GROUP_NONE } from '../listGroups.ts'
 import {
   FILTER_UNGROUPED,
+  buildAllocationMatrix,
   buildSkillGroups,
+  chipSwitchable,
+  engineLabel,
   normalizeFrontmatter,
   parseFrontmatter,
   setFrontmatterField,
@@ -78,4 +81,41 @@ test('setFrontmatterField replaces, appends and creates frontmatter', () => {
   )
   assert.equal(setFrontmatterField('---\nname: x\n---\n', 'target', 'codex'), '---\nname: x\ntarget: codex\n---\n')
   assert.equal(setFrontmatterField('# Body', 'name', 'y'), '---\nname: y\n---\n\n# Body')
+})
+
+const allocation = {
+  engines: [{ id: 'claude', project_dir: '.claude/skills' }, { id: 'codex', project_dir: '.agents/skills' }],
+  projects: [{ id: 'p2', name: 'Two' }, { id: 'p1', name: 'One' }],
+  chips: [
+    { skill_id: 'a', project_id: 'p1', engine: 'codex', enabled: true, state: 'drifted' },
+    { skill_id: 'a', project_id: 'p2', engine: 'claude', enabled: true, state: 'installed' },
+    { skill_id: 'b', project_id: 'p2', engine: 'claude', enabled: false, state: 'git_managed' },
+    { skill_id: 'gone', project_id: 'p1', engine: 'claude', enabled: true, state: 'shadowed' },
+  ],
+}
+
+test('buildAllocationMatrix: a cell per project, a chip per engine, missing chips not installed', () => {
+  const rows = buildAllocationMatrix(skills, allocation, '')
+  assert.deepEqual(rows.map((r) => r.skill.id), ['a', 'b', 'c'])
+  const brief = (row) => row.cells.map((c) => [c.projectId, c.chips.map((x) => `${x.engine}:${x.state}:${x.enabled}`)])
+  assert.deepEqual(brief(rows[0]), [
+    ['p2', ['claude:installed:true', 'codex:not_installed:false']],
+    ['p1', ['claude:not_installed:false', 'codex:drifted:true']],
+  ])
+  assert.deepEqual(brief(rows[1])[0], ['p2', ['claude:git_managed:false', 'codex:not_installed:false']])
+  assert.deepEqual(buildAllocationMatrix(skills, allocation, 'pdf').map((r) => r.skill.id), ['b'])
+})
+
+test('buildAllocationMatrix follows the declared engine list (a new engine is one more chip)', () => {
+  const withGemini = { ...allocation, engines: [...allocation.engines, { id: 'gemini', project_dir: '.gemini/skills' }] }
+  const [row] = buildAllocationMatrix(skills.slice(0, 1), withGemini, '')
+  assert.deepEqual(row.cells[0].chips.map((c) => c.engine), ['claude', 'codex', 'gemini'])
+  assert.equal(engineLabel('gemini'), 'Gemini')
+})
+
+test('chipSwitchable: every state but git-managed', () => {
+  for (const state of ['installed', 'drifted', 'shadowed', 'not_installed']) {
+    assert.equal(chipSwitchable({ engine: 'claude', enabled: false, state }), true, state)
+  }
+  assert.equal(chipSwitchable({ engine: 'claude', enabled: true, state: 'git_managed' }), false)
 })

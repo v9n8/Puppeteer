@@ -73,5 +73,27 @@
     "discardTitle": "Discard changes",
     "discardMessage": "Leave this skill and drop the unsaved changes?",
     "discard": "Discard"
+  },
+  "allocation": {
+    "tab": "Allocation",
+    "tabLibrary": "Library",
+    "skill": "Skill",
+    "refresh": "Refresh",
+    "noProjects": "No projects yet. Add a project to switch skills on for it.",
+    "noMatch": "No skills match the search.",
+    "state": {
+      "installed": "Installed",
+      "drifted": "Drifted",
+      "git_managed": "Git-managed",
+      "shadowed": "Shadowed",
+      "not_installed": "Not installed"
+    },
+    "hint": {
+      "installed": "Linked to the library. Click to switch off.",
+      "drifted": "Switched on, but the project folder differs from the library (an edited copy, another link, or nothing there). Click to switch off.",
+      "git_managed": "The repo commits its own skill of this name. Puppeteer only reads it.",
+      "shadowed": "Installed, but a skill of the same name in your home folder is the one the agent uses.",
+      "not_installed": "Click to switch on for this engine in this project."
+    }
   }
 }

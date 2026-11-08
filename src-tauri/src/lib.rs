@@ -102,6 +102,7 @@ use commands::settings::{get_settings, update_setting};
 use commands::settings_backup::{
     export_settings_backup, import_settings_backup, inspect_settings_backup,
 };
+use commands::skill_allocation::list_skill_allocation;
 use commands::skills::{
     create_skill, delete_skill, export_skill_zip, get_skill, import_skill_zip, list_skills,
     open_skill_folder, update_skill,
@@ -451,6 +452,7 @@ pub fn run() {
             export_skill_zip,
             import_skill_zip,
             open_skill_folder,
+            list_skill_allocation,
             list_rules,
             get_rule,
             create_rule,

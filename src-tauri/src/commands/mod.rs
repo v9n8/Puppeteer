@@ -34,6 +34,7 @@ pub mod runs;
 pub mod sessions;
 pub mod settings;
 pub mod settings_backup;
+pub mod skill_allocation;
 pub mod skills;
 pub mod slack_threads;
 pub mod stats;

@@ -275,6 +275,33 @@ pub fn remove_own_link(root: &Path, dest: &Path, target: &Path) -> Result<(), St
     }
 }
 
+/// What sits at a link destination, read without changing anything.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AtDest {
+    Nothing,
+    /// A link to the source.
+    OwnLink,
+    /// Files git tracks: the repo's own, never touched.
+    GitTracked,
+    /// Anything else: a link elsewhere (or dangling), a copy, or a folder reached through a
+    /// symlinked parent that Puppeteer won't manage.
+    Other,
+}
+
+/// Classify `dest` (inside project `root`) against `target`. git is asked only when a real
+/// file or folder is there, so an empty destination costs one `lstat`.
+pub fn at_dest(root: &Path, dest: &Path, target: &Path) -> AtDest {
+    if !matches!(parent_is_real(root, dest), Ok(true)) {
+        return AtDest::Other;
+    }
+    match inspect(dest) {
+        Ok(Existing::Nothing) => AtDest::Nothing,
+        Ok(Existing::Link(current)) if current == target => AtDest::OwnLink,
+        Ok(Existing::Dir | Existing::File) if git_tracked(root, dest) => AtDest::GitTracked,
+        _ => AtDest::Other,
+    }
+}
+
 /// True when `dest` is a symlink (dangling or not).
 #[cfg(test)]
 pub fn is_symlink(dest: &Path) -> bool {

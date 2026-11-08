@@ -132,8 +132,9 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
 /// audit (by name only — never their arguments): they take, mint, change or
-/// drop credentials, or reach the secret notes vault. `update_setting` is
-/// audited too, with its key (see the relay handler).
+/// drop credentials, reach the secret notes vault, or write skill links into a
+/// project's folders. `update_setting` is audited too, with its key (see the
+/// relay handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
     "create_github_account",
@@ -179,6 +180,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Inbox API: its bearer token.
     "get_inbox_api_info",
     "regenerate_inbox_api_token",
+    // Skills: switching one on (or one engine of it) for a project.
+    "apply_skill",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -607,6 +610,8 @@ mod tests {
             "update_setting",
             "set_project_builtin_mcp_enabled",
             "search_run_log",
+            "list_skill_allocation",
+            "apply_skill",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -629,11 +634,13 @@ mod tests {
             "secret_note_copy",
             "secret_vault_unlock",
             "update_setting",
+            "apply_skill",
         ] {
             assert!(audited_command(name), "{name}");
         }
         for name in [
             "list_runs",
+            "list_skill_allocation",
             "list_github_accounts",
             "secret_vault_touch",
             "secret_vault_status",

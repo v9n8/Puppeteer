@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
 import type { ApplyAllOutcome } from '@/stores/rules'
+import type { SkillAllocation } from '@/lib/skillRows'
 
 export type { ApplyAllOutcome } from '@/stores/rules'
 
@@ -78,5 +79,15 @@ export const useSkillsStore = defineStore('skills', () => {
     return invoke<ApplyAllOutcome>('reapply_skills', { skillId: id ?? null })
   }
 
-  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills }
+  /** The Allocation tab's skill × project chips, read from each project folder. */
+  async function getAllocation(): Promise<SkillAllocation> {
+    return invoke<SkillAllocation>('list_skill_allocation')
+  }
+
+  /** Switch a skill on or off for one engine in one project (one chip of the matrix). */
+  async function setSkillEngine(projectId: string, skillId: string, engine: string, on: boolean): Promise<void> {
+    await invoke('apply_skill', { projectId, skillId, setEngine: { engine, on } })
+  }
+
+  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills, getAllocation, setSkillEngine }
 })
