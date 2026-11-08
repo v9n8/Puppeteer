@@ -60,6 +60,8 @@ import { appendQuoteToDraft, registerQuoteComposer } from '@/lib/quoteAppend'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import { hitFromRouteQuery, type RouteHit } from '@/lib/sessionSearch'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
+import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
+import { latestChecklist, mergeChecklistIntoDraft, parseChecklistBlock, type TodoItem } from '@/lib/todoChecklist'
 import StreamLog from '@/components/StreamLog.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
 import ContextMeter from '@/components/ContextMeter.vue'
@@ -2975,6 +2977,21 @@ function insertCaptureRef(text: string) {
   insertSavedPrompt({ id: '', title: '', body: text })
 }
 
+// The agent's checklist, editable from the composer: the list already in the
+// draft (edited, not sent yet), else the newest one in the log on screen. Null
+// hides the button (no TodoWrite yet, or an engine that never writes one).
+const composerChecklist = computed(() => {
+  const inDraft = parseChecklistBlock(followUpInput.value)
+  if (inDraft) return inDraft
+  if (isViewingHistory.value) return historyHasStream.value ? latestChecklist(historyEntries.value) : null
+  return liveHasStream.value ? latestChecklist(liveEntries.value) : null
+})
+
+function applyChecklist(todos: TodoItem[]) {
+  followUpInput.value = mergeChecklistIntoDraft(followUpInput.value, todos)
+  focusComposer()
+}
+
 // A Slack thread / note / todo picked into this session's composer gets linked
 // to the session (best-effort: the reference is already inserted, a failure only
 // warns). Every session is a run from the moment it is created, so there is
@@ -4764,6 +4781,12 @@ function handleRefInput(val: string) {
                   :disabled="sendingFollowUp"
                   @insert="insertCaptureRef"
                   @picked="linkPicked"
+                />
+                <TodoChecklistPicker
+                  v-if="composerChecklist"
+                  :todos="composerChecklist"
+                  :disabled="sendingFollowUp"
+                  @apply="applyChecklist"
                 />
                 <Button
                   variant="ghost"
