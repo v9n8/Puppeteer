@@ -1,5 +1,6 @@
 //! Tauri commands of the Slack thread window (SRS §10.2). Errors are
-//! `"<code>: <detail>"` strings.
+//! `"<code>: <detail>"` strings. Every command is refused while
+//! `integrations.slack` is off (`features::require`).
 
 use crate::commands::translate::{submit_prompt, TranslateState, TurnEvent};
 use crate::db::Db;
@@ -9,7 +10,7 @@ use crate::slack_threads::store::{
 };
 use crate::slack_threads::token::{self, SlackTokenStatus};
 use crate::slack_threads::translate::build_reply_prompt;
-use crate::slack_threads::{CodedError, SlackThreadsState, MAX_REPLY_CHARS};
+use crate::slack_threads::{CodedError, SlackThreadsState, FEATURE, MAX_REPLY_CHARS};
 use std::time::Duration;
 use tauri::{AppHandle, State};
 
@@ -21,6 +22,10 @@ fn err(e: CodedError) -> String {
     e.to_string()
 }
 
+async fn require(state: &SlackThreadsState) -> CmdResult<()> {
+    crate::features::require(&state.ctx().db, FEATURE).await
+}
+
 /// Add a thread by link (or re-import it when it already exists).
 #[tauri::command]
 pub async fn add_slack_thread(
@@ -28,6 +33,7 @@ pub async fn add_slack_thread(
     url: String,
     project_id: Option<String>,
 ) -> CmdResult<AddSlackThreadResult> {
+    require(&state).await?;
     state
         .add_thread(&url, project_id.as_deref(), None, false)
         .await
@@ -40,6 +46,7 @@ pub async fn list_slack_threads(
     project_id: Option<String>,
     query: Option<String>,
 ) -> CmdResult<Vec<SlackThreadSummary>> {
+    require(&state).await?;
     store::list(&state.ctx().db, project_id.as_deref(), query.as_deref())
         .await
         .map_err(err)
@@ -50,6 +57,7 @@ pub async fn get_slack_thread(
     state: State<'_, SlackThreadsState>,
     id: String,
 ) -> CmdResult<SlackThreadView> {
+    require(&state).await?;
     let ctx = state.ctx();
     store::get_view(&ctx.db, &ctx.app_data, &id)
         .await
@@ -61,6 +69,7 @@ pub async fn refresh_slack_thread(
     state: State<'_, SlackThreadsState>,
     id: String,
 ) -> CmdResult<SlackThreadSummary> {
+    require(&state).await?;
     state.refresh(&id).await.map_err(err)
 }
 
@@ -70,6 +79,7 @@ pub async fn retranslate_slack_thread(
     state: State<'_, SlackThreadsState>,
     id: String,
 ) -> CmdResult<SlackThreadSummary> {
+    require(&state).await?;
     state.retranslate(&id).await.map_err(err)
 }
 
@@ -78,6 +88,7 @@ pub async fn mark_slack_thread_seen(
     state: State<'_, SlackThreadsState>,
     id: String,
 ) -> CmdResult<()> {
+    require(&state).await?;
     store::mark_seen(&state.ctx().db, &id).await.map_err(err)?;
     state.ctx().emit_changed(&id, "updated");
     Ok(())
@@ -89,6 +100,7 @@ pub async fn rename_slack_thread(
     id: String,
     title: String,
 ) -> CmdResult<SlackThreadSummary> {
+    require(&state).await?;
     let s = store::rename(&state.ctx().db, &id, &title)
         .await
         .map_err(err)?;
@@ -102,6 +114,7 @@ pub async fn set_slack_thread_project(
     id: String,
     project_id: Option<String>,
 ) -> CmdResult<()> {
+    require(&state).await?;
     store::set_project(&state.ctx().db, &id, project_id.as_deref())
         .await
         .map_err(err)?;
@@ -114,6 +127,7 @@ pub async fn reorder_slack_threads(
     state: State<'_, SlackThreadsState>,
     ids: Vec<String>,
 ) -> CmdResult<()> {
+    require(&state).await?;
     store::reorder(&state.ctx().db, &ids).await.map_err(err)?;
     for id in &ids {
         state.ctx().emit_changed(id, "updated");
@@ -127,6 +141,7 @@ pub async fn delete_slack_threads(
     state: State<'_, SlackThreadsState>,
     ids: Vec<String>,
 ) -> CmdResult<()> {
+    require(&state).await?;
     state.delete(&ids).await.map_err(err)
 }
 
@@ -139,6 +154,7 @@ pub async fn translate_slack_reply(
     state: State<'_, TranslateState>,
     text: String,
 ) -> CmdResult<String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let text = text.trim();
     if text.is_empty() {
         return Err(err(CodedError::new("empty_reply", "reply text is empty")));
@@ -182,6 +198,7 @@ pub async fn post_slack_thread_reply(
     id: String,
     text: String,
 ) -> CmdResult<SlackThreadSummary> {
+    require(&state).await?;
     state.post_reply(&id, &text).await.map_err(err)
 }
 
@@ -190,6 +207,7 @@ pub async fn post_slack_thread_reply(
 pub async fn get_slack_token_status(
     state: State<'_, SlackThreadsState>,
 ) -> CmdResult<SlackTokenStatus> {
+    require(&state).await?;
     let ctx = state.ctx();
     token::token_status(&ctx.db, &ctx.lookup)
         .await
@@ -203,6 +221,7 @@ pub async fn get_slack_thread_prompt_text(
     id: String,
     include_original: bool,
 ) -> CmdResult<SlackPromptText> {
+    require(&state).await?;
     let ctx = state.ctx();
     store::prompt_text(&ctx.db, &ctx.app_data, &id, include_original)
         .await
@@ -218,6 +237,7 @@ pub async fn link_slack_thread_run(
     run_id: String,
     source: String,
 ) -> CmdResult<LinkRunResult> {
+    require(&state).await?;
     let r = run_links::link(&state.ctx().db, &thread_id, &run_id, &source)
         .await
         .map_err(err)?;
@@ -233,6 +253,7 @@ pub async fn unlink_slack_thread_run(
     thread_id: String,
     run_id: String,
 ) -> CmdResult<()> {
+    require(&state).await?;
     if run_links::unlink(&state.ctx().db, &thread_id, &run_id)
         .await
         .map_err(err)?
@@ -248,6 +269,7 @@ pub async fn list_slack_thread_runs(
     state: State<'_, SlackThreadsState>,
     thread_id: String,
 ) -> CmdResult<Vec<SlackThreadRunLink>> {
+    require(&state).await?;
     run_links::runs_of_thread(&state.ctx().db, &thread_id)
         .await
         .map_err(err)
@@ -259,6 +281,7 @@ pub async fn list_run_slack_threads(
     state: State<'_, SlackThreadsState>,
     run_id: String,
 ) -> CmdResult<Vec<SlackThreadSummary>> {
+    require(&state).await?;
     run_links::threads_of_run(&state.ctx().db, &run_id)
         .await
         .map_err(err)

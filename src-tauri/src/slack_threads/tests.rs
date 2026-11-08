@@ -104,7 +104,15 @@ pub async fn memory_db() -> Db {
     .execute(&db)
     .await
     .unwrap();
+    // Jobs only run while the feature is on (a fresh install has it off).
+    set_slack(&db, true).await;
     db
+}
+
+pub async fn set_slack(db: &Db, on: bool) {
+    crate::commands::settings::set_setting(db, "feature.integrations.slack", &on.to_string())
+        .await
+        .unwrap();
 }
 
 fn temp_dir(label: &str) -> PathBuf {
@@ -1648,6 +1656,47 @@ async fn startup_recover_resets_and_cleans_orphans() {
         .unwrap();
     assert_eq!(n, 0);
     assert_eq!(env.state.queue.lock().unwrap().pending.len(), 4);
+}
+
+#[tokio::test]
+async fn slack_off_queues_nothing_at_startup_until_turned_back_on() {
+    let env = Env::new("recover-off").await;
+    env.seed_thread();
+    let id = env.add(LINK).await;
+    env.state.queue.lock().unwrap().pending.clear();
+    set_slack(&env.db, false).await;
+
+    env.state.startup_recover().await;
+    assert!(env.state.queue.lock().unwrap().pending.is_empty());
+    // The hook's path while off: still nothing.
+    env.state.resume().await;
+    assert!(env.state.queue.lock().unwrap().pending.is_empty());
+    assert_eq!(env.status(&id).await.0, "pending");
+
+    set_slack(&env.db, true).await;
+    env.state.resume().await;
+    assert_eq!(env.state.queue.lock().unwrap().pending, [id.clone()]);
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "ready");
+}
+
+#[tokio::test]
+async fn queued_job_makes_no_network_call_while_slack_is_off() {
+    let env = Env::new("run-off").await;
+    env.seed_thread();
+    let id = env.add(LINK).await;
+    set_slack(&env.db, false).await;
+
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "pending", "left for resume");
+    assert!(env.mock.requests("").is_empty(), "no Slack call");
+    assert!(!env.state.is_running(&id));
+
+    set_slack(&env.db, true).await;
+    env.state.resume().await;
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "ready");
+    assert!(!env.mock.requests("").is_empty());
 }
 
 #[tokio::test]

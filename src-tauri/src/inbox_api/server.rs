@@ -514,8 +514,12 @@ fn coded_error(status: StatusCode, code: &str, msg: &str) -> Response {
 
 /// `POST /v1/slack-threads`: JSON `{url, projectId?, title?}` → `202`; the
 /// thread is fetched and translated in the background. Headers
-/// `X-Puppeteer-Project-Id` / `X-Puppeteer-Title` are ignored here.
+/// `X-Puppeteer-Project-Id` / `X-Puppeteer-Title` are ignored here. `404`
+/// (as if the route did not exist) while `integrations.slack` is off.
 async fn post_slack_thread(State(state): State<HttpState>, req: Request) -> Response {
+    if !features::is_on(&state.db, crate::slack_threads::FEATURE).await {
+        return not_found().await;
+    }
     let headers = req.headers().clone();
     if let Some(r) = check_auth(&state, &headers) {
         return r;
@@ -1083,6 +1087,7 @@ mod tests {
             .execute(&db)
             .await
             .unwrap();
+        set_setting(&db, "feature.integrations.slack", "true").await.unwrap();
         let token = super::super::load_or_create_token(&db).await.unwrap();
         // A second load returns the persisted token instead of a new one.
         assert_eq!(super::super::load_or_create_token(&db).await.unwrap(), token);
@@ -1700,6 +1705,24 @@ mod tests {
     }
 
     const LINK: &str = "https://malme.slack.com/archives/C0B83GHDTFG/p1789877283026359";
+
+    #[tokio::test]
+    async fn slack_threads_endpoint_is_404_while_slack_is_off() {
+        let h = spawn().await;
+        set_setting(&h.db, "feature.integrations.slack", "false").await.unwrap();
+        let (code, v) = slack_json(slack(&h, &json!({ "url": LINK }).to_string())).await;
+        assert_eq!(code, 404);
+        assert_eq!(v["error"], "not found");
+        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM slack_threads")
+            .fetch_one(&h.db)
+            .await
+            .unwrap();
+        assert_eq!(n, 0, "no thread is received");
+
+        set_setting(&h.db, "feature.integrations.slack", "true").await.unwrap();
+        let (code, _) = slack_json(slack(&h, &json!({ "url": LINK }).to_string())).await;
+        assert_eq!(code, 202);
+    }
 
     #[tokio::test]
     async fn slack_threads_endpoint_status_codes() {

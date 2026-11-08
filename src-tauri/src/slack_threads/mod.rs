@@ -15,6 +15,9 @@
 //! A background worker (≤ 2 jobs in parallel, 1 per thread) drains an
 //! in-memory queue; the DB is the source of truth, so `startup_recover`
 //! re-queues unfinished threads after a restart.
+//!
+//! [`FEATURE`] off: no job runs (rows stay `pending`), the commands and the
+//! Inbox API route refuse; turning it back on resumes the queue.
 
 pub mod api;
 pub mod files;
@@ -28,6 +31,7 @@ pub mod translate;
 
 use crate::commands::translate::{TranslateState, TurnEvent};
 use crate::db::Db;
+use crate::features::{self, apply::Change};
 use api::HttpConfig;
 use async_trait::async_trait;
 use serde::Serialize;
@@ -36,10 +40,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use store::{AddSlackThreadResult, SlackThreadSummary};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use token::{AuthCache, SecretLookup};
 use tokio::sync::{Notify, Semaphore};
 use translate::{EngineError, TranslateEngine};
+
+/// The feature switch every Slack command, job and API route follows.
+pub const FEATURE: &str = "integrations.slack";
 
 pub const CHANGED_EVENT: &str = "slack-threads://changed";
 pub const PROGRESS_EVENT: &str = "slack-threads://progress";
@@ -484,6 +491,15 @@ impl SlackThreadsState {
 
     /// Run one job and handle its follow-ups (notification, merge, re-run).
     pub async fn run_one(&self, id: &str, from_api: bool) {
+        // Switched off after it was queued: no network call; the row stays
+        // `pending` for `resume`.
+        if !features::is_on(&self.ctx.db, FEATURE).await {
+            if let Ok(mut q) = self.queue.lock() {
+                q.running.remove(id);
+                q.rerun.remove(id);
+            }
+            return;
+        }
         let end = job::run_job(&self.ctx, id).await;
         match &end {
             job::JobEnd::Finished { ready, title } if from_api => {
@@ -520,7 +536,7 @@ impl SlackThreadsState {
     }
 
     /// After a restart: unfinished rows back to `pending`, legacy / transient
-    /// errors retried, merged-away legacy dirs removed, pending rows queued.
+    /// errors retried, merged-away legacy dirs removed, then [`Self::resume`].
     pub async fn startup_recover(&self) {
         let db = &self.ctx.db;
         let _ = sqlx::query(
@@ -547,11 +563,19 @@ impl SlackThreadsState {
                 .execute(db)
                 .await;
         }
+        self.resume().await;
+    }
+
+    /// Queue every `pending` row, unless [`FEATURE`] is off now.
+    pub async fn resume(&self) {
+        if !features::is_on(&self.ctx.db, FEATURE).await {
+            return;
+        }
         let pending: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM slack_threads WHERE fetch_status = 'pending' \
              ORDER BY position ASC, updated_at DESC",
         )
-        .fetch_all(db)
+        .fetch_all(&self.ctx.db)
         .await
         .unwrap_or_default();
         for id in pending {
@@ -691,6 +715,16 @@ impl SlackThreadsState {
         }
         Ok(())
     }
+}
+
+/// `features::apply` hook: turning [`FEATURE`] back on resumes the queue.
+/// Turning it off needs nothing here: `run_one` drops what is still queued.
+pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
+    if features::effective(change.before, FEATURE) == features::effective(change.after, FEATURE) {
+        return;
+    }
+    let state = app.state::<SlackThreadsState>().inner().clone();
+    tauri::async_runtime::spawn(async move { state.resume().await });
 }
 
 #[cfg(test)]

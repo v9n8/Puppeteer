@@ -613,6 +613,7 @@ mod tests {
             secret_vault::FEATURE,
             instruction_checks::FEATURE,
             groups::FEATURE,
+            crate::slack_threads::FEATURE,
         ] {
             let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
             let key = p.unwrap().key(m);

@@ -23,6 +23,7 @@ const HOOKS: &[Hook] = &[
     crate::runs::session_watcher::on_features_changed,
     crate::remote::on_features_changed,
     crate::conductor::on_features_changed,
+    crate::slack_threads::on_features_changed,
 ];
 
 /// Run the hooks, then emit [`CHANGED_EVENT`].
