@@ -137,5 +137,28 @@
     },
     "toastApplied": "Applied {count} change. | Applied {count} changes.",
     "toastPartial": "Applied {applied} changes.\n\nFailed for {failed}:\n{details}"
+  },
+  "effective": {
+    "tab": "What the agent sees",
+    "project": "Project",
+    "summary": "Skills {engine} loads in this project: {loaded} ({shadowed} hidden).",
+    "homeWins": "A global skill hides the project's skill of the same name.",
+    "bothLoad": "Skills of the same name in both folders are both loaded.",
+    "empty": "No skills in this folder.",
+    "scope": {
+      "global": "Global",
+      "project": "Project"
+    },
+    "origin": {
+      "library": "Library",
+      "git_managed": "Git-managed",
+      "unmanaged": "Not from the library"
+    },
+    "originHint": {
+      "library": "Puppeteer's link to the library skill. Switch it on the Allocation tab.",
+      "git_managed": "The repo commits this skill. Puppeteer only reads it.",
+      "unmanaged": "A skill Puppeteer doesn't manage: your own folder, a copy, or a link elsewhere."
+    },
+    "shadowedHint": "A global skill of the same name wins: the agent never loads this one."
   }
 }

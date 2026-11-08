@@ -137,5 +137,28 @@
     },
     "toastApplied": "Đã áp {count} thay đổi.",
     "toastPartial": "Đã áp {applied} thay đổi.\n\nLỗi {failed}:\n{details}"
+  },
+  "effective": {
+    "tab": "Agent thấy gì",
+    "project": "Project",
+    "summary": "{engine} nạp {loaded} skill trong project này ({shadowed} bị che).",
+    "homeWins": "Skill global che skill cùng tên trong project.",
+    "bothLoad": "Skill cùng tên ở cả hai thư mục đều được nạp.",
+    "empty": "Thư mục này không có skill nào.",
+    "scope": {
+      "global": "Global",
+      "project": "Project"
+    },
+    "origin": {
+      "library": "Thư viện",
+      "git_managed": "Git quản lý",
+      "unmanaged": "Ngoài thư viện"
+    },
+    "originHint": {
+      "library": "Link của Puppeteer về skill trong thư viện. Bật/tắt ở tab Phân bổ.",
+      "git_managed": "Repo tự commit skill này. Puppeteer chỉ đọc.",
+      "unmanaged": "Skill Puppeteer không quản lý: thư mục của bạn, bản copy, hoặc link trỏ chỗ khác."
+    },
+    "shadowedHint": "Skill global cùng tên thắng: agent không bao giờ nạp skill này."
   }
 }

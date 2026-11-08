@@ -2,7 +2,8 @@
 // Skills as a list-detail screen (the Notes window's layout): the sidebar
 // lists the skills in their groups, the right pane edits the selected one.
 // The selection lives in the URL — `?id=<id>` or `?new=1` for a draft.
-// The Allocation tab swaps all of it for the skill × project matrix.
+// The Allocation tab swaps all of it for the skill × project matrix, the
+// "What the agent sees" tab for one project's effective skills per engine.
 import { computed, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteUpdate, useRoute, useRouter, type LocationQuery } from 'vue-router'
@@ -19,6 +20,7 @@ import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import SkillDetail from '@/components/skills/SkillDetail.vue'
 import SkillAllocationMatrix from '@/components/skills/SkillAllocationMatrix.vue'
+import SkillEffectiveView from '@/components/skills/SkillEffectiveView.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { FILTER_UNGROUPED, buildSkillGroups } from '@/lib/skillRows'
@@ -45,10 +47,11 @@ const applyingId = ref<string | null>(null)
 const reapplyingId = ref<string | null>(null)
 const importingZip = ref(false)
 const groupsOpen = ref(false)
-const tab = ref<'library' | 'allocation'>('library')
+const tab = ref<'library' | 'allocation' | 'effective'>('library')
 const tabOptions = computed(() => [
   { value: 'library' as const, label: t('skills.allocation.tabLibrary') },
   { value: 'allocation' as const, label: t('skills.allocation.tab') },
+  { value: 'effective' as const, label: t('skills.effective.tab') },
 ])
 const search = ref('')
 /** '' = all groups, a group id, or FILTER_UNGROUPED. */
@@ -170,7 +173,7 @@ function select(id: string | null) {
   void router.replace({ query: id ? { id } : {} })
 }
 
-/** A skill name in the matrix opens it in the library. */
+/** A skill name in the matrix or the effective list opens it in the library. */
 function openFromMatrix(id: string) {
   tab.value = 'library'
   select(id)
@@ -334,6 +337,7 @@ async function handleExport(skill: Skill) {
       <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
     </div>
     <SkillAllocationMatrix v-if="tab === 'allocation'" @open="openFromMatrix" />
+    <SkillEffectiveView v-else-if="tab === 'effective'" @open="openFromMatrix" />
     <div v-show="tab === 'library'" class="flex min-h-0 flex-1 overflow-hidden">
       <ListDetailSidebar
         v-model:search="search"
