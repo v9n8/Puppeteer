@@ -17,6 +17,7 @@ import {
   Bot,
   SquareSlash,
   Import,
+  CalendarClock,
 } from 'lucide-vue-next'
 import { openPrInboxWindow } from '@/lib/prInboxWindow'
 import { openCalendarWindow } from '@/lib/calendarWindow'
@@ -60,6 +61,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'work', openWindow: openPrInboxWindow, feature: 'code_hosting.pr_inbox' },
   { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'work', openWindow: () => openCalendarWindow(), feature: 'productivity.calendar' },
   { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'work', openWindow: () => openGanttWindow(), feature: 'code_hosting.gantt' },
+  { path: '/schedules', labelKey: 'nav.schedules', icon: CalendarClock, group: 'work', feature: 'orchestration.schedules' },
   { path: '/skills', labelKey: 'nav.skills', icon: Puzzle, group: 'config' },
   { path: '/rules', labelKey: 'nav.rules', icon: ScrollText, group: 'config' },
   { path: '/agents', labelKey: 'nav.agents', icon: Bot, group: 'config', feature: 'library.agents' },

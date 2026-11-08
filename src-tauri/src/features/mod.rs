@@ -114,6 +114,8 @@ pub static MODULES: &[Module] = &[
             on("conductor"),
             // Only workers of a conductor get a worktree.
             Prop { depends_on: &["orchestration.conductor"], ..on("conductor_worktree") },
+            // Starts agent runs while nobody is at the machine: opt-in.
+            off("schedules"),
         ],
     },
     Module {
@@ -672,6 +674,7 @@ mod tests {
             crate::commands::azure_accounts::FEATURE,
             crate::commands::translate::SELECTION_FEATURE,
             crate::remote::PUSH_FEATURE,
+            crate::schedules::FEATURE,
         ] {
             let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
             let key = p.unwrap().key(m);

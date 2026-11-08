@@ -211,6 +211,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn schedules_start_empty_and_go_with_their_project() {
+        let db = db_at_0001().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let count = || async { sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM schedules").fetch_one(&db).await.unwrap() };
+        assert_eq!(count().await, 0);
+
+        sqlx::query(
+            "INSERT INTO schedules (id, project_id, name, prompt, timing, created_at, updated_at)
+             VALUES ('s1', 'p1', 'n', 'p', '{\"kind\":\"daily\",\"time\":\"08:30\"}', 'c', 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let row = sqlx::query("SELECT enabled, proposed, permission_mode FROM schedules WHERE id = 's1'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let got = (row.get::<i64, _>("enabled"), row.get::<i64, _>("proposed"), row.get::<String, _>("permission_mode"));
+        assert_eq!(got, (0, 0, "plan".to_string()), "a new row is off and read-only");
+        sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert_eq!(count().await, 0);
+    }
+
+    #[tokio::test]
     async fn agents_and_commands_tables_on_an_existing_database() {
         let db = db_at_0001().await;
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')")

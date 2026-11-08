@@ -1,0 +1,75 @@
+{
+  "title": "Lịch chạy",
+  "refresh": "Làm mới",
+  "new": "Lịch mới",
+  "hint": "Đến giờ, lịch mở một session mới trong project của nó và gửi prompt vào đó. Lịch chỉ chạy khi Puppeteer đang mở; các lượt bị lỡ lúc app đóng sẽ chạy bù một lần khi mở lại.",
+  "remote": "Từ remote desktop bạn tạo và sửa được lịch, nhưng chỉ người ngồi ở máy này mới bật được. Lưu ở đây sẽ tắt lịch.",
+  "empty": "Chưa có lịch nào. Tạo một lịch, hoặc nhờ agent trong một session đề xuất.",
+  "enabled": "Chạy lịch này",
+  "proposed": "Agent đề xuất",
+  "proposedHint": "Mở ra, xem lại và lưu thì mới bật được.",
+  "next": "lần tới {at}",
+  "openSession": "Mở session",
+  "edit": "Sửa",
+  "delete": "Xoá",
+  "deleteTitle": "Xoá lịch này?",
+  "deleteMessage": "\"{name}\" sẽ ngừng chạy. Các session nó đã mở vẫn được giữ.",
+  "newTitle": "Lịch mới",
+  "editTitle": "Sửa lịch",
+  "engineDefault": "Engine mặc định",
+  "cancel": "Huỷ",
+  "save": "Lưu",
+  "saveHint": "Lịch mới tạo ra ở trạng thái tắt: bật nó trong danh sách.",
+  "remoteSave": "Lưu từ remote desktop sẽ tắt lịch.",
+  "mode": {
+    "plan": "Plan (chỉ đọc)",
+    "default": "Hỏi quyền",
+    "acceptEdits": "Tự nhận sửa file",
+    "bypassPermissions": "Bỏ qua mọi quyền"
+  },
+  "modeHint": {
+    "plan": "Agent được đọc và suy nghĩ, không sửa file hay chạy lệnh.",
+    "default": "Tool cần duyệt sẽ chờ tới khi có người trả lời; trong lúc đó các lượt sau bị bỏ qua.",
+    "acceptEdits": "Agent sửa file không hỏi. Không ai theo dõi lượt chạy theo lịch.",
+    "bypassPermissions": "Agent làm mọi thứ không hỏi. Không ai theo dõi lượt chạy theo lịch."
+  },
+  "kind": {
+    "interval": "Mỗi N phút",
+    "daily": "Hằng ngày",
+    "weekly": "Một số ngày trong tuần",
+    "once": "Một lần"
+  },
+  "timing": {
+    "everyMinutes": "Mỗi {n} phút",
+    "everyHours": "Mỗi {n} giờ",
+    "daily": "Hằng ngày lúc {time}",
+    "weekly": "{days} lúc {time}",
+    "once": "Một lần, {at}",
+    "invalid": "Thời gian không hợp lệ"
+  },
+  "last": {
+    "started": "Chạy lần cuối {at}",
+    "skipped": "Bỏ qua {at}",
+    "error": "Lỗi {at}"
+  },
+  "field": {
+    "name": "Tên",
+    "project": "Project",
+    "engine": "Engine",
+    "mode": "Chế độ quyền",
+    "prompt": "Prompt",
+    "kind": "Lặp lại",
+    "everyMinutes": "Số phút",
+    "time": "Giờ",
+    "onceAt": "Ngày giờ"
+  },
+  "formError": {
+    "name": "Nhập tên (tối đa 200 ký tự).",
+    "prompt": "Nhập prompt cần gửi.",
+    "project": "Chọn một project.",
+    "every_minutes": "Số phút phải là số nguyên từ 1 tới 10080 (một tuần).",
+    "time": "Chọn giờ.",
+    "weekdays": "Chọn ít nhất một ngày.",
+    "once_at": "Chọn ngày giờ."
+  }
+}

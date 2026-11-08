@@ -3,7 +3,7 @@
 // (`builtin_gates` in src-tauri/src/commands/mcp.rs). A hidden tool is left out
 // of tools/list and answers tools/call as an unknown tool.
 
-const PREFIXES = { notes: 'notes_', todos: 'todos_', slack: 'slack_threads_', vps: 'vps_' };
+const PREFIXES = { notes: 'notes_', todos: 'todos_', slack: 'slack_threads_', vps: 'vps_', schedules: 'schedule_' };
 // A tool serving several groups: hidden only once all of them are off.
 // `git_accounts_list` has no group: code hosting is core.
 const SHARED = { cloud_accounts_list: ['aws', 'azure'] };

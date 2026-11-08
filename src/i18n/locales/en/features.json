@@ -80,7 +80,8 @@
     },
     "orchestration": {
       "conductor": "Conductor",
-      "conductor_worktree": "Own git worktree for each Conductor worker"
+      "conductor_worktree": "Own git worktree for each Conductor worker",
+      "schedules": "Scheduled prompts (runs while you are away)"
     },
     "code_hosting": {
       "issue_pr_runs": "Runs from issues and PRs",

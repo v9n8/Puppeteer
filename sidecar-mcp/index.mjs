@@ -10,6 +10,7 @@
 //   • Todos / project context / VPS — full CRUD on todos (deadline, priority, estimate,
 //     status, source; ranked in the app's Focus board), git, managed servers
 //   • Skills & Rules library — CRUD the reusable skill/rule definitions (source-only)
+//   • Schedules — schedule_propose drafts a timed prompt, created off for the user to review
 //
 // Scope: env `PUPPETEER_PROJECT_ID` / `PUPPETEER_PROJECT_PATH` pin the "current project";
 // `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store; `PUPPETEER_MCP_DISABLED_GROUPS`
@@ -23,6 +24,7 @@ import { readRunTranscript, renderTranscript, findSnippet } from './lib/transcri
 import { fileTree, gitStatus, gitDiff } from './lib/project.mjs';
 import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
+import { scheduleTools } from './lib/schedule-tools.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
 import { disabledGroups, dropGroups, keepEnabled } from './lib/feature-groups.mjs';
 
@@ -249,6 +251,10 @@ const tools = {
   // Own tables (migration 0041), fetched from Slack and translated by the app;
   // read-mostly tools (see lib/slack-thread-tools.mjs).
   ...slackThreadTools({ snippetAround }),
+
+  // ---- Schedules -------------------------------------------------------------
+  // Proposals only (migration 0007): created off, the user switches them on in the app.
+  ...scheduleTools(),
 
   sessions_recent: {
     description:

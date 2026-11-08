@@ -1371,6 +1371,8 @@ const PUPPETEER_TOOL_GROUPS: &[(&str, &str)] = &[
     // leaves out the accounts of the one that is off.
     ("aws", "infra_access.aws"),
     ("azure", "infra_access.azure"),
+    // `schedule_propose`: an agent proposes, the Schedules screen decides.
+    ("schedules", "orchestration.schedules"),
 ];
 
 /// What the feature switches let a run launched now get. Read once per start
@@ -1793,10 +1795,10 @@ mod tests {
 
     #[test]
     fn builtin_gates_follow_the_feature_tree() {
-        // Fresh install: notes on; todos, slack, vps, aws, azure and the Google account off.
+        // Fresh install: notes on; todos, slack, vps, aws, azure, schedules and the Google account off.
         let g = gates(&[]);
         assert!(g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["todos", "slack", "vps", "aws", "azure"]);
+        assert_eq!(g.disabled_groups, ["todos", "slack", "vps", "aws", "azure", "schedules"]);
 
         let all_on = [
             ("feature.productivity.todos", "true"),
@@ -1805,6 +1807,7 @@ mod tests {
             ("feature.infra_access.vps", "true"),
             ("feature.infra_access.aws", "true"),
             ("feature.infra_access.azure", "true"),
+            ("feature.orchestration.schedules", "true"),
         ];
         let g = gates(&all_on);
         assert!(g.puppeteer && g.google);
@@ -1832,7 +1835,7 @@ mod tests {
     fn builtin_gates_on_an_unreadable_tree_give_nothing() {
         let g = super::builtin_gates(&[]);
         assert!(!g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure"]);
+        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure", "schedules"]);
     }
 
     #[test]

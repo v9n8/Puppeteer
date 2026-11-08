@@ -13,6 +13,7 @@ mod item_links;
 mod procs;
 mod remote;
 mod runs;
+mod schedules;
 mod secret_vault;
 mod secrets;
 mod slack_threads;
@@ -351,6 +352,9 @@ pub fn run() {
             app.manage(new_registry());
             app.manage(approvals);
             app.manage(broker_runs);
+            // Scheduled prompts (schedules::runner): a 30 s tick while the app runs;
+            // it fires nothing while `orchestration.schedules` is off.
+            schedules::runner::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
 
             // Conductor: managed registry + loopback MCP server (session_* tools).
             // The server binds an ephemeral 127.0.0.1 port and records it in the
@@ -826,6 +830,10 @@ pub fn run() {
             remote::transfer::local_fs_write_chunk,
             remote::transfer::local_fs_write_finish,
             remote::transfer::local_fs_write_abort,
+            schedules::commands::list_schedules,
+            schedules::commands::save_schedule,
+            schedules::commands::delete_schedule,
+            schedules::commands::set_schedule_enabled,
             procs::commands::list_background_processes,
             procs::commands::stop_background_processes,
             procs::commands::kill_background_process,

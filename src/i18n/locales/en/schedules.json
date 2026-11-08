@@ -1,0 +1,75 @@
+{
+  "title": "Schedules",
+  "refresh": "Refresh",
+  "new": "New schedule",
+  "hint": "A schedule opens a new session in its project and sends it the prompt at the set time. Schedules only run while Puppeteer is open; slots missed while it was closed run once when it opens again.",
+  "remote": "From a remote desktop you can create and edit schedules, but only someone at this machine can switch one on. Saving here switches the schedule off.",
+  "empty": "No schedules yet. Create one, or ask an agent in a session to propose one.",
+  "enabled": "Run this schedule",
+  "proposed": "Proposed by an agent",
+  "proposedHint": "Open it, review it and save it before it can be switched on.",
+  "next": "next {at}",
+  "openSession": "Open session",
+  "edit": "Edit",
+  "delete": "Delete",
+  "deleteTitle": "Delete this schedule?",
+  "deleteMessage": "\"{name}\" stops running. Sessions it already opened are kept.",
+  "newTitle": "New schedule",
+  "editTitle": "Edit schedule",
+  "engineDefault": "Default engine",
+  "cancel": "Cancel",
+  "save": "Save",
+  "saveHint": "A new schedule starts off: switch it on in the list.",
+  "remoteSave": "Saving from a remote desktop switches the schedule off.",
+  "mode": {
+    "plan": "Plan (read only)",
+    "default": "Ask for permission",
+    "acceptEdits": "Accept edits",
+    "bypassPermissions": "Bypass permissions"
+  },
+  "modeHint": {
+    "plan": "The agent can read and think, but not edit files or run commands.",
+    "default": "A tool that needs approval waits until someone answers; the next runs are skipped meanwhile.",
+    "acceptEdits": "The agent edits files without asking. Nobody is watching a scheduled run.",
+    "bypassPermissions": "The agent does anything without asking. Nobody is watching a scheduled run."
+  },
+  "kind": {
+    "interval": "Every N minutes",
+    "daily": "Every day",
+    "weekly": "Some weekdays",
+    "once": "Once"
+  },
+  "timing": {
+    "everyMinutes": "Every {n} min",
+    "everyHours": "Every {n} h",
+    "daily": "Every day at {time}",
+    "weekly": "{days} at {time}",
+    "once": "Once, {at}",
+    "invalid": "Invalid timing"
+  },
+  "last": {
+    "started": "Last run {at}",
+    "skipped": "Skipped {at}",
+    "error": "Failed {at}"
+  },
+  "field": {
+    "name": "Name",
+    "project": "Project",
+    "engine": "Engine",
+    "mode": "Permission mode",
+    "prompt": "Prompt",
+    "kind": "Repeat",
+    "everyMinutes": "Minutes",
+    "time": "Time",
+    "onceAt": "Date and time"
+  },
+  "formError": {
+    "name": "Enter a name (up to 200 characters).",
+    "prompt": "Enter the prompt to send.",
+    "project": "Pick a project.",
+    "every_minutes": "Minutes must be a whole number from 1 to 10080 (a week).",
+    "time": "Pick a time.",
+    "weekdays": "Pick at least one day.",
+    "once_at": "Pick a date and time."
+  }
+}

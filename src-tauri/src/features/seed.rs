@@ -185,6 +185,19 @@ mod tests {
         }
     }
 
+    /// An opt-in prop registered after the seed stays off on a machine
+    /// already seeded: an upgrade does not start scheduled runs.
+    #[tokio::test]
+    async fn an_off_prop_registered_after_the_seed_stays_off() {
+        let db = db().await;
+        add_project(&db).await;
+        set_setting(&db, SEEDED_KEY, "1").await.unwrap();
+        set_setting(&db, "feature.orchestration", "true").await.unwrap();
+        seed(&db).await.unwrap();
+        assert!(!rows(&db).await.contains_key("feature.orchestration.schedules"));
+        assert!(!crate::features::is_on(&db, crate::schedules::FEATURE).await);
+    }
+
     #[tokio::test]
     async fn an_existing_flag_skips_the_seed() {
         let db = db().await;

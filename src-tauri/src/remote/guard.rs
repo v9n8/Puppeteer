@@ -44,6 +44,7 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// links, kicking a Controller, clearing the audit, Web Push recipients, the
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
 /// skills installed into HOME, importing from this machine's other AI tools,
+/// switching a schedule on (it starts runs while nobody is at this machine),
 /// plus the plumbing of the CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
@@ -79,6 +80,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "list_import_sources",
     "scan_import_source",
     "import_candidates",
+    // Schedules: a schedule switched on starts agent runs with nobody at this machine.
+    "set_schedule_enabled",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -142,7 +145,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 /// audit (by name only — never their arguments): they take, mint, change or
 /// drop credentials, reach the secret notes vault, or write skill / agent /
 /// command links into a project's folders (agents and commands: their library
-/// files too), or merge a Conductor worker's branch into a project. `update_setting`
+/// files too), merge a Conductor worker's branch into a project, or write a
+/// schedule. `update_setting`
 /// is audited too, with its key (see the relay handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
@@ -200,6 +204,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     "remove_library_item_from_project",
     // Conductor: merging a worker's branch commits into the project's repository.
     "conductor_worker_merge",
+    // Schedules: what a schedule runs, and in which mode (a remote save switches it off).
+    "save_schedule",
+    "delete_schedule",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -589,6 +596,7 @@ mod tests {
             "list_import_sources",
             "scan_import_source",
             "import_candidates",
+            "set_schedule_enabled",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }
@@ -643,6 +651,9 @@ mod tests {
             "apply_library_item",
             "conductor_worker_diff",
             "conductor_worker_merge",
+            "list_schedules",
+            "save_schedule",
+            "delete_schedule",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -673,6 +684,8 @@ mod tests {
             "apply_library_item",
             "remove_library_item_from_project",
             "conductor_worker_merge",
+            "save_schedule",
+            "delete_schedule",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -692,6 +705,7 @@ mod tests {
             "get_library_item",
             "get_applied_library_items",
             "conductor_worker_diff",
+            "list_schedules",
         ] {
             assert!(!audited_command(name), "{name}");
         }
