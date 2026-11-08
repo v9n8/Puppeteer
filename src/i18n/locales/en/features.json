@@ -81,7 +81,8 @@
     "orchestration": {
       "conductor": "Conductor",
       "conductor_worktree": "Own git worktree for each Conductor worker",
-      "schedules": "Scheduled prompts (runs while you are away)"
+      "schedules": "Scheduled prompts (runs while you are away)",
+      "dev_servers": "Project dev servers (agent tools: list, start command, logs, stop)"
     },
     "code_hosting": {
       "issue_pr_runs": "Runs from issues and PRs",

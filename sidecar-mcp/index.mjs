@@ -11,10 +11,13 @@
 //     status, source; ranked in the app's Focus board), git, managed servers
 //   • Skills & Rules library — CRUD the reusable skill/rule definitions (source-only)
 //   • Schedules — schedule_propose drafts a timed prompt, created off for the user to review
+//   • Dev servers — dev_server_* list/start/logs/stop the servers declared in
+//     .puppeteer/dev-servers.json; start only returns the command (lib/dev-servers.mjs)
 //
 // Scope: env `PUPPETEER_PROJECT_ID` / `PUPPETEER_PROJECT_PATH` pin the "current project";
 // `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store; `PUPPETEER_MCP_DISABLED_GROUPS`
-// hides tool groups switched off in the app (lib/feature-groups.mjs). Hand-rolled
+// hides tool groups switched off in the app or not allowed in the run's permission mode
+// (lib/feature-groups.mjs). Hand-rolled
 // protocol keeps this dependency-free (nothing to `npm install` / bundle). Only
 // JSON-RPC frames go to stdout; everything else must use stderr.
 
@@ -25,6 +28,7 @@ import { fileTree, gitStatus, gitDiff } from './lib/project.mjs';
 import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
 import { scheduleTools } from './lib/schedule-tools.mjs';
+import { devServerTools } from './lib/dev-servers.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
 import { disabledGroups, dropGroups, keepEnabled } from './lib/feature-groups.mjs';
 
@@ -255,6 +259,10 @@ const tools = {
   // ---- Schedules -------------------------------------------------------------
   // Proposals only (migration 0007): created off, the user switches them on in the app.
   ...scheduleTools(),
+
+  // ---- Dev servers -----------------------------------------------------------
+  // Declared per project; never spawned here (lib/dev-servers.mjs).
+  ...devServerTools(),
 
   sessions_recent: {
     description:

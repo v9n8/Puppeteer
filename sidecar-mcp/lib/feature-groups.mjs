@@ -1,9 +1,10 @@
 // Tool groups of the built-in `puppeteer` server that a feature switch can hide.
-// The app lists the switched-off groups in env PUPPETEER_MCP_DISABLED_GROUPS
-// (`builtin_gates` in src-tauri/src/commands/mcp.rs). A hidden tool is left out
+// The app lists the groups to hide in env PUPPETEER_MCP_DISABLED_GROUPS: switched off,
+// or not allowed in the run's permission mode (`builtin_gates` in
+// src-tauri/src/commands/mcp.rs). A hidden tool is left out
 // of tools/list and answers tools/call as an unknown tool.
 
-const PREFIXES = { notes: 'notes_', todos: 'todos_', slack: 'slack_threads_', vps: 'vps_', schedules: 'schedule_' };
+const PREFIXES = { notes: 'notes_', todos: 'todos_', slack: 'slack_threads_', vps: 'vps_', schedules: 'schedule_', dev_servers: 'dev_server_' };
 // A tool serving several groups: hidden only once all of them are off.
 // `git_accounts_list` has no group: code hosting is core.
 const SHARED = { cloud_accounts_list: ['aws', 'azure'] };

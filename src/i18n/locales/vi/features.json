@@ -81,7 +81,8 @@
     "orchestration": {
       "conductor": "Conductor",
       "conductor_worktree": "Mỗi worker của Conductor có git worktree riêng",
-      "schedules": "Lịch chạy prompt tự động (chạy khi bạn vắng mặt)"
+      "schedules": "Lịch chạy prompt tự động (chạy khi bạn vắng mặt)",
+      "dev_servers": "Dev server của dự án (tool cho agent: xem, lệnh khởi động, log, dừng)"
     },
     "code_hosting": {
       "issue_pr_runs": "Chạy từ issue và PR",

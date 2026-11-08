@@ -187,7 +187,8 @@ mod tests {
     }
 
     /// An opt-in prop registered after the seed stays off on a machine
-    /// already seeded: an upgrade does not start scheduled runs.
+    /// already seeded: an upgrade does not start scheduled runs or hand an
+    /// agent the dev server tools.
     #[tokio::test]
     async fn an_off_prop_registered_after_the_seed_stays_off() {
         let db = db().await;
@@ -195,8 +196,11 @@ mod tests {
         set_setting(&db, SEEDED_KEY, "1").await.unwrap();
         set_setting(&db, "feature.orchestration", "true").await.unwrap();
         seed(&db).await.unwrap();
-        assert!(!rows(&db).await.contains_key("feature.orchestration.schedules"));
-        assert!(!crate::features::is_on(&db, crate::schedules::FEATURE).await);
+        let r = rows(&db).await;
+        for id in [crate::schedules::FEATURE, "orchestration.dev_servers"] {
+            assert!(!r.contains_key(&format!("feature.{id}")), "{id}");
+            assert!(!crate::features::is_on(&db, id).await, "{id}");
+        }
     }
 
     #[tokio::test]

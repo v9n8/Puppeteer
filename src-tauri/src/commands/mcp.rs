@@ -1373,10 +1373,16 @@ const PUPPETEER_TOOL_GROUPS: &[(&str, &str)] = &[
     ("azure", "infra_access.azure"),
     // `schedule_propose`: an agent proposes, the Schedules screen decides.
     ("schedules", "orchestration.schedules"),
+    ("dev_servers", "orchestration.dev_servers"),
 ];
 
-/// What the feature switches let a run launched now get. Read once per start
-/// or resume: a run keeps the servers it was launched with.
+/// Groups a run in plan mode never gets, whatever the switches say: plan mode
+/// is read-only, and `dev_server_*` start and stop processes.
+const PLAN_MODE_HIDDEN_GROUPS: &[&str] = &["dev_servers"];
+
+/// What the feature switches and the run's permission mode let a run launched
+/// now get. Read once per start or resume: a run keeps the servers it was
+/// launched with, even when it leaves plan mode midway.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BuiltinGates {
     pub puppeteer: bool,
@@ -1386,14 +1392,16 @@ pub struct BuiltinGates {
     pub disabled_groups: Vec<&'static str>,
 }
 
-pub fn builtin_gates(tree: &[crate::features::ModuleState]) -> BuiltinGates {
+pub fn builtin_gates(tree: &[crate::features::ModuleState], permission_mode: &str) -> BuiltinGates {
     use crate::features::effective;
     BuiltinGates {
         puppeteer: effective(tree, "library.builtin_mcp_puppeteer"),
         google: effective(tree, "integrations.google"),
         disabled_groups: PUPPETEER_TOOL_GROUPS
             .iter()
-            .filter(|(_, id)| !effective(tree, id))
+            .filter(|(group, id)| {
+                !effective(tree, id) || (permission_mode == "plan" && PLAN_MODE_HIDDEN_GROUPS.contains(group))
+            })
             .map(|(group, _)| *group)
             .collect(),
     }
@@ -1790,15 +1798,15 @@ mod tests {
 
     fn gates(pairs: &[(&str, &str)]) -> super::BuiltinGates {
         let rows = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-        super::builtin_gates(&crate::features::resolve(&rows))
+        super::builtin_gates(&crate::features::resolve(&rows), "default")
     }
 
     #[test]
     fn builtin_gates_follow_the_feature_tree() {
-        // Fresh install: notes on; todos, slack, vps, aws, azure, schedules and the Google account off.
+        // Fresh install: notes on; todos, slack, vps, aws, azure, schedules, dev servers and the Google account off.
         let g = gates(&[]);
         assert!(g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["todos", "slack", "vps", "aws", "azure", "schedules"]);
+        assert_eq!(g.disabled_groups, ["todos", "slack", "vps", "aws", "azure", "schedules", "dev_servers"]);
 
         let all_on = [
             ("feature.productivity.todos", "true"),
@@ -1808,6 +1816,7 @@ mod tests {
             ("feature.infra_access.aws", "true"),
             ("feature.infra_access.azure", "true"),
             ("feature.orchestration.schedules", "true"),
+            ("feature.orchestration.dev_servers", "true"),
         ];
         let g = gates(&all_on);
         assert!(g.puppeteer && g.google);
@@ -1833,9 +1842,25 @@ mod tests {
 
     #[test]
     fn builtin_gates_on_an_unreadable_tree_give_nothing() {
-        let g = super::builtin_gates(&[]);
+        let g = super::builtin_gates(&[], "default");
         assert!(!g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure", "schedules"]);
+        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure", "schedules", "dev_servers"]);
+    }
+
+    #[test]
+    fn plan_mode_hides_the_dev_server_tools_only() {
+        let rows = [("feature.orchestration.dev_servers", "true"), ("feature.productivity.todos", "true")]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let tree = crate::features::resolve(&rows);
+        let default = super::builtin_gates(&tree, "default").disabled_groups;
+        assert!(!default.contains(&"dev_servers"));
+        assert_eq!(super::builtin_gates(&tree, "bypassPermissions").disabled_groups, default);
+        // The other groups still follow their switches alone.
+        let mut plan = default.clone();
+        plan.push("dev_servers");
+        assert_eq!(super::builtin_gates(&tree, "plan").disabled_groups, plan);
     }
 
     #[test]

@@ -116,6 +116,8 @@ pub static MODULES: &[Module] = &[
             Prop { depends_on: &["orchestration.conductor"], ..on("conductor_worktree") },
             // Starts agent runs while nobody is at the machine: opt-in.
             off("schedules"),
+            // Reads a declaration from the repo and stops processes: opt-in.
+            off("dev_servers"),
         ],
     },
     Module {

@@ -500,6 +500,7 @@ pub(crate) async fn start_run_inner(
                 &project_path,
                 &payload.run_id,
                 conductor_token.is_some(),
+                &permission_mode,
             )
             .await?;
             if !mcp.is_null() {
@@ -594,6 +595,7 @@ pub(crate) async fn start_run_inner(
         &project_path,
         &payload.run_id,
         conductor_token.is_some(),
+        &permission_mode,
     )
     .await?;
     if !codex_mcp.is_null() {
@@ -823,7 +825,8 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
 /// enabled servers plus the built-ins — `puppeteer` and `google` unless switched off,
 /// and the loopback `conductor` server for a conductor run. Feature switches
 /// (`mcp::builtin_gates`) are read here, so a change applies from the next start
-/// or resume; a live run keeps its servers. `orchestration.conductor` is applied
+/// or resume; a live run keeps its servers. `permission_mode` hides the
+/// `puppeteer` tools plan mode does not allow. `orchestration.conductor` is applied
 /// earlier, by `ensure_conductor_launch`, so the server, framing and token agree.
 /// Credentials are left to the broker (see `McpLaunch`), so the map is safe to
 /// put on a command line.
@@ -838,6 +841,7 @@ async fn assemble_run_mcp(
     project_path: &str,
     run_id: &str,
     is_conductor: bool,
+    permission_mode: &str,
 ) -> Result<(serde_json::Value, Vec<String>), String> {
     use crate::commands::mcp;
     let launch = mcp::McpLaunch {
@@ -856,7 +860,7 @@ async fn assemble_run_mcp(
         tracing::warn!(event = "features_load_failed", run_id = %run_id, error = %e);
         Vec::new()
     });
-    let gates = mcp::builtin_gates(&tree);
+    let gates = mcp::builtin_gates(&tree, permission_mode);
     let (map, skipped) = mcp::resolve_project_mcp_servers(db, project_id, engine, &launch).await;
     let map = if gates.puppeteer
         && !mcp::builtin_mcp_disabled_for_project(db, "puppeteer", project_id).await
@@ -3843,6 +3847,7 @@ pub(crate) async fn resume_run_with(
             &project_path,
             &run_id,
             conductor_launch.is_some(),
+            &permission_mode,
         )
         .await?;
         if !codex_mcp.is_null() {
@@ -3893,6 +3898,7 @@ pub(crate) async fn resume_run_with(
             &project_path,
             &run_id,
             conductor_launch.is_some(),
+            &permission_mode,
         )
         .await?;
         if !mcp.is_null() {
