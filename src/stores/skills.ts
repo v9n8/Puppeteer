@@ -3,6 +3,7 @@ import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
 import type { ApplyAllOutcome } from '@/stores/rules'
 import type { SkillAllocation } from '@/lib/skillRows'
+import type { SkillBulkPlan, SkillBulkRequest } from '@/lib/skillBulk'
 
 export type { ApplyAllOutcome } from '@/stores/rules'
 
@@ -94,5 +95,15 @@ export const useSkillsStore = defineStore('skills', () => {
     await invoke('set_skill_global', { skillId, engine, on })
   }
 
-  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills, getAllocation, setSkillEngine, setSkillGlobal }
+  /** The files a bulk switch would create or remove, read without touching anything. */
+  async function planSkillBulk(request: SkillBulkRequest): Promise<SkillBulkPlan> {
+    return invoke<SkillBulkPlan>('plan_skill_bulk', { request })
+  }
+
+  /** Run a bulk switch (planned again from the folders as they are now). */
+  async function applySkillBulk(request: SkillBulkRequest): Promise<ApplyAllOutcome> {
+    return invoke<ApplyAllOutcome>('apply_skill_bulk', { request })
+  }
+
+  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills, getAllocation, setSkillEngine, setSkillGlobal, planSkillBulk, applySkillBulk }
 })

@@ -104,5 +104,38 @@
       "not_installed": "Click to switch on for this engine in this project.",
       "taken": "Your home folder already holds something else under this name (your own skill or another link), or the folder is a symlink. Puppeteer leaves it alone: rename or remove it, or rename the skill."
     }
+  },
+  "bulk": {
+    "open": "Bulk…",
+    "hint": "Switch several skills on or off in several projects at once, after a preview of the files.",
+    "title": "Bulk switch",
+    "skills": "Skills",
+    "pickSkills": "Pick skills",
+    "pickGroup": "By group",
+    "groupPlaceholder": "Choose a skill group…",
+    "projects": "Projects",
+    "engines": "Engines",
+    "all": "All",
+    "none": "None",
+    "switchOn": "Switch on",
+    "switchOff": "Switch off",
+    "preview": "Preview",
+    "apply": "Apply {count} change | Apply {count} changes",
+    "previewHint": "Pick skills, projects and engines, then Preview to see every file that will be created or removed. Nothing changes before Apply.",
+    "summary": "{changes} changes · {create} files to create · {remove} to remove · {skipped} skipped · {unchanged} already as asked",
+    "nothing": "Nothing to change: every pick is already as asked.",
+    "switchOnly": "only the switch changes, no file",
+    "file": {
+      "create": "Link to the library, created",
+      "remove": "Removed (a copy-era folder goes to the backups unless it is unedited)"
+    },
+    "skip": {
+      "git_managed": "skipped: the repo commits its own skill of this name",
+      "occupied": "skipped: something that isn't Puppeteer's link is already there (switch the chip by hand to replace it)",
+      "project_missing": "skipped: project folder not found",
+      "source_missing": "skipped: the skill's library folder is missing"
+    },
+    "toastApplied": "Applied {count} change. | Applied {count} changes.",
+    "toastPartial": "Applied {applied} changes.\n\nFailed for {failed}:\n{details}"
   }
 }

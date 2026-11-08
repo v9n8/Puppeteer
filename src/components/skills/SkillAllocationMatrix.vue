@@ -4,13 +4,15 @@
 // off for that engine in that project only; a skill the repo commits to git is
 // shown but never switched. With the Global scope on, a Global column comes
 // first: its chips link the skill into the engine's folder in HOME (local
-// only, so a remote desktop sees them read-only).
+// only, so a remote desktop sees them read-only). "Bulk" switches many
+// skills × projects at once after a preview of the files (SkillBulkDialog).
 import { computed, onActivated, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Lock, RotateCw, Search } from 'lucide-vue-next'
+import { ListChecks, Lock, RotateCw, Search } from 'lucide-vue-next'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/composables/useToast'
 import { Banner, Button, Input } from '@/components/ui'
+import SkillBulkDialog from '@/components/skills/SkillBulkDialog.vue'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import {
   CHIP_STATES,
@@ -35,6 +37,7 @@ const search = ref('')
 /** `<skill>/<project>/<engine>` of the chip being switched. */
 const busy = ref<string | null>(null)
 const remote = isRemoteMode()
+const bulkOpen = ref(false)
 
 const rows = computed(() => (allocation.value ? buildAllocationMatrix(store.skills, allocation.value, search.value) : []))
 const hasGlobal = computed(() => !!allocation.value?.global)
@@ -113,6 +116,15 @@ async function toggle(skillId: string, projectId: string | null, chip: MatrixChi
         @click="load"
       >
         <RotateCw class="h-3.5 w-3.5" :stroke-width="1.75" :class="{ 'animate-spin': loading }" />
+      </Button>
+      <Button
+        variant="outline"
+        :disabled="!allocation?.projects.length || !store.skills.length || busy !== null"
+        :title="t('skills.bulk.hint')"
+        @click="bulkOpen = true"
+      >
+        <ListChecks class="h-3.5 w-3.5" :stroke-width="1.75" />
+        {{ t('skills.bulk.open') }}
       </Button>
       <div class="ml-auto flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">
         <span
@@ -226,5 +238,13 @@ async function toggle(skillId: string, projectId: string | null, chip: MatrixChi
         </tbody>
       </table>
     </div>
+    <SkillBulkDialog
+      v-if="allocation"
+      :open="bulkOpen"
+      :skills="store.skills"
+      :allocation="allocation"
+      @close="bulkOpen = false"
+      @applied="load"
+    />
   </div>
 </template>

@@ -37,6 +37,7 @@ pub mod sessions;
 pub mod settings;
 pub mod settings_backup;
 pub mod skill_allocation;
+pub mod skill_bulk;
 pub mod skill_doctor;
 pub mod skills;
 pub mod slack_threads;

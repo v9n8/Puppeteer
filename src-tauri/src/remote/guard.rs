@@ -189,8 +189,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Inbox API: its bearer token.
     "get_inbox_api_info",
     "regenerate_inbox_api_token",
-    // Skills: switching one on (or one engine of it) for a project.
+    // Skills: switching one on (or one engine of it) for a project, or many at once.
     "apply_skill",
+    "apply_skill_bulk",
     // Agents / Commands: the library files and their links into projects.
     "create_library_item",
     "update_library_item",
@@ -631,6 +632,8 @@ mod tests {
             "search_run_log",
             "list_skill_allocation",
             "apply_skill",
+            "plan_skill_bulk",
+            "apply_skill_bulk",
             "diagnose_skills",
             "search_sessions",
             "list_library_items",
@@ -658,6 +661,7 @@ mod tests {
             "secret_vault_unlock",
             "update_setting",
             "apply_skill",
+            "apply_skill_bulk",
             "create_library_item",
             "update_library_item",
             "delete_library_item",
@@ -669,6 +673,7 @@ mod tests {
         for name in [
             "list_runs",
             "list_skill_allocation",
+            "plan_skill_bulk",
             "diagnose_skills",
             "list_github_accounts",
             "secret_vault_touch",

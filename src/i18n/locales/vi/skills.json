@@ -104,5 +104,38 @@
       "not_installed": "Bấm để bật cho engine này trong project này.",
       "taken": "Thư mục HOME đã có thứ khác mang tên này (skill của bạn hoặc link khác), hoặc thư mục là symlink. Puppeteer không đụng vào: đổi tên hay xoá nó, hoặc đổi tên skill."
     }
+  },
+  "bulk": {
+    "open": "Hàng loạt…",
+    "hint": "Bật hoặc tắt nhiều skill ở nhiều project cùng lúc, sau khi xem trước danh sách file.",
+    "title": "Bật/tắt hàng loạt",
+    "skills": "Skill",
+    "pickSkills": "Chọn skill",
+    "pickGroup": "Theo nhóm",
+    "groupPlaceholder": "Chọn nhóm skill…",
+    "projects": "Project",
+    "engines": "Engine",
+    "all": "Tất cả",
+    "none": "Bỏ chọn",
+    "switchOn": "Bật",
+    "switchOff": "Tắt",
+    "preview": "Xem trước",
+    "apply": "Áp {count} thay đổi",
+    "previewHint": "Chọn skill, project và engine, rồi bấm Xem trước để thấy mọi file sẽ được tạo hoặc xoá. Chưa bấm Áp thì chưa có gì thay đổi.",
+    "summary": "{changes} thay đổi · {create} file tạo · {remove} file xoá · {skipped} bỏ qua · {unchanged} đã đúng sẵn",
+    "nothing": "Không có gì để đổi: mọi lựa chọn đã đúng sẵn.",
+    "switchOnly": "chỉ đổi công tắc, không đụng file",
+    "file": {
+      "create": "Tạo link về thư viện",
+      "remove": "Xoá (thư mục từ thời bản copy được chuyển vào backup nếu đã bị sửa)"
+    },
+    "skip": {
+      "git_managed": "bỏ qua: repo tự commit skill cùng tên",
+      "occupied": "bỏ qua: chỗ đó đã có thứ khác không phải link của Puppeteer (bấm chip từng ô nếu muốn thay)",
+      "project_missing": "bỏ qua: không thấy thư mục project",
+      "source_missing": "bỏ qua: thiếu thư mục skill trong thư viện"
+    },
+    "toastApplied": "Đã áp {count} thay đổi.",
+    "toastPartial": "Đã áp {applied} thay đổi.\n\nLỗi {failed}:\n{details}"
   }
 }

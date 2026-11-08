@@ -193,7 +193,7 @@ async fn item_name(db: &Db, kind: GroupKind, item_id: &str) -> String {
     .unwrap_or_else(|| item_id.to_string())
 }
 
-async fn member_ids(db: &Db, kind: GroupKind, group_id: &str) -> Result<Vec<String>, String> {
+pub(crate) async fn member_ids(db: &Db, kind: GroupKind, group_id: &str) -> Result<Vec<String>, String> {
     let rows = sqlx::query(&format!(
         "SELECT m.{item} as item_id FROM {members} m
          JOIN {items} i ON i.id = m.{item}
