@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlx::Row;
 use tauri::{AppHandle, State};
 
-use super::{ConductorLaunch, ConductorState, DEFAULT_MAX_WORKERS};
+use super::{ConductorLaunch, ConductorState, DEFAULT_MAX_WORKERS, FEATURE};
 use crate::commands::runs::{start_run_inner, ImageAttachment, StartRunPayload};
 use crate::db::Db;
 use crate::runs::RunRegistry;
@@ -91,6 +91,10 @@ pub(crate) async fn mark_framing_seeded(db: &Db, run_id: &str) {
 ///
 /// Called by `start_run_inner` and `resume_run`, so both engines get the
 /// `conductor` MCP server and framing on first launch and on every resume.
+///
+/// With [`FEATURE`] off, runs launch plain (no upgrade, framing, token or
+/// server), except a conductor still in flight (see [`in_flight`]): it was
+/// running when the switch went off and keeps its tools until it is done.
 pub(crate) async fn ensure_conductor_launch(
     db: &Db,
     cst: &ConductorState,
@@ -106,6 +110,9 @@ pub(crate) async fn ensure_conductor_launch(
     let role: Option<String> = row.get("role");
     let parent: Option<String> = row.get("conductor_run_id");
     if role.as_deref() == Some("worker") || parent.as_deref().is_some_and(|p| !p.trim().is_empty()) {
+        return Ok(None);
+    }
+    if !crate::features::is_on(db, FEATURE).await && !in_flight(db, cst, run_id).await? {
         return Ok(None);
     }
 
@@ -138,6 +145,37 @@ pub(crate) async fn ensure_conductor_launch(
     };
 
     Ok(Some(ConductorLaunch { token, max_workers }))
+}
+
+/// A conductor that keeps orchestrating although [`FEATURE`] is off: the
+/// loopback server is still up, and it is being woken by a finished worker or
+/// still has a worker running.
+async fn in_flight(db: &Db, cst: &ConductorState, run_id: &str) -> Result<bool, String> {
+    if cst.port() == 0 || cst.session(run_id).is_none() {
+        return Ok(false);
+    }
+    if cst.is_waking(run_id) {
+        return Ok(true);
+    }
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM runs WHERE conductor_run_id = ? AND status = 'running')",
+    )
+    .bind(run_id)
+    .fetch_one(db)
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Whether a conductor or a worker is running. With [`FEATURE`] off the loopback
+/// server stays up until this is false. A failed read counts as running, so a
+/// conductor is never cut off.
+pub(crate) async fn any_running(db: &Db) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM runs WHERE status = 'running' AND role IN ('conductor', 'worker'))",
+    )
+    .fetch_one(db)
+    .await
+    .unwrap_or(true)
 }
 
 /// Everything a resume needs to re-apply a run's framing: the conductor launch
@@ -242,19 +280,15 @@ pub async fn start_conductor(
         .map(|m| m.clamp(MIN_MAX_WORKERS, MAX_MAX_WORKERS) as usize)
         .unwrap_or(DEFAULT_MAX_WORKERS);
 
-    upgrade_run_to_conductor(
+    let conductor_token = launch_token(
         db.inner(),
+        conductor.inner(),
         &run_id,
         &project_id,
-        Some(&stored_goal),
-        Some(max_workers),
+        &stored_goal,
+        max_workers,
     )
     .await?;
-    // Register now so the token exists before the sidecar spawns;
-    // start_run_inner re-resolves the same session and adds the framing.
-    let launch = ensure_conductor_launch(db.inner(), conductor.inner(), &run_id)
-        .await?
-        .ok_or_else(|| "run cannot be launched as a session".to_string())?;
 
     let payload = StartRunPayload {
         run_id: run_id.clone(),
@@ -266,7 +300,7 @@ pub async fn start_conductor(
         images: images.unwrap_or_default(),
         override_budget: override_budget.unwrap_or(false),
         append_system_prompt: None,
-        conductor_token: Some(launch.token),
+        conductor_token,
     };
 
     if let Err(e) =
@@ -286,6 +320,38 @@ pub async fn start_conductor(
     })
 }
 
+/// The conductor token a first launch carries. With [`FEATURE`] off the run
+/// starts as a plain session (`None`, nothing upgraded): this command is the
+/// only first-run path, so refusing would block every new session.
+async fn launch_token(
+    db: &Db,
+    cst: &ConductorState,
+    run_id: &str,
+    project_id: &str,
+    goal: &str,
+    max_workers: usize,
+) -> Result<Option<String>, String> {
+    if !crate::features::is_on(db, FEATURE).await {
+        return Ok(None);
+    }
+    upgrade_run_to_conductor(db, run_id, project_id, Some(goal), Some(max_workers)).await?;
+    // Register now so the token exists before the sidecar spawns;
+    // start_run_inner re-resolves the same session and adds the framing.
+    let launch = ensure_conductor_launch(db, cst, run_id)
+        .await?
+        .ok_or_else(|| "run cannot be launched as a session".to_string())?;
+    Ok(Some(launch.token))
+}
+
+/// `feature_disabled: <id>` when [`FEATURE`] is off.
+async fn require_feature(db: &Db) -> Result<(), String> {
+    if crate::features::is_on(db, FEATURE).await {
+        Ok(())
+    } else {
+        Err(format!("feature_disabled: {}", FEATURE))
+    }
+}
+
 /// Upgrade an existing, stopped top-level run (session or issue/PR) into a
 /// conductor. A pure DB upgrade — no resume, no turn, no tokens spent; the
 /// conductor tools + framing come online at the next resume.
@@ -300,6 +366,7 @@ pub async fn convert_run_to_conductor(
     run_id: String,
     max_workers: Option<u32>,
 ) -> Result<ConductorStarted, String> {
+    require_feature(db.inner()).await?;
     let row = sqlx::query(
         "SELECT project_id, status, role, conductor_run_id, type as run_type FROM runs WHERE id = ?",
     )
@@ -585,6 +652,102 @@ mod tests {
             .await
             .unwrap()
             > 0
+    }
+
+    async fn switch_off(db: &Db) {
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('feature.orchestration.conductor', 'false')")
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    async fn set_status(db: &Db, id: &str, status: &str) {
+        sqlx::query("UPDATE runs SET status = ? WHERE id = ?")
+            .bind(status)
+            .bind(id)
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn switch_off_starts_plain_sessions_and_creates_no_conductor() {
+        let db = setup().await;
+        add_run(&db, "s", "session", "fetched", None, None).await;
+        add_run(&db, "old", "session", "done", Some("conductor"), None).await;
+        switch_off(&db).await;
+        let cst = ConductorState::new();
+        cst.set_port(1);
+
+        // start_conductor's first launch: no token, nothing upgraded.
+        assert_eq!(launch_token(&db, &cst, "s", "p1", "goal", 5).await.unwrap(), None);
+        assert_eq!(role_of(&db, "s").await, None);
+        assert!(!has_session(&db, "s").await);
+        // start_run_inner / resume_run: plain, even for an existing conductor.
+        assert!(ensure_conductor_launch(&db, &cst, "s").await.unwrap().is_none());
+        assert!(ensure_conductor_launch(&db, &cst, "old").await.unwrap().is_none());
+        let r = resume_framing(&db, Some(&cst), "old").await.unwrap();
+        assert!(r.launch.is_none() && r.framing.is_none(), "no session framing when off");
+        assert!(cst.token_for("s").is_none() && cst.token_for("old").is_none());
+        // The explicit upgrade is refused.
+        assert_eq!(
+            require_feature(&db).await,
+            Err("feature_disabled: orchestration.conductor".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn switch_on_first_launch_is_a_conductor() {
+        let db = setup().await;
+        add_run(&db, "s", "session", "fetched", None, None).await;
+        let cst = ConductorState::new();
+
+        let token = launch_token(&db, &cst, "s", "p1", "goal", 5).await.unwrap();
+        assert!(token.is_some());
+        assert_eq!(cst.token_for("s"), token);
+        assert_eq!(role_of(&db, "s").await.as_deref(), Some("conductor"));
+        assert_eq!(cst.session("s").unwrap().max_workers, 5);
+        assert_eq!(require_feature(&db).await, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn conductor_running_when_switched_off_keeps_its_tools_to_the_end() {
+        let db = setup().await;
+        add_run(&db, "c", "session", "done", None, None).await;
+        add_run(&db, "w", "session", "running", Some("worker"), Some("c")).await;
+        let cst = ConductorState::new();
+        cst.set_port(1);
+        let token = ensure_conductor_launch(&db, &cst, "c").await.unwrap().unwrap().token;
+        switch_off(&db).await;
+
+        // A worker still runs: a resume keeps the session tools.
+        let launch = ensure_conductor_launch(&db, &cst, "c").await.unwrap().unwrap();
+        assert_eq!(launch.token, token);
+        // The last worker finished and wakes its conductor to read the result.
+        set_status(&db, "w", "done").await;
+        assert!(cst.begin_wake_turn("c"));
+        assert!(ensure_conductor_launch(&db, &cst, "c").await.unwrap().is_some());
+        // Its turn ended with no worker left: the next resume is plain.
+        cst.turn_ended("c");
+        assert!(ensure_conductor_launch(&db, &cst, "c").await.unwrap().is_none());
+        // Server already closed: plain even with a worker running.
+        set_status(&db, "w", "running").await;
+        cst.set_port(0);
+        assert!(ensure_conductor_launch(&db, &cst, "c").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn any_running_counts_only_conductors_and_workers() {
+        let db = setup().await;
+        add_run(&db, "plain", "session", "running", None, None).await;
+        add_run(&db, "c", "session", "done", Some("conductor"), None).await;
+        add_run(&db, "w", "session", "done", Some("worker"), Some("c")).await;
+        assert!(!any_running(&db).await, "a plain run has no conductor server");
+        set_status(&db, "w", "running").await;
+        assert!(any_running(&db).await);
+        set_status(&db, "w", "done").await;
+        set_status(&db, "c", "running").await;
+        assert!(any_running(&db).await);
     }
 
     #[tokio::test]

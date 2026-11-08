@@ -811,8 +811,10 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
 /// enabled servers plus the built-ins — `puppeteer` and `google` unless switched off,
 /// and the loopback `conductor` server for a conductor run. Feature switches
 /// (`mcp::builtin_gates`) are read here, so a change applies from the next start
-/// or resume; a live run keeps its servers. Credentials are left to the broker
-/// (see `McpLaunch`), so the map is safe to put on a command line.
+/// or resume; a live run keeps its servers. `orchestration.conductor` is applied
+/// earlier, by `ensure_conductor_launch`, so the server, framing and token agree.
+/// Credentials are left to the broker (see `McpLaunch`), so the map is safe to
+/// put on a command line.
 /// Returns the map (`Null` when empty) and the servers skipped for the engine.
 #[allow(clippy::too_many_arguments)]
 async fn assemble_run_mcp(
@@ -871,8 +873,7 @@ async fn assemble_run_mcp(
     } else {
         map
     };
-    let conductor = is_conductor && gates.conductor;
-    let map = match (conductor, app.try_state::<crate::conductor::ConductorState>()) {
+    let map = match (is_conductor, app.try_state::<crate::conductor::ConductorState>()) {
         (true, Some(cst)) if engine == "codex" => {
             crate::conductor::with_conductor_codex(map, &cst.base_url(), &launch)
         }

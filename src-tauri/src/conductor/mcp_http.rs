@@ -16,9 +16,11 @@ use axum::{
 use serde_json::{json, Value};
 use std::convert::Infallible;
 use std::time::{Duration, Instant};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
-use super::{tools, ConductorState};
+use super::{commands, tools, ConductorState, FEATURE};
+use crate::db::Db;
+use crate::features;
 
 const PROTOCOL_VERSION: &str = "2025-06-18";
 
@@ -35,43 +37,113 @@ pub struct HttpState {
     pub conductor: ConductorState,
 }
 
-/// Start the loopback MCP server on an ephemeral port and record it in
-/// `ConductorState`. Runs for the app's lifetime.
-pub async fn start(app: AppHandle, conductor: ConductorState) -> std::io::Result<()> {
-    let app_for_wake = app.clone();
+/// Bring the loopback MCP server in line with the [`FEATURE`] switch: up while
+/// it is on; once it is off, down as soon as no conductor or worker is still
+/// running (a conductor running when the switch went off keeps its tools to
+/// the end, see `commands::ensure_conductor_launch`). Called at startup, by
+/// the `features::apply` hook and after every finished run.
+pub async fn follow(app: &AppHandle, conductor: &ConductorState) {
+    let db = app.state::<Db>().inner().clone();
+    let mut slot = conductor.server.lock().await;
+    let on = features::is_on(&db, FEATURE).await;
+    let in_flight = !on && commands::any_running(&db).await;
     let state = HttpState {
-        app,
+        app: app.clone(),
         conductor: conductor.clone(),
     };
-    let router = Router::new()
-        .route("/mcp", post(handle_post).get(handle_get).delete(handle_delete))
-        .with_state(state);
+    let started = follow_locked(&mut slot, conductor, on, in_flight, || router(state)).await;
+    drop(slot);
+    if started {
+        // Restore ownership of conductor sessions still `running` from before
+        // an app restart (or the switch going off), so their resume keeps control.
+        commands::reconnect_running(&db, conductor).await;
+        install_wake_consumer(app.clone(), conductor);
+    }
+}
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
-    let port = listener.local_addr()?.port();
+/// Start (`on`), keep (`in_flight`) or stop the server. Returns whether it was
+/// started now. Caller holds the server lock.
+async fn follow_locked(
+    slot: &mut Option<tokio::task::JoinHandle<()>>,
+    conductor: &ConductorState,
+    on: bool,
+    in_flight: bool,
+    make_router: impl FnOnce() -> Router,
+) -> bool {
+    if on {
+        return start_locked(slot, conductor, make_router).await;
+    }
+    if !in_flight {
+        stop_locked(slot, conductor).await;
+    }
+    false
+}
+
+/// Bind an ephemeral 127.0.0.1 port, record it in `ConductorState` and serve.
+/// No-op when already running (a task that exited counts as stopped).
+async fn start_locked(
+    slot: &mut Option<tokio::task::JoinHandle<()>>,
+    conductor: &ConductorState,
+    make_router: impl FnOnce() -> Router,
+) -> bool {
+    if slot.as_ref().is_some_and(|t| !t.is_finished()) {
+        return false;
+    }
+    let listener = match tokio::net::TcpListener::bind(("127.0.0.1", 0)).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!(event = "conductor_mcp_start_failed", error = %e);
+            return false;
+        }
+    };
+    let Ok(port) = listener.local_addr().map(|a| a.port()) else {
+        return false;
+    };
     conductor.set_port(port);
     tracing::info!(event = "conductor_mcp_listening", port = port);
-
-    // Wake consumer: the sidecar drain pushes every finished run's id here (a plain
-    // channel send); this task performs the resume/slot-release off the drain's
-    // call stack, breaking the drain → resume_run → drain type cycle.
-    {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        conductor.set_wake_sender(tx);
-        let app = app_for_wake;
-        tokio::spawn(async move {
-            while let Some(run_id) = rx.recv().await {
-                tools::on_run_finished(&app, &run_id).await;
-            }
-        });
-    }
-
-    tokio::spawn(async move {
+    let router = make_router();
+    *slot = Some(tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, router).await {
             tracing::error!(event = "conductor_mcp_serve_failed", error = %e);
         }
+    }));
+    true
+}
+
+/// Close the port. Only called with nothing left running, so no conductor is
+/// mid-call. No-op when not running.
+async fn stop_locked(slot: &mut Option<tokio::task::JoinHandle<()>>, conductor: &ConductorState) {
+    let Some(task) = slot.take() else {
+        return;
+    };
+    task.abort();
+    // Wait for the task to drop its listener, so the port is free on return.
+    let _ = task.await;
+    conductor.set_port(0);
+    tracing::info!(event = "conductor_mcp_stopped");
+}
+
+fn router(state: HttpState) -> Router {
+    Router::new()
+        .route("/mcp", post(handle_post).get(handle_get).delete(handle_delete))
+        .with_state(state)
+}
+
+/// Wake consumer: the sidecar drain pushes every finished run's id here (a plain
+/// channel send); this task performs the resume/slot-release off the drain's
+/// call stack, breaking the drain → resume_run → drain type cycle. A restarted
+/// server installs a new one; the old task ends when its sender is replaced.
+fn install_wake_consumer(app: AppHandle, conductor: &ConductorState) {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    conductor.set_wake_sender(tx);
+    let conductor = conductor.clone();
+    tokio::spawn(async move {
+        while let Some(run_id) = rx.recv().await {
+            tools::on_run_finished(&app, &run_id).await;
+            // With the switch off, the last run to finish closes the port.
+            follow(&app, &conductor).await;
+        }
     });
-    Ok(())
 }
 
 /// Streamable HTTP: the client opens a GET for a server->client SSE stream. We
@@ -396,4 +468,43 @@ fn tool_specs() -> Value {
             }
         }
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn accepts(port: u16) -> bool {
+        tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok()
+    }
+
+    #[tokio::test]
+    async fn server_follows_the_switch_and_waits_for_running_conductors() {
+        let cst = ConductorState::new();
+        let mut slot = None;
+
+        // Switch off with nothing running (fresh install turned off): no port.
+        assert!(!follow_locked(&mut slot, &cst, false, false, Router::new).await);
+        assert!(slot.is_none());
+        assert_eq!(cst.port(), 0);
+
+        // On: bound once; following again keeps the same server.
+        assert!(follow_locked(&mut slot, &cst, true, false, Router::new).await);
+        let port = cst.port();
+        assert_ne!(port, 0);
+        assert!(accepts(port).await);
+        assert!(!follow_locked(&mut slot, &cst, true, false, Router::new).await);
+        assert_eq!(cst.port(), port);
+
+        // Off while a conductor still runs: it keeps its server.
+        assert!(!follow_locked(&mut slot, &cst, false, true, Router::new).await);
+        assert_eq!(cst.port(), port);
+        assert!(accepts(port).await);
+
+        // The last one finished: the port is closed.
+        assert!(!follow_locked(&mut slot, &cst, false, false, Router::new).await);
+        assert!(slot.is_none());
+        assert_eq!(cst.port(), 0);
+        assert!(!accepts(port).await);
+    }
 }

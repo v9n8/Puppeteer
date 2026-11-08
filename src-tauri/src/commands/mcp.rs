@@ -1369,7 +1369,6 @@ pub struct BuiltinGates {
     pub puppeteer: bool,
     /// The MCP page switch (`mcp_builtin_google_enabled`) must be on too.
     pub google: bool,
-    pub conductor: bool,
     /// `puppeteer` tool groups to hide.
     pub disabled_groups: Vec<&'static str>,
 }
@@ -1379,7 +1378,6 @@ pub fn builtin_gates(tree: &[crate::features::ModuleState]) -> BuiltinGates {
     BuiltinGates {
         puppeteer: effective(tree, "library.builtin_mcp_puppeteer"),
         google: effective(tree, "integrations.google"),
-        conductor: effective(tree, "orchestration.conductor"),
         disabled_groups: PUPPETEER_TOOL_GROUPS
             .iter()
             .filter(|(_, id)| !effective(tree, id))
@@ -1787,7 +1785,7 @@ mod tests {
     fn builtin_gates_follow_the_feature_tree() {
         // Fresh install: notes on; todos, slack, vps and the Google account off.
         let g = gates(&[]);
-        assert!(g.puppeteer && g.conductor && !g.google);
+        assert!(g.puppeteer && !g.google);
         assert_eq!(g.disabled_groups, ["todos", "slack", "vps"]);
 
         let all_on = [
@@ -1797,7 +1795,7 @@ mod tests {
             ("feature.infra_access.vps", "true"),
         ];
         let g = gates(&all_on);
-        assert!(g.puppeteer && g.google && g.conductor);
+        assert!(g.puppeteer && g.google);
         assert!(g.disabled_groups.is_empty());
 
         // A module off hides its props' groups and keeps the others.
@@ -1813,15 +1811,15 @@ mod tests {
 
         // The puppeteer prop reads the MCP page's legacy switch.
         let mut rows = all_on.to_vec();
-        rows.extend([("mcp_builtin_puppeteer_enabled", "false"), ("feature.orchestration", "false")]);
+        rows.push(("mcp_builtin_puppeteer_enabled", "false"));
         let g = gates(&rows);
-        assert!(!g.puppeteer && !g.conductor && g.google);
+        assert!(!g.puppeteer && g.google);
     }
 
     #[test]
     fn builtin_gates_on_an_unreadable_tree_give_nothing() {
         let g = super::builtin_gates(&[]);
-        assert!(!g.puppeteer && !g.google && !g.conductor);
+        assert!(!g.puppeteer && !g.google);
         assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps"]);
     }
 

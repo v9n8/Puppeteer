@@ -328,21 +328,14 @@ pub fn run() {
             // Conductor: managed registry + loopback MCP server (session_* tools).
             // The server binds an ephemeral 127.0.0.1 port and records it in the
             // state so conductor runs can point their `conductor` MCP server at it.
+            // Only started when `orchestration.conductor` is on (nothing runs
+            // yet at startup); its `features::apply` hook follows the switch.
             let conductor_state = conductor::ConductorState::new();
             app.manage(conductor_state.clone());
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    // Restore ownership of any conductor sessions still running from
-                    // before an app restart, then start the loopback MCP server.
-                    let db_for_conductor = app_handle.state::<db::Db>().inner().clone();
-                    conductor::commands::reconnect_running(&db_for_conductor, &conductor_state)
-                        .await;
-                    if let Err(e) =
-                        conductor::mcp_http::start(app_handle, conductor_state).await
-                    {
-                        tracing::error!(event = "conductor_mcp_start_failed", error = %e);
-                    }
+                    conductor::mcp_http::follow(&app_handle, &conductor_state).await;
                 });
             }
             // Web page captures were removed: drop their leftover files (the

@@ -661,6 +661,11 @@ async fn wake_conductor(
     cst: &crate::conductor::ConductorState,
     conductor_run_id: &str,
 ) {
+    // Server down (the switch went off and nothing was left running): a resume
+    // would be a plain run that cannot follow the nudge.
+    if cst.port() == 0 {
+        return;
+    }
     let db = db_from(app);
 
     if cst.defer_wake_if_busy(conductor_run_id) {

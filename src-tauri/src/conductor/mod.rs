@@ -19,6 +19,12 @@ pub mod tools;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+use crate::features::{self, apply::Change};
+use tauri::{AppHandle, Manager};
+
+/// The switch for creating conductors and serving their `session_*` tools.
+pub const FEATURE: &str = "orchestration.conductor";
+
 /// System prompt appended to a conductor run, teaching it the control-plane
 /// tools and the loop to run. Kept deliberately short; the orchestration logic
 /// lives in the model, not in a hardcoded FE state machine.
@@ -220,6 +226,8 @@ pub struct ConductorState {
     /// Serializes "count running workers → start one" so parallel
     /// `session_spawn` / resuming `session_send` calls can't both pass the cap.
     start_lock: Arc<tokio::sync::Mutex<()>>,
+    /// The loopback MCP server task while it is up (`mcp_http::follow`).
+    server: Arc<tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Default for ConductorState {
@@ -241,6 +249,7 @@ impl ConductorState {
                 wake_tx: None,
             })),
             start_lock: Arc::new(tokio::sync::Mutex::new(())),
+            server: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 
@@ -414,6 +423,15 @@ impl ConductorState {
         }
     }
 
+    /// Whether an auto-wake (see [`Self::begin_wake_turn`]) is resuming or
+    /// nudging this conductor right now.
+    pub fn is_waking(&self, conductor_run_id: &str) -> bool {
+        self.inner
+            .lock()
+            .map(|g| g.waking.contains(conductor_run_id))
+            .unwrap_or(false)
+    }
+
     /// Whether `worker_id` belongs to `conductor_run_id` (scoping check).
     pub fn owns_worker(&self, conductor_run_id: &str, worker_id: &str) -> bool {
         self.session(conductor_run_id)
@@ -470,6 +488,20 @@ impl ConductorState {
     pub fn token_for(&self, conductor_run_id: &str) -> Option<String> {
         self.session(conductor_run_id).map(|s| s.token)
     }
+}
+
+/// `features::apply` hook: start the loopback server when [`FEATURE`] turns on;
+/// when it turns off, stop it once no conductor is still running (one running
+/// at that moment is left to finish, see `mcp_http::follow`).
+pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
+    if features::effective(change.before, FEATURE) == features::effective(change.after, FEATURE) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let cst = app.state::<ConductorState>().inner().clone();
+        mcp_http::follow(&app, &cst).await;
+    });
 }
 
 /// Add the built-in `conductor` MCP server (Streamable HTTP, loopback) to an
