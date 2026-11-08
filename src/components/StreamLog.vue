@@ -18,7 +18,7 @@ import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
-import { turnAnswerText, turnFooters, type TurnAction, type TurnFooter } from '@/lib/turnActions'
+import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFooter } from '@/lib/turnActions'
 
 const { t } = useI18n()
 
@@ -744,6 +744,7 @@ const msgActionsState: MsgActionsState = {
   quoteLabel: computed(() => quoteTarget.value?.label ?? null),
   canSaveNote: computed(() => !!owner.value?.allow.saveNote && !!owner.value.capture),
   canRewind: (turn) => owner.value?.rewind?.()?.available(turn) ?? false,
+  bookmarked: (promptAt, side) => owner.value?.bookmarks?.()?.marked(promptAt, side) ?? null,
 }
 
 interface Fullscreen {
@@ -785,6 +786,9 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
       break
     case 'rewind':
       if (f.rewindTurn !== null) owner.value?.rewind?.()?.start(f.rewindTurn)
+      break
+    case 'bookmark':
+      owner.value?.bookmarks?.()?.toggle(turnPromptAt(f), f.side)
       break
   }
   return false
@@ -1451,6 +1455,7 @@ function toolResult(e: StreamEntry): unknown {
           :side="footers.get(i)!.side"
           :has-text="footers.get(i)!.hasText"
           :rewind-turn="footers.get(i)!.rewindTurn"
+          :prompt-at="turnPromptAt(footers.get(i)!)"
           :state="msgActionsState"
           :run="(action) => runTurnAction(i, action)"
         />

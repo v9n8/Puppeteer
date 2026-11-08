@@ -60,6 +60,8 @@
     "copy": "Sao chép",
     "copied": "Đã sao chép",
     "quote": "Trích dẫn → {target}",
+    "bookmark": "Đánh dấu",
+    "unbookmark": "Bỏ đánh dấu",
     "fullscreen": "Toàn màn hình",
     "fullscreenTurn": "Toàn màn hình cả lượt",
     "saveNote": "Lưu thành ghi chú",

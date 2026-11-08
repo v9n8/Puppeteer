@@ -9,6 +9,7 @@
 import { onBeforeUnmount, onDeactivated, shallowRef, type Ref } from 'vue'
 import type { ItemContext } from '@/lib/itemWindow'
 import type { SelectionAllow } from '@/lib/selectionSurface'
+import type { TurnSide } from '@/lib/turnActions'
 
 /** Where a quote goes; `label` names it on the button. */
 export interface QuoteTarget {
@@ -22,6 +23,17 @@ export interface TurnRewind {
   available: (turn: number) => boolean
   /** Ask (confirm first) to rewind to just before `turn`. */
   start: (turn: number) => void
+}
+
+/** Bookmarks on the turns of the session shown on a surface. */
+export interface TurnBookmarks {
+  /**
+   * Whether one side of the turn starting at entry `promptAt` of the shown log
+   * is bookmarked (-1 = the turn before the loaded window); null = that turn
+   * cannot be bookmarked.
+   */
+  marked: (promptAt: number, side: TurnSide) => boolean | null
+  toggle: (promptAt: number, side: TurnSide) => void
 }
 
 /** What "save as note / todo" files the capture under. */
@@ -41,6 +53,8 @@ export interface SelectionSurface {
   capture?: () => SelectionCapture
   /** "Rewind to here" in the turn rows of a log shown here; null = not now. */
   rewind?: () => TurnRewind | null
+  /** Bookmark in the turn rows of a log shown here; null = not now. */
+  bookmarks?: () => TurnBookmarks | null
 }
 
 /** A selection the bar is shown for. */

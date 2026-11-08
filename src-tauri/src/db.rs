@@ -239,6 +239,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_bookmarks_start_empty_and_go_with_their_run() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at) VALUES ('r1', 'p1', 'session', 'c'), ('r2', 'p1', 'session', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let count = |sql: &'static str| {
+            let db = db.clone();
+            async move { sqlx::query_scalar::<_, i64>(sql).fetch_one(&db).await.unwrap() }
+        };
+        assert_eq!(count("SELECT COUNT(*) FROM run_bookmarks").await, 0);
+
+        sqlx::query(
+            "INSERT INTO run_bookmarks (id, run_id, log_offset, side, created_at) VALUES
+                ('b1', 'r1', 0, 'question', 't'), ('b2', 'r2', 0, 'answer', 't')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        // One bookmark per turn and side.
+        assert!(sqlx::query("INSERT INTO run_bookmarks (id, run_id, log_offset, side, created_at) VALUES ('b3', 'r1', 0, 'question', 't')")
+            .execute(&db)
+            .await
+            .is_err());
+        // Removing a run, or its project, drops its bookmarks.
+        sqlx::query("DELETE FROM runs WHERE id = 'r1'").execute(&db).await.unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM run_bookmarks WHERE run_id = 'r1'").await, 0);
+        sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM run_bookmarks").await, 0);
+    }
+
+    #[tokio::test]
     async fn agents_and_commands_tables_on_an_existing_database() {
         let db = db_at_0001().await;
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')")

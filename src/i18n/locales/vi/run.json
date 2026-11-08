@@ -92,6 +92,8 @@
   "copySessionId": "Sao chép ID session",
   "sessionIdCopied": "Đã sao chép ID session",
   "viewLogFile": "Xem file log",
+  "exportTranscript": "Xuất transcript (Markdown)",
+  "transcriptExported": "Đã xuất transcript vào {path}",
   "moreActions": "Thao tác khác",
   "rename": "Đổi tên",
   "unpinFromTop": "Bỏ ghim khỏi đầu",
@@ -127,6 +129,12 @@
   "nextPrompt": "Prompt sau (⌘/Ctrl+⌥+↓)",
   "promptList": "Nhảy tới một prompt của bạn",
   "promptNoText": "(không có chữ)",
+  "bookmarks": {
+    "title": "Đánh dấu",
+    "question": "Câu hỏi",
+    "answer": "Câu trả lời",
+    "unavailable": "Không đánh dấu được lượt này: không tìm thấy prompt của nó trong log của session."
+  },
   "detachQuestion": "Tách câu hỏi ra cửa sổ riêng (kéo sang màn hình khác)",
   "dropFileToAttach": "Thả file để đính kèm vào hội thoại",
   "attachFile": "Đính kèm file hoặc ảnh (ảnh gửi trực tiếp, file khác gửi theo đường dẫn — hoặc kéo thả / dán)",

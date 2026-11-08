@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref, reactive, computed } from 'vue'
 import type { ImageAttachment } from '@/lib/streamEvents'
+import type { BookmarkSide, RunBookmark } from '@/lib/bookmarks'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 
 /**
@@ -391,6 +392,24 @@ export const useRunsStore = defineStore('runs', () => {
     return invoke<RewindOutcome>('rewind_run', { runId: run_id, turn, fingerprint })
   }
 
+  async function listBookmarks(run_id: string): Promise<RunBookmark[]> {
+    return invoke<RunBookmark[]>('list_run_bookmarks', { runId: run_id })
+  }
+
+  async function addBookmark(run_id: string, log_offset: number, side: BookmarkSide, label: string): Promise<RunBookmark> {
+    return invoke<RunBookmark>('add_run_bookmark', { runId: run_id, logOffset: log_offset, side, label })
+  }
+
+  async function deleteBookmark(id: string): Promise<void> {
+    await invoke('delete_run_bookmark', { id })
+  }
+
+  // Writes the conversation to `<project>/.puppeteer/exports/` (redacted) and
+  // returns the file's path.
+  async function exportTranscript(run_id: string): Promise<string> {
+    return invoke<string>('export_run_transcript', { runId: run_id })
+  }
+
   async function endRunInput(run_id: string): Promise<void> {
     await invoke('end_run_input', { runId: run_id })
   }
@@ -667,7 +686,7 @@ export const useRunsStore = defineStore('runs', () => {
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, endRunInput,
-    listSnapshots, previewRewind, rewindRun,
+    listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, exportTranscript,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun,

@@ -414,6 +414,7 @@
       "notes": "Ghi chú",
       "secretNotes": "Note bí mật",
       "todos": "Todo",
+      "bookmarks": "Đánh dấu trong session",
       "slackThreads": "Slack thread",
       "projects": "Project"
     }

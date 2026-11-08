@@ -92,6 +92,8 @@
   "copySessionId": "Copy session ID",
   "sessionIdCopied": "Session ID copied",
   "viewLogFile": "View log file",
+  "exportTranscript": "Export transcript (Markdown)",
+  "transcriptExported": "Transcript exported to {path}",
   "moreActions": "More actions",
   "rename": "Rename",
   "unpinFromTop": "Unpin from top",
@@ -127,6 +129,12 @@
   "nextPrompt": "Next prompt (⌘/Ctrl+⌥+↓)",
   "promptList": "Jump to one of your prompts",
   "promptNoText": "(no text)",
+  "bookmarks": {
+    "title": "Bookmarks",
+    "question": "Question",
+    "answer": "Answer",
+    "unavailable": "This turn can't be bookmarked: its prompt was not found in the session log."
+  },
   "detachQuestion": "Detach the question into its own window (drag to another monitor)",
   "dropFileToAttach": "Drop files to attach to the conversation",
   "attachFile": "Attach files or images (images go inline; other files by path — or drag & drop / paste)",

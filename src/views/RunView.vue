@@ -43,7 +43,7 @@ import {
   Pin, Shield, Pencil, Check, Github, Gitlab, UserCircle,
   HardDrive, Cloud, CloudCog, FolderTree, Loader2,
   MoreHorizontal, Search, Network, ChevronLeft, ChevronRight,
-  Plus, AlignJustify, Rows2, Rows3, Rows4, CircleDashed, ArrowUpDown
+  Plus, AlignJustify, Rows2, Rows3, Rows4, CircleDashed, ArrowUpDown, Bookmark
 } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 import AppSelect from '@/components/AppSelect.vue'
@@ -86,6 +86,8 @@ import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useTurnNavigator, turnLabel } from '@/composables/useTurnNavigator'
 import { isAwayFromTop, promptsBefore, turnCounterLabel } from '@/lib/turnPosition'
 import { useScrollMemory } from '@/composables/useScrollMemory'
+import { bookmarkKey, placeBookmarks, type RunBookmark } from '@/lib/bookmarks'
+import type { TurnSide } from '@/lib/turnActions'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
@@ -1701,7 +1703,85 @@ const selectionSurface = useSelectionSurface({
       },
     }
   },
+  bookmarks: () => {
+    const run = currentRun.value
+    if (!run || !(isViewingHistory.value ? historyHasStream.value : liveHasStream.value)) return null
+    return {
+      marked: bookmarkState,
+      toggle: (promptAt: number, side: TurnSide) => void toggleBookmark(run.id, promptAt, side),
+    }
+  },
 })
+
+// ── Bookmarks ────────────────────────────────────────────────────────────────
+// Anchored on the session's prompt list (`sessionTurns`: byte offset + label of
+// each prompt record), never on the DOM, which only holds a window of the log.
+const bookmarks = shallowRef<RunBookmark[]>([])
+
+async function loadBookmarks(runId: string | null) {
+  if (!runId) return
+  try {
+    const rows = await runsStore.listBookmarks(runId)
+    if (currentRunId.value === runId) bookmarks.value = rows
+  } catch {
+    if (currentRunId.value === runId) bookmarks.value = []
+  }
+}
+
+watch(
+  currentRunId,
+  (id) => {
+    bookmarks.value = []
+    void loadBookmarks(id)
+  },
+  { immediate: true },
+)
+
+const placedBookmarks = computed(() => placeBookmarks(bookmarks.value, sessionTurns.value))
+const bookmarkByTurn = computed(
+  () => new Map(placedBookmarks.value.map((p) => [bookmarkKey(p.seq, p.bookmark.side), p.bookmark])),
+)
+
+// The session prompt a row's turn starts with: loaded entry `promptAt`, or the
+// prompt just before the loaded window (-1). Null until the scan of the log
+// has it, or when the scan and the window disagree on its text.
+function turnAnchor(promptAt: number): { seq: number; turn: SessionTurn } | null {
+  const local = promptAt < 0 ? -1 : loadedTurnIndexOf(promptAt)
+  if (promptAt >= 0 && local < 0) return null
+  const seq = loadedTurnOffset.value + local
+  const turn = sessionTurns.value[seq]
+  if (!turn || (local >= 0 && promptTurns.value[local].label !== turn.label)) return null
+  return { seq, turn }
+}
+
+// A loaded prompt the scan does not have yet (sent since) can still be
+// bookmarked: the click scans the log again first.
+function bookmarkState(promptAt: number, side: TurnSide): boolean | null {
+  const anchor = turnAnchor(promptAt)
+  if (anchor) return bookmarkByTurn.value.has(bookmarkKey(anchor.seq, side))
+  return promptAt >= 0 ? false : null
+}
+
+async function toggleBookmark(runId: string, promptAt: number, side: TurnSide) {
+  let anchor = turnAnchor(promptAt)
+  if (!anchor) {
+    await loadSessionTurns(runId)
+    anchor = turnAnchor(promptAt)
+  }
+  if (currentRunId.value !== runId) return
+  if (!anchor) {
+    toast.error(t('run.bookmarks.unavailable'))
+    return
+  }
+  const existing = bookmarkByTurn.value.get(bookmarkKey(anchor.seq, side))
+  try {
+    if (existing) await runsStore.deleteBookmark(existing.id)
+    else await runsStore.addBookmark(runId, anchor.turn.offset, side, anchor.turn.label)
+  } catch (e) {
+    toast.error(String(e))
+  }
+  await loadBookmarks(runId)
+}
 
 // ── Rewind (sessions.rewind) ─────────────────────────────────────────────────
 // Turns of the shown run whose workspace snapshot can still be restored.
@@ -1742,6 +1822,8 @@ async function onRewound(outcome: RewindOutcome) {
     live.discard(target.runId)
     await loadRunLog(target.runId, { force: true })
     void loadSessionTurns(target.runId)
+    // The cut dropped the bookmarks after it.
+    void loadBookmarks(target.runId)
   }
   void loadSnapshots(target.runId)
 }
@@ -3298,6 +3380,19 @@ async function viewLogFile(run: RunRecord) {
   }
 }
 
+// Write this run/session's conversation to a Markdown file (secrets redacted)
+// and open it in the file viewer.
+async function exportTranscript(run: RunRecord) {
+  const p = project.value
+  try {
+    const path = await runsStore.exportTranscript(run.id)
+    toast.success(t('run.transcriptExported', { path }))
+    if (p) await openFileWindow(p.path, path, null, run.id)
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
 function cancelRename() {
   renamingRunId.value = null
   renameDraft.value = ''
@@ -3363,6 +3458,7 @@ function runActionHandlers(run: RunRecord, rename: (run: RunRecord) => void = st
     copyLogPath: () => copyLogPath(run),
     copyId: () => copySessionId(run),
     viewLog: () => viewLogFile(run),
+    exportTranscript: () => exportTranscript(run),
     rename: () => rename(run),
     togglePin: () => handleTogglePin(run),
     toggleProtect: () => handleToggleProtect(run),
@@ -4486,6 +4582,41 @@ function handleRefInput(val: string) {
                       <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
                     </button>
                   </div>
+                  <!-- Bookmarked turns of this session; picking one jumps there
+                       like the prompt list does (a window read at its offset). -->
+                  <DropdownMenu
+                    v-if="placedBookmarks.length && (isViewingHistory ? historyHasStream : liveHasStream)"
+                    align="right"
+                  >
+                    <template #trigger>
+                      <button
+                        type="button"
+                        class="flex items-center gap-1 h-6 rounded border border-border px-1.5 text-2xs font-mono text-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+                        :title="t('run.bookmarks.title')"
+                      >
+                        <Bookmark class="h-3.5 w-3.5" :stroke-width="1.75" />
+                        <span class="tabular-nums">{{ placedBookmarks.length }}</span>
+                      </button>
+                    </template>
+                    <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
+                      <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
+                        {{ t('run.bookmarks.title') }}
+                      </div>
+                      <DropdownItem
+                        v-for="placed in placedBookmarks"
+                        :key="placed.bookmark.id"
+                        class="!items-start"
+                        @click="jumpToSessionTurn(placed.seq, true)"
+                      >
+                        <span class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-muted px-1 text-2xs font-mono tabular-nums text-foreground/45">{{ placed.seq + 1 }}</span>
+                        <span
+                          class="min-w-0 flex-1 whitespace-normal break-words leading-snug line-clamp-2"
+                          :class="placed.bookmark.label ? '' : 'italic text-foreground/40'"
+                        >{{ placed.bookmark.label || t('run.promptNoText') }}</span>
+                        <span class="mt-px shrink-0 text-2xs text-foreground/45">{{ t(`run.bookmarks.${placed.bookmark.side}`) }}</span>
+                      </DropdownItem>
+                    </div>
+                  </DropdownMenu>
                   <!-- Issue / PR runs only: opens the fetched Content as a left
                        split column. Sessions have no Content to show. -->
                   <button

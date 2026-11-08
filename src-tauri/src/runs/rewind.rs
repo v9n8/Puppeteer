@@ -356,6 +356,10 @@ pub async fn rewind_run(
             .await
             .map_err(|e| e.to_string())??;
         crate::commands::session_search::refresh_run_later(db, &run_id);
+        // The cut is done: a failure here only leaves bookmarks the viewer no longer finds.
+        if let Err(e) = super::bookmarks::drop_from(db, &run_id, offset).await {
+            tracing::warn!(event = "run_bookmarks_drop_failed", run_id = %run_id, error = %e);
+        }
     }
     tracing::info!(event = "run_rewound", run_id = %run_id, turn, conversation, restored = files.restored, deleted = files.deleted);
     Ok(RewindOutcome { files, conversation })

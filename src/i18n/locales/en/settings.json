@@ -414,6 +414,7 @@
       "notes": "Notes",
       "secretNotes": "Secret notes",
       "todos": "Todos",
+      "bookmarks": "Session bookmarks",
       "slackThreads": "Slack threads",
       "projects": "Projects"
     }

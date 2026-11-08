@@ -1,3 +1,4 @@
+pub mod bookmarks;
 pub mod broker;
 pub mod liveness;
 pub mod model_usage;
@@ -9,6 +10,7 @@ pub mod sidecar;
 pub mod snapshots;
 pub mod ssh_access;
 pub mod stdin_writer;
+pub mod transcript;
 pub mod usage_cost;
 
 use std::collections::HashMap;

@@ -6,7 +6,7 @@
 // opens upward first because the row ends its turn.
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, Copy, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
+import { Bookmark, BookmarkCheck, Check, Copy, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
 import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { turnActions, type TurnAction, type TurnSide } from '@/lib/turnActions'
 
@@ -22,6 +22,11 @@ export interface MsgActionsState {
   canSaveNote: Readonly<Ref<boolean>>
   /** The session can be rewound to `turn` now (reads its state reactively). */
   canRewind: (turn: number) => boolean
+  /**
+   * Whether one side of the turn starting at entry `promptAt` is bookmarked;
+   * null = it cannot be bookmarked here (reads its state reactively).
+   */
+  bookmarked: (promptAt: number, side: TurnSide) => boolean | null
 }
 
 const props = defineProps<{
@@ -29,6 +34,8 @@ const props = defineProps<{
   hasText: boolean
   /** The snapshot turn "Rewind to here" goes back to; null = none. */
   rewindTurn: number | null
+  /** Entry index of the prompt this row's turn starts with; -1 = before the loaded window. */
+  promptAt: number
   state: MsgActionsState
   /** Runs an action; resolves true when Copy actually wrote the clipboard. */
   run: (action: TurnAction) => Promise<boolean>
@@ -36,12 +43,15 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
+const bookmarked = computed(() => props.state.bookmarked(props.promptAt, props.side))
+
 const buttons = computed(() =>
   turnActions(props.side, props.state.isOn, {
     hasText: props.hasText,
     hasQuoteTarget: props.state.quoteLabel.value !== null,
     canSaveNote: props.state.canSaveNote.value,
     canRewind: props.rewindTurn !== null && props.state.canRewind(props.rewindTurn),
+    bookmarked: bookmarked.value,
   }),
 )
 
@@ -57,14 +67,18 @@ async function click(action: TurnAction) {
 }
 onBeforeUnmount(() => clearTimeout(copiedTimer))
 
-const ICONS = { copy: Copy, quote: Quote, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, rewind: History } as const
+const ICONS = {
+  copy: Copy, quote: Quote, bookmark: Bookmark, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, rewind: History,
+} as const
 
 function icon(action: TurnAction) {
+  if (action === 'bookmark' && bookmarked.value) return BookmarkCheck
   return action === 'copy' && copied.value ? Check : ICONS[action]
 }
 
 function title(action: TurnAction): string {
   if (action === 'copy' && copied.value) return t('streamLog.turn.copied')
+  if (action === 'bookmark' && bookmarked.value) return t('streamLog.turn.unbookmark')
   if (action === 'quote') return t('streamLog.turn.quote', { target: props.state.quoteLabel.value ?? '' })
   return t(`streamLog.turn.${action}`)
 }
@@ -78,7 +92,7 @@ function title(action: TurnAction): string {
       variant="ghost"
       size="icon-xs"
       class="text-foreground/40"
-      :class="{ 'text-primary': action === 'copy' && copied }"
+      :class="{ 'text-primary': (action === 'copy' && copied) || (action === 'bookmark' && bookmarked) }"
       :title="title(action)"
       :aria-label="title(action)"
       @click="click(action)"

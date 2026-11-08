@@ -5,7 +5,7 @@
 
 export type TurnSide = 'question' | 'answer'
 
-export type TurnAction = 'copy' | 'quote' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'rewind'
+export type TurnAction = 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'rewind'
 
 /** Features a gated button needs on; the others are always offered. */
 export const TURN_ACTION_FEATURES = {
@@ -101,6 +101,11 @@ export function turnFooters(entries: readonly EntryLike[], running: boolean): Ma
   return footers
 }
 
+/** Entry index of the prompt a row's turn starts with; -1 when it is before the loaded window. */
+export function turnPromptAt(f: TurnFooter): number {
+  return f.side === 'question' ? f.from : f.from - 1
+}
+
 export interface TurnActionContext {
   hasText: boolean
   /** The surface has a session to quote into right now. */
@@ -109,12 +114,14 @@ export interface TurnActionContext {
   canSaveNote: boolean
   /** The surface can rewind to this row's turn now (a snapshot, session stopped). */
   canRewind?: boolean
+  /** This side of the turn is bookmarked; null / absent = it cannot be bookmarked here. */
+  bookmarked?: boolean | null
 }
 
 /**
  * Buttons of a row: the frequent ones inline, the rare ones behind `⋯`. An
  * empty `overflow` means no `⋯` button. Rewind cuts the session, so it comes
- * last, below a divider.
+ * last, below a divider. Bookmark sits inline on both sides, as in AWOG.
  */
 export function turnActions(
   side: TurnSide,
@@ -122,13 +129,18 @@ export function turnActions(
   ctx: TurnActionContext,
 ): { primary: TurnAction[]; overflow: TurnAction[] } {
   const rewind: TurnAction[] = ctx.canRewind && isOn(TURN_ACTION_FEATURES.rewind) ? ['rewind'] : []
-  if (side === 'question') return { primary: ctx.hasText ? ['copy', 'fullscreen'] : [], overflow: rewind }
+  const bookmark: TurnAction[] = typeof ctx.bookmarked === 'boolean' ? ['bookmark'] : []
+  if (side === 'question') {
+    const primary: TurnAction[] = ctx.hasText ? ['copy', 'fullscreen'] : []
+    return { primary: [...primary, ...bookmark], overflow: rewind }
+  }
   const primary: TurnAction[] = []
   if (ctx.hasText) {
     primary.push('copy')
     if (ctx.hasQuoteTarget && isOn(TURN_ACTION_FEATURES.quote)) primary.push('quote')
-    primary.push('fullscreen')
   }
+  primary.push(...bookmark)
+  if (ctx.hasText) primary.push('fullscreen')
   primary.push('fullscreenTurn')
   const overflow: TurnAction[] =
     ctx.hasText && ctx.canSaveNote && isOn(TURN_ACTION_FEATURES.saveNote) ? ['saveNote'] : []

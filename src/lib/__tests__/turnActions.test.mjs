@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/turnActions.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { TURN_ACTION_FEATURES, turnActions, turnAnswerText, turnFooters } from '../turnActions.ts'
+import { TURN_ACTION_FEATURES, turnActions, turnAnswerText, turnFooters, turnPromptAt } from '../turnActions.ts'
 
 const user = (text) => ({ kind: 'user', text })
 const text = (t) => ({ kind: 'text', text: t })
@@ -218,4 +218,27 @@ test('turnActions: Rewind sits last behind ⋯ on both sides, only when the surf
   const rewindOff = (f) => f !== TURN_ACTION_FEATURES.rewind
   assert.deepEqual(turnActions('question', rewindOff, can).overflow, [])
   assert.equal(TURN_ACTION_FEATURES.rewind, 'sessions.rewind')
+})
+
+test('turnActions: Bookmark sits inline on both sides, only where the surface can bookmark', () => {
+  for (const bookmarked of [false, true]) {
+    const can = { ...ctx, bookmarked }
+    assert.deepEqual(turnActions('question', allOn, can).primary, ['copy', 'fullscreen', 'bookmark'])
+    assert.deepEqual(turnActions('question', allOn, { ...can, hasText: false }).primary, ['bookmark'])
+    assert.deepEqual(turnActions('answer', allOn, can).primary, ['copy', 'quote', 'bookmark', 'fullscreen', 'fullscreenTurn'])
+    assert.deepEqual(turnActions('answer', allOn, { ...can, hasText: false }).primary, ['bookmark', 'fullscreenTurn'])
+  }
+  // No feature gates it; null / absent = the surface has no bookmarks.
+  assert.deepEqual(turnActions('question', allOff, { ...ctx, bookmarked: false }).primary, ['copy', 'fullscreen', 'bookmark'])
+  assert.ok(!turnActions('answer', allOn, { ...ctx, bookmarked: null }).primary.includes('bookmark'))
+  assert.ok(!turnActions('answer', allOn, ctx).primary.includes('bookmark'))
+})
+
+test('turnPromptAt: a row’s turn starts at its question, or before the window for a tail', () => {
+  const footers = turnFooters([text('tail'), user('q1'), text('a1')], false)
+  assert.deepEqual([...footers].map(([at, f]) => [at, turnPromptAt(f)]), [
+    [0, -1],
+    [1, 1],
+    [2, 1],
+  ])
 })

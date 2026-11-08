@@ -211,6 +211,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "delete_schedule",
     // Rewind: overwrites and deletes workspace files, cuts the session's log.
     "rewind_run",
+    // Transcript export: writes a session's conversation to a file on this machine.
+    "export_run_transcript",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -660,6 +662,8 @@ mod tests {
             "save_schedule",
             "delete_schedule",
             "check_update",
+            "add_run_bookmark",
+            "export_run_transcript",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -693,6 +697,7 @@ mod tests {
             "save_schedule",
             "delete_schedule",
             "rewind_run",
+            "export_run_transcript",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -715,6 +720,9 @@ mod tests {
             "list_schedules",
             "list_snapshots",
             "preview_rewind",
+            "list_run_bookmarks",
+            "add_run_bookmark",
+            "delete_run_bookmark",
         ] {
             assert!(!audited_command(name), "{name}");
         }

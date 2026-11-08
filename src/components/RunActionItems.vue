@@ -5,13 +5,15 @@
 // renders and emits.
 //
 //   section 'actions'  Pop out · Open on GitHub · Refetch · Copy log path ·
-//                      Copy session ID · View log file | Rename · Pin · Protect
+//                      Copy session ID · View log file · Export transcript |
+//                      Rename · Pin · Protect
 //   section 'delete'   | Delete (hidden while the run is running)
 import { useI18n } from 'vue-i18n'
 import {
   AppWindow,
   ClipboardCopy,
   ExternalLink,
+  FileDown,
   Hash,
   Pencil,
   Pin,
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   copyLogPath: []
   copyId: []
   viewLog: []
+  exportTranscript: []
   rename: []
   togglePin: []
   toggleProtect: []
@@ -83,6 +86,10 @@ const { t } = useI18n()
     <DropdownItem @click="emit('viewLog')">
       <ScrollText class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.viewLogFile') }}
+    </DropdownItem>
+    <DropdownItem @click="emit('exportTranscript')">
+      <FileDown class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+      {{ t('run.exportTranscript') }}
     </DropdownItem>
     <DropdownSeparator />
     <DropdownItem @click="emit('rename')">

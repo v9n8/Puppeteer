@@ -60,6 +60,8 @@
     "copy": "Copy",
     "copied": "Copied",
     "quote": "Quote → {target}",
+    "bookmark": "Bookmark",
+    "unbookmark": "Remove bookmark",
     "fullscreen": "Fullscreen",
     "fullscreenTurn": "Fullscreen the whole turn",
     "saveNote": "Save as note",

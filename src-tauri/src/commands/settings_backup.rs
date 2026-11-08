@@ -6,7 +6,8 @@
 //! (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / MCP / VPS servers, account links. Sessions and
-//! usage history stay on the machine.
+//! usage history stay on the machine; the bookmarks on them travel, and land on the same session
+//! when the importing machine has it.
 //!
 //! Secrets (PATs, MCP env/header VALUEs, Google OAuth client + refresh tokens, SSH passphrases and
 //! Puppeteer-managed private key files) are only exported when the user gives a password: they are
@@ -109,6 +110,8 @@ struct Bundle {
     slack_channels: Vec<SlackChannelEntry>,
     #[serde(default)]
     projects: Vec<ProjectEntry>,
+    #[serde(default)]
+    bookmarks: Vec<BookmarkEntry>,
     /// `$HOME` of the exporting machine: project paths under it are moved under this machine's.
     #[serde(default)]
     home_dir: Option<String>,
@@ -372,6 +375,20 @@ struct TodoEntry {
     /// Focus columns (`TODO_FOCUS_COLS`), nulls left out.
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     focus: serde_json::Map<String, serde_json::Value>,
+}
+
+/// A bookmark on a session's turn (`runs::bookmarks`).
+#[derive(Serialize, Deserialize)]
+struct BookmarkEntry {
+    run_id: String,
+    /// The engine session: finds the run when its id differs here (a session imported again).
+    #[serde(default)]
+    session_id: Option<String>,
+    log_offset: i64,
+    side: String,
+    #[serde(default)]
+    label: String,
+    created_at: String,
 }
 
 /// Focus columns of `todos` (migration 0067) carried by a backup.
@@ -645,6 +662,7 @@ impl Bundle {
             ("todos", self.todos.len()),
             ("slackThreads", self.slack_threads.len()),
             ("projects", self.projects.len()),
+            ("bookmarks", self.bookmarks.len()),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
@@ -1129,6 +1147,23 @@ async fn collect(
 
     let (slack_threads, slack_users, slack_channels) = collect_slack(db).await?;
     let projects = collect_projects(db).await?;
+    let bookmarks = sqlx::query(
+        "SELECT b.run_id, r.session_id, b.log_offset, b.side, b.label, b.created_at \
+         FROM run_bookmarks b JOIN runs r ON r.id = b.run_id ORDER BY b.run_id, b.log_offset",
+    )
+    .fetch_all(db)
+    .await
+    .map_err(err)?
+    .iter()
+    .map(|row| BookmarkEntry {
+        run_id: row.get("run_id"),
+        session_id: row.get("session_id"),
+        log_offset: row.get("log_offset"),
+        side: row.get("side"),
+        label: row.get("label"),
+        created_at: row.get("created_at"),
+    })
+    .collect();
 
     let bundle = Bundle {
         format: FORMAT.to_string(),
@@ -1154,6 +1189,7 @@ async fn collect(
         slack_users,
         slack_channels,
         projects,
+        bookmarks,
         home_dir: std::env::var("HOME").ok().filter(|h| !h.is_empty()),
         secrets: None,
     };
@@ -1741,6 +1777,19 @@ async fn apply_bundle(
     for entry in &bundle.todos {
         let result = import_todo(db, entry).await;
         report.record("todos", &entry.text, result);
+    }
+    let mut orphan_bookmarks = 0;
+    for entry in &bundle.bookmarks {
+        match import_bookmark(db, entry).await {
+            Ok(Some(outcome)) => report.tally("bookmarks", outcome),
+            Ok(None) => orphan_bookmarks += 1,
+            Err(e) => report.warnings.push(format!("bookmarks '{}': {e}", entry.label)),
+        }
+    }
+    if orphan_bookmarks > 0 {
+        report
+            .warnings
+            .push(format!("bookmarks: {orphan_bookmarks} skipped, their session is not on this machine"));
     }
 
     if !bundle.slack_threads.is_empty() {
@@ -2500,6 +2549,62 @@ async fn import_note(db: &Db, entry: &NoteEntry) -> Result<Upsert, String> {
     Ok(Upsert::Created)
 }
 
+/// Put a bookmark back on its session: the run with the same id, else the one with the same
+/// engine session. `None` when this machine has neither.
+async fn import_bookmark(db: &Db, entry: &BookmarkEntry) -> Result<Option<Upsert>, String> {
+    if !matches!(entry.side.as_str(), "question" | "answer") || entry.log_offset < 0 {
+        return Err("invalid bookmark".into());
+    }
+    let run_id = match id_by(db, "runs", "id", &entry.run_id).await? {
+        Some(id) => id,
+        None => match &entry.session_id {
+            Some(sid) => match id_by(db, "runs", "session_id", sid).await? {
+                Some(id) => id,
+                None => return Ok(None),
+            },
+            None => return Ok(None),
+        },
+    };
+    let label: Option<String> =
+        sqlx::query_scalar("SELECT label FROM run_bookmarks WHERE run_id = ? AND log_offset = ? AND side = ?")
+            .bind(&run_id)
+            .bind(entry.log_offset)
+            .bind(&entry.side)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?;
+    let outcome = match label {
+        Some(l) if l == entry.label => return Ok(Some(Upsert::Unchanged)),
+        Some(_) => {
+            sqlx::query("UPDATE run_bookmarks SET label = ? WHERE run_id = ? AND log_offset = ? AND side = ?")
+                .bind(&entry.label)
+                .bind(&run_id)
+                .bind(entry.log_offset)
+                .bind(&entry.side)
+                .execute(db)
+                .await
+                .map_err(|e| e.to_string())?;
+            Upsert::Updated
+        }
+        None => {
+            sqlx::query(
+                "INSERT INTO run_bookmarks (id, run_id, log_offset, side, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(Uuid::new_v4().to_string())
+            .bind(&run_id)
+            .bind(entry.log_offset)
+            .bind(&entry.side)
+            .bind(&entry.label)
+            .bind(&entry.created_at)
+            .execute(db)
+            .await
+            .map_err(|e| e.to_string())?;
+            Upsert::Created
+        }
+    };
+    Ok(Some(outcome))
+}
+
 /// Write the backup's Focus columns over todo `id` (missing keys = column
 /// default / null). A backup from before Focus (no columns) leaves the row
 /// alone. Returns whether anything changed.
@@ -3219,6 +3324,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bookmarks_land_on_the_same_session_or_are_skipped() {
+        let db = test_db().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at, session_id) VALUES ('r-here', 'p1', 'session', 'c', 's-1')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let mut entry = BookmarkEntry {
+            run_id: "r-there".into(),
+            session_id: Some("s-1".into()),
+            log_offset: 42,
+            side: "answer".into(),
+            label: "fix the login".into(),
+            created_at: "c".into(),
+        };
+        // Another run id for the same engine session: found by the session.
+        assert_eq!(import_bookmark(&db, &entry).await.unwrap(), Some(Upsert::Created));
+        assert_eq!(import_bookmark(&db, &entry).await.unwrap(), Some(Upsert::Unchanged));
+        entry.label = "fix the login page".into();
+        assert_eq!(import_bookmark(&db, &entry).await.unwrap(), Some(Upsert::Updated));
+        let rows: Vec<(String, i64, String)> =
+            sqlx::query_as("SELECT run_id, log_offset, label FROM run_bookmarks").fetch_all(&db).await.unwrap();
+        assert_eq!(rows, [("r-here".to_string(), 42, "fix the login page".to_string())]);
+
+        entry.session_id = Some("s-elsewhere".into());
+        assert_eq!(import_bookmark(&db, &entry).await.unwrap(), None);
+        entry.side = "tool".into();
+        assert!(import_bookmark(&db, &entry).await.is_err());
+    }
+
+    #[tokio::test]
     async fn notes_and_todos_merge_by_id_and_relink_projects() {
         let db = test_db().await;
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p-local', 'puppeteer', '/x/puppeteer', 'now')")
@@ -3426,6 +3563,7 @@ mod tests {
             slack_users: users,
             slack_channels: channels,
             projects: vec![],
+            bookmarks: vec![],
             home_dir: None,
             secrets: None,
         };
