@@ -12,6 +12,7 @@ import { Button, Drawer } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { useFocusStore } from '@/stores/focus'
 import { useFocusAiStore } from '@/stores/focusAi'
+import { useFeaturesStore } from '@/stores/features'
 import { firstLine } from '@/lib/itemText'
 import { blockMinutes, formatEstimate, ymdOf } from '@/lib/focus'
 import { useFocusAiActions } from './useFocusAiActions'
@@ -25,6 +26,9 @@ const store = useFocusStore()
 const ai = useFocusAiStore()
 const { fail } = useFocusAiActions()
 const { stamp } = useFocusText()
+// Pushing to Google Calendar needs Calendar and the Google account on.
+const features = useFeaturesStore()
+const canPush = computed(() => features.allows('focus.calendar'))
 
 const open = ref(false)
 const pushing = ref<string | 'all' | null>(null)
@@ -108,7 +112,7 @@ async function push(blockId?: string) {
                 <CalendarCheck class="h-4 w-4" :stroke-width="1.75" />
               </span>
               <Button
-                v-else
+                v-else-if="canPush"
                 variant="ghost"
                 size="icon-sm"
                 :disabled="!!pushing"
@@ -144,7 +148,7 @@ async function push(blockId?: string) {
     </div>
 
     <template #footer>
-      <Button v-if="plan && pending.length" variant="outline" size="sm" :disabled="!!pushing || planning" @click="push()">
+      <Button v-if="canPush && plan && pending.length" variant="outline" size="sm" :disabled="!!pushing || planning" @click="push()">
         <Loader2 v-if="pushing === 'all'" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
         <CalendarPlus v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
         {{ t('focus.plan.pushAll') }}

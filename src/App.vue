@@ -69,7 +69,7 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { remoteFs } from '@/lib/ipc/native'
 import { NAV_ROUTES } from '@/lib/navigation'
-import { filterByFeature, popoutFeature, startsGroup } from '@/lib/featureGate'
+import { fallbackPath, filterByFeature, popoutFeature, startsGroup } from '@/lib/featureGate'
 import { IS_SESSION_WINDOW, SESSION_WINDOW_PROJECT_ID, SESSION_WINDOW_RUN_ID } from '@/lib/windowMode'
 import IssuesGanttView from '@/views/IssuesGanttView.vue'
 import { getVersion } from '@tauri-apps/api/app'
@@ -281,6 +281,16 @@ async function newSessionFromWindow({ projectId, text, target }: WindowNewSessio
   }
 }
 
+// The page on screen whose feature was just switched off (Settings, another
+// window, a remote desktop) moves away, as the router guard would on entry.
+watch(
+  () => features.tree,
+  (tree) => {
+    const to = features.loaded && !isPopoutWindow ? fallbackPath(route.path, NAV_ROUTES, tree) : null
+    if (to) void router.replace(to)
+  },
+)
+
 const isRunRoute = computed(
   () => route.name === 'project-run' || route.name === 'project-run-detail',
 )
@@ -290,16 +300,14 @@ const isRunRoute = computed(
 // transparent so the body-level scene (ThemeDecorations) shows through.
 const SCENIC_THEMES = new Set(['midautumn'])
 const sceneTheme = computed(() => appSettings.settings?.color_theme ?? 'default')
-const sceneOn = computed(
-  () =>
-    SCENIC_THEMES.has(sceneTheme.value) &&
-    appSettings.settings?.animated_background !== 'false',
-)
+// Read through the feature tree, so turning the `app` module off stops it too.
+const animatedBgOn = computed(() => features.isOn('app.animated_background'))
+const sceneOn = computed(() => SCENIC_THEMES.has(sceneTheme.value) && animatedBgOn.value)
 // The macOS accent may change in System Settings while we're in the background.
 window.addEventListener('focus', () => applySystemAccent(document.documentElement.dataset.theme ?? ''))
 // Exposed on <html> so skin / ambient CSS can drop its motion too.
 watchEffect(() => {
-  document.documentElement.dataset.animatedBg = appSettings.settings?.animated_background === 'false' ? 'false' : 'true'
+  document.documentElement.dataset.animatedBg = animatedBgOn.value ? 'true' : 'false'
 })
 
 // Force a clean RunView remount only when the *project* changes (heavy stream

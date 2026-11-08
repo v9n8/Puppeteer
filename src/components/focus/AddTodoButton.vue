@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { ListPlus } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import type { TodoPrefill } from '@/lib/focus'
+import { useFeaturesStore } from '@/stores/features'
 import TodoCaptureModal from './TodoCaptureModal.vue'
 
 withDefaults(
@@ -21,31 +22,35 @@ withDefaults(
 )
 
 const { t } = useI18n()
+const features = useFeaturesStore()
 const open = ref(false)
 </script>
 
 <template>
-  <Button
-    v-if="variant === 'icon'"
-    :variant="buttonVariant"
-    :size="size ?? 'icon'"
-    class="shrink-0"
-    :title="t('focus.addTodoHint')"
-    :aria-label="t('focus.addTodoHint')"
-    @click.stop="open = true"
-  >
-    <ListPlus class="h-3.5 w-3.5" :stroke-width="1.75" />
-  </Button>
-  <Button
-    v-else
-    :variant="buttonVariant"
-    :size="size ?? 'xs'"
-    class="shrink-0"
-    :title="t('focus.addTodoHint')"
-    @click.stop="open = true"
-  >
-    <ListPlus :class="size === 'sm' ? 'h-3.5 w-3.5' : 'h-3 w-3'" :stroke-width="1.75" />
-    {{ t('focus.addTodo') }}
-  </Button>
-  <TodoCaptureModal :open="open" :prefill="prefill" @close="open = false" />
+  <!-- Gone with Todos off, wherever it sits (run header, PR card, Slack thread). -->
+  <template v-if="features.allows('todo.add')">
+    <Button
+      v-if="variant === 'icon'"
+      :variant="buttonVariant"
+      :size="size ?? 'icon'"
+      class="shrink-0"
+      :title="t('focus.addTodoHint')"
+      :aria-label="t('focus.addTodoHint')"
+      @click.stop="open = true"
+    >
+      <ListPlus class="h-3.5 w-3.5" :stroke-width="1.75" />
+    </Button>
+    <Button
+      v-else
+      :variant="buttonVariant"
+      :size="size ?? 'xs'"
+      class="shrink-0"
+      :title="t('focus.addTodoHint')"
+      @click.stop="open = true"
+    >
+      <ListPlus :class="size === 'sm' ? 'h-3.5 w-3.5' : 'h-3 w-3'" :stroke-width="1.75" />
+      {{ t('focus.addTodo') }}
+    </Button>
+    <TodoCaptureModal :open="open" :prefill="prefill" @close="open = false" />
+  </template>
 </template>

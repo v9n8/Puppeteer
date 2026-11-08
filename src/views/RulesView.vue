@@ -22,6 +22,7 @@ import { useToast } from '@/composables/useToast'
 import { useRulesStore, type Rule } from '@/stores/rules'
 import { useProjectsStore } from '@/stores/projects'
 import { useRuleGroupsStore, type Group } from '@/stores/groups'
+import { useFeaturesStore } from '@/stores/features'
 import { UNGROUPED, buildRuleGroups } from '@/lib/rulesRows'
 
 // Named explicitly: <KeepAlive :include> in App.vue matches on component name,
@@ -34,6 +35,10 @@ const router = useRouter()
 const store = useRulesStore()
 const projectsStore = useProjectsStore()
 const groupsStore = useRuleGroupsStore()
+const features = useFeaturesStore()
+// Groups switched on or off (`library.groups`) while this screen is open: the
+// store empties itself while off, so the group filter and badges follow.
+watch(() => features.isOn('library.groups'), () => void groupsStore.fetchGroups())
 const { confirm } = useConfirm()
 const { toast } = useToast()
 
@@ -338,6 +343,7 @@ async function handleExport(rule: Rule) {
     >
       <template #toolbar>
         <Button
+          v-if="features.allows('library.manageGroups')"
           variant="outline"
           size="icon"
           class="shrink-0"

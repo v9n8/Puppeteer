@@ -31,6 +31,7 @@ import { useToast } from '@/composables/useToast'
 import { useMcpServersStore, type McpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
+import { errorText } from '@/lib/featureGate'
 import {
   BUILTIN_PREFIX,
   MCP_CATALOG,
@@ -429,7 +430,8 @@ async function handleToggleBuiltin(b: Builtin) {
     await appSettings.refresh()
     toast.success(b.enabled ? t('mcp.list.toast.disabled') : t('mcp.list.toast.enabled'))
   } catch (e) {
-    toast.error(String(e))
+    // Local-only: a remote desktop gets `remote_denied_local_only`.
+    toast.error(errorText(e, t))
   } finally {
     togglingId.value = null
   }

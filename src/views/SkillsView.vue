@@ -11,6 +11,7 @@ import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useSkillsStore, type Skill } from '@/stores/skills'
 import { useProjectsStore } from '@/stores/projects'
 import { useSkillGroupsStore } from '@/stores/groups'
+import { useFeaturesStore } from '@/stores/features'
 import { AppSelect, Badge, Button } from '@/components/ui'
 import GroupManagerModal from '@/components/GroupManagerModal.vue'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
@@ -30,6 +31,10 @@ const router = useRouter()
 const store = useSkillsStore()
 const projectsStore = useProjectsStore()
 const groupsStore = useSkillGroupsStore()
+const features = useFeaturesStore()
+// Groups switched on or off (`library.groups`) while this screen is open: the
+// store empties itself while off, so the group filter and badges follow.
+watch(() => features.isOn('library.groups'), () => void groupsStore.fetchGroups())
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const deletingId = ref<string | null>(null)
@@ -329,6 +334,7 @@ async function handleExport(skill: Skill) {
     >
       <template #toolbar>
         <Button
+          v-if="features.allows('library.manageGroups')"
           variant="outline"
           size="icon"
           class="shrink-0"

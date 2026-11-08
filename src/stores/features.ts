@@ -5,8 +5,10 @@ import { invoke } from '@/lib/tauri'
 import {
   CMD_GET_FEATURES,
   EVT_FEATURES_CHANGED,
+  entryOn,
   isFeatureOn,
   type FeatureTree,
+  type GatedEntry,
 } from '@/lib/featureGate'
 
 /**
@@ -71,6 +73,11 @@ export const useFeaturesStore = defineStore('features', () => {
     return isFeatureOn(tree.value, id)
   }
 
+  /** A button, tab or panel (`ENTRY_FEATURES`): every feature it needs is on. */
+  function allows(entry: GatedEntry): boolean {
+    return entryOn(tree.value, entry)
+  }
+
   /**
    * `isOn` once the first load is done — for entries reached before the
    * sidebar renders (a cold-start deep link, a backend event).
@@ -80,5 +87,5 @@ export const useFeaturesStore = defineStore('features', () => {
     return isOn(id)
   }
 
-  return { tree, loaded, error, start, refresh, isOn, isOnAfterLoad }
+  return { tree, loaded, error, start, refresh, isOn, allows, isOnAfterLoad }
 })

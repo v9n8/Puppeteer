@@ -10,6 +10,7 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useRemoteControlStore } from '@/stores/remoteControl'
 import { isRemoteMode } from '@/lib/ipc/remote'
+import { errorText } from '@/lib/featureGate'
 import { openRemoteDesktopWindow } from '@/lib/remoteDesktopWindow'
 import RemotePushSettings from './RemotePushSettings.vue'
 import { Radio, Wifi, WifiOff, ShieldCheck, RefreshCw, Loader2, Trash2, MonitorSmartphone } from 'lucide-vue-next'
@@ -39,7 +40,7 @@ async function load() {
   try {
     await store.refreshAll()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 }
 
@@ -61,7 +62,7 @@ async function openRemoteDesktop() {
   try {
     await openRemoteDesktopWindow()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 }
 
@@ -76,7 +77,7 @@ async function toggleEnabled() {
       toast.success(t('remote.settings.toast.enabled'))
     }
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     togglingEnabled.value = false
   }
@@ -100,7 +101,7 @@ async function clearAudit() {
         : t('remote.settings.toast.auditAlreadyEmpty'),
     )
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     clearingAudit.value = false
   }

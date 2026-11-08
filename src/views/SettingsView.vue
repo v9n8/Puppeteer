@@ -31,7 +31,7 @@ import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
-import { allowsFeature } from '@/lib/featureGate'
+import { allowsFeature, errorText } from '@/lib/featureGate'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
@@ -225,7 +225,7 @@ const SECTIONS = [
   { id: 'claude', labelKey: 'settings.sections.claude', icon: UserCircle },
   { id: 'engine', labelKey: 'settings.sections.engine', icon: Cpu },
   { id: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
-  { id: 'google', labelKey: 'settings.sections.google', icon: HardDrive },
+  { id: 'google', labelKey: 'settings.sections.google', icon: HardDrive, feature: 'integrations.google' },
   { id: 'usage', labelKey: 'settings.sections.usage', icon: Gauge },
   { id: 'devices', labelKey: 'settings.sections.devices', icon: Radio },
   { id: 'inbox', labelKey: 'settings.sections.inbox', icon: Inbox },
@@ -1038,9 +1038,13 @@ async function persistChanges() {
     lastSaved = { ...settings.value }
     // Keep the shared settings store (context meter + budget badge) in sync.
     appSettings.refresh().catch(() => {})
+    // `animated_background` is the stored value of `app.animated_background`,
+    // which App.vue reads from the feature tree; this write sends no
+    // `features:changed`, so re-read the tree.
+    if (changed.some(([key]) => key === 'animated_background')) void features.refresh()
     toast.success(t('settings.toast.saved'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 }
 
@@ -1065,7 +1069,7 @@ watch(() => features.tree, (tree) => {
   appSettings.refresh().catch(() => {})
 })
 
-// A section whose feature is off (AWS, Azure) is hidden; when it is the open
+// A section whose feature is off (AWS, Azure, Google) is hidden; when it is the open
 // one (switched off meanwhile, or a deep link), fall back to General.
 const visibleSections = computed(() =>
   SECTIONS.filter((s) => allowsFeature(features.tree, 'feature' in s ? s.feature : undefined)),

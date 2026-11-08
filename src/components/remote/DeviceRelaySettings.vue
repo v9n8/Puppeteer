@@ -10,6 +10,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useRemoteControlStore } from '@/stores/remoteControl'
 import { DEVICE_ALIAS_RE } from '@/lib/remoteLogin'
 import { KeyRound } from 'lucide-vue-next'
+import { errorText } from '@/lib/featureGate'
 
 const store = useRemoteControlStore()
 const { t } = useI18n()
@@ -35,7 +36,7 @@ onMounted(async () => {
     await store.refreshStatus()
     fill()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 })
 
@@ -65,7 +66,7 @@ async function saveConfig() {
     }
     toast.success(t('remote.settings.toast.settingsSaved'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     savingConfig.value = false
   }
@@ -86,7 +87,7 @@ async function clearMasterPassword() {
     masterPassword.value = ''
     toast.success(t('remote.settings.toast.masterCleared'))
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     savingMasterPw.value = false
   }

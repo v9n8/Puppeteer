@@ -12,6 +12,7 @@
 //
 // A segmented All | Slack | Note | Todo filter (remembered in
 // localStorage) narrows the kind; todos show open ones unless "Show done" is on.
+// A kind whose feature is off is left out; with all three off, no picker.
 // Rows: the run's project first, then the rest; newest first. The search box
 // filters title / channel / workspace / thread preview / note body / todo text; ↑ ↓ move, Enter inserts. Slack rows not yet `ready` carry
 // their status mark (spinner / error).
@@ -30,6 +31,8 @@ import {
 } from '@/stores/slackThreads'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
+import { useFeaturesStore } from '@/stores/features'
+import { pickAvailable, type GatedEntry } from '@/lib/featureGate'
 
 const props = defineProps<{
   /** The run's project: its items are listed first. */
@@ -49,6 +52,7 @@ type Filter = 'all' | PickKind
 const FILTER_STORAGE_KEY = 'puppeteer.capturePicker.filter'
 const FILTERS: Filter[] = ['all', 'slack', 'note', 'todo']
 const KIND_ICON = { slack: Slack, note: StickyNote, todo: ListTodo } as const
+const KIND_ENTRY: Record<PickKind, GatedEntry> = { slack: 'capture.slack', note: 'capture.note', todo: 'capture.todo' }
 
 function loadFilter(): Filter {
   try {
@@ -83,12 +87,22 @@ const { t } = useI18n()
 const slack = useSlackThreadsStore()
 const notes = useNotesStore()
 const todos = useTodosStore()
+const features = useFeaturesStore()
+
+/** Kinds whose feature is on: the others get no chip, no rows, no fetch. */
+const kinds = computed(() => (['slack', 'note', 'todo'] as const).filter((k) => features.allows(KIND_ENTRY[k])))
 
 const open = ref(false)
 const query = ref('')
-const filter = ref<Filter>(loadFilter())
+const savedFilter = ref<Filter>(loadFilter())
+/** The remembered filter, or "All" while its kind is off. */
+const filter = computed<Filter>(() => pickAvailable(savedFilter.value, ['all', ...kinds.value]) ?? 'all')
 const filterOptions = computed<SegmentedOption<Filter>[]>(() =>
-  FILTERS.map((f) => ({ value: f, label: t(`capture.picker.${f}`), icon: f === 'all' ? undefined : KIND_ICON[f] })),
+  (['all', ...kinds.value] as Filter[]).map((f) => ({
+    value: f,
+    label: t(`capture.picker.${f}`),
+    icon: f === 'all' ? undefined : KIND_ICON[f],
+  })),
 )
 /** Todos: open ones only unless this is on. */
 const showDone = ref(false)
@@ -160,9 +174,9 @@ const reference = linkReference
 // ── Filtering / grouping ────────────────────────────────────────────────────
 
 const allItems = computed<PickItem[]>(() => [
-  ...slack.threads.map(slackItem),
-  ...notes.notes.map(noteItem),
-  ...todos.todos.map(todoItem),
+  ...(kinds.value.includes('slack') ? slack.threads.map(slackItem) : []),
+  ...(kinds.value.includes('note') ? notes.notes.map(noteItem) : []),
+  ...(kinds.value.includes('todo') ? todos.todos.map(todoItem) : []),
 ])
 
 /** The current kind, before the search: what "nothing here yet" is judged on. */
@@ -216,7 +230,7 @@ const emptyText = computed(() => {
   }
 })
 
-const showDoneToggle = computed(() => filter.value === 'all' || filter.value === 'todo')
+const showDoneToggle = computed(() => filter.value === 'todo' || (filter.value === 'all' && kinds.value.includes('todo')))
 
 function pick(it: PickItem) {
   emit('insert', it.reference)
@@ -224,7 +238,7 @@ function pick(it: PickItem) {
 }
 
 function setFilter(next: Filter) {
-  filter.value = next
+  savedFilter.value = next
   try {
     localStorage.setItem(FILTER_STORAGE_KEY, next)
   } catch {
@@ -239,9 +253,9 @@ function toggleShowDone() {
 }
 
 function refresh() {
-  void slack.fetchList(null)
-  void notes.fetchNotes()
-  void todos.fetchTodos()
+  if (kinds.value.includes('slack')) void slack.fetchList(null)
+  if (kinds.value.includes('note')) void notes.fetchNotes()
+  if (kinds.value.includes('todo')) void todos.fetchTodos()
 }
 
 function onOpenChange(value: boolean) {
@@ -281,7 +295,7 @@ onMounted(async () => {
   try {
     unlisten.push(
       await listen(SLACK_THREADS_CHANGED, () => {
-        if (open.value) void slack.fetchList(null)
+        if (open.value && kinds.value.includes('slack')) void slack.fetchList(null)
       }),
     )
   } catch {
@@ -296,7 +310,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <DropdownMenu align="left" class="shrink-0" @update:open="onOpenChange">
+  <DropdownMenu v-if="kinds.length" align="left" class="shrink-0" @update:open="onOpenChange">
     <template #trigger>
       <Button
         variant="ghost"

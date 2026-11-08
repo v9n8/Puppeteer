@@ -860,8 +860,11 @@ const conductorMaxWorkers = ref(10)
 const pendingConductor = computed(
   () => !!currentRunId.value && !isConductor.value && currentStatus.value === 'fetched',
 )
-// Show the worker sidebar for a live conductor OR a pending (pre-launch) one.
-const showWorkerPanel = computed(() => isConductor.value || pendingConductor.value)
+// Show the worker sidebar for a live conductor OR a pending (pre-launch) one —
+// not while Conductor is off: a launch then runs as a plain session.
+const showWorkerPanel = computed(
+  () => features.allows('run.conductorPanel') && (isConductor.value || pendingConductor.value),
+)
 // Cap shown/edited in the header: the persisted live cap once launched, else the
 // local launch-time ref.
 const effectiveWorkerCap = computed(() =>
@@ -3680,9 +3683,19 @@ function handleRefInput(val: string) {
         <!-- What this session is linked to: Slack threads (only when there are
              some), todos, notes. The todo / note menus end with "+ New …", the
              capture filed under this run. -->
-        <RunLinkedKindMenu kind="slack" :threads="linked.threads.value" />
-        <RunLinkedKindMenu kind="todo" :items="linked.todos.value" @create="openQuickCapture('todo')" />
-        <RunLinkedKindMenu kind="note" :items="linked.notes.value" @create="openQuickCapture('note')" />
+        <RunLinkedKindMenu v-if="features.allows('run.linkedSlack')" kind="slack" :threads="linked.threads.value" />
+        <RunLinkedKindMenu
+          v-if="features.allows('run.linkedTodos')"
+          kind="todo"
+          :items="linked.todos.value"
+          @create="openQuickCapture('todo')"
+        />
+        <RunLinkedKindMenu
+          v-if="features.allows('run.linkedNotes')"
+          kind="note"
+          :items="linked.notes.value"
+          @create="openQuickCapture('note')"
+        />
 
         <!-- A run made from an issue: "+ Todo" for that issue, linked to this run (Focus §3.1). -->
         <AddTodoButton
@@ -4991,7 +5004,7 @@ function handleRefInput(val: string) {
           {{ t('run.handoffQuestion') }}
         </p>
         <ul class="list-disc pl-4 text-foreground/60 space-y-0.5">
-          <li>{{ t('run.handoffContinueBullet', { engine: handoffTarget }) }}</li>
+          <li v-if="features.allows('run.handoff')">{{ t('run.handoffContinueBullet', { engine: handoffTarget }) }}</li>
           <li>{{ t('run.handoffNewBullet') }}</li>
         </ul>
       </div>
@@ -5001,7 +5014,8 @@ function handleRefInput(val: string) {
           <RotateCcw v-if="startingEngineSession" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
           {{ startingEngineSession ? t('run.creating') : t('run.startNewSession') }}
         </Button>
-        <Button :disabled="engineSwitchBusy" @click="doHandoff(handoffTarget!)">
+        <!-- Carrying the context over is the hand-off (`sessions.handoff`). -->
+        <Button v-if="features.allows('run.handoff')" :disabled="engineSwitchBusy" @click="doHandoff(handoffTarget!)">
           <RotateCcw v-if="handingOff" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
           {{ handingOff ? t('run.loadingContext') : t('run.continueCurrentSession') }}
         </Button>

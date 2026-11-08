@@ -170,3 +170,77 @@ export function featureRows(tree: FeatureTree, readOnly: boolean): ModuleRow[] {
     })),
   }))
 }
+
+/**
+ * Entry points outside the sidebar and menus — a button, tab, chip or panel —
+ * and every feature each needs on. Kept in one table so a test can check every
+ * id against the backend registry.
+ */
+export const ENTRY_FEATURES = {
+  'run.linkedSlack': ['integrations.slack'],
+  'run.linkedTodos': ['productivity.todos'],
+  'run.linkedNotes': ['productivity.notes'],
+  'run.conductorPanel': ['orchestration.conductor'],
+  'run.handoff': ['sessions.handoff'],
+  'todo.add': ['productivity.todos'],
+  'projects.gantt': ['code_hosting.gantt'],
+  'item.todo': ['productivity.todos'],
+  'item.note': ['productivity.notes'],
+  'capture.slack': ['integrations.slack'],
+  'capture.note': ['productivity.notes'],
+  'capture.todo': ['productivity.todos'],
+  'library.manageGroups': ['library.groups'],
+  // Busy time and pushing a plan both go through the Google account.
+  'focus.calendar': ['productivity.calendar', 'integrations.google'],
+} as const satisfies Record<string, readonly string[]>
+
+export type GatedEntry = keyof typeof ENTRY_FEATURES
+
+/** Every feature `entry` needs is on. */
+export function entryOn(tree: FeatureTree, entry: GatedEntry): boolean {
+  return ENTRY_FEATURES[entry].every((id) => isFeatureOn(tree, id))
+}
+
+/**
+ * The tab (or filter) to show: `current` while it is still offered, else the
+ * first one offered, `null` when none is.
+ */
+export function pickAvailable<K extends string>(current: K, offered: readonly K[]): K | null {
+  return offered.includes(current) ? current : (offered[0] ?? null)
+}
+
+/** Where every turned-away destination lands (router guard, App.vue). */
+export const FALLBACK_PATH = '/projects'
+
+/**
+ * Where to go when the feature of the page on screen is off (switched off while
+ * it is open): {@link FALLBACK_PATH}, or `null` to stay.
+ */
+export function fallbackPath(path: string, routes: readonly GatedRoute[], tree: FeatureTree): string | null {
+  return allowsFeature(tree, routeFeature(path, routes)) ? null : FALLBACK_PATH
+}
+
+type Translate = (key: string, params?: Record<string, unknown>) => string
+
+/** i18n key of a module (`productivity`) or prop (`productivity.focus`) name. */
+export function featureLabelKey(id: string): string {
+  // Module ids have no dot; every prop id is `module.prop`.
+  return id.includes('.') ? `features.prop.${id}` : `features.module.${id}`
+}
+
+/**
+ * A readable message for the backend's feature refusals — `feature_disabled:
+ * <id>[, <id>]` and `remote_denied_local_only` — or `null` for any other error.
+ */
+export function featureErrorMessage(err: unknown, t: Translate): string | null {
+  const msg = String(err)
+  if (msg.includes('remote_denied_local_only')) return t('features.error.localOnly')
+  const ids = msg.match(/feature_disabled: ([\w.]+(?:, [\w.]+)*)/)?.[1].split(', ')
+  if (!ids) return null
+  return t('features.error.disabled', { name: ids.map((id) => t(featureLabelKey(id))).join(', ') })
+}
+
+/** {@link featureErrorMessage}, else the error as it came. */
+export function errorText(err: unknown, t: Translate): string {
+  return featureErrorMessage(err, t) ?? String(err)
+}

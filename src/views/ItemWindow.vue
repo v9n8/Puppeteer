@@ -27,6 +27,8 @@ import {
   type ItemWindowSetTab,
 } from '@/lib/itemWindow'
 import { refreshTray } from '@/lib/tray'
+import { pickAvailable } from '@/lib/featureGate'
+import { useFeaturesStore } from '@/stores/features'
 
 const { t } = useI18n()
 // This is its own webview, so it gets its own copy of the capture state.
@@ -66,6 +68,20 @@ const TABS: { key: ItemKind; labelKey: string; icon: typeof ListTodo }[] = [
   { key: 'todo', labelKey: 'item.tabTodo', icon: ListTodo },
   { key: 'note', labelKey: 'item.tabNote', icon: StickyNote },
 ]
+
+// A tab whose feature is off is dropped, and standing on it (opened or switched
+// there) moves to the other one. Both off: a "turned off" notice instead.
+const features = useFeaturesStore()
+const tabs = computed(() => TABS.filter((tb) => features.allows(tb.key === 'todo' ? 'item.todo' : 'item.note')))
+const allOff = computed(() => features.loaded && tabs.value.length === 0)
+watch(
+  [tab, tabs, () => features.loaded],
+  ([current, list, loaded]) => {
+    const next = loaded ? pickAvailable(current, list.map((tb) => tb.key)) : null
+    if (next && next !== current) tab.value = next
+  },
+  { immediate: true },
+)
 
 function onSaved() {
   emit(ITEM_CHANGED, { kind: tab.value })
@@ -112,11 +128,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+  <div
+    v-if="allOff"
+    class="flex h-screen w-screen flex-col items-center justify-center gap-2 bg-background p-6 text-center text-foreground"
+  >
+    <p class="text-sm font-semibold">{{ t('features.disabled.title') }}</p>
+    <p class="text-xs text-muted-foreground">{{ t('features.disabled.body') }}</p>
+  </div>
+  <div v-else class="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
     <div class="flex min-h-0 flex-1 flex-col overflow-auto px-4 py-3">
       <div class="mb-3 flex items-center gap-1">
         <button
-          v-for="tabItem in TABS"
+          v-for="tabItem in tabs"
           :key="tabItem.key"
           type="button"
           class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"

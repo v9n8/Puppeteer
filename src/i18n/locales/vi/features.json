@@ -3,6 +3,10 @@
     "title": "Tính năng này đang tắt",
     "body": "Bật lại trong Cài đặt để dùng lại cửa sổ này."
   },
+  "error": {
+    "disabled": "{name} đang tắt. Bật lại trong Cài đặt → Tính năng.",
+    "localOnly": "Việc này chỉ làm được ngay trên máy host, không làm được từ remote desktop."
+  },
   "reason": {
     "locked": "Phần lõi, luôn bật.",
     "module_off": "Đang tắt vì module của nó tắt. Bật lại module thì trở về như cũ.",

@@ -12,12 +12,18 @@ import { AppSelect, Button, Card, Input, ToggleSwitch } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { useFocusStore } from '@/stores/focus'
+import { useFeaturesStore } from '@/stores/features'
+import { errorText } from '@/lib/featureGate'
 import type { CalendarMeta, GoogleAccount } from '@/stores/googleCalendar'
 import { DEFAULT_FOCUS_SETTINGS, NOTIFY_KINDS, notifyKindsOf, type FocusSettings } from '@/lib/focus'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const store = useFocusStore()
+const features = useFeaturesStore()
+// The Google Calendar block needs Calendar and the Google account: with either
+// off it is hidden and nothing asks Google (the backend would refuse).
+const calendarOn = computed(() => features.allows('focus.calendar'))
 
 const form = ref<FocusSettings>({ ...DEFAULT_FOCUS_SETTINGS })
 const loading = ref(true)
@@ -59,6 +65,7 @@ const accountOptions = computed(() => [
 ])
 
 async function loadAccounts() {
+  if (!calendarOn.value) return
   try {
     accounts.value = await invoke<GoogleAccount[]>('list_google_accounts')
   } catch {
@@ -70,21 +77,27 @@ async function loadCalendars() {
   const id = effectiveAccountId.value
   calendars.value = []
   calendarsError.value = null
-  if (!id) return
+  if (!id || !calendarOn.value) return
   calendarsLoading.value = true
   try {
     const res = await invoke<{ calendars: CalendarMeta[]; errors: { message: string }[] }>('list_google_calendars', {
       accountIds: [id],
     })
     calendars.value = res.calendars
-    calendarsError.value = res.errors[0]?.message ?? null
+    calendarsError.value = res.errors[0] ? errorText(res.errors[0].message, t) : null
   } catch (e) {
-    calendarsError.value = String(e)
+    calendarsError.value = errorText(e, t)
   } finally {
     calendarsLoading.value = false
   }
 }
 watch(effectiveAccountId, () => void loadCalendars())
+// Switched on (or the tree loaded) while this screen is open.
+watch(calendarOn, async (on) => {
+  if (!on) return
+  await loadAccounts()
+  void loadCalendars()
+})
 
 /** No calendar ticked = the primary one (backend default). */
 function calendarChecked(c: CalendarMeta): boolean {
@@ -137,7 +150,7 @@ async function save() {
     // The Calendar choice may have changed: drop the cached events.
     void store.refreshCalendar()
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     saving.value = false
   }
@@ -226,7 +239,7 @@ async function save() {
     </div>
 
     <!-- Google Calendar -->
-    <div class="space-y-2 border-t border-border/60 pt-4">
+    <div v-if="calendarOn" class="space-y-2 border-t border-border/60 pt-4">
       <p class="flex items-center gap-1.5 text-xs font-medium">
         <CalendarClock class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
         {{ t('focus.settings.calendar.title') }}

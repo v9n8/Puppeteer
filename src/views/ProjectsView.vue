@@ -9,6 +9,7 @@ import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useServersStore, type ProjectServer } from '@/stores/servers'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
+import { useFeaturesStore } from '@/stores/features'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@/lib/tauri'
 import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
@@ -26,6 +27,7 @@ const glStore = useGitlabAccountsStore()
 const serversStore = useServersStore()
 const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
+const features = useFeaturesStore()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const adding = ref(false)
@@ -452,6 +454,7 @@ async function handleOpenInFolder(project: { path: string }) {
               </Button>
               <span class="mx-0.5 h-4 w-px bg-border/70" />
               <Button
+                v-if="features.allows('projects.gantt')"
                 variant="ghost"
                 size="icon-sm"
                 :title="t('projects.gantt')"

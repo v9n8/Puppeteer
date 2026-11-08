@@ -4,12 +4,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
+  ENTRY_FEATURES,
+  FALLBACK_PATH,
   MENU_ACTION_FEATURES,
   allowsFeature,
+  entryOn,
+  errorText,
+  fallbackPath,
+  featureErrorMessage,
+  featureLabelKey,
   featureRows,
   filterByFeature,
   isFeatureOn,
   menuActionFeature,
+  pickAvailable,
   popoutFeature,
   routeFeature,
   startsGroup,
@@ -217,6 +225,7 @@ test('gated ids exist in the backend registry', () => {
     ...['focusWindow', 'prInboxWindow', 'calendarWindow', 'ganttWindow', 'secretNotesWindow', 'slackWindow']
       .map((flag) => popoutFeature(`?${flag}=1`)),
     ...['todo', 'note'].map((kind) => popoutFeature(`?itemListWindow=1&kind=${kind}`)),
+    ...Object.values(ENTRY_FEATURES).flat(),
   ])
   for (const [file, pattern] of [
     ['../navigation.ts', /feature: '([\w.]+)'/g],
@@ -296,5 +305,103 @@ test('every registry id has a label in en and vi', () => {
     for (const key of ['locked', 'module_off', 'missing_dependency']) {
       assert.equal(typeof messages.reason[key], 'string', `${locale}: reason ${key}`)
     }
+  }
+})
+
+// ── Entry points outside the sidebar / menus (D0-19) ────────────────────────
+
+/** A tree where exactly the ids in `on` are on (modules on, so props decide). */
+function treeWith(on) {
+  const ids = new Set(Object.values(ENTRY_FEATURES).flat())
+  const byModule = new Map()
+  for (const id of ids) {
+    const module = id.slice(0, id.indexOf('.'))
+    if (!byModule.has(module)) byModule.set(module, [])
+    byModule.get(module).push(prop(id, on.includes(id)))
+  }
+  return [...byModule].map(([module, props]) => ({ module, enabled: true, locked: false, props }))
+}
+
+test('entryOn: every entry hides once one of its features is off', () => {
+  const all = [...new Set(Object.values(ENTRY_FEATURES).flat())]
+  for (const [entry, needs] of Object.entries(ENTRY_FEATURES)) {
+    assert.equal(entryOn(treeWith(all), entry), true, `${entry} with everything on`)
+    for (const id of needs) {
+      assert.equal(entryOn(treeWith(all.filter((x) => x !== id)), entry), false, `${entry} without ${id}`)
+    }
+  }
+  assert.equal(entryOn([], 'run.handoff'), false, 'nothing loaded: hidden')
+})
+
+test('entryOn: the Calendar entries need both Calendar and the Google account', () => {
+  assert.deepEqual([...ENTRY_FEATURES['focus.calendar']].sort(), ['integrations.google', 'productivity.calendar'])
+  assert.equal(entryOn(treeWith(['productivity.calendar']), 'focus.calendar'), false)
+  assert.equal(entryOn(treeWith(['integrations.google']), 'focus.calendar'), false)
+  assert.equal(entryOn(treeWith(['productivity.calendar', 'integrations.google']), 'focus.calendar'), true)
+})
+
+test('entryOn: a module that is off hides its entries', () => {
+  const off = [{ module: 'productivity', enabled: false, locked: false, props: [prop('productivity.todos', false, { stored: true })] }]
+  assert.equal(entryOn(off, 'item.todo'), false)
+  assert.equal(entryOn(off, 'todo.add'), false)
+})
+
+test('pickAvailable keeps the current choice, else the first offered', () => {
+  assert.equal(pickAvailable('note', ['todo', 'note']), 'note')
+  assert.equal(pickAvailable('todo', ['note']), 'note', 'its tab is gone: the other one')
+  assert.equal(pickAvailable('todo', []), null, 'nothing offered')
+  assert.equal(pickAvailable('slack', ['all', 'note']), 'all', 'a filter falls back to All')
+})
+
+test('fallbackPath leaves the page whose feature was switched off', () => {
+  const routes = [{ path: '/projects' }, { path: '/servers', feature: 'infra_access.vps' }, { path: '/stats', feature: 'usage.stats' }]
+  const vpsOff = [{ module: 'infra_access', enabled: true, locked: false, props: [prop('infra_access.vps', false)] }]
+  assert.equal(fallbackPath('/servers', routes, vpsOff), FALLBACK_PATH)
+  assert.equal(fallbackPath('/servers/abc', routes, vpsOff), FALLBACK_PATH, 'a page under it too')
+  assert.equal(fallbackPath('/projects/p1/runs/r1', routes, vpsOff), null, 'ungated: stays')
+  const vpsOn = [{ module: 'infra_access', enabled: true, locked: false, props: [prop('infra_access.vps', true)] }]
+  assert.equal(fallbackPath('/servers', routes, vpsOn), null)
+  assert.equal(FALLBACK_PATH, '/projects')
+})
+
+// A fake `t`: the key with its params, so a test sees which message was picked.
+const t = (key, params) => (params ? `${key}${JSON.stringify(params)}` : key)
+
+test('featureLabelKey: module vs prop (whose id may hold more dots)', () => {
+  assert.equal(featureLabelKey('productivity'), 'features.module.productivity')
+  assert.equal(featureLabelKey('productivity.focus'), 'features.prop.productivity.focus')
+  assert.equal(featureLabelKey('text_tools.selection.translate'), 'features.prop.text_tools.selection.translate')
+})
+
+test('featureErrorMessage maps the backend refusals to i18n', () => {
+  assert.equal(
+    featureErrorMessage('feature_disabled: remote.remote_control', t),
+    'features.error.disabled{"name":"features.prop.remote.remote_control"}',
+  )
+  assert.equal(
+    featureErrorMessage(new Error('feature_disabled: integrations'), t),
+    'features.error.disabled{"name":"features.module.integrations"}',
+    'a module, inside an Error',
+  )
+  assert.equal(
+    featureErrorMessage('feature_disabled: infra_access.aws, infra_access.azure', t),
+    'features.error.disabled{"name":"features.prop.infra_access.aws, features.prop.infra_access.azure"}',
+  )
+  assert.equal(featureErrorMessage('remote_denied_local_only', t), 'features.error.localOnly')
+  assert.equal(featureErrorMessage('Error: remote_denied_local_only: set_feature', t), 'features.error.localOnly')
+  assert.equal(featureErrorMessage('relay unreachable', t), null)
+})
+
+test('errorText keeps any other error as it came', () => {
+  assert.equal(errorText('relay unreachable', t), 'relay unreachable')
+  assert.equal(errorText(new Error('boom'), t), 'Error: boom')
+  assert.equal(errorText('feature_disabled: usage.stats', t), 'features.error.disabled{"name":"features.prop.usage.stats"}')
+})
+
+test('the feature error messages exist in en and vi', () => {
+  for (const locale of ['en', 'vi']) {
+    const messages = JSON.parse(read(`../../i18n/locales/${locale}/features.json`))
+    assert.match(messages.error.disabled, /\{name\}/, `${locale}: disabled names the feature`)
+    assert.equal(typeof messages.error.localOnly, 'string', `${locale}: localOnly`)
   }
 })

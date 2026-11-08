@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { Button, Card, ToggleSwitch } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
+import { errorText } from '@/lib/featureGate'
 import { BellRing, Loader2, Send, Smartphone, Trash2 } from 'lucide-vue-next'
 
 interface PushEvents {
@@ -44,7 +45,7 @@ async function load() {
     events.value = o.events
     loaded.value = true
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 }
 
@@ -65,7 +66,7 @@ async function toggleKind(kind: (typeof KINDS)[number]) {
     await invoke('remote_push_set_events', { events: next })
   } catch (e) {
     events.value = prev
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   }
 }
 
@@ -79,7 +80,7 @@ async function test(d: PushDevice) {
     toast.error(
       reason === 'not_found'
         ? t('remote.push.toast.gone')
-        : t('remote.push.toast.testFailed', { reason }),
+        : t('remote.push.toast.testFailed', { reason: errorText(reason, t) }),
     )
   } finally {
     busyId.value = null
@@ -93,7 +94,7 @@ async function remove(d: PushDevice) {
     await invoke('remote_push_remove', { id: d.id })
     devices.value = devices.value.filter((x) => x.id !== d.id)
   } catch (e) {
-    toast.error(String(e))
+    toast.error(errorText(e, t))
   } finally {
     busyId.value = null
   }

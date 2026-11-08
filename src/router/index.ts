@@ -19,7 +19,7 @@ import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
-import { routeFeature } from '../lib/featureGate'
+import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
 
 // Skills / Rules / MCP / Servers edit in their list's detail pane now; the old
@@ -104,7 +104,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const feature = routeFeature(to.path, NAV_ROUTES)
   if (feature === undefined) return true
-  return (await useFeaturesStore().isOnAfterLoad(feature)) ? true : '/projects'
+  return (await useFeaturesStore().isOnAfterLoad(feature)) ? true : FALLBACK_PATH
 })
 
 export default router

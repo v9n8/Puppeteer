@@ -23,6 +23,7 @@ import PairingQr from './PairingQr.vue'
 import {
   Radio, Copy, Check, Loader2, ShieldCheck, ShieldAlert, RotateCcw,
 } from 'lucide-vue-next'
+import { errorText } from '@/lib/featureGate'
 
 const props = defineProps<{
   open: boolean
@@ -148,7 +149,7 @@ async function createLink() {
     phase.value = 'waiting-for-scan'
   } catch (e) {
     phase.value = 'error'
-    errorMsg.value = String(e)
+    errorMsg.value = errorText(e, t)
   }
 }
 
@@ -187,7 +188,7 @@ async function enableAndCreate() {
     await createLink()
   } catch (e) {
     phase.value = 'error'
-    errorMsg.value = String(e)
+    errorMsg.value = errorText(e, t)
   } finally {
     enabling.value = false
   }

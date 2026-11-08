@@ -3,6 +3,10 @@
     "title": "This feature is turned off",
     "body": "Turn it back on in Settings to use this window again."
   },
+  "error": {
+    "disabled": "{name} is turned off. Turn it on in Settings → Features.",
+    "localOnly": "This can only be done on the host itself, not from a remote desktop."
+  },
   "reason": {
     "locked": "Core feature, always on.",
     "module_off": "Off while its module is off. Turning the module back on restores it.",
