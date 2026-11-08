@@ -121,6 +121,8 @@
   "fetchIssueOrPrThenRun": "fetch một issue hoặc PR, rồi chạy",
   "scrollToLatest": "Cuộn xuống mới nhất",
   "latest": "Mới nhất",
+  "scrollToTop": "Cuộn lên prompt đầu tiên",
+  "top": "Về đầu",
   "prevPrompt": "Prompt trước (⌘/Ctrl+⌥+↑)",
   "nextPrompt": "Prompt sau (⌘/Ctrl+⌥+↓)",
   "promptList": "Nhảy tới một prompt của bạn",

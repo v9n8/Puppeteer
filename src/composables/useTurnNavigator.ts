@@ -10,11 +10,15 @@
 // rect read is accurate for entries that were never laid out — an offset table
 // we maintained ourselves would not be.
 //
-// Layout is only read on demand (a click, a shortcut, opening the list), never
-// on scroll: the output pane already coalesces its own per-frame layout reads to
-// stay smooth, and a second reader walking every turn would undo that.
+// Stepping and the jump list read layout only on demand (a click, a shortcut,
+// opening the list). The one reader that follows the scroll — the `n/N` counter
+// — calls `activeEntryIndex` at most once per frame, and that is a binary
+// search over the turns, so it reads a handful of rects rather than walking
+// every turn: the output pane already coalesces its own per-frame layout reads
+// to stay smooth, and a full walk per frame would undo that.
 import { computed, type Ref } from 'vue'
 import type { StreamEntry } from '@/lib/streamEvents'
+import { turnIndexAt } from '@/lib/turnPosition'
 
 export interface PromptTurn {
   /** Index into the `entries` array — matches the `data-user-turn` attribute. */
@@ -91,12 +95,21 @@ export function useTurnNavigator(
 
   /** The turn the reader is currently parked on, or -1 when above the first. */
   function activeEntryIndex(): number {
-    let active = -1
-    for (const p of positions()) {
-      if (p.top > TOP_GAP + EPS) break
-      active = p.entryIndex
-    }
-    return active
+    const root = scrollEl.value
+    if (!root) return -1
+    const els = root.querySelectorAll<HTMLElement>('[data-user-turn]')
+    const base = root.getBoundingClientRect().top
+    const i = turnIndexAt(els.length, (k) => els[k].getBoundingClientRect().top - base, TOP_GAP + EPS)
+    return i < 0 ? -1 : Number(els[i].dataset.userTurn)
+  }
+
+  /** How far below the container's top edge the first loaded turn sits, or null
+   *  when no turn is rendered. Negative once it has scrolled out of view. */
+  function firstTurnTop(): number | null {
+    const root = scrollEl.value
+    const el = root?.querySelector<HTMLElement>('[data-user-turn]')
+    if (!root || !el) return null
+    return el.getBoundingClientRect().top - root.getBoundingClientRect().top
   }
 
   function goPrev() {
@@ -110,5 +123,5 @@ export function useTurnNavigator(
     if (target) scrollTo(target.el)
   }
 
-  return { turns, scrollToTurn, activeEntryIndex, goPrev, goNext }
+  return { turns, scrollToTurn, activeEntryIndex, firstTurnTop, goPrev, goNext }
 }

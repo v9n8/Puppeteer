@@ -74,6 +74,7 @@ import { useConductorStore } from '@/stores/conductor'
 import { Button, Input, Badge, Modal, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useTurnNavigator, turnLabel } from '@/composables/useTurnNavigator'
+import { isAwayFromTop, turnCounterLabel } from '@/lib/turnPosition'
 import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
@@ -1193,6 +1194,7 @@ function scrollOutputToBottom() {
 function onOutputScroll() {
   scheduleScrollSettle()
   scrollMemory.schedule()
+  scheduleTurnPositionCheck()
 }
 
 // --- Scroll anchoring across layout resizes ---------------------------------
@@ -1301,6 +1303,7 @@ const {
   turns: promptTurns,
   scrollToTurn,
   activeEntryIndex,
+  firstTurnTop,
 } = useTurnNavigator(turnScrollEl, turnEntries)
 
 // The navigator must list EVERY prompt in the session, but the viewer only
@@ -1406,9 +1409,8 @@ const showTurnNav = computed(
 )
 
 // Which prompt (as an index into the full `navTurns`) the reader is parked on,
-// marked in the jump list. Resolved when the menu opens: keeping it live would
-// mean reading every turn's layout on every scroll, which is exactly the cost
-// the output pane works to avoid.
+// marked in the jump list. Resolved when the menu opens, so the highlight is
+// exact even if the last per-frame counter check (below) hasn't run yet.
 const activeTurnSeq = ref(-1)
 function loadedTurnIndexOf(entryIndex: number): number {
   return promptTurns.value.findIndex((t) => t.entryIndex === entryIndex)
@@ -1421,6 +1423,60 @@ function activeSessionSeq(): number {
 }
 function onTurnMenuToggle(open: boolean) {
   if (open) activeTurnSeq.value = activeSessionSeq()
+}
+
+// The `n/N` counter and the "Top" button follow the scroll, so unlike the jump
+// list they are re-measured as the reader moves — at most once per frame, like
+// `scheduleHistoryBottomCheck`. `activeEntryIndex` is a binary search, so a
+// frame reads a few rects, not every turn's.
+const turnPositionTracked = computed(
+  () =>
+    !!turnScrollEl.value &&
+    navTurns.value.length > 0 &&
+    (isViewingHistory.value ? historyHasStream.value && !historyLoading.value : liveHasStream.value),
+)
+const currentTurnSeq = ref(-1)
+const turnAwayFromTop = ref(false)
+let turnPositionFrame = 0
+function scheduleTurnPositionCheck() {
+  if (turnPositionFrame) return
+  turnPositionFrame = requestAnimationFrame(() => {
+    turnPositionFrame = 0
+    if (!turnPositionTracked.value) {
+      currentTurnSeq.value = -1
+      turnAwayFromTop.value = false
+      return
+    }
+    currentTurnSeq.value = activeSessionSeq()
+    // Only the history pane can hold a window that starts mid-session; the live
+    // pane's top is simply the top of what it shows.
+    turnAwayFromTop.value = isAwayFromTop(
+      isViewingHistory.value && loadedTurnOffset.value > 0,
+      firstTurnTop(),
+    )
+  })
+}
+// Scrolling covers most moves; this covers the ones that shift the turns
+// without a scroll event (a window loaded, a pane switched, a first prompt).
+watch(
+  [turnPositionTracked, turnScrollEl, () => promptTurns.value.length, loadedTurnOffset],
+  scheduleTurnPositionCheck,
+  { flush: 'post' },
+)
+
+// "Top": back to the session's first prompt. The history pane may hold only a
+// window of the log, so it jumps by offset (one window read) rather than
+// paging the whole log into the DOM; the live pane has no window to load, so
+// its top is just the top of what it shows.
+function scrollToFirstTurn() {
+  if (isViewingHistory.value) {
+    void jumpToSessionTurn(0)
+    return
+  }
+  const el = outputEl.value
+  if (!el) return
+  el.scrollTop = 0
+  afterTurnJump()
 }
 
 // Jumping away from the bottom has to release the auto-follow pin, or the next
@@ -1559,6 +1615,7 @@ function scrollHistoryToLatest() {
 function onHistoryScroll() {
   scrollMemory.schedule()
   scheduleHistoryBottomCheck()
+  scheduleTurnPositionCheck()
   const el = historyEl.value
   if (!el || historyLoadingMore.value || Date.now() < historyAutoLoadBlockedUntil) return
   if (el.scrollTop < HISTORY_SCROLL_MARGIN && historyHasMore.value) {
@@ -1842,6 +1899,10 @@ onUnmounted(() => {
   if (historyBottomFrame) {
     cancelAnimationFrame(historyBottomFrame)
     historyBottomFrame = 0
+  }
+  if (turnPositionFrame) {
+    cancelAnimationFrame(turnPositionFrame)
+    turnPositionFrame = 0
   }
   window.removeEventListener('focus', onAppFocus)
   document.removeEventListener('mousedown', onRunSettingsPointerDown)
@@ -4168,7 +4229,7 @@ function handleRefInput(val: string) {
                           :title="t('run.promptList')"
                         >
                           <MessageSquare class="h-3.5 w-3.5" :stroke-width="1.75" />
-                          {{ navTurns.length }}
+                          <span class="tabular-nums">{{ turnCounterLabel(currentTurnSeq, navTurns.length) }}</span>
                         </button>
                       </template>
                       <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
@@ -4330,27 +4391,39 @@ function handleRefInput(val: string) {
               </div>
             </div>
 
-            <!-- Jump-to-latest button: shown when the user has scrolled up
-                 away from the bottom of the live output. The prompt navigator
-                 now lives in the toolbar, so this always sits at the bottom. -->
-            <button
-              v-if="hasLiveOutput && !isViewingHistory && !stickToBottom"
-              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
-              :title="t('run.scrollToLatest')"
-              @click="stickToBottom = true; scrollOutputToBottom()"
-            >
-              <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
-              {{ t('run.latest') }}
-            </button>
-            <button
-              v-else-if="isViewingHistory && historyHasStream && !historyLoading && (historyAwayFromBottom || historyHasMoreBelow)"
-              class="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
-              :title="t('run.scrollToLatest')"
-              @click="scrollHistoryToLatest"
-            >
-              <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
-              {{ t('run.latest') }}
-            </button>
+            <!-- Jump-to-top / jump-to-latest buttons: "Top" once the reader
+                 has left the start of the log, "Latest" once they have scrolled
+                 up away from the bottom. The prompt navigator now lives in the
+                 toolbar, so these always sit at the bottom. -->
+            <div class="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+              <button
+                v-if="turnPositionTracked && turnAwayFromTop"
+                class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+                :title="t('run.scrollToTop')"
+                @click="scrollToFirstTurn"
+              >
+                <ChevronUp class="h-3.5 w-3.5" :stroke-width="2" />
+                {{ t('run.top') }}
+              </button>
+              <button
+                v-if="hasLiveOutput && !isViewingHistory && !stickToBottom"
+                class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+                :title="t('run.scrollToLatest')"
+                @click="stickToBottom = true; scrollOutputToBottom()"
+              >
+                <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
+                {{ t('run.latest') }}
+              </button>
+              <button
+                v-else-if="isViewingHistory && historyHasStream && !historyLoading && (historyAwayFromBottom || historyHasMoreBelow)"
+                class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+                :title="t('run.scrollToLatest')"
+                @click="scrollHistoryToLatest"
+              >
+                <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
+                {{ t('run.latest') }}
+              </button>
+            </div>
             </div>
 
             <!-- The permission / question prompt is no longer an inline drawer:
