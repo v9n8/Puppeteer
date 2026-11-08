@@ -33,6 +33,19 @@ export interface RunLogPage {
   revision: RunLogRevision
 }
 
+/** One record of a run's log whose text matches a `searchRunLog` query. */
+export interface RunLogHit {
+  /** Byte offset the record starts at — a `getRunLogForward` cursor. */
+  offset: number
+  snippet: string
+}
+
+export interface RunLogSearch {
+  hits: RunLogHit[]
+  /** More records matched than were returned. */
+  truncated: boolean
+}
+
 /** True when two fingerprints describe the same bytes, so a re-read is pointless. */
 export function sameRunLogRevision(
   a: RunLogRevision | null,
@@ -390,6 +403,15 @@ export const useRunsStore = defineStore('runs', () => {
   }
 
   /**
+   * Records of the WHOLE run whose prompt / reply text contains `query` (⌘F in
+   * the run viewer, which only holds a window of the log). Scanned in Rust so
+   * the log never crosses IPC — see `search_run_log`.
+   */
+  async function searchRunLog(run_id: string, query: string, caseSensitive: boolean): Promise<RunLogSearch> {
+    return invoke<RunLogSearch>('search_run_log', { runId: run_id, query, caseSensitive })
+  }
+
+  /**
    * One window of records reading FORWARD from `after` (a cursor from a previous
    * read). Pairs with `getRunLogPage` (which reads backward) to append as the
    * reader scrolls down and to load a fresh window at a jumped-to byte offset.
@@ -595,7 +617,7 @@ export const useRunsStore = defineStore('runs', () => {
     runs, loading, loadedProjectId, runMeta, orderStale,
     fetchRuns, sortRuns, refreshMeta, fetchIssue, fetchPr,
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
-    getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, readRunInput,
+    getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, endRunInput,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,

@@ -2307,6 +2307,174 @@ pub async fn get_run_user_records(
     Ok(RunUserRecords { records, revision })
 }
 
+// ── Find in a run (⌘F) ───────────────────────────────────────────────────────
+//
+// The run viewer only holds a window of the log in the DOM, so a DOM search
+// misses every turn outside it. `search_run_log` scans the whole file instead;
+// the viewer jumps to a hit with a forward read and highlights it there.
+
+/// Prop gating `search_run_log` (and the find bar it backs).
+pub const FIND_IN_PAGE_FEATURE: &str = "text_tools.find_in_page";
+
+/// Most hits one search returns; past it the result says `truncated`.
+const LOG_SEARCH_MAX_HITS: usize = 500;
+/// Characters of context kept on each side of a match in its snippet.
+const LOG_SEARCH_CONTEXT_CHARS: usize = 60;
+
+/// A log record whose text matches, one per record.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct RunLogHit {
+    /// Byte offset the record starts at — a `get_run_log_forward` cursor.
+    pub offset: u64,
+    /// The record's first match with some context, whitespace collapsed.
+    pub snippet: String,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct RunLogSearch {
+    pub hits: Vec<RunLogHit>,
+    /// More records matched than were returned.
+    pub truncated: bool,
+}
+
+/// The text a reader sees of a record: user prompts and assistant replies.
+/// Tool input / output and thinking are left out — they are mostly file bodies,
+/// and shown collapsed, so a hit there could not be highlighted after the jump.
+fn record_texts(v: &serde_json::Value) -> Vec<&str> {
+    use serde_json::Value;
+    let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+    if ty != "user" && ty != "assistant" {
+        return Vec::new();
+    }
+    match v.get("message").and_then(|m| m.get("content")) {
+        Some(Value::String(s)) => vec![s.as_str()],
+        Some(Value::Array(blocks)) => blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))
+            .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Byte range of the first match of `needle` in `hay`. Case-insensitive
+/// matching folds char by char, so the range is always in `hay`'s own bytes
+/// (lowercasing the whole string can change its length, e.g. `İ`).
+fn find_match(hay: &str, needle: &str, case_sensitive: bool) -> Option<(usize, usize)> {
+    if case_sensitive {
+        return hay.find(needle).map(|i| (i, i + needle.len()));
+    }
+    let needle: Vec<char> = needle.chars().flat_map(char::to_lowercase).collect();
+    if needle.is_empty() {
+        return None;
+    }
+    'start: for (start, _) in hay.char_indices() {
+        let mut k = 0;
+        for (i, c) in hay[start..].char_indices() {
+            for l in c.to_lowercase() {
+                if k == needle.len() || l != needle[k] {
+                    continue 'start;
+                }
+                k += 1;
+            }
+            if k == needle.len() {
+                return Some((start, start + i + c.len_utf8()));
+            }
+        }
+    }
+    None
+}
+
+/// `text[start..end]` with up to [`LOG_SEARCH_CONTEXT_CHARS`] chars on each
+/// side, on one line, `…` marking a cut.
+fn match_snippet(text: &str, start: usize, end: usize) -> String {
+    let from = text[..start]
+        .char_indices()
+        .rev()
+        .nth(LOG_SEARCH_CONTEXT_CHARS - 1)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let to = text[end..]
+        .char_indices()
+        .nth(LOG_SEARCH_CONTEXT_CHARS)
+        .map(|(i, _)| end + i)
+        .unwrap_or(text.len());
+    let body = text[from..to].split_whitespace().collect::<Vec<_>>().join(" ");
+    let head = if from > 0 { "…" } else { "" };
+    let tail = if to < text.len() { "…" } else { "" };
+    format!("{head}{body}{tail}")
+}
+
+/// Scan a log file for records whose text ([`record_texts`]) contains `query`.
+/// Offsets are counted the way `get_run_user_records` counts them, so each one
+/// is a valid forward-read cursor.
+fn search_log_file(
+    path: &Path,
+    query: &str,
+    case_sensitive: bool,
+    max_hits: usize,
+) -> std::io::Result<RunLogSearch> {
+    use std::io::{BufRead, BufReader};
+
+    let mut hits: Vec<RunLogHit> = Vec::new();
+    let mut truncated = false;
+    if query.is_empty() {
+        return Ok(RunLogSearch { hits, truncated });
+    }
+    let file = fs::File::open(path)?;
+    let mut reader = BufReader::with_capacity(256 * 1024, file);
+    let mut offset: u64 = 0;
+    let mut raw: Vec<u8> = Vec::new();
+    loop {
+        raw.clear();
+        let n = reader.read_until(b'\n', &mut raw)?;
+        if n == 0 {
+            break;
+        }
+        let start = offset;
+        offset += n as u64;
+
+        let line = String::from_utf8_lossy(&raw[..n]);
+        let line = line.trim_end_matches('\n').trim_end_matches('\r');
+        // Cheap reject before paying for a JSON parse.
+        if !line.contains("\"user\"") && !line.contains("\"assistant\"") {
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let hit = record_texts(&v).into_iter().find_map(|text| {
+            find_match(text, query, case_sensitive).map(|(s, e)| match_snippet(text, s, e))
+        });
+        if let Some(snippet) = hit {
+            if hits.len() == max_hits {
+                truncated = true;
+                break;
+            }
+            hits.push(RunLogHit { offset: start, snippet });
+        }
+    }
+    Ok(RunLogSearch { hits, truncated })
+}
+
+/// Find `query` across the WHOLE log of a run, not just the window on screen.
+/// Read-only, like `get_run_log_page`, so a remote Controller may call it too.
+#[tauri::command]
+pub async fn search_run_log(
+    db: State<'_, Db>,
+    run_id: String,
+    query: String,
+    case_sensitive: bool,
+) -> Result<RunLogSearch, String> {
+    crate::features::require(db.inner(), FIND_IN_PAGE_FEATURE).await?;
+    let row = fetch_run_log_row(db.inner(), &run_id).await?;
+    let Some((_, path)) = resolve_log_source(&row, &run_id) else {
+        return Ok(RunLogSearch { hits: Vec::new(), truncated: false });
+    };
+    search_log_file(&path, &query, case_sensitive, LOG_SEARCH_MAX_HITS)
+        .map_err(|e| format!("read log: {}", e))
+}
+
 /// Source-run fields needed to clone a run into a new `fetched` record.
 struct ClonableRun {
     project_id: String,
@@ -4028,6 +4196,127 @@ mod log_page_tests {
         let p = temp_log("pre2", "[stderr] noise\n{\"type\":\"assistant\"}\n");
         assert_eq!(read_preamble(&p).unwrap(), "{\"type\":\"assistant\"}");
         let _ = fs::remove_file(&p);
+    }
+
+    fn user_line(text: &str) -> String {
+        format!("{}\n", serde_json::json!({ "type": "user", "message": { "content": text } }))
+    }
+
+    fn assistant_line(text: &str) -> String {
+        format!(
+            "{}\n",
+            serde_json::json!({ "type": "assistant", "message": { "content": [{ "type": "text", "text": text }] } })
+        )
+    }
+
+    /// A long session whose only "needle" sits in turn 3, plus records the
+    /// search must skip: tool output, thinking, a non-JSON line.
+    fn sample_session() -> (String, u64) {
+        let mut log = String::from("{\"type\":\"system\",\"subtype\":\"init\"}\n[stderr] needle\n");
+        let mut needle_at = 0;
+        for i in 0..500 {
+            if i == 2 {
+                needle_at = log.len() as u64;
+                log.push_str(&user_line("Turn 3 asks about the Needle in the haystack"));
+            } else {
+                log.push_str(&user_line(&format!("turn {}", i + 1)));
+            }
+            log.push_str(&format!(
+                "{}\n",
+                serde_json::json!({ "type": "assistant", "message": { "content": [
+                    { "type": "thinking", "thinking": "needle" },
+                    { "type": "tool_use", "id": "t", "name": "Read", "input": { "file_path": "needle.rs" } },
+                ] } })
+            ));
+            log.push_str(&format!(
+                "{}\n",
+                serde_json::json!({ "type": "user", "message": { "content": [
+                    { "type": "tool_result", "tool_use_id": "t", "content": "needle" },
+                ] } })
+            ));
+            log.push_str(&assistant_line(&format!("reply {}", i + 1)));
+        }
+        (log, needle_at)
+    }
+
+    #[test]
+    fn search_finds_a_turn_far_outside_the_tail_window() {
+        let (log, needle_at) = sample_session();
+        let p = temp_log("search", &log);
+        let found = search_log_file(&p, "needle", false, 100).unwrap();
+        assert_eq!(found.hits.len(), 1);
+        assert!(!found.truncated);
+        assert_eq!(found.hits[0].offset, needle_at);
+        // The offset is a record boundary a forward read can start from.
+        let (recs, _) = read_records_forward(&p, needle_at, 1, 1 << 20).unwrap();
+        assert!(recs[0].contains("Needle in the haystack"));
+        assert_eq!(found.hits[0].snippet, "Turn 3 asks about the Needle in the haystack");
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn search_with_no_match_or_empty_query_returns_nothing() {
+        let (log, _) = sample_session();
+        let p = temp_log("search_none", &log);
+        assert_eq!(
+            search_log_file(&p, "absent", false, 100).unwrap(),
+            RunLogSearch { hits: Vec::new(), truncated: false }
+        );
+        assert!(search_log_file(&p, "", false, 100).unwrap().hits.is_empty());
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn search_follows_case_sensitivity() {
+        let (log, _) = sample_session();
+        let p = temp_log("search_case", &log);
+        assert_eq!(search_log_file(&p, "NEEDLE", false, 100).unwrap().hits.len(), 1);
+        assert!(search_log_file(&p, "NEEDLE", true, 100).unwrap().hits.is_empty());
+        assert!(search_log_file(&p, "needle", true, 100).unwrap().hits.is_empty());
+        assert_eq!(search_log_file(&p, "Needle", true, 100).unwrap().hits.len(), 1);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn search_stops_at_the_hit_limit() {
+        let (log, _) = sample_session();
+        let p = temp_log("search_limit", &log);
+        // "reply" is in all 500 assistant replies.
+        let all = search_log_file(&p, "reply", false, 500).unwrap();
+        assert_eq!(all.hits.len(), 500);
+        assert!(!all.truncated);
+        let some = search_log_file(&p, "reply", false, 3).unwrap();
+        assert_eq!(some.hits.len(), 3);
+        assert!(some.truncated);
+        assert_eq!(some.hits[0].snippet, "reply 1");
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn search_keeps_one_hit_per_record() {
+        let p = temp_log("search_once", &user_line("abc abc abc"));
+        let found = search_log_file(&p, "abc", false, 10).unwrap();
+        assert_eq!(found.hits, vec![RunLogHit { offset: 0, snippet: "abc abc abc".into() }]);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn case_insensitive_match_keeps_original_byte_range() {
+        // `İ` lowercases to two chars, so a lowercased copy would shift every
+        // later byte offset.
+        let hay = "İİ Đường đi";
+        let (s, e) = find_match(hay, "đường", false).unwrap();
+        assert_eq!(&hay[s..e], "Đường");
+        assert_eq!(find_match(hay, "i\u{307}", false), Some((0, "İ".len())));
+        assert_eq!(find_match(hay, "x", false), None);
+    }
+
+    #[test]
+    fn snippet_cuts_long_text_on_char_boundaries() {
+        let text = format!("{}\nđích\n{}", "ă".repeat(100), "ơ".repeat(100));
+        let (s, e) = find_match(&text, "đích", true).unwrap();
+        let snip = match_snippet(&text, s, e);
+        assert_eq!(snip, format!("…{} đích {}…", "ă".repeat(59), "ơ".repeat(59)));
     }
 }
 

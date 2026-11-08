@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/turnPosition.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isAwayFromTop, turnCounterLabel, turnIndexAt } from '../turnPosition.ts'
+import { isAwayFromTop, promptsBefore, turnCounterLabel, turnIndexAt } from '../turnPosition.ts'
 
 // Tops relative to the container's visible top: scrollTop shifts every turn up.
 const at = (offsets, scrollTop) => (i) => offsets[i] - scrollTop
@@ -76,4 +76,19 @@ test('isAwayFromTop: landed on the first prompt is at the top', () => {
 test('isAwayFromTop: first prompt scrolled past the top edge is away', () => {
   assert.equal(isAwayFromTop(false, -1), true)
   assert.equal(isAwayFromTop(false, -5000), true)
+})
+
+test('promptsBefore: a window starting at a prompt begins with that prompt', () => {
+  assert.equal(promptsBefore([0, 100, 250], 100), 1)
+  assert.equal(promptsBefore([0, 100, 250], 0), 0)
+})
+
+test('promptsBefore: a window starting mid-turn begins with the next prompt', () => {
+  assert.equal(promptsBefore([0, 100, 250], 180), 2)
+  assert.equal(promptsBefore([0, 100, 250], 900), 3)
+})
+
+test('promptsBefore: prompts without a known offset are not counted', () => {
+  assert.equal(promptsBefore([undefined, undefined], 500), 0)
+  assert.equal(promptsBefore([0, undefined, 250], 300), 2)
 })

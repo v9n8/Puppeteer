@@ -39,3 +39,12 @@ export function turnCounterLabel(seq: number, total: number): string {
 export function isAwayFromTop(windowStartsLater: boolean, firstTurnTop: number | null): boolean {
   return windowStartsLater || (firstTurnTop !== null && firstTurnTop < 0)
 }
+
+/**
+ * Session-prompt index of the first prompt in a window loaded from byte
+ * `offset`: the number of prompts that start before it. A prompt whose offset
+ * is unknown (not scanned yet) is not counted.
+ */
+export function promptsBefore(promptOffsets: readonly (number | undefined)[], offset: number): number {
+  return promptOffsets.filter((o) => typeof o === 'number' && o < offset).length
+}

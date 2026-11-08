@@ -3,5 +3,9 @@
   "matchCase": "Match case",
   "previousMatch": "Previous match",
   "nextMatch": "Next match",
-  "close": "Close search"
+  "close": "Close search",
+  "searchingSession": "Searching the whole session…",
+  "noSessionMatches": "No match in the whole session",
+  "sessionMatches": "{count} message in the whole session | {count} messages in the whole session",
+  "sessionMatchesFirst": "First {count} messages in the whole session"
 }

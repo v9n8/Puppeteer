@@ -10,6 +10,7 @@ import {
   type RunRecord,
   type ProjectEntry,
   type RunLogRevision,
+  type RunLogHit,
 } from '@/stores/runs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
@@ -51,6 +52,9 @@ import RunActionItems from '@/components/RunActionItems.vue'
 import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { usePageFind } from '@/composables/usePageFind'
+import { isFindShortcut } from '@/lib/pageFind'
+import FindBar from '@/components/FindBar.vue'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { appendQuote } from '@/lib/quote'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
@@ -75,7 +79,7 @@ import { useConductorStore } from '@/stores/conductor'
 import { Button, Input, Badge, Modal, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useTurnNavigator, turnLabel } from '@/composables/useTurnNavigator'
-import { isAwayFromTop, turnCounterLabel } from '@/lib/turnPosition'
+import { isAwayFromTop, promptsBefore, turnCounterLabel } from '@/lib/turnPosition'
 import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
@@ -1679,6 +1683,75 @@ const selectionSurface = useSelectionSurface({
   }),
 })
 
+// ── Find (⌘F) ────────────────────────────────────────────────────────────────
+// The bar highlights matches in what is on screen. The history pane holds only
+// a window of the log, so it also lists hits from the WHOLE log; picking one
+// loads a window starting at that record, where the highlight lands. ⌘F is
+// caught here until an app-wide ⌘F dispatcher routes it to the active area.
+const runFind = usePageFind(turnScrollEl)
+const findOpen = runFind.open
+const logHits = shallowRef<RunLogHit[]>([])
+const logHitsTruncated = ref(false)
+const logSearching = ref(false)
+// Scanning the whole file costs more than a DOM pass: wait for a typing pause.
+const LOG_SEARCH_DEBOUNCE_MS = 250
+// Only the history pane of a stream log can load a window at a hit's offset.
+const logSearchActive = computed(
+  () => runFind.open.value && !!runFind.query.value && isViewingHistory.value && historyHasStream.value,
+)
+let logSearchTimer: ReturnType<typeof setTimeout> | null = null
+// Bumped by every new search, so a slower stale answer is dropped.
+let logSearchSeq = 0
+
+watch([logSearchActive, runFind.query, runFind.caseSensitive, viewingLogRunId], () => {
+  if (logSearchTimer) clearTimeout(logSearchTimer)
+  const seq = ++logSearchSeq
+  const runId = viewingLogRunId.value
+  if (!logSearchActive.value || !runId) {
+    logHits.value = []
+    logHitsTruncated.value = false
+    logSearching.value = false
+    return
+  }
+  const query = runFind.query.value
+  const caseSensitive = runFind.caseSensitive.value
+  logSearching.value = true
+  logSearchTimer = setTimeout(async () => {
+    let hits: RunLogHit[] = []
+    let truncated = false
+    try {
+      const r = await runsStore.searchRunLog(runId, query, caseSensitive)
+      hits = r.hits
+      truncated = r.truncated
+    } catch {
+      /* no list; the on-screen highlight still works */
+    }
+    if (seq !== logSearchSeq) return
+    logHits.value = hits
+    logHitsTruncated.value = truncated
+    logSearching.value = false
+  }, LOG_SEARCH_DEBOUNCE_MS)
+})
+
+async function jumpToLogHit(hit: RunLogHit) {
+  if (!isViewingHistory.value) return
+  firstLoadedSeq.value = promptsBefore(navTurns.value.map((t) => t.offset), hit.offset)
+  await jumpToHistoryOffset(hit.offset)
+  // The window now starts at the hit's record, so the first match on screen is it.
+  runFind.refresh()
+}
+
+function onFindKey(e: KeyboardEvent) {
+  if (!isFindShortcut(e) || !runFind.enabled.value || !turnScrollEl.value) return
+  e.preventDefault()
+  runFind.openFind()
+}
+
+watch(currentRunId, () => {
+  runFind.query.value = ''
+  runFind.closeFind()
+})
+
 // Keep the live output pinned to the bottom as new entries/lines arrive for
 // the focused, running run — but only while the user is parked at the bottom
 // and not in the middle of selecting/clicking inside the output.
@@ -1805,6 +1878,7 @@ onMounted(async () => {
   window.addEventListener('focus', onAppFocus)
   window.addEventListener('pointerup', onWindowPointerUp)
   window.addEventListener('keydown', onTurnNavKey)
+  window.addEventListener('keydown', onFindKey)
   setupMentionBridge()
 
   // Drag-and-drop files into the composer. Tauri intercepts OS file drops at the
@@ -1923,6 +1997,8 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', onRunSettingsPointerDown)
   window.removeEventListener('pointerup', onWindowPointerUp)
   window.removeEventListener('keydown', onTurnNavKey)
+  window.removeEventListener('keydown', onFindKey)
+  if (logSearchTimer) clearTimeout(logSearchTimer)
   sessionsChangedUnlisten?.()
   sessionsChangedUnlisten = null
   dragDropUnlisten?.()
@@ -4297,6 +4373,36 @@ function handleRefInput(val: string) {
               </div>
             </div>
 
+            <!-- ⌘F bar; on the history pane, with the hits of the whole log. -->
+            <div
+              v-if="findOpen"
+              class="absolute top-10 right-4 z-20 flex w-80 max-w-[calc(100%-2rem)] flex-col items-end gap-1"
+            >
+              <FindBar :find="runFind" />
+              <div
+                v-if="logSearchActive"
+                class="w-full rounded-md border border-border bg-card text-xs shadow-lg shadow-black/30"
+              >
+                <div class="border-b border-border px-2.5 py-1.5 text-2xs text-foreground/50">
+                  <template v-if="logSearching">{{ t('find.searchingSession') }}</template>
+                  <template v-else-if="!logHits.length">{{ t('find.noSessionMatches') }}</template>
+                  <template v-else-if="logHitsTruncated">{{ t('find.sessionMatchesFirst', { count: logHits.length }) }}</template>
+                  <template v-else>{{ t('find.sessionMatches', logHits.length) }}</template>
+                </div>
+                <div v-if="logHits.length" class="max-h-64 overflow-y-auto py-1">
+                  <button
+                    v-for="hit in logHits"
+                    :key="hit.offset"
+                    type="button"
+                    class="w-full px-2.5 py-1 text-left text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+                    @click="jumpToLogHit(hit)"
+                  >
+                    {{ hit.snippet }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Log viewer (selected history run) -->
             <div
               v-if="isViewingHistory"
@@ -4316,7 +4422,7 @@ function handleRefInput(val: string) {
                 <!-- Fetch the next window of older records on demand. Opening a
                      run only reads its tail, so the first paint stays fast no
                      matter how long the conversation got. -->
-                <div v-if="historyHasMore" class="mb-3 flex justify-center">
+                <div v-if="historyHasMore" class="search-skip mb-3 flex justify-center">
                   <button
                     type="button"
                     class="rounded-full border border-border bg-muted/60 px-3 py-1 text-2xs text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
@@ -4336,7 +4442,7 @@ function handleRefInput(val: string) {
                 />
                 <!-- Newer records below the loaded window (only after a jump into
                      the middle of the log). Scrolling down loads them too. -->
-                <div v-if="historyHasMoreBelow" class="mt-3 flex justify-center">
+                <div v-if="historyHasMoreBelow" class="search-skip mt-3 flex justify-center">
                   <button
                     type="button"
                     class="rounded-full border border-border bg-muted/60 px-3 py-1 text-2xs text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"

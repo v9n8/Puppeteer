@@ -3,5 +3,9 @@
   "matchCase": "Phân biệt hoa thường",
   "previousMatch": "Kết quả trước",
   "nextMatch": "Kết quả tiếp theo",
-  "close": "Đóng tìm kiếm"
+  "close": "Đóng tìm kiếm",
+  "searchingSession": "Đang tìm trong cả session…",
+  "noSessionMatches": "Không có kết quả trong cả session",
+  "sessionMatches": "{count} tin nhắn trong cả session",
+  "sessionMatchesFirst": "{count} tin nhắn đầu tiên trong cả session"
 }

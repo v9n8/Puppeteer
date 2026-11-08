@@ -606,6 +606,7 @@ mod tests {
             "add_todo",
             "update_setting",
             "set_project_builtin_mcp_enabled",
+            "search_run_log",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -631,7 +632,14 @@ mod tests {
         ] {
             assert!(audited_command(name), "{name}");
         }
-        for name in ["list_runs", "list_github_accounts", "secret_vault_touch", "secret_vault_status", "secret_notes_list"] {
+        for name in [
+            "list_runs",
+            "list_github_accounts",
+            "secret_vault_touch",
+            "secret_vault_status",
+            "secret_notes_list",
+            "search_run_log",
+        ] {
             assert!(!audited_command(name), "{name}");
         }
     }

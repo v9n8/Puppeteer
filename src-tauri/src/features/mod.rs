@@ -626,6 +626,7 @@ mod tests {
         use crate::commands::{github, groups, instruction_checks, notes, runs, secret_vault, todos};
         for id in [
             runs::HANDOFF_FEATURE,
+            runs::FIND_IN_PAGE_FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,
             notes::FEATURE,
