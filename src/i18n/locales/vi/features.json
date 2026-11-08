@@ -73,7 +73,8 @@
       "agents": "Agent (subagent)",
       "commands": "Lệnh slash",
       "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn",
-      "skills_global": "Skill global (thư mục HOME)"
+      "skills_global": "Skill global (thư mục HOME)",
+      "skill_doctor": "Skill Doctor (kiểm tra skill)"
     },
     "orchestration": {
       "conductor": "Conductor",

@@ -103,6 +103,7 @@ use commands::settings_backup::{
     export_settings_backup, import_settings_backup, inspect_settings_backup,
 };
 use commands::skill_allocation::{list_skill_allocation, set_skill_global};
+use commands::skill_doctor::diagnose_skills;
 use commands::skills::{
     create_skill, delete_skill, export_skill_zip, get_skill, import_skill_zip, list_skills,
     open_skill_folder, update_skill,
@@ -473,6 +474,7 @@ pub fn run() {
             open_skill_folder,
             list_skill_allocation,
             set_skill_global,
+            diagnose_skills,
             list_rules,
             get_rule,
             create_rule,

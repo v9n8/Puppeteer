@@ -73,7 +73,8 @@
       "agents": "Agents",
       "commands": "Slash commands",
       "builtin_mcp_puppeteer": "Built-in Puppeteer MCP",
-      "skills_global": "Global skills (home folder)"
+      "skills_global": "Global skills (home folder)",
+      "skill_doctor": "Skill Doctor"
     },
     "orchestration": {
       "conductor": "Conductor",

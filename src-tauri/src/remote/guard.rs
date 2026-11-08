@@ -622,6 +622,7 @@ mod tests {
             "search_run_log",
             "list_skill_allocation",
             "apply_skill",
+            "diagnose_skills",
             "search_sessions",
             "list_library_items",
             "apply_library_item",
@@ -659,6 +660,7 @@ mod tests {
         for name in [
             "list_runs",
             "list_skill_allocation",
+            "diagnose_skills",
             "list_github_accounts",
             "secret_vault_touch",
             "secret_vault_status",

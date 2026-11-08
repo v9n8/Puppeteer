@@ -175,6 +175,7 @@ mod tests {
             "sessions.cross_session_search",
             "library.agents",
             "library.commands",
+            "library.skill_doctor",
         ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");
