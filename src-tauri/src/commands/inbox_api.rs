@@ -27,6 +27,7 @@ pub async fn regenerate_inbox_api_token(
 /// Turn the whole Inbox API on or off: persists `inbox_api_enabled`, then
 /// starts the server (binding a port) or stops it (nothing listens). Turning
 /// on is refused (`feature_disabled`) while the `integrations` module is off.
+/// Sends `features:changed`: the key is `integrations.inbox_api`'s.
 #[tauri::command]
 pub async fn set_inbox_api_enabled(
     app: AppHandle,
@@ -36,14 +37,14 @@ pub async fn set_inbox_api_enabled(
     slack: State<'_, SlackThreadsState>,
     enabled: bool,
 ) -> Result<InboxApiInfo, String> {
-    server::set_enabled(
-        app,
+    let write = server::set_enabled(
+        app.clone(),
         db.inner().clone(),
         api.inner().clone(),
         translate.inner().clone(),
         slack.inner().clone(),
         enabled,
-    )
-    .await?;
+    );
+    crate::features::commands::write_legacy(&app, db.inner(), write).await?;
     Ok(api.info())
 }

@@ -166,6 +166,10 @@ pub async fn run_sso_login(profile_name: &str) -> Result<(), String> {
 /// Refresh an SSO token for a `~/.aws/config` profile so a profile whose token
 /// expired can be re-validated from the UI.
 #[tauri::command]
-pub async fn aws_sso_login_profile(profile_name: String) -> Result<(), String> {
+pub async fn aws_sso_login_profile(
+    db: tauri::State<'_, crate::db::Db>,
+    profile_name: String,
+) -> Result<(), String> {
+    crate::features::require(db.inner(), super::aws_accounts::FEATURE).await?;
     run_sso_login(&profile_name).await
 }

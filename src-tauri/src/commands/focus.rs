@@ -10,6 +10,15 @@ use chrono::{DateTime, NaiveDateTime, TimeZone};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+pub const FEATURE: &str = "productivity.focus";
+
+/// The gate of a Focus command that writes a todo: Focus and Todos both on, so
+/// neither switch is bypassed (`features::require`).
+pub async fn require_todo_writes(db: &Db) -> Result<(), String> {
+    crate::features::require(db, FEATURE).await?;
+    crate::features::require(db, crate::commands::todos::FEATURE).await
+}
+
 #[derive(Debug, Serialize)]
 pub struct BoardItem {
     pub todo: Todo,
@@ -289,6 +298,24 @@ pub async fn focus_settings_set(
 mod tests {
     use super::*;
     use chrono::FixedOffset;
+
+    #[tokio::test]
+    async fn todo_writes_need_focus_and_todos() {
+        let focus = ("feature.productivity.focus", "true");
+        let todos = ("feature.productivity.todos", "true");
+        let cases: &[(&[(&str, &str)], Result<(), String>)] = &[
+            (&[focus, todos], Ok(())),
+            (&[focus], Err("feature_disabled: productivity.todos".into())),
+            (&[todos], Err("feature_disabled: productivity.focus".into())),
+        ];
+        for (rows, want) in cases {
+            let db = crate::slack_threads::tests::memory_db().await;
+            for (key, value) in *rows {
+                crate::commands::settings::set_setting(&db, key, value).await.unwrap();
+            }
+            assert_eq!(&require_todo_writes(&db).await, want, "{rows:?}");
+        }
+    }
 
     fn tz() -> FixedOffset {
         FixedOffset::east_opt(7 * 3600).unwrap()

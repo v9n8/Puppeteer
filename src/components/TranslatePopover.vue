@@ -63,9 +63,11 @@ async function runTranslate() {
   result.value = ''
   currentTurn = -1
   try {
+    // `selection`: the backend refuses it while the bar's translate switch is off.
     const turn = await invoke<number>('translate_text', {
       text: props.text,
       targetLang: lang.value,
+      source: 'selection',
     })
     currentTurn = turn
   } catch (e) {

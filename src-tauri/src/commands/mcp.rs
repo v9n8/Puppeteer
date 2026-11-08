@@ -1367,6 +1367,10 @@ const PUPPETEER_TOOL_GROUPS: &[(&str, &str)] = &[
     ("todos", "productivity.todos"),
     ("slack", "integrations.slack"),
     ("vps", "infra_access.vps"),
+    // `cloud_accounts_list` serves both: hidden once both are off, and it
+    // leaves out the accounts of the one that is off.
+    ("aws", "infra_access.aws"),
+    ("azure", "infra_access.azure"),
 ];
 
 /// What the feature switches let a run launched now get. Read once per start
@@ -1458,20 +1462,19 @@ pub async fn set_project_builtin_mcp(
     Ok(())
 }
 
-/// Switch built-in `name` on/off app-wide.
+/// Switch built-in `name` on/off app-wide. Sends `features:changed` when that
+/// moves a feature (`puppeteer` is `library.builtin_mcp_puppeteer`'s key).
 #[tauri::command]
 pub async fn set_builtin_mcp_enabled(
+    app: tauri::AppHandle,
     db: State<'_, Db>,
     name: String,
     enabled: bool,
 ) -> Result<(), String> {
     validate_builtin_name(&name)?;
-    crate::commands::settings::set_setting(
-        db.inner(),
-        &format!("mcp_builtin_{name}_enabled"),
-        if enabled { "true" } else { "false" },
-    )
-    .await
+    let key = format!("mcp_builtin_{name}_enabled");
+    let write = crate::commands::settings::set_setting(db.inner(), &key, if enabled { "true" } else { "false" });
+    crate::features::commands::write_legacy(&app, db.inner(), write).await
 }
 
 /// Add the built-in `puppeteer` stdio MCP server (quick notes + cross-session
@@ -1790,16 +1793,18 @@ mod tests {
 
     #[test]
     fn builtin_gates_follow_the_feature_tree() {
-        // Fresh install: notes on; todos, slack, vps and the Google account off.
+        // Fresh install: notes on; todos, slack, vps, aws, azure and the Google account off.
         let g = gates(&[]);
         assert!(g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["todos", "slack", "vps"]);
+        assert_eq!(g.disabled_groups, ["todos", "slack", "vps", "aws", "azure"]);
 
         let all_on = [
             ("feature.productivity.todos", "true"),
             ("feature.integrations.google", "true"),
             ("feature.integrations.slack", "true"),
             ("feature.infra_access.vps", "true"),
+            ("feature.infra_access.aws", "true"),
+            ("feature.infra_access.azure", "true"),
         ];
         let g = gates(&all_on);
         assert!(g.puppeteer && g.google);
@@ -1827,7 +1832,7 @@ mod tests {
     fn builtin_gates_on_an_unreadable_tree_give_nothing() {
         let g = super::builtin_gates(&[]);
         assert!(!g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps"]);
+        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure"]);
     }
 
     #[test]

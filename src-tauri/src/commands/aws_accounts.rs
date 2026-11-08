@@ -8,6 +8,11 @@ use tauri::{AppHandle, Manager, State};
 use tokio::process::Command;
 use uuid::Uuid;
 
+/// Adding, changing, checking or signing in an account is refused while it is
+/// off (`features::require`); listing and deleting are not (no network, and a
+/// credential can still be removed).
+pub const FEATURE: &str = "infra_access.aws";
+
 const DEFAULT_REGION: &str = "ap-northeast-1";
 const STS_TIMEOUT: Duration = Duration::from_secs(15);
 // SSO login opens a browser and blocks until the user finishes the flow, so it
@@ -207,6 +212,7 @@ pub async fn create_aws_account(
     db: State<'_, Db>,
     payload: CreateAwsAccountPayload,
 ) -> Result<AwsAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let label = clean_required(&payload.label, "label")?;
     let region = normalize_region(payload.region);
     let tags = clean_optional(payload.tags);
@@ -244,6 +250,7 @@ pub async fn update_aws_account(
     db: State<'_, Db>,
     payload: UpdateAwsAccountPayload,
 ) -> Result<AwsAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let current = fetch_account(db.inner(), &payload.id).await?;
     let label = clean_required(&payload.label, "label")?;
     let region = normalize_region(payload.region);
@@ -342,6 +349,7 @@ pub async fn delete_aws_account(
 
 #[tauri::command]
 pub async fn validate_aws_account(db: State<'_, Db>, id: String) -> Result<AwsValidation, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let account = fetch_account(db.inner(), &id).await?;
     let profile_name = account
         .profile_name
@@ -368,6 +376,7 @@ pub async fn validate_aws_account(db: State<'_, Db>, id: String) -> Result<AwsVa
 /// This launches the browser SSO flow and blocks until it completes.
 #[tauri::command]
 pub async fn aws_sso_login(db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let account = fetch_account(db.inner(), &id).await?;
     if account.auth_method != "profile" {
         return Err("SSO login is only available for profile-based accounts.".to_string());
@@ -389,6 +398,9 @@ pub async fn set_project_aws_account(
     project_id: String,
     account_id: Option<String>,
 ) -> Result<(), String> {
+    if account_id.is_some() {
+        crate::features::require(db.inner(), FEATURE).await?;
+    }
     super::project_git_accounts::set_default(
         db.inner(),
         super::project_git_accounts::AWS,

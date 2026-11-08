@@ -24,9 +24,11 @@ import { fileTree, gitStatus, gitDiff } from './lib/project.mjs';
 import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
-import { disabledGroups, dropGroups } from './lib/feature-groups.mjs';
+import { disabledGroups, dropGroups, keepEnabled } from './lib/feature-groups.mjs';
 
 const SERVER_INFO = { name: 'puppeteer', version: '0.1.0' };
+// Fixed for the process: a run keeps the tools it was launched with.
+const DISABLED_GROUPS = disabledGroups(process.env.PUPPETEER_MCP_DISABLED_GROUPS);
 const DEFAULT_PROTOCOL = '2025-06-18';
 
 const log = (...a) => process.stderr.write(`[puppeteer-mcp] ${a.join(' ')}\n`);
@@ -691,7 +693,7 @@ const tools = {
       'List the AWS / Azure accounts enabled for the current project and which one is the default for each provider. aws / az / terraform use the default unless a command is prefixed with PUPPETEER_AWS_ACCOUNT=<label> (e.g. `PUPPETEER_AWS_ACCOUNT=prod aws s3 ls`) or PUPPETEER_AZURE_ACCOUNT=<label> (e.g. `PUPPETEER_AZURE_ACCOUNT=staging az group list`) — pick the account that owns the resources. No secrets are returned.',
     inputSchema: { type: 'object', properties: {} },
     handler: () => {
-      const { aws, azure } = store.listCloudAccounts();
+      const { aws, azure } = keepEnabled(store.listCloudAccounts(), DISABLED_GROUPS);
       if (!aws.length && !azure.length) return 'No AWS or Azure accounts are enabled for this project.';
       const lines = [
         ...aws.map(
@@ -1028,8 +1030,7 @@ const tools = {
     },
   },
 };
-// Fixed for the process: a run keeps the tools it was launched with.
-dropGroups(tools, disabledGroups(process.env.PUPPETEER_MCP_DISABLED_GROUPS));
+dropGroups(tools, DISABLED_GROUPS);
 
 function toolList() {
   return Object.entries(tools).map(([name, t]) => ({

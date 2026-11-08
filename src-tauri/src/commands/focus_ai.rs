@@ -12,7 +12,8 @@
 //! The prompts and validation are pure (`focus::ai`). BR-09: the AI only ever
 //! writes `ai_plan` / `ai_analyzed_at` and day plans; the board fields change
 //! when the user applies a suggestion (`update_todo_fields`). One request per
-//! todo (and one day plan) at a time; a failure changes nothing.
+//! todo (and one day plan) at a time; a failure changes nothing. The two that
+//! write a todo need Focus and Todos on (`focus::require_todo_writes`).
 
 use crate::commands::focus::{build_board, BoardItem};
 use crate::commands::todos::{get_todo, load_todos, Todo};
@@ -481,6 +482,7 @@ pub async fn focus_ai_analyze(
     todo_id: String,
     request_id: Option<String>,
 ) -> Result<AnalyzeResult, String> {
+    crate::commands::focus::require_todo_writes(db.inner()).await?;
     let db = db.inner().clone();
     let settings = focus_settings::load(&db).await?;
     let engine = engine_for(&app, &db, &state, &settings);
@@ -842,6 +844,7 @@ pub async fn focus_start_with_ai(
     registry: State<'_, RunRegistry>,
     todo_id: String,
 ) -> Result<String, String> {
+    crate::commands::focus::require_todo_writes(db.inner()).await?;
     let pool = db.inner().clone();
     let todo = get_todo(&pool, &todo_id).await?;
     let project_id = todo

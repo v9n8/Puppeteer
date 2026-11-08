@@ -1468,6 +1468,15 @@ pub struct RunLog {
     pub content: String,
 }
 
+/// Whether `engine`'s shared transcript store may be read (its mirror switch).
+async fn mirror_on(db: &Db, engine: Option<&str>) -> bool {
+    match engine {
+        Some("claude") => crate::features::is_on(db, crate::commands::sessions::CLAUDE_MIRROR).await,
+        Some("codex") => crate::features::is_on(db, crate::commands::codex_sessions::CODEX_MIRROR).await,
+        _ => false,
+    }
+}
+
 #[tauri::command]
 pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, String> {
     use sqlx::Row;
@@ -1502,9 +1511,11 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
     // VS Code extension also write. Run the same upsert core the watcher uses so
     // that, if the session was continued outside Puppeteer, the log AND usage are
     // refreshed (and the synced-size marker advanced) before we read. The core
-    // skips live runs and no-ops when nothing changed.
+    // skips live runs and no-ops when nothing changed. Not while the engine's
+    // mirror switch is off: the store is then not read at all.
+    let mirrored = mirror_on(db.inner(), engine.as_deref()).await;
     match (engine.as_deref(), session_id.as_deref()) {
-        (Some("claude"), Some(sid)) => {
+        (Some("claude"), Some(sid)) if mirrored => {
             let _ = crate::commands::sessions::upsert_claude_session(
                 db.inner(),
                 &project_id,
@@ -1515,7 +1526,7 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
             )
             .await;
         }
-        (Some("codex"), Some(sid)) => {
+        (Some("codex"), Some(sid)) if mirrored => {
             // Prefer the cached rollout path; only walk the tree if it's gone.
             let file = transcript_path
                 .map(PathBuf::from)
@@ -4626,5 +4637,22 @@ mod claude_account_resume_tests {
             .unwrap();
         assert_eq!(fs::read_to_string(&dest).unwrap(), "old\nnew turn\nnewest\n");
         let _ = fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod mirror_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn the_log_reads_a_shared_transcript_only_while_its_mirror_is_on() {
+        let db = crate::slack_threads::tests::memory_db().await;
+        assert!(mirror_on(&db, Some("claude")).await && mirror_on(&db, Some("codex")).await);
+        assert!(!mirror_on(&db, None).await && !mirror_on(&db, Some("other")).await);
+        crate::commands::settings::set_setting(&db, "feature.sessions.mirror_claude", "false").await.unwrap();
+        assert!(!mirror_on(&db, Some("claude")).await);
+        assert!(mirror_on(&db, Some("codex")).await);
+        crate::commands::settings::set_setting(&db, "feature.sessions.mirror_codex", "false").await.unwrap();
+        assert!(!mirror_on(&db, Some("codex")).await);
     }
 }

@@ -158,3 +158,15 @@ test('the bar warms and opens a translation only through canTranslate', () => {
   assert.match(bar, /<TranslatePopover\s+v-if="openTranslation"/)
   assert.match(bar, /const openTranslation = computed\([\s\S]*?canTranslate\(/)
 })
+
+test('the bar tags its translate calls so the backend can refuse them', () => {
+  // The backend gates `source: 'selection'` on text_tools.selection.translate.
+  const bar = read('../../components/SelectionToolbar.vue')
+  for (const line of bar.split('\n').filter((l) => l.includes('prewarm_translate'))) {
+    assert.ok(line.includes("source: 'selection'"), line.trim())
+  }
+  const popover = read('../../components/TranslatePopover.vue')
+  assert.match(popover, /invoke<number>\('translate_text', \{[^}]*source: 'selection'/)
+  // Calendar translates through lib/translate.ts, outside the switch.
+  assert.ok(!read('../translate.ts').includes("'selection'"))
+})

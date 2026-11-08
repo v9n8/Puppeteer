@@ -122,11 +122,16 @@ impl Bucket {
     }
 }
 
+/// The Stats page: its ledger commands are refused while it is off
+/// (`features::require`). Runs keep writing the ledger meanwhile.
+pub const STATS_FEATURE: &str = "usage.stats";
+
 #[tauri::command]
 pub async fn get_usage_stats(
     db: State<'_, Db>,
     filter: StatsFilter,
 ) -> Result<StatsResult, String> {
+    crate::features::require(db.inner(), STATS_FEATURE).await?;
     usage_stats(db.inner(), &filter).await
 }
 
@@ -311,6 +316,7 @@ pub struct BackfillResult {
 /// already have ledger rows are skipped, so live-captured data isn't disturbed.
 #[tauri::command]
 pub async fn backfill_usage(db: State<'_, Db>) -> Result<BackfillResult, String> {
+    crate::features::require(db.inner(), STATS_FEATURE).await?;
     let runs = sqlx::query(
         "SELECT r.id, r.project_id, r.engine, r.output_path, r.finished_at, p.name AS project_name \
          FROM runs r JOIN projects p ON p.id = r.project_id \
@@ -452,6 +458,7 @@ pub async fn reset_usage_stats(
     db: State<'_, Db>,
     registry: State<'_, RunRegistry>,
 ) -> Result<ResetResult, String> {
+    crate::features::require(db.inner(), STATS_FEATURE).await?;
     let rows = sqlx::query("SELECT id FROM runs WHERE status != 'running'")
         .fetch_all(db.inner())
         .await

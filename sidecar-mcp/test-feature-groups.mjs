@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Feature switches on the built-in `puppeteer` MCP server: the groups listed in
-// PUPPETEER_MCP_DISABLED_GROUPS (notes, todos, slack, vps) are missing from
-// tools/list and their tools answer tools/call as unknown; every other tool
-// stays.
+// PUPPETEER_MCP_DISABLED_GROUPS (notes, todos, slack, vps, aws, azure) are
+// missing from tools/list and their tools answer tools/call as unknown; every
+// other tool stays. `cloud_accounts_list` serves aws and azure: it goes once
+// both are off and lists only the accounts of the one still on.
 //
 // Builds a throwaway DB from every real migration, then drives `index.mjs`
 // over stdio. No network.
@@ -15,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { disabledGroups, dropGroups, toolGroup } from './lib/feature-groups.mjs';
+import { disabledGroups, dropGroups, hidden, keepEnabled, toolGroup } from './lib/feature-groups.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, 'index.mjs');
@@ -41,6 +42,13 @@ check(
 check(toolGroup('sessions_search') === null && toolGroup('skills_list') === null, 'toolGroup: core tools have no group');
 const reg = dropGroups({ todos_add: 1, notes_list: 2, git_status: 3 }, disabledGroups('todos,bogus'));
 check(Object.keys(reg).join() === 'notes_list,git_status', 'dropGroups: removes only the disabled groups');
+check(
+  !hidden('cloud_accounts_list', disabledGroups('aws')) && hidden('cloud_accounts_list', disabledGroups('azure,aws')),
+  'hidden: cloud_accounts_list goes only once aws and azure are both off',
+);
+check(!hidden('git_accounts_list', disabledGroups('notes,todos,slack,vps,aws,azure')), 'hidden: git_accounts_list is core');
+const kept = keepEnabled({ aws: [1], azure: [2] }, disabledGroups('aws'));
+check(kept.aws.length === 0 && kept.azure.length === 1, 'keepEnabled: empties the rows of a disabled group');
 
 // ---- Fixture -------------------------------------------------------------------
 
@@ -51,6 +59,10 @@ for (const f of readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f))
   db.exec(readFileSync(join(MIGRATIONS, f), 'utf8'));
 }
 db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, 'proj', '/tmp/proj-1', ?)").run(PROJECT, T0);
+db.prepare("INSERT INTO aws_accounts (id, label, auth_method, region, created_at) VALUES ('aws-1', 'aws-prod', 'profile', 'ap-northeast-1', ?)").run(T0);
+db.prepare("INSERT INTO azure_accounts (id, label, created_at) VALUES ('az-1', 'az-staging', ?)").run(T0);
+db.prepare("INSERT INTO project_aws_accounts (project_id, account_id, created_at) VALUES (?, 'aws-1', ?)").run(PROJECT, T0);
+db.prepare("INSERT INTO project_azure_accounts (project_id, account_id, created_at) VALUES (?, 'az-1', ?)").run(PROJECT, T0);
 
 // ---- Drive the server -------------------------------------------------------------
 
@@ -109,6 +121,22 @@ const core = names(listed);
 check(groupsIn(core).size === 0, 'all off: no notes / todos / slack / vps tool listed');
 check(['sessions_search', 'project_info', 'skills_list', 'rules_list'].every((n) => core.includes(n)), 'all off: core tools stay');
 check(add?.error?.message === 'Unknown tool: vps_list', 'all off: vps_list is an unknown tool');
+
+// Cloud accounts: one provider off leaves the tool with the other's accounts.
+const cloudText = (reply) => reply?.result?.content?.[0]?.text ?? '';
+let cloud;
+[listed, cloud] = await rpc(null, [['tools/list', {}], ['tools/call', { name: 'cloud_accounts_list', arguments: {} }]]);
+check(/aws-prod/.test(cloudText(cloud)) && /az-staging/.test(cloudText(cloud)), 'cloud: both providers listed while on');
+[listed, cloud] = await rpc('aws', [['tools/list', {}], ['tools/call', { name: 'cloud_accounts_list', arguments: {} }]]);
+check(names(listed).includes('cloud_accounts_list'), 'aws off: cloud_accounts_list still listed');
+check(!/aws-prod/.test(cloudText(cloud)) && /az-staging/.test(cloudText(cloud)), 'aws off: only Azure accounts listed');
+[listed, cloud] = await rpc('notes,todos,slack,vps,aws,azure', [
+  ['tools/list', {}],
+  ['tools/call', { name: 'cloud_accounts_list', arguments: {} }],
+]);
+check(!names(listed).includes('cloud_accounts_list'), 'aws + azure off: cloud_accounts_list not listed');
+check(cloud?.error?.message === 'Unknown tool: cloud_accounts_list', 'aws + azure off: cloud_accounts_list is an unknown tool');
+check(names(listed).includes('git_accounts_list'), 'all off: git_accounts_list stays (code hosting is core)');
 
 db.close();
 rmSync(appData, { recursive: true, force: true });

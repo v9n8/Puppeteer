@@ -5,7 +5,7 @@
 // (a `reset_features` dry run). A switch listed in `CONFIRM_ON` asks before it
 // goes on. The switches are local-only, so a remote-desktop window shows them
 // read-only.
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, Loader2, RotateCcw, ToggleRight } from 'lucide-vue-next'
 import { Banner, Button, Card, ToggleSwitch } from '@/components/ui'
@@ -81,10 +81,6 @@ async function resetDefaults() {
     busy.value = null
   }
 }
-
-// The older switches (General, MCP page, Inbox API) write the same keys without
-// `features:changed`, so re-read whenever the section opens.
-onMounted(() => void features.refresh())
 </script>
 
 <template>

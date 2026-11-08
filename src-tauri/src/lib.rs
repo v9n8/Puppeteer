@@ -362,7 +362,7 @@ pub fn run() {
                 });
             }
             // Web page captures were removed: drop their leftover files (the
-            // tables are dropped by migration 0042).
+            // schema, `0001_init.sql`, has no tables for them).
             inbox_api::remove_legacy_web_pages(&app_data_dir);
             // Inbox API: loopback HTTP API (127.0.0.1:47821..47830) the
             // Chrome extension sends Slack links to. The token is loaded

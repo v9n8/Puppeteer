@@ -444,6 +444,11 @@ async fn store_validation(db: &Db, id: &str, v: &AzureValidation) -> Result<(), 
     Ok(())
 }
 
+/// Adding, changing, checking or signing in an account is refused while it is
+/// off (`features::require`); listing and deleting are not (no network, and a
+/// credential can still be removed).
+pub const FEATURE: &str = "infra_access.azure";
+
 #[tauri::command]
 pub async fn list_azure_accounts(
     app: AppHandle,
@@ -468,6 +473,7 @@ pub async fn create_azure_account(
     db: State<'_, Db>,
     payload: CreateAzureAccountPayload,
 ) -> Result<AzureAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let label = clean_required(&payload.label, "label")?;
     let tenant = clean_optional(payload.tenant);
     let subscription = clean_optional(payload.subscription);
@@ -520,6 +526,7 @@ pub async fn update_azure_account(
     db: State<'_, Db>,
     payload: UpdateAzureAccountPayload,
 ) -> Result<AzureAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let current = fetch_account(&app, db.inner(), &payload.id).await?;
     let label = clean_required(&payload.label, "label")?;
     let tags = clean_optional(payload.tags);
@@ -610,6 +617,7 @@ pub async fn validate_azure_account(
     db: State<'_, Db>,
     id: String,
 ) -> Result<AzureValidation, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let dir = account_dir(&app, &id)?;
     let lock = account_lock(&id);
     let _guard = lock.lock().await;
@@ -633,6 +641,7 @@ pub async fn validate_azure_account(
 /// token expired), then re-pin the stored subscription.
 #[tauri::command]
 pub async fn azure_login(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let account = fetch_account(&app, db.inner(), &id).await?;
     let dir = account_dir(&app, &id)?;
     let lock = account_lock(&id);
@@ -654,8 +663,10 @@ pub async fn azure_login(app: AppHandle, db: State<'_, Db>, id: String) -> Resul
 #[tauri::command]
 pub async fn list_azure_subscriptions(
     app: AppHandle,
+    db: State<'_, Db>,
     id: String,
 ) -> Result<Vec<AzureSubscription>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let dir = account_dir(&app, &id)?;
     let lock = account_lock(&id);
     let _guard = lock.lock().await;
@@ -690,6 +701,9 @@ pub async fn set_project_azure_account(
     project_id: String,
     account_id: Option<String>,
 ) -> Result<(), String> {
+    if account_id.is_some() {
+        crate::features::require(db.inner(), FEATURE).await?;
+    }
     super::project_git_accounts::set_default(
         db.inner(),
         super::project_git_accounts::AZURE,

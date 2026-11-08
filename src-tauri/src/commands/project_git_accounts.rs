@@ -197,8 +197,18 @@ pub async fn set_project_cloud_account_enabled(
     set_cloud_enabled(&app, db.inner(), p, &project_id, &account_id, enabled).await
 }
 
+/// The switch an AWS / Azure account follows.
+fn cloud_feature(p: Provider) -> &'static str {
+    if p.default_column == AWS.default_column {
+        super::aws_accounts::FEATURE
+    } else {
+        super::azure_accounts::FEATURE
+    }
+}
+
 /// [`set_enabled`] for an AWS / Azure account, then refresh what depends on the
-/// project's default cloud account.
+/// project's default cloud account. Enabling is refused while the provider's
+/// switch is off; disabling is not.
 pub async fn set_cloud_enabled(
     app: &AppHandle,
     db: &Db,
@@ -207,6 +217,9 @@ pub async fn set_cloud_enabled(
     account_id: &str,
     enabled: bool,
 ) -> Result<(), String> {
+    if enabled {
+        crate::features::require(db, cloud_feature(p)).await?;
+    }
     set_enabled(db, p, project_id, account_id, enabled).await?;
     // The default may have changed: the AWS sandbox pins its region.
     if p.default_column == AWS.default_column {
@@ -222,6 +235,12 @@ mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::Row;
+
+    #[test]
+    fn cloud_accounts_follow_their_provider_switch() {
+        assert_eq!(cloud_feature(AWS), "infra_access.aws");
+        assert_eq!(cloud_feature(AZURE), "infra_access.azure");
+    }
 
     async fn mem_db() -> Db {
         let pool = SqlitePoolOptions::new()

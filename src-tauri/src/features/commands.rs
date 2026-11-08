@@ -7,6 +7,7 @@ use super::{apply, default_rows, entry, owner, resolve, turned_off, ModuleState}
 use crate::commands::settings::set_setting;
 use crate::db::Db;
 use std::collections::HashMap;
+use std::future::Future;
 use tauri::{AppHandle, State};
 
 /// The resolved tree from the `settings` table.
@@ -33,6 +34,32 @@ async fn set(db: &Db, id: &str, enabled: bool) -> Result<(Vec<ModuleState>, Vec<
     let before = load(db).await?;
     set_setting(db, &key, &enabled.to_string()).await?;
     Ok((before, load(db).await?))
+}
+
+/// Run `write`, an older switch's own command writing a key the registry owns
+/// (`inbox_api_enabled`, `mcp_builtin_puppeteer_enabled`,
+/// `animated_background`); returns the trees before and after when the write
+/// changed them.
+async fn tracked<F>(db: &Db, write: F) -> Result<Option<(Vec<ModuleState>, Vec<ModuleState>)>, String>
+where
+    F: Future<Output = Result<(), String>>,
+{
+    let before = load(db).await?;
+    write.await?;
+    let after = load(db).await?;
+    Ok((before != after).then_some((before, after)))
+}
+
+/// [`tracked`], then what `set_feature` runs after a write: the hooks and
+/// `features:changed`, so every window follows the older switches too.
+pub(crate) async fn write_legacy<F>(app: &AppHandle, db: &Db, write: F) -> Result<(), String>
+where
+    F: Future<Output = Result<(), String>>,
+{
+    if let Some((before, after)) = tracked(db, write).await? {
+        apply::changed(app, &before, &after);
+    }
+    Ok(())
 }
 
 /// Write the fresh-install value of every switch; returns the trees before and
@@ -139,6 +166,24 @@ mod tests {
 
         set(&db, "app.animated_background", false).await.unwrap();
         assert_eq!(value(&db, "animated_background").await.as_deref(), Some("false"));
+    }
+
+    #[tokio::test]
+    async fn older_switches_report_a_change_only_when_the_tree_moves() {
+        let db = db().await;
+        for (key, id) in [
+            ("animated_background", "app.animated_background"),
+            ("mcp_builtin_puppeteer_enabled", "library.builtin_mcp_puppeteer"),
+        ] {
+            let (before, after) = tracked(&db, set_setting(&db, key, "false")).await.unwrap().unwrap();
+            assert!(effective(&before, id) && !effective(&after, id), "{key}");
+            let again = tracked(&db, set_setting(&db, key, "false")).await.unwrap();
+            assert!(again.is_none(), "{key}: same value, nothing to tell");
+        }
+        let (_, after) = tracked(&db, set_setting(&db, "inbox_api_enabled", "true")).await.unwrap().unwrap();
+        assert!(effective(&after, "integrations.inbox_api"));
+        let failed = tracked(&db, async { Err("nope".to_string()) }).await;
+        assert_eq!(failed, Err("nope".to_string()));
     }
 
     #[tokio::test]

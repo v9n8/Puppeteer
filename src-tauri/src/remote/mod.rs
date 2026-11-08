@@ -163,7 +163,7 @@ impl RemoteState {
         let mut slot = self.agent.lock().await;
         // Checked under the agent lock: a switch turned off meanwhile has its
         // `follow` wait here, and it stops what this starts.
-        require_feature(db).await?;
+        features::require(db, FEATURE).await?;
         set_setting(db, KEY_ENABLED, "true").await?;
         self.start_locked(&mut slot, app, db, registry, broker_approvals).await
     }
@@ -275,15 +275,6 @@ impl RemoteState {
 /// (`remote_enabled`) and [`FEATURE`] is on in `tree`.
 fn wants_agent(enabled: bool, tree: &[ModuleState]) -> bool {
     enabled && features::effective(tree, FEATURE)
-}
-
-/// `Err("feature_disabled: remote.remote_control")` while [`FEATURE`] is off.
-async fn require_feature(db: &Db) -> Result<(), String> {
-    if features::is_on(db, FEATURE).await {
-        Ok(())
-    } else {
-        Err(format!("feature_disabled: {FEATURE}"))
-    }
 }
 
 /// `features::apply` hook: start or stop the agent, or its Web Push
@@ -401,13 +392,13 @@ mod tests {
     async fn enabling_is_refused_while_the_feature_is_off() {
         let db = push::store::tests::mem_db().await;
         // Fresh install: module and prop are off.
-        assert_eq!(require_feature(&db).await.unwrap_err(), "feature_disabled: remote.remote_control");
+        assert_eq!(features::require(&db, FEATURE).await.unwrap_err(), "feature_disabled: remote.remote_control");
         set_setting(&db, "feature.remote", "true").await.unwrap();
-        assert!(require_feature(&db).await.is_err(), "the prop is still off");
+        assert!(features::require(&db, FEATURE).await.is_err(), "the prop is still off");
         set_setting(&db, "feature.remote.remote_control", "true").await.unwrap();
-        assert_eq!(require_feature(&db).await, Ok(()));
+        assert_eq!(features::require(&db, FEATURE).await, Ok(()));
         set_setting(&db, "feature.remote", "false").await.unwrap();
-        assert!(require_feature(&db).await.is_err(), "module off wins over the prop");
+        assert!(features::require(&db, FEATURE).await.is_err(), "module off wins over the prop");
     }
 
     #[tokio::test]

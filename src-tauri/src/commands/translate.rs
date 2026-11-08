@@ -79,6 +79,21 @@ pub const ERR_NOTHING_TO_TRANSLATE: &str = "Không có nội dung để dịch."
 /// Prefix of the error returned when the prompt cannot be written.
 pub const ERR_SEND_PREFIX: &str = "Không gửi được yêu cầu dịch: ";
 
+/// `source` of a call from the selection bar (`SelectionToolbar.vue`,
+/// `TranslatePopover.vue`): refused while [`SELECTION_FEATURE`] is off. Other
+/// callers (Calendar) send no source and keep translating.
+pub const SELECTION_SOURCE: &str = "selection";
+pub const SELECTION_FEATURE: &str = "text_tools.selection.translate";
+
+/// The gate of the two translate commands: only the selection bar's calls
+/// follow its switch.
+async fn require_source(db: &Db, source: Option<&str>) -> Result<(), String> {
+    if source == Some(SELECTION_SOURCE) {
+        crate::features::require(db, SELECTION_FEATURE).await?;
+    }
+    Ok(())
+}
+
 /// One step of a turn's output, delivered to in-process callers (the Inbox
 /// API) over a channel — mirrors the `translate:chunk|done|error` events.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -762,7 +777,9 @@ pub async fn prewarm_translate(
     app: AppHandle,
     db: State<'_, Db>,
     state: State<'_, TranslateState>,
+    source: Option<String>,
 ) -> Result<(), String> {
+    require_source(&db, source.as_deref()).await?;
     let settings = load_settings(&db).await?;
     let sig = signature(&settings);
     let is_codex = settings.engine.trim().eq_ignore_ascii_case("codex");
@@ -801,9 +818,11 @@ pub async fn translate_text(
     state: State<'_, TranslateState>,
     text: String,
     target_lang: Option<String>,
+    source: Option<String>,
 ) -> Result<u64, String> {
-    let source: String = text.trim().chars().take(MAX_INPUT_CHARS).collect();
-    let (turn_id, _, _) = submit(&app, &db, &state, source, target_lang, false).await?;
+    require_source(&db, source.as_deref()).await?;
+    let text: String = text.trim().chars().take(MAX_INPUT_CHARS).collect();
+    let (turn_id, _, _) = submit(&app, &db, &state, text, target_lang, false).await?;
     Ok(turn_id)
 }
 
@@ -970,6 +989,24 @@ pub async fn cancel_translate(_state: State<'_, TranslateState>) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn only_the_selection_bar_follows_its_switch() {
+        let db = crate::slack_threads::tests::memory_db().await;
+        assert_eq!(require_source(&db, Some(SELECTION_SOURCE)).await, Ok(()), "on by default");
+        crate::commands::settings::set_setting(&db, "feature.text_tools.selection.translate", "false")
+            .await
+            .unwrap();
+        assert_eq!(
+            require_source(&db, Some(SELECTION_SOURCE)).await,
+            Err("feature_disabled: text_tools.selection.translate".to_string())
+        );
+        // Calendar sends no source.
+        assert_eq!(require_source(&db, None).await, Ok(()));
+        crate::commands::settings::set_setting(&db, "feature.text_tools", "false").await.unwrap();
+        assert!(require_source(&db, Some(SELECTION_SOURCE)).await.is_err(), "module off");
+        assert_eq!(require_source(&db, None).await, Ok(()));
+    }
 
     #[test]
     fn reaper_spares_busy_and_fresh_sidecars() {

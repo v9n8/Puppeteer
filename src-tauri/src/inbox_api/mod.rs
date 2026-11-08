@@ -21,7 +21,7 @@ pub const ENABLED_SETTING_KEY: &str = "inbox_api_enabled";
 const LEGACY_WEB_PAGES_DIR: &str = "web-pages";
 
 /// Remove `<app_data>/web-pages/` left over from the removed web page capture
-/// feature (its DB tables are dropped by migration 0042). Only that exact dir
+/// feature (the schema, `0001_init.sql`, has no tables for it). Only that exact dir
 /// is touched — `slack-threads/` is unrelated.
 pub fn remove_legacy_web_pages(app_data: &std::path::Path) {
     let dir = app_data.join(LEGACY_WEB_PAGES_DIR);

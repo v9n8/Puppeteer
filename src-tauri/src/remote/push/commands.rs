@@ -39,8 +39,10 @@ pub async fn remote_push_set_events(db: State<'_, Db>, events: PushEvents) -> Re
 
 /// Send the test notification to one device. `Err` carries a short reason
 /// (`not_found` when the push service no longer knows it — it is then removed).
+/// Refused while Web Push is off (`features::require`).
 #[tauri::command]
 pub async fn remote_push_test(db: State<'_, Db>, state: State<'_, RemoteState>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), crate::remote::PUSH_FEATURE).await?;
     let sub = store::by_id(db.inner(), &id).await.ok_or("not_found")?;
     match super::send_test(&state.push, db.inner(), &sub).await {
         Outcome::Delivered => Ok(()),

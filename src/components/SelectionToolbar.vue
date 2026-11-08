@@ -114,7 +114,7 @@ function onSelectionEnd() {
   }
   // Warm the translation sidecar now, while the user reaches for the button, so
   // the first translation isn't paying Node/SDK cold-start.
-  if (canTranslate(features.tree, surface.allow, excludedWindow)) void invoke('prewarm_translate').catch(() => {})
+  if (canTranslate(features.tree, surface.allow, excludedWindow)) void invoke('prewarm_translate', { source: 'selection' }).catch(() => {})
 }
 
 // The bar is anchored to a viewport rect that scrolling the surface invalidates.

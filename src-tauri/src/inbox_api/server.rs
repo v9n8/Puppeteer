@@ -477,12 +477,18 @@ async fn not_found() -> Response {
     error(StatusCode::NOT_FOUND, "not found")
 }
 
+/// `slack-thread-link` is advertised only while `integrations.slack` is on
+/// (its route answers 404 otherwise).
 async fn health(State(state): State<HttpState>) -> Response {
+    let mut advertised = vec!["translate", "grammar"];
+    if features::is_on(&state.db, crate::slack_threads::FEATURE).await {
+        advertised.push("slack-thread-link");
+    }
     Json(json!({
         "app": "puppeteer",
         "version": state.version,
         "api": API_VERSION,
-        "features": ["translate", "grammar", "slack-thread-link"],
+        "features": advertised,
     }))
     .into_response()
 }
@@ -1710,6 +1716,9 @@ mod tests {
     async fn slack_threads_endpoint_is_404_while_slack_is_off() {
         let h = spawn().await;
         set_setting(&h.db, "feature.integrations.slack", "false").await.unwrap();
+        let health = |h: &Harness| h.client.get(format!("{}/health", h.base)).send();
+        let v: serde_json::Value = health(&h).await.unwrap().json().await.unwrap();
+        assert_eq!(v["features"], json!(["translate", "grammar"]), "not advertised while off");
         let (code, v) = slack_json(slack(&h, &json!({ "url": LINK }).to_string())).await;
         assert_eq!(code, 404);
         assert_eq!(v["error"], "not found");
@@ -1720,6 +1729,8 @@ mod tests {
         assert_eq!(n, 0, "no thread is received");
 
         set_setting(&h.db, "feature.integrations.slack", "true").await.unwrap();
+        let v: serde_json::Value = health(&h).await.unwrap().json().await.unwrap();
+        assert_eq!(v["features"], json!(["translate", "grammar", "slack-thread-link"]));
         let (code, _) = slack_json(slack(&h, &json!({ "url": LINK }).to_string())).await;
         assert_eq!(code, 202);
     }

@@ -1038,10 +1038,6 @@ async function persistChanges() {
     lastSaved = { ...settings.value }
     // Keep the shared settings store (context meter + budget badge) in sync.
     appSettings.refresh().catch(() => {})
-    // `animated_background` is the stored value of `app.animated_background`,
-    // which App.vue reads from the feature tree; this write sends no
-    // `features:changed`, so re-read the tree.
-    if (changed.some(([key]) => key === 'animated_background')) void features.refresh()
     toast.success(t('settings.toast.saved'))
   } catch (e) {
     toast.error(errorText(e, t))

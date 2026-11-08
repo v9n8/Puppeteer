@@ -344,15 +344,6 @@ async fn launch_token(
     Ok(Some(launch.token))
 }
 
-/// `feature_disabled: <id>` when [`FEATURE`] is off.
-async fn require_feature(db: &Db) -> Result<(), String> {
-    if crate::features::is_on(db, FEATURE).await {
-        Ok(())
-    } else {
-        Err(format!("feature_disabled: {}", FEATURE))
-    }
-}
-
 /// Upgrade an existing, stopped top-level run (session or issue/PR) into a
 /// conductor. A pure DB upgrade — no resume, no turn, no tokens spent; the
 /// conductor tools + framing come online at the next resume.
@@ -367,7 +358,7 @@ pub async fn convert_run_to_conductor(
     run_id: String,
     max_workers: Option<u32>,
 ) -> Result<ConductorStarted, String> {
-    require_feature(db.inner()).await?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let row = sqlx::query(
         "SELECT project_id, status, role, conductor_run_id, type as run_type FROM runs WHERE id = ?",
     )
@@ -705,7 +696,7 @@ mod tests {
         assert!(cst.token_for("s").is_none() && cst.token_for("old").is_none());
         // The explicit upgrade is refused.
         assert_eq!(
-            require_feature(&db).await,
+            crate::features::require(&db, FEATURE).await,
             Err("feature_disabled: orchestration.conductor".to_string())
         );
     }
@@ -721,7 +712,7 @@ mod tests {
         assert_eq!(cst.token_for("s"), token);
         assert_eq!(role_of(&db, "s").await.as_deref(), Some("conductor"));
         assert_eq!(cst.session("s").unwrap().max_workers, 5);
-        assert_eq!(require_feature(&db).await, Ok(()));
+        assert_eq!(crate::features::require(&db, FEATURE).await, Ok(()));
     }
 
     #[tokio::test]

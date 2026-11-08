@@ -58,8 +58,8 @@ const fn core(id: &'static str) -> Prop {
     Prop { id, default: true, locked: true, depends_on: &[], legacy_key: None }
 }
 
-/// Only props that already have code; a new feature registers its prop in the
-/// task that builds it.
+/// Every switch the app knows. A new feature registers its prop in the task
+/// that builds it, which may come before the code the switch turns off.
 pub static MODULES: &[Module] = &[
     Module {
         id: "sessions",
@@ -665,6 +665,12 @@ mod tests {
             crate::slack_threads::FEATURE,
             crate::commands::google::FEATURE,
             crate::commands::gcalendar::FEATURE,
+            crate::commands::focus::FEATURE,
+            crate::commands::stats::STATS_FEATURE,
+            crate::commands::aws_accounts::FEATURE,
+            crate::commands::azure_accounts::FEATURE,
+            crate::commands::translate::SELECTION_FEATURE,
+            crate::remote::PUSH_FEATURE,
         ] {
             let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
             let key = p.unwrap().key(m);

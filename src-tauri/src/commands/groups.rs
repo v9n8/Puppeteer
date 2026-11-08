@@ -263,12 +263,16 @@ async fn claimed_by_other_group(
 
 /// Public counterpart used by the per-item toggles: the direct link and the group link are
 /// independent, so switching the item off by hand must not remove what a group still provides.
+/// While [`FEATURE`] is off no group holds anything: the item goes like any other.
 pub async fn claimed_by_enabled_group(
     db: &Db,
     kind: GroupKind,
     project_id: &str,
     item_id: &str,
 ) -> Result<bool, String> {
+    if !crate::features::is_on(db, FEATURE).await {
+        return Ok(false);
+    }
     claimed_by_group(db, kind, project_id, item_id, None).await
 }
 
@@ -873,6 +877,23 @@ mod tests {
             .iter()
             .map(|r| r.get::<String, _>("rule_id"))
             .collect()
+    }
+
+    #[tokio::test]
+    async fn an_enabled_group_holds_nothing_while_groups_are_off() {
+        let path = temp_project("off");
+        let db = setup(&path).await;
+        add_rule(&db, "a", &path).await;
+        new_group(&db, "g1").await;
+        set_members(&db, "g1", &["a"]).await;
+        enable_group(&db, GroupKind::Rule, "p1", "g1").await.unwrap();
+        assert!(claimed_by_enabled_group(&db, GroupKind::Rule, "p1", "a").await.unwrap());
+
+        crate::commands::settings::set_setting(&db, "feature.library.groups", "false").await.unwrap();
+        assert!(!claimed_by_enabled_group(&db, GroupKind::Rule, "p1", "a").await.unwrap());
+        // Switching the rule off by hand now removes it.
+        crate::commands::rules::unlink_rule_from_project(&db, "p1", "a").await.unwrap();
+        assert!(applied_ids(&db).await.is_empty());
     }
 
     #[tokio::test]

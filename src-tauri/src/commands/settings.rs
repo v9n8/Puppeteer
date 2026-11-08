@@ -211,6 +211,7 @@ pub async fn resolve_default_engine(db: &Db) -> String {
 
 #[tauri::command]
 pub async fn update_setting(
+    app: tauri::AppHandle,
     webview: tauri::Webview,
     db: State<'_, Db>,
     key: String,
@@ -219,6 +220,10 @@ pub async fn update_setting(
     // A remote desktop only changes the user-facing settings.
     if crate::remote::guard::from_remote_bridge(&webview) && !crate::remote::guard::remote_may_set_setting(&key) {
         return Err(crate::remote::guard::DENIED.to_string());
+    }
+    // A switch's own key (`animated_background`): tell the windows and services.
+    if crate::features::owner(&key).is_some() {
+        return crate::features::commands::write_legacy(&app, db.inner(), set_setting(db.inner(), &key, &value)).await;
     }
     set_setting(db.inner(), &key, &value).await
 }

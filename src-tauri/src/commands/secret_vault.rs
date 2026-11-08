@@ -417,6 +417,18 @@ pub async fn secret_note_from_note(
     Ok(m)
 }
 
+/// `features::apply` hook: switching the vault off (or its module) locks a
+/// vault left open, so nothing stays readable behind a hidden window.
+pub fn on_features_changed(app: &AppHandle, change: &crate::features::apply::Change<'_>) {
+    if should_lock(change) && vault::lock_if_unlocked() {
+        changed(app);
+    }
+}
+
+fn should_lock(change: &crate::features::apply::Change<'_>) -> bool {
+    !crate::features::effective(change.after, FEATURE)
+}
+
 /// Lock the vault once idle for `AUTO_LOCK`, while the screen is locked, and
 /// after the machine slept (a tick that comes much later than due, by wall
 /// clock: the monotonic timer stops while asleep).
@@ -450,6 +462,20 @@ mod tests {
         for label in [NOTES_WINDOW, "main", REMOTE_SECRET_NOTES_WINDOW, "remote-bridge-x", "session-1", "item-list-todo"] {
             assert!(!allowed(label, &[]), "{label} must be refused");
         }
+    }
+
+    #[test]
+    fn switching_the_vault_off_locks_it() {
+        use crate::features::{apply::Change, resolve};
+        let tree = |pairs: &[(&str, &str)]| {
+            resolve(&pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())
+        };
+        let on = tree(&[("feature.security.secret_vault", "true")]);
+        let prop_off = tree(&[]);
+        let module_off = tree(&[("feature.security.secret_vault", "true"), ("feature.security", "false")]);
+        assert!(!should_lock(&Change { before: &on, after: &on }));
+        assert!(should_lock(&Change { before: &on, after: &prop_off }));
+        assert!(should_lock(&Change { before: &on, after: &module_off }));
     }
 
     #[test]
