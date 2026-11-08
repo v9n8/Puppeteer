@@ -744,8 +744,12 @@ async function reload() {
 }
 
 // Selected text in the file body (rendered markdown or raw source) gets the
-// shared selection toolbar.
-const selectionSurface = useSelectionSurface({ el: viewerBodyEl, allow: { translate: true } })
+// shared selection toolbar; Copy MD maps it back onto the file's text.
+const selectionSurface = useSelectionSurface({
+  el: viewerBodyEl,
+  allow: { translate: true, copyMd: true },
+  markdownSource: () => [content.value],
+})
 
 // A new file replaces the body content — drop any stale selection UI.
 watch(() => [props.projectPath, props.path], () => selectionSurface.dismiss())

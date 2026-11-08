@@ -24,6 +24,7 @@ import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import {
   SKILL_TEMPLATE, normalizeFrontmatter, parseFrontmatter, setFrontmatterField, validateFrontmatter,
 } from '@/lib/skillRows'
@@ -154,6 +155,10 @@ async function updatePreview(md: string) {
 watch([content, viewMode], ([md, mode]) => {
   if (mode !== 'edit') void updatePreview(md)
 }, { immediate: true })
+
+// Copy MD from the preview maps the selection back onto the editor's text.
+const previewEl = ref<HTMLElement | null>(null)
+useSelectionSurface({ el: previewEl, allow: { copyMd: true }, markdownSource: () => [content.value] })
 
 // ── Extra files ─────────────────────────────────────────────────────────────
 
@@ -456,6 +461,7 @@ defineExpose({ dirty, save })
               [&_hr]:border-border/60 [&_hr]:my-4
               [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2
               [&_strong]:font-semibold"
+            ref="previewEl"
             v-html="previewHtml"
           />
         </div>

@@ -11,8 +11,8 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import TranslatePopover from '@/components/TranslatePopover.vue'
 import { invoke } from '@/lib/tauri'
 import { openItemCreateWindow } from '@/lib/itemWindow'
-import { rawMarkdownForSelection } from '@/lib/selectionMarkdown'
 import {
+  copyMdText,
   isSelectionExcludedWindow,
   pickSurface,
   scrollMovesSurface,
@@ -129,8 +129,7 @@ async function run(action: SelectionAction) {
       translation.value = { surface: b.surface, text: b.text, ...at }
       break
     case 'copyMd': {
-      const md = rawMarkdownForSelection(b.surface.markdownSource?.() ?? [], b.text) ?? b.text
-      await navigator.clipboard.writeText(md).catch(() => {})
+      await navigator.clipboard.writeText(copyMdText(b.surface.markdownSource?.() ?? [], b.text)).catch(() => {})
       break
     }
     case 'saveNote': {

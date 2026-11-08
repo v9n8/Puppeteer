@@ -1,8 +1,9 @@
 // The selection toolbar's pure rules (components/SelectionToolbar.vue,
 // composables/useSelectionSurface.ts): which declared surface owns a selection,
-// which buttons it gets, where the bar sits. Kept free of Vue / Tauri / `@/`
-// imports so it can be unit-tested with `node --test`.
+// which buttons it gets, what Copy MD copies, where the bar sits. Kept free of
+// Vue / Tauri / `@/` imports so it can be unit-tested with `node --test`.
 import { isFeatureOn, type FeatureTree } from './featureGate.ts'
+import { rawMarkdownForSelection } from './selectionMarkdown.ts'
 
 export type SelectionAction = 'quote' | 'translate' | 'copyMd' | 'saveNote' | 'saveTodo'
 
@@ -85,6 +86,24 @@ export function pickSurface<S>(
   }
   const inner = hits.find((h) => !hits.some((o) => o.el !== h.el && h.el.contains(o.el)))
   return inner?.surface ?? null
+}
+
+/**
+ * What Copy MD puts on the clipboard: the raw markdown behind `selected` in the
+ * surface's sources, or the selected text itself when no source holds it.
+ */
+export function copyMdText(sources: readonly string[], selected: string): string {
+  return rawMarkdownForSelection(sources, selected) ?? selected
+}
+
+/**
+ * A run transcript's Copy MD sources: the markdown its messages render from
+ * (assistant text, a result's own text), in transcript order.
+ */
+export function transcriptMarkdownSources(
+  entries: readonly { kind: string; text?: string }[],
+): string[] {
+  return entries.flatMap((e) => ((e.kind === 'text' || e.kind === 'result') && e.text ? [e.text] : []))
 }
 
 /**

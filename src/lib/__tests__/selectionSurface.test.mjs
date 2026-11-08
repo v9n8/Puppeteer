@@ -5,11 +5,13 @@ import assert from 'node:assert/strict'
 import {
   ACTION_FEATURES,
   SELECTION_ACTIONS,
+  copyMdText,
   isSelectionExcludedWindow,
   pickSurface,
   scrollMovesSurface,
   selectionActions,
   toolbarPosition,
+  transcriptMarkdownSources,
 } from '../selectionSurface.ts'
 
 const prop = (id, effective) => ({
@@ -79,14 +81,22 @@ test('all on and allowed: every button, in bar order', () => {
 })
 
 test('only what the surface allows', () => {
-  // RunView today: translate + note + todo; FileViewer: translate only.
+  // RunView: translate + copy MD + note + todo; FileViewer: translate + copy MD;
+  // Skill / Rule / Notes-Todos body: copy MD.
   assert.deepEqual(
-    selectionActions(ALL_ON, { translate: true, saveNote: true, saveTodo: true }, CTX),
-    ['translate', 'saveNote', 'saveTodo'],
+    selectionActions(ALL_ON, { translate: true, copyMd: true, saveNote: true, saveTodo: true }, CTX),
+    ['translate', 'copyMd', 'saveNote', 'saveTodo'],
   )
+  assert.deepEqual(selectionActions(ALL_ON, { translate: true, copyMd: true }, CTX), ['translate', 'copyMd'])
+  assert.deepEqual(selectionActions(ALL_ON, { copyMd: true }, CTX), ['copyMd'])
   assert.deepEqual(selectionActions(ALL_ON, { translate: true }, CTX), ['translate'])
   assert.deepEqual(selectionActions(ALL_ON, { translate: false }, CTX), [])
   assert.deepEqual(selectionActions(ALL_ON, {}, CTX), [])
+})
+
+test('selection.copy_md off: no Copy MD button', () => {
+  const tree = treeWith(['text_tools.selection.translate'])
+  assert.deepEqual(selectionActions(tree, { translate: true, copyMd: true }, CTX), ['translate'])
 })
 
 test('selection.translate off: no Translate button', () => {
@@ -203,6 +213,58 @@ test('nested surfaces: the innermost wins, whatever the order', () => {
   assert.equal(pickSurface([runView, nested], els, modalText, modalText), nested)
   assert.equal(pickSurface([nested, runView], els, modalText, modalText), nested)
   assert.equal(pickSurface([runView, nested], els, outputText, outputText), runView)
+})
+
+// ── Copy MD ─────────────────────────────────────────────────────────────────
+
+const TABLE = '| Name | Age |\n| --- | --- |\n| Ann | 30 |\n| Bob | 41 |'
+
+test('Copy MD: the owning surface\'s source turns a rendered table back into markdown', () => {
+  const run = {
+    els: [output, history],
+    markdownSource: () => transcriptMarkdownSources([
+      { kind: 'user', text: 'show me a table' },
+      { kind: 'text', text: TABLE },
+      { kind: 'text', text: `Again, after some text:\n\n${TABLE}\n\nDone.` },
+      { kind: 'result', text: '', is_error: false },
+    ]),
+  }
+  const viewer = { els: [modal], markdownSource: () => ['# Notes\n\nSee **this**.'] }
+  // What the browser copies from a rendered table: cells split by tabs.
+  const owner = pickSurface([run, viewer], els, outputText, outputText)
+  assert.equal(owner, run)
+  assert.equal(copyMdText(owner.markdownSource(), 'Name\tAge\nAnn\t30\nBob\t41'), TABLE)
+  // Mid-message, the outer pipes of the first and last row are not re-attached
+  // (lib/selectionMarkdown) — still a table once pasted.
+  assert.equal(
+    copyMdText(owner.markdownSource().slice(1), 'Name\tAge\nAnn\t30\nBob\t41'),
+    'Name | Age |\n| --- | --- |\n| Ann | 30 |\n| Bob | 41',
+  )
+  const inner = pickSurface([run, viewer], els, modalText, modalText)
+  assert.equal(copyMdText(inner.markdownSource(), 'Notes\nSee this.'), '# Notes\n\nSee **this**.')
+})
+
+test('Copy MD: no source holding the selection copies the selected text as is', () => {
+  assert.equal(copyMdText([], 'plain words'), 'plain words')
+  assert.equal(copyMdText(['something else entirely'], 'plain words'), 'plain words')
+  assert.equal(copyMdText([TABLE], 'x'), 'x')
+})
+
+test('transcript sources: assistant text and a result\'s own text, in order', () => {
+  assert.deepEqual(
+    transcriptMarkdownSources([
+      { kind: 'system', model: 'm' },
+      { kind: 'user', text: 'hi' },
+      { kind: 'text', text: 'first' },
+      { kind: 'thinking', text: 'hmm' },
+      { kind: 'tool', id: 't', name: 'Read', input: {} },
+      { kind: 'text', text: '' },
+      { kind: 'text', text: 'second' },
+      { kind: 'result', text: 'failed **badly**', is_error: true },
+      { kind: 'result', text: '', is_error: false },
+    ]),
+    ['first', 'second', 'failed **badly**'],
+  )
 })
 
 // ── Scroll ──────────────────────────────────────────────────────────────────

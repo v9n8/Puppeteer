@@ -17,6 +17,7 @@ import { Input, Textarea } from '@/components/ui'
 import { openFileWindow } from '@/lib/fileWindow'
 import { useMarkdown } from '@/lib/markdown'
 import { useToast } from '@/composables/useToast'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
 import { useProjectsStore } from '@/stores/projects'
@@ -50,6 +51,10 @@ const storedContent = computed(() =>
   isNote.value ? (props.item as Note).content : (props.item as Todo).text,
 )
 const done = computed(() => !isNote.value && (props.item as Todo).done)
+
+// Copy MD from the item as it reads maps the selection back onto its markdown.
+const readEl = ref<HTMLElement | null>(null)
+useSelectionSurface({ el: readEl, allow: { copyMd: true }, markdownSource: () => [storedContent.value] })
 
 // Draft fields: `title` is note-only; `content` is the note body / todo text.
 const title = ref('')
@@ -207,6 +212,7 @@ defineExpose({ canSave, dirty, saving, save, reset, focus, draftText })
   <div v-else class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
     <div
       v-if="storedContent.trim()"
+      ref="readEl"
       class="markdown-output text-sm"
       :class="done ? 'opacity-60 line-through decoration-muted-foreground/60' : ''"
       @click="onViewClick"

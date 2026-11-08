@@ -51,6 +51,7 @@ import RunActionItems from '@/components/RunActionItems.vue'
 import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import StreamLog from '@/components/StreamLog.vue'
@@ -1587,10 +1588,19 @@ function openQuickCapture(kind: ItemKind) {
 const linked = useRunLinkedItems(currentRunId)
 
 // Selected text in the output (live or history) gets the shared selection
-// toolbar: translate it, or keep it as a note / todo filed under this run.
+// toolbar: translate it, copy it as the markdown it was rendered from, or keep
+// it as a note / todo filed under this run.
 const selectionSurface = useSelectionSurface({
   el: [outputEl, historyEl],
-  allow: { translate: true, saveNote: true, saveTodo: true },
+  allow: { translate: true, copyMd: true, saveNote: true, saveTodo: true },
+  markdownSource: () => {
+    if (isViewingHistory.value) {
+      return historyHasStream.value ? transcriptMarkdownSources(historyEntries.value) : [viewingLog.value]
+    }
+    return liveHasStream.value
+      ? transcriptMarkdownSources(liveEntries.value)
+      : [liveOutputLines.value.map(l => l.text).join('\n')]
+  },
   capture: () => ({
     context: captureContext(),
     noteTitle: currentRun.value?.title ?? project.value?.name ?? '',
