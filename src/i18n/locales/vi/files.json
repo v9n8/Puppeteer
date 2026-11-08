@@ -27,9 +27,6 @@
     "csvEmpty": "Tệp không có dữ liệu để hiển thị dạng bảng.",
     "searchInFile": "Tìm trong tệp",
     "searchPlaceholder": "Tìm trong tệp…",
-    "previousMatch": "Kết quả trước",
-    "nextMatch": "Kết quả tiếp theo",
-    "closeSearch": "Đóng tìm kiếm",
     "pin": "Ghim nổi trên cùng",
     "unpin": "Bỏ ghim (chỉ nổi khi đang dùng)"
   },

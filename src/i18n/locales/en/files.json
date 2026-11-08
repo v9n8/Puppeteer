@@ -27,9 +27,6 @@
     "csvEmpty": "This file has no data to show as a table.",
     "searchInFile": "Search in file",
     "searchPlaceholder": "Find in file…",
-    "previousMatch": "Previous match",
-    "nextMatch": "Next match",
-    "closeSearch": "Close search",
     "pin": "Pin above other windows",
     "unpin": "Unpin (float only while focused)"
   },

@@ -7,7 +7,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Pencil, Save, X, Search, ChevronUp, ChevronDown, ZoomIn, ZoomOut, MoreHorizontal, Columns2,
+  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Pencil, Save, X, Search, ZoomIn, ZoomOut, MoreHorizontal, Columns2,
 } from 'lucide-vue-next'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -22,6 +22,9 @@ import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import type { FileTarget } from '@/lib/fileActions'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { usePageFind } from '@/composables/usePageFind'
+import { isFindShortcut } from '@/lib/pageFind'
+import FindBar from '@/components/FindBar.vue'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
 import { useImageCompareStore } from '@/stores/imageCompare'
@@ -756,121 +759,8 @@ watch(() => [props.projectPath, props.path], () => selectionSurface.dismiss())
 
 // ── In-page search (Cmd/Ctrl+F) ─────────────────────────────────────────────
 // Full-document find across the rendered body (markdown preview or raw source).
-// Uses the CSS Custom Highlight API so matches are painted without mutating the
-// DOM — this coexists with v-html re-renders and the shiki token spans. Falls
-// back to a no-op highlight (still counts/scrolls) where the API is missing.
-const HL_SUPPORTED = typeof CSS !== 'undefined' && 'highlights' in CSS
-const searchOpen = ref(false)
-const searchQuery = ref('')
-const searchInputEl = ref<HTMLInputElement | null>(null)
-const matchCount = ref(0)
-const currentMatch = ref(0) // 1-based; 0 when there are no matches
-const MAX_MATCHES = 5000
-let searchRanges: Range[] = []
-
-// Collect visible text nodes inside the body, skipping the line-number gutter
-// (marked `.search-skip`) so its digits don't pollute results.
-function collectTextNodes(root: HTMLElement): Text[] {
-  const nodes: Text[] = []
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT
-      const parent = (node.parentElement as HTMLElement | null)
-      if (parent?.closest('.search-skip')) return NodeFilter.FILTER_REJECT
-      return NodeFilter.FILTER_ACCEPT
-    },
-  })
-  let n = walker.nextNode()
-  while (n) { nodes.push(n as Text); n = walker.nextNode() }
-  return nodes
-}
-
-function clearHighlights() {
-  if (!HL_SUPPORTED) return
-  CSS.highlights.delete('file-search')
-  CSS.highlights.delete('file-search-current')
-}
-
-function paintHighlights() {
-  if (!HL_SUPPORTED) return
-  clearHighlights()
-  if (!searchRanges.length) return
-  CSS.highlights.set('file-search', new Highlight(...searchRanges))
-  const cur = searchRanges[currentMatch.value - 1]
-  if (cur) {
-    const curHl = new Highlight(cur)
-    curHl.priority = 1
-    CSS.highlights.set('file-search-current', curHl)
-  }
-}
-
-function runSearch() {
-  searchRanges = []
-  const q = searchQuery.value
-  const root = viewerBodyEl.value
-  if (!q || !root) {
-    matchCount.value = 0
-    currentMatch.value = 0
-    clearHighlights()
-    return
-  }
-  const needle = q.toLowerCase()
-  const nodes = collectTextNodes(root)
-  for (const node of nodes) {
-    const hay = (node.nodeValue ?? '').toLowerCase()
-    let from = 0
-    let idx = hay.indexOf(needle, from)
-    while (idx !== -1) {
-      const range = document.createRange()
-      range.setStart(node, idx)
-      range.setEnd(node, idx + needle.length)
-      searchRanges.push(range)
-      if (searchRanges.length >= MAX_MATCHES) break
-      from = idx + needle.length
-      idx = hay.indexOf(needle, from)
-    }
-    if (searchRanges.length >= MAX_MATCHES) break
-  }
-  matchCount.value = searchRanges.length
-  currentMatch.value = searchRanges.length ? 1 : 0
-  paintHighlights()
-  scrollToMatch()
-}
-
-function scrollToMatch() {
-  const range = searchRanges[currentMatch.value - 1]
-  if (!range) return
-  const el = (range.startContainer.parentElement as HTMLElement | null)
-  el?.scrollIntoView({ block: 'center', inline: 'nearest' })
-}
-
-function gotoMatch(delta: number) {
-  if (!matchCount.value) return
-  currentMatch.value = ((currentMatch.value - 1 + delta + matchCount.value) % matchCount.value) + 1
-  paintHighlights()
-  scrollToMatch()
-}
-
-function openSearch() {
-  searchOpen.value = true
-  nextTick(() => {
-    searchInputEl.value?.focus()
-    searchInputEl.value?.select()
-    if (searchQuery.value) runSearch()
-  })
-}
-
-function closeSearch() {
-  searchOpen.value = false
-  clearHighlights()
-}
-
-// Debounced re-search as the user types.
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-watch(searchQuery, () => {
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => nextTick(runSearch), 120)
-})
+const find = usePageFind(viewerBodyEl)
+const { enabled: searchEnabled, open: searchOpen, openFind: openSearch, closeFind: closeSearch } = find
 
 // Content or view mode changed while search is open — recompute against the new
 // DOM (old Range objects point at detached nodes).
@@ -878,11 +768,11 @@ watch([content, mode, editing], () => {
   if (!searchOpen.value) return
   // Nothing in the parent document to search once the iframe preview takes over.
   if (htmlPreview.value) { closeSearch(); return }
-  nextTick(runSearch)
+  find.refresh()
 })
 
 function onSearchKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {
+  if (isFindShortcut(e) && searchEnabled.value) {
     e.preventDefault()
     openSearch()
   } else if (e.key === 'Escape' && searchOpen.value) {
@@ -893,7 +783,7 @@ function onSearchKeydown(e: KeyboardEvent) {
 
 // A new file replaces the body — reset search state.
 watch(() => [props.projectPath, props.path], () => {
-  searchQuery.value = ''
+  find.query.value = ''
   closeSearch()
 })
 
@@ -908,7 +798,6 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onSearchKeydown)
   window.removeEventListener('resize', onWindowResize)
   imageBoxObserver?.disconnect()
-  clearHighlights()
   destroyPdf()
 })
 // Re-render the PDF at the new scale whenever the shared zoom changes.
@@ -997,7 +886,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       </Button>
       <!-- Toggle the in-page search bar -->
       <Button
-        v-if="content && !htmlPreview"
+        v-if="content && !htmlPreview && searchEnabled"
         variant="ghost"
         size="icon-sm"
         class="shrink-0"
@@ -1085,57 +974,12 @@ defineExpose({ onRevealInFolder, onOpenInApp })
     </div>
 
     <!-- Floating in-page search bar -->
-    <div
+    <FindBar
       v-if="searchOpen"
-      class="absolute top-14 right-4 z-20 flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-1 shadow-lg shadow-black/30"
-    >
-      <Search class="h-3.5 w-3.5 text-foreground/40 shrink-0" :stroke-width="1.75" />
-      <input
-        ref="searchInputEl"
-        v-model="searchQuery"
-        type="text"
-        :placeholder="t('files.viewer.searchPlaceholder')"
-        class="w-44 bg-transparent text-xs text-foreground placeholder:text-foreground/40 outline-none"
-        @keydown.enter.exact.prevent="gotoMatch(1)"
-        @keydown.shift.enter.prevent="gotoMatch(-1)"
-        @keydown.esc.prevent="closeSearch"
-      />
-      <span class="text-2xs tabular-nums text-foreground/50 select-none shrink-0 min-w-[3rem] text-right">
-        {{ searchQuery ? `${currentMatch}/${matchCount}` : '' }}
-      </span>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        class="shrink-0"
-        :title="t('files.viewer.previousMatch')"
-        :aria-label="t('files.viewer.previousMatch')"
-        :disabled="!matchCount"
-        @click="gotoMatch(-1)"
-      >
-        <ChevronUp class="h-3.5 w-3.5" :stroke-width="1.75" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        class="shrink-0"
-        :title="t('files.viewer.nextMatch')"
-        :aria-label="t('files.viewer.nextMatch')"
-        :disabled="!matchCount"
-        @click="gotoMatch(1)"
-      >
-        <ChevronDown class="h-3.5 w-3.5" :stroke-width="1.75" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        class="shrink-0"
-        :title="t('files.viewer.closeSearch')"
-        :aria-label="t('files.viewer.closeSearch')"
-        @click="closeSearch"
-      >
-        <X class="h-3.5 w-3.5" :stroke-width="1.75" />
-      </Button>
-    </div>
+      :find="find"
+      :placeholder="t('files.viewer.searchPlaceholder')"
+      class="absolute top-14 right-4 z-20"
+    />
 
     <!-- Body -->
     <div ref="viewerBodyEl" class="flex-1 overflow-auto min-h-0">
@@ -1350,19 +1194,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
   </div>
 </template>
 
-<!-- Custom Highlight API styling must be global: ::highlight() pseudo-elements
-     are keyed off the document-wide CSS.highlights registry, so a scoped style
-     (with its data-attribute) would never match. -->
 <style>
-::highlight(file-search) {
-  background-color: rgba(250, 204, 21, 0.35);
-  color: inherit;
-}
-::highlight(file-search-current) {
-  background-color: rgba(249, 115, 22, 0.75);
-  color: #fff;
-}
-
 /* pdf.js text overlay. Global (not scoped) because pdf.js builds these <span>s
    itself, so they never carry Vue's scoped-style data attribute. Mirrors the
    essentials of pdfjs-dist/web/pdf_viewer.css: transparent, precisely-placed
