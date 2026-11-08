@@ -40,7 +40,7 @@ impl LibraryKind {
     }
 
     /// The library table; also the folder name under app data and under `.claude/`.
-    fn table(self) -> &'static str {
+    pub(crate) fn table(self) -> &'static str {
         match self {
             LibraryKind::Agent => "agents",
             LibraryKind::Command => "commands",
@@ -418,6 +418,95 @@ pub async fn remove_item_from_project(
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Names of the items applied to a project, as a settings backup carries them.
+pub(crate) async fn applied_names(db: &Db, kind: LibraryKind, project_id: &str) -> Result<Vec<String>, String> {
+    let sql = format!(
+        "SELECT i.name FROM {link} l JOIN {table} i ON i.id = l.{col} WHERE l.project_id = ? ORDER BY i.name",
+        link = kind.link_table(),
+        table = kind.table(),
+        col = kind.id_column()
+    );
+    sqlx::query_scalar(&sql).bind(project_id).fetch_all(db).await.map_err(|e| e.to_string())
+}
+
+/// Create or overwrite (by name) a library item from a settings backup. A differing local file is
+/// moved to the legacy backups first. `sync`: re-link the projects that use an overwritten item
+/// (off while the kind's prop is off, so the import leaves projects alone).
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn import_backup_item(
+    db: &Db,
+    kind: LibraryKind,
+    lib_dir: &Path,
+    id_hint: &str,
+    name: &str,
+    description: &str,
+    content: &str,
+    sync: bool,
+) -> Result<(crate::commands::settings_backup::Upsert, Vec<String>), String> {
+    use crate::commands::settings_backup::Upsert;
+    validate(kind, name, description)?;
+
+    let sql = format!("SELECT id, description, source_path FROM {} WHERE name = ?", kind.table());
+    let local = sqlx::query(&sql).bind(name).fetch_optional(db).await.map_err(|e| e.to_string())?;
+    let path = match &local {
+        Some(row) => PathBuf::from(row.get::<String, _>("source_path")),
+        None => lib_dir.join(format!("{name}.md")),
+    };
+
+    let same_content = fs::read_to_string(&path).ok().as_deref() == Some(content);
+    if let Some(row) = &local {
+        if same_content && row.get::<String, _>("description") == description {
+            return Ok((Upsert::Unchanged, Vec::new()));
+        }
+    }
+    if !same_content {
+        if path.exists() {
+            project_links::back_up_library_orphan(&path, kind.table())?;
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::write(&path, content).map_err(|e| e.to_string())?;
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    match local {
+        Some(row) => {
+            let id: String = row.get("id");
+            let sql = format!("UPDATE {} SET description = ?, updated_at = ? WHERE id = ?", kind.table());
+            sqlx::query(&sql)
+                .bind(description)
+                .bind(&now)
+                .bind(&id)
+                .execute(db)
+                .await
+                .map_err(|e| e.to_string())?;
+            let failures = if sync { sync_to_projects(db, kind, &id).await? } else { Vec::new() };
+            Ok((Upsert::Updated, failures))
+        }
+        None => {
+            let sql = format!("SELECT 1 FROM {} WHERE id = ?", kind.table());
+            let id_taken: Option<i64> =
+                sqlx::query_scalar(&sql).bind(id_hint).fetch_optional(db).await.map_err(|e| e.to_string())?;
+            let id = if id_hint.is_empty() || id_taken.is_some() { Uuid::new_v4().to_string() } else { id_hint.to_string() };
+            let sql = format!(
+                "INSERT INTO {} (id, name, description, source_path, updated_at) VALUES (?, ?, ?, ?, ?)",
+                kind.table()
+            );
+            sqlx::query(&sql)
+                .bind(&id)
+                .bind(name)
+                .bind(description)
+                .bind(path.to_string_lossy().to_string())
+                .bind(&now)
+                .execute(db)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok((Upsert::Created, Vec::new()))
+        }
+    }
 }
 
 /// The items applied to a project, each with what the project holds at its link.

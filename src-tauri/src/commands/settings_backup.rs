@@ -2,10 +2,10 @@
 //! machine.
 //!
 //! The file is JSON (`*.puppeteer-backup`). It holds the portable app settings, the Skills / Rules
-//! library (file contents included) with their groups, MCP servers, VPS servers, account metadata
-//! (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
+//! library (file contents included) with their groups, the Agents / Commands library, MCP servers,
+//! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
-//! Skills / Rules / groups / MCP / VPS servers, account links. Sessions and
+//! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links. Sessions and
 //! usage history stay on the machine; the bookmarks on them travel, and land on the same session
 //! when the importing machine has it.
 //!
@@ -22,6 +22,7 @@
 //! first.
 
 use crate::commands::groups::{set_group_members_inner, GroupKind};
+use crate::commands::library_items::{self, LibraryKind};
 use crate::commands::mcp::McpServer;
 use crate::commands::settings::is_portable_setting;
 use crate::commands::{mcp, rules, skills, vps_servers};
@@ -82,6 +83,10 @@ struct Bundle {
     skill_groups: Vec<GroupEntry>,
     #[serde(default)]
     rule_groups: Vec<GroupEntry>,
+    #[serde(default)]
+    agents: Vec<LibraryItemEntry>,
+    #[serde(default)]
+    commands: Vec<LibraryItemEntry>,
     #[serde(default)]
     mcp_servers: Vec<McpServer>,
     #[serde(default)]
@@ -173,6 +178,11 @@ struct ProjectEntry {
     skill_groups: Vec<String>,
     #[serde(default)]
     rule_groups: Vec<String>,
+    /// Agents / Commands applied to the project (names).
+    #[serde(default)]
+    agents: Vec<String>,
+    #[serde(default)]
+    commands: Vec<String>,
     #[serde(default)]
     mcp_servers: Vec<String>,
     #[serde(default)]
@@ -238,6 +248,15 @@ struct RuleEntry {
     name: String,
     description: String,
     target: String,
+    content: String,
+}
+
+/// An Agents / Commands library item: one markdown file.
+#[derive(Serialize, Deserialize)]
+struct LibraryItemEntry {
+    id: String,
+    name: String,
+    description: String,
     content: String,
 }
 
@@ -650,6 +669,8 @@ impl Bundle {
             ("rules", self.rules.len()),
             ("skillGroups", self.skill_groups.len()),
             ("ruleGroups", self.rule_groups.len()),
+            ("agents", self.agents.len()),
+            ("commands", self.commands.len()),
             ("mcpServers", self.mcp_servers.len()),
             ("vpsServers", self.vps_servers.len()),
             ("githubAccounts", self.github_accounts.len()),
@@ -915,6 +936,8 @@ async fn collect(
     .await?;
     let rule_groups =
         collect_groups(db, "rule_groups", "rule_group_members", "rule_id", "rules").await?;
+    let agents = collect_library_items(db, LibraryKind::Agent).await?;
+    let commands = collect_library_items(db, LibraryKind::Command).await?;
 
     let mut mcp_servers = Vec::new();
     for id in sqlx::query_scalar::<_, String>("SELECT id FROM mcp_servers ORDER BY name")
@@ -1175,6 +1198,8 @@ async fn collect(
         rules: rule_entries,
         skill_groups,
         rule_groups,
+        agents,
+        commands,
         mcp_servers,
         vps_servers: vps_entries,
         github_accounts,
@@ -1194,6 +1219,21 @@ async fn collect(
         secrets: None,
     };
     Ok((bundle, secret))
+}
+
+async fn collect_library_items(db: &Db, kind: LibraryKind) -> Result<Vec<LibraryItemEntry>, String> {
+    let mut out = Vec::new();
+    for item in library_items::list_items(db, kind).await? {
+        let content = std::fs::read_to_string(&item.source_path)
+            .map_err(|e| format!("{} '{}': {e}", kind.table(), item.name))?;
+        out.push(LibraryItemEntry {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            content,
+        });
+    }
+    Ok(out)
 }
 
 async fn collect_settings(db: &Db) -> Result<BTreeMap<String, String>, String> {
@@ -1304,6 +1344,8 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
              WHERE pg.project_id = ? ORDER BY g.name",
         )
         .await?;
+        let agents = library_items::applied_names(db, LibraryKind::Agent, &id).await?;
+        let commands = library_items::applied_names(db, LibraryKind::Command, &id).await?;
         let mcp_servers = names(
             "SELECT m.name FROM project_mcp_servers pm JOIN mcp_servers m ON m.id = pm.server_id \
              WHERE pm.project_id = ? ORDER BY m.name",
@@ -1369,6 +1411,8 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             rules,
             skill_groups,
             rule_groups,
+            agents,
+            commands,
             mcp_servers,
             servers,
         });
@@ -1690,6 +1734,12 @@ async fn apply_bundle(
         .await;
         record_with_sync(&mut report, "rules", &entry.name, result);
     }
+    for (kind, entries) in [(LibraryKind::Agent, &bundle.agents), (LibraryKind::Command, &bundle.commands)] {
+        match library_items::library_dir(app, kind) {
+            Ok(dir) => import_library_items(db, kind, &dir, entries, &mut report).await,
+            Err(e) => report.warnings.push(format!("{}: {e}", kind.table())),
+        }
+    }
     for entry in &bundle.skill_groups {
         let result = import_group(db, GroupKind::Skill, entry).await;
         report.record("skillGroups", &entry.name, result);
@@ -1961,6 +2011,32 @@ async fn import_skill(
         &files,
     )
     .await
+}
+
+/// Agents / Commands into the library at `lib_dir`. They are saved even while the kind's prop is
+/// off; projects are then left alone (see [`import_project`]).
+async fn import_library_items(
+    db: &Db,
+    kind: LibraryKind,
+    lib_dir: &Path,
+    entries: &[LibraryItemEntry],
+    report: &mut ImportReport,
+) {
+    let link = !entries.is_empty() && crate::features::is_on(db, kind.feature()).await;
+    for entry in entries {
+        let result = library_items::import_backup_item(
+            db,
+            kind,
+            lib_dir,
+            &entry.id,
+            &entry.name,
+            &entry.description,
+            &entry.content,
+            link,
+        )
+        .await;
+        record_with_sync(report, kind.table(), &entry.name, result);
+    }
 }
 
 async fn import_group(db: &Db, kind: GroupKind, entry: &GroupEntry) -> Result<Upsert, String> {
@@ -2940,8 +3016,8 @@ async fn id_by_label(
 
 /// Match a project by path, then by name. A new project needs its folder: it is created when
 /// `create_missing_dirs` is set, the project is skipped otherwise. Links (skills, rules, groups,
-/// MCP / VPS servers) are added, never removed. Returns the local project id and
-/// per-link problems.
+/// agents / commands, MCP / VPS servers) are added, never removed; agents / commands only while
+/// their prop is on. Returns the local project id and per-link problems.
 async fn import_project(
     db: &Db,
     entry: &ProjectEntry,
@@ -3279,6 +3355,28 @@ async fn import_project(
         }
     }
 
+    for (kind, names) in [(LibraryKind::Agent, &entry.agents), (LibraryKind::Command, &entry.commands)] {
+        if names.is_empty() {
+            continue;
+        }
+        let table = kind.table();
+        if !crate::features::is_on(db, kind.feature()).await {
+            warnings.push(format!("{table}: {} not applied, {} is off", names.len(), kind.feature()));
+            continue;
+        }
+        let applied = library_items::applied_names(db, kind, &id).await?;
+        for name in names.iter().filter(|n| !applied.contains(n)) {
+            let Some(item_id) = id_by(db, table, "name", name).await? else {
+                warnings.push(format!("{table} '{name}' not found"));
+                continue;
+            };
+            match library_items::apply_item(db, kind, &id, &item_id).await {
+                Ok(()) => touched = true,
+                Err(e) => warnings.push(format!("'{name}': {e}")),
+            }
+        }
+    }
+
     if touched && outcome == Upsert::Unchanged {
         outcome = Upsert::Updated;
     }
@@ -3549,6 +3647,8 @@ mod tests {
             rules: vec![],
             skill_groups: vec![],
             rule_groups: vec![],
+            agents: vec![],
+            commands: vec![],
             mcp_servers: vec![],
             vps_servers: vec![],
             github_accounts: vec![],
@@ -3964,5 +4064,152 @@ mod tests {
         assert_eq!(setting(&db, "feature.remote").await.as_deref(), Some("true"));
         assert_eq!(setting(&db, "inbox_api_enabled").await.as_deref(), Some("true"));
         assert_eq!(setting(&db, SEEDED_KEY).await.as_deref(), Some("1"));
+    }
+
+    /// An agent `reviewer` and a command `deploy` in the library at `lib`, both applied to a new
+    /// project at `project`.
+    #[cfg(unix)]
+    async fn agents_and_commands_applied(db: &Db, lib: &Path, project: &Path) {
+        use crate::commands::library_items::{apply_item, create_item, CreateItemPayload};
+        std::fs::create_dir_all(project).unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'shop', ?, 'c')")
+            .bind(project.to_string_lossy().into_owned())
+            .execute(db)
+            .await
+            .unwrap();
+        for (kind, name, content) in [(LibraryKind::Agent, "reviewer", "Review."), (LibraryKind::Command, "deploy", "Deploy $ARGUMENTS")] {
+            let payload = CreateItemPayload { name: name.into(), description: "d".into(), content: content.into() };
+            let item = create_item(db, kind, &lib.join(kind.table()), payload).await.unwrap();
+            apply_item(db, kind, "p1", &item.id).await.unwrap();
+        }
+    }
+
+    /// The bundle a machine with `db` exports: Agents / Commands and the projects.
+    #[cfg(unix)]
+    async fn library_bundle(db: &Db) -> Bundle {
+        serde_json::from_value(serde_json::json!({
+            "format": FORMAT,
+            "version": VERSION,
+            "exported_at": "now",
+            "agents": serde_json::to_value(collect_library_items(db, LibraryKind::Agent).await.unwrap()).unwrap(),
+            "commands": serde_json::to_value(collect_library_items(db, LibraryKind::Command).await.unwrap()).unwrap(),
+            "projects": serde_json::to_value(collect_projects(db).await.unwrap()).unwrap(),
+        }))
+        .unwrap()
+    }
+
+    async fn import_library(db: &Db, lib: &Path, bundle: &Bundle) -> ImportReport {
+        let mut report = ImportReport::default();
+        for (kind, entries) in [(LibraryKind::Agent, &bundle.agents), (LibraryKind::Command, &bundle.commands)] {
+            import_library_items(db, kind, &lib.join(kind.table()), entries, &mut report).await;
+        }
+        report
+    }
+
+    fn tally_of(report: &ImportReport, section: &str) -> (usize, usize, usize) {
+        report.counts.get(section).map_or((0, 0, 0), |c| (c.created, c.updated, c.unchanged))
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn agents_and_commands_round_trip_with_their_project_links() {
+        let root = std::env::temp_dir().join(format!("puppeteer-backup-items-{}", Uuid::new_v4()));
+        let source = test_db().await;
+        agents_and_commands_applied(&source, &root.join("lib-a"), &root.join("shop")).await;
+        let mut bundle = library_bundle(&source).await;
+        assert_eq!((bundle.info().counts["agents"], bundle.info().counts["commands"]), (1, 1));
+        assert_eq!(bundle.agents[0].content, "Review.");
+        assert_eq!((bundle.projects[0].agents.as_slice(), bundle.projects[0].commands.as_slice()), (&["reviewer".to_string()][..], &["deploy".to_string()][..]));
+        let shop_b = root.join("shop-b");
+        bundle.projects[0].path = shop_b.to_string_lossy().into_owned();
+
+        let target = test_db().await;
+        let lib_b = root.join("lib-b");
+        let report = import_library(&target, &lib_b, &bundle).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!((tally_of(&report, "agents"), tally_of(&report, "commands")), ((1, 0, 0), (1, 0, 0)));
+        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true).await.unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        for (folder, name) in [("agents", "reviewer"), ("commands", "deploy")] {
+            let source = lib_b.join(folder).join(format!("{name}.md"));
+            assert_eq!(std::fs::read_link(shop_b.join(".claude").join(folder).join(format!("{name}.md"))).unwrap(), source);
+        }
+        assert_eq!(library_items::applied_names(&target, LibraryKind::Agent, &id).await.unwrap(), ["reviewer"]);
+
+        // Imported again: nothing changes.
+        let report = import_library(&target, &lib_b, &bundle).await;
+        assert_eq!(tally_of(&report, "agents"), (0, 0, 1));
+        let (outcome, _, _) = import_project(&target, &bundle.projects[0], false).await.unwrap();
+        assert_eq!(outcome, Upsert::Unchanged);
+
+        // Edited here: the backup's version wins (the edit is moved to the legacy backups).
+        let local = lib_b.join("agents/reviewer.md");
+        std::fs::write(&local, "Edited here.").unwrap();
+        let report = import_library(&target, &lib_b, &bundle).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(tally_of(&report, "agents"), (0, 1, 0));
+        assert_eq!(std::fs::read_to_string(shop_b.join(".claude/agents/reviewer.md")).unwrap(), "Review.");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn a_backup_without_agents_or_commands_still_imports() {
+        let root = std::env::temp_dir().join(format!("puppeteer-backup-old-{}", Uuid::new_v4()));
+        let bundle: Bundle = serde_json::from_value(serde_json::json!({
+            "format": FORMAT,
+            "version": VERSION,
+            "exported_at": "then",
+            "skills": [],
+            "projects": [{
+                "id": "p-old",
+                "name": "shop",
+                "path": root.join("shop").to_string_lossy(),
+                "default_engine": "claude",
+                "created_at": "c",
+                "skills": [],
+            }],
+        }))
+        .unwrap();
+        check_bundle(&bundle).unwrap();
+        assert!(bundle.agents.is_empty() && bundle.commands.is_empty());
+        assert_eq!(bundle.info().counts["agents"], 0);
+
+        let db = test_db().await;
+        let report = import_library(&db, &root.join("lib"), &bundle).await;
+        assert!(report.counts.is_empty() && report.warnings.is_empty());
+        let (outcome, id, warnings) = import_project(&db, &bundle.projects[0], true).await.unwrap();
+        assert_eq!(outcome, Upsert::Created);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(library_items::applied_names(&db, LibraryKind::Agent, &id).await.unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn agents_are_saved_but_not_applied_while_their_prop_is_off() {
+        let root = std::env::temp_dir().join(format!("puppeteer-backup-off-{}", Uuid::new_v4()));
+        let source = test_db().await;
+        agents_and_commands_applied(&source, &root.join("lib-a"), &root.join("shop")).await;
+        let mut bundle = library_bundle(&source).await;
+        let shop_b = root.join("shop-b");
+        bundle.projects[0].path = shop_b.to_string_lossy().into_owned();
+
+        let target = test_db().await;
+        crate::commands::settings::set_setting(&target, "feature.library.agents", "false").await.unwrap();
+        let lib_b = root.join("lib-b");
+        let report = import_library(&target, &lib_b, &bundle).await;
+        assert_eq!(tally_of(&report, "agents"), (1, 0, 0));
+        assert_eq!(std::fs::read_to_string(lib_b.join("agents/reviewer.md")).unwrap(), "Review.");
+        let names: Vec<String> =
+            library_items::list_items(&target, LibraryKind::Agent).await.unwrap().into_iter().map(|i| i.name).collect();
+        assert_eq!(names, ["reviewer"]);
+
+        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true).await.unwrap();
+        assert_eq!(warnings, ["agents: 1 not applied, library.agents is off"]);
+        assert!(library_items::applied_names(&target, LibraryKind::Agent, &id).await.unwrap().is_empty());
+        assert!(std::fs::symlink_metadata(shop_b.join(".claude/agents/reviewer.md")).is_err());
+        // The other kind's prop is on: its link comes in.
+        assert_eq!(library_items::applied_names(&target, LibraryKind::Command, &id).await.unwrap(), ["deploy"]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

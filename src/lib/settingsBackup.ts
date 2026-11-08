@@ -21,7 +21,8 @@ export interface ImportReport {
 }
 
 export const BACKUP_SECTION_KEYS = [
-  'settings', 'skills', 'rules', 'skillGroups', 'ruleGroups', 'mcpServers', 'vpsServers',
+  'settings', 'skills', 'rules', 'skillGroups', 'ruleGroups', 'agents', 'commands',
+  'mcpServers', 'vpsServers',
   'githubAccounts', 'gitlabAccounts', 'awsAccounts', 'azureAccounts', 'googleAccounts',
   'claudeAccounts', 'notes', 'secretNotes', 'todos', 'bookmarks', 'slackThreads', 'projects',
 ] as const
