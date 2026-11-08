@@ -20,7 +20,11 @@ pub mod claude_code;
 pub mod claude_desktop;
 pub mod codex;
 pub mod commands;
+pub mod craft;
 pub mod cursor;
+pub mod gemini;
+pub mod vscode;
+pub mod windsurf;
 
 use crate::commands::library_items::LibraryKind;
 use crate::commands::mcp::McpServerExport;
@@ -165,8 +169,16 @@ pub trait Adapter: Sync {
     fn scan(&self, root: &Path, scope: Scope, ctx: &ScanContext) -> ScanReport;
 }
 
-pub static ADAPTERS: &[&dyn Adapter] =
-    &[&claude_code::ClaudeCode, &codex::Codex, &cursor::Cursor, &claude_desktop::ClaudeDesktop];
+pub static ADAPTERS: &[&dyn Adapter] = &[
+    &claude_code::ClaudeCode,
+    &codex::Codex,
+    &cursor::Cursor,
+    &claude_desktop::ClaudeDesktop,
+    &gemini::Gemini,
+    &vscode::VsCode,
+    &windsurf::Windsurf,
+    &craft::Craft,
+];
 
 pub fn adapter(id: &str) -> Result<&'static dyn Adapter, String> {
     ADAPTERS.iter().copied().find(|a| a.id() == id).ok_or_else(|| format!("unknown import adapter '{id}'"))
@@ -427,6 +439,117 @@ pub(crate) fn mcp_candidates(report: &mut ScanReport, path: &Path, servers: &Val
     }
 }
 
+/// `servers` with each server put in the `mcpServers` shape by `normalize`, but those it cannot
+/// import (one problem each, by name). Not an object: left as is for [`mcp_candidates`] to report.
+pub(crate) fn normalized_servers(
+    report: &mut ScanReport,
+    path: &Path,
+    servers: Value,
+    normalize: impl Fn(Value) -> Result<Value, String>,
+) -> Value {
+    let Value::Object(servers) = servers else { return servers };
+    let mut kept = serde_json::Map::new();
+    for (name, server) in servers {
+        match normalize(server) {
+            Ok(server) => {
+                kept.insert(name, server);
+            }
+            Err(e) => report.problem(path, Some(&name), e),
+        }
+    }
+    Value::Object(kept)
+}
+
+/// Whether a string of `value` names a variable of the environment the tool runs in: `${…}`, and
+/// with `bare` also `$NAME`. Its value is not in the file, so an import cannot copy it.
+pub(crate) fn reads_environment(value: &Value, bare: bool) -> bool {
+    match value {
+        Value::String(s) => s.match_indices('$').any(|(i, _)| {
+            s[i + 1..].chars().next().is_some_and(|c| c == '{' || (bare && (c == '_' || c.is_ascii_alphabetic())))
+        }),
+        Value::Array(items) => items.iter().any(|v| reads_environment(v, bare)),
+        Value::Object(map) => map.values().any(|v| reads_environment(v, bare)),
+        _ => false,
+    }
+}
+
+/// JSON with comments and trailing commas (VS Code's and Gemini CLI's settings files) as plain
+/// JSON. Both are blanked out rather than removed, so an error keeps its line and column.
+pub(crate) fn strip_jsonc(raw: &str) -> String {
+    let mut out: Vec<char> = raw.chars().collect();
+    let mut in_string = false;
+    // A comma that is trailing if the next significant character closes its object or array.
+    let mut comma = None;
+    let mut i = 0;
+    while i < out.len() {
+        let c = out[i];
+        if in_string {
+            match c {
+                '\\' => i += 1,
+                '"' => in_string = false,
+                _ => {}
+            }
+            i += 1;
+            continue;
+        }
+        let comment_end = match (c, out.get(i + 1)) {
+            ('/', Some('/')) => Some((i..out.len()).find(|&j| out[j] == '\n').unwrap_or(out.len())),
+            ('/', Some('*')) => Some((i + 2..out.len()).find(|&j| out[j] == '*' && out.get(j + 1) == Some(&'/')).map_or(out.len(), |j| j + 2)),
+            _ => None,
+        };
+        if let Some(end) = comment_end {
+            out[i..end].iter_mut().filter(|c| **c != '\n').for_each(|c| *c = ' ');
+            i = end;
+            continue;
+        }
+        match c {
+            '"' => {
+                in_string = true;
+                comma = None;
+            }
+            ',' => comma = Some(i),
+            '}' | ']' => {
+                if let Some(at) = comma.take() {
+                    out[at] = ' ';
+                }
+            }
+            c if c.is_whitespace() => {}
+            _ => comma = None,
+        }
+        i += 1;
+    }
+    out.into_iter().collect()
+}
+
+/// The frontmatter (without its `---` lines) and the body of a Markdown file that has one.
+pub(crate) fn split_frontmatter(content: &str) -> Option<(&str, &str)> {
+    let rest = content.strip_prefix("---")?;
+    let end = rest.find("\n---")?;
+    Some((&rest[..end], rest[end + 4..].split_once('\n').map_or("", |(_, body)| body)))
+}
+
+/// A top-level frontmatter value as written (quotes kept), `""` when the key has none.
+pub(crate) fn frontmatter_field<'a>(head: &'a str, key: &str) -> Option<&'a str> {
+    head.lines().find_map(|l| l.strip_prefix(key)?.strip_prefix(':').map(str::trim))
+}
+
+/// Another tool's rule as a library rule: `body` under the frontmatter Claude Code reads, where
+/// `paths` limits the rule to matching files (none: always on).
+pub(crate) fn library_rule_text(description: &str, paths: &[String], body: &str) -> String {
+    let quoted = |s: &str| serde_json::to_string(s).unwrap_or_default();
+    let mut head = String::new();
+    if !description.is_empty() {
+        head += &format!("description: {}\n", quoted(description));
+    }
+    if !paths.is_empty() {
+        head += "paths:\n";
+        for path in paths {
+            head += &format!("  - {}\n", quoted(path));
+        }
+    }
+    if head.is_empty() { body.to_string() } else { format!("---\n{head}---\n{body}") }
+}
+
 /// The candidate of one MCP server read from `path`, whatever the config format. The same server
 /// gets the same hash from every tool.
 pub(crate) fn mcp_candidate(path: &Path, raw_name: &str, export: McpServerExport) -> Candidate {
@@ -547,6 +670,35 @@ mod tests {
         ] {
             assert_eq!(mcp_export("s", &bad).unwrap_err(), want);
         }
+    }
+
+    #[test]
+    fn jsonc_becomes_json_without_moving_an_error() {
+        let raw = "{\n  // a comment\n  \"a\": \"x // not a comment\", /* block\n */ \"b\": [1, 2,],\n  \"c\": \"q\\\"/*\",\n}";
+        let json: Value = serde_json::from_str(&strip_jsonc(raw)).unwrap();
+        assert_eq!(json, serde_json::json!({"a": "x // not a comment", "b": [1, 2], "c": "q\"/*"}));
+        let error = |raw: &str| json_error(&serde_json::from_str::<Value>(raw).unwrap_err());
+        assert_eq!(error(&strip_jsonc("{\n  /* x */ \"a\": nope\n}")), error("{\n          \"a\": nope\n}"));
+        assert_eq!(strip_jsonc("{\"a\": 1} // end"), "{\"a\": 1}       ");
+    }
+
+    #[test]
+    fn environment_references_are_spotted() {
+        let server = serde_json::json!({"command": "x", "env": {"A": "plain $ 5", "B": "pa$sword"}});
+        assert!(!reads_environment(&server, false));
+        assert!(reads_environment(&server, true));
+        assert!(reads_environment(&serde_json::json!({"args": ["${env:HOME}"]}), false));
+        assert!(!reads_environment(&serde_json::json!({"args": ["$", "a$1", 7]}), true));
+    }
+
+    #[test]
+    fn foreign_rules_get_the_librarys_frontmatter() {
+        assert_eq!(split_frontmatter("---\napplyTo: '**'\n---\nbody\n"), Some(("\napplyTo: '**'", "body\n")));
+        assert_eq!(split_frontmatter("no head"), None);
+        assert_eq!(frontmatter_field("\ntrigger: glob\nglobs:", "globs"), Some(""));
+        assert_eq!(frontmatter_field("\ntrigger: glob", "trig"), None);
+        assert_eq!(library_rule_text("", &[], "b"), "b");
+        assert_eq!(library_rule_text("Tests", &["*.ts".into()], "b"), "---\ndescription: \"Tests\"\npaths:\n  - \"*.ts\"\n---\nb");
     }
 
     #[test]

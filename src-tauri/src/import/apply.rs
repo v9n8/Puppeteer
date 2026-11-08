@@ -189,6 +189,9 @@ mod tests {
     use crate::import::claude_desktop::{self, ClaudeDesktop};
     use crate::import::codex::Codex;
     use crate::import::cursor::Cursor;
+    use crate::import::gemini::Gemini;
+    use crate::import::vscode::VsCode;
+    use crate::import::windsurf::Windsurf;
     use crate::import::{scan, Adapter, ScanContext, Scope};
     use sqlx::sqlite::SqlitePoolOptions;
     use std::fs;
@@ -207,6 +210,12 @@ mod tests {
         "SECRET-DESKTOP-VALUE",
         "SECRET-DESKTOP-BROKEN",
         "DESKTOP-PREFERENCE",
+        "SECRET-GEMINI-VALUE",
+        "SECRET-GEMINI-OAUTH",
+        "SECRET-VSCODE-VALUE",
+        "SECRET-COPILOT-VALUE",
+        "SECRET-WINDSURF-VALUE",
+        "SECRET-WINDSURF-BROKEN",
     ];
 
     struct Fixture {
@@ -516,16 +525,63 @@ mod tests {
         let desktop_outcomes = import(&f.db, &f.dirs, &desktop_report.candidates, &[pick("mcp:cd")], &sink).await;
         returned += &serde_json::to_string(&desktop_outcomes).unwrap();
         assert_eq!(desktop_outcomes[0].status, Status::Imported, "{desktop_outcomes:?}");
+        write(
+            &home.join(".gemini/settings.json"),
+            r#"{"security": {"auth": {"selectedType": "ACCOUNT-SECRET"}}, "mcpServers": {"gm": {"command": "gm", "env": {"GM_TOKEN": "SECRET-GEMINI-VALUE"}},
+                "gmauth": {"httpUrl": "https://gm", "oauth": {"clientSecret": "SECRET-GEMINI-OAUTH"}}}}"#,
+        );
+        write(
+            &f.root.join(".vscode/mcp.json"),
+            r#"{"inputs": [{"type": "promptString", "id": "k", "password": true}], "servers": {"vs": {"type": "http", "url": "https://vs", "headers": {"VS-Key": "SECRET-VSCODE-VALUE"}},
+                "vsin": {"type": "stdio", "command": "x", "env": {"K": "${input:k}"}}}}"#,
+        );
+        write(
+            &home.join(".copilot/mcp-config.json"),
+            r#"{"mcpServers": {"cp": {"type": "local", "command": "cp", "tools": ["*"], "env": {"CP_TOKEN": "SECRET-COPILOT-VALUE"}}}}"#,
+        );
+        write(
+            &home.join(".codeium/windsurf/mcp_config.json"),
+            r#"{"mcpServers": {"ws": {"serverUrl": "https://ws", "headers": {"WS-Key": "SECRET-WINDSURF-VALUE"}},
+                "wsbad": {"command": "x", "env": {"T": ["SECRET-WINDSURF-BROKEN"]}}}}"#,
+        );
+        for (adapter, root, id) in [
+            (&Gemini as &dyn Adapter, &home, "mcp:gm"),
+            (&VsCode, &f.root, "mcp:vs"),
+            (&VsCode, &home, "mcp:cp"),
+            (&Windsurf, &home, "mcp:ws"),
+        ] {
+            let scope = if root == &home { Scope::Global } else { Scope::Project };
+            let report = scan(&f.db, adapter, root, scope, &f.ctx).await;
+            returned += &serde_json::to_string(&report).unwrap();
+            let outcomes = import(&f.db, &f.dirs, &report.candidates, &[pick(id)], &sink).await;
+            returned += &serde_json::to_string(&outcomes).unwrap();
+            assert_eq!(outcomes[0].status, Status::Imported, "{} {outcomes:?}", adapter.id());
+        }
         // A failure is logged too.
         import(&f.db, &f.dirs, &report.candidates, &[Pick { name: Some("bad name!".into()), ..pick("mcp:api") }], &sink).await;
 
         let stored = stored.into_inner().unwrap();
         let values: Vec<_> = stored.iter().flat_map(|(_, env, headers)| env.values().chain(headers.values()).cloned()).collect();
-        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE", "SECRET-CURSOR-VALUE", "SECRET-DESKTOP-VALUE"]);
+        assert_eq!(
+            values,
+            [
+                "SECRET-ENV-VALUE",
+                "Bearer SECRET-HEADER-VALUE",
+                "SECRET-ENV-VALUE",
+                "SECRET-CODEX-VALUE",
+                "SECRET-CURSOR-VALUE",
+                "SECRET-DESKTOP-VALUE",
+                "SECRET-GEMINI-VALUE",
+                "SECRET-VSCODE-VALUE",
+                "SECRET-COPILOT-VALUE",
+                "SECRET-WINDSURF-VALUE",
+            ]
+        );
 
         let db_text = db_text(&f.db).await;
         assert!(
-            db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN") && db_text.contains("X-Key") && db_text.contains("CD_TOKEN"),
+            db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN") && db_text.contains("X-Key") && db_text.contains("CD_TOKEN")
+                && ["GM_TOKEN", "VS-Key", "CP_TOKEN", "WS-Key"].iter().all(|k| db_text.contains(k)),
             "the dump holds the KEY names"
         );
         let logs = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();

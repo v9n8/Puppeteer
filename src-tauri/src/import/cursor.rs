@@ -112,17 +112,7 @@ fn mdc_files(dir: &Path, ctx: &ScanContext) -> Vec<PathBuf> {
 /// Cursor's folder variables expanded. Errors name the field, never its value.
 fn importable_servers(report: &mut ScanReport, path: &Path, root: &Path, scope: Scope, servers: Value) -> Value {
     let Value::Object(servers) = servers else { return servers };
-    let sep = std::path::MAIN_SEPARATOR_STR.to_string();
-    let mut vars = vec![("${pathSeparator}", sep.clone()), ("${/}", sep)];
-    let home = if scope == Scope::Global { Some(root.to_path_buf()) } else { std::env::var_os("HOME").map(PathBuf::from) };
-    if let Some(home) = home {
-        vars.push(("${userHome}", home.display().to_string()));
-    }
-    // In the global config the workspace is whatever project Cursor has open.
-    if scope == Scope::Project {
-        vars.push(("${workspaceFolder}", root.display().to_string()));
-        vars.push(("${workspaceFolderBasename}", root.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()));
-    }
+    let vars = folder_vars(root, scope);
     let mut kept = serde_json::Map::new();
     for (name, mut server) in servers {
         let unsupported = ["envFile", "auth"].into_iter().find(|key| server.get(key).is_some());
@@ -141,9 +131,25 @@ fn importable_servers(report: &mut ScanReport, path: &Path, root: &Path, scope: 
     Value::Object(kept)
 }
 
+/// The folder variables Cursor expands in `mcp.json`: VS Code's, so the VS Code adapter uses them too.
+pub(super) fn folder_vars(root: &Path, scope: Scope) -> Vec<(&'static str, String)> {
+    let sep = std::path::MAIN_SEPARATOR_STR.to_string();
+    let mut vars = vec![("${pathSeparator}", sep.clone()), ("${/}", sep)];
+    let home = if scope == Scope::Global { Some(root.to_path_buf()) } else { std::env::var_os("HOME").map(PathBuf::from) };
+    if let Some(home) = home {
+        vars.push(("${userHome}", home.display().to_string()));
+    }
+    // In the global config the workspace is whatever project Cursor has open.
+    if scope == Scope::Project {
+        vars.push(("${workspaceFolder}", root.display().to_string()));
+        vars.push(("${workspaceFolderBasename}", root.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()));
+    }
+    vars
+}
+
 /// Every string of `value` with `vars` replaced. Any other `${…}` (`${env:NAME}` reads the shell
 /// Cursor runs in) would reach the server as is.
-fn expand(value: &mut Value, vars: &[(&str, String)]) -> Result<(), String> {
+pub(super) fn expand(value: &mut Value, vars: &[(&str, String)]) -> Result<(), String> {
     match value {
         Value::String(s) => {
             for (var, with) in vars {
@@ -189,7 +195,7 @@ fn library_rule(mdc: &str) -> String {
 
 /// Cursor's `globs`: a comma-separated string (as its docs write it), `[a, b]`, or a YAML list.
 /// Read by hand: a glob starting with `*` is a YAML alias, so such frontmatter is not valid YAML.
-fn globs(head: &str, value: &str) -> Vec<String> {
+pub(super) fn globs(head: &str, value: &str) -> Vec<String> {
     let items: Vec<&str> = if value.is_empty() {
         let lines = head.lines().skip_while(|l| !l.starts_with("globs:")).skip(1);
         lines.map(str::trim).map_while(|l| l.strip_prefix("- ")).collect()

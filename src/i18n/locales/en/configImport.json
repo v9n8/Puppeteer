@@ -32,7 +32,11 @@
     "claude_code": "Claude Code",
     "codex": "Codex",
     "cursor": "Cursor",
-    "claude_desktop": "Claude Desktop"
+    "claude_desktop": "Claude Desktop",
+    "gemini_cli": "Gemini CLI",
+    "vscode": "VS Code / Copilot",
+    "windsurf": "Windsurf",
+    "craft": "Craft Agents"
   },
   "conflict": {
     "exists": "Name already in the library",
