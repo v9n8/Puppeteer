@@ -1,0 +1,10 @@
+{
+  "title": "What's new in Puppeteer {version}",
+  "close": "Got it",
+  "kind": {
+    "added": "New",
+    "improved": "Improved",
+    "changed": "Changed",
+    "fixed": "Fixed"
+  }
+}

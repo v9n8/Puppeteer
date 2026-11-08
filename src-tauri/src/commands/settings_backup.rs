@@ -3826,6 +3826,7 @@ mod tests {
             "claude_path",
             crate::inbox_api::TOKEN_SETTING_KEY,
             "remote_enabled",
+            "whats_new_seen_version",
         ] {
             assert!(!is_portable_setting(key), "{key}");
         }

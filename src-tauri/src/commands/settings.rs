@@ -67,6 +67,9 @@ pub struct AppSettings {
     /// still running: "ask" (default) | "stop_all" | "keep_leftovers". Read by
     /// `procs::quit`.
     pub quit_background_policy: String,
+    /// Newest app version whose "What's new" notes were offered ("" = none yet).
+    /// Per machine: left out of a backup (see `src/lib/whatsNew.ts`).
+    pub whats_new_seen_version: String,
 }
 
 /// `AppSettings` keys carried by a settings backup. `claude_path` / `codex_path` are left out:
@@ -152,6 +155,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         mcp_builtin_puppeteer_enabled: "true".to_string(),
         mcp_builtin_google_enabled: "true".to_string(),
         quit_background_policy: "ask".to_string(),
+        whats_new_seen_version: String::new(),
     };
 
     for row in rows {
@@ -189,6 +193,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "mcp_builtin_puppeteer_enabled" => settings.mcp_builtin_puppeteer_enabled = value,
             "mcp_builtin_google_enabled" => settings.mcp_builtin_google_enabled = value,
             "quit_background_policy" => settings.quit_background_policy = value,
+            "whats_new_seen_version" => settings.whats_new_seen_version = value,
             _ => {}
         }
     }

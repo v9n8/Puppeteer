@@ -18,6 +18,7 @@ import PermissionNotifier from '@/components/PermissionNotifier.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
 import UpdateNotifier from '@/components/UpdateNotifier.vue'
+import WhatsNewModal from '@/components/WhatsNewModal.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -1108,6 +1109,10 @@ onMounted(async () => {
          another machine, which cannot be updated from here (install_update is
          local-only). -->
     <UpdateNotifier v-if="features.isOn('app.auto_update') && !isRemoteMode()" />
+
+    <!-- Notes of THIS app's new version, once; a remote-desktop window runs
+         another machine's version. -->
+    <WhatsNewModal v-if="features.isOn('app.whats_new') && !isRemoteMode()" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />

@@ -177,6 +177,7 @@ pub static MODULES: &[Module] = &[
         props: &[
             Prop { legacy_key: Some("animated_background"), ..on("animated_background") },
             on("auto_update"),
+            on("whats_new"),
         ],
     },
 ];
@@ -401,6 +402,7 @@ mod tests {
         assert!(prop(&tree, "library.builtin_mcp_puppeteer").effective);
         assert!(prop(&tree, "app.animated_background").effective);
         assert!(prop(&tree, "app.auto_update").effective);
+        assert!(prop(&tree, "app.whats_new").effective);
         assert!(tree.iter().flat_map(|m| &m.props).all(|p| p.stored.is_none()));
     }
 

@@ -1,0 +1,10 @@
+{
+  "title": "Có gì mới trong Puppeteer {version}",
+  "close": "Đã hiểu",
+  "kind": {
+    "added": "Mới",
+    "improved": "Cải thiện",
+    "changed": "Thay đổi",
+    "fixed": "Đã sửa"
+  }
+}

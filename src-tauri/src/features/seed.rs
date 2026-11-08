@@ -179,6 +179,7 @@ mod tests {
             "library.skill_doctor",
             "library.import_external",
             "app.auto_update",
+            "app.whats_new",
         ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");

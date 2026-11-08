@@ -121,7 +121,8 @@
     },
     "app": {
       "animated_background": "Nền động",
-      "auto_update": "Kiểm tra bản mới và cài khi bạn đồng ý"
+      "auto_update": "Kiểm tra bản mới và cài khi bạn đồng ý",
+      "whats_new": "Báo có gì mới sau khi cập nhật"
     }
   }
 }

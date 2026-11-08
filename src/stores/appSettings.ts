@@ -38,6 +38,8 @@ export interface AppSettings {
   mcp_builtin_google_enabled: string
   /** What quitting does with running sessions / leftover processes: 'ask' | 'stop_all' | 'keep_leftovers'. */
   quit_background_policy: string
+  /** Newest version whose "What's new" notes were offered ('' = none yet); see lib/whatsNew.ts. */
+  whats_new_seen_version: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {
