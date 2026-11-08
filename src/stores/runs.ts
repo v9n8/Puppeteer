@@ -62,6 +62,40 @@ export function sameRunLogRevision(
   )
 }
 
+/** A turn's workspace snapshot (Rewind), from `list_snapshots`. */
+export interface RunSnapshot {
+  turn: number
+  created_at: string
+  /** 'ok' (restorable) | 'skipped' | 'pruned'. */
+  status: string
+  reason: string | null
+  file_count: number
+  total_bytes: number
+}
+
+export interface RewindFileChange {
+  path: string
+  change: 'restore' | 'create' | 'delete'
+  /** Written after the session stopped: not the agent's doing. */
+  outside: boolean
+}
+
+/** What `rewind_run` would do, from `preview_rewind`. */
+export interface RewindPreview {
+  turn: number
+  created_at: string | null
+  files: { changes: RewindFileChange[]; kept: string[]; fingerprint: string }
+  /** The conversation goes back too (else only the files). */
+  conversation: boolean
+  conversation_reason: 'engine' | 'session_changed' | 'not_in_log' | null
+  fingerprint: string
+}
+
+export interface RewindOutcome {
+  files: { restored: number; deleted: number; failed: string[] }
+  conversation: boolean
+}
+
 export interface RunRecord {
   id: string
   project_id: string
@@ -336,11 +370,25 @@ export const useRunsStore = defineStore('runs', () => {
     content: string,
     images?: ImageAttachment[],
     override_budget?: boolean,
-  ): Promise<void> {
-    await invoke('send_user_message', {
+  ): Promise<number | null> {
+    // The Rewind snapshot turn the prompt was logged under, if one was taken.
+    const turn = await invoke<number | null>('send_user_message', {
       payload: { run_id, content, images: images ?? [], override_budget: override_budget ?? false },
     })
     touchRun(run_id)
+    return turn ?? null
+  }
+
+  async function listSnapshots(run_id: string): Promise<RunSnapshot[]> {
+    return invoke<RunSnapshot[]>('list_snapshots', { runId: run_id })
+  }
+
+  async function previewRewind(run_id: string, turn: number): Promise<RewindPreview> {
+    return invoke<RewindPreview>('preview_rewind', { runId: run_id, turn })
+  }
+
+  async function rewindRun(run_id: string, turn: number, fingerprint: string): Promise<RewindOutcome> {
+    return invoke<RewindOutcome>('rewind_run', { runId: run_id, turn, fingerprint })
   }
 
   async function endRunInput(run_id: string): Promise<void> {
@@ -619,6 +667,7 @@ export const useRunsStore = defineStore('runs', () => {
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, endRunInput,
+    listSnapshots, previewRewind, rewindRun,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun,

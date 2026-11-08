@@ -16,6 +16,14 @@ export interface QuoteTarget {
   append: (text: string) => void
 }
 
+/** Taking the session shown on a surface back to one of its turns (Rewind). */
+export interface TurnRewind {
+  /** Turn `turn`'s snapshot can be restored now. */
+  available: (turn: number) => boolean
+  /** Ask (confirm first) to rewind to just before `turn`. */
+  start: (turn: number) => void
+}
+
 /** What "save as note / todo" files the capture under. */
 export interface SelectionCapture {
   context: ItemContext
@@ -31,6 +39,8 @@ export interface SelectionSurface {
   /** Null = no target now (Quote hidden). */
   quoteTarget?: () => QuoteTarget | null
   capture?: () => SelectionCapture
+  /** "Rewind to here" in the turn rows of a log shown here; null = not now. */
+  rewind?: () => TurnRewind | null
 }
 
 /** A selection the bar is shown for. */

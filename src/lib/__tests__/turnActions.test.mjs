@@ -176,3 +176,46 @@ test('turnActions: an answer of tool calls only offers just Fullscreen turn', ()
     overflow: [],
   })
 })
+
+const rewindTurns = (entries, running = false) =>
+  [...turnFooters(entries, running)].map(([at, f]) => [at, f.side, f.rewindTurn])
+
+test('turnFooters: a question rewinds to its own snapshot, an answer to the next question’s', () => {
+  const entries = [
+    { kind: 'user', text: 'q1', turn: 1 },
+    text('a1'),
+    // A conductor nudge (its own snapshot turn) stays inside the turn.
+    { kind: 'injected', source: 'session', text: 'worker done' },
+    text('a1 again'),
+    { kind: 'user', text: 'q2', turn: 3 },
+    text('a2'),
+  ]
+  assert.deepEqual(rewindTurns(entries), [
+    [0, 'question', 1],
+    [3, 'answer', 3],
+    [4, 'question', 3],
+    // The last answer left the workspace as it is now: nothing to go back to.
+    [5, 'answer', null],
+  ])
+})
+
+test('turnFooters: prompts without a snapshot turn give no rewind target', () => {
+  assert.deepEqual(rewindTurns([user('q1'), text('a1'), { kind: 'user', text: 'q2', turn: 4 }, text('a2')]), [
+    [0, 'question', null],
+    [1, 'answer', 4],
+    [2, 'question', 4],
+    [3, 'answer', null],
+  ])
+})
+
+test('turnActions: Rewind sits last behind ⋯ on both sides, only when the surface can rewind', () => {
+  const can = { ...ctx, canRewind: true }
+  assert.deepEqual(turnActions('question', allOn, can), { primary: ['copy', 'fullscreen'], overflow: ['rewind'] })
+  assert.deepEqual(turnActions('question', allOn, { ...can, hasText: false }), { primary: [], overflow: ['rewind'] })
+  assert.deepEqual(turnActions('answer', allOn, can).overflow, ['saveNote', 'rewind'])
+  assert.deepEqual(turnActions('answer', allOn, { ...can, hasText: false }).overflow, ['rewind'])
+  assert.deepEqual(turnActions('answer', allOn, ctx).overflow, ['saveNote'])
+  const rewindOff = (f) => f !== TURN_ACTION_FEATURES.rewind
+  assert.deepEqual(turnActions('question', rewindOff, can).overflow, [])
+  assert.equal(TURN_ACTION_FEATURES.rewind, 'sessions.rewind')
+})

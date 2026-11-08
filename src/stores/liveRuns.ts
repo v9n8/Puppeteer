@@ -297,10 +297,12 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     projectId: string,
     text: string,
     images?: ImageAttachment[],
-  ) {
+  ): StreamEntry {
     const s = ensure(runId, projectId)
     s.hasStreamEvents = true
     s.entries.push({ kind: 'user', text, ...(images?.length ? { images } : {}) })
+    // The reactive copy, so a turn set on it later (Rewind) re-renders.
+    return s.entries[s.entries.length - 1]
   }
 
   function setStatus(runId: string, status: string) {

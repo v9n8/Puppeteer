@@ -146,6 +146,43 @@
     "apply": "Add to message",
     "empty": "No items left. The agent will get an empty list."
   },
+  "rewind": {
+    "title": "Rewind to here",
+    "loading": "Checking what would change…",
+    "filesAt": "Files go back to how they were at {when}.",
+    "conversation": "The conversation goes back too: the messages after this point are removed, and the agent will not remember them.",
+    "filesOnly": "Only the files go back. The conversation stays as it is, and the agent still remembers the later messages. {reason}",
+    "reason": {
+      "engine": "This engine cannot take a conversation back.",
+      "session_changed": "A new agent session was started after this point, so the conversation cannot go back that far.",
+      "not_in_log": "This message was not found in the session log."
+    },
+    "changes": "{n} file will be overwritten or deleted: | {n} files will be overwritten or deleted:",
+    "outsideNote": "Marked files changed after the session stopped (edited outside it). Those edits will be lost.",
+    "outside": "changed after the session stopped",
+    "change": {
+      "restore": "overwrite",
+      "create": "recreate",
+      "delete": "delete"
+    },
+    "noChanges": "No file differs from that point.",
+    "kept": "Left as they are (too large to have been saved): {files}",
+    "confirm": "Rewind",
+    "done": "Rewound: {restored} files restored, {deleted} deleted.",
+    "doneFilesOnly": "Files rewound ({restored} restored, {deleted} deleted). The conversation was kept.",
+    "failed": "Could not restore: {files}",
+    "errors": {
+      "run_active": "Stop the session before rewinding.",
+      "folder_busy": "Another session is running in this folder. Stop it first.",
+      "files_changed": "Files changed while this dialog was open. Check the list again.",
+      "snapshot_damaged": "The saved copy of this point is damaged. Nothing was changed.",
+      "snapshot_missing": "The saved copy of this point is gone.",
+      "snapshot_unavailable": "The saved copy of this point was cleaned up.",
+      "snapshot_not_found": "There is no saved copy of this point.",
+      "workspace_missing": "The session's folder no longer exists.",
+      "too_many_files": "The folder has too many files to compare."
+    }
+  },
   "collapseComposer": "Collapse the composer",
   "expandComposer": "Expand the composer (easier to read/edit long text)",
   "runSettingsTitle": "Run options — using {engine}",

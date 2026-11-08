@@ -902,7 +902,7 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
             override_budget: false,
         };
         match crate::commands::runs::send_user_message_inner(&ctx.db, &ctx.registry, payload, true).await {
-            Ok(()) => {
+            Ok(_) => {
                 accept(ctx, action, Some(&run_id), None).await;
                 command_ack(ctx, cmd, true, None).await;
             }
@@ -1065,7 +1065,7 @@ async fn handle_send_chat(ctx: &HandlerCtx, cmd: &CmdPayload) {
         override_budget: false,
     };
     match crate::commands::runs::send_user_message_inner(&ctx.db, &ctx.registry, payload, true).await {
-        Ok(()) => {
+        Ok(_) => {
             accept(ctx, action, Some(&run_id), None).await;
             command_ack(ctx, cmd, true, None).await;
         }

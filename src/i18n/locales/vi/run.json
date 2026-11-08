@@ -146,6 +146,43 @@
     "apply": "Thêm vào tin nhắn",
     "empty": "Không còn mục nào. Agent sẽ nhận danh sách rỗng."
   },
+  "rewind": {
+    "title": "Tua về đây",
+    "loading": "Đang kiểm tra những gì sẽ thay đổi…",
+    "filesAt": "File sẽ quay về như lúc {when}.",
+    "conversation": "Hội thoại cũng quay về: các tin nhắn sau điểm này bị xoá, và agent sẽ không nhớ chúng.",
+    "filesOnly": "Chỉ file quay về. Hội thoại giữ nguyên, agent vẫn nhớ các tin nhắn sau đó. {reason}",
+    "reason": {
+      "engine": "Engine này không quay lại hội thoại được.",
+      "session_changed": "Sau điểm này đã mở một phiên agent mới, nên hội thoại không quay về xa như vậy được.",
+      "not_in_log": "Không tìm thấy tin nhắn này trong log của phiên."
+    },
+    "changes": "{n} file sẽ bị ghi đè hoặc xoá:",
+    "outsideNote": "File được đánh dấu đã đổi sau khi phiên dừng (sửa bên ngoài phiên). Những thay đổi đó sẽ mất.",
+    "outside": "đổi sau khi phiên dừng",
+    "change": {
+      "restore": "ghi đè",
+      "create": "tạo lại",
+      "delete": "xoá"
+    },
+    "noChanges": "Không có file nào khác với lúc đó.",
+    "kept": "Giữ nguyên (quá lớn nên không được lưu): {files}",
+    "confirm": "Tua về",
+    "done": "Đã tua về: khôi phục {restored} file, xoá {deleted} file.",
+    "doneFilesOnly": "Đã tua file về (khôi phục {restored}, xoá {deleted}). Hội thoại giữ nguyên.",
+    "failed": "Không khôi phục được: {files}",
+    "errors": {
+      "run_active": "Hãy dừng phiên trước khi tua về.",
+      "folder_busy": "Một phiên khác đang chạy trong thư mục này. Hãy dừng nó trước.",
+      "files_changed": "File đã đổi trong lúc hộp thoại đang mở. Hãy xem lại danh sách.",
+      "snapshot_damaged": "Bản lưu của điểm này bị hỏng. Chưa có gì bị thay đổi.",
+      "snapshot_missing": "Bản lưu của điểm này không còn.",
+      "snapshot_unavailable": "Bản lưu của điểm này đã bị dọn.",
+      "snapshot_not_found": "Không có bản lưu cho điểm này.",
+      "workspace_missing": "Thư mục của phiên không còn tồn tại.",
+      "too_many_files": "Thư mục có quá nhiều file để so sánh."
+    }
+  },
   "collapseComposer": "Thu gọn ô soạn thảo",
   "expandComposer": "Mở rộng ô soạn thảo (dễ đọc/sửa văn bản dài)",
   "runSettingsTitle": "Tùy chọn run — đang dùng {engine}",

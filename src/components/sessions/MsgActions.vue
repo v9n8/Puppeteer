@@ -6,8 +6,8 @@
 // opens upward first because the row ends its turn.
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, Copy, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
-import { Button, DropdownItem, DropdownMenu } from '@/components/ui'
+import { Check, Copy, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
+import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { turnActions, type TurnAction, type TurnSide } from '@/lib/turnActions'
 
 /**
@@ -20,11 +20,15 @@ export interface MsgActionsState {
   /** Name of the session a quote goes to; null = Quote hidden. */
   quoteLabel: Readonly<Ref<string | null>>
   canSaveNote: Readonly<Ref<boolean>>
+  /** The session can be rewound to `turn` now (reads its state reactively). */
+  canRewind: (turn: number) => boolean
 }
 
 const props = defineProps<{
   side: TurnSide
   hasText: boolean
+  /** The snapshot turn "Rewind to here" goes back to; null = none. */
+  rewindTurn: number | null
   state: MsgActionsState
   /** Runs an action; resolves true when Copy actually wrote the clipboard. */
   run: (action: TurnAction) => Promise<boolean>
@@ -37,6 +41,7 @@ const buttons = computed(() =>
     hasText: props.hasText,
     hasQuoteTarget: props.state.quoteLabel.value !== null,
     canSaveNote: props.state.canSaveNote.value,
+    canRewind: props.rewindTurn !== null && props.state.canRewind(props.rewindTurn),
   }),
 )
 
@@ -52,7 +57,7 @@ async function click(action: TurnAction) {
 }
 onBeforeUnmount(() => clearTimeout(copiedTimer))
 
-const ICONS = { copy: Copy, quote: Quote, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote } as const
+const ICONS = { copy: Copy, quote: Quote, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, rewind: History } as const
 
 function icon(action: TurnAction) {
   return action === 'copy' && copied.value ? Check : ICONS[action]
@@ -92,10 +97,14 @@ function title(action: TurnAction): string {
           <MoreHorizontal class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
       </template>
-      <DropdownItem v-for="action in buttons.overflow" :key="action" @click="click(action)">
-        <component :is="icon(action)" class="h-3.5 w-3.5" :stroke-width="1.75" />
-        {{ title(action) }}
-      </DropdownItem>
+      <template v-for="(action, n) in buttons.overflow" :key="action">
+        <!-- Rewind cuts the session: kept apart from the harmless items. -->
+        <DropdownSeparator v-if="action === 'rewind' && n > 0" />
+        <DropdownItem :variant="action === 'rewind' ? 'destructive' : 'default'" @click="click(action)">
+          <component :is="icon(action)" class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ title(action) }}
+        </DropdownItem>
+      </template>
     </DropdownMenu>
   </div>
 </template>

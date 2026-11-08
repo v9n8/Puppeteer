@@ -28,6 +28,10 @@
 //! `max_store_bytes` by dropping the least recently used manifests. A dropped
 //! snapshot keeps its row (`pruned`) so turn numbers never shift. Blobs nothing
 //! points at are deleted by [`sweep_at`]: at startup, then at most hourly.
+//!
+//! Restore ([`preview`], then [`restore`]) is Rewind's file half (`runs::rewind`):
+//! files that differ are written back, files created since are deleted, and
+//! the unmanaged ones (and new files too large to have a copy) are left alone.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -278,7 +282,7 @@ async fn record(
     run_id: &str,
     workspace: &str,
     outcome: &Result<Captured, String>,
-) -> Result<(), String> {
+) -> Result<i64, String> {
     let (status, reason, manifest, files, bytes) = match outcome {
         Ok(Captured::Saved { manifest, files, bytes }) => ("ok", None, Some(manifest.as_str()), *files as i64, *bytes as i64),
         Ok(Captured::Skipped(reason)) => ("skipped", Some(*reason), None, 0, 0),
@@ -286,7 +290,8 @@ async fn record(
     };
     sqlx::query(
         "INSERT INTO run_snapshots (run_id, turn, created_at, workspace, status, reason, manifest_sha, file_count, total_bytes)
-         VALUES (?, (SELECT COALESCE(MAX(turn), 0) + 1 FROM run_snapshots WHERE run_id = ?), ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, (SELECT COALESCE(MAX(turn), 0) + 1 FROM run_snapshots WHERE run_id = ?), ?, ?, ?, ?, ?, ?, ?)
+         RETURNING turn",
     )
     .bind(run_id)
     .bind(run_id)
@@ -297,10 +302,10 @@ async fn record(
     .bind(manifest)
     .bind(files)
     .bind(bytes)
-    .execute(db)
+    .fetch_one(db)
     .await
-    .map_err(|e| e.to_string())?;
-    Ok(())
+    .map(|row: sqlx::sqlite::SqliteRow| sqlx::Row::get(&row, 0))
+    .map_err(|e| e.to_string())
 }
 
 const PRUNE: &str = "UPDATE run_snapshots SET status = 'pruned', manifest_sha = NULL";
@@ -328,10 +333,10 @@ async fn prune_run(db: &Db, run_id: &str, keep: usize) -> Result<(), String> {
     Ok(())
 }
 
-/// [`before_turn`] into `store`. False when the switch is off: nothing taken.
-async fn before_turn_at(db: &Db, store: &Path, run_id: &str, limits: &Limits) -> bool {
+/// [`before_turn`] into `store`. None when the switch is off: nothing taken.
+async fn before_turn_at(db: &Db, store: &Path, run_id: &str, limits: &Limits) -> Option<Option<i64>> {
     if !crate::features::is_on(db, FEATURE).await {
-        return false;
+        return None;
     }
     let workspace = workspace_of(db, run_id).await;
     let mut cache = STATE.lock().await;
@@ -356,22 +361,24 @@ async fn before_turn_at(db: &Db, store: &Path, run_id: &str, limits: &Limits) ->
         tracing::warn!(event = "snapshot_failed", run_id = %run_id, error = %e);
     }
     let written = match record(db, run_id, workspace.as_deref().unwrap_or(""), &outcome).await {
-        Ok(()) => prune_run(db, run_id, limits.keep_per_run).await,
+        Ok(turn) => prune_run(db, run_id, limits.keep_per_run).await.map(|()| turn),
         Err(e) => Err(e),
     };
     drop(cache);
-    if let Err(e) = written {
+    if let Err(e) = &written {
         tracing::warn!(event = "snapshot_record_failed", run_id = %run_id, error = %e);
     }
-    true
+    Some(written.ok())
 }
 
 /// Capture the run's workspace before its next prompt goes to the sidecar.
 /// Best effort: a failure is logged and recorded, never stops the turn.
-pub async fn before_turn(db: &Db, run_id: &str) {
-    if before_turn_at(db, &root(), run_id, &LIMITS).await {
-        sweep_in_background(db.clone());
-    }
+/// Returns the turn the snapshot was recorded under, which the prompt's line
+/// in the run log carries so Rewind can find it.
+pub async fn before_turn(db: &Db, run_id: &str) -> Option<i64> {
+    let turn = before_turn_at(db, &root(), run_id, &LIMITS).await?;
+    sweep_in_background(db.clone());
+    turn
 }
 
 /// [`sweep_at`] off the caller's path, at most once per [`SWEEP_EVERY`].
@@ -504,6 +511,315 @@ async fn sweep_at(db: &Db, store: &Path, limits: &Limits, now: DateTime<Utc>) ->
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// One turn's snapshot, as Rewind lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SnapshotInfo {
+    pub turn: i64,
+    pub created_at: String,
+    /// 'ok' (restorable) | 'skipped' | 'pruned'.
+    pub status: String,
+    pub reason: Option<String>,
+    pub file_count: i64,
+    pub total_bytes: i64,
+}
+
+pub async fn of_run(db: &Db, run_id: &str) -> Result<Vec<SnapshotInfo>, String> {
+    let rows: Vec<(i64, String, String, Option<String>, i64, i64)> = sqlx::query_as(
+        "SELECT turn, created_at, status, reason, file_count, total_bytes FROM run_snapshots
+         WHERE run_id = ? ORDER BY turn",
+    )
+    .bind(run_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|(turn, created_at, status, reason, file_count, total_bytes)| SnapshotInfo {
+            turn,
+            created_at,
+            status,
+            reason,
+            file_count,
+            total_bytes,
+        })
+        .collect())
+}
+
+/// What a restore does to one path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Change {
+    /// Overwritten with the snapshot's copy.
+    Restore,
+    /// Gone now: written back.
+    Create,
+    /// Not in the snapshot (created after it): deleted.
+    Delete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FileChange {
+    pub path: String,
+    pub change: Change,
+    /// Last written after `since` (the run had stopped): not this session's doing.
+    pub outside: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RestorePlan {
+    pub changes: Vec<FileChange>,
+    /// Files created after the snapshot but over the size limit: left in place,
+    /// since nothing could bring them back once deleted.
+    pub kept: Vec<String>,
+    /// The workspace state this plan was made from; a restore refuses to run
+    /// when it no longer matches (the files changed after the user confirmed).
+    pub fingerprint: String,
+}
+
+struct Planned {
+    plan: RestorePlan,
+    /// (relative path, blob sha) to write.
+    writes: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Restored {
+    pub restored: usize,
+    pub deleted: usize,
+    /// Paths that could not be written or deleted.
+    pub failed: Vec<String>,
+}
+
+/// The content hash of a listed file, from `cache` while it is still valid.
+fn current_sha(item: &Listed, cache: &mut StatCache) -> Option<String> {
+    if let Some(hit) = cache.get(&item.abs) {
+        if hit.len == item.len && hit.modified == item.modified {
+            return Some(hit.sha.clone());
+        }
+    }
+    let data = std::fs::read(&item.abs).ok()?;
+    let sha = sha256(&data);
+    if item.modified.elapsed().is_ok_and(|age| age > RACY) {
+        cache.insert(item.abs.clone(), Stamp { len: data.len() as u64, modified: item.modified, sha: sha.clone() });
+    }
+    Some(sha)
+}
+
+/// What restoring `manifest` into `workspace` would change. The manifest's
+/// unmanaged files are never touched.
+fn plan_restore(
+    store: &Path,
+    workspace: &Path,
+    manifest: &str,
+    limits: &Limits,
+    since: Option<SystemTime>,
+    cache: &mut StatCache,
+) -> Result<Planned, String> {
+    let m = read_manifest(store, manifest).ok_or("snapshot_missing")?;
+    if !workspace.is_dir() {
+        return Err("workspace_missing".into());
+    }
+    let listed = list(workspace, limits.max_files).ok_or("too_many_files")?;
+    let mut current: HashMap<String, Listed> = listed.into_iter().map(|l| (l.rel.clone(), l)).collect();
+    let unmanaged: HashSet<&str> = m.unmanaged.iter().map(String::as_str).collect();
+    let outside = |item: &Listed| since.is_some_and(|s| item.modified > s);
+
+    let mut changes = Vec::new();
+    let mut writes = Vec::new();
+    let mut kept = Vec::new();
+    // Each line names a path, what happens to it and the state it is in now.
+    let mut seen = Vec::new();
+    let stamp = |item: &Listed| {
+        let nanos = item.modified.duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        format!("{}:{nanos}", item.len)
+    };
+    for f in &m.files {
+        let change = match current.remove(&f.path) {
+            None => Some((Change::Create, false, "-".to_string())),
+            Some(item) => {
+                let same = item.len == f.size && current_sha(&item, cache).as_deref() == Some(f.sha.as_str());
+                (!same).then(|| (Change::Restore, outside(&item), stamp(&item)))
+            }
+        };
+        if let Some((change, outside, now)) = change {
+            seen.push(format!("{change:?}\t{}\t{now}\t{}", f.path, f.sha));
+            changes.push(FileChange { path: f.path.clone(), change, outside });
+            writes.push((f.path.clone(), f.sha.clone()));
+        }
+    }
+    let mut created: Vec<Listed> = current.into_values().filter(|l| !unmanaged.contains(l.rel.as_str())).collect();
+    created.sort_by(|a, b| a.rel.cmp(&b.rel));
+    for item in created {
+        if item.len > limits.max_file_bytes {
+            kept.push(item.rel);
+            continue;
+        }
+        seen.push(format!("Delete\t{}\t{}", item.rel, stamp(&item)));
+        let outside = outside(&item);
+        changes.push(FileChange { path: item.rel, change: Change::Delete, outside });
+    }
+    changes.sort_by(|a, b| a.path.cmp(&b.path));
+    seen.sort();
+    let fingerprint = sha256(seen.join("\n").as_bytes());
+    Ok(Planned { plan: RestorePlan { changes, kept, fingerprint }, writes })
+}
+
+/// `rel` under `root`, refused when it could land outside it: a path that is
+/// not plain names, or a folder on the way that resolves elsewhere (a link).
+fn inside(root: &Path, rel: &str, create_parent: bool) -> Result<PathBuf, String> {
+    let rel_path = Path::new(rel);
+    if rel.is_empty() || !rel_path.components().all(|c| matches!(c, std::path::Component::Normal(_))) {
+        return Err(format!("unsafe path: {rel}"));
+    }
+    let path = root.join(rel_path);
+    let parent = path.parent().ok_or_else(|| format!("unsafe path: {rel}"))?;
+    if create_parent {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let real = parent.canonicalize().map_err(|e| e.to_string())?;
+    if !real.starts_with(root) {
+        return Err(format!("outside the workspace: {rel}"));
+    }
+    Ok(path)
+}
+
+/// Write `data` over `path` whole: aside, then renamed in. An existing file
+/// keeps its permissions (a script stays executable).
+fn write_whole(path: &Path, data: &[u8]) -> Result<(), String> {
+    let dir = path.parent().expect("checked by inside()");
+    let tmp = dir.join(format!(".puppeteer-rewind-{}.tmp", uuid::Uuid::new_v4()));
+    std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    if let Ok(meta) = std::fs::symlink_metadata(path) {
+        if meta.is_file() {
+            let _ = std::fs::set_permissions(&tmp, meta.permissions());
+        }
+    }
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
+/// Carry out `planned`. Every blob is read and checked first, so a snapshot
+/// missing a piece changes nothing at all.
+fn apply_restore(store: &Path, workspace: &Path, planned: &Planned) -> Result<Restored, String> {
+    let mut blobs = Vec::with_capacity(planned.writes.len());
+    for (rel, sha) in &planned.writes {
+        let data = std::fs::read(blob_path(store, sha)).map_err(|_| format!("snapshot_damaged: {rel}"))?;
+        if sha256(&data) != *sha {
+            return Err(format!("snapshot_damaged: {rel}"));
+        }
+        blobs.push((rel, data));
+    }
+    let root = workspace.canonicalize().map_err(|e| e.to_string())?;
+    let mut out = Restored { restored: 0, deleted: 0, failed: Vec::new() };
+    for (rel, data) in blobs {
+        match inside(&root, rel, true).and_then(|path| write_whole(&path, &data)) {
+            Ok(()) => out.restored += 1,
+            Err(_) => out.failed.push(rel.clone()),
+        }
+    }
+    for c in planned.plan.changes.iter().filter(|c| c.change == Change::Delete) {
+        match inside(&root, &c.path, false).and_then(|path| std::fs::remove_file(path).map_err(|e| e.to_string())) {
+            Ok(()) => out.deleted += 1,
+            Err(_) => out.failed.push(c.path.clone()),
+        }
+    }
+    Ok(out)
+}
+
+/// The folder and manifest of a turn's snapshot, if it can be restored.
+async fn restorable(db: &Db, run_id: &str, turn: i64) -> Result<(PathBuf, String), String> {
+    let row: Option<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT workspace, status, manifest_sha FROM run_snapshots WHERE run_id = ? AND turn = ?",
+    )
+    .bind(run_id)
+    .bind(turn)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    match row {
+        Some((workspace, status, Some(manifest))) if status == "ok" && !workspace.is_empty() => {
+            Ok((PathBuf::from(workspace), manifest))
+        }
+        Some(_) => Err("snapshot_unavailable".into()),
+        None => Err("snapshot_not_found".into()),
+    }
+}
+
+/// The folder a turn's snapshot was taken of.
+pub async fn workspace_of_turn(db: &Db, run_id: &str, turn: i64) -> Result<PathBuf, String> {
+    restorable(db, run_id, turn).await.map(|(dir, _)| dir)
+}
+
+async fn preview_at(
+    db: &Db,
+    store: &Path,
+    run_id: &str,
+    turn: i64,
+    since: Option<SystemTime>,
+    limits: &Limits,
+) -> Result<RestorePlan, String> {
+    let (workspace, manifest) = restorable(db, run_id, turn).await?;
+    let mut cache = STATE.lock().await;
+    let (store, limits) = (store.to_path_buf(), *limits);
+    let mut taken = std::mem::take(&mut *cache);
+    let (res, taken) = tokio::task::spawn_blocking(move || {
+        let res = plan_restore(&store, &workspace, &manifest, &limits, since, &mut taken);
+        (res, taken)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    *cache = taken;
+    res.map(|p| p.plan)
+}
+
+/// What restoring the snapshot taken before `turn` would change.
+pub async fn preview(db: &Db, run_id: &str, turn: i64, since: Option<SystemTime>) -> Result<RestorePlan, String> {
+    preview_at(db, &root(), run_id, turn, since, &LIMITS).await
+}
+
+async fn restore_at(
+    db: &Db,
+    store: &Path,
+    run_id: &str,
+    turn: i64,
+    since: Option<SystemTime>,
+    fingerprint: &str,
+    limits: &Limits,
+) -> Result<Restored, String> {
+    let (workspace, manifest) = restorable(db, run_id, turn).await?;
+    // Held throughout: the sweep must not drop the blobs being read.
+    let mut cache = STATE.lock().await;
+    let (store, limits, expected) = (store.to_path_buf(), *limits, fingerprint.to_string());
+    let mut taken = std::mem::take(&mut *cache);
+    let (res, taken) = tokio::task::spawn_blocking(move || {
+        let res = plan_restore(&store, &workspace, &manifest, &limits, since, &mut taken).and_then(|planned| {
+            if planned.plan.fingerprint != expected {
+                return Err("files_changed".to_string());
+            }
+            apply_restore(&store, &workspace, &planned)
+        });
+        (res, taken)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    *cache = taken;
+    res
+}
+
+/// Put the workspace back as the snapshot taken before `turn` holds it, if it
+/// is still in the state `fingerprint` (from [`preview`]) describes.
+pub async fn restore(
+    db: &Db,
+    run_id: &str,
+    turn: i64,
+    since: Option<SystemTime>,
+    fingerprint: &str,
+) -> Result<Restored, String> {
+    restore_at(db, &root(), run_id, turn, since, fingerprint, &LIMITS).await
 }
 
 #[cfg(test)]
@@ -649,12 +965,12 @@ mod tests {
         write(&ws, "a.txt", b"one");
         let db = db_with_run(&ws, true).await;
 
-        assert!(before_turn_at(&db, &store, "r1", &SMALL).await);
-        assert!(before_turn_at(&db, &store, "r1", &SMALL).await);
+        assert_eq!(before_turn_at(&db, &store, "r1", &SMALL).await, Some(Some(1)));
+        assert_eq!(before_turn_at(&db, &store, "r1", &SMALL).await, Some(Some(2)));
         for i in 0..5 {
             write(&ws, &format!("f{i}.txt"), &[b'x'; 16]);
         }
-        assert!(before_turn_at(&db, &store, "r1", &SMALL).await);
+        assert_eq!(before_turn_at(&db, &store, "r1", &SMALL).await, Some(Some(3)));
         let got = rows(&db, "r1").await;
         assert_eq!(got.len(), 3);
         assert_eq!((got[0].1.as_str(), &got[0].3), ("ok", &got[1].3), "a chat-only turn shares the manifest");
@@ -667,7 +983,7 @@ mod tests {
 
         crate::commands::settings::set_setting(&db, "feature.sessions.rewind", "false").await.unwrap();
         let before = blob_count(&store);
-        assert!(!before_turn_at(&db, &store, "r1", &SMALL).await);
+        assert_eq!(before_turn_at(&db, &store, "r1", &SMALL).await, None);
         assert_eq!(rows(&db, "r1").await.len(), 3);
         assert_eq!(blob_count(&store), before);
 
@@ -741,5 +1057,139 @@ mod tests {
         sqlx::query("DELETE FROM runs WHERE id = 'r2'").execute(&db).await.unwrap();
         assert_eq!(sweep_at(&db, &store, &limits, Utc::now()).await, Ok(2));
         assert_eq!(blob_count(&store), 0);
+    }
+
+    fn changes(plan: &RestorePlan) -> Vec<(&str, Change, bool)> {
+        plan.changes.iter().map(|c| (c.path.as_str(), c.change, c.outside)).collect()
+    }
+
+    fn set_mtime(path: &Path, at: SystemTime) {
+        std::fs::File::options().write(true).open(path).unwrap().set_modified(at).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_restore_puts_the_turns_files_back_and_leaves_what_it_cannot_bring_back() {
+        let (ws, store) = (git_repo("restore"), temp("store"));
+        let limits = Limits { max_files: 50, max_snapshot_bytes: 1 << 10, ..SMALL };
+        write(&ws, "keep.txt", b"same");
+        write(&ws, "edit.txt", b"before");
+        write(&ws, "gone/deep.txt", b"deleted later");
+        write(&ws, "big.bin", &[1u8; 17]);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            write(&ws, "run.sh", b"echo 1");
+            std::fs::set_permissions(ws.join("run.sh"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let db = db_with_run(&ws, true).await;
+        assert_eq!(before_turn_at(&db, &store, "r1", &limits).await, Some(Some(1)));
+
+        // The turn: an edit, a deletion, new files, the unmanaged file changed.
+        write(&ws, "edit.txt", b"after!");
+        std::fs::remove_dir_all(ws.join("gone")).unwrap();
+        write(&ws, "new/made.txt", b"agent made");
+        write(&ws, "huge-new.bin", &[2u8; 17]);
+        write(&ws, "big.bin", &[3u8; 18]);
+        #[cfg(unix)]
+        write(&ws, "run.sh", b"echo 2");
+
+        let plan = preview_at(&db, &store, "r1", 1, None, &limits).await.unwrap();
+        let mut want = vec![
+            ("edit.txt", Change::Restore, false),
+            ("gone/deep.txt", Change::Create, false),
+            ("new/made.txt", Change::Delete, false),
+        ];
+        if cfg!(unix) {
+            want.push(("run.sh", Change::Restore, false));
+        }
+        assert_eq!(changes(&plan), want);
+        assert_eq!(plan.kept, ["huge-new.bin"]);
+
+        let done = restore_at(&db, &store, "r1", 1, None, &plan.fingerprint, &limits).await.unwrap();
+        assert_eq!((done.restored, done.deleted, done.failed.len()), (want.len() - 1, 1, 0));
+        assert_eq!(std::fs::read(ws.join("edit.txt")).unwrap(), b"before");
+        assert_eq!(std::fs::read(ws.join("gone/deep.txt")).unwrap(), b"deleted later");
+        assert!(!ws.join("new/made.txt").exists());
+        assert_eq!(std::fs::read(ws.join("keep.txt")).unwrap(), b"same");
+        // Unmanaged and too-large-to-restore files are left as they are.
+        assert_eq!(std::fs::read(ws.join("big.bin")).unwrap(), [3u8; 18]);
+        assert!(ws.join("huge-new.bin").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::read(ws.join("run.sh")).unwrap(), b"echo 1");
+            assert_eq!(std::fs::metadata(ws.join("run.sh")).unwrap().permissions().mode() & 0o777, 0o755);
+        }
+        // Nothing left to do afterwards.
+        assert!(preview_at(&db, &store, "r1", 1, None, &limits).await.unwrap().changes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn files_written_after_the_run_stopped_are_flagged_and_a_stale_preview_is_refused() {
+        let (ws, store) = (git_repo("outside"), temp("store"));
+        write(&ws, "agent.txt", b"v1");
+        write(&ws, "user.txt", b"v1");
+        let db = db_with_run(&ws, true).await;
+        before_turn_at(&db, &store, "r1", &SMALL).await;
+
+        let now = SystemTime::now();
+        let stopped = now - Duration::from_secs(60);
+        write(&ws, "agent.txt", b"v2");
+        set_mtime(&ws.join("agent.txt"), stopped - Duration::from_secs(60));
+        write(&ws, "user.txt", b"v2");
+        write(&ws, "user-new.txt", b"mine");
+        let plan = preview_at(&db, &store, "r1", 1, Some(stopped), &SMALL).await.unwrap();
+        assert_eq!(
+            changes(&plan),
+            [
+                ("agent.txt", Change::Restore, false),
+                ("user-new.txt", Change::Delete, true),
+                ("user.txt", Change::Restore, true),
+            ]
+        );
+
+        // Edited again after the preview: the confirmed list no longer holds.
+        write(&ws, "user.txt", b"v3, typed after the dialog opened");
+        assert_eq!(
+            restore_at(&db, &store, "r1", 1, Some(stopped), &plan.fingerprint, &SMALL).await,
+            Err("files_changed".into())
+        );
+        assert_eq!(std::fs::read(ws.join("agent.txt")).unwrap(), b"v2", "nothing restored");
+    }
+
+    #[tokio::test]
+    async fn only_a_kept_snapshot_restores_and_a_damaged_one_changes_nothing() {
+        let (ws, store) = (git_repo("damaged"), temp("store"));
+        write(&ws, "a.txt", b"one");
+        write(&ws, "b.txt", b"two");
+        let db = db_with_run(&ws, true).await;
+        before_turn_at(&db, &store, "r1", &SMALL).await;
+        assert_eq!(preview_at(&db, &store, "r1", 2, None, &SMALL).await, Err("snapshot_not_found".into()));
+        assert_eq!(preview_at(&db, &store, "r2", 1, None, &SMALL).await, Err("snapshot_not_found".into()));
+
+        write(&ws, "a.txt", b"ONE");
+        write(&ws, "b.txt", b"TWO");
+        let plan = preview_at(&db, &store, "r1", 1, None, &SMALL).await.unwrap();
+        std::fs::remove_file(blob_path(&store, &sha256(b"two"))).unwrap();
+        let got = restore_at(&db, &store, "r1", 1, None, &plan.fingerprint, &SMALL).await;
+        assert_eq!(got, Err("snapshot_damaged: b.txt".into()));
+        assert_eq!(std::fs::read(ws.join("a.txt")).unwrap(), b"ONE", "nothing written");
+
+        sqlx::query(&format!("{PRUNE} WHERE run_id = 'r1'")).execute(&db).await.unwrap();
+        assert_eq!(preview_at(&db, &store, "r1", 1, None, &SMALL).await, Err("snapshot_unavailable".into()));
+    }
+
+    #[test]
+    fn a_restore_never_writes_outside_the_workspace() {
+        let (ws, elsewhere) = (temp("inside"), temp("elsewhere"));
+        let root = ws.canonicalize().unwrap();
+        assert!(inside(&root, "../x", true).is_err());
+        assert!(inside(&root, "/etc/passwd", true).is_err());
+        assert!(inside(&root, "a/./b", true).is_ok());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&elsewhere, ws.join("link")).unwrap();
+            assert!(inside(&root, "link/file.txt", true).is_err());
+        }
     }
 }

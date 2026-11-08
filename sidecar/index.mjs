@@ -41,7 +41,8 @@
 // with real stream-json message types.
 //
 // Resume: if options.resume is absent but PUPPETEER_RESUME_SESSION is set in env,
-// the first prompt resumes that session.
+// the first prompt resumes that session — from PUPPETEER_RESUME_AT (a transcript
+// entry uuid) when set, after a Rewind.
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { randomUUID } from 'node:crypto'
@@ -420,6 +421,9 @@ function startQuery(firstText, opts = {}, firstImages) {
   }
   const resume = opts.resume || process.env.PUPPETEER_RESUME_SESSION
   if (resume) options.resume = resume
+  // Rewind: go on from this earlier entry of the session; what came after it
+  // leaves the conversation (later resumes follow the new branch).
+  if (resume && !opts.resume && process.env.PUPPETEER_RESUME_AT) options.resumeSessionAt = process.env.PUPPETEER_RESUME_AT
   // Bare names are handled by canUseTool (see isAutoAllowed); only scoped rules
   // reach the SDK. An explicit empty list is kept as-is.
   if (allowedTools && (scopedAllowRules.length || !allowedTools.length)) {

@@ -213,6 +213,33 @@ const tests = {
     assert.equal(o.permissionMode, 'default')
     // Keychain reads through the `security` CLI are denied in every session.
     assert.ok(o.disallowedTools.includes('Bash(security find-generic-password:*)'))
+    assert.equal(o.resume, undefined)
+    assert.equal(o.resumeSessionAt, undefined)
+  },
+
+  // Rewind: a resumed session goes on from the entry the broker names.
+  async 'resume after a rewind continues from the given entry'() {
+    const rewound = await runSidecar('permission', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'again' })
+      if (msg.type === '_puppeteer_permission_request') {
+        ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+        ctl.closeInput()
+      }
+    }, 10_000, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_RESUME_AT: 'entry-7' })
+    const o = rewound.messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    assert.equal(o.resume, 'sess-1')
+    assert.equal(o.resumeSessionAt, 'entry-7')
+
+    // Without a session to resume there is nothing to go back in.
+    const fresh = await runSidecar('permission', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === '_puppeteer_permission_request') {
+        ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+        ctl.closeInput()
+      }
+    }, 10_000, { PUPPETEER_RESUME_AT: 'entry-7' })
+    const f = fresh.messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    assert.equal(f.resumeSessionAt, undefined)
   },
 }
 

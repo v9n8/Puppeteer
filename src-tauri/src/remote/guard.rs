@@ -207,6 +207,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Schedules: what a schedule runs, and in which mode (a remote save switches it off).
     "save_schedule",
     "delete_schedule",
+    // Rewind: overwrites and deletes workspace files, cuts the session's log.
+    "rewind_run",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -686,6 +688,7 @@ mod tests {
             "conductor_worker_merge",
             "save_schedule",
             "delete_schedule",
+            "rewind_run",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -706,6 +709,8 @@ mod tests {
             "get_applied_library_items",
             "conductor_worker_diff",
             "list_schedules",
+            "list_snapshots",
+            "preview_rewind",
         ] {
             assert!(!audited_command(name), "{name}");
         }

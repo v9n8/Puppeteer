@@ -736,13 +736,14 @@ const footers = computed(() =>
 // v-memo dependency: the row under entry `i` and what it shows.
 function footerKey(i: number): string {
   const f = footers.value.get(i)
-  return f ? `${f.side}:${f.from}:${f.to}:${f.hasText ? 1 : 0}` : ''
+  return f ? `${f.side}:${f.from}:${f.to}:${f.hasText ? 1 : 0}:${f.rewindTurn ?? ''}` : ''
 }
 
 const msgActionsState: MsgActionsState = {
   isOn: (id) => selectionHost.value?.isOn(id) ?? false,
   quoteLabel: computed(() => quoteTarget.value?.label ?? null),
   canSaveNote: computed(() => !!owner.value?.allow.saveNote && !!owner.value.capture),
+  canRewind: (turn) => owner.value?.rewind?.()?.available(turn) ?? false,
 }
 
 interface Fullscreen {
@@ -781,6 +782,9 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
       break
     case 'saveNote':
       if (owner.value) selectionHost.value?.saveNote(owner.value, text)
+      break
+    case 'rewind':
+      if (f.rewindTurn !== null) owner.value?.rewind?.()?.start(f.rewindTurn)
       break
   }
   return false
@@ -1446,6 +1450,7 @@ function toolResult(e: StreamEntry): unknown {
         <MsgActions
           :side="footers.get(i)!.side"
           :has-text="footers.get(i)!.hasText"
+          :rewind-turn="footers.get(i)!.rewindTurn"
           :state="msgActionsState"
           :run="(action) => runTurnAction(i, action)"
         />

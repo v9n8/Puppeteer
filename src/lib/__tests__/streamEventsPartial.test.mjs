@@ -142,3 +142,16 @@ test('a saved log (no deltas) parses exactly as before', () => {
   const log = [assistant([{ type: 'text', text: 'hi' }])].map(e => JSON.stringify(e)).join('\n')
   assert.deepEqual(parseStreamLog(log)?.entries, [{ kind: 'text', text: 'hi' }])
 })
+
+test('a prompt keeps the Rewind turn Puppeteer logged it under', () => {
+  const log = [
+    { type: 'user', message: { role: 'user', content: 'first' }, turn: 1 },
+    { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'with image' }] }, turn: 2 },
+    { type: 'user', message: { role: 'user', content: 'untagged' } },
+  ].map((e) => JSON.stringify(e)).join('\n')
+  assert.deepEqual(parseStreamLog(log)?.entries, [
+    { kind: 'user', text: 'first', turn: 1 },
+    { kind: 'user', text: 'with image', turn: 2 },
+    { kind: 'user', text: 'untagged' },
+  ])
+})

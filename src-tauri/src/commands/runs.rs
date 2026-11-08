@@ -85,6 +85,17 @@ fn log_user_content(text: &str, images: &[ImageAttachment]) -> serde_json::Value
     serde_json::Value::Array(blocks)
 }
 
+/// The persisted log's record of a prompt Puppeteer handed the engine: the
+/// stream-json user message the history view renders (the engines do not echo
+/// it), with the Rewind snapshot `turn` taken just before it, if any.
+fn prompt_log_line(text: &str, images: &[ImageAttachment], turn: Option<i64>) -> String {
+    let mut line = serde_json::json!({ "type": "user", "message": { "role": "user", "content": log_user_content(text, images) } });
+    if let Some(turn) = turn {
+        line["turn"] = serde_json::Value::from(turn);
+    }
+    format!("{line}\n")
+}
+
 async fn claude_usage_capture_mode(db: &Db, claude_account_id: Option<&str>) -> &'static str {
     match crate::commands::stats::budget_status_for(db, "claude", claude_account_id).await {
         Ok(status) if status.source == "plan" && (status.is_warning || status.is_over) => "warning",
@@ -503,17 +514,6 @@ pub(crate) async fn start_run_inner(
             first_line = Some(format!("{}\n", first));
         }
 
-        // Record the initial user message in the log (the SDK doesn't echo it).
-        {
-            let mut buf = log_buf.lock().await;
-            let synthetic = serde_json::json!({
-                "type": "user",
-                "message": { "role": "user", "content": log_user_content(&prompt, &payload.images) },
-            });
-            buf.push_str(&synthetic.to_string());
-            buf.push('\n');
-        }
-
         {
             let mut reg = registry.lock().await;
             reg.insert(
@@ -544,13 +544,15 @@ pub(crate) async fn start_run_inner(
             db_pool,
             registry_arc,
             session_id,
-            log_buf,
+            log_buf.clone(),
             log_path,
             false,
         ));
         // Registered and drained: now hand the first turn to the writer, once
-        // the workspace is captured for Rewind.
-        crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+        // the workspace is captured for Rewind. The log records the prompt (the
+        // SDK doesn't echo it) under the turn it was captured as.
+        let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+        log_buf.lock().await.push_str(&prompt_log_line(&prompt, &payload.images, turn));
         queue_first_prompt(input.as_ref(), first_line);
         return Ok(());
     }
@@ -641,15 +643,11 @@ pub(crate) async fn start_run_inner(
         first_line = Some(format!("{}\n", first));
     }
 
-    // Record the initial user message in the log (the sidecar doesn't echo it).
-    {
-        let mut buf = log_buf.lock().await;
-        let synthetic = serde_json::json!({
-            "type": "user",
-            "message": { "role": "user", "content": log_user_content(&prompt, &payload.images) },
-        });
-        buf.push_str(&synthetic.to_string());
-        buf.push('\n');
+    // Registered and drained (below): the first turn goes to the writer once
+    // the workspace is captured for Rewind. The log records the prompt (the
+    // sidecar doesn't echo it) under the turn it was captured as.
+    let record_first_prompt = |turn: Option<i64>| {
+        let mut buf = prompt_log_line(&prompt, &payload.images, turn);
 
         // Codex app-server does not support legacy SSE. When such servers are dropped,
         // surface a one-line note in the run log so the user knows what/why.
@@ -659,14 +657,17 @@ pub(crate) async fn start_run_inner(
                 mcp_skipped.len(),
                 mcp_skipped.join(", ")
             );
+            // `note`: not a prompt the engine got (Rewind counts those).
             let note = serde_json::json!({
                 "type": "user",
                 "message": { "role": "user", "content": text },
+                "note": true,
             });
             buf.push_str(&note.to_string());
             buf.push('\n');
         }
-    }
+        buf
+    };
 
     {
         let mut reg = registry.lock().await;
@@ -698,13 +699,12 @@ pub(crate) async fn start_run_inner(
         db_pool,
         registry_arc,
         session_id,
-        log_buf,
+        log_buf.clone(),
         log_path,
         false,
     ));
-    // Registered and drained: now hand the first turn to the writer, once the
-    // workspace is captured for Rewind.
-    crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+    let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+    log_buf.lock().await.push_str(&record_first_prompt(turn));
     queue_first_prompt(input.as_ref(), first_line);
     Ok(())
 }
@@ -1180,7 +1180,7 @@ pub async fn send_user_message(
     db: State<'_, Db>,
     registry: State<'_, RunRegistry>,
     payload: SendUserMessagePayload,
-) -> Result<(), String> {
+) -> Result<Option<i64>, String> {
     send_user_message_inner(db.inner(), registry.inner(), payload, true).await
 }
 
@@ -1195,7 +1195,7 @@ pub(crate) async fn send_user_message_inner(
     registry: &RunRegistry,
     payload: SendUserMessagePayload,
     stamp_activity: bool,
-) -> Result<(), String> {
+) -> Result<Option<i64>, String> {
     use sqlx::Row;
     // A follow-up turn consumes tokens like any other, so gate it too — against
     // the guardrail for this run's engine and its assigned Claude account.
@@ -1224,13 +1224,6 @@ pub(crate) async fn send_user_message_inner(
         "{}\n",
         serde_json::json!({ "type": "prompt", "text": text, "images": images_payload(&payload.images) })
     );
-    // For the persisted log we record the equivalent stream-json user message so
-    // the history view renders it (parseStreamLog only understands stream-json).
-    let log_line = format!(
-        "{}\n",
-        serde_json::json!({ "type": "user", "message": { "role": "user", "content": log_user_content(text, &payload.images) } })
-    );
-
     let log_buf = {
         let reg = registry.lock().await;
         let handle = reg
@@ -1240,7 +1233,10 @@ pub(crate) async fn send_user_message_inner(
     };
     // Every later turn, a resumed run's first included: capture the workspace
     // for Rewind before the agent can touch it.
-    crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+    let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
+    // For the persisted log we record the equivalent stream-json user message so
+    // the history view renders it (parseStreamLog only understands stream-json).
+    let log_line = prompt_log_line(text, &payload.images, turn);
     write_run_stdin(
         registry,
         &payload.run_id,
@@ -1262,7 +1258,7 @@ pub(crate) async fn send_user_message_inner(
             .execute(db)
             .await;
     }
-    Ok(())
+    Ok(turn)
 }
 
 #[tauri::command]
@@ -3726,6 +3722,24 @@ pub(crate) async fn resume_run_with(
         .await?;
         (mirrored.is_some(), mirrored)
     };
+    // A Rewind (runs::rewind) left the engine a cut to apply at this resume: go
+    // on from an earlier point of the session, or start a new one.
+    let mut rewind = read_records_backwards(&log_path, u64::MAX, 200, 4 << 20)
+        .ok()
+        .and_then(|(records, _)| crate::runs::rewind::pending(&records))
+        .filter(|cut| cut.fresh || cut.session_id.as_deref() == Some(session_id.as_str()));
+    // Claude cannot go on from an entry its transcript no longer has: start a
+    // new session rather than fail every resume.
+    if let Some(cut) = rewind.as_mut().filter(|cut| engine == "claude" && !cut.fresh) {
+        let at = cut.resume_at.clone().unwrap_or_default();
+        let found = mirrored_transcript
+            .as_ref()
+            .and_then(|p| fs::read(p).ok())
+            .is_some_and(|t| !at.is_empty() && String::from_utf8_lossy(&t).contains(&format!("\"{at}\"")));
+        cut.fresh = !found;
+    }
+    let rewound_to_start = rewind.as_ref().is_some_and(|cut| cut.fresh);
+    let resume_session = transcript_available && !rewound_to_start;
     // The resumed CLI appends to the copy inside the resolved profile; point the
     // run at it so transcript readers follow the live file, not the old one.
     if let Some(path) = mirrored_transcript
@@ -3756,7 +3770,7 @@ pub(crate) async fn resume_run_with(
     } else {
         "COALESCE(last_activity_at, finished_at, started_at, created_at, ?)"
     };
-    let mark_running = if transcript_available {
+    let mark_running = if resume_session {
         format!(
             "UPDATE runs SET status = 'running', model = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
         )
@@ -3782,9 +3796,18 @@ pub(crate) async fn resume_run_with(
     };
     let mut cmd = Command::new(&node_bin);
     cmd.current_dir(&cwd).arg(&sidecar_script);
-    if transcript_available {
+    if resume_session {
         // The sidecar resumes this session/thread on its first prompt.
         cmd.env("PUPPETEER_RESUME_SESSION", &session_id);
+        match rewind.as_ref() {
+            Some(cut) if engine == "codex" && cut.drop_turns > 0 => {
+                cmd.env("PUPPETEER_ROLLBACK_TURNS", cut.drop_turns.to_string());
+            }
+            Some(crate::runs::rewind::EngineCut { resume_at: Some(at), .. }) if engine == "claude" => {
+                cmd.env("PUPPETEER_RESUME_AT", at);
+            }
+            _ => {}
+        }
     }
     augment_command_path(&mut cmd);
     apply_mcp_tool_timeout(&mut cmd);
@@ -3830,7 +3853,7 @@ pub(crate) async fn resume_run_with(
         // plain session) is seeded ONCE by prepending it to the next turn's prompt.
         // The sidecar reports `_puppeteer_framing_seeded`, which sets
         // runs.framing_seeded so later resumes don't repeat it.
-        if !transcript_available {
+        if !resume_session {
             // Fresh thread: the framing goes in as developer instructions, as on start.
             if let Some(framing) = &framing {
                 cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", framing);
@@ -3916,10 +3939,15 @@ pub(crate) async fn resume_run_with(
     // follow-up text arrives via send_user_message, which kicks off the turn.
     {
         let mut buf = log_buf.lock().await;
-        if transcript_available {
+        if resume_session {
             buf.push_str(&format!(
                 "[stderr] --- resumed session {} at {} ---\n",
                 session_id, started_at
+            ));
+        } else if rewound_to_start {
+            buf.push_str(&format!(
+                "[stderr] --- rewound to before the session's first turn; started a new session at {} ---\n",
+                started_at
             ));
         } else {
             buf.push_str(&format!(
@@ -4661,5 +4689,18 @@ mod mirror_tests {
         assert!(mirror_on(&db, Some("codex")).await);
         crate::commands::settings::set_setting(&db, "feature.sessions.mirror_codex", "false").await.unwrap();
         assert!(!mirror_on(&db, Some("codex")).await);
+    }
+}
+
+#[cfg(test)]
+mod prompt_log_tests {
+    use super::*;
+
+    #[test]
+    fn a_prompt_line_carries_its_rewind_turn_when_one_was_taken() {
+        let tagged: serde_json::Value = serde_json::from_str(&prompt_log_line("hi", &[], Some(3))).unwrap();
+        assert_eq!(tagged, serde_json::json!({ "type": "user", "message": { "role": "user", "content": "hi" }, "turn": 3 }));
+        let plain = prompt_log_line("hi", &[], None);
+        assert!(plain.ends_with('\n') && !plain.contains("turn"));
     }
 }

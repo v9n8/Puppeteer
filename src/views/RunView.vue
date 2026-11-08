@@ -11,6 +11,7 @@ import {
   type ProjectEntry,
   type RunLogRevision,
   type RunLogHit,
+  type RewindOutcome,
 } from '@/stores/runs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
@@ -50,6 +51,7 @@ import { type SavedPrompt, parseSavedPrompts } from '@/lib/savedPrompts'
 import CapturePicker from '@/components/CapturePicker.vue'
 import RunActionItems from '@/components/RunActionItems.vue'
 import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
+import RewindDialog from '@/components/sessions/RewindDialog.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { usePageFind } from '@/composables/usePageFind'
@@ -1687,7 +1689,62 @@ const selectionSurface = useSelectionSurface({
     context: captureContext(),
     noteTitle: currentRun.value?.title ?? project.value?.name ?? '',
   }),
+  // "Rewind to here" under a turn: only for a stopped session, to a turn whose
+  // snapshot is still kept. The dialog confirms before anything changes.
+  rewind: () => {
+    const run = currentRun.value
+    if (!run || currentStatus.value === 'running' || sendingFollowUp.value) return null
+    return {
+      available: (turn: number) => snapshotTurns.value.has(turn),
+      start: (turn: number) => {
+        rewindTarget.value = { runId: run.id, turn }
+      },
+    }
+  },
 })
+
+// ── Rewind (sessions.rewind) ─────────────────────────────────────────────────
+// Turns of the shown run whose workspace snapshot can still be restored.
+const snapshotTurns = shallowRef<Set<number>>(new Set())
+const rewindTarget = ref<{ runId: string; turn: number } | null>(null)
+
+async function loadSnapshots(runId: string | null) {
+  if (!runId || !features.isOn('sessions.rewind')) {
+    snapshotTurns.value = new Set()
+    return
+  }
+  try {
+    const rows = await runsStore.listSnapshots(runId)
+    if (currentRunId.value === runId) snapshotTurns.value = new Set(rows.filter((r) => r.status === 'ok').map((r) => r.turn))
+  } catch {
+    if (currentRunId.value === runId) snapshotTurns.value = new Set()
+  }
+}
+
+// A turn's snapshot appears as it starts; reload when the run stops too, so the
+// last prompt's row is there by the time the rewind items show.
+watch(
+  [currentRunId, currentStatus, () => features.isOn('sessions.rewind')],
+  ([id]) => void loadSnapshots(id),
+  { immediate: true },
+)
+
+async function onRewound(outcome: RewindOutcome) {
+  const target = rewindTarget.value
+  rewindTarget.value = null
+  if (!target) return
+  const { restored, deleted, failed } = outcome.files
+  toast.success(t(outcome.conversation ? 'run.rewind.done' : 'run.rewind.doneFilesOnly', { restored, deleted }))
+  if (failed.length) toast.error(t('run.rewind.failed', { files: failed.join(', ') }))
+  if (currentRunId.value !== target.runId) return
+  // The log was cut: drop the in-memory session and show the log from disk.
+  if (outcome.conversation) {
+    live.discard(target.runId)
+    await loadRunLog(target.runId, { force: true })
+    void loadSessionTurns(target.runId)
+  }
+  void loadSnapshots(target.runId)
+}
 
 // ── Find (⌘F) ────────────────────────────────────────────────────────────────
 // The bar highlights matches in what is on screen. The history pane holds only
@@ -3100,7 +3157,7 @@ async function handleSendFollowUp() {
     clearHistoryView()
 
     // Show the user message right away in the timeline (running / resume paths).
-    live.pushUser(id, projectId.value, prompt, images)
+    const sent = live.pushUser(id, projectId.value, prompt, images)
     stickToBottom.value = true // re-pin: the user just sent a message
     scrollMemory.forget(id)
     scrollOutputToBottom()
@@ -3112,7 +3169,9 @@ async function handleSendFollowUp() {
       await runsStore.resumeRun(id, permissionMode.value || undefined, modelOverride.value || undefined, override)
     }
 
-    await runsStore.sendUserMessage(id, prompt, images, override)
+    const turn = await runsStore.sendUserMessage(id, prompt, images, override)
+    // The snapshot turn it was logged under: "Rewind to here" finds it by this.
+    if (turn !== null && sent.kind === 'user') sent.turn = turn
     followUpInput.value = ''
   } catch (e) {
     live.appendOutput(id, t('run.sendFailed', { error: String(e) }))
@@ -5036,6 +5095,13 @@ function handleRefInput(val: string) {
         />
       </aside>
     </div>
+
+    <RewindDialog
+      :run-id="rewindTarget?.runId ?? null"
+      :turn="rewindTarget?.turn ?? null"
+      @close="rewindTarget = null"
+      @done="onRewound"
+    />
 
     <!-- Engine-switch dialog: new session vs. continue (carry context) -->
     <Modal

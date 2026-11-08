@@ -82,6 +82,8 @@ const PROC_NONCE = randomUUID().slice(0, 8)
 
 const CODEX_BIN = process.env.PUPPETEER_CODEX_PATH || 'codex'
 const RESUME_THREAD = process.env.PUPPETEER_RESUME_SESSION || null
+// Turns to roll back from the end of the resumed thread (a Rewind), else 0.
+const ROLLBACK_TURNS = RESUME_THREAD ? Math.max(0, Number.parseInt(process.env.PUPPETEER_ROLLBACK_TURNS, 10) || 0) : 0
 const PERMISSION_MODE = process.env.PUPPETEER_PERMISSION_MODE || 'default'
 const MODEL = process.env.PUPPETEER_CODEX_MODEL || null
 // Tool-less session (translation engine): the prompt carries UNTRUSTED text
@@ -975,6 +977,15 @@ async function bringUp() {
     )
     threadId = result?.thread?.id || RESUME_THREAD
     modelName = result?.model || null
+    // Rewind: drop the turns after the rewind point before any new turn. Done
+    // before system.init, which tells the broker the cut is applied; a failure
+    // stops here, so no turn runs on the un-rewound thread.
+    // Never more than the thread holds: an over-count must not fail every resume.
+    const held = result?.thread?.turns?.length
+    const numTurns = Number.isInteger(held) ? Math.min(ROLLBACK_TURNS, held) : ROLLBACK_TURNS
+    if (numTurns > 0) {
+      rpcResult(await request('thread/rollback', { threadId, numTurns }), 'thread/rollback')
+    }
   } else {
     const startParams = { cwd: CWD, approvalPolicy, sandbox }
     if (MODEL) startParams.model = MODEL

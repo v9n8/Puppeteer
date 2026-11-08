@@ -66,6 +66,7 @@ function finalizeUserEntry(
   state: Pick<StreamState, 'entries'>,
   text: string,
   images?: ImageAttachment[],
+  turn?: number,
 ): void {
   const { items, rest } = parseIdeContext(text)
   const merged = [...items]
@@ -83,6 +84,7 @@ function finalizeUserEntry(
       text: rest,
       ...(images?.length ? { images } : {}),
       ...(merged.length ? { ideContext: merged } : {}),
+      ...(turn !== undefined ? { turn } : {}),
     })
   } else if (merged.length) {
     state.entries.push({ kind: 'ide-context', items: merged })
@@ -173,7 +175,8 @@ export type StreamEntry =
   /** `streaming`: still being assembled from partial deltas (live only). */
   | { kind: 'text'; text: string; streaming?: boolean }
   | { kind: 'thinking'; text: string; streaming?: boolean }
-  | { kind: 'user'; text: string; images?: ImageAttachment[]; ideContext?: IdeContextItem[] }
+  /** `turn`: the Rewind snapshot taken before this prompt (Puppeteer's log only). */
+  | { kind: 'user'; text: string; images?: ImageAttachment[]; ideContext?: IdeContextItem[]; turn?: number }
   | { kind: 'ide-context'; items: IdeContextItem[] }
   | { kind: 'compact'; summary: string }
   | { kind: 'command'; name: string; args?: string; stdout?: string }
@@ -394,6 +397,7 @@ export function applyStreamEvent(
   if (type === 'user') {
     const message = e.message as Record<string, unknown> | undefined
     const rawContent = message?.content
+    const turn = typeof e.turn === 'number' ? e.turn : undefined
     // Compaction summary — when context is compacted, Claude injects the
     // prior-conversation summary as a synthetic user message. Render it as a
     // divider, not a user bubble (it isn't something the user actually typed).
@@ -414,10 +418,10 @@ export function applyStreamEvent(
       }
       const rest = handleCommandMessage(state, text)
       if (rest !== null) {
-        if (rest) finalizeUserEntry(state, rest)
+        if (rest) finalizeUserEntry(state, rest, undefined, turn)
         return
       }
-      finalizeUserEntry(state, text)
+      finalizeUserEntry(state, text, undefined, turn)
       return
     }
     const content = (rawContent ?? []) as unknown[]
@@ -458,7 +462,7 @@ export function applyStreamEvent(
       if (rest !== null) userText = rest
     }
     if (userText || userImages.length) {
-      finalizeUserEntry(state, userText, userImages)
+      finalizeUserEntry(state, userText, userImages, turn)
     }
     return
   }

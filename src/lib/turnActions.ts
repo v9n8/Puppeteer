@@ -5,12 +5,13 @@
 
 export type TurnSide = 'question' | 'answer'
 
-export type TurnAction = 'copy' | 'quote' | 'fullscreen' | 'fullscreenTurn' | 'saveNote'
+export type TurnAction = 'copy' | 'quote' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'rewind'
 
 /** Features a gated button needs on; the others are always offered. */
 export const TURN_ACTION_FEATURES = {
   quote: 'text_tools.selection.quote',
   saveNote: 'productivity.notes',
+  rewind: 'sessions.rewind',
 } as const
 
 /** A row, keyed in `turnFooters` by the entry it is rendered under. */
@@ -24,13 +25,23 @@ export interface TurnFooter {
   to: number
   /** There is text to copy / quote / show (an answer may be tool calls only). */
   hasText: boolean
+  /**
+   * Where "Rewind to here" goes: the snapshot taken before this question, or
+   * for an answer the one before the next question (the state the answer left).
+   * Null when that prompt carries no snapshot turn or is not loaded.
+   */
+  rewindTurn: number | null
 }
 
 interface EntryLike {
   kind: string
   text?: string
   is_error?: boolean
+  turn?: number
 }
+
+const turnOf = (e: EntryLike | undefined): number | null =>
+  e?.kind === 'user' && typeof e.turn === 'number' ? e.turn : null
 
 // What an answer entry contributes to the turn's text: assistant prose, and a
 // result's own text (the parser blanks it when it repeats the last message).
@@ -75,7 +86,7 @@ export function turnFooters(entries: readonly EntryLike[], running: boolean): Ma
       if (answerText(entries[i])) hasText = hasContent = true
       else if (entries[i].kind === 'tool') hasContent = true
     }
-    if (hasContent) footers.set(to, { side: 'answer', from, to, hasText })
+    if (hasContent) footers.set(to, { side: 'answer', from, to, hasText, rewindTurn: turnOf(entries[end]) })
   }
 
   for (let i = 0; i < entries.length; i++) {
@@ -83,7 +94,7 @@ export function turnFooters(entries: readonly EntryLike[], running: boolean): Ma
     if (e.kind !== 'user') continue
     closeAnswer(i)
     userAt = i
-    footers.set(i, { side: 'question', from: i, to: i, hasText: !!e.text?.trim() })
+    footers.set(i, { side: 'question', from: i, to: i, hasText: !!e.text?.trim(), rewindTurn: turnOf(e) })
   }
   if (!running) closeAnswer(entries.length)
   else if (userAt !== -1) footers.delete(userAt)
@@ -96,18 +107,22 @@ export interface TurnActionContext {
   hasQuoteTarget: boolean
   /** The surface files notes (it declares a capture). */
   canSaveNote: boolean
+  /** The surface can rewind to this row's turn now (a snapshot, session stopped). */
+  canRewind?: boolean
 }
 
 /**
  * Buttons of a row: the frequent ones inline, the rare ones behind `⋯`. An
- * empty `overflow` means no `⋯` button.
+ * empty `overflow` means no `⋯` button. Rewind cuts the session, so it comes
+ * last, below a divider.
  */
 export function turnActions(
   side: TurnSide,
   isOn: (featureId: string) => boolean,
   ctx: TurnActionContext,
 ): { primary: TurnAction[]; overflow: TurnAction[] } {
-  if (side === 'question') return { primary: ctx.hasText ? ['copy', 'fullscreen'] : [], overflow: [] }
+  const rewind: TurnAction[] = ctx.canRewind && isOn(TURN_ACTION_FEATURES.rewind) ? ['rewind'] : []
+  if (side === 'question') return { primary: ctx.hasText ? ['copy', 'fullscreen'] : [], overflow: rewind }
   const primary: TurnAction[] = []
   if (ctx.hasText) {
     primary.push('copy')
@@ -117,5 +132,5 @@ export function turnActions(
   primary.push('fullscreenTurn')
   const overflow: TurnAction[] =
     ctx.hasText && ctx.canSaveNote && isOn(TURN_ACTION_FEATURES.saveNote) ? ['saveNote'] : []
-  return { primary, overflow }
+  return { primary, overflow: [...overflow, ...rewind] }
 }
