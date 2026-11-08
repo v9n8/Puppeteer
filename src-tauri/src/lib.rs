@@ -7,6 +7,7 @@ mod features;
 mod focus;
 mod github;
 mod gitlab;
+mod import;
 mod inbox_api;
 mod item_links;
 mod procs;
@@ -498,6 +499,9 @@ pub fn run() {
             commands::library_items::get_applied_library_items,
             commands::library_items::apply_library_item,
             commands::library_items::remove_library_item_from_project,
+            import::commands::list_import_sources,
+            import::commands::scan_import_source,
+            import::commands::import_candidates,
             get_instruction_warnings,
             list_groups,
             create_group,

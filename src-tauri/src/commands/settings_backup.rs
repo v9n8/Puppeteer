@@ -1643,7 +1643,7 @@ async fn apply_bundle(
     }
     for entry in &bundle.rules {
         let result = rules::import_backup_rule(
-            &app,
+            &rules::rules_dir(&app),
             db,
             &entry.id,
             &entry.name,
@@ -1903,7 +1903,7 @@ async fn import_skill(
         return Err("SKILL.md is missing".to_string());
     }
     skills::import_backup_skill(
-        app,
+        &skills::skills_dir(app),
         db,
         &entry.id,
         &entry.name,

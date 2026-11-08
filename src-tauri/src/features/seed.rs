@@ -176,6 +176,7 @@ mod tests {
             "library.agents",
             "library.commands",
             "library.skill_doctor",
+            "library.import_external",
         ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");

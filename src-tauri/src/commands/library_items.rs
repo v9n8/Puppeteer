@@ -125,7 +125,7 @@ pub fn project_dest(kind: LibraryKind, project_path: &str, name: &str) -> PathBu
     Path::new(project_path).join(".claude").join(kind.table()).join(format!("{name}.md"))
 }
 
-fn library_dir(app: &AppHandle, kind: LibraryKind) -> Result<PathBuf, String> {
+pub(crate) fn library_dir(app: &AppHandle, kind: LibraryKind) -> Result<PathBuf, String> {
     Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join(kind.table()))
 }
 

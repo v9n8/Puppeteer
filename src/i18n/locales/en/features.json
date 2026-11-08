@@ -74,7 +74,8 @@
       "commands": "Slash commands",
       "builtin_mcp_puppeteer": "Built-in Puppeteer MCP",
       "skills_global": "Global skills (home folder)",
-      "skill_doctor": "Skill Doctor"
+      "skill_doctor": "Skill Doctor",
+      "import_external": "Import from other AI tools"
     },
     "orchestration": {
       "conductor": "Conductor",

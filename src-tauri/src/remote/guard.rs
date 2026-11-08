@@ -43,7 +43,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// record of who did (Remote Control config, master password, OTP / session
 /// links, kicking a Controller, clearing the audit, Web Push recipients, the
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
-/// skills installed into HOME, plus the plumbing of the CONTROLLING side.
+/// skills installed into HOME, importing from this machine's other AI tools,
+/// plus the plumbing of the CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
 /// sensitive part).
@@ -73,6 +74,11 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "set_builtin_mcp_enabled",
     // Skills in this machine's HOME: every CLI run outside Puppeteer reads them.
     "set_skill_global",
+    // Import from other tools: reads this machine's tool configs (`~/.claude.json` holds the
+    // Claude account) and fills the libraries from them.
+    "list_import_sources",
+    "scan_import_source",
+    "import_candidates",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -577,6 +583,9 @@ mod tests {
             "reset_features",
             "set_builtin_mcp_enabled",
             "set_skill_global",
+            "list_import_sources",
+            "scan_import_source",
+            "import_candidates",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }

@@ -102,6 +102,7 @@ pub static MODULES: &[Module] = &[
             // Writes into HOME, which the CLIs outside Puppeteer read too.
             off("skills_global"),
             on("skill_doctor"),
+            on("import_external"),
         ],
     },
     Module {
@@ -653,6 +654,7 @@ mod tests {
             crate::commands::skill_allocation::GLOBAL_FEATURE,
             crate::conductor::worktree::FEATURE,
             crate::commands::skill_doctor::FEATURE,
+            crate::import::FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,
             notes::FEATURE,

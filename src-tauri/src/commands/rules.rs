@@ -59,7 +59,7 @@ pub struct AppliedRule {
     pub codex_skill: bool,
 }
 
-fn rules_dir(app: &AppHandle) -> PathBuf {
+pub(crate) fn rules_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().unwrap().join("rules")
 }
 
@@ -1220,8 +1220,9 @@ pub async fn sync_rule_to_projects(db: &Db, rule_id: &str) -> Result<Vec<String>
 
 /// Create or overwrite (by name) a library rule from a settings backup. A differing local source
 /// file is moved to the legacy backups first; projects that use the rule are re-synced.
+/// `rules_root` is the library folder ([`rules_dir`]).
 pub(crate) async fn import_backup_rule(
-    app: &AppHandle,
+    rules_root: &Path,
     db: &Db,
     id_hint: &str,
     name: &str,
@@ -1241,7 +1242,7 @@ pub(crate) async fn import_backup_rule(
         .map_err(|e| e.to_string())?;
     let path = match &local {
         Some(row) => PathBuf::from(row.get::<String, _>("source_path")),
-        None => rules_dir(app).join(format!("{}.md", name)),
+        None => rules_root.join(format!("{}.md", name)),
     };
 
     let same_content = fs::read_to_string(&path).ok().as_deref() == Some(content);

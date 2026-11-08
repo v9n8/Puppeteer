@@ -43,7 +43,7 @@ pub struct UpdateSkillPayload {
     pub content: String,
 }
 
-fn skills_dir(app: &AppHandle) -> PathBuf {
+pub(crate) fn skills_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().unwrap().join("skills")
 }
 
@@ -820,9 +820,10 @@ pub(crate) fn read_skill_tree(dir: &Path) -> Result<Vec<(PathBuf, Vec<u8>)>, Str
 
 /// Create or overwrite (by name) a library skill from a settings backup. A differing local folder
 /// is moved to the legacy backups before the imported files are written; projects that use the
-/// skill are re-synced. `files` paths must already be validated as relative.
+/// skill are re-synced. `files` paths must already be validated as relative. `skills_root` is the
+/// library folder ([`skills_dir`]).
 pub(crate) async fn import_backup_skill(
-    app: &AppHandle,
+    skills_root: &Path,
     db: &Db,
     id_hint: &str,
     name: &str,
@@ -842,7 +843,7 @@ pub(crate) async fn import_backup_skill(
         .map_err(|e| e.to_string())?;
     let dir = match &local {
         Some(row) => PathBuf::from(row.get::<String, _>("source_path")),
-        None => skills_dir(app).join(name),
+        None => skills_root.join(name),
     };
 
     let mut wanted: Vec<(PathBuf, Vec<u8>)> = files

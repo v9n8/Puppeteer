@@ -103,7 +103,7 @@ pub struct TestConnectionResult {
 
 /// Portable export/import shape — INCLUDES secret VALUEs (user action to a
 /// file of their choice; the UI warns the file contains secrets).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerExport {
     pub name: String,
     #[serde(default)]
@@ -594,9 +594,22 @@ pub async fn import_mcp_server(webview: tauri::Webview, db: State<'_, Db>, path:
     let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
     let path = crate::remote::fs_policy::read(policy.as_ref(), std::path::Path::new(&path))?;
     let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let export: McpServerExport =
+    let mut export: McpServerExport =
         serde_json::from_str(&raw).map_err(|e| format!("Invalid MCP export file: {}", e))?;
 
+    // Unique name: append a suffix if taken, so import never clobbers.
+    export.name = unique_name(db.inner(), &export.name).await?;
+    let id = insert_export(db.inner(), &export).await?;
+
+    secrets::set_mcp_secrets(&id, &export.env, &export.headers)
+        .map_err(|e| format!("Failed to store secrets: {}", e))?;
+
+    get_mcp_server(db, id).await
+}
+
+/// Validate `export` and insert it as a new server under its own name, returning the new id. Only
+/// the env / header KEY names reach SQLite; the caller stores the VALUEs in the Keychain.
+pub(crate) async fn insert_export(db: &Db, export: &McpServerExport) -> Result<String, String> {
     validate_name(&export.name)?;
     // Re-validate shape via SecretEntry projection.
     let env_entries: Vec<SecretEntry> = export
@@ -623,19 +636,17 @@ pub async fn import_mcp_server(webview: tauri::Webview, db: State<'_, Db>, path:
         &header_entries,
     )?;
 
-    // Unique name: append a suffix if taken, so import never clobbers.
-    let name = unique_name(db.inner(), &export.name).await?;
-
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let env_keys: Vec<String> = export.env.keys().cloned().collect();
     let header_keys: Vec<String> = export.headers.keys().cloned().collect();
-    let (command, url) = normalized_fields(&export.transport, export.command, export.url);
+    let (command, url) =
+        normalized_fields(&export.transport, export.command.clone(), export.url.clone());
 
     insert_server_row(
-        db.inner(),
+        db,
         &id,
-        &name,
+        &export.name,
         &export.description,
         &export.transport,
         &command,
@@ -647,11 +658,7 @@ pub async fn import_mcp_server(webview: tauri::Webview, db: State<'_, Db>, path:
         &now,
     )
     .await?;
-
-    secrets::set_mcp_secrets(&id, &export.env, &export.headers)
-        .map_err(|e| format!("Failed to store secrets: {}", e))?;
-
-    get_mcp_server(db, id).await
+    Ok(id)
 }
 
 /// Create or overwrite (by name) an MCP server from a settings backup. `secrets` replaces the
