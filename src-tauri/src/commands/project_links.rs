@@ -275,6 +275,48 @@ pub fn remove_own_link(root: &Path, dest: &Path, target: &Path) -> Result<(), St
     }
 }
 
+/// Make `dest` (inside `root`, a folder shared with the user such as HOME) a link to `target`, only
+/// where nothing is yet. Whatever already sits there — the user's own skill, another link, even a
+/// dangling one — is reported and left exactly as it is: never moved, replaced or deleted.
+pub fn link_if_free(root: &Path, dest: &Path, target: &Path) -> Result<(), String> {
+    if !root.is_dir() {
+        return Err(format!("Folder not found: {}", root.display()));
+    }
+    if !target.exists() {
+        return Err(format!("Source not found: {}", target.display()));
+    }
+    require_real_parent(root, dest)?;
+    match inspect(dest)? {
+        Existing::Nothing => {}
+        Existing::Link(current) if current == target => return Ok(()),
+        _ => {
+            return Err(format!(
+                "{} already exists and isn't Puppeteer's — rename or remove it (or rename the skill), then try again",
+                dest.display()
+            ))
+        }
+    }
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("{}: {}", parent.display(), e))?;
+    }
+    create_symlink(target, dest)
+}
+
+/// Remove `dest` only when it is a link to `target` (what `link_if_free` made); anything else,
+/// and anything reached through a symlinked folder, is left alone.
+pub fn unlink_if_own(root: &Path, dest: &Path, target: &Path) -> Result<bool, String> {
+    if !parent_is_real(root, dest)? {
+        return Ok(false);
+    }
+    match inspect(dest)? {
+        Existing::Link(current) if current == target => {
+            remove_link(dest).map_err(|e| format!("{}: {}", dest.display(), e))?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
 /// What sits at a link destination, read without changing anything.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AtDest {
@@ -642,6 +684,60 @@ mod tests {
         fs::write(dest.join("SKILL.md"), "someone else's").unwrap();
         remove_own_link(&root, &dest, &src).unwrap();
         assert!(dest.join("SKILL.md").exists());
+    }
+
+    #[test]
+    fn link_if_free_never_touches_what_is_there() {
+        let home = tmp("free");
+        let src = home.join("lib/skill");
+        fs::create_dir_all(&src).unwrap();
+        let dir = home.join(".claude/skills");
+
+        let dest = dir.join("skill");
+        link_if_free(&home, &dest, &src).unwrap();
+        link_if_free(&home, &dest, &src).unwrap();
+        assert_eq!(fs::read_link(&dest).unwrap(), src);
+
+        // The user's own folder, a foreign link and a dangling one all stay as they are.
+        let own = dir.join("own");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.join("SKILL.md"), "mine").unwrap();
+        let foreign = dir.join("foreign");
+        std::os::unix::fs::symlink(home.join("lib"), &foreign).unwrap();
+        let dangling = dir.join("dangling");
+        std::os::unix::fs::symlink(home.join("gone"), &dangling).unwrap();
+        for d in [&own, &foreign, &dangling] {
+            let err = link_if_free(&home, d, &src).unwrap_err();
+            assert!(err.contains("isn't Puppeteer's"), "{err}");
+            assert!(!unlink_if_own(&home, d, &src).unwrap());
+        }
+        assert_eq!(fs::read_to_string(own.join("SKILL.md")).unwrap(), "mine");
+        assert_eq!(fs::read_link(&foreign).unwrap(), home.join("lib"));
+        assert_eq!(fs::read_link(&dangling).unwrap(), home.join("gone"));
+
+        assert!(unlink_if_own(&home, &dest, &src).unwrap());
+        assert!(!is_symlink(&dest));
+        assert!(src.exists());
+        assert!(!unlink_if_own(&home, &dest, &src).unwrap(), "already gone");
+    }
+
+    #[test]
+    fn link_if_free_refuses_a_symlinked_folder() {
+        let home = tmp("free-parent");
+        let src = home.join("lib/skill");
+        fs::create_dir_all(&src).unwrap();
+        // `~/.claude/skills` kept in a dotfiles repo, say.
+        fs::create_dir_all(home.join("dotfiles/skills")).unwrap();
+        fs::create_dir_all(home.join(".claude")).unwrap();
+        std::os::unix::fs::symlink(home.join("dotfiles/skills"), home.join(".claude/skills")).unwrap();
+        let dest = home.join(".claude/skills/skill");
+
+        let err = link_if_free(&home, &dest, &src).unwrap_err();
+        assert!(err.contains("symlinked folder"), "{err}");
+        assert!(!home.join("dotfiles/skills/skill").exists());
+        std::os::unix::fs::symlink(&src, home.join("dotfiles/skills/skill")).unwrap();
+        assert!(!unlink_if_own(&home, &dest, &src).unwrap());
+        assert!(is_symlink(&home.join("dotfiles/skills/skill")));
     }
 
     #[test]

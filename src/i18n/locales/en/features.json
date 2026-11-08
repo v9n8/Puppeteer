@@ -25,6 +25,13 @@
     "resetNothingOff": "Every switch goes back to its fresh-install value. Nothing that is on now will be turned off.",
     "resetDone": "Default features restored"
   },
+  "confirmOn": {
+    "skills_global": {
+      "title": "Turn on global skills?",
+      "message": "The Skills Allocation tab gets a Global column. A skill switched on there is linked into ~/.claude/skills (Claude) or ~/.agents/skills (Codex), so every project sees it, including Claude Code and Codex run outside Puppeteer.\nSkills you keep there yourself are never replaced or deleted; a name already taken is reported instead.",
+      "confirm": "Turn on"
+    }
+  },
   "module": {
     "sessions": "Sessions & chat",
     "text_tools": "Text tools",
@@ -65,7 +72,8 @@
       "instruction_checks": "Instruction checks",
       "agents": "Agents",
       "commands": "Slash commands",
-      "builtin_mcp_puppeteer": "Built-in Puppeteer MCP"
+      "builtin_mcp_puppeteer": "Built-in Puppeteer MCP",
+      "skills_global": "Global skills (home folder)"
     },
     "orchestration": {
       "conductor": "Conductor"

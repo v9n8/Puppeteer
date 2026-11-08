@@ -2,8 +2,9 @@
 // Settings → "Features": one switch per module; clicking a module lists its
 // props. Locked props are dimmed with the reason, a prop missing a dependency
 // says what it lacks, and "Restore defaults" first lists what it would turn off
-// (a `reset_features` dry run). The switches are local-only, so a remote-desktop
-// window shows them read-only.
+// (a `reset_features` dry run). A switch listed in `CONFIRM_ON` asks before it
+// goes on. The switches are local-only, so a remote-desktop window shows them
+// read-only.
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, Loader2, RotateCcw, ToggleRight } from 'lucide-vue-next'
@@ -12,7 +13,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { isRemoteMode } from '@/lib/ipc/remote'
-import { CMD_RESET_FEATURES, CMD_SET_FEATURE, featureRows, type FeatureTree } from '@/lib/featureGate'
+import { CMD_RESET_FEATURES, CMD_SET_FEATURE, confirmOnKey, featureRows, type FeatureTree } from '@/lib/featureGate'
 import { useFeaturesStore } from '@/stores/features'
 
 const { t } = useI18n()
@@ -46,6 +47,10 @@ async function setFeature(id: string, enabled: boolean) {
   if (busy.value) return
   busy.value = id
   try {
+    const ask = confirmOnKey(id, enabled)
+    if (ask && !(await confirm({ title: t(`${ask}.title`), message: t(`${ask}.message`), confirmLabel: t(`${ask}.confirm`) }))) {
+      return
+    }
     features.tree = await invoke<FeatureTree>(CMD_SET_FEATURE, { id, enabled })
   } catch (e) {
     showError(e)

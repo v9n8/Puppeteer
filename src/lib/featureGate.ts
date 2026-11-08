@@ -220,6 +220,20 @@ export function fallbackPath(path: string, routes: readonly GatedRoute[], tree: 
   return allowsFeature(tree, routeFeature(path, routes)) ? null : FALLBACK_PATH
 }
 
+/**
+ * Switches that ask before they go on, with the i18n key holding the dialog's
+ * `title` / `message` / `confirm`. The Global skills scope writes into HOME,
+ * which the CLIs run outside Puppeteer read too.
+ */
+export const CONFIRM_ON: Readonly<Record<string, string>> = {
+  'library.skills_global': 'features.confirmOn.skills_global',
+}
+
+/** The confirm dialog's i18n key when switching `id` to `enabled` needs one, else null. */
+export function confirmOnKey(id: string, enabled: boolean): string | null {
+  return enabled ? (CONFIRM_ON[id] ?? null) : null
+}
+
 type Translate = (key: string, params?: Record<string, unknown>) => string
 
 /** i18n key of a module (`productivity`) or prop (`productivity.focus`) name. */

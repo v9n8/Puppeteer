@@ -168,19 +168,35 @@ pub struct SkillEngineDecl {
     pub id: &'static str,
     /// Folder holding `<name>/` links, relative to the project root.
     pub project_dir: &'static str,
-    /// Same, relative to HOME; `None` while the engine's global folder is unverified. A skill
-    /// there wins over the project's own copy of that name.
-    #[serde(skip)]
+    /// The engine's global (personal) folder, relative to HOME: the Allocation matrix's Global
+    /// column installs there. `None` while it is unverified.
     pub home_dir: Option<&'static str>,
+    /// Whether a skill in `home_dir` wins over the project's own skill of that name.
+    #[serde(skip)]
+    pub home_wins: bool,
 }
 
 /// The engines, in chip order. The allocation matrix is built from this list, so another
 /// engine is one more entry here (plus its `project_skills` switch and `SkillEngines` field).
 pub const SKILL_ENGINES: &[SkillEngineDecl] = &[
     // Personal skills beat project ones in Claude Code ("personal over project").
-    SkillEngineDecl { id: "claude", project_dir: ".claude/skills", home_dir: Some(".claude/skills") },
-    SkillEngineDecl { id: "codex", project_dir: ".agents/skills", home_dir: None },
+    SkillEngineDecl { id: "claude", project_dir: ".claude/skills", home_dir: Some(".claude/skills"), home_wins: true },
+    // Codex's user scope is `$HOME/.agents/skills`; it doesn't merge same-named skills, both
+    // show up (developers.openai.com/codex/skills).
+    SkillEngineDecl { id: "codex", project_dir: ".agents/skills", home_dir: Some(".agents/skills"), home_wins: false },
 ];
+
+pub fn skill_engine(id: &str) -> Result<&'static SkillEngineDecl, String> {
+    SKILL_ENGINES.iter().find(|e| e.id == id).ok_or_else(|| format!("Unknown engine: {}", id))
+}
+
+/// `<HOME>/<engine's global folder>/<name>`, for each engine that has one.
+pub fn home_skill_dirs(home: &Path, name: &str) -> Vec<(&'static SkillEngineDecl, PathBuf)> {
+    SKILL_ENGINES
+        .iter()
+        .filter_map(|e| e.home_dir.map(|dir| (e, home.join(dir).join(name))))
+        .collect()
+}
 
 // ---- Per-engine destinations -------------------------------------------------
 
@@ -283,6 +299,31 @@ pub fn write_skill_artifacts(
         agents_block::remove(&agents_path(project_path), "skill", name);
     }
     Ok((hash_claude, hash_codex))
+}
+
+/// Switch a skill on or off in one engine's global folder. Only Puppeteer's own link is ever
+/// created or removed there: a skill of that name the user keeps in HOME is reported, not touched.
+pub fn switch_global(home: &Path, engine: &str, name: &str, source_path: &str, on: bool) -> Result<(), String> {
+    let engine = skill_engine(engine)?;
+    let dir = engine.home_dir.ok_or_else(|| format!("No global skills folder for {}", engine.id))?;
+    let (dest, source) = (home.join(dir).join(name), Path::new(source_path));
+    if on {
+        project_links::link_if_free(home, &dest, source)
+    } else {
+        project_links::unlink_if_own(home, &dest, source).map(|_| ())
+    }
+}
+
+/// Drop a skill's own links from the global folders (before a rename or a delete), returning the
+/// engines it was linked for.
+pub fn unlink_global(home: &Path, name: &str, source_path: &str) -> Result<Vec<&'static str>, String> {
+    let mut engines = Vec::new();
+    for (engine, dest) in home_skill_dirs(home, name) {
+        if project_links::unlink_if_own(home, &dest, Path::new(source_path))? {
+            engines.push(engine.id);
+        }
+    }
+    Ok(engines)
 }
 
 /// Remove a skill's artifacts (legacy layout included) for the engines it was installed for.
@@ -435,6 +476,8 @@ pub async fn update_skill(
     }
 
     // If renamed, drop old artifacts from every applied project first.
+    let home = app.path().home_dir().ok();
+    let mut relink_global = Vec::new();
     if old_name != payload.name {
         let projects = sqlx::query(
             "SELECT p.path, ps.synced_hash_claude, ps.synced_hash_codex
@@ -451,6 +494,12 @@ pub async fn update_skill(
             let prev_codex: Option<String> = prow.get("synced_hash_codex");
             if let Err(e) = remove_skill_artifacts(&ppath, &old_name, &old_path, prev_claude.as_deref(), prev_codex.as_deref()) {
                 errors.push(e);
+            }
+        }
+        if let Some(home) = &home {
+            match unlink_global(home, &old_name, &old_path) {
+                Ok(engines) => relink_global = engines,
+                Err(e) => errors.push(e),
             }
         }
         if !errors.is_empty() {
@@ -486,9 +535,17 @@ pub async fn update_skill(
     // Projects link to the source, so content is already live; sync covers renames. A new target
     // is only the default for projects applied from now on. Failures surface so a broken link is
     // never silent.
-    let failures = sync_skill_to_projects(&db, &payload.id)
+    let mut failures = sync_skill_to_projects(&db, &payload.id)
         .await
         .map_err(|e| e.to_string())?;
+    // A global link follows the rename, unless the new name is taken in that folder.
+    if let Some(home) = &home {
+        for engine in relink_global {
+            if let Err(e) = switch_global(home, engine, &payload.name, &new_source_path, true) {
+                failures.push(e);
+            }
+        }
+    }
     if !failures.is_empty() {
         return Err(format!("Saved, but syncing to projects failed:\n{}", failures.join("\n")));
     }
@@ -505,11 +562,12 @@ pub async fn update_skill(
 
 #[tauri::command]
 pub async fn delete_skill(
+    app: AppHandle,
     db: State<'_, Db>,
     id: String,
 ) -> Result<(), String> {
     use sqlx::Row;
-    let row = sqlx::query("SELECT source_path FROM skills WHERE id = ?")
+    let row = sqlx::query("SELECT name, source_path FROM skills WHERE id = ?")
         .bind(&id)
         .fetch_one(db.inner())
         .await
@@ -535,6 +593,12 @@ pub async fn delete_skill(
         let prev_claude: Option<String> = prow.get("synced_hash_claude");
         let prev_codex: Option<String> = prow.get("synced_hash_codex");
         if let Err(e) = remove_skill_artifacts(&ppath, &name, &source_path, prev_claude.as_deref(), prev_codex.as_deref()) {
+            errors.push(e);
+        }
+    }
+    // Global links too, whether or not the Global scope is switched on now.
+    if let Ok(home) = app.path().home_dir() {
+        if let Err(e) = unlink_global(&home, &row.get::<String, _>("name"), &source_path) {
             errors.push(e);
         }
     }

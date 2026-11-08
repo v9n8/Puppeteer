@@ -4,10 +4,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
+  CONFIRM_ON,
   ENTRY_FEATURES,
   FALLBACK_PATH,
   MENU_ACTION_FEATURES,
   allowsFeature,
+  confirmOnKey,
   entryOn,
   errorText,
   fallbackPath,
@@ -403,5 +405,26 @@ test('the feature error messages exist in en and vi', () => {
     const messages = JSON.parse(read(`../../i18n/locales/${locale}/features.json`))
     assert.match(messages.error.disabled, /\{name\}/, `${locale}: disabled names the feature`)
     assert.equal(typeof messages.error.localOnly, 'string', `${locale}: localOnly`)
+  }
+})
+
+test('confirmOnKey: only switching a listed id on asks first', () => {
+  assert.equal(confirmOnKey('library.skills_global', true), 'features.confirmOn.skills_global')
+  assert.equal(confirmOnKey('library.skills_global', false), null)
+  assert.equal(confirmOnKey('library.skills', true), null)
+  assert.equal(confirmOnKey('library', true), null)
+})
+
+test('confirm-on ids exist in the registry and their dialog text in en and vi', () => {
+  const { props } = registryIds()
+  const at = (tree, path) => path.split('.').reduce((node, key) => node?.[key], tree)
+  for (const [id, key] of Object.entries(CONFIRM_ON)) {
+    assert.ok(props.has(id), id)
+    for (const locale of ['en', 'vi']) {
+      const messages = { features: JSON.parse(read(`../../i18n/locales/${locale}/features.json`)) }
+      for (const part of ['title', 'message', 'confirm']) {
+        assert.equal(typeof at(messages, `${key}.${part}`), 'string', `${locale}: ${key}.${part}`)
+      }
+    }
   }
 })

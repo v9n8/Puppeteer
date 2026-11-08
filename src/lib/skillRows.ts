@@ -68,10 +68,14 @@ export function buildSkillGroups<S extends SkillLike>(
 
 // ── Allocation matrix ──────────────────────────────────────────────────────
 
-/** What one engine chip of a skill × project cell shows (`list_skill_allocation`). */
-export type ChipState = 'installed' | 'drifted' | 'git_managed' | 'shadowed' | 'not_installed'
+/**
+ * What one engine chip of a skill × project cell shows (`list_skill_allocation`).
+ * `taken` is the Global column's only: the name is held in HOME by something
+ * that isn't Puppeteer's.
+ */
+export type ChipState = 'installed' | 'drifted' | 'git_managed' | 'shadowed' | 'not_installed' | 'taken'
 
-export const CHIP_STATES: readonly ChipState[] = ['installed', 'drifted', 'git_managed', 'shadowed', 'not_installed']
+export const CHIP_STATES: readonly ChipState[] = ['installed', 'drifted', 'git_managed', 'shadowed', 'not_installed', 'taken']
 
 export interface AllocationChip {
   skill_id: string
@@ -81,12 +85,23 @@ export interface AllocationChip {
   state: ChipState
 }
 
+export interface GlobalChip {
+  skill_id: string
+  engine: string
+  state: ChipState
+}
+
 export interface SkillAllocation {
-  /** Chip columns, in order — an open list, so the matrix never names an engine itself. */
-  engines: { id: string; project_dir: string }[]
+  /**
+   * Chip columns, in order — an open list, so the matrix never names an engine
+   * itself. `home_dir` is the engine's global folder (null: no Global chip).
+   */
+  engines: { id: string; project_dir: string; home_dir: string | null }[]
   projects: { id: string; name: string }[]
   /** Only the chips that aren't plain "not installed, switched off". */
   chips: AllocationChip[]
+  /** The Global column, null while `library.skills_global` is off; only the chips that aren't "not installed". */
+  global: GlobalChip[] | null
 }
 
 export interface MatrixChip {
@@ -102,6 +117,8 @@ export interface MatrixCell {
 
 export interface MatrixRow<S extends SkillLike = SkillLike> {
   skill: S
+  /** One chip per engine with a global folder; null without a Global column. */
+  global: MatrixChip[] | null
   cells: MatrixCell[]
 }
 
@@ -112,10 +129,18 @@ export function buildAllocationMatrix<S extends SkillLike>(
   search: string,
 ): MatrixRow<S>[] {
   const byKey = new Map(allocation.chips.map((c) => [`${c.skill_id}\n${c.project_id}\n${c.engine}`, c]))
+  const globalByKey = new Map((allocation.global ?? []).map((c) => [`${c.skill_id}\n${c.engine}`, c.state]))
+  const globalEngines = allocation.engines.filter((e) => e.home_dir)
   return skills
     .filter((s) => skillMatches(s, search))
     .map((skill) => ({
       skill,
+      global: allocation.global
+        ? globalEngines.map((e): MatrixChip => {
+            const state = globalByKey.get(`${skill.id}\n${e.id}`) ?? 'not_installed'
+            return { engine: e.id, enabled: state === 'installed', state }
+          })
+        : null,
       cells: allocation.projects.map((p) => ({
         projectId: p.id,
         chips: allocation.engines.map((e): MatrixChip => {
@@ -126,9 +151,12 @@ export function buildAllocationMatrix<S extends SkillLike>(
     }))
 }
 
-/** A skill the repo commits to git is the repo's: Puppeteer never switches it. */
+/**
+ * A skill the repo commits to git is the repo's, and a name taken in HOME is
+ * the user's: Puppeteer never switches either.
+ */
 export function chipSwitchable(chip: MatrixChip): boolean {
-  return chip.state !== 'git_managed'
+  return chip.state !== 'git_managed' && chip.state !== 'taken'
 }
 
 /** Engine ids are lower-case CLI names; the chip shows them capitalised (claude → Claude). */

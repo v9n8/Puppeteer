@@ -25,6 +25,13 @@
     "resetNothingOff": "Mọi công tắc trở về giá trị của bản cài mới. Không mục nào đang bật bị tắt.",
     "resetDone": "Đã khôi phục tính năng mặc định"
   },
+  "confirmOn": {
+    "skills_global": {
+      "title": "Bật skill global?",
+      "message": "Tab Phân bổ của Skills sẽ có thêm cột Global. Skill bật ở cột này được link vào ~/.claude/skills (Claude) hoặc ~/.agents/skills (Codex), nên mọi project đều thấy, kể cả Claude Code và Codex chạy ngoài Puppeteer.\nSkill bạn tự đặt ở đó không bao giờ bị thay hay xoá; tên đã có người dùng thì app chỉ báo lại.",
+      "confirm": "Bật"
+    }
+  },
   "module": {
     "sessions": "Phiên & chat",
     "text_tools": "Công cụ văn bản",
@@ -65,7 +72,8 @@
       "instruction_checks": "Kiểm tra chỉ dẫn",
       "agents": "Agent (subagent)",
       "commands": "Lệnh slash",
-      "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn"
+      "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn",
+      "skills_global": "Skill global (thư mục HOME)"
     },
     "orchestration": {
       "conductor": "Conductor"

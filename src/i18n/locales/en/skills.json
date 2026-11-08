@@ -81,19 +81,28 @@
     "refresh": "Refresh",
     "noProjects": "No projects yet. Add a project to switch skills on for it.",
     "noMatch": "No skills match the search.",
+    "global": "Global",
+    "globalTitle": "Your home folder (~/.claude/skills, ~/.agents/skills): every project uses it, including the CLIs run outside Puppeteer.",
+    "globalRemote": "Only switchable on the host itself, not from a remote desktop.",
+    "globalHint": {
+      "installed": "Linked from your home folder to the library. Click to remove the link.",
+      "not_installed": "Click to link it into your home folder for every project."
+    },
     "state": {
       "installed": "Installed",
       "drifted": "Drifted",
       "git_managed": "Git-managed",
       "shadowed": "Shadowed",
-      "not_installed": "Not installed"
+      "not_installed": "Not installed",
+      "taken": "Name taken"
     },
     "hint": {
       "installed": "Linked to the library. Click to switch off.",
       "drifted": "Switched on, but the project folder differs from the library (an edited copy, another link, or nothing there). Click to switch off.",
       "git_managed": "The repo commits its own skill of this name. Puppeteer only reads it.",
       "shadowed": "Installed, but a skill of the same name in your home folder is the one the agent uses.",
-      "not_installed": "Click to switch on for this engine in this project."
+      "not_installed": "Click to switch on for this engine in this project.",
+      "taken": "Your home folder already holds something else under this name (your own skill or another link), or the folder is a symlink. Puppeteer leaves it alone: rename or remove it, or rename the skill."
     }
   }
 }

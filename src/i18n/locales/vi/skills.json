@@ -81,19 +81,28 @@
     "refresh": "Làm mới",
     "noProjects": "Chưa có project nào. Thêm project để bật skill cho nó.",
     "noMatch": "Không có skill nào khớp với từ tìm.",
+    "global": "Global",
+    "globalTitle": "Thư mục HOME (~/.claude/skills, ~/.agents/skills): mọi project đều dùng, kể cả CLI chạy ngoài Puppeteer.",
+    "globalRemote": "Chỉ bật/tắt được tại máy host, không làm được từ remote desktop.",
+    "globalHint": {
+      "installed": "Đã link từ thư mục HOME về thư viện. Bấm để gỡ link.",
+      "not_installed": "Bấm để link vào thư mục HOME, dùng cho mọi project."
+    },
     "state": {
       "installed": "Đã cài",
       "drifted": "Lệch",
       "git_managed": "Git quản lý",
       "shadowed": "Bị che",
-      "not_installed": "Chưa cài"
+      "not_installed": "Chưa cài",
+      "taken": "Trùng tên"
     },
     "hint": {
       "installed": "Đã link về thư viện. Bấm để tắt.",
       "drifted": "Đang bật, nhưng thư mục trong project khác thư viện (bản copy đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
       "git_managed": "Repo tự commit skill cùng tên. Puppeteer chỉ đọc.",
       "shadowed": "Đã cài, nhưng agent dùng skill cùng tên trong thư mục HOME.",
-      "not_installed": "Bấm để bật cho engine này trong project này."
+      "not_installed": "Bấm để bật cho engine này trong project này.",
+      "taken": "Thư mục HOME đã có thứ khác mang tên này (skill của bạn hoặc link khác), hoặc thư mục là symlink. Puppeteer không đụng vào: đổi tên hay xoá nó, hoặc đổi tên skill."
     }
   }
 }

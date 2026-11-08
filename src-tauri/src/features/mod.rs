@@ -99,6 +99,8 @@ pub static MODULES: &[Module] = &[
             on("agents"),
             on("commands"),
             Prop { legacy_key: Some("mcp_builtin_puppeteer_enabled"), ..on("builtin_mcp_puppeteer") },
+            // Writes into HOME, which the CLIs outside Puppeteer read too.
+            off("skills_global"),
         ],
     },
     Module { id: "orchestration", default: true, locked: false, props: &[on("conductor")] },
@@ -638,6 +640,7 @@ mod tests {
             crate::commands::session_search::FEATURE,
             crate::commands::library_items::LibraryKind::Agent.feature(),
             crate::commands::library_items::LibraryKind::Command.feature(),
+            crate::commands::skill_allocation::GLOBAL_FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,
             notes::FEATURE,

@@ -84,7 +84,10 @@ test('setFrontmatterField replaces, appends and creates frontmatter', () => {
 })
 
 const allocation = {
-  engines: [{ id: 'claude', project_dir: '.claude/skills' }, { id: 'codex', project_dir: '.agents/skills' }],
+  engines: [
+    { id: 'claude', project_dir: '.claude/skills', home_dir: '.claude/skills' },
+    { id: 'codex', project_dir: '.agents/skills', home_dir: '.agents/skills' },
+  ],
   projects: [{ id: 'p2', name: 'Two' }, { id: 'p1', name: 'One' }],
   chips: [
     { skill_id: 'a', project_id: 'p1', engine: 'codex', enabled: true, state: 'drifted' },
@@ -92,6 +95,7 @@ const allocation = {
     { skill_id: 'b', project_id: 'p2', engine: 'claude', enabled: false, state: 'git_managed' },
     { skill_id: 'gone', project_id: 'p1', engine: 'claude', enabled: true, state: 'shadowed' },
   ],
+  global: null,
 }
 
 test('buildAllocationMatrix: a cell per project, a chip per engine, missing chips not installed', () => {
@@ -104,6 +108,24 @@ test('buildAllocationMatrix: a cell per project, a chip per engine, missing chip
   ])
   assert.deepEqual(brief(rows[1])[0], ['p2', ['claude:git_managed:false', 'codex:not_installed:false']])
   assert.deepEqual(buildAllocationMatrix(skills, allocation, 'pdf').map((r) => r.skill.id), ['b'])
+  assert.ok(rows.every((r) => r.global === null), 'no Global column while the scope is off')
+})
+
+test('buildAllocationMatrix: a Global chip per engine with a home folder', () => {
+  const withGlobal = {
+    ...allocation,
+    engines: [...allocation.engines, { id: 'gemini', project_dir: '.gemini/skills', home_dir: null }],
+    global: [
+      { skill_id: 'a', engine: 'claude', state: 'installed' },
+      { skill_id: 'b', engine: 'codex', state: 'taken' },
+    ],
+  }
+  const rows = buildAllocationMatrix(skills, withGlobal, '')
+  const brief = (row) => row.global.map((x) => `${x.engine}:${x.state}:${x.enabled}`)
+  assert.deepEqual(brief(rows[0]), ['claude:installed:true', 'codex:not_installed:false'])
+  assert.deepEqual(brief(rows[1]), ['claude:not_installed:false', 'codex:taken:false'])
+  assert.deepEqual(brief(rows[2]), ['claude:not_installed:false', 'codex:not_installed:false'])
+  assert.deepEqual(rows[0].cells[0].chips.map((c) => c.engine), ['claude', 'codex', 'gemini'])
 })
 
 test('buildAllocationMatrix follows the declared engine list (a new engine is one more chip)', () => {
@@ -113,9 +135,10 @@ test('buildAllocationMatrix follows the declared engine list (a new engine is on
   assert.equal(engineLabel('gemini'), 'Gemini')
 })
 
-test('chipSwitchable: every state but git-managed', () => {
+test('chipSwitchable: every state but git-managed and taken', () => {
   for (const state of ['installed', 'drifted', 'shadowed', 'not_installed']) {
     assert.equal(chipSwitchable({ engine: 'claude', enabled: false, state }), true, state)
   }
   assert.equal(chipSwitchable({ engine: 'claude', enabled: true, state: 'git_managed' }), false)
+  assert.equal(chipSwitchable({ engine: 'claude', enabled: false, state: 'taken' }), false)
 })

@@ -2,13 +2,16 @@
 // The Skills screen's Allocation tab: one row per skill, one column per
 // project, one chip per engine in each cell. A chip switches that skill on or
 // off for that engine in that project only; a skill the repo commits to git is
-// shown but never switched.
+// shown but never switched. With the Global scope on, a Global column comes
+// first: its chips link the skill into the engine's folder in HOME (local
+// only, so a remote desktop sees them read-only).
 import { computed, onActivated, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Lock, RotateCw, Search } from 'lucide-vue-next'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/composables/useToast'
 import { Banner, Button, Input } from '@/components/ui'
+import { isRemoteMode } from '@/lib/ipc/remote'
 import {
   CHIP_STATES,
   buildAllocationMatrix,
@@ -31,8 +34,12 @@ const error = ref<string | null>(null)
 const search = ref('')
 /** `<skill>/<project>/<engine>` of the chip being switched. */
 const busy = ref<string | null>(null)
+const remote = isRemoteMode()
 
 const rows = computed(() => (allocation.value ? buildAllocationMatrix(store.skills, allocation.value, search.value) : []))
+const hasGlobal = computed(() => !!allocation.value?.global)
+// `taken` only ever shows in the Global column.
+const legend = computed(() => CHIP_STATES.filter((s) => s !== 'taken' || hasGlobal.value))
 
 const chipClass: Record<ChipState, string> = {
   installed: 'bg-primary/12 text-primary ring-primary/30',
@@ -40,6 +47,7 @@ const chipClass: Record<ChipState, string> = {
   git_managed: 'bg-secondary text-muted-foreground ring-border cursor-not-allowed',
   shadowed: 'bg-violet-500/15 text-violet-700 ring-violet-500/30 line-through dark:text-violet-300',
   not_installed: 'bg-transparent text-muted-foreground/60 ring-border hover:text-foreground',
+  taken: 'bg-secondary text-muted-foreground ring-border cursor-not-allowed line-through',
 }
 
 async function load() {
@@ -65,11 +73,20 @@ function chipTitle(projectName: string, chip: MatrixChip): string {
   return `${projectName} · ${engineLabel(chip.engine)}: ${t(`skills.allocation.state.${chip.state}`)}\n${t(`skills.allocation.hint.${chip.state}`)}`
 }
 
-async function toggle(skillId: string, projectId: string, chip: MatrixChip) {
-  if (!chipSwitchable(chip) || busy.value) return
-  busy.value = `${skillId}/${projectId}/${chip.engine}`
+function globalChipTitle(chip: MatrixChip): string {
+  const hint = chip.state === 'taken' ? 'skills.allocation.hint.taken' : `skills.allocation.globalHint.${chip.state}`
+  const lines = [`${t('skills.allocation.global')} · ${engineLabel(chip.engine)}: ${t(`skills.allocation.state.${chip.state}`)}`, t(hint)]
+  if (remote) lines.push(t('skills.allocation.globalRemote'))
+  return lines.join('\n')
+}
+
+/** `projectId` null: the Global column. */
+async function toggle(skillId: string, projectId: string | null, chip: MatrixChip) {
+  if (!chipSwitchable(chip) || busy.value || (projectId === null && remote)) return
+  busy.value = `${skillId}/${projectId ?? ''}/${chip.engine}`
   try {
-    await store.setSkillEngine(projectId, skillId, chip.engine, !chip.enabled)
+    if (projectId === null) await store.setSkillGlobal(skillId, chip.engine, !chip.enabled)
+    else await store.setSkillEngine(projectId, skillId, chip.engine, !chip.enabled)
   } catch (e) {
     toast.error(String(e))
   } finally {
@@ -99,7 +116,7 @@ async function toggle(skillId: string, projectId: string, chip: MatrixChip) {
       </Button>
       <div class="ml-auto flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">
         <span
-          v-for="state in CHIP_STATES"
+          v-for="state in legend"
           :key="state"
           class="inline-flex items-center gap-1 rounded-full px-1.5 py-px ring-1 ring-inset"
           :class="chipClass[state]"
@@ -128,6 +145,13 @@ async function toggle(skillId: string, projectId: string, chip: MatrixChip) {
               {{ t('skills.allocation.skill') }}
             </th>
             <th
+              v-if="hasGlobal"
+              class="sticky top-0 z-10 border-b border-r border-border/60 bg-background px-3 py-2 text-left font-medium"
+              :title="t('skills.allocation.globalTitle')"
+            >
+              {{ t('skills.allocation.global') }}
+            </th>
+            <th
               v-for="p in allocation.projects"
               :key="p.id"
               class="sticky top-0 z-10 max-w-40 truncate border-b border-border/60 bg-background px-3 py-2 text-left font-medium"
@@ -149,6 +173,28 @@ async function toggle(skillId: string, projectId: string, chip: MatrixChip) {
                 {{ row.skill.name }}
               </button>
             </th>
+            <td v-if="row.global" class="border-b border-r border-border/40 px-3 py-1.5">
+              <div class="flex gap-1">
+                <button
+                  v-for="chip in row.global"
+                  :key="chip.engine"
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-2xs font-medium ring-1 ring-inset transition-colors disabled:opacity-60"
+                  :class="chipClass[chip.state]"
+                  :disabled="!chipSwitchable(chip) || remote || busy !== null"
+                  :aria-pressed="chip.enabled"
+                  :title="globalChipTitle(chip)"
+                  @click="toggle(row.skill.id, null, chip)"
+                >
+                  <RotateCw
+                    v-if="busy === `${row.skill.id}//${chip.engine}`"
+                    class="h-2.5 w-2.5 animate-spin"
+                    :stroke-width="2"
+                  />
+                  {{ engineLabel(chip.engine) }}
+                </button>
+              </div>
+            </td>
             <td
               v-for="(cell, i) in row.cells"
               :key="cell.projectId"

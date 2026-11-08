@@ -89,5 +89,10 @@ export const useSkillsStore = defineStore('skills', () => {
     await invoke('apply_skill', { projectId, skillId, setEngine: { engine, on } })
   }
 
-  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills, getAllocation, setSkillEngine }
+  /** Link a skill into (or out of) one engine's global folder in HOME — the Global column's chip. */
+  async function setSkillGlobal(skillId: string, engine: string, on: boolean): Promise<void> {
+    await invoke('set_skill_global', { skillId, engine, on })
+  }
+
+  return { skills, loading, error, fetchSkills, getSkill, createSkill, updateSkill, deleteSkill, importSkillZip, exportSkillZip, applySkillToAllProjects, reapplySkills, getAllocation, setSkillEngine, setSkillGlobal }
 })
