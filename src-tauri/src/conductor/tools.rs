@@ -166,6 +166,18 @@ async fn session_spawn(
         return Err(cap_reached(session.max_workers));
     }
 
+    let branch = match super::worktree::assign(&db, &super::worktree::root(), &worker_id).await {
+        Ok(worktree) => worktree.map(|_| super::worktree::branch_for(&worker_id)),
+        Err(e) => {
+            state.conductor.unregister_session(&worker_id);
+            let _ = sqlx::query("DELETE FROM runs WHERE id = ?")
+                .bind(&worker_id)
+                .execute(&db)
+                .await;
+            return Err(e);
+        }
+    };
+
     let payload = StartRunPayload {
         run_id: worker_id.clone(),
         engine_override: Some(engine.clone()),
@@ -184,11 +196,11 @@ async fn session_spawn(
         state,
         conductor_run_id,
         "spawn",
-        json!({ "worker_id": worker_id, "role_label": role_label, "engine": engine }),
+        json!({ "worker_id": worker_id, "role_label": role_label, "engine": engine, "branch": branch }),
     )
     .await;
 
-    Ok(json!({ "worker_id": worker_id, "role_label": role_label, "status": "running" }))
+    Ok(json!({ "worker_id": worker_id, "role_label": role_label, "status": "running", "branch": branch }))
 }
 
 async fn session_list(state: &HttpState, conductor_run_id: &str) -> Result<Value, String> {

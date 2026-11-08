@@ -776,6 +776,30 @@ mod tests {
         assert_eq!(cst.session("s").unwrap().max_workers, 3);
     }
 
+    /// The column default (6, `0001_init.sql`) must never decide the cap:
+    /// `DEFAULT_MAX_WORKERS` is the one source.
+    #[tokio::test]
+    async fn insert_always_binds_max_workers() {
+        let db = setup().await;
+        add_run(&db, "a", "session", "done", None, None).await;
+        add_run(&db, "b", "session", "done", None, None).await;
+        upgrade_run_to_conductor(&db, "a", "p1", None, None).await.unwrap();
+        upgrade_run_to_conductor(&db, "b", "p1", None, Some(3)).await.unwrap();
+        let cap = |id: &'static str| {
+            let db = db.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>("SELECT max_workers FROM conductor_sessions WHERE id = ?")
+                    .bind(id)
+                    .fetch_one(&db)
+                    .await
+                    .unwrap()
+            }
+        };
+        assert_eq!(cap("a").await, DEFAULT_MAX_WORKERS as i64);
+        assert_ne!(DEFAULT_MAX_WORKERS, 6, "would hide a missing bind");
+        assert_eq!(cap("b").await, 3);
+    }
+
     #[tokio::test]
     async fn ensure_launch_revives_failed_session_after_restart() {
         let db = setup().await;

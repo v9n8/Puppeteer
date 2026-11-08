@@ -15,6 +15,7 @@
 pub mod commands;
 pub mod mcp_http;
 pub mod tools;
+pub mod worktree;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};

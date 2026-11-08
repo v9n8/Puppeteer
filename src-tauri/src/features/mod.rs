@@ -103,7 +103,16 @@ pub static MODULES: &[Module] = &[
             off("skills_global"),
         ],
     },
-    Module { id: "orchestration", default: true, locked: false, props: &[on("conductor")] },
+    Module {
+        id: "orchestration",
+        default: true,
+        locked: false,
+        props: &[
+            on("conductor"),
+            // Only workers of a conductor get a worktree.
+            Prop { depends_on: &["orchestration.conductor"], ..on("conductor_worktree") },
+        ],
+    },
     Module {
         id: "code_hosting",
         default: true,
@@ -641,6 +650,7 @@ mod tests {
             crate::commands::library_items::LibraryKind::Agent.feature(),
             crate::commands::library_items::LibraryKind::Command.feature(),
             crate::commands::skill_allocation::GLOBAL_FEATURE,
+            crate::conductor::worktree::FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,
             notes::FEATURE,

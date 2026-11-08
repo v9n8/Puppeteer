@@ -164,6 +164,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn existing_runs_have_no_worktree() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at, role) VALUES ('w1', 'p1', 'session', 'c', 'worker')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let path: Option<String> = sqlx::query_scalar("SELECT worktree_path FROM runs WHERE id = 'w1'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(path, None, "an old worker keeps running in the project folder");
+    }
+
+    #[tokio::test]
     async fn agents_and_commands_tables_on_an_existing_database() {
         let db = db_at_0001().await;
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')")

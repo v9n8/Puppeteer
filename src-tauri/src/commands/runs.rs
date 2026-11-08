@@ -123,7 +123,7 @@ pub(crate) async fn start_run_inner(
     // Load run + project info
     let run_row = sqlx::query(
         "SELECT r.id, r.project_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                r.system_instruction, p.path as project_path
+                r.system_instruction, r.worktree_path, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -141,6 +141,14 @@ pub(crate) async fn start_run_inner(
     let project_path: String = run_row.get("project_path");
     let existing_claude_account_id: Option<String> = run_row.get("claude_account_id");
     let stored_instruction: Option<String> = run_row.get("system_instruction");
+    // Where the agent works: a Conductor worker's own worktree, else the
+    // project. Logs stay under the project either way.
+    let cwd = crate::conductor::worktree::run_dir(
+        &project_path,
+        run_row.get("worktree_path"),
+        &payload.run_id,
+    )
+    .await?;
 
     let is_session = run_type == "session";
 
@@ -381,7 +389,7 @@ pub(crate) async fn start_run_inner(
         // ---- Claude: drive the Agent-SDK sidecar (keeps subscription auth) ----
         let (node_bin, sidecar_script) = resolve_sidecar(&app, &node_path, &sidecar_path)?;
         let mut cmd = Command::new(&node_bin);
-        cmd.current_dir(&project_path).arg(&sidecar_script);
+        cmd.current_dir(&cwd).arg(&sidecar_script);
         augment_command_path(&mut cmd);
         apply_mcp_tool_timeout(&mut cmd);
         // GĐ3: per-run credential broker + gh/glab shim. Prepends the shim dir to
@@ -393,7 +401,7 @@ pub(crate) async fn start_run_inner(
             &mut cmd,
             &payload.run_id,
             &project_id,
-            &project_path,
+            &cwd,
         )
         .await?;
         // Honor a custom claude binary if the user configured one; default uses
@@ -448,7 +456,7 @@ pub(crate) async fn start_run_inner(
             )
             .await;
             let mut options = serde_json::json!({
-                "cwd": project_path,
+                "cwd": cwd,
                 "permissionMode": sdk_permission_mode(&permission_mode),
                 "model": model,
             });
@@ -530,7 +538,7 @@ pub(crate) async fn start_run_inner(
         tokio::spawn(drain_sidecar(
             app,
             run_id,
-            project_path,
+            cwd,
             stdout,
             stderr,
             db_pool,
@@ -552,7 +560,7 @@ pub(crate) async fn start_run_inner(
     let _ = &extra; // codex tuning is now via sandbox/approval env, not exec args
     let (node_bin, sidecar_script) = resolve_codex_sidecar(&app, &node_path, &codex_sidecar_path)?;
     let mut cmd = Command::new(&node_bin);
-    cmd.current_dir(&project_path).arg(&sidecar_script);
+    cmd.current_dir(&cwd).arg(&sidecar_script);
     augment_command_path(&mut cmd);
     apply_mcp_tool_timeout(&mut cmd);
     let (broker_run, ssh_access) = wire_broker(
@@ -561,7 +569,7 @@ pub(crate) async fn start_run_inner(
         &mut cmd,
         &payload.run_id,
         &project_id,
-        &project_path,
+        &cwd,
     )
     .await?;
     if codex_path != "codex" && !codex_path.trim().is_empty() {
@@ -682,7 +690,7 @@ pub(crate) async fn start_run_inner(
     tokio::spawn(drain_sidecar(
         app,
         run_id,
-        project_path,
+        cwd,
         stdout,
         stderr,
         db_pool,
@@ -3558,7 +3566,8 @@ pub(crate) async fn resume_run_with(
     use sqlx::Row;
 
     let row = sqlx::query(
-        "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, p.path as project_path
+        "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.worktree_path,
+                p.path as project_path
          FROM runs r JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
     )
@@ -3574,6 +3583,7 @@ pub(crate) async fn resume_run_with(
     let project_id: String = row.get("project_id");
     let claude_account_id: Option<String> = row.get("claude_account_id");
     let project_path: String = row.get("project_path");
+    let worktree_path: Option<String> = row.get("worktree_path");
 
     // Resume uses the run-level account, else (NULL = "Default" in the UI) the
     // project → default account — the same profile a fresh start would pick and
@@ -3674,6 +3684,9 @@ pub(crate) async fn resume_run_with(
             }
         });
 
+    // A worker resumes in its worktree (restored if the startup sweep removed
+    // it): Claude finds the transcript by that folder.
+    let cwd = crate::conductor::worktree::run_dir(&project_path, worktree_path, &run_id).await?;
     let runs_dir = Path::new(&project_path).join(".puppeteer").join("runs");
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let log_path = runs_dir.join(format!("{}.log", run_id));
@@ -3687,7 +3700,7 @@ pub(crate) async fn resume_run_with(
     } else {
         let mirrored = mirror_claude_transcript_for_account(
             db.inner(),
-            &project_path,
+            &cwd,
             &session_id,
             transcript_path.as_deref(),
             claude_account.as_ref().map(|a| a.config_dir.as_str()),
@@ -3750,7 +3763,7 @@ pub(crate) async fn resume_run_with(
         resolve_sidecar(&app, &node_path, &sidecar_path)?
     };
     let mut cmd = Command::new(&node_bin);
-    cmd.current_dir(&project_path).arg(&sidecar_script);
+    cmd.current_dir(&cwd).arg(&sidecar_script);
     if transcript_available {
         // The sidecar resumes this session/thread on its first prompt.
         cmd.env("PUPPETEER_RESUME_SESSION", &session_id);
@@ -3765,7 +3778,7 @@ pub(crate) async fn resume_run_with(
         &mut cmd,
         &run_id,
         &project_id,
-        &project_path,
+        &cwd,
     )
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);
@@ -3926,7 +3939,7 @@ pub(crate) async fn resume_run_with(
     tokio::spawn(drain_sidecar(
         app,
         run_id.clone(),
-        project_path,
+        cwd,
         stdout,
         stderr,
         db_pool,

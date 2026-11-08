@@ -239,6 +239,17 @@ pub fn run() {
             let db_path = app_data_dir.join("data.db");
             let db = tauri::async_runtime::block_on(db::init_db(&db_path))
                 .expect("Failed to initialize database");
+            // Conductor workers' worktrees: drop those of cancelled or deleted
+            // workers (init_db has just marked interrupted runs cancelled).
+            // Before anything can start or resume a worker.
+            conductor::worktree::set_root(app_data_dir.join("worktrees"));
+            let swept = tauri::async_runtime::block_on(conductor::worktree::sweep(
+                &db,
+                &conductor::worktree::root(),
+            ));
+            if swept > 0 {
+                tracing::info!(event = "worker_worktrees_swept", count = swept);
+            }
             // One-time, off the startup path: re-derive the usage ledger from
             // run logs (reads every log, so it can take a while).
             {

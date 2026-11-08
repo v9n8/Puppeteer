@@ -76,7 +76,8 @@
       "skills_global": "Skill global (thư mục HOME)"
     },
     "orchestration": {
-      "conductor": "Conductor"
+      "conductor": "Conductor",
+      "conductor_worktree": "Mỗi worker của Conductor có git worktree riêng"
     },
     "code_hosting": {
       "issue_pr_runs": "Chạy từ issue và PR",

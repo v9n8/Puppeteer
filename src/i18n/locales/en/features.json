@@ -76,7 +76,8 @@
       "skills_global": "Global skills (home folder)"
     },
     "orchestration": {
-      "conductor": "Conductor"
+      "conductor": "Conductor",
+      "conductor_worktree": "Own git worktree for each Conductor worker"
     },
     "code_hosting": {
       "issue_pr_runs": "Runs from issues and PRs",
