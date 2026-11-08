@@ -38,6 +38,7 @@ import { useToast } from '@/composables/useToast'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { usePageFind } from '@/composables/usePageFind'
 import { useProjectsStore } from '@/stores/projects'
+import { useFeaturesStore } from '@/stores/features'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
 import { errorCode } from '@/stores/slackThreads'
@@ -65,6 +66,7 @@ const { confirm } = useConfirm()
 const notes = useNotesStore()
 const todos = useTodosStore()
 const projects = useProjectsStore()
+const features = useFeaturesStore()
 const { pinned, togglePin } = useFloatingWindow()
 
 const params = new URLSearchParams(window.location.search)
@@ -74,7 +76,7 @@ const initialId = params.get('id') || null
 /** The project the window was opened from: the default filter and "+ New" project. */
 const contextProjectId = ref<string | null>(params.get('projectId') || null)
 /** "Make secret": into the vault, its own window. */
-const canSecret = kind === 'note'
+const canSecret = computed(() => kind === 'note' && features.allows('note.makeSecret'))
 
 // ── Sidebar: search + project filter + kind filter (all client-side) ───────
 

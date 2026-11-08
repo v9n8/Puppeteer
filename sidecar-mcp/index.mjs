@@ -832,7 +832,7 @@ const tools = {
 
   skills_update: {
     description:
-      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename, re-apply via the Puppeteer app to install it again. `target` is only the default for projects the skill is applied to next; projects that already have it keep their engines.',
+      'Update an existing skill by id. Omitted fields are left unchanged; pass `content` to replace the SKILL.md body. Projects symlink to the skill folder, so content changes are live in every project at once. Renaming moves the source folder and removes the old links from projects — after a rename, re-apply via the Puppeteer app to install it again. A global link (~/.claude/skills, ~/.agents/skills) follows the rename. `target` is only the default for projects the skill is applied to next; projects that already have it keep their engines.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -853,13 +853,15 @@ const tools = {
           : `\nApplied to ${r.applied.length} project(s) via symlink — the change is already live there.`;
         if (r.retargeted) msg += '\nTarget changed — it is the default for projects the skill is applied to next; those projects keep their engines.';
       }
+      if (r.global_relinked.length) msg += `\nGlobal link moved to the new name for: ${r.global_relinked.join(', ')}.`;
+      if (r.global_failures.length) msg += `\n⚠ Global link not moved:\n${r.global_failures.join('\n')}`;
       return msg;
     },
   },
 
   skills_delete: {
     description:
-      'Delete a skill from the library: removes the source folder, its DB record, project-apply links and the symlinks projects had to it. Old copies from before Puppeteer switched to symlinks (.codex/skills, AGENTS.md pointer) are NOT removed.',
+      'Delete a skill from the library: removes the source folder, its DB record, project-apply links, the symlinks projects had to it and its own global links (~/.claude/skills, ~/.agents/skills). Old copies from before Puppeteer switched to symlinks (.codex/skills, AGENTS.md pointer) are NOT removed.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -871,6 +873,7 @@ const tools = {
       if (r.applied.length) {
         msg += `\nWas applied to ${r.applied.length} project(s): ${r.applied.join(', ')}. Their symlinks were removed; any pre-symlink copies stay on disk.`;
       }
+      if (r.global.length) msg += `\nIts global link was removed for: ${r.global.join(', ')}.`;
       return msg;
     },
   },

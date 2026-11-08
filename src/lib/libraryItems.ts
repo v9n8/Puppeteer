@@ -129,8 +129,7 @@ export function validateItem(kind: LibraryKind, content: string, nameField: stri
 /**
  * {@link setFrontmatterField}, but a file without a frontmatter block gets one
  * (a command may start as plain text; its description still needs a home), and
- * an empty value drops the line: `parseFrontmatter` would read an empty `key:`
- * as the line after it.
+ * an empty value drops the line instead of leaving an empty `key:`.
  */
 export function setItemField(raw: string, key: string, value: string | null): string {
   const v = value === '' ? null : value

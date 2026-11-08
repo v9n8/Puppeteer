@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Skill tools of the built-in `puppeteer` MCP server on the per-engine `project_skills`
 // schema (migration 0002): a target change leaves the projects that have the skill alone,
-// and a delete drops its project rows and the links projects had to it.
+// a rename moves its own global link (and only its own), and a delete drops its project rows,
+// the links projects had to it and its global links.
 //
 // Builds a throwaway DB from every real migration and a project with the skill linked for
 // both engines, then drives `index.mjs` over stdio. No network.
@@ -12,7 +13,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -53,12 +54,24 @@ db.prepare(
    VALUES (?, 's-1', 1, 1, 'h', 'h', ?, 1)`,
 ).run(PROJECT, T0);
 
+// HOME: the skill linked globally for both engines; the new name is already taken in Codex's
+// folder by the user's own skill.
+const home = join(appData, 'home');
+const globalLink = (engine, name) => join(home, engine === 'claude' ? '.claude' : '.agents', 'skills', name);
+for (const engine of ['claude', 'codex']) {
+  mkdirSync(dirname(globalLink(engine, 'review')), { recursive: true });
+  symlinkSync(source, globalLink(engine, 'review'));
+}
+const usersOwn = globalLink('codex', 'review2');
+mkdirSync(usersOwn);
+writeFileSync(join(usersOwn, 'SKILL.md'), 'mine');
+
 // ---- Drive the server -------------------------------------------------------------
 
 function drive(frames) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
+      env: { ...process.env, HOME: home, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -102,10 +115,24 @@ const row = projectRow();
 check(row?.enabled_claude === 1 && row?.enabled_codex === 1, 'skills_update: project engines unchanged');
 check(links.every(isLink), 'skills_update: project links untouched');
 
+const renamed = await call('skills_update', { id: 's-1', name: 'review2' });
+const source2 = join(appData, 'skills', 'review2');
+const linkTo = (p) => (isLink(p) ? readlinkSync(p) : null);
+check(!isLink(globalLink('claude', 'review')) && linkTo(globalLink('claude', 'review2')) === source2,
+  'skills_update: a rename moves the global link to the new name');
+check(!isLink(globalLink('codex', 'review')), 'skills_update: the old global link goes even when the new name is taken');
+check(!isLink(usersOwn) && readFileSync(join(usersOwn, 'SKILL.md'), 'utf8') === 'mine',
+  "skills_update: the user's own global skill is left alone");
+check(renamed.includes('Global link moved to the new name for: claude') && renamed.includes('⚠ Global link not moved'),
+  'skills_update: the rename reports the global links');
+
 const deleted = await call('skills_delete', { id: 's-1' });
 check(deleted.includes('Was applied to 1 project(s): proj'), 'skills_delete: names the project it was applied to');
 check(projectRow() === undefined, 'skills_delete: project_skills rows removed');
-check(!links.some(isLink) && !existsSync(source), 'skills_delete: links and source removed');
+check(!links.some(isLink) && !existsSync(source2), 'skills_delete: links and source removed');
+check(!isLink(globalLink('claude', 'review2')) && deleted.includes('global link was removed for: claude'),
+  'skills_delete: its global link removed');
+check(existsSync(join(usersOwn, 'SKILL.md')), "skills_delete: the user's own global skill is left alone");
 
 db.close();
 rmSync(appData, { recursive: true, force: true });

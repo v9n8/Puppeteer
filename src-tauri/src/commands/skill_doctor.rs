@@ -13,7 +13,7 @@
 //! text through i18n.
 
 use crate::commands::project_links::{self, AtDest};
-use crate::commands::skills::SKILL_ENGINES;
+use crate::commands::skills::{validate_skill_name, SKILL_ENGINES};
 use crate::db::Db;
 use crate::features;
 use serde::Serialize;
@@ -102,7 +102,9 @@ pub const OVERSIZED_ASSET_BYTES: u64 = 1024 * 1024;
 const MAX_ASSET_ENTRIES: usize = 500;
 const MAX_ASSET_DEPTH: usize = 2;
 
-/// Keys Puppeteer reads (`target`) plus common Claude Code ones it ignores but that aren't mistakes.
+/// Keys Puppeteer reads (`target`) plus the ones Claude Code and the Agent Skills spec define, which
+/// Puppeteer ignores but that aren't mistakes. Claude Code's list: the frontmatter reference of
+/// https://code.claude.com/docs/en/skills (checked 2026-11-08). Lowercase: keys are compared so.
 const KNOWN_FRONTMATTER_KEYS: &[&str] = &[
     "name",
     "description",
@@ -111,11 +113,26 @@ const KNOWN_FRONTMATTER_KEYS: &[&str] = &[
     "globs",
     "alwaysallow",
     "requiredsources",
-    "allowed-tools",
-    "license",
     "version",
+    // Claude Code
+    "when_to_use",
+    "argument-hint",
+    "arguments",
+    "disable-model-invocation",
+    "user-invocable",
+    "allowed-tools",
+    "disallowed-tools",
     "model",
+    "effort",
+    "context",
+    "agent",
+    "background",
+    "hooks",
+    "paths",
+    "shell",
     "metadata",
+    "license",
+    "compatibility",
 ];
 
 /// Folders SKILL.md uses by convention: a backticked path under one of them almost surely points
@@ -516,7 +533,10 @@ fn check_frontmatter(input: &InspectInput, data: &[(String, FmValue)], issues: &
     }
     let valid_id = is_valid_id(input.id);
     if !valid_id {
-        issues.push(issue(Rule::InvalidId, Severity::Error, Some(json!({ "id": clip(input.id, 80) }))));
+        // A name the app itself lets you create (`pdf_filler`, `Pdf-Filler`) still loads in the
+        // engines; it only misses the portable lowercase-hyphen shape, so it isn't an error.
+        let severity = if validate_skill_name(input.id).is_ok() { Severity::Warn } else { Severity::Error };
+        issues.push(issue(Rule::InvalidId, severity, Some(json!({ "id": clip(input.id, 80) }))));
     }
     if !name.is_empty() && valid_id && slugify(&name) != input.id {
         issues.push(issue(Rule::NameIdMismatch, Severity::Info, Some(json!({ "name": clip(&name, 80), "id": input.id }))));
@@ -872,11 +892,22 @@ Keep the original file untouched; always write a copy.";
     }
 
     #[test]
-    fn a_folder_name_of_the_wrong_shape_is_an_error() {
+    fn a_folder_name_the_app_would_refuse_is_an_error() {
         let raw = with_frontmatter(&good_frontmatter());
-        for id in ["PDF Filler", "pdf_filler", "-pdf", ""] {
+        for id in ["PDF Filler", "pdf.filler", ""] {
             let (issues, _) = run_with(Some(&raw), raw.len() as u64, &[], &[], &[], id);
             assert_eq!(find(&issues, Rule::InvalidId).severity, Severity::Error, "{id}");
+        }
+        let (issues, _) = run_with(Some(&raw), raw.len() as u64, &[], &[], &[], "pdf-filler-2");
+        assert!(!rules(&issues).contains(&Rule::InvalidId));
+    }
+
+    #[test]
+    fn a_folder_name_the_app_allows_but_of_the_wrong_shape_is_only_a_warning() {
+        let raw = with_frontmatter(&good_frontmatter());
+        for id in ["pdf_filler", "Pdf-Filler", "-pdf"] {
+            let (issues, _) = run_with(Some(&raw), raw.len() as u64, &[], &[], &[], id);
+            assert_eq!(find(&issues, Rule::InvalidId).severity, Severity::Warn, "{id}");
         }
         let (issues, _) = run_with(Some(&raw), raw.len() as u64, &[], &[], &[], "pdf-filler-2");
         assert!(!rules(&issues).contains(&Rule::InvalidId));
@@ -889,6 +920,11 @@ Keep the original file untouched; always write a copy.";
 
         let fm = format!(
             "---\nname: Pdf Filler\ndescription: \"{GOOD_DESCRIPTION}\"\nallowed-tools: Bash\nlicense: MIT\ntarget: both\nmetadata:\n  author: me\n  tags: x\n---"
+        );
+        assert_eq!(run(&with_frontmatter(&fm)).0, vec![]);
+
+        let fm = format!(
+            "---\nname: Pdf Filler\ndescription: \"{GOOD_DESCRIPTION}\"\nwhen_to_use: on PDFs\nargument-hint: \"[file]\"\narguments: file\ndisable-model-invocation: false\nuser-invocable: true\ndisallowed-tools: Write\neffort: high\ncontext: fork\nagent: Explore\nbackground: false\nhooks:\n  PreToolUse: []\npaths:\n  - \"*.pdf\"\nshell: bash\ncompatibility: macOS\n---"
         );
         assert_eq!(run(&with_frontmatter(&fm)).0, vec![]);
     }

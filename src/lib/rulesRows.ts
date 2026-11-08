@@ -94,8 +94,9 @@ export function parseFrontmatter(raw: string): RuleFrontmatter {
   const end = rest.indexOf('\n---')
   if (end === -1) return empty
   const fm = rest.slice(0, end)
+  // `[ \t]*`, not `\s*`: `\s` crosses the newline, so an empty `name:` would read the next line.
   const pick = (key: string) =>
-    fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))?.[1]?.trim().replace(/^["']|["']$/g, '') ?? ''
+    fm.match(new RegExp(`^${key}:[ \\t]*(.+)$`, 'm'))?.[1]?.trim().replace(/^["']|["']$/g, '') ?? ''
   return { name: pick('name'), description: pick('description'), target: pick('target'), codexMode: pick('codex_mode') }
 }
 

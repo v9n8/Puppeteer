@@ -6,11 +6,13 @@
 //!   the registry read a missing key as on.
 //! - Upgrade: every switch that can be turned off and has no stored value is
 //!   written `"true"`, so the user keeps everything they had. Stored values,
-//!   such as a legacy key set to `"false"`, are kept.
+//!   such as a legacy key set to `"false"`, are kept. Opt-in props (features
+//!   the user never had before the registry) get no row: they keep their
+//!   default, off.
 //!
 //! Props registered later have no row, so they get the registry default.
 
-use super::default_rows;
+use super::{default_rows, owner};
 use crate::db::Db;
 
 /// Set once the seed has run; it never runs again.
@@ -31,7 +33,8 @@ pub async fn seed(db: &Db) -> Result<(), sqlx::Error> {
     let (keys, value): (Vec<String>, &str) = if projects == 0 {
         (vec![crate::inbox_api::ENABLED_SETTING_KEY.to_string()], "false")
     } else {
-        (default_rows().into_keys().collect(), "true")
+        let keep_default = |key: &String| matches!(owner(key), Some((_, Some(p))) if p.opt_in);
+        (default_rows().into_keys().filter(|k| !keep_default(k)).collect(), "true")
     };
     for key in keys {
         sqlx::query("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)")
@@ -108,7 +111,8 @@ mod tests {
 
         assert!(tree.iter().all(|m| m.enabled), "every module on, remote too");
         for p in tree.iter().flat_map(|m| &m.props) {
-            assert_eq!(p.effective, p.id != "library.builtin_mcp_puppeteer", "{}", p.id);
+            let opt_in = crate::features::entry(&p.id).unwrap().1.unwrap().opt_in;
+            assert_eq!(p.effective, p.id != "library.builtin_mcp_puppeteer" && !opt_in, "{}", p.id);
         }
         assert_eq!(r.get("mcp_builtin_puppeteer_enabled").map(String::as_str), Some("false"));
         // Not a registry key: the MCP page switch stays off.
@@ -120,6 +124,32 @@ mod tests {
         let feature_rows: Vec<&String> = r.keys().filter(|k| k.starts_with(crate::features::PREFIX)).collect();
         assert!(feature_rows.iter().all(|k| *k == SEEDED_KEY || default_rows().contains_key(*k)));
         assert!(!r.contains_key("feature.sessions"), "locked entries are not written");
+    }
+
+    /// An upgrade keeps what the user had; the features that came after the
+    /// registry and are off by default were never theirs, so they stay off.
+    #[tokio::test]
+    async fn upgrade_leaves_opt_in_props_off() {
+        let db = db().await;
+        add_project(&db).await;
+        seed(&db).await.unwrap();
+        let r = rows(&db).await;
+
+        for id in [
+            crate::schedules::FEATURE,
+            "orchestration.dev_servers",
+            "library.skills_global",
+            crate::commands::skill_eval::FEATURE,
+        ] {
+            let (m, p) = crate::features::entry(id).unwrap();
+            assert!(p.unwrap().opt_in, "{id}");
+            assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");
+            assert!(!crate::features::is_on(&db, id).await, "{id}");
+        }
+        // The off-by-default features users had before the registry still come on.
+        for id in ["productivity.todos", "productivity.focus", "security.secret_vault", "integrations.slack"] {
+            assert!(crate::features::is_on(&db, id).await, "{id}");
+        }
     }
 
     #[tokio::test]

@@ -3269,15 +3269,28 @@ async fn import_project(
         super::project_git_accounts::repair_defaults(db, provider, Some(&id)).await?;
     }
 
-    // Groups first: enabling one applies its members (as group-owned, not manual).
+    // Groups first: enabling one applies its members (as group-owned, not manual). With
+    // `library.groups` off the groups are still saved to the library, just not enabled here.
+    let groups_on = crate::features::is_on(db, crate::commands::groups::FEATURE).await;
     for (kind, names) in [
         (GroupKind::Skill, &entry.skill_groups),
         (GroupKind::Rule, &entry.rule_groups),
     ] {
+        if names.is_empty() {
+            continue;
+        }
         let (groups_table, link_table) = match kind {
             GroupKind::Skill => ("skill_groups", "project_skill_groups"),
             GroupKind::Rule => ("rule_groups", "project_rule_groups"),
         };
+        if !groups_on {
+            warnings.push(format!(
+                "{groups_table}: {} not enabled, {} is off",
+                names.len(),
+                crate::commands::groups::FEATURE
+            ));
+            continue;
+        }
         for name in names {
             let Some(group_id) = id_by(db, groups_table, "name", name).await? else {
                 warnings.push(format!("group '{name}' not found"));
@@ -4210,6 +4223,47 @@ mod tests {
         assert!(std::fs::symlink_metadata(shop_b.join(".claude/agents/reviewer.md")).is_err());
         // The other kind's prop is on: its link comes in.
         assert_eq!(library_items::applied_names(&target, LibraryKind::Command, &id).await.unwrap(), ["deploy"]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn project_groups_are_not_enabled_while_groups_are_off() {
+        let root = std::env::temp_dir().join(format!("puppeteer-backup-groups-off-{}", Uuid::new_v4()));
+        let bundle: Bundle = serde_json::from_value(serde_json::json!({
+            "format": FORMAT,
+            "version": VERSION,
+            "exported_at": "then",
+            "skill_groups": [{ "name": "core", "description": "", "members": [] }],
+            "projects": [{
+                "id": "p-g",
+                "name": "shop",
+                "path": root.join("shop").to_string_lossy(),
+                "default_engine": "claude",
+                "created_at": "c",
+                "skills": [],
+                "skill_groups": ["core"],
+            }],
+        }))
+        .unwrap();
+        let db = test_db().await;
+        crate::commands::settings::set_setting(&db, "feature.library.groups", "false").await.unwrap();
+        // The library still takes the group.
+        assert_eq!(import_group(&db, GroupKind::Skill, &bundle.skill_groups[0]).await.unwrap(), Upsert::Created);
+
+        let (_, id, warnings) = import_project(&db, &bundle.projects[0], true).await.unwrap();
+        assert_eq!(warnings, ["skill_groups: 1 not enabled, library.groups is off"]);
+        let enabled = || {
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM project_skill_groups WHERE project_id = ?")
+                .bind(&id)
+                .fetch_one(&db)
+        };
+        assert_eq!(enabled().await.unwrap(), 0);
+
+        // Back on: the same import enables it.
+        crate::commands::settings::set_setting(&db, "feature.library.groups", "true").await.unwrap();
+        let (_, _, warnings) = import_project(&db, &bundle.projects[0], false).await.unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(enabled().await.unwrap(), 1);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

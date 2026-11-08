@@ -12,7 +12,7 @@ import {
 export const SETTINGS_SECTIONS = [
   { id: 'general', labelKey: 'settings.sections.general', icon: Palette },
   { id: 'features', labelKey: 'settings.sections.features', icon: ToggleRight },
-  { id: 'focus', labelKey: 'settings.sections.focus', icon: Target },
+  { id: 'focus', labelKey: 'settings.sections.focus', icon: Target, feature: 'productivity.focus' },
   { id: 'github', labelKey: 'settings.sections.github', icon: Github },
   { id: 'gitlab', labelKey: 'settings.sections.gitlab', icon: Gitlab },
   { id: 'aws', labelKey: 'settings.sections.aws', icon: Cloud, feature: 'infra_access.aws' },

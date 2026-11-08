@@ -44,18 +44,26 @@ pub struct Prop {
     /// Pre-registry `settings` key the prop reads and writes instead of
     /// `feature.<module>.<prop>`.
     pub legacy_key: Option<&'static str>,
+    /// A feature that came after the registry and stays off until the user
+    /// turns it on: the upgrade seed, which keeps what the user already had
+    /// on, leaves it at its default.
+    pub opt_in: bool,
 }
 
 const fn on(id: &'static str) -> Prop {
-    Prop { id, default: true, locked: false, depends_on: &[], legacy_key: None }
+    Prop { id, default: true, locked: false, depends_on: &[], legacy_key: None, opt_in: false }
 }
 
 const fn off(id: &'static str) -> Prop {
-    Prop { id, default: false, locked: false, depends_on: &[], legacy_key: None }
+    Prop { id, default: false, locked: false, depends_on: &[], legacy_key: None, opt_in: false }
+}
+
+const fn opt_in(id: &'static str) -> Prop {
+    Prop { opt_in: true, ..off(id) }
 }
 
 const fn core(id: &'static str) -> Prop {
-    Prop { id, default: true, locked: true, depends_on: &[], legacy_key: None }
+    Prop { id, default: true, locked: true, depends_on: &[], legacy_key: None, opt_in: false }
 }
 
 /// Every switch the app knows. A new feature registers its prop in the task
@@ -103,10 +111,10 @@ pub static MODULES: &[Module] = &[
             on("commands"),
             Prop { legacy_key: Some("mcp_builtin_puppeteer_enabled"), ..on("builtin_mcp_puppeteer") },
             // Writes into HOME, which the CLIs outside Puppeteer read too.
-            off("skills_global"),
+            opt_in("skills_global"),
             on("skill_doctor"),
             // Sends prompts to a model and spends quota: opt-in.
-            off("skill_eval"),
+            opt_in("skill_eval"),
             on("import_external"),
             // `code_index` tool of the built-in MCP: reads the project's sources.
             on("code_index"),
@@ -121,9 +129,9 @@ pub static MODULES: &[Module] = &[
             // Only workers of a conductor get a worktree.
             Prop { depends_on: &["orchestration.conductor"], ..on("conductor_worktree") },
             // Starts agent runs while nobody is at the machine: opt-in.
-            off("schedules"),
+            opt_in("schedules"),
             // Reads a declaration from the repo and stops processes: opt-in.
-            off("dev_servers"),
+            opt_in("dev_servers"),
         ],
     },
     Module {

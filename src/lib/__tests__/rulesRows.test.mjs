@@ -76,6 +76,14 @@ test('frontmatter parse + validate', () => {
   assert.equal(validateFrontmatter('---\nname: r\ndescription: d\ncodex_mode: x\n---\n'), 'errCodexModeInvalid')
 })
 
+test('parseFrontmatter: an empty key stays empty, not the next line', () => {
+  const raw = '---\nname:\ndescription: Does things\n---\n'
+  assert.equal(parseFrontmatter(raw).name, '')
+  assert.equal(parseFrontmatter(raw).description, 'Does things')
+  assert.equal(parseFrontmatter('---\nname:   \ndescription: d\n---\n').name, '')
+  assert.equal(validateFrontmatter(raw), 'errMissingName')
+})
+
 test('setFrontmatterField rewrites, appends and drops lines', () => {
   const raw = '---\nname: r\ndescription: d\n---\n\nBody\n'
   assert.equal(setFrontmatterField(raw, 'name', 'x'), '---\nname: x\ndescription: d\n---\n\nBody\n')

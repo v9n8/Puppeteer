@@ -24,6 +24,7 @@ import {
   routeFeature,
   startsGroup,
 } from '../featureGate.ts'
+import { SETTINGS_SECTIONS } from '../settingsSections.ts'
 
 const prop = (id, effective, extra = {}) => ({
   id,
@@ -210,7 +211,7 @@ function registryIds() {
   for (const block of blocks.slice(1)) {
     const module = block.match(/id: "(\w+)"/)[1]
     modules.add(module)
-    for (const [, prop] of block.matchAll(/(?:core|on|off)\("([\w.]+)"\)/g)) props.add(`${module}.${prop}`)
+    for (const [, prop] of block.matchAll(/(?:core|on|off|opt_in)\("([\w.]+)"\)/g)) props.add(`${module}.${prop}`)
   }
   return { modules, props }
 }
@@ -233,6 +234,7 @@ test('gated ids exist in the backend registry', () => {
     ['../navigation.ts', /feature: '([\w.]+)'/g],
     ['../tray.ts', /isOn\('([\w.]+)'\)/g],
     ['../../App.vue', /isOn\('([\w.]+)'\)/g],
+    ['../settingsSections.ts', /feature: '([\w.]+)'/g],
   ]) {
     for (const [, id] of read(file).matchAll(pattern)) used.add(id)
   }
@@ -340,6 +342,23 @@ test('entryOn: the Calendar entries need both Calendar and the Google account', 
   assert.equal(entryOn(treeWith(['productivity.calendar']), 'focus.calendar'), false)
   assert.equal(entryOn(treeWith(['integrations.google']), 'focus.calendar'), false)
   assert.equal(entryOn(treeWith(['productivity.calendar', 'integrations.google']), 'focus.calendar'), true)
+})
+
+test('entryOn: "Make secret" on a note needs the Secret vault', () => {
+  assert.deepEqual([...ENTRY_FEATURES['note.makeSecret']], ['security.secret_vault'])
+  assert.equal(entryOn(treeWith(['productivity.notes']), 'note.makeSecret'), false)
+  assert.equal(entryOn(treeWith(['security.secret_vault']), 'note.makeSecret'), true)
+})
+
+test('Settings: the Focus section hides while Focus is off', () => {
+  const focus = SETTINGS_SECTIONS.find((s) => s.id === 'focus')
+  assert.equal(focus.feature, 'productivity.focus')
+  const ids = (on) =>
+    filterByFeature([...SETTINGS_SECTIONS], [{ module: 'productivity', enabled: true, locked: false, props: [prop('productivity.focus', on)] }])
+      .map((s) => s.id)
+  assert.ok(ids(true).includes('focus'))
+  assert.ok(!ids(false).includes('focus'))
+  assert.ok(ids(false).includes('general'), 'ungated sections stay')
 })
 
 test('entryOn: a module that is off hides its entries', () => {

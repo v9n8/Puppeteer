@@ -203,7 +203,8 @@ export function parseFrontmatter(raw: string): Frontmatter {
   const end = rest.indexOf('---')
   if (end === -1) return { name: '', description: '', target: '' }
   const fm = rest.slice(0, end)
-  const pick = (key: string) => unquote(fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))?.[1]?.trim() ?? '')
+  // `[ \t]*`, not `\s*`: `\s` crosses the newline, so an empty `name:` would read the next line.
+  const pick = (key: string) => unquote(fm.match(new RegExp(`^${key}:[ \\t]*(.+)$`, 'm'))?.[1]?.trim() ?? '')
   return { name: pick('name'), description: pick('description'), target: pick('target') }
 }
 

@@ -19,7 +19,9 @@ import {
   readlinkSync,
   unlinkSync,
   realpathSync,
+  symlinkSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve, relative, sep } from 'node:path';
 import { normalizeSource } from './todo-source.mjs';
 import { normDue, normDueTime, normInstant, normStatus, parseEstimate, parsePriority } from './todo-fields.mjs';
@@ -799,7 +801,8 @@ export function getServer(id) {
 // the rest of the sync (AGENTS.md rule blocks, generated Codex skills of rules,
 // new links after a rename/target change) — callers get a warning to re-apply via
 // the Puppeteer app. On rename/delete they only drop the project links that would
-// otherwise dangle.
+// otherwise dangle; a skill's global link (~/.claude/skills, ~/.agents/skills)
+// follows a rename and goes with a delete.
 
 export function appDataDir() {
   const dbPath = process.env.PUPPETEER_DB_PATH;
@@ -837,14 +840,78 @@ function appliedProjectPaths(kind, id) {
     .map((r) => r.path);
 }
 
-/** Remove `linkPath` if it is a symlink pointing at `target`; anything else is left alone. */
+/**
+ * Remove `linkPath` if it is a symlink pointing at `target`; anything else is left alone.
+ * True when it removed one.
+ */
 function unlinkIfPointsTo(linkPath, target) {
   try {
     if (lstatSync(linkPath).isSymbolicLink() && resolve(dirname(linkPath), readlinkSync(linkPath)) === resolve(target)) {
       unlinkSync(linkPath);
+      return true;
     }
   } catch {
     /* missing or unreadable — nothing to drop */
+  }
+  return false;
+}
+
+/** HOME's global skill folders per engine (skills.rs `SKILL_ENGINES` `home_dir`). */
+const GLOBAL_SKILL_DIRS = [
+  ['claude', join('.claude', 'skills')],
+  ['codex', join('.agents', 'skills')],
+];
+
+/**
+ * No folder from `root` down to `root/rel` is a symlink (missing ones count as real), as
+ * project_links.rs `parent_is_real`: a link reached through a symlinked folder isn't ours to manage.
+ */
+function realFolders(root, rel) {
+  let dir = root;
+  for (const part of rel.split(sep)) {
+    dir = join(dir, part);
+    try {
+      if (lstatSync(dir).isSymbolicLink()) return false;
+    } catch {
+      return true;
+    }
+  }
+  return true;
+}
+
+/**
+ * Drop a skill's own links from the global folders (after a rename or before a delete), as
+ * skills.rs `unlink_global`: only a link to `sourcePath` goes; a user's skill of that name stays.
+ * Returns the engines it was linked for.
+ */
+function unlinkSkillGlobal(name, sourcePath) {
+  const home = homedir();
+  return GLOBAL_SKILL_DIRS.filter(
+    ([, dir]) => realFolders(home, dir) && unlinkIfPointsTo(join(home, dir, name), sourcePath),
+  ).map(([engine]) => engine);
+}
+
+/**
+ * Link a skill into one engine's global folder, as skills.rs `switch_global(.., true)`: never over
+ * something already there. Returns an error message, or null.
+ */
+function linkSkillGlobal(engine, name, sourcePath) {
+  const home = homedir();
+  const dir = GLOBAL_SKILL_DIRS.find(([e]) => e === engine)[1];
+  const dest = join(home, dir, name);
+  if (!realFolders(home, dir)) return `${dest} is reached through a symlinked folder — not linked`;
+  try {
+    lstatSync(dest);
+    return `${dest} already exists and isn't Puppeteer's — not linked`;
+  } catch {
+    /* free */
+  }
+  try {
+    mkdirSync(dirname(dest), { recursive: true });
+    symlinkSync(sourcePath, dest);
+    return null;
+  } catch (e) {
+    return `${dest}: ${e.message}`;
   }
 }
 
@@ -982,12 +1049,20 @@ export function updateSkill({ id, name, description, target, content } = {}) {
     throw new Error(`skill '${newName}' already exists`);
   }
   let sourcePath = row.source_path;
+  const globalRelinked = [];
+  const globalFailures = [];
   if (newName !== row.name) {
     sourcePath = join(skillsDir(), newName);
     if (occupied(row.source_path, sourcePath)) throw new Error(`skill folder '${newName}' already exists`);
     // Move first: if it fails the projects keep working links.
     renameSync(row.source_path, sourcePath);
     unlinkSkillFromProjects(id, row.name, row.source_path);
+    // A global link follows the rename, unless the new name is taken in that folder.
+    for (const engine of unlinkSkillGlobal(row.name, row.source_path)) {
+      const failed = linkSkillGlobal(engine, newName, sourcePath);
+      if (failed) globalFailures.push(failed);
+      else globalRelinked.push(engine);
+    }
   }
   if (content != null) writeFileSync(join(sourcePath, 'SKILL.md'), String(content));
   const now = nowIso();
@@ -1004,6 +1079,8 @@ export function updateSkill({ id, name, description, target, content } = {}) {
     renamed: newName !== row.name,
     retargeted: updated.target !== row.target,
     applied: appliedProjects('skill', id),
+    global_relinked: globalRelinked,
+    global_failures: globalFailures,
   };
 }
 
@@ -1013,6 +1090,8 @@ export function deleteSkill(id) {
   if (!row) throw new Error(`skill not found: ${id}`);
   const applied = appliedProjects('skill', id);
   unlinkSkillFromProjects(id, row.name, row.source_path);
+  // Global links too, whether or not the Global scope is switched on now.
+  const global = unlinkSkillGlobal(row.name, row.source_path);
   try {
     rmSync(row.source_path, { recursive: true, force: true });
   } catch {
@@ -1020,7 +1099,7 @@ export function deleteSkill(id) {
   }
   db().prepare('DELETE FROM project_skills WHERE skill_id = ?').run(id);
   db().prepare('DELETE FROM skills WHERE id = ?').run(id);
-  return { name: row.name, applied };
+  return { name: row.name, applied, global };
 }
 
 // ---- Skill reference files -------------------------------------------------

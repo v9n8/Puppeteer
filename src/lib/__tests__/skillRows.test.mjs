@@ -56,6 +56,12 @@ test('parseFrontmatter reads and unquotes values', () => {
   assert.deepEqual(parseFrontmatter('no frontmatter'), { name: '', description: '', target: '' })
 })
 
+test('parseFrontmatter: an empty key stays empty, not the next line', () => {
+  const fm = parseFrontmatter('---\nname:\ndescription: d\n---\nbody')
+  assert.deepEqual(fm, { name: '', description: 'd', target: '' })
+  assert.equal(validateFrontmatter('---\nname:\ndescription: d\n---\n')?.key, 'errMissingName')
+})
+
 test('validateFrontmatter reports the first problem', () => {
   assert.equal(validateFrontmatter('---\nname: ok\ndescription: d\n---\n'), null)
   assert.equal(validateFrontmatter('---\nname: ok\n')?.key, 'errFrontmatterMissingClose')

@@ -191,6 +191,7 @@ export const ENTRY_FEATURES = {
   'capture.note': ['productivity.notes'],
   'capture.todo': ['productivity.todos'],
   'library.manageGroups': ['library.groups'],
+  'note.makeSecret': ['security.secret_vault'],
   // Busy time and pushing a plan both go through the Google account.
   'focus.calendar': ['productivity.calendar', 'integrations.google'],
 } as const satisfies Record<string, readonly string[]>

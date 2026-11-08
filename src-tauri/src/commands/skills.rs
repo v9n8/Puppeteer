@@ -53,7 +53,7 @@ pub fn skill_hash(content: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn validate_skill_name(name: &str) -> Result<(), String> {
+pub(crate) fn validate_skill_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Skill name cannot be empty".to_string());
     }
