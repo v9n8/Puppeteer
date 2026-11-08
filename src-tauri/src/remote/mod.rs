@@ -79,6 +79,10 @@ pub const PUSH_FEATURE: &str = "remote.web_push";
 pub const DESKTOP_FEATURE: &str = "remote.remote_desktop";
 pub const TRANSFER_FEATURE: &str = "remote.file_transfer";
 
+/// How long stopping waits for the agent to leave on its own (see
+/// `RemoteState::stop_locked`).
+const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Live control handle for the running agent task.
 struct AgentControl {
     stop: tokio::sync::watch::Sender<bool>,
@@ -164,10 +168,10 @@ impl RemoteState {
         self.start_locked(&mut slot, app, db, registry, broker_approvals).await
     }
 
-    /// Stop the agent task if running (signals its reconnect loop to exit).
+    /// Stop the agent task if running and wait for it to tear down its room.
     pub async fn stop(&self) {
         let mut slot = self.agent.lock().await;
-        self.stop_locked(&mut slot);
+        self.stop_locked(&mut slot).await;
     }
 
     /// Start or stop the agent to match `remote_enabled` and the switches as
@@ -185,7 +189,7 @@ impl RemoteState {
         // A failed read counts as off, as in `features::is_on`.
         let tree = features::commands::load(db).await.unwrap_or_default();
         if !wants_agent(enabled, &tree) {
-            self.stop_locked(&mut slot);
+            self.stop_locked(&mut slot).await;
             return;
         }
         if let Err(e) = self.start_locked(&mut slot, app, db, registry, broker_approvals).await {
@@ -247,10 +251,17 @@ impl RemoteState {
     }
 
     /// Caller holds the agent lock.
-    fn stop_locked(&self, slot: &mut Option<AgentControl>) {
-        if let Some(ctrl) = slot.take() {
+    async fn stop_locked(&self, slot: &mut Option<AgentControl>) {
+        if let Some(mut ctrl) = slot.take() {
             let _ = ctrl.stop.send(true);
-            ctrl.handle.abort();
+            // On its way out the agent drops its room (`agent::drop_room`:
+            // clears `authenticated`, detaches a remote desktop, ends the
+            // forwarder) and its socket writer. Aborting at once skipped all of
+            // it. Abort only an agent stuck in a command past the grace period.
+            if tokio::time::timeout(STOP_GRACE, &mut ctrl.handle).await.is_err() {
+                tracing::warn!(event = "remote_agent_stop_timeout", secs = STOP_GRACE.as_secs());
+                ctrl.handle.abort();
+            }
         }
         self.push.stop();
         self.connected
@@ -397,6 +408,35 @@ mod tests {
         assert_eq!(require_feature(&db).await, Ok(()));
         set_setting(&db, "feature.remote", "false").await.unwrap();
         assert!(require_feature(&db).await.is_err(), "module off wins over the prop");
+    }
+
+    #[tokio::test]
+    async fn stopping_lets_the_agent_drop_its_room() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let state = RemoteState::new();
+        let mut bound = session::generate("run_1").unwrap();
+        bound.authenticated = true;
+        *state.bound.lock().await = Some(bound);
+        state.connected.store(true, SeqCst);
+        // Stands in for `agent::run_agent`: on stop it leaves through an await,
+        // then clears the session as `agent::drop_room` does.
+        let (stop, mut stop_rx) = tokio::sync::watch::channel(false);
+        let agent_bound = state.bound.clone();
+        let handle = tokio::spawn(async move {
+            let _ = stop_rx.changed().await;
+            tokio::task::yield_now().await;
+            if let Some(b) = agent_bound.lock().await.as_mut() {
+                b.authenticated = false;
+            }
+        });
+        *state.agent.lock().await = Some(AgentControl { stop, handle });
+
+        state.stop().await;
+
+        assert!(!state.is_running().await);
+        assert!(!state.bound.lock().await.as_ref().unwrap().authenticated, "the agent's teardown ran");
+        assert!(!state.connected.load(SeqCst));
+        assert!(!state.reconnecting.load(SeqCst));
     }
 
     #[test]
