@@ -68,6 +68,16 @@ export function selectionActions(
 }
 
 /**
+ * Whether the bar may reach the translation model for a surface — warm it
+ * (`prewarm_translate`) or send it text (`translate_text`): only while that
+ * surface's Translate button would show. Translate sends the text to a model,
+ * so the vault and a switched-off `selection.translate` never get there.
+ */
+export function canTranslate(tree: FeatureTree, allow: SelectionAllow, excludedWindow: boolean): boolean {
+  return selectionActions(tree, allow, { excludedWindow, hasQuoteTarget: false }).includes('translate')
+}
+
+/**
  * The surface owning a selection: one of whose elements holds its anchor or
  * focus. When surfaces nest, the innermost wins.
  */

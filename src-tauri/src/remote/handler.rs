@@ -1394,6 +1394,30 @@ mod tests {
     }
 
     #[test]
+    fn feature_switches_behind_the_selection_bar_stay_local() {
+        // Turning Translate (or the vault) back on from afar would let the bar
+        // send text to a model again. The switch commands never reach the
+        // bridge; `update_setting` refuses `feature.*` itself (settings.rs) and
+        // its audit records the refusal.
+        for (name, args) in [
+            ("set_feature", serde_json::json!({ "id": "text_tools.selection.translate", "enabled": true })),
+            ("set_feature", serde_json::json!({ "id": "text_tools", "enabled": true })),
+            ("set_feature", serde_json::json!({ "id": "security.secret_vault", "enabled": true })),
+            ("reset_features", serde_json::json!({ "dryRun": false })),
+        ] {
+            let req = invoke_of(name, args.clone());
+            assert_eq!(req["cmd"], guard::DENIED, "{name} {args}");
+            assert!(req["args"].is_null(), "{name} {args}");
+            let (_, result, reason) = audit_of(name, args).unwrap();
+            assert_eq!((result, reason), (audit::RESULT_REJECTED, Some("local_only")), "{name}");
+        }
+        for key in ["feature.text_tools.selection.translate", "feature.text_tools", "feature.security.secret_vault"] {
+            let (_, result, reason) = audit_of("update_setting", serde_json::json!({ "key": key, "value": "true" })).unwrap();
+            assert_eq!((result, reason), (audit::RESULT_REJECTED, Some("local_only")), "{key}");
+        }
+    }
+
+    #[test]
     fn forged_channel_arguments_are_refused() {
         for args in [
             serde_json::json!({ "requests": "__CHANNEL__:1" }),

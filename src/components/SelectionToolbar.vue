@@ -12,6 +12,7 @@ import TranslatePopover from '@/components/TranslatePopover.vue'
 import { invoke } from '@/lib/tauri'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import {
+  canTranslate,
   copyMdText,
   isSelectionExcludedWindow,
   pickSurface,
@@ -113,7 +114,7 @@ function onSelectionEnd() {
   }
   // Warm the translation sidecar now, while the user reaches for the button, so
   // the first translation isn't paying Node/SDK cold-start.
-  if (actions.value.includes('translate')) void invoke('prewarm_translate').catch(() => {})
+  if (canTranslate(features.tree, surface.allow, excludedWindow)) void invoke('prewarm_translate').catch(() => {})
 }
 
 // The bar is anchored to a viewport rect that scrolling the surface invalidates.
@@ -154,6 +155,13 @@ function saveNote(surface: SelectionSurface, text: string) {
   const cap = surface.capture?.()
   void openItemCreateWindow('note', cap?.context ?? {}, { title: cap?.noteTitle, content: text })
 }
+
+// The open popover re-sends its text on a language switch or a retry: switching
+// Translate off closes it, so nothing more reaches the model.
+const openTranslation = computed(() => {
+  const tr = translation.value
+  return tr && canTranslate(features.tree, tr.surface.allow, excludedWindow) ? tr : null
+})
 
 const defaultTranslateLang = computed(() => appSettings.settings?.translate_target_lang || 'vi')
 
@@ -203,10 +211,10 @@ onUnmounted(() => {
   </Teleport>
 
   <TranslatePopover
-    v-if="translation"
-    :text="translation.text"
-    :x="translation.x"
-    :y="translation.y"
+    v-if="openTranslation"
+    :text="openTranslation.text"
+    :x="openTranslation.x"
+    :y="openTranslation.y"
     :initial-lang="defaultTranslateLang"
     @close="closeTranslate"
   />
