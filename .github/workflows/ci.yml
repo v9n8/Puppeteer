@@ -153,7 +153,7 @@ jobs:
                    no-tools-fail-closed no-tools rewind stdin-eof-midturn; do
             run sidecar-codex "test-$t.mjs"
           done
-          for t in dev-servers feature-groups google-server item-links projects schedules skills slack-threads todos; do
+          for t in code-index dev-servers feature-groups google-server item-links projects schedules skills slack-threads todos; do
             run sidecar-mcp "test-$t.mjs"
           done
 

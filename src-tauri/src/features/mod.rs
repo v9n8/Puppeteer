@@ -104,6 +104,8 @@ pub static MODULES: &[Module] = &[
             off("skills_global"),
             on("skill_doctor"),
             on("import_external"),
+            // `code_index` tool of the built-in MCP: reads the project's sources.
+            on("code_index"),
         ],
     },
     Module {
@@ -401,6 +403,7 @@ mod tests {
         assert!(!prop(&tree, "productivity.todos").effective);
         assert!(!prop(&tree, "integrations.inbox_api").effective);
         assert!(prop(&tree, "library.builtin_mcp_puppeteer").effective);
+        assert!(prop(&tree, "library.code_index").effective);
         assert!(prop(&tree, "app.animated_background").effective);
         assert!(prop(&tree, "app.auto_update").effective);
         assert!(prop(&tree, "app.whats_new").effective);

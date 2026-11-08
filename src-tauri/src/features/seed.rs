@@ -178,6 +178,7 @@ mod tests {
             "library.commands",
             "library.skill_doctor",
             "library.import_external",
+            "library.code_index",
             "app.auto_update",
             "app.whats_new",
             "app.command_palette",

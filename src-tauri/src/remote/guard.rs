@@ -1033,4 +1033,16 @@ mod tests {
         assert!(policy.check(&real_aws.join("credentials").to_string_lossy()).is_err());
         assert!(policy.check(&fx.p(".aws/credentials")).is_err());
     }
+
+    /// The code index of the `puppeteer` MCP server (JS) keeps its own copy of
+    /// the stores it never reads: a store added here must be added there.
+    #[test]
+    fn code_index_denies_the_same_stores() {
+        let js = include_str!("../../../sidecar-mcp/lib/code-index.mjs");
+        let list = js.split("const SECRET_HOME_DIRS = [").nth(1).and_then(|r| r.split("];").next()).unwrap();
+        let dirs: Vec<&str> =
+            list.split(',').map(|d| d.trim().trim_matches('\'')).filter(|d| !d.is_empty()).collect();
+        assert_eq!(dirs, SECRET_HOME_DIRS);
+        assert!(js.contains(&format!("const APP_ID_PREFIX = '{APP_ID_PREFIX}';")));
+    }
 }

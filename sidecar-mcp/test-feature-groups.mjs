@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Feature switches on the built-in `puppeteer` MCP server: the groups listed in
-// PUPPETEER_MCP_DISABLED_GROUPS (notes, todos, slack, vps, aws, azure, schedules, dev_servers) are
+// PUPPETEER_MCP_DISABLED_GROUPS (notes, todos, slack, vps, aws, azure, schedules, dev_servers, code_index) are
 // missing from tools/list and their tools answer tools/call as unknown; every
 // other tool stays. `cloud_accounts_list` serves aws and azure: it goes once
 // both are off and lists only the accounts of the one still on.
@@ -37,7 +37,8 @@ check(disabledGroups(undefined).size === 0 && disabledGroups('').size === 0, 'di
 check(
   toolGroup('notes_list') === 'notes' && toolGroup('todos_add') === 'todos' &&
     toolGroup('slack_threads_read') === 'slack' && toolGroup('vps_run') === 'vps' &&
-    toolGroup('schedule_propose') === 'schedules' && toolGroup('dev_server_start') === 'dev_servers',
+    toolGroup('schedule_propose') === 'schedules' && toolGroup('dev_server_start') === 'dev_servers' &&
+    toolGroup('code_index') === 'code_index',
   'toolGroup: prefixes map to groups',
 );
 check(toolGroup('sessions_search') === null && toolGroup('skills_list') === null, 'toolGroup: core tools have no group');
@@ -114,12 +115,12 @@ check(db.prepare('SELECT COUNT(*) AS n FROM todos').get().n === 0, 'todos off: n
 check(/Created note/.test(note?.result?.content?.[0]?.text ?? ''), 'todos off: notes_create still works');
 
 // Everything a switch can hide is off: only core tools stay.
-[listed, add] = await rpc('notes,todos,slack,vps,schedules,dev_servers', [
+[listed, add] = await rpc('notes,todos,slack,vps,schedules,dev_servers,code_index', [
   ['tools/list', {}],
   ['tools/call', { name: 'vps_list', arguments: {} }],
 ]);
 const core = names(listed);
-check(groupsIn(core).size === 0, 'all off: no notes / todos / slack / vps / schedule / dev server tool listed');
+check(groupsIn(core).size === 0, 'all off: no notes / todos / slack / vps / schedule / dev server / code index tool listed');
 check(['sessions_search', 'project_info', 'skills_list', 'rules_list'].every((n) => core.includes(n)), 'all off: core tools stay');
 check(add?.error?.message === 'Unknown tool: vps_list', 'all off: vps_list is an unknown tool');
 

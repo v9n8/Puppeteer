@@ -1374,6 +1374,8 @@ const PUPPETEER_TOOL_GROUPS: &[(&str, &str)] = &[
     // `schedule_propose`: an agent proposes, the Schedules screen decides.
     ("schedules", "orchestration.schedules"),
     ("dev_servers", "orchestration.dev_servers"),
+    // `code_index`: read-only, so plan mode keeps it.
+    ("code_index", "library.code_index"),
 ];
 
 /// Groups a run in plan mode never gets, whatever the switches say: plan mode
@@ -1844,7 +1846,10 @@ mod tests {
     fn builtin_gates_on_an_unreadable_tree_give_nothing() {
         let g = super::builtin_gates(&[], "default");
         assert!(!g.puppeteer && !g.google);
-        assert_eq!(g.disabled_groups, ["notes", "todos", "slack", "vps", "aws", "azure", "schedules", "dev_servers"]);
+        assert_eq!(
+            g.disabled_groups,
+            ["notes", "todos", "slack", "vps", "aws", "azure", "schedules", "dev_servers", "code_index"]
+        );
     }
 
     #[test]

@@ -76,7 +76,8 @@
       "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn",
       "skills_global": "Skill global (thư mục HOME)",
       "skill_doctor": "Skill Doctor (kiểm tra skill)",
-      "import_external": "Nhập cấu hình từ công cụ AI khác"
+      "import_external": "Nhập cấu hình từ công cụ AI khác",
+      "code_index": "Chỉ mục mã nguồn cho agent (nơi khai báo, nơi dùng một symbol, và file bị ảnh hưởng khi sửa)"
     },
     "orchestration": {
       "conductor": "Conductor",

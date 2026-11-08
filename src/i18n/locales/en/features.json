@@ -76,7 +76,8 @@
       "builtin_mcp_puppeteer": "Built-in Puppeteer MCP",
       "skills_global": "Global skills (home folder)",
       "skill_doctor": "Skill Doctor",
-      "import_external": "Import from other AI tools"
+      "import_external": "Import from other AI tools",
+      "code_index": "Code index for agents (where a symbol is declared, used, and what a change affects)"
     },
     "orchestration": {
       "conductor": "Conductor",

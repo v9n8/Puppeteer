@@ -13,6 +13,8 @@
 //   • Schedules — schedule_propose drafts a timed prompt, created off for the user to review
 //   • Dev servers — dev_server_* list/start/logs/stop the servers declared in
 //     .puppeteer/dev-servers.json; start only returns the command (lib/dev-servers.mjs)
+//   • Code index — code_index finds where a symbol is declared / used and which files a
+//     change can break, over the project's TS / JS / Vue sources (lib/code-index.mjs)
 //
 // Scope: env `PUPPETEER_PROJECT_ID` / `PUPPETEER_PROJECT_PATH` pin the "current project";
 // `PUPPETEER_DB_PATH` points at Puppeteer's SQLite store; `PUPPETEER_MCP_DISABLED_GROUPS`
@@ -29,6 +31,7 @@ import { runOnServer } from './lib/ssh.mjs';
 import { slackThreadTools } from './lib/slack-thread-tools.mjs';
 import { scheduleTools } from './lib/schedule-tools.mjs';
 import { devServerTools } from './lib/dev-servers.mjs';
+import { codeIndexTools } from './lib/code-index.mjs';
 import { formatEstimate } from './lib/todo-fields.mjs';
 import { disabledGroups, dropGroups, keepEnabled } from './lib/feature-groups.mjs';
 
@@ -263,6 +266,10 @@ const tools = {
   // ---- Dev servers -----------------------------------------------------------
   // Declared per project; never spawned here (lib/dev-servers.mjs).
   ...devServerTools(),
+
+  // ---- Code index ------------------------------------------------------------
+  // Read-only, the project's own sources only (lib/code-index.mjs).
+  ...codeIndexTools(),
 
   sessions_recent: {
     description:
