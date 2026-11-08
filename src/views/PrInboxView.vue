@@ -46,6 +46,8 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { useRunStatusEvents } from '@/composables/useRunStatusEvents'
 import { usePageFind } from '@/composables/usePageFind'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import FindBar from '@/components/FindBar.vue'
 import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
 import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
@@ -222,6 +224,10 @@ const contentEl = ref<HTMLElement | null>(null)
 const find = usePageFind(contentEl)
 const findOpen = find.open
 watch([grouped, () => store.collapsedGroups], find.refresh)
+
+// Selected text in the list gets the shared selection toolbar. It renders
+// titles and names as plain text, so Copy MD copies the selection as is.
+useSelectionSurface({ el: contentEl, allow: SCREEN_SELECTION.prInbox })
 
 function groupLabel(group: PrGroup): string {
   if (group.kind === 'unmapped') return t('prInbox.notInPuppeteerGroup')

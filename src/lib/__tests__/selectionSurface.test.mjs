@@ -13,6 +13,7 @@ import {
   toolbarPosition,
   transcriptMarkdownSources,
 } from '../selectionSurface.ts'
+import { SCREEN_SELECTION } from '../selectionScreens.ts'
 
 const prop = (id, effective) => ({
   id,
@@ -81,8 +82,8 @@ test('all on and allowed: every button, in bar order', () => {
 })
 
 test('only what the surface allows', () => {
-  // RunView: translate + copy MD + note + todo; FileViewer: translate + copy MD;
-  // Skill / Rule / Notes-Todos body: copy MD.
+  // RunView: translate + copy MD + note + todo; FileViewer and the reading
+  // screens (SCREEN_SELECTION): translate + copy MD.
   assert.deepEqual(
     selectionActions(ALL_ON, { translate: true, copyMd: true, saveNote: true, saveTodo: true }, CTX),
     ['translate', 'copyMd', 'saveNote', 'saveTodo'],
@@ -145,6 +146,34 @@ test('Quote needs a target', () => {
 test('an excluded window is always empty, whatever the tree and surface', () => {
   assert.deepEqual(selectionActions(ALL_ON, ALLOW_ALL, { ...CTX, excludedWindow: true }), [])
 })
+
+// ── Reading screens ─────────────────────────────────────────────────────────
+
+const SCREENS = ['skill', 'rule', 'item', 'slackThread', 'prInbox']
+
+test('every reading screen is configured', () => {
+  assert.deepEqual(Object.keys(SCREEN_SELECTION).sort(), [...SCREENS].sort())
+})
+
+for (const screen of SCREENS) {
+  test(`${screen}: Translate and Copy MD, nothing else`, () => {
+    assert.deepEqual(selectionActions(ALL_ON, SCREEN_SELECTION[screen], CTX), ['translate', 'copyMd'])
+  })
+
+  test(`${screen}: no Quote, with or without a target`, () => {
+    for (const hasQuoteTarget of [true, false]) {
+      assert.ok(!selectionActions(ALL_ON, SCREEN_SELECTION[screen], { ...CTX, hasQuoteTarget }).includes('quote'))
+    }
+  })
+
+  test(`${screen}: follows the feature tree and the window kind`, () => {
+    const translateOnly = treeWith(['text_tools.selection.translate'])
+    assert.deepEqual(selectionActions(translateOnly, SCREEN_SELECTION[screen], CTX), ['translate'])
+    const copyOnly = treeWith(['text_tools.selection.copy_md'])
+    assert.deepEqual(selectionActions(copyOnly, SCREEN_SELECTION[screen], CTX), ['copyMd'])
+    assert.deepEqual(selectionActions(ALL_ON, SCREEN_SELECTION[screen], { ...CTX, excludedWindow: true }), [])
+  })
+}
 
 // ── Window kind ─────────────────────────────────────────────────────────────
 

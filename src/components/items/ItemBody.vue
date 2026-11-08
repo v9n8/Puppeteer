@@ -18,6 +18,7 @@ import { openFileWindow } from '@/lib/fileWindow'
 import { useMarkdown } from '@/lib/markdown'
 import { useToast } from '@/composables/useToast'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
 import { useProjectsStore } from '@/stores/projects'
@@ -52,9 +53,10 @@ const storedContent = computed(() =>
 )
 const done = computed(() => !isNote.value && (props.item as Todo).done)
 
-// Copy MD from the item as it reads maps the selection back onto its markdown.
+// Selected text of the item as it reads can be translated, or copied as
+// markdown mapped back onto what is stored.
 const readEl = ref<HTMLElement | null>(null)
-useSelectionSurface({ el: readEl, allow: { copyMd: true }, markdownSource: () => [storedContent.value] })
+useSelectionSurface({ el: readEl, allow: SCREEN_SELECTION.item, markdownSource: () => [storedContent.value] })
 
 // Draft fields: `title` is note-only; `content` is the note body / todo text.
 const title = ref('')

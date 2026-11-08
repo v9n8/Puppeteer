@@ -31,6 +31,8 @@ import SlackImageLightbox from './SlackImageLightbox.vue'
 import SlackReplyComposer from './SlackReplyComposer.vue'
 import type { SessionLink } from '@/lib/sessionLinks'
 import { usePageFind } from '@/composables/usePageFind'
+import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import FindBar from '@/components/FindBar.vue'
 
 const props = defineProps<{
@@ -193,6 +195,7 @@ watch(
   async () => {
     flipped.value = new Set()
     lightboxId.value = null
+    selectionSurface.dismiss()
     followBottom = true
     await nextTick()
     scrollToBottom()
@@ -216,6 +219,16 @@ watch(
   },
   { flush: 'post' },
 )
+
+// ── Selection ───────────────────────────────────────────────────────────────
+// Selected text in the thread gets the shared selection toolbar. Copy MD maps
+// it back only onto a legacy snapshot's markdown: messages are Slack mrkdwn,
+// whose source (`<@U…>`, `<url|label>`) is not markdown, so they copy as shown.
+const selectionSurface = useSelectionSurface({
+  el: scroller,
+  allow: SCREEN_SELECTION.slackThread,
+  markdownSource: () => (showLegacy.value ? [props.view.legacyContent ?? ''] : []),
+})
 
 // ── Find (⌘F) ───────────────────────────────────────────────────────────────
 // Re-rendering (another thread, a refetch, original ⇄ translation) detaches

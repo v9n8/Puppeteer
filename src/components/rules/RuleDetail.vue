@@ -23,6 +23,7 @@ import { useToast } from '@/composables/useToast'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
+import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import { usePageFind } from '@/composables/usePageFind'
 import FindBar from '@/components/FindBar.vue'
 import { relativeAge } from '@/lib/itemText'
@@ -193,9 +194,10 @@ watch([content, viewMode], ([md, mode]) => {
   if (mode !== 'edit') void updatePreview(md)
 }, { immediate: true })
 
-// Copy MD from the preview maps the selection back onto the editor's text.
+// Selected text in the preview can be translated, or copied as markdown
+// mapped back onto the editor's text.
 const previewEl = ref<HTMLElement | null>(null)
-useSelectionSurface({ el: previewEl, allow: { copyMd: true }, markdownSource: () => [content.value] })
+useSelectionSurface({ el: previewEl, allow: SCREEN_SELECTION.rule, markdownSource: () => [content.value] })
 
 // ⌘F searches the preview; a re-render detaches the old matches, and the
 // edit-only view has nothing to search.
