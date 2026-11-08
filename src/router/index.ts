@@ -18,6 +18,7 @@ import CalendarView from '../views/CalendarView.vue'
 import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
+import SessionSearchView from '../views/SessionSearchView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
@@ -44,6 +45,7 @@ const router = createRouter({
     { path: '/servers', name: 'servers', component: ServersView },
     ...editorRedirects('/servers'),
     { path: '/projects', name: 'projects', component: ProjectsView },
+    { path: '/search', name: 'session-search', component: SessionSearchView },
     // The PR Inbox lives in its own window (lib/prInboxWindow), like the Slack
     // threads window; the route only stays so old links / navigation open it.
     // PrInboxView is never rendered here — the guard always diverts.

@@ -1,0 +1,10 @@
+{
+  "title": "Tìm session",
+  "placeholder": "Tìm trong mọi session…",
+  "allProjects": "Mọi dự án",
+  "hint": "Tìm một từ trong prompt và câu trả lời của mọi session, kể cả session mirror từ CLI.",
+  "searching": "Đang tìm…",
+  "noMatches": "Không session nào chứa “{query}”",
+  "truncated": "Đang hiện {count} tin nhắn khớp đầu tiên. Thu hẹp từ khoá để xem phần còn lại.",
+  "openHit": "Mở session tại tin nhắn này"
+}

@@ -340,6 +340,7 @@ const CACHED_VIEWS = [
   'RulesView',
   'McpServersView',
   'ServersView',
+  'SessionSearchView',
 ]
 
 // Pin every project the user opens as a workspace tab; remember the run being

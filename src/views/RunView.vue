@@ -58,6 +58,7 @@ import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { appendQuote, type QuoteSource } from '@/lib/quote'
 import { appendQuoteToDraft, registerQuoteComposer } from '@/lib/quoteAppend'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
+import { hitFromRouteQuery, type RouteHit } from '@/lib/sessionSearch'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
@@ -1744,6 +1745,32 @@ async function jumpToLogHit(hit: RunLogHit) {
   runFind.refresh()
 }
 
+// A hit of the Search screen (SessionSearchView) opens its run here with
+// `?offset=&find=`: picked like a log hit above, its query put in the bar. A
+// run shown live has no log window to load, so only the highlight applies.
+async function openRouteSearchHit(hit: RouteHit) {
+  runFind.query.value = hit.find
+  runFind.openFind()
+  if (historyHasStream.value) {
+    await jumpToLogHit({ offset: hit.offset, snippet: '' })
+    if (!sessionTurns.value.length) pendingSearchHit = { runId: viewingLogRunId.value, offset: hit.offset }
+  }
+  // Consumed: a later remount must not jump back to it.
+  router.replace({ query: {} }).catch(() => {})
+}
+
+// On a fresh open the whole-session prompt scan can land after that jump, which
+// then counted no turns before the hit: count them once the scan is in.
+let pendingSearchHit: { runId: string | null; offset: number } | null = null
+watch(sessionTurns, (turns) => {
+  const hit = pendingSearchHit
+  if (!hit || !turns.length) return
+  pendingSearchHit = null
+  if (viewingLogRunId.value === hit.runId && historyCursor.value === hit.offset) {
+    firstLoadedSeq.value = promptsBefore(turns.map((t) => t.offset), hit.offset)
+  }
+})
+
 watch(currentRunId, () => {
   runFind.query.value = ''
   runFind.closeFind()
@@ -1862,7 +1889,11 @@ onMounted(async () => {
   // Preload the project file list so inline-code mentions resolve to links.
   ensureProjectFiles().catch(() => {})
   if (activeRunId.value) {
+    const searchHit = hitFromRouteQuery(route.query)
+    // Open at the hit, not where the reader last left this run.
+    if (searchHit) scrollMemory.forget(activeRunId.value)
     await loadRunLog(activeRunId.value)
+    if (searchHit) await openRouteSearchHit(searchHit)
   } else {
     // Bare project route (no runId): reopen the most recent session so the user
     // lands back on their last conversation instead of an empty screen. Runs are

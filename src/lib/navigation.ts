@@ -13,6 +13,7 @@ import {
   Cpu,
   Settings,
   Info,
+  Search,
 } from 'lucide-vue-next'
 import { openPrInboxWindow } from '@/lib/prInboxWindow'
 import { openCalendarWindow } from '@/lib/calendarWindow'
@@ -51,6 +52,7 @@ export interface NavRoute {
 
 export const NAV_ROUTES: NavRoute[] = [
   { path: '/projects', labelKey: 'nav.projects', icon: FolderOpen, group: 'work' },
+  { path: '/search', labelKey: 'nav.search', icon: Search, group: 'work', feature: 'sessions.cross_session_search' },
   { path: '/focus', labelKey: 'nav.focus', icon: Target, group: 'work', openWindow: openFocusWindow, feature: 'productivity.focus' },
   { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'work', openWindow: openPrInboxWindow, feature: 'code_hosting.pr_inbox' },
   { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'work', openWindow: () => openCalendarWindow(), feature: 'productivity.calendar' },

@@ -1,0 +1,10 @@
+{
+  "title": "Search sessions",
+  "placeholder": "Search every session…",
+  "allProjects": "All projects",
+  "hint": "Finds a word in the prompts and replies of every session, sessions mirrored from the CLI included.",
+  "searching": "Searching…",
+  "noMatches": "No session contains “{query}”",
+  "truncated": "Showing the first {count} matching messages. Narrow the search to see the rest.",
+  "openHit": "Open the session at this message"
+}
