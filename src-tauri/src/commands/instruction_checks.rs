@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::State;
 
+/// [`get_instruction_warnings`] is refused while it is off (`features::require`).
+pub const FEATURE: &str = "library.instruction_checks";
+
 /// Codex's default `project_doc_max_bytes`; AGENTS.md content past it is dropped.
 const CODEX_DEFAULT_MAX_BYTES: u64 = 32 * 1024;
 
@@ -48,6 +51,7 @@ pub async fn get_instruction_warnings(
     project_id: String,
 ) -> Result<Vec<InstructionWarning>, String> {
     use sqlx::Row;
+    crate::features::require(db.inner(), FEATURE).await?;
     let row = sqlx::query("SELECT path FROM projects WHERE id = ?")
         .bind(&project_id)
         .fetch_one(db.inner())

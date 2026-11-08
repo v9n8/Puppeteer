@@ -21,6 +21,7 @@ import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useFeaturesStore } from '@/stores/features'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import { registerMenuAction } from '@/lib/appMenu'
@@ -112,6 +113,7 @@ const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
 const claudeStore = useClaudeAccountsStore()
 const appSettings = useAppSettingsStore()
+const features = useFeaturesStore()
 const modelCatalog = useModelCatalogStore()
 const uiLayout = useUILayoutStore()
 const { confirm } = useConfirm()
@@ -4510,8 +4512,9 @@ function handleRefInput(val: string) {
                 :rate-limit="contextRateLimit"
                 @compact="sendSlashCommand('/compact')"
               />
-              <span v-if="contextTokens > 0" class="shrink-0 text-2xs text-muted-foreground/40">·</span>
-              <BudgetBadge />
+              <span v-if="contextTokens > 0 && features.isOn('usage.context_meter')" class="shrink-0 text-2xs text-muted-foreground/40">·</span>
+              <!-- Unmounting it also stops its 60 s refresh timer. -->
+              <BudgetBadge v-if="features.isOn('usage.context_meter')" />
             </div>
 
             <!-- Prompt input card: textarea on top, controls toolbar below -->

@@ -355,10 +355,27 @@ async fn exists(db: &Db, table: &str, id: &str) -> bool {
 
 // ---- Dispatch ----------------------------------------------------------------
 
+/// The feature switch a data action needs: todos and notes are refused while
+/// their prop is off, like their desktop commands (`features::require`).
+fn action_feature(action: &str) -> Option<&'static str> {
+    if action.starts_with("todo_") {
+        Some(todos::FEATURE)
+    } else if action.starts_with("note_") {
+        Some(notes::FEATURE)
+    } else {
+        None
+    }
+}
+
 /// Run one data action (already allow-listed, rate-limited and flag-gated).
 pub async fn handle(ctx: &HandlerCtx, cmd: &CmdPayload) {
     let action = cmd.action.as_str();
+    let switched_off = match action_feature(action) {
+        Some(feature) => !crate::features::is_on(&ctx.db, feature).await,
+        None => false,
+    };
     let result = match action {
+        _ if switched_off => Err(Failure::Rejected(RejectReason::NotAllowed)),
         "todo_list" => todo_list(ctx).await,
         "todo_add" => todo_add(ctx, cmd).await,
         "todo_update" => todo_update(ctx, cmd).await,
@@ -702,6 +719,19 @@ async fn project_claude_account(db: &Db, project_id: &str) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn todo_and_note_actions_need_their_feature() {
+        for action in ["todo_list", "todo_add", "todo_update", "todo_toggle", "todo_delete"] {
+            assert_eq!(action_feature(action), Some("productivity.todos"), "{action}");
+        }
+        for action in ["note_list", "note_search", "note_get", "note_add", "note_update", "note_delete"] {
+            assert_eq!(action_feature(action), Some("productivity.notes"), "{action}");
+        }
+        for action in ["project_toggles_get", "project_toggle_set"] {
+            assert_eq!(action_feature(action), None, "{action}");
+        }
+    }
 
     #[test]
     fn ids_are_required_bounded_and_printable() {

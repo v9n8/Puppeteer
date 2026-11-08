@@ -1061,7 +1061,7 @@ pub async fn drain_sidecar(
                                     // the UI to lock the composer so the next turn
                                     // (resume / follow-up) can't be started.
                                     if let Ok(status) =
-                                        crate::commands::stats::budget_status_for(&db_pool, &engine, claude_account_id.as_deref()).await
+                                        crate::commands::stats::guard_status(&db_pool, &engine, claude_account_id.as_deref()).await
                                     {
                                         if status.is_over {
                                             let _ = app.emit(

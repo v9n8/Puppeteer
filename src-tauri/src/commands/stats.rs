@@ -1234,7 +1234,7 @@ pub async fn get_run_budget(
         project_id.as_deref(),
     )
     .await;
-    budget_status_for(db.inner(), &engine, account_id.as_deref()).await
+    guard_status(db.inner(), &engine, account_id.as_deref()).await
 }
 
 /// Resolve which Claude account a budget check should read: a run's assigned
@@ -1276,6 +1276,26 @@ async fn resolve_claude_account_for_budget(
     crate::commands::claude_accounts::default_account_id(db).await
 }
 
+/// While it is off, the run-blocking guardrail never blocks a run: see
+/// [`guard_status`].
+const BUDGET_GUARD_FEATURE: &str = "usage.budget_guard";
+
+/// [`budget_status_for`] as the guardrail acts on it: never over while
+/// [`BUDGET_GUARD_FEATURE`] is off. Shared by the hard block
+/// ([`enforce_budget`]), the UI preflight ([`get_run_budget`]) and the
+/// composer lock after a turn, so the three agree.
+pub async fn guard_status(
+    db: &Db,
+    engine: &str,
+    claude_account_id: Option<&str>,
+) -> Result<BudgetStatus, String> {
+    let mut status = budget_status_for(db, engine, claude_account_id).await?;
+    if status.is_over && !crate::features::is_on(db, BUDGET_GUARD_FEATURE).await {
+        status.is_over = false;
+    }
+    Ok(status)
+}
+
 /// Guardrail used at every token-consuming entry point (start / resume /
 /// follow-up). Refuses when the budget is over, unless the user explicitly
 /// overrode it. The error is prefixed `BUDGET_EXCEEDED` so the UI can offer a
@@ -1289,7 +1309,7 @@ pub async fn enforce_budget(
     if override_budget {
         return Ok(());
     }
-    let status = budget_status_for(db, engine, claude_account_id).await?;
+    let status = guard_status(db, engine, claude_account_id).await?;
     if status.is_over {
         return Err(format!(
             "BUDGET_EXCEEDED: {} usage at {}% of the {} limit",
@@ -1377,6 +1397,39 @@ mod account_stats_tests {
             .await
             .unwrap();
         assert_eq!(none.summary.total_tokens, 7);
+    }
+
+    #[tokio::test]
+    async fn budget_guard_switched_off_never_blocks_a_run() {
+        let db = db().await;
+        let snapshot = serde_json::json!({
+            "captured_at": Utc::now().to_rfc3339(),
+            "rate_limits_available": true,
+            "windows": { "five_hour": {
+                "utilization": 95.0,
+                "resets_at": (Utc::now() + Duration::hours(2)).to_rfc3339(),
+            } },
+        });
+        let set = |key: &'static str, value: String| {
+            let db = db.clone();
+            async move { crate::commands::settings::set_setting(&db, key, &value).await.unwrap() }
+        };
+        set("budget_5h_percent", "80".into()).await;
+        set("plan_usage_codex", snapshot.to_string()).await;
+
+        let err = enforce_budget(&db, "codex", None, false).await.unwrap_err();
+        assert!(err.starts_with("BUDGET_EXCEEDED"), "{err}");
+        assert!(guard_status(&db, "codex", None).await.unwrap().is_over);
+
+        set("feature.usage.budget_guard", "false".into()).await;
+        assert_eq!(enforce_budget(&db, "codex", None, false).await, Ok(()));
+        let status = guard_status(&db, "codex", None).await.unwrap();
+        assert!(!status.is_over, "no preflight prompt, no composer lock");
+        assert_eq!(status.percent, 95, "the usage itself is still reported");
+
+        set("feature.usage.budget_guard", "true".into()).await;
+        set("feature.usage", "false".into()).await;
+        assert_eq!(enforce_budget(&db, "codex", None, false).await, Ok(()), "module off");
     }
 }
 

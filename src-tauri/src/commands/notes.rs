@@ -5,6 +5,9 @@ use sqlx::Row;
 use tauri::State;
 use uuid::Uuid;
 
+/// Every command here is refused while it is off (`features::require`).
+pub const FEATURE: &str = "productivity.notes";
+
 /// A single quick note. `title` is a short label (may be empty — the UI falls
 /// back to the first line of `content`), `content` is markdown. `project_id`
 /// optionally links the note to a project. Sessions (runs) are linked through
@@ -43,6 +46,7 @@ pub async fn list_notes(
     db: State<'_, Db>,
     project_id: Option<String>,
 ) -> Result<Vec<Note>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     list_notes_inner(db.inner(), project_id.as_deref(), None).await
 }
 
@@ -115,6 +119,7 @@ pub async fn add_note(
     project_id: Option<String>,
     run_id: Option<String>,
 ) -> Result<Note, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     add_note_inner(db.inner(), &title, &content, project_id, run_id).await
 }
 
@@ -182,6 +187,7 @@ pub async fn update_note(
     title: String,
     content: String,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     update_note_inner(db.inner(), &id, &title, &content).await
 }
 
@@ -211,6 +217,7 @@ pub async fn set_note_project(
     id: String,
     project_id: Option<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     set_note_project_inner(db.inner(), &id, project_id.as_deref()).await
 }
 
@@ -232,6 +239,7 @@ pub async fn set_note_project_inner(
 
 #[tauri::command]
 pub async fn delete_note(db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     delete_note_inner(db.inner(), &id).await
 }
 
@@ -251,6 +259,7 @@ pub async fn delete_note_inner(db: &Db, id: &str) -> Result<(), String> {
 /// back the whole batch instead of leaving a partial deletion.
 #[tauri::command]
 pub async fn delete_notes(db: State<'_, Db>, ids: Vec<String>) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     if ids.is_empty() {
         return Ok(());
     }
@@ -274,6 +283,7 @@ pub async fn delete_notes(db: State<'_, Db>, ids: Vec<String>) -> Result<(), Str
 /// of prior position values. Done in one transaction to avoid partial reorders.
 #[tauri::command]
 pub async fn reorder_notes(db: State<'_, Db>, ids: Vec<String>) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let mut tx = db.inner().begin().await.map_err(|e| e.to_string())?;
     for (index, id) in ids.iter().enumerate() {
         sqlx::query("UPDATE notes SET position = ? WHERE id = ?")

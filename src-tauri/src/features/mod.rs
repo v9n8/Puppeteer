@@ -243,6 +243,17 @@ pub async fn is_on(db: &Db, id: &str) -> bool {
     }
 }
 
+/// The gate of a command whose feature runs nothing in the background:
+/// `Err("feature_disabled: <id>")` while `id` is off ([`is_on`]), so a remote
+/// desktop or a stale window cannot reach what the UI hides.
+pub async fn require(db: &Db, id: &str) -> Result<(), String> {
+    if is_on(db, id).await {
+        Ok(())
+    } else {
+        Err(format!("feature_disabled: {id}"))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ModuleState {
     pub module: &'static str,
@@ -553,5 +564,62 @@ mod tests {
             ["remote", "productivity.todos", "remote.web_push", "remote.remote_desktop", "remote.file_transfer"]
         );
         assert!(turned_off(&after, &before).is_empty());
+    }
+
+    async fn db_with(pairs: &[(&str, &str)]) -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for (key, value) in pairs {
+            crate::commands::settings::set_setting(&db, key, value).await.unwrap();
+        }
+        db
+    }
+
+    #[tokio::test]
+    async fn require_refuses_what_is_off() {
+        let off = |id: &str| Err(format!("feature_disabled: {id}"));
+        let cases: &[(&[(&str, &str)], &str, Result<(), String>)] = &[
+            (&[], "productivity.notes", Ok(())),
+            (&[], "productivity.todos", off("productivity.todos")),
+            (&[("feature.productivity.todos", "true")], "productivity.todos", Ok(())),
+            (&[("feature.productivity", "false")], "productivity.notes", off("productivity.notes")),
+            (&[("feature.usage", "false")], "usage", off("usage")),
+            (&[("feature.sessions.core", "false")], "sessions.core", Ok(())),
+            (&[], "nope", off("nope")),
+        ];
+        for (rows, id, want) in cases {
+            assert_eq!(&require(&db_with(rows).await, id).await, want, "{id} with {rows:?}");
+        }
+        // No settings table: a failed read counts as off.
+        let broken = sqlx::sqlite::SqlitePoolOptions::new().connect("sqlite::memory:").await.unwrap();
+        assert_eq!(require(&broken, "productivity.notes").await, off("productivity.notes"));
+    }
+
+    /// One case per group of gated commands: the id each one checks is a
+    /// real prop, on when its switch is on and refused when it is off.
+    #[tokio::test]
+    async fn gated_commands_follow_their_prop() {
+        use crate::commands::{github, groups, instruction_checks, notes, runs, secret_vault, todos};
+        for id in [
+            runs::HANDOFF_FEATURE,
+            github::PR_INBOX_FEATURE,
+            github::GANTT_FEATURE,
+            notes::FEATURE,
+            todos::FEATURE,
+            secret_vault::FEATURE,
+            instruction_checks::FEATURE,
+            groups::FEATURE,
+        ] {
+            let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
+            let key = p.unwrap().key(m);
+            let on = db_with(&[(m.key().as_str(), "true"), (key.as_str(), "true")]).await;
+            assert_eq!(require(&on, id).await, Ok(()), "{id}");
+            let off = db_with(&[(key.as_str(), "false")]).await;
+            assert_eq!(require(&off, id).await, Err(format!("feature_disabled: {id}")), "{id}");
+        }
     }
 }

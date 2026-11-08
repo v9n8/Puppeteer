@@ -2542,6 +2542,9 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
     })
 }
 
+/// [`create_handoff_run`] is refused while it is off (`features::require`).
+pub const HANDOFF_FEATURE: &str = "sessions.handoff";
+
 #[derive(Debug, Serialize, Clone)]
 pub struct HandoffResult {
     pub run: RunRecord,
@@ -2562,6 +2565,7 @@ pub async fn create_handoff_run(
     target_engine: String,
     transcript: String,
 ) -> Result<HandoffResult, String> {
+    crate::features::require(db.inner(), HANDOFF_FEATURE).await?;
     if target_engine != "claude" && target_engine != "codex" {
         return Err(format!("Unknown engine: {target_engine}"));
     }

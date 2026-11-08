@@ -7,6 +7,9 @@ use sqlx::Row;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
+/// Every command here is refused while it is off (`features::require`).
+pub const FEATURE: &str = "productivity.todos";
+
 /// A todo. `position` orders the quick list (ascending: lower value sits
 /// higher). Drag-and-drop reorder rewrites positions.
 ///
@@ -109,6 +112,7 @@ pub async fn get_todo<'e, E: sqlx::SqliteExecutor<'e>>(db: E, id: &str) -> Resul
 
 #[tauri::command]
 pub async fn list_todos(db: State<'_, Db>) -> Result<Vec<Todo>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     load_todos(db.inner()).await
 }
 
@@ -139,6 +143,7 @@ pub async fn add_todo(
     estimate_min: Option<i64>,
     source_url: Option<String>,
 ) -> Result<Todo, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let input = NewTodo {
         text,
         project_id,
@@ -225,6 +230,7 @@ pub async fn set_todo_project(
     id: String,
     project_id: Option<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     sqlx::query("UPDATE todos SET project_id = ?, updated_at = ? WHERE id = ?")
         .bind(&project_id)
         .bind(now())
@@ -245,6 +251,7 @@ pub async fn set_todo_due_date(
     id: String,
     due_date: Option<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let due_date = focus::validate::due_date(due_date.as_deref())?;
     sqlx::query(
         "UPDATE todos SET due_date = ?, due_time = CASE WHEN ? IS NULL THEN NULL ELSE due_time END, \
@@ -264,6 +271,7 @@ pub async fn set_todo_due_date(
 /// Flip `done`; `completed_at` follows it, and un-doing returns to `todo`.
 #[tauri::command]
 pub async fn toggle_todo(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     toggle_todo_inner(&app, db.inner(), &id).await
 }
 
@@ -292,6 +300,7 @@ pub async fn update_todo(
     id: String,
     text: String,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let text = focus::validate::text(&text)?;
     sqlx::query("UPDATE todos SET text = ?, updated_at = ? WHERE id = ?")
         .bind(&text)
@@ -315,6 +324,7 @@ pub async fn update_todo_fields(
     id: String,
     patch: Map<String, Value>,
 ) -> Result<Todo, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     update_todo_fields_inner(&app, db.inner(), &id, &patch).await
 }
 
@@ -498,6 +508,7 @@ pub fn apply_patch(cur: &Todo, patch: &Map<String, Value>, now: &str) -> Result<
 
 #[tauri::command]
 pub async fn delete_todo(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     delete_todo_inner(&app, db.inner(), &id).await
 }
 
@@ -522,6 +533,7 @@ pub async fn delete_todos(
     db: State<'_, Db>,
     ids: Vec<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     if ids.is_empty() {
         return Ok(());
     }
@@ -543,6 +555,7 @@ pub async fn delete_todos(
 
 #[tauri::command]
 pub async fn clear_completed_todos(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     sqlx::query("DELETE FROM todo_runs WHERE todo_id IN (SELECT id FROM todos WHERE done = 1)")
         .execute(db.inner())
         .await
@@ -564,6 +577,7 @@ pub async fn reorder_todos(
     db: State<'_, Db>,
     ids: Vec<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let mut tx = db.inner().begin().await.map_err(|e| e.to_string())?;
     for (index, id) in ids.iter().enumerate() {
         sqlx::query("UPDATE todos SET position = ? WHERE id = ?")

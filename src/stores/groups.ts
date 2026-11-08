@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
 import type { ApplyAllOutcome } from '@/stores/rules'
+import { useFeaturesStore } from '@/stores/features'
 
 export type GroupKind = 'skill' | 'rule'
 
@@ -62,6 +63,12 @@ function createGroupsStore(kind: GroupKind) {
     const error = ref<string | null>(null)
 
     async function fetchGroups() {
+      // Off, the backend refuses every group command (`library.groups`).
+      if (!(await useFeaturesStore().isOnAfterLoad('library.groups'))) {
+        groups.value = []
+        itemGroups.value = {}
+        return
+      }
       loading.value = true
       error.value = null
       try {

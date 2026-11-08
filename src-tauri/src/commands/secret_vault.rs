@@ -20,6 +20,11 @@ use tauri::{AppHandle, Emitter, State, Webview};
 
 pub const SECRET_VAULT_EVENT: &str = "secret-vault://changed";
 
+/// Every command that opens the vault is refused while it is off
+/// (`features::require`). `secret_vault_status` and `secret_vault_lock` are
+/// not: the owner can still see and lock a vault left open.
+pub const FEATURE: &str = "security.secret_vault";
+
 /// The local Secret notes window (`SECRET_NOTES_WINDOW_LABEL` in src/lib/secretNotesWindow.ts).
 const SECRET_NOTES_WINDOW: &str = "secret-notes";
 /// The local Notes window (`itemListWindowLabel('note')` in src/lib/itemListWindow.ts).
@@ -100,8 +105,14 @@ pub async fn secret_vault_status(webview: Webview) -> Result<VaultStatus, String
 
 /// Create the vault (unlocked) and return the recovery key, shown once.
 #[tauri::command]
-pub async fn secret_vault_setup(app: AppHandle, webview: Webview, password: String) -> Result<String, String> {
+pub async fn secret_vault_setup(
+    app: AppHandle,
+    webview: Webview,
+    db: State<'_, Db>,
+    password: String,
+) -> Result<String, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     if with_vault(false, |d| Ok(d.header.is_some()))? {
         return Err(vault::E_EXISTS.into());
     }
@@ -137,15 +148,27 @@ async fn unlock_with(
 }
 
 #[tauri::command]
-pub async fn secret_vault_unlock(app: AppHandle, webview: Webview, password: String) -> Result<(), String> {
+pub async fn secret_vault_unlock(
+    app: AppHandle,
+    webview: Webview,
+    db: State<'_, Db>,
+    password: String,
+) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlock_with(&app, password, false, vault::unwrap_password).await
 }
 
 /// Unlock with the recovery key (then set a new password).
 #[tauri::command]
-pub async fn secret_vault_unlock_recovery(app: AppHandle, webview: Webview, recovery_key: String) -> Result<(), String> {
+pub async fn secret_vault_unlock_recovery(
+    app: AppHandle,
+    webview: Webview,
+    db: State<'_, Db>,
+    recovery_key: String,
+) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlock_with(&app, recovery_key, true, vault::unwrap_recovery).await
 }
 
@@ -160,8 +183,9 @@ pub async fn secret_vault_lock(app: AppHandle, webview: Webview) -> Result<(), S
 /// The user is active in the unlocked vault (typing in the editor): push the
 /// idle lock back. `vault_locked` when it already locked.
 #[tauri::command]
-pub async fn secret_vault_touch(webview: Webview) -> Result<(), String> {
+pub async fn secret_vault_touch(webview: Webview, db: State<'_, Db>) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(false, |_, _| Ok(()))
 }
 
@@ -173,10 +197,12 @@ pub async fn secret_vault_touch(webview: Webview) -> Result<(), String> {
 pub async fn secret_vault_change_password(
     app: AppHandle,
     webview: Webview,
+    db: State<'_, Db>,
     current_password: Option<String>,
     password: String,
 ) -> Result<String, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let _gate = PASSWORD_GATE.lock().await;
     let header = unlocked(false, |d, _| d.header.clone().ok_or_else(|| vault::E_MISSING.to_string()))?;
     if !vault::unlocked_via_recovery() {
@@ -207,8 +233,14 @@ pub async fn secret_vault_change_password(
 
 /// Merge the notes of older vaults `password` opens into the current one.
 #[tauri::command]
-pub async fn secret_vault_merge_old(app: AppHandle, webview: Webview, password: String) -> Result<usize, String> {
+pub async fn secret_vault_merge_old(
+    app: AppHandle,
+    webview: Webview,
+    db: State<'_, Db>,
+    password: String,
+) -> Result<usize, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let _gate = PASSWORD_GATE.lock().await;
     vault::check_throttle()?;
     let (mut data, dek) = unlocked(false, |d, dek| Ok((d.clone(), zeroize::Zeroizing::new(*dek))))?;
@@ -237,14 +269,16 @@ pub async fn secret_vault_merge_old(app: AppHandle, webview: Webview, password: 
 }
 
 #[tauri::command]
-pub async fn secret_notes_list(webview: Webview) -> Result<Vec<SecretNoteMeta>, String> {
+pub async fn secret_notes_list(webview: Webview, db: State<'_, Db>) -> Result<Vec<SecretNoteMeta>, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(false, |d, dek| vault::list(d, dek))
 }
 
 #[tauri::command]
-pub async fn secret_note_reveal(webview: Webview, id: String) -> Result<String, String> {
+pub async fn secret_note_reveal(webview: Webview, db: State<'_, Db>, id: String) -> Result<String, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(false, |d, dek| vault::reveal(d, dek, &id))
 }
 
@@ -252,8 +286,9 @@ pub async fn secret_note_reveal(webview: Webview, id: String) -> Result<String, 
 /// unless something else was copied meanwhile. The content never reaches the
 /// webview. Returns the delay in seconds.
 #[tauri::command]
-pub async fn secret_note_copy(webview: Webview, id: String) -> Result<u64, String> {
+pub async fn secret_note_copy(webview: Webview, db: State<'_, Db>, id: String) -> Result<u64, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let content = zeroize::Zeroizing::new(unlocked(false, |d, dek| vault::reveal(d, dek, &id))?);
     let count = vault::clipboard_put(&content)?;
     vault::clipboard_remember(count);
@@ -287,11 +322,13 @@ pub async fn rd_copy_secret(webview: Webview, content: String) -> Result<u64, St
 pub async fn secret_note_create(
     app: AppHandle,
     webview: Webview,
+    db: State<'_, Db>,
     title: String,
     content: String,
     project_id: Option<String>,
 ) -> Result<SecretNoteMeta, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let m = unlocked(true, |d, dek| vault::create(d, dek, &title, &content, project_id))?;
     changed(&app);
     Ok(m)
@@ -301,11 +338,13 @@ pub async fn secret_note_create(
 pub async fn secret_note_update(
     app: AppHandle,
     webview: Webview,
+    db: State<'_, Db>,
     id: String,
     title: String,
     content: String,
 ) -> Result<SecretNoteMeta, String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     let m = unlocked(true, |d, dek| vault::update(d, dek, &id, &title, &content))?;
     changed(&app);
     Ok(m)
@@ -315,26 +354,35 @@ pub async fn secret_note_update(
 pub async fn secret_note_set_project(
     app: AppHandle,
     webview: Webview,
+    db: State<'_, Db>,
     id: String,
     project_id: Option<String>,
 ) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(true, |d, _| vault::set_project(d, &id, project_id))?;
     changed(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn secret_note_delete(app: AppHandle, webview: Webview, id: String) -> Result<(), String> {
+pub async fn secret_note_delete(app: AppHandle, webview: Webview, db: State<'_, Db>, id: String) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(true, |d, _| vault::delete(d, &id))?;
     changed(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn secret_notes_reorder(app: AppHandle, webview: Webview, ids: Vec<String>) -> Result<(), String> {
+pub async fn secret_notes_reorder(
+    app: AppHandle,
+    webview: Webview,
+    db: State<'_, Db>,
+    ids: Vec<String>,
+) -> Result<(), String> {
     local_only(&webview)?;
+    crate::features::require(db.inner(), FEATURE).await?;
     unlocked(true, |d, _| vault::reorder(d, &ids))?;
     changed(&app);
     Ok(())
@@ -351,6 +399,9 @@ pub async fn secret_note_from_note(
     note_id: String,
 ) -> Result<SecretNoteMeta, String> {
     local_only_or(&webview, &[NOTES_WINDOW])?;
+    crate::features::require(db.inner(), FEATURE).await?;
+    // Before sealing: a refused `delete_note` below would leave the note in both places.
+    crate::features::require(db.inner(), crate::commands::notes::FEATURE).await?;
     let row = sqlx::query("SELECT title, content, project_id FROM notes WHERE id = ?")
         .bind(&note_id)
         .fetch_optional(db.inner())

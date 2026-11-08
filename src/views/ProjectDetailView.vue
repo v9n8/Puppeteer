@@ -9,6 +9,7 @@ import type { GroupKind, ProjectGroupState } from '@/stores/groups'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useServersStore, type ProjectServer, type VpsServer } from '@/stores/servers'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useFeaturesStore } from '@/stores/features'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
@@ -38,6 +39,7 @@ const rulesStore = useRulesStore()
 const mcpStore = useMcpServersStore()
 const serversStore = useServersStore()
 const appSettings = useAppSettingsStore()
+const features = useFeaturesStore()
 const ghStore = useGithubAccountsStore()
 const glStore = useGitlabAccountsStore()
 const awsStore = useAwsAccountsStore()
@@ -291,7 +293,10 @@ const ruleGroupStates = ref<ProjectGroupState[]>([])
 const togglingGroupId = ref<string | null>(null)
 
 async function loadGroupStates(kind: GroupKind) {
-  const states = await projectStore.getProjectGroups(kind, projectId.value)
+  // Off, the backend refuses every group command (`library.groups`).
+  const states = (await features.isOnAfterLoad('library.groups'))
+    ? await projectStore.getProjectGroups(kind, projectId.value)
+    : []
   if (kind === 'skill') skillGroupStates.value = states
   else ruleGroupStates.value = states
 }
@@ -1031,6 +1036,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
         <!-- Skills tab -->
         <div v-if="activeTab === 'skills'" class="max-w-lg space-y-5">
           <ProjectGroupToggles
+            v-if="features.isOn('library.groups')"
             kind="skill"
             :groups="skillGroupStates"
             :toggling="togglingGroupId"
@@ -1114,6 +1120,7 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
         <!-- Rules tab -->
         <div v-if="activeTab === 'rules'" class="max-w-lg space-y-5">
           <ProjectGroupToggles
+            v-if="features.isOn('library.groups')"
             kind="rule"
             :groups="ruleGroupStates"
             :toggling="togglingGroupId"

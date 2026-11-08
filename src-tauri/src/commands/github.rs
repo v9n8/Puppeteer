@@ -9,6 +9,11 @@ use std::path::Path;
 use tauri::State;
 use uuid::Uuid;
 
+/// [`list_review_requested_prs`] is refused while it is off (`features::require`).
+pub const PR_INBOX_FEATURE: &str = "code_hosting.pr_inbox";
+/// The Gantt board commands are refused while it is off.
+pub const GANTT_FEATURE: &str = "code_hosting.gantt";
+
 #[derive(Debug, Serialize, Clone)]
 pub struct RunRecord {
     pub id: String,
@@ -1141,6 +1146,7 @@ async fn fetch_requested_reviewers(
 #[tauri::command]
 pub async fn list_review_requested_prs(db: State<'_, Db>) -> Result<PrInboxResult, String> {
     use sqlx::Row;
+    crate::features::require(db.inner(), PR_INBOX_FEATURE).await?;
 
     // Accounts that have been validated (username present). A PAT is required to
     // build a client, so skip any account missing one.
@@ -1880,6 +1886,7 @@ pub async fn list_milestone_board(
     project_id: String,
 ) -> Result<MilestoneBoard, String> {
     use sqlx::Row;
+    crate::features::require(db.inner(), GANTT_FEATURE).await?;
 
     // 1) Load repos for the project.
     let repo_rows = sqlx::query(
@@ -2156,6 +2163,7 @@ pub async fn list_milestone_issues(
     milestone_title: String,
 ) -> Result<Vec<IssueRow>, String> {
     use sqlx::Row;
+    crate::features::require(db.inner(), GANTT_FEATURE).await?;
 
     // 1) Load repos for the project.
     let repo_rows = sqlx::query(

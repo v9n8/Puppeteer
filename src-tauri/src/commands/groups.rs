@@ -21,6 +21,9 @@ use sqlx::Row;
 use tauri::State;
 use uuid::Uuid;
 
+/// Every command here is refused while it is off (`features::require`).
+pub const FEATURE: &str = "library.groups";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupKind {
     Skill,
@@ -310,6 +313,7 @@ async fn apply_members(
 
 #[tauri::command]
 pub async fn list_groups(db: State<'_, Db>, kind: String) -> Result<Vec<Group>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let rows = sqlx::query(&format!(
         "SELECT g.id, g.name, g.description, g.color, g.position, g.updated_at,
@@ -350,6 +354,7 @@ pub async fn create_group(
     kind: String,
     payload: CreateGroupPayload,
 ) -> Result<Group, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let name = payload.name.trim().to_string();
     validate_group_name(&name)?;
@@ -398,6 +403,7 @@ pub async fn update_group(
     kind: String,
     payload: UpdateGroupPayload,
 ) -> Result<Group, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let name = payload.name.trim().to_string();
     validate_group_name(&name)?;
@@ -455,6 +461,7 @@ pub async fn reorder_groups(
     kind: String,
     ids: Vec<String>,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let sql = format!("UPDATE {} SET position = ? WHERE id = ?", kind.groups_table());
     let mut tx = db.inner().begin().await.map_err(|e| e.to_string())?;
@@ -474,6 +481,7 @@ pub async fn reorder_groups(
 /// and rules themselves — and whatever is already applied to projects — are left untouched.
 #[tauri::command]
 pub async fn delete_group(db: State<'_, Db>, kind: String, group_id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     sqlx::query(&format!("DELETE FROM {} WHERE id = ?", kind.groups_table()))
         .bind(&group_id)
@@ -489,6 +497,7 @@ pub async fn get_group_members(
     kind: String,
     group_id: String,
 ) -> Result<Vec<String>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     member_ids(db.inner(), kind, &group_id).await
 }
@@ -500,6 +509,7 @@ pub async fn get_item_groups(
     db: State<'_, Db>,
     kind: String,
 ) -> Result<Vec<(String, String)>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let rows = sqlx::query(&format!(
         "SELECT {item} as item_id, group_id FROM {members}",
@@ -524,6 +534,7 @@ pub async fn set_group_members(
     group_id: String,
     item_ids: Vec<String>,
 ) -> Result<GroupApplyOutcome, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     set_group_members_inner(db.inner(), kind, &group_id, item_ids).await
 }
@@ -604,6 +615,7 @@ pub async fn get_project_groups(
     kind: String,
     project_id: String,
 ) -> Result<Vec<ProjectGroupState>, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let rows = sqlx::query(&format!(
         "SELECT g.id, g.name, g.description, g.color,
@@ -665,6 +677,7 @@ pub async fn enable_group_for_project(
     project_id: String,
     group_id: String,
 ) -> Result<GroupApplyOutcome, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let db = db.inner();
     enable_group(db, kind, &project_id, &group_id).await
@@ -702,6 +715,7 @@ pub async fn disable_group_for_project(
     project_id: String,
     group_id: String,
 ) -> Result<GroupDisableOutcome, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let db = db.inner();
 
@@ -746,6 +760,7 @@ pub async fn apply_group_to_all_projects(
     kind: String,
     group_id: String,
 ) -> Result<ApplyAllOutcome, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let kind = GroupKind::parse(&kind)?;
     let db = db.inner();
 
