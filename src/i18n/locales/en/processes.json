@@ -21,7 +21,8 @@
     "focus_ai": "Focus AI",
     "probe": "Model probe",
     "mcp_test": "MCP test",
-    "ssh_agent": "ssh-agent"
+    "ssh_agent": "ssh-agent",
+    "dev_server": "Dev server"
   },
   "col": {
     "pid": "PID",
@@ -81,5 +82,30 @@
     "keepQuit": "Quit, keep background processes",
     "cancel": "Cancel",
     "dontAsk": "Don't ask again"
+  },
+  "devServers": {
+    "title": "Dev servers",
+    "hint": "Declared by the project in .puppeteer/dev-servers.json. Started without your tokens in their environment.",
+    "noProjects": "Add a project to use its dev servers.",
+    "missing": "This project declares no dev servers. Create {path} to start them by name, here or from an agent:",
+    "rules": "command is one program, args an array of plain values, cwd relative to the project; env is not supported.",
+    "empty": "No usable server is declared in {path}.",
+    "problems": "Ignored entries in {path}:",
+    "status": {
+      "running": "Running",
+      "port_busy": "Port in use",
+      "unknown": "Unknown",
+      "stopped": "Stopped"
+    },
+    "pids": "pid {pids}",
+    "portBusy": "Port {port} is held by a process Puppeteer did not start; it is left alone.",
+    "start": "Start",
+    "confirmStartTitle": "Start \"{name}\"?",
+    "confirmStartMessage": "Puppeteer will run exactly this command, declared by the project's repository:\n\n{command}\n\nIts environment has no tokens or cloud credentials; gh, git, aws and az go through Puppeteer's broker.",
+    "started": "Started \"{name}\"",
+    "failed": "Dev server: {error}",
+    "log": "Show log",
+    "logEmpty": "(no output yet)",
+    "logTruncated": "Only the end of the log is shown."
   }
 }

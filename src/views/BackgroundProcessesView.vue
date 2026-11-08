@@ -11,20 +11,24 @@ import { useRouter } from 'vue-router'
 import { ChevronRight, Cpu, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { Button, Card, PageHeader, Banner } from '@/components/ui'
 import ProcessEntryRow from '@/components/processes/ProcessEntryRow.vue'
+import DevServersCard from '@/components/processes/DevServersCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useBackgroundProcessesStore } from '@/stores/backgroundProcesses'
+import { useFeaturesStore } from '@/stores/features'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useRunsStore } from '@/stores/runs'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { focusSessionWindow } from '@/lib/sessionWindow'
 import { groupEntries, strayIds, type BgEntry } from '@/lib/backgroundProcesses'
+import { DEV_SERVERS_FEATURE } from '@/lib/devServers'
 
 defineOptions({ name: 'BackgroundProcessesView' })
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useBackgroundProcessesStore()
+const features = useFeaturesStore()
 const live = useLiveRunsStore()
 const runsStore = useRunsStore()
 const tabsStore = useWorkspaceTabsStore()
@@ -186,6 +190,8 @@ const sections = computed(() => [
 
     <!-- Content -->
     <div class="flex-1 overflow-auto p-6">
+      <DevServersCard v-if="features.isOn(DEV_SERVERS_FEATURE)" class="mb-4 max-w-4xl" />
+
       <!-- Loading skeleton (first snapshot only) -->
       <div v-if="store.loading && !store.snapshot" class="max-w-4xl space-y-3">
         <div v-for="i in 3" :key="i" class="h-20 rounded-lg border border-border bg-card animate-pulse" />

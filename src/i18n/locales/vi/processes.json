@@ -21,7 +21,8 @@
     "focus_ai": "AI Focus",
     "probe": "Kiểm tra model",
     "mcp_test": "Kiểm tra MCP",
-    "ssh_agent": "ssh-agent"
+    "ssh_agent": "ssh-agent",
+    "dev_server": "Dev server"
   },
   "col": {
     "pid": "PID",
@@ -81,5 +82,30 @@
     "keepQuit": "Thoát, giữ tiến trình nền",
     "cancel": "Huỷ",
     "dontAsk": "Không hỏi lại"
+  },
+  "devServers": {
+    "title": "Dev server",
+    "hint": "Do dự án khai báo trong .puppeteer/dev-servers.json. Chạy mà không có token của bạn trong biến môi trường.",
+    "noProjects": "Thêm một dự án để dùng dev server của nó.",
+    "missing": "Dự án này chưa khai báo dev server nào. Tạo {path} để khởi động chúng theo tên, ở đây hoặc từ agent:",
+    "rules": "command là một chương trình, args là mảng giá trị thuần, cwd tương đối với dự án; không hỗ trợ env.",
+    "empty": "Không có server dùng được nào được khai báo trong {path}.",
+    "problems": "Các mục bị bỏ qua trong {path}:",
+    "status": {
+      "running": "Đang chạy",
+      "port_busy": "Cổng bị chiếm",
+      "unknown": "Không rõ",
+      "stopped": "Đã dừng"
+    },
+    "pids": "pid {pids}",
+    "portBusy": "Cổng {port} đang bị một tiến trình không do Puppeteer khởi chạy giữ; tiến trình đó được để nguyên.",
+    "start": "Khởi động",
+    "confirmStartTitle": "Khởi động \"{name}\"?",
+    "confirmStartMessage": "Puppeteer sẽ chạy đúng nguyên văn lệnh này, do repository của dự án khai báo:\n\n{command}\n\nBiến môi trường của nó không có token hay credential cloud; gh, git, aws và az đi qua broker của Puppeteer.",
+    "started": "Đã khởi động \"{name}\"",
+    "failed": "Dev server: {error}",
+    "log": "Xem log",
+    "logEmpty": "(chưa có output)",
+    "logTruncated": "Chỉ hiện phần cuối của log."
   }
 }

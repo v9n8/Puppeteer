@@ -848,6 +848,10 @@ pub fn run() {
             procs::commands::list_background_processes,
             procs::commands::stop_background_processes,
             procs::commands::kill_background_process,
+            procs::dev_servers::devserver_list,
+            procs::dev_servers::devserver_start,
+            procs::dev_servers::devserver_stop,
+            procs::dev_servers::devserver_logs,
             procs::quit::resolve_quit,
         ]))
         .build(tauri::generate_context!())

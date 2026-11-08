@@ -982,6 +982,32 @@ async fn wire_broker(
     Ok((guard, ssh_access))
 }
 
+/// [`wire_broker`] for a process that is not a run (a dev server started from
+/// the Processes screen): the same shims first on PATH, broker socket, git
+/// credential helper and AWS / Azure sandboxes. No run is registered, so with
+/// nobody to answer, the broker denies whatever needs approval; no per-run
+/// ssh-agent either.
+pub(crate) async fn wire_tool_broker(
+    app: &AppHandle,
+    db: &Db,
+    cmd: &mut Command,
+    project_id: &str,
+) -> Result<(), String> {
+    let sock_path = app
+        .try_state::<BrokerHandle>()
+        .ok_or_else(|| "credential broker not initialized".to_string())?
+        .path
+        .clone();
+    let shim_dir = resolve_shim_dir(app)?;
+    prepend_shim_path(cmd, &shim_dir);
+    cmd.env("PUPPETEER_BROKER_SOCK", &sock_path);
+    cmd.env("PUPPETEER_PROJECT_ID", project_id);
+    wire_git_config(cmd, &shim_dir.join("git-credential-puppeteer"));
+    wire_aws_config(app, db, cmd, project_id).await;
+    wire_azure_config(app, cmd);
+    Ok(())
+}
+
 /// Configure `git` for this run to use the Puppeteer credential helper via
 /// `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`. This is per-run
 /// and NEVER touches `~/.gitconfig` or system config.

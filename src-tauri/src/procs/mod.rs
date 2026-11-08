@@ -1,7 +1,7 @@
 //! Background process tracker.
 //!
 //! Every long-lived process Puppeteer spawns (run sidecars, warm translate / Focus AI
-//! sessions, probes, MCP tests, per-run ssh-agents) is registered here.
+//! sessions, probes, MCP tests, per-run ssh-agents, dev servers) is registered here.
 //! A periodic `ps` sample follows each one's whole tree — its process group plus
 //! every descendant by parent link, so children that `setsid()` out of the group
 //! are still found — and the list is persisted, so processes that outlive their
@@ -9,6 +9,7 @@
 //! visible and can be stopped.
 
 pub mod commands;
+pub mod dev_servers;
 pub mod ps;
 pub mod quit;
 
@@ -40,13 +41,15 @@ pub enum ProcKind {
     Probe,
     McpTest,
     SshAgent,
+    /// A project's dev server started from the Processes screen (`dev_servers`).
+    DevServer,
 }
 
 impl ProcKind {
     /// App plumbing (not user work): stopped silently on quit, auto-killed when
     /// orphaned.
     pub fn is_infra(self) -> bool {
-        self != ProcKind::Run
+        !matches!(self, ProcKind::Run | ProcKind::DevServer)
     }
 }
 
@@ -619,7 +622,7 @@ pub fn terminate_blocking(
 ///   useless without the app, and an ssh-agent holds decrypted keys;
 /// - an orphaned run's sidecar root is stopped (it would keep a turn running
 ///   with nobody listening); whatever else the run started stays listed for the
-///   user to decide.
+///   user to decide. An orphaned dev server is left whole for the user too.
 pub fn startup_sweep(tracker: &ProcTracker) {
     let Some(rows) = ps::snapshot() else { return };
     tracker.apply_sample(&rows);
@@ -634,6 +637,9 @@ pub fn startup_sweep(tracker: &ProcTracker) {
             doomed.extend(t.pids.iter().cloned());
             doomed_groups.extend(t.groups.iter().copied());
             tracker.forget(&t.id);
+            continue;
+        }
+        if t.kind != ProcKind::Run {
             continue;
         }
         let root = tracker.lock().entries.get(&t.id).map(|e| e.root_pid);

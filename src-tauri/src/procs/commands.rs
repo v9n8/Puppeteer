@@ -264,4 +264,5 @@ pub fn install(app: &tauri::App, app_data_dir: &std::path::Path) {
     super::start_sampler(app.handle().clone(), tracker.clone());
     app.manage(tracker);
     app.manage(super::quit::QuitState::default());
+    app.manage(super::dev_servers::DevServers::default());
 }

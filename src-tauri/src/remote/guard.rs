@@ -147,8 +147,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 /// audit (by name only — never their arguments): they take, mint, change or
 /// drop credentials, reach the secret notes vault, or write skill / agent /
 /// command links into a project's folders (agents and commands: their library
-/// files too), merge a Conductor worker's branch into a project, or write a
-/// schedule. `update_setting`
+/// files too), merge a Conductor worker's branch into a project, write a
+/// schedule, or start / stop a dev server. `update_setting`
 /// is audited too, with its key (see the relay handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
@@ -213,6 +213,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     "rewind_run",
     // Transcript export: writes a session's conversation to a file on this machine.
     "export_run_transcript",
+    // Dev servers: start a command the project's repo declares, or stop one.
+    "devserver_start",
+    "devserver_stop",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -664,6 +667,10 @@ mod tests {
             "check_update",
             "add_run_bookmark",
             "export_run_transcript",
+            "devserver_list",
+            "devserver_start",
+            "devserver_stop",
+            "devserver_logs",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -698,6 +705,8 @@ mod tests {
             "delete_schedule",
             "rewind_run",
             "export_run_transcript",
+            "devserver_start",
+            "devserver_stop",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -723,6 +732,8 @@ mod tests {
             "list_run_bookmarks",
             "add_run_bookmark",
             "delete_run_bookmark",
+            "devserver_list",
+            "devserver_logs",
         ] {
             assert!(!audited_command(name), "{name}");
         }

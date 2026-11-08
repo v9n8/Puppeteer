@@ -3,9 +3,10 @@
 // startup / quit prompts share. Kept free of Vue / Tauri / `@/` imports so the
 // helpers can be unit-tested with `node --test`.
 
-/** What spawned an entry. `run` is user work; every other kind is app plumbing. */
+/** What spawned an entry. `run` and `dev_server` are user work; every other kind is app plumbing. */
 export type ProcKind =
   | 'run'
+  | 'dev_server'
   | 'translate'
   | 'slack_translate'
   | 'focus_ai'

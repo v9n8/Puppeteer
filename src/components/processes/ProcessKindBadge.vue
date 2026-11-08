@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// What spawned a tracked process entry: a session (user work, primary tone) or
+// What spawned a tracked process entry: a session or dev server (user work, primary tone) or
 // one of Puppeteer's own helpers (neutral). Shared by the Processes screen and the
 // startup / quit prompts so a kind reads the same everywhere.
 import { useI18n } from 'vue-i18n'
@@ -11,7 +11,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <Badge :tone="kind === 'run' ? 'primary' : 'neutral'" size="xs" class="shrink-0">
+  <Badge :tone="kind === 'run' || kind === 'dev_server' ? 'primary' : 'neutral'" size="xs" class="shrink-0">
     {{ t(`processes.kind.${kind}`) }}
   </Badge>
 </template>

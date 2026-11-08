@@ -82,7 +82,7 @@
       "conductor": "Conductor",
       "conductor_worktree": "Own git worktree for each Conductor worker",
       "schedules": "Scheduled prompts (runs while you are away)",
-      "dev_servers": "Project dev servers (agent tools: list, start command, logs, stop)"
+      "dev_servers": "Project dev servers (.puppeteer/dev-servers.json): agent tools, and start / stop on the Processes screen"
     },
     "code_hosting": {
       "issue_pr_runs": "Runs from issues and PRs",
