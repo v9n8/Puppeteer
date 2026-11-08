@@ -6,6 +6,11 @@ run-name: Release ${{ github.ref_name }}
 # compile back to back inside one `tauri build --target universal-apple-darwin`),
 # then one job merges them with lipo and bundles.
 #
+# Signing: with the Apple secrets set (listed in the bundle job's "Check
+# signing secrets" step), the bundle job signs the app with the hardened
+# runtime, notarizes and staples both the .app and the .dmg, and fails unless
+# Gatekeeper accepts them. With none set it still ships an unsigned build.
+#
 # Rust cache: a tag run can only read caches saved on its own ref or on the
 # default branch, so release jobs never save; ci.yml's `release-cache` job
 # keeps the matching cache warm on main. The build jobs therefore restore
@@ -84,7 +89,8 @@ jobs:
   bundle:
     needs: build
     runs-on: macos-latest
-    timeout-minutes: 20
+    # Notarization waits on Apple's service twice (the .app, then the .dmg).
+    timeout-minutes: 60
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -136,8 +142,109 @@ jobs:
           chmod +x "$out/puppeteer"
           lipo -info "$out/puppeteer"
 
-      - name: Bundle app
+      # No secrets keeps releases working before the Apple account is set up;
+      # a partial set is a misconfiguration and fails rather than silently
+      # shipping unsigned.
+      - name: Check signing secrets
+        id: signing
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          names=(APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID)
+          missing=()
+          for name in "${names[@]}"; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif (( ${#missing[@]} == ${#names[@]} )); then
+            echo "::warning::No Apple signing secrets are set, so this release is not signed or notarized and Gatekeeper will block it on first open."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Apple signing secrets are only partly set; missing: ${missing[*]}"
+            exit 1
+          fi
+
+      # Separate from the signed step: Tauri treats an empty APPLE_CERTIFICATE
+      # as set and would fail importing it.
+      - name: Bundle app (unsigned)
+        if: steps.signing.outputs.enabled != 'true'
         run: pnpm tauri bundle --target universal-apple-darwin --bundles app,dmg --ci
+
+      # Tauri imports the certificate into a temporary keychain, signs the app
+      # with the hardened runtime and src-tauri/Entitlements.plist, notarizes
+      # and staples the .app, then signs (but does not notarize) the .dmg.
+      # Mach-O files under Resources are not re-signed: the only one, the
+      # Claude CLI in the sidecar's node_modules, ships signed by Anthropic.
+      - name: Bundle, sign and notarize app
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm tauri bundle --target universal-apple-darwin --bundles app,dmg --ci
+
+      - name: Notarize disk image
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          dmgs=(src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          if [[ ${#dmgs[@]} -ne 1 || ! -f "${dmgs[0]}" ]]; then
+            echo "::error::expected exactly one .dmg, found: ${dmgs[*]}"
+            exit 1
+          fi
+          auth=(--apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID")
+          result=$(xcrun notarytool submit "${dmgs[0]}" "${auth[@]}" --wait --timeout 30m --output-format json) || true
+          echo "$result"
+          status=$(jq -r '.status // empty' <<<"$result" 2>/dev/null || true)
+          if [[ "$status" != Accepted ]]; then
+            id=$(jq -r '.id // empty' <<<"$result" 2>/dev/null || true)
+            if [[ -n "$id" ]]; then
+              xcrun notarytool log "$id" "${auth[@]}" || true
+            fi
+            echo "::error::notarization of ${dmgs[0]} ended with status '${status:-unknown}'"
+            exit 1
+          fi
+          xcrun stapler staple -v "${dmgs[0]}"
+
+      # Fails the release unless Gatekeeper would open both downloads. spctl
+      # accepts everything while assessments are off, so the source line is
+      # required, not just the exit code.
+      - name: Verify signatures
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bundle=src-tauri/target/universal-apple-darwin/release/bundle
+          app="$bundle/macos/Puppeteer.app"
+          dmgs=("$bundle"/dmg/*.dmg)
+          dmg="${dmgs[0]}"
+          if ! spctl --status | grep -q 'assessments enabled'; then
+            sudo spctl --global-enable
+          fi
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 | grep -Fx "TeamIdentifier=$APPLE_TEAM_ID"
+          xcrun stapler validate "$app"
+          out=$(spctl --assess --type execute --verbose=4 "$app" 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          grep -Fxq 'source=Notarized Developer ID' <<<"$out"
+          codesign --verify --strict --verbose=2 "$dmg"
+          xcrun stapler validate "$dmg"
+          out=$(spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg" 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          grep -Fxq 'source=Notarized Developer ID' <<<"$out"
 
       - name: Collect release assets
         run: |
