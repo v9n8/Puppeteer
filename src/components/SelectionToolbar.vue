@@ -60,6 +60,13 @@ const ICONS = {
   saveTodo: ListTodo,
 } as const
 
+// Quote names its target on the button itself, so a quote never lands in a
+// session the user did not mean.
+function label(action: SelectionAction): string {
+  if (action === 'quote') return t('selection.quote', { target: bar.value?.quoteTarget?.label ?? '' })
+  return t(`selection.${action}`)
+}
+
 function title(action: SelectionAction): string {
   if (action === 'quote') return t('selection.quoteTitle', { target: bar.value?.quoteTarget?.label ?? '' })
   return t(`selection.${action}Title`)
@@ -181,8 +188,8 @@ onUnmounted(() => {
           @mousedown.prevent
           @click="run(action)"
         >
-          <component :is="ICONS[action]" class="h-3 w-3" :stroke-width="1.75" />
-          {{ t(`selection.${action}`) }}
+          <component :is="ICONS[action]" class="h-3 w-3 shrink-0" :stroke-width="1.75" />
+          <span class="max-w-[14rem] truncate">{{ label(action) }}</span>
         </button>
       </template>
     </div>

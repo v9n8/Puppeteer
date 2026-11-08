@@ -52,6 +52,7 @@ import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { useRunLinkedItems } from '@/composables/useRunLinkedItems'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
+import { appendQuote } from '@/lib/quote'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import StreamLog from '@/components/StreamLog.vue'
@@ -1645,11 +1646,11 @@ function openQuickCapture(kind: ItemKind) {
 const linked = useRunLinkedItems(currentRunId)
 
 // Selected text in the output (live or history) gets the shared selection
-// toolbar: translate it, copy it as the markdown it was rendered from, or keep
-// it as a note / todo filed under this run.
+// toolbar: quote it into this run's composer, translate it, copy it as the
+// markdown it was rendered from, or keep it as a note / todo filed under this run.
 const selectionSurface = useSelectionSurface({
   el: [outputEl, historyEl],
-  allow: { translate: true, copyMd: true, saveNote: true, saveTodo: true },
+  allow: { quote: true, translate: true, copyMd: true, saveNote: true, saveTodo: true },
   markdownSource: () => {
     if (isViewingHistory.value) {
       return historyHasStream.value ? transcriptMarkdownSources(historyEntries.value) : [viewingLog.value]
@@ -1657,6 +1658,20 @@ const selectionSurface = useSelectionSurface({
     return liveHasStream.value
       ? transcriptMarkdownSources(liveEntries.value)
       : [liveOutputLines.value.map(l => l.text).join('\n')]
+  },
+  // The composer's text is this run's draft (persisted by the draft watcher).
+  // No target while a send is in flight: the send clears the composer when it
+  // returns, which would drop a quote added meanwhile.
+  quoteTarget: () => {
+    const run = currentRun.value
+    if (!run || sendingFollowUp.value) return null
+    return {
+      label: runLabel(run),
+      append: (text: string) => {
+        followUpInput.value = appendQuote(followUpInput.value, text)
+        focusComposer()
+      },
+    }
   },
   capture: () => ({
     context: captureContext(),

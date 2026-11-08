@@ -1,5 +1,5 @@
 {
-  "quote": "Quote",
+  "quote": "Quote → {target}",
   "quoteTitle": "Quote the selection into {target}",
   "translate": "Translate",
   "translateTitle": "Translate the selection",
