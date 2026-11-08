@@ -1610,7 +1610,7 @@ pub struct RunLogRevision {
 }
 
 /// `(size, mtime_ns)` for a file, or `None` when it doesn't exist.
-fn stat_file(path: &Path) -> Option<(u64, i64)> {
+pub(crate) fn stat_file(path: &Path) -> Option<(u64, i64)> {
     let md = fs::metadata(path).ok()?;
     if !md.is_file() {
         return None;
@@ -1625,7 +1625,7 @@ fn stat_file(path: &Path) -> Option<(u64, i64)> {
 }
 
 /// Row fields every log-resolving command needs.
-struct RunLogRow {
+pub(crate) struct RunLogRow {
     output_path: Option<String>,
     engine: Option<String>,
     session_id: Option<String>,
@@ -1633,7 +1633,7 @@ struct RunLogRow {
     project_path: String,
 }
 
-async fn fetch_run_log_row(db: &Db, run_id: &str) -> Result<RunLogRow, String> {
+pub(crate) async fn fetch_run_log_row(db: &Db, run_id: &str) -> Result<RunLogRow, String> {
     use sqlx::Row;
     let row = sqlx::query(
         "SELECT r.output_path, r.engine, r.session_id, r.transcript_path, p.path as project_path
@@ -1678,7 +1678,7 @@ fn resolve_transcript(row: &RunLogRow) -> Option<PathBuf> {
 /// `get_run_log` uses. Unlike the old `get_run_log_path`, emptiness is checked
 /// with `metadata().len()` instead of reading the whole file in — that check
 /// alone used to pull ~29MB off disk just to decide which path to use.
-fn resolve_log_source(row: &RunLogRow, run_id: &str) -> Option<(LogSource, PathBuf)> {
+pub(crate) fn resolve_log_source(row: &RunLogRow, run_id: &str) -> Option<(LogSource, PathBuf)> {
     let conv = Path::new(&row.project_path)
         .join(".puppeteer")
         .join("runs")
@@ -2340,7 +2340,7 @@ pub struct RunLogSearch {
 /// The text a reader sees of a record: user prompts and assistant replies.
 /// Tool input / output and thinking are left out — they are mostly file bodies,
 /// and shown collapsed, so a hit there could not be highlighted after the jump.
-fn record_texts(v: &serde_json::Value) -> Vec<&str> {
+pub(crate) fn record_texts(v: &serde_json::Value) -> Vec<&str> {
     use serde_json::Value;
     let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
     if ty != "user" && ty != "assistant" {
@@ -2360,7 +2360,7 @@ fn record_texts(v: &serde_json::Value) -> Vec<&str> {
 /// Byte range of the first match of `needle` in `hay`. Case-insensitive
 /// matching folds char by char, so the range is always in `hay`'s own bytes
 /// (lowercasing the whole string can change its length, e.g. `İ`).
-fn find_match(hay: &str, needle: &str, case_sensitive: bool) -> Option<(usize, usize)> {
+pub(crate) fn find_match(hay: &str, needle: &str, case_sensitive: bool) -> Option<(usize, usize)> {
     if case_sensitive {
         return hay.find(needle).map(|i| (i, i + needle.len()));
     }
@@ -2387,7 +2387,7 @@ fn find_match(hay: &str, needle: &str, case_sensitive: bool) -> Option<(usize, u
 
 /// `text[start..end]` with up to [`LOG_SEARCH_CONTEXT_CHARS`] chars on each
 /// side, on one line, `…` marking a cut.
-fn match_snippet(text: &str, start: usize, end: usize) -> String {
+pub(crate) fn match_snippet(text: &str, start: usize, end: usize) -> String {
     let from = text[..start]
         .char_indices()
         .rev()

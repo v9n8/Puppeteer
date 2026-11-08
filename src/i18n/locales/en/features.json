@@ -44,7 +44,8 @@
       "core": "Chat, streaming, cancel / resume, permissions",
       "handoff": "Hand-off between Claude and Codex",
       "mirror_claude": "Mirror Claude CLI sessions",
-      "mirror_codex": "Mirror Codex CLI sessions"
+      "mirror_codex": "Mirror Codex CLI sessions",
+      "cross_session_search": "Search across sessions"
     },
     "text_tools": {
       "find_in_page": "Find in page",

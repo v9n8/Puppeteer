@@ -168,7 +168,12 @@ mod tests {
         seed(&db).await.unwrap();
         let r = rows(&db).await;
 
-        for id in ["text_tools.find_in_page", "text_tools.selection.quote", "text_tools.selection.copy_md"] {
+        for id in [
+            "text_tools.find_in_page",
+            "text_tools.selection.quote",
+            "text_tools.selection.copy_md",
+            "sessions.cross_session_search",
+        ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");
             assert!(crate::features::is_on(&db, id).await, "{id}");

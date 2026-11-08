@@ -65,7 +65,13 @@ pub static MODULES: &[Module] = &[
         id: "sessions",
         default: true,
         locked: true,
-        props: &[core("core"), on("handoff"), on("mirror_claude"), on("mirror_codex")],
+        props: &[
+            core("core"),
+            on("handoff"),
+            on("mirror_claude"),
+            on("mirror_codex"),
+            on("cross_session_search"),
+        ],
     },
     Module {
         id: "text_tools",
@@ -627,6 +633,7 @@ mod tests {
         for id in [
             runs::HANDOFF_FEATURE,
             runs::FIND_IN_PAGE_FEATURE,
+            crate::commands::session_search::FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,
             notes::FEATURE,

@@ -21,6 +21,7 @@ pub type Hook = fn(&AppHandle, &Change<'_>);
 const HOOKS: &[Hook] = &[
     crate::inbox_api::server::on_features_changed,
     crate::runs::session_watcher::on_features_changed,
+    crate::commands::session_search::on_features_changed,
     crate::remote::on_features_changed,
     crate::conductor::on_features_changed,
     crate::slack_threads::on_features_changed,

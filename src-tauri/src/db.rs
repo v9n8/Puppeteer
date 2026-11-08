@@ -142,4 +142,24 @@ mod tests {
             .unwrap();
         assert_eq!(left, 0);
     }
+
+    #[tokio::test]
+    async fn session_search_starts_empty_on_a_database_with_runs() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at) VALUES ('r1', 'p1', 'session', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+
+        // The backfill is the app's background catch-up, not the migration's.
+        for table in ["session_search_records", "session_search_runs"] {
+            let n: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}")).fetch_one(&db).await.unwrap();
+            assert_eq!(n, 0, "{table}");
+        }
+        // The old runs are still there and can still be deleted.
+        sqlx::query("DELETE FROM runs WHERE id = 'r1'").execute(&db).await.unwrap();
+    }
 }

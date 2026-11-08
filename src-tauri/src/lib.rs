@@ -249,6 +249,14 @@ pub fn run() {
                     }
                 });
             }
+            // Same, for the cross-session search index: backfills runs from
+            // before it and picks up logs changed while the app was closed.
+            {
+                let db = db.clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::session_search::catch_up(&db).await;
+                });
+            }
             // Background-process tracker: sweeps what a previous session left
             // behind, then follows every process Puppeteer spawns from here on.
             procs::commands::install(app, &app_data_dir);
@@ -598,6 +606,7 @@ pub fn run() {
             get_run_tool_records,
             get_run_user_records,
             search_run_log,
+            commands::session_search::search_sessions,
             rerun_run,
             respond_permission,
             list_pending_permissions,

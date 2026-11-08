@@ -612,6 +612,7 @@ mod tests {
             "search_run_log",
             "list_skill_allocation",
             "apply_skill",
+            "search_sessions",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -646,6 +647,7 @@ mod tests {
             "secret_vault_status",
             "secret_notes_list",
             "search_run_log",
+            "search_sessions",
         ] {
             assert!(!audited_command(name), "{name}");
         }

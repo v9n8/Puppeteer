@@ -44,7 +44,8 @@
       "core": "Chat, stream, huỷ / tiếp tục, quyền",
       "handoff": "Chuyển phiên giữa Claude và Codex",
       "mirror_claude": "Mirror session của Claude CLI",
-      "mirror_codex": "Mirror session của Codex CLI"
+      "mirror_codex": "Mirror session của Codex CLI",
+      "cross_session_search": "Tìm xuyên các session"
     },
     "text_tools": {
       "find_in_page": "Tìm trong trang",

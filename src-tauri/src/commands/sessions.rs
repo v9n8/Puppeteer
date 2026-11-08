@@ -466,6 +466,7 @@ pub(crate) async fn upsert_session_run_core(
             .bind(&id)
             .execute(db)
             .await;
+        crate::commands::session_search::refresh_run_later(db, &id);
         return Ok(SyncOutcome::Updated(id));
     }
 
@@ -541,6 +542,7 @@ pub(crate) async fn upsert_session_run_core(
     // Record the session's accumulated token usage so the imported history shows
     // in stats. Cost is estimated (the transcript has no SDK total_cost_usd).
     sync_run_usage(db, &new_id, project_id, project_name, engine, &parsed, &created_at).await;
+    crate::commands::session_search::refresh_run_later(db, &new_id);
 
     Ok(SyncOutcome::Imported(new_id))
 }

@@ -1244,6 +1244,9 @@ pub async fn drain_sidecar(
     if let Some(cst) = app.try_state::<crate::conductor::ConductorState>() {
         cst.notify_run_finished(run_id.clone());
     }
+
+    // The turn's log is final: make it findable from other sessions.
+    crate::commands::session_search::refresh_run(&db_pool, &run_id).await;
 }
 
 /// Grace window after a background task drains to 0 before the deferred

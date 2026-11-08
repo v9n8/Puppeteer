@@ -31,6 +31,7 @@ pub mod project_links;
 pub mod projects;
 pub mod rules;
 pub mod runs;
+pub mod session_search;
 pub mod sessions;
 pub mod settings;
 pub mod settings_backup;
