@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowDown, ArrowUp, Command, Eye, EyeOff, Pin, PinOff, RotateCcw } from 'lucide-vue-next'
 import { Button, Card, ToggleSwitch } from '@/components/ui'
-import { IS_MAC } from '@/lib/appMenu'
+import { IS_MAC, effectiveKeymap } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
 import {
   defaultPaletteConfig,
@@ -17,6 +17,7 @@ import {
   type PaletteConfig,
   type PaletteConfigPart,
 } from '@/lib/commandPalette'
+import { PALETTE_ACTION, formatAccelerator } from '@/lib/keymap'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { usePaletteItems } from '@/composables/usePaletteItems'
 import { useToast } from '@/composables/useToast'
@@ -27,7 +28,11 @@ const { items } = usePaletteItems()
 const { toast } = useToast()
 
 const config = computed(() => palette.config)
-const shortcut = IS_MAC ? '⌘K' : 'Ctrl+K'
+// Its keymap shortcut (Settings → Keyboard shortcuts), else the menu item.
+const shortcut = computed(() => {
+  const accel = effectiveKeymap().get(PALETTE_ACTION)
+  return accel ? formatAccelerator(accel, IS_MAC) : `${t('menu.view')} → ${t('menu.commandPalette')}`
+})
 
 // An id whose item is gone (a deleted project, a session not loaded yet) still
 // shows, by its id, so it can be unpinned or shown again.

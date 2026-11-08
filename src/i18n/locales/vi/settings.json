@@ -17,7 +17,8 @@
     "azure": "Tài khoản Azure",
     "focus": "Focus",
     "features": "Tính năng",
-    "palette": "Bảng lệnh nhanh"
+    "palette": "Bảng lệnh nhanh",
+    "keymap": "Phím tắt"
   },
   "devicesTabs": {
     "remote": "Điều khiển từ xa",

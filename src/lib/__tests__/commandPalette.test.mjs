@@ -8,7 +8,6 @@ import {
   foldText,
   fuzzyScore,
   hideItem,
-  isPaletteShortcut,
   moveGroup,
   paletteSections,
   parsePaletteConfig,
@@ -194,17 +193,4 @@ test('fuzzyScore: substrings beat scattered letters; word starts and early hits 
   assert.ok(fuzzyScore('cai', 'Cài đặt') > 0, 'accents ignored in the text')
   assert.ok(fuzzyScore('cài', 'Cai dat') > 0, 'and in the query')
   assert.equal(fuzzyScore('review missing', 'Review code'), null, 'every word must match')
-})
-
-test('isPaletteShortcut: the platform modifier + K, nothing else', () => {
-  const key = (k, mods = {}) => ({ key: k, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods })
-  assert.ok(isPaletteShortcut(key('k', { metaKey: true }), true))
-  assert.ok(isPaletteShortcut(key('K', { metaKey: true }), true))
-  assert.ok(!isPaletteShortcut(key('k', { ctrlKey: true }), true), 'Ctrl+K edits text on macOS')
-  assert.ok(isPaletteShortcut(key('k', { ctrlKey: true }), false))
-  assert.ok(!isPaletteShortcut(key('k', { metaKey: true }), false))
-  assert.ok(!isPaletteShortcut(key('k', { metaKey: true, shiftKey: true }), true))
-  assert.ok(!isPaletteShortcut(key('k', { metaKey: true, altKey: true }), true))
-  assert.ok(!isPaletteShortcut(key('k'), true))
-  assert.ok(!isPaletteShortcut(key('j', { metaKey: true }), true))
 })

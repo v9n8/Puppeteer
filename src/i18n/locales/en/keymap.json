@@ -1,0 +1,17 @@
+{
+  "title": "Keyboard shortcuts",
+  "help": "Shortcuts of the menu bar's items, shown next to them in the menu. A change applies at once. System keys such as {quit}, {close} and {minimize} can't be used.",
+  "none": "None",
+  "change": "Change",
+  "remove": "Remove shortcut",
+  "reset": "Restore default",
+  "resetAll": "Restore defaults",
+  "recording": "Press the new keys… (Esc to cancel)",
+  "cancel": "Cancel",
+  "problem": {
+    "invalid": "That key can't be part of a shortcut. Use a letter, a digit, a punctuation key or F1–F24.",
+    "needsModifier": "Hold {mod} too, so the shortcut doesn't fire while typing.",
+    "reserved": "{keys} belongs to the system or to text editing, so it can't be used.",
+    "taken": "{keys} is already the shortcut of “{action}”. Change or remove that one first."
+  }
+}

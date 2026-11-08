@@ -1,0 +1,17 @@
+{
+  "title": "Phím tắt",
+  "help": "Phím tắt của các mục trên thanh menu, hiện ngay cạnh mục trong menu. Đổi xong là áp dụng luôn. Không dùng được phím của hệ thống như {quit}, {close} và {minimize}.",
+  "none": "Không có",
+  "change": "Đổi",
+  "remove": "Bỏ phím tắt",
+  "reset": "Về mặc định",
+  "resetAll": "Khôi phục mặc định",
+  "recording": "Bấm tổ hợp phím mới… (Esc để huỷ)",
+  "cancel": "Huỷ",
+  "problem": {
+    "invalid": "Phím này không dùng làm phím tắt được. Hãy dùng chữ cái, chữ số, phím dấu câu hoặc F1–F24.",
+    "needsModifier": "Giữ thêm {mod} để phím tắt không chạy khi đang gõ chữ.",
+    "reserved": "{keys} là phím của hệ thống hoặc của thao tác soạn văn bản nên không dùng được.",
+    "taken": "{keys} đang là phím tắt của “{action}”. Hãy đổi hoặc bỏ phím đó trước."
+  }
+}

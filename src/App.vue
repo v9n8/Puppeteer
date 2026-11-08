@@ -412,7 +412,8 @@ function onGlobalNavKeyGuard(e: KeyboardEvent) {
 }
 
 // ⌘F opens the find bar of the area being read, in every window but the vault.
-// No native menu accelerator: lib/appMenu.ts keeps only one.
+// Not in the keymap: a menu accelerator only reaches the main window, so ⌘F is
+// one of the keys lib/keymap.ts refuses to give an action.
 useFindShortcut()
 
 // The sidebar is gone either because the user hid it (any route, persisted) or
@@ -482,8 +483,9 @@ let unbindMenuActions: (() => void) | null = null
 let unlistenMenu: UnlistenFn | null = null
 
 // Labels carry both the language AND the current layout state ("Hide" vs "Show
-// Sidebar"), and New Session is greyed out unless a project screen is mounted, so
-// the menu is rebuilt whenever any of those moves. Watching the i18n
+// Sidebar"), New Session is greyed out unless a project screen is mounted, and
+// the items carry the keymap's shortcuts, so the menu is rebuilt whenever any of
+// those moves. Watching the i18n
 // locale rather than the settings row avoids rebuilding with stale labels: the
 // setting is what *drives* the switch, `locale` is what has actually applied.
 watch(
@@ -494,6 +496,7 @@ watch(
       uiLayout.focusMode,
       isMenuActionBound('file.newSession'),
       features.tree,
+      appSettings.settings?.keymap_config,
     ] as const,
   () => {
     if (isPopoutWindow || isSessionWindow) return

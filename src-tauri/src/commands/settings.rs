@@ -74,6 +74,10 @@ pub struct AppSettings {
     /// `palette.config` row as JSON ("" = defaults). The UI owns the shape
     /// (`src/lib/commandPalette.ts`); the backend only round-trips the string.
     pub palette_config: String,
+    /// Shortcuts of the native menu's actions the user changed, stored under the
+    /// `keymap.config` row as JSON ("" = defaults). The UI owns the shape and the
+    /// checks (`src/lib/keymap.ts`); the backend only round-trips the string.
+    pub keymap_config: String,
 }
 
 /// `AppSettings` keys carried by a settings backup. `claude_path` / `codex_path` are left out:
@@ -119,8 +123,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
 ];
 
 /// Key prefixes whose every row travels in a settings backup, for UI preferences stored as a
-/// family of keys (`palette.config`, …).
-pub const PORTABLE_SETTING_PREFIXES: &[&str] = &["palette."];
+/// family of keys (`palette.config`, `keymap.config`, …).
+pub const PORTABLE_SETTING_PREFIXES: &[&str] = &["palette.", "keymap."];
 
 /// Whether a settings backup carries `key`: [`PORTABLE_SETTING_KEYS`], the keys under
 /// [`PORTABLE_SETTING_PREFIXES`] and every key of the feature registry (`feature.*` and the
@@ -168,6 +172,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         quit_background_policy: "ask".to_string(),
         whats_new_seen_version: String::new(),
         palette_config: String::new(),
+        keymap_config: String::new(),
     };
 
     for row in rows {
@@ -207,6 +212,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "quit_background_policy" => settings.quit_background_policy = value,
             "whats_new_seen_version" => settings.whats_new_seen_version = value,
             "palette.config" => settings.palette_config = value,
+            "keymap.config" => settings.keymap_config = value,
             _ => {}
         }
     }

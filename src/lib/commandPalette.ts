@@ -243,18 +243,3 @@ export function fuzzyScore(query: string, text: string): number | null {
   }
   return total
 }
-
-// ── Shortcut ────────────────────────────────────────────────────────────────
-
-/**
- * ⌘K on macOS, Ctrl+K elsewhere. Only the platform's own modifier: Ctrl+K in a
- * macOS text field is "delete to end of line".
- */
-export function isPaletteShortcut(
-  e: { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
-  isMac: boolean,
-): boolean {
-  if (e.shiftKey || e.altKey) return false
-  const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
-  return mod && (e.key === 'k' || e.key === 'K')
-}

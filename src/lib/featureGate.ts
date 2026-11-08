@@ -86,7 +86,7 @@ export function routeFeature(path: string, routes: readonly GatedRoute[]): strin
 
 /**
  * App-menu actions (lib/appMenu, also run by the tray's quick actions) that open
- * a gated window. `go.<path>` actions follow their route instead.
+ * a gated window or tool. `go.<path>` actions follow their route instead.
  */
 export const MENU_ACTION_FEATURES: Readonly<Record<string, string>> = {
   'file.newTodo': 'productivity.todos',
@@ -95,6 +95,7 @@ export const MENU_ACTION_FEATURES: Readonly<Record<string, string>> = {
   'window.noteList': 'productivity.notes',
   'window.secretNotes': 'security.secret_vault',
   'window.slackThreads': 'integrations.slack',
+  'view.commandPalette': 'app.command_palette',
 }
 
 /** The feature an app-menu action needs, if any. */

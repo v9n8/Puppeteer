@@ -39,5 +39,6 @@
   "reportIssue": "Report an Issue…",
   "openLogs": "Open Logs Folder",
   "developer": "Developer",
-  "zoom": "Zoom"
+  "zoom": "Zoom",
+  "commandPalette": "Command Palette…"
 }

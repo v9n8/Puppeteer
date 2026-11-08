@@ -1,18 +1,21 @@
 <script setup lang="ts">
-// Command palette (⌘K / Ctrl+K, prop `app.command_palette`), main window only.
-// Lists what usePaletteItems offers, laid out by the user's config (pinned
-// first, then the groups in their order) and filtered by lib/commandPalette's
-// accent-insensitive fuzzy search. Pin / hide act on the item's id.
+// Command palette (⌘K / Ctrl+K by default, prop `app.command_palette`), main
+// window only. Lists what usePaletteItems offers, laid out by the user's config
+// (pinned first, then the groups in their order) and filtered by
+// lib/commandPalette's accent-insensitive fuzzy search. Pin / hide act on the
+// item's id.
 //
-// No native menu accelerator: the shortcut is caught here, like ⌘F
-// (usePageFind `useFindShortcut`).
+// Opened by the View menu item `view.commandPalette`, whose shortcut is in the
+// keymap (lib/keymap) and fired by the OS. Without the native menu (a browser)
+// the same shortcut is caught here instead.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EyeOff, Pin, PinOff, Search } from 'lucide-vue-next'
 import { Modal } from '@/components/ui'
-import { IS_MAC } from '@/lib/appMenu'
+import { IS_MAC, hasNativeMenu, menuAccelerator, registerMenuAction } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
-import { hideItem, isPaletteShortcut, paletteSections, togglePinned } from '@/lib/commandPalette'
+import { hideItem, paletteSections, togglePinned } from '@/lib/commandPalette'
+import { PALETTE_ACTION, matchesAccelerator } from '@/lib/keymap'
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -84,17 +87,24 @@ function onInputKeydown(e: KeyboardEvent) {
   }
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.defaultPrevented || e.isComposing || !isPaletteShortcut(e, IS_MAC)) return
+function toggle() {
   if (open.value) {
-    e.preventDefault()
     close()
     return
   }
   // Not over another dialog: it owns the keyboard.
   if (document.querySelector('.ui-backdrop')) return
-  e.preventDefault()
   show()
+}
+
+// With the native menu its accelerator fires instead: handling the key here
+// too would open and close the palette on one press.
+function onKeydown(e: KeyboardEvent) {
+  if (hasNativeMenu() || e.defaultPrevented || e.isComposing) return
+  const accel = menuAccelerator(PALETTE_ACTION)
+  if (!accel || !matchesAccelerator(e, accel, IS_MAC)) return
+  e.preventDefault()
+  toggle()
 }
 
 watch(query, () => {
@@ -107,8 +117,15 @@ watch(active, (i) => {
   rowEls.value[i]?.scrollIntoView({ block: 'nearest' })
 })
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+let unbindMenuAction: (() => void) | null = null
+onMounted(() => {
+  unbindMenuAction = registerMenuAction(PALETTE_ACTION, toggle)
+  window.addEventListener('keydown', onKeydown)
+})
+onBeforeUnmount(() => {
+  unbindMenuAction?.()
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>

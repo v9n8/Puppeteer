@@ -18,6 +18,7 @@ import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
 import FeaturesSettings from '@/components/FeaturesSettings.vue'
 import CommandPaletteSettings from '@/components/CommandPaletteSettings.vue'
+import KeymapSettings from '@/components/KeymapSettings.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useDragSort } from '@/composables/useDragSort'
@@ -2407,6 +2408,11 @@ watch(() => settings.value.language, (v) => {
         <!-- Command palette (⌘K): groups, pins, hidden items. -->
         <div v-if="!loading && activeSection === 'palette'" class="max-w-lg">
           <CommandPaletteSettings />
+        </div>
+
+        <!-- Shortcuts of the native menu's actions (lib/keymap). -->
+        <div v-if="!loading && activeSection === 'keymap'" class="max-w-lg">
+          <KeymapSettings />
         </div>
       </div>
     </div>

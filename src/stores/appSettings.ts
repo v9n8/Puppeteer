@@ -42,6 +42,8 @@ export interface AppSettings {
   whats_new_seen_version: string
   /** Command palette layout as JSON (the `palette.config` row); parse with `parsePaletteConfig`. */
   palette_config: string
+  /** Menu shortcuts the user changed, as JSON (the `keymap.config` row); parse with `parseKeymap`. */
+  keymap_config: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {

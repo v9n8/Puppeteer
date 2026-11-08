@@ -824,6 +824,9 @@ mod tests {
             "featured",
             // Command palette layout: a UI preference, like `saved_prompts`.
             "palette.config",
+            // Menu shortcuts: a UI preference too; a system key written there never
+            // reaches the menu (`src/lib/keymap.ts` drops it).
+            "keymap.config",
         ] {
             assert!(remote_may_set_setting(key), "{key}");
         }

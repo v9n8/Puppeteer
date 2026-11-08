@@ -17,7 +17,8 @@
     "azure": "Azure Accounts",
     "focus": "Focus",
     "features": "Features",
-    "palette": "Command Palette"
+    "palette": "Command Palette",
+    "keymap": "Keyboard Shortcuts"
   },
   "devicesTabs": {
     "remote": "Remote Control",

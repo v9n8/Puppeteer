@@ -5,6 +5,9 @@ import { i18n } from '@/i18n'
 import { NAV_ROUTES } from '@/lib/navigation'
 import { allowsFeature, filterByFeature, menuActionFeature, startsGroup } from '@/lib/featureGate'
 import { useFeaturesStore } from '@/stores/features'
+import { useAppSettingsStore } from '@/stores/appSettings'
+import { PALETTE_FEATURE } from '@/lib/commandPalette'
+import { PALETTE_ACTION, parseKeymap, resolveKeymap, type Keymap } from '@/lib/keymap'
 
 /**
  * Native menu bar (File / Edit / View / Go / Window / Help).
@@ -21,6 +24,10 @@ import { useFeaturesStore } from '@/stores/features'
  * Labels are built from vue-i18n, so `applyAppMenu()` must be re-run whenever
  * the language — or any state baked into the menu, like "Hide" vs "Show
  * Sidebar" or whether New Session is available — changes.
+ *
+ * Shortcuts come from the keymap (lib/keymap, Settings → Keyboard shortcuts) as
+ * accelerators on the items, so the OS fires them and the menu shows them; a
+ * changed shortcut needs `applyAppMenu()` too.
  */
 
 /** Event name emitted by the Rust side; must match `MENU_ACTION_EVENT`. */
@@ -28,8 +35,16 @@ const MENU_ACTION_EVENT = 'menu://action'
 
 export const IS_MAC = /mac/i.test(navigator.userAgent)
 
+interface ActionItem {
+  kind: 'item'
+  id: string
+  label: string
+  accelerator?: string
+  enabled?: boolean
+}
+
 type ItemSpec =
-  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
+  | ActionItem
   | { kind: 'predefined'; role: string; label?: string }
   | { kind: 'submenu'; label: string; items: ItemSpec[] }
   // Replaced in Rust by the open-window list the tray keeps (see tray.rs).
@@ -88,14 +103,8 @@ function goMenuItems(): ItemSpec[] {
 
 function buildSpec(state: MenuState): MenuSpec {
   const submenus: MenuSpec['submenus'] = []
-  const settings: ItemSpec = {
-    kind: 'item',
-    id: 'go./settings',
-    label: t('menu.settings'),
-    // The one accelerator kept on purpose: ⌘, for Settings is a platform
-    // convention, not an app-specific shortcut.
-    accelerator: 'CmdOrCtrl+,',
-  }
+  // ⌘, by default (lib/keymap): a platform convention for Settings.
+  const settings: ItemSpec = { kind: 'item', id: 'go./settings', label: t('menu.settings') }
   const about: ItemSpec = { kind: 'item', id: 'go./about', label: t('menu.about') }
 
   // macOS puts app-level items (about / settings / services / hide / quit) in a
@@ -161,9 +170,11 @@ function buildSpec(state: MenuState): MenuSpec {
   })
 
   // Layout toggles only; things that open a window live under Window.
+  const palette = gated([{ kind: 'item', id: PALETTE_ACTION, label: t('menu.commandPalette') }])
   submenus.push({
     label: t('menu.view'),
     items: [
+      ...(palette.length ? [...palette, SEPARATOR] : []),
       {
         kind: 'item',
         id: 'view.toggleSidebar',
@@ -225,10 +236,72 @@ function buildSpec(state: MenuState): MenuSpec {
   return { submenus }
 }
 
+function actionItems(items: readonly ItemSpec[]): ActionItem[] {
+  return items.flatMap((item) =>
+    item.kind === 'item' ? [item] : item.kind === 'submenu' ? actionItems(item.items) : [],
+  )
+}
+
+/** The user's shortcuts; with the keymap's prop off, every action keeps its default. */
+function keymapChanges(): Keymap {
+  if (!allowsFeature(useFeaturesStore().tree, PALETTE_FEATURE)) return {}
+  return parseKeymap(useAppSettingsStore().settings?.keymap_config)
+}
+
+let lastState: MenuState = { sidebarHidden: false, focusMode: false }
+let lastKeymap: ReadonlyMap<string, string> = new Map()
+let nativeMenu = false
+let acceleratorsSuspended = false
+
+/**
+ * The menu's actions, each once, in menu order (those whose feature is off are
+ * not in it). Reactive: follows the language, the feature switches and the
+ * screens that bind an action.
+ */
+export function menuActions(): { id: string; label: string }[] {
+  const seen = new Set<string>()
+  return actionItems(buildSpec(lastState).submenus.flatMap((s) => s.items))
+    .filter((item) => !seen.has(item.id) && seen.add(item.id))
+    .map(({ id, label }) => ({ id, label }))
+}
+
+/** The shortcut of each menu action, as the menu has them (lib/keymap `resolveKeymap`). Reactive. */
+export function effectiveKeymap(): Map<string, string> {
+  return resolveKeymap(menuActions().map((a) => a.id), keymapChanges(), IS_MAC)
+}
+
+/** The shortcut `id` had when the menu was last installed. */
+export function menuAccelerator(id: string): string | undefined {
+  return lastKeymap.get(id)
+}
+
+/** Whether the OS menu bar is installed, so its accelerators fire (false in a browser). */
+export function hasNativeMenu(): boolean {
+  return nativeMenu
+}
+
+/**
+ * Take every shortcut off the menu, or put them back. While Settings records a
+ * new shortcut, the keys must reach the page instead of firing an action.
+ */
+export function suspendAccelerators(on: boolean): void {
+  if (acceleratorsSuspended === on) return
+  acceleratorsSuspended = on
+  void applyAppMenu(lastState)
+}
+
 /** Install (or re-install) the menu for the given layout state. */
 export async function applyAppMenu(state: MenuState): Promise<void> {
+  lastState = state
+  const spec = buildSpec(state)
+  const items = actionItems(spec.submenus.flatMap((s) => s.items))
+  lastKeymap = resolveKeymap([...new Set(items.map((item) => item.id))], keymapChanges(), IS_MAC)
+  if (!acceleratorsSuspended) {
+    for (const item of items) item.accelerator = lastKeymap.get(item.id)
+  }
   try {
-    await invoke('set_app_menu', { spec: buildSpec(state) })
+    await invoke('set_app_menu', { spec })
+    nativeMenu = true
   } catch {
     // Outside the Tauri shell (browser dev) there is no menu bar to set.
   }

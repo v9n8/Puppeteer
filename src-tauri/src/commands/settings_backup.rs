@@ -3855,6 +3855,29 @@ mod tests {
         assert_eq!(setting(&target, "palette.config").await.as_deref(), Some(config));
     }
 
+    /// The keymap (`keymap.*`) travels too; the backend keeps the string as is.
+    #[tokio::test]
+    async fn keymap_keys_travel_in_a_backup() {
+        use crate::commands::settings::set_setting;
+        assert!(is_portable_setting("keymap.config"));
+        assert!(is_portable_setting("keymap.anything_later"));
+        for key in ["keymap.", "keymap", "keymaps.config"] {
+            assert!(!is_portable_setting(key), "{key}");
+        }
+
+        let db = test_db().await;
+        let config = r#"{"view.commandPalette":"CmdOrCtrl+Shift+P","go./settings":""}"#;
+        set_setting(&db, "keymap.config", config).await.unwrap();
+        let exported = collect_settings(&db).await.unwrap();
+        assert_eq!(exported.get("keymap.config").map(String::as_str), Some(config));
+
+        let target = test_db().await;
+        let mut report = ImportReport::default();
+        import_settings(&target, &settings_bundle(exported), true, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(setting(&target, "keymap.config").await.as_deref(), Some(config));
+    }
+
     #[tokio::test]
     async fn feature_switches_round_trip_through_a_backup() {
         use crate::commands::settings::set_setting;

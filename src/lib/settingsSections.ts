@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, FileText, Sparkles, Github, Gitlab, Cloud, CloudCog, Gauge, Radio,
-  HardDrive, UserCircle, Inbox, Target, ToggleRight, Command,
+  HardDrive, UserCircle, Inbox, Target, ToggleRight, Command, Keyboard,
 } from 'lucide-vue-next'
 
 /**
@@ -26,6 +26,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'inbox', labelKey: 'settings.sections.inbox', icon: Inbox },
   { id: 'prompts', labelKey: 'settings.sections.prompts', icon: FileText },
   { id: 'palette', labelKey: 'settings.sections.palette', icon: Command, feature: 'app.command_palette' },
+  { id: 'keymap', labelKey: 'settings.sections.keymap', icon: Keyboard, feature: 'app.command_palette' },
 ] as const
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]['id']
