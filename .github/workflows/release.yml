@@ -1,20 +1,28 @@
 name: release
 run-name: Release ${{ github.ref_name }}
 
-# Push a vX.Y.Z tag to build a universal macOS app and publish it as a GitHub
-# Release. Both architectures compile in parallel (aarch64 and x86_64 used to
-# compile back to back inside one `tauri build --target universal-apple-darwin`),
-# then one job merges them with lipo and bundles.
+# Push a vX.Y.Z tag to build Puppeteer for macOS (universal), Windows (NSIS and
+# MSI installers) and Linux (AppImage and .deb), and publish them as one GitHub
+# Release. On macOS both architectures compile in parallel (aarch64 and x86_64
+# used to compile back to back inside one `tauri build --target
+# universal-apple-darwin`), then one job merges them with lipo and bundles.
+#
+# macOS gates the release; Windows and Linux do not. While those ports are
+# being finished a failing Windows or Linux job leaves the run red and its
+# files (and latest.json entries) out of the release, but macOS still ships.
 #
 # Signing: with the Apple secrets set (listed in the bundle job's "Check
 # signing secrets" step), the bundle job signs the app with the hardened
 # runtime, notarizes and staples both the .app and the .dmg, and fails unless
 # Gatekeeper accepts them. With none set it still ships an unsigned build.
+# Windows follows the same rule with WINDOWS_CERTIFICATE (a base64 .pfx) and
+# WINDOWS_CERTIFICATE_PASSWORD for Authenticode.
 #
 # Auto-update: with the TAURI_SIGNING_PRIVATE_KEY secret set (and its public
-# key in src-tauri/tauri.conf.json, plugins.updater.pubkey), the bundle job
-# signs the .app.tar.gz and publishes latest.json, the manifest installed apps
-# read through releases/latest. With neither set the release has no manifest.
+# key in src-tauri/tauri.conf.json, plugins.updater.pubkey), every bundle job
+# signs its update files and the publish job writes latest.json, the manifest
+# installed apps read through releases/latest. With neither set the release
+# has no manifest.
 #
 # Rust cache: a tag run can only read caches saved on its own ref or on the
 # default branch, so release jobs never save; ci.yml's `release-cache` job
@@ -37,6 +45,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      updater: ${{ steps.updater.outputs.enabled }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,6 +73,29 @@ jobs:
             fi
           done
           exit "$status"
+
+      # Checked once here because every bundle job signs with the same key.
+      # The pubkey ships inside the app, so a key without it (or the reverse)
+      # would publish updates nobody can verify.
+      - name: Check updater signing key
+        id: updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          pubkey=$(jq -r '.plugins.updater.pubkey // ""' src-tauri/tauri.conf.json)
+          if [[ -n "$TAURI_SIGNING_PRIVATE_KEY" && -n "$pubkey" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif [[ -z "$TAURI_SIGNING_PRIVATE_KEY" && -z "$pubkey" ]]; then
+            echo "::warning::No updater signing key is set, so this release publishes no latest.json and installed apps are not offered it."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [[ -z "$pubkey" ]]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is set but plugins.updater.pubkey in src-tauri/tauri.conf.json is empty"
+            exit 1
+          else
+            echo "::error::plugins.updater.pubkey is set in src-tauri/tauri.conf.json but the TAURI_SIGNING_PRIVATE_KEY secret is missing"
+            exit 1
+          fi
 
   build:
     needs: validate
@@ -92,7 +125,7 @@ jobs:
           retention-days: 1
 
   bundle:
-    needs: build
+    needs: [validate, build]
     runs-on: macos-latest
     # Notarization waits on Apple's service twice (the .app, then the .dmg).
     timeout-minutes: 60
@@ -129,6 +162,26 @@ jobs:
       - name: Install sidecar dependencies
         working-directory: sidecar
         run: npm ci --omit=dev
+
+      # npm installs only the Claude CLI for this runner's architecture, and the
+      # SDK looks it up per architecture at run time, so the universal app
+      # needs the other one too or chat fails on that Mac. --ignore-scripts:
+      # the package's preinstall only enforces npm, which this already is.
+      - name: Add the Claude CLI for both architectures
+        run: |
+          set -euo pipefail
+          scope=sidecar/node_modules/@anthropic-ai
+          for cpu in arm64 x64; do
+            pkg=claude-agent-sdk-darwin-$cpu
+            if [[ ! -d "$scope/$pkg" ]]; then
+              tmp="$RUNNER_TEMP/sidecar-$cpu"
+              mkdir -p "$tmp"
+              cp sidecar/package.json sidecar/package-lock.json "$tmp/"
+              (cd "$tmp" && npm ci --omit=dev --cpu="$cpu" --ignore-scripts)
+              cp -R "$tmp/node_modules/@anthropic-ai/$pkg" "$scope/"
+            fi
+            file "$scope/$pkg/claude"
+          done
 
       - name: Download binaries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -175,28 +228,6 @@ jobs:
             exit 1
           fi
 
-      # Same rule for the update key. The pubkey ships inside the app, so a
-      # key without it (or the reverse) would publish updates nobody can verify.
-      - name: Check updater signing key
-        id: updater
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          pubkey=$(jq -r '.plugins.updater.pubkey // ""' src-tauri/tauri.conf.json)
-          if [[ -n "$TAURI_SIGNING_PRIVATE_KEY" && -n "$pubkey" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          elif [[ -z "$TAURI_SIGNING_PRIVATE_KEY" && -z "$pubkey" ]]; then
-            echo "::warning::No updater signing key is set, so this release publishes no latest.json and installed apps are not offered it."
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          elif [[ -z "$pubkey" ]]; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY is set but plugins.updater.pubkey in src-tauri/tauri.conf.json is empty"
-            exit 1
-          else
-            echo "::error::plugins.updater.pubkey is set in src-tauri/tauri.conf.json but the TAURI_SIGNING_PRIVATE_KEY secret is missing"
-            exit 1
-          fi
-
       # Separate from the signed step: Tauri treats an empty APPLE_CERTIFICATE
       # as set and would fail importing it.
       - name: Bundle app (unsigned)
@@ -206,8 +237,9 @@ jobs:
       # Tauri imports the certificate into a temporary keychain, signs the app
       # with the hardened runtime and src-tauri/Entitlements.plist, notarizes
       # and staples the .app, then signs (but does not notarize) the .dmg.
-      # Mach-O files under Resources are not re-signed: the only one, the
-      # Claude CLI in the sidecar's node_modules, ships signed by Anthropic.
+      # Mach-O files under Resources are not re-signed: the only ones, the
+      # arm64 and x64 Claude CLIs in the sidecar's node_modules, ship signed by
+      # Anthropic.
       - name: Bundle, sign and notarize app
         if: steps.signing.outputs.enabled == 'true'
         env:
@@ -285,39 +317,200 @@ jobs:
           ls -la assets
 
       # The updater installs the archive only if this signature matches the
-      # app's pubkey. One universal archive serves both architectures.
-      - name: Sign update and write latest.json
-        if: steps.updater.outputs.enabled == 'true'
+      # app's pubkey. One universal archive serves both architectures; the
+      # publish job writes latest.json from the .sig files.
+      - name: Sign update
+        if: needs.validate.outputs.updater == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri signer sign assets/Puppeteer_universal.app.tar.gz
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets-macos
+          path: assets/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Native builds: Tauri cannot cross-compile these from macOS. The binary is
+  # built first and bundled after, like macOS, so the Rust cache key matches
+  # what ci.yml's release-cache would save for the same target.
+  bundle-windows-linux:
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+          # The oldest supported runner, so the AppImage and .deb run on
+          # distributions with an older glibc too.
+          - os: ubuntu-22.04
+            name: linux
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Same rule as the Apple secrets: none ships unsigned installers (and
+      # SmartScreen warns on first run), a partial set fails.
+      - name: Check signing secrets
+        id: signing
+        if: runner.os == 'Windows'
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          names=(WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD)
+          missing=()
+          for name in "${names[@]}"; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif (( ${#missing[@]} == ${#names[@]} )); then
+            echo "::warning::No Windows signing secrets are set, so the installers are not Authenticode-signed and SmartScreen will warn on first run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Windows signing secrets are only partly set; missing: ${missing[*]}"
+            exit 1
+          fi
+
+      # Tauri v2 prerequisites, plus libdbus for keyring's Secret Service backend.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential file pkg-config libssl-dev libdbus-1-dev libxdo-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Build binary
+        uses: ./.github/actions/build-macos-binary
+        with:
+          target: ${{ matrix.target }}
+          save-cache: 'false'
+
+      - name: Install sidecar dependencies
+        working-directory: sidecar
+        run: npm ci --omit=dev
+
+      # Tauri signs with a certificate from the user store, found by
+      # thumbprint: the app binary, then the NSIS and MSI installers.
+      - name: Import signing certificate
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          $config = @{ bundle = @{ windows = @{
+            certificateThumbprint = $cert.Thumbprint
+            digestAlgorithm = 'sha256'
+            timestampUrl = 'http://timestamp.digicert.com'
+          } } }
+          $config | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $env:RUNNER_TEMP 'signing.json')
+
+      - name: Bundle app
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+          SIGN: ${{ steps.signing.outputs.enabled }}
+        run: |
+          set -euo pipefail
+          args=(--target "$TARGET" --bundles "$BUNDLES" --ci)
+          if [[ "$SIGN" == true ]]; then
+            args+=(--config "$RUNNER_TEMP/signing.json")
+          fi
+          pnpm tauri bundle "${args[@]}"
+
+      - name: Collect release assets
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          out="$PWD/assets"
+          mkdir -p "$out"
+          cd "src-tauri/target/$TARGET/release/bundle"
+          take() {
+            if (( $# != 1 )); then
+              echo "::error::expected exactly one bundle file, found $#: $*"
+              exit 1
+            fi
+            cp "$1" "$out/"
+          }
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            take nsis/*-setup.exe
+            take msi/*.msi
+          else
+            take appimage/*.AppImage
+            take deb/*.deb
+          fi
+          ls -la "$out"
+
+      # Fails the release unless Windows accepts the signature chain.
+      - name: Verify signatures
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in Get-ChildItem assets) {
+            $sig = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Output "$($file.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') {
+              Write-Output "::error::$($file.Name) is not validly signed ($($sig.Status))"
+              exit 1
+            }
+          }
+
+      # The installers themselves are the update files: the updater runs the
+      # NSIS or MSI installer, replaces the AppImage, or installs the .deb,
+      # whichever matches how the app was installed.
+      - name: Sign updates
+        if: needs.validate.outputs.updater == 'true'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          archive=Puppeteer_universal.app.tar.gz
-          pnpm tauri signer sign "assets/$archive"
-          jq -n \
-            --arg version "${GITHUB_REF_NAME#v}" \
-            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$archive" \
-            --rawfile sig "assets/$archive.sig" \
-            '($sig | gsub("\\s"; "")) as $signature
-             | {version: $version, pub_date: $pub_date,
-                platforms: {"darwin-aarch64": {signature: $signature, url: $url},
-                            "darwin-x86_64": {signature: $signature, url: $url}}}' \
-            > assets/latest.json
-          cat assets/latest.json
+          for file in assets/*; do
+            pnpm tauri signer sign "$file"
+          done
 
       - name: Upload release assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-assets
+          name: release-assets-${{ matrix.name }}
           path: assets/
           if-no-files-found: error
           retention-days: 1
 
   # The only job with write access; it runs no project or third-party code.
+  # Runs once macOS is bundled even if Windows or Linux failed (see the top).
   publish:
-    needs: bundle
+    needs: [validate, bundle, bundle-windows-linux]
+    if: ${{ !cancelled() && needs.bundle.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -326,8 +519,51 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: release-assets
+          pattern: release-assets-*
+          merge-multiple: true
           path: assets
+
+      # Keys are `{os}-{arch}-{installer}`, which the updater tries first so
+      # an MSI or .deb install updates with its own format, then `{os}-{arch}`.
+      - name: Write latest.json
+        if: needs.validate.outputs.updater == 'true'
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          platforms='{}'
+          for sig in assets/*.sig; do
+            name=$(basename "$sig" .sig)
+            case "$name" in
+              *.app.tar.gz) keys=(darwin-aarch64 darwin-x86_64) ;;
+              *-setup.exe) keys=(windows-x86_64 windows-x86_64-nsis) ;;
+              *.msi) keys=(windows-x86_64-msi) ;;
+              *.AppImage) keys=(linux-x86_64 linux-x86_64-appimage) ;;
+              *.deb) keys=(linux-x86_64-deb) ;;
+              *) echo "::error::no updater platform for $name"; exit 1 ;;
+            esac
+            for key in "${keys[@]}"; do
+              platforms=$(jq \
+                --arg key "$key" \
+                --arg url "https://github.com/$REPO/releases/download/$TAG/$name" \
+                --rawfile sig "$sig" \
+                '. + {($key): {signature: ($sig | gsub("\\s"; "")), url: $url}}' <<<"$platforms")
+            done
+          done
+          for key in darwin-aarch64 windows-x86_64 linux-x86_64; do
+            if ! jq -e --arg key "$key" 'has($key)' <<<"$platforms" >/dev/null; then
+              echo "::warning::latest.json has no $key entry, so those installs are not offered this update."
+            fi
+          done
+          jq -n \
+            --arg version "${TAG#v}" \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson platforms "$platforms" \
+            '{version: $version, pub_date: $pub_date, platforms: $platforms}' \
+            > assets/latest.json
+          cat assets/latest.json
 
       - name: Publish GitHub Release
         env:
@@ -342,5 +578,5 @@ jobs:
             gh release create "$TAG" assets/* \
               --verify-tag \
               --title "Puppeteer $TAG" \
-              --notes "Download the .dmg from the assets below to install."
+              --notes "Download the installer for your system from the assets below: the .dmg for macOS, the -setup.exe or .msi for Windows, the .AppImage or .deb for Linux."
           fi

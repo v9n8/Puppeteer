@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url'
 const sidecarDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'sidecar')
 const scope = join(sidecarDir, 'node_modules', '@anthropic-ai')
 const sdk = join(scope, 'claude-agent-sdk', 'package.json')
-const nativeCli = join(scope, `claude-agent-sdk-${process.platform}-${process.arch}`, 'claude')
+// The SDK looks for `claude.exe` on Windows.
+const cliName = process.platform === 'win32' ? 'claude.exe' : 'claude'
+const nativeCli = join(scope, `claude-agent-sdk-${process.platform}-${process.arch}`, cliName)
 
 const ready = () => existsSync(sdk) && existsSync(nativeCli)
 
