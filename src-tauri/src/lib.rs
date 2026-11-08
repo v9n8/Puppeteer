@@ -671,6 +671,8 @@ pub fn run() {
             conductor::commands::convert_run_to_conductor,
             conductor::commands::get_conductor_detail,
             conductor::commands::set_conductor_max_workers,
+            conductor::commands::conductor_worker_diff,
+            conductor::commands::conductor_worker_merge,
             get_usage_stats,
             translate_text,
             cancel_translate,

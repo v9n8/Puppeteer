@@ -142,8 +142,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 /// audit (by name only — never their arguments): they take, mint, change or
 /// drop credentials, reach the secret notes vault, or write skill / agent /
 /// command links into a project's folders (agents and commands: their library
-/// files too). `update_setting` is audited too, with its key (see the relay
-/// handler).
+/// files too), or merge a Conductor worker's branch into a project. `update_setting`
+/// is audited too, with its key (see the relay handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
     "create_github_account",
@@ -198,6 +198,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "delete_library_item",
     "apply_library_item",
     "remove_library_item_from_project",
+    // Conductor: merging a worker's branch commits into the project's repository.
+    "conductor_worker_merge",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -638,6 +640,8 @@ mod tests {
             "search_sessions",
             "list_library_items",
             "apply_library_item",
+            "conductor_worker_diff",
+            "conductor_worker_merge",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -667,6 +671,7 @@ mod tests {
             "delete_library_item",
             "apply_library_item",
             "remove_library_item_from_project",
+            "conductor_worker_merge",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -684,6 +689,7 @@ mod tests {
             "list_library_items",
             "get_library_item",
             "get_applied_library_items",
+            "conductor_worker_diff",
         ] {
             assert!(!audited_command(name), "{name}");
         }

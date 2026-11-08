@@ -66,6 +66,11 @@ You control workers with these MCP tools (server `conductor`):
 - session_send(worker_id, text) -> give a worker a follow-up turn.
 - session_cancel(worker_id) -> stop a worker.
 
+Worktrees: in a git project a worker may get its own git worktree on its own
+branch (`branch` in the session_spawn result). Its changes then stay on that
+branch and do NOT appear in your folder until the human reviews the worker's
+diff and merges it from the app. Say which workers have changes to merge.
+
 Permissions: a worker that needs approval for a tool is answered by the human via
 the normal permission drawer (shown in this session). You do not handle
 worker permissions yourself; if a worker is blocked waiting for approval it will
@@ -674,6 +679,7 @@ mod tests {
             "awaiting_permission",
             "AUTOMATICALLY RESUMED",
             "max-worker limit",
+            "own git worktree",
         ] {
             assert!(p.contains(needle), "framing lost: {needle}");
         }

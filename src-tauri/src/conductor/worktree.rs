@@ -13,12 +13,18 @@
 //! Its branch is deleted only when merged, so committed work is never lost.
 //! A cancelled worker that is resumed later gets its worktree back
 //! ([`launch_dir`]).
+//!
+//! The human reviews a worker's changes ([`diff`]) and merges its branch into
+//! the project's current branch ([`merge`]). A merge that conflicts is aborted
+//! and reported: nothing is resolved for the user.
 
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
+
+use serde::Serialize;
 
 use crate::db::Db;
 
@@ -46,7 +52,20 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let out = Command::new("git")
+    git_with_index(dir, None, args)
+}
+
+/// [`git`] with `GIT_INDEX_FILE` set to `index` when given.
+fn git_with_index<I, S>(dir: &Path, index: Option<&Path>, args: I) -> Result<String, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let mut cmd = Command::new("git");
+    if let Some(index) = index {
+        cmd.env("GIT_INDEX_FILE", index);
+    }
+    let out = cmd
         .arg("-C")
         .arg(dir)
         .args(args)
@@ -201,6 +220,210 @@ pub async fn sweep(db: &Db, root: &Path) -> usize {
     removed
 }
 
+/// Largest patch [`diff`] returns; its file list is always complete.
+const MAX_PATCH_BYTES: usize = 1 << 20;
+
+/// `git diff` options shared by [`diff`]: plain paths, and an output the
+/// user's diff config (external tools, text conversion) cannot change.
+const DIFF: [&str; 7] =
+    ["-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--no-renames", "--no-textconv"];
+
+#[derive(Debug, Serialize)]
+pub struct DiffFile {
+    pub path: String,
+    /// `None` for a binary file.
+    pub added: Option<u64>,
+    pub deleted: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkerDiff {
+    pub branch: String,
+    /// The commit the worker's branch left the project's current branch at.
+    pub base: String,
+    pub files: Vec<DiffFile>,
+    pub patch: String,
+    /// `patch` was cut at [`MAX_PATCH_BYTES`].
+    pub truncated: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum MergeOutcome {
+    /// `commit`: the project's `HEAD` after the merge. `rescued`: what the
+    /// worker had not committed was first committed on its branch.
+    Merged { commit: String, rescued: bool },
+    /// Nothing merged: the merge was aborted, the project is as it was and
+    /// the branch keeps the work. `files`: those in conflict.
+    Conflict { files: Vec<String> },
+}
+
+fn not_git() -> String {
+    "The project is no longer a git repository".to_string()
+}
+
+/// A worktree the worker switched to another branch would show, and commit,
+/// changes that are not on the branch being merged.
+fn check_on_branch(worktree: &Path, branch: &str) -> Result<(), String> {
+    match git(worktree, ["branch", "--show-current"]) {
+        Ok(current) if current == branch => Ok(()),
+        Ok(_) => Err(format!("The worker's worktree is no longer on its branch {branch}")),
+        Err(e) => Err(format!("Could not read the worker's worktree: {e}")),
+    }
+}
+
+fn numstat(out: &str) -> Vec<DiffFile> {
+    out.lines()
+        .filter_map(|line| {
+            let mut cols = line.splitn(3, '\t');
+            let (added, deleted, path) = (cols.next()?, cols.next()?, cols.next()?);
+            Some(DiffFile { path: path.to_string(), added: added.parse().ok(), deleted: deleted.parse().ok() })
+        })
+        .collect()
+}
+
+/// What merging `worker_id` would bring into the project: the commits on its
+/// branch plus what it has not committed yet (new files included, ignored
+/// ones not), against the commit its branch left the project's `HEAD` at.
+/// Neither the worktree nor its index changes: uncommitted files are staged
+/// into a throwaway copy of the index.
+pub fn diff(project: &Path, worktree: &Path, worker_id: &str) -> Result<WorkerDiff, String> {
+    let (top, _) = repo_of(project).ok_or_else(not_git)?;
+    let branch = branch_for(worker_id);
+    let base = git(&top, ["merge-base", "HEAD", &branch])
+        .map_err(|e| format!("Could not compare the worker's branch with the project: {e}"))?;
+    let (stat, mut patch) = if worktree.is_dir() {
+        check_on_branch(worktree, &branch)?;
+        let index = std::env::temp_dir().join(format!("puppeteer-diff-{}.index", uuid::Uuid::new_v4()));
+        let staged = (|| {
+            // A copy keeps the stat cache, so `add` only hashes changed files.
+            let real = git(worktree, ["rev-parse", "--path-format=absolute", "--git-path", "index"])?;
+            std::fs::copy(real, &index).map_err(|e| e.to_string())?;
+            git_with_index(worktree, Some(&index), ["add", "-A"])?;
+            let cached = |extra: &str| {
+                git_with_index(worktree, Some(&index), DIFF.iter().copied().chain(["--cached", extra, base.as_str()]))
+            };
+            Ok::<_, String>((cached("--numstat")?, cached("--patch")?))
+        })();
+        let _ = std::fs::remove_file(&index);
+        staged.map_err(|e| format!("Could not read the worker's changes: {e}"))?
+    } else {
+        // The sweep removed a cancelled worker's worktree; its commits are
+        // still on the branch.
+        let committed = |extra: &str| git(&top, DIFF.iter().copied().chain([extra, base.as_str(), branch.as_str()]));
+        (committed("--numstat")?, committed("--patch")?)
+    };
+    let truncated = patch.len() > MAX_PATCH_BYTES;
+    if truncated {
+        let cut = patch.as_bytes()[..MAX_PATCH_BYTES].iter().rposition(|&b| b == b'\n').map_or(0, |i| i + 1);
+        patch.truncate(cut);
+    }
+    Ok(WorkerDiff { branch, base, files: numstat(&stat), patch, truncated })
+}
+
+/// Commit what the worker left uncommitted in its worktree onto its branch,
+/// so the merge brings in what [`diff`] showed. `Ok(false)`: nothing to commit.
+fn commit_pending(worktree: &Path, worker_id: &str) -> Result<bool, String> {
+    if git(worktree, ["status", "--porcelain"])?.is_empty() {
+        return Ok(false);
+    }
+    git(worktree, ["add", "-A"])?;
+    // The worker's branch, not the user's own commit: a hook or a signing
+    // prompt must not block it. The merge commit follows the user's config.
+    let message = format!("Uncommitted work of worker {worker_id}");
+    git(worktree, ["commit", "--no-verify", "--no-gpg-sign", "-q", "-m", &message])?;
+    Ok(true)
+}
+
+/// Merge `worker_id`'s branch into the project's current branch, after
+/// committing what the worker left uncommitted. A conflict is aborted and
+/// reported ([`MergeOutcome::Conflict`]); the branch and worktree stay for
+/// another try. Refused while the project is not on a branch, is in the middle
+/// of a merge, or has uncommitted changes to tracked files (an aborted merge
+/// cannot always give those back).
+pub fn merge(project: &Path, worktree: &Path, worker_id: &str) -> Result<MergeOutcome, String> {
+    let (top, _) = repo_of(project).ok_or_else(not_git)?;
+    let branch = branch_for(worker_id);
+    if git(&top, ["symbolic-ref", "--quiet", "HEAD"]).is_err() {
+        return Err("The project is not on a branch (detached HEAD): check out the branch to merge into".into());
+    }
+    let merging = |top: &Path| git(top, ["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]).is_ok();
+    if merging(&top) {
+        return Err("The project is in the middle of a merge: finish or abort it first".into());
+    }
+    if !git(&top, ["status", "--porcelain", "--untracked-files=no"])?.is_empty() {
+        return Err("The project has uncommitted changes: commit or stash them first".into());
+    }
+    let rescued = if worktree.is_dir() {
+        check_on_branch(worktree, &branch)?;
+        commit_pending(worktree, worker_id)
+            .map_err(|e| format!("Could not commit the worker's uncommitted changes: {e}"))?
+    } else {
+        false
+    };
+
+    let message = format!("Merge worker branch {branch}");
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(&top)
+        .args(["merge", "--no-edit", "-m", &message, &branch])
+        .output()
+        .map_err(|e| format!("git: {e}"))?;
+    if out.status.success() {
+        let commit = git(&top, ["rev-parse", "HEAD"])?;
+        return Ok(MergeOutcome::Merged { commit, rescued });
+    }
+    if !merging(&top) {
+        // Refused before it started (it would overwrite untracked files, the
+        // branch is gone, …): nothing to undo.
+        let said = [&out.stderr[..], &out.stdout[..]].map(String::from_utf8_lossy).join("\n");
+        return Err(format!("Could not merge the worker's branch: {}", said.trim()));
+    }
+    let files = git(&top, ["-c", "core.quotepath=false", "diff", "--name-only", "--diff-filter=U"])
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect();
+    git(&top, ["merge", "--abort"])
+        .map_err(|e| format!("The merge conflicted and could not be aborted, finish it by hand: {e}"))?;
+    Ok(MergeOutcome::Conflict { files })
+}
+
+/// A worker's project folder, its worktree, and whether a turn is running.
+async fn locate(db: &Db, worker_id: &str) -> Result<(PathBuf, PathBuf, bool), String> {
+    crate::features::require(db, FEATURE).await?;
+    let row: Option<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT p.path, r.worktree_path, r.status FROM runs r JOIN projects p ON p.id = r.project_id
+         WHERE r.id = ? AND r.role = 'worker'",
+    )
+    .bind(worker_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let (project, worktree, status) = row.ok_or_else(|| "worker not found".to_string())?;
+    let worktree =
+        worktree.ok_or_else(|| "This worker has no worktree: it worked in the project folder".to_string())?;
+    Ok((PathBuf::from(project), PathBuf::from(worktree), status == "running"))
+}
+
+/// [`diff`] of a worker, gated by [`FEATURE`].
+pub async fn worker_diff(db: &Db, worker_id: &str) -> Result<WorkerDiff, String> {
+    let (project, worktree, _) = locate(db, worker_id).await?;
+    let id = worker_id.to_string();
+    tokio::task::spawn_blocking(move || diff(&project, &worktree, &id)).await.map_err(|e| e.to_string())?
+}
+
+/// [`merge`] of a worker, gated by [`FEATURE`]. Refused mid-turn: the worker
+/// could still be writing the files being committed.
+pub async fn worker_merge(db: &Db, worker_id: &str) -> Result<MergeOutcome, String> {
+    let (project, worktree, running) = locate(db, worker_id).await?;
+    if running {
+        return Err("The worker is still running: merge once its turn has ended".into());
+    }
+    let id = worker_id.to_string();
+    tokio::task::spawn_blocking(move || merge(&project, &worktree, &id)).await.map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,6 +459,9 @@ mod tests {
         std::fs::create_dir_all(project.join("app")).unwrap();
         std::fs::write(project.join("app").join("a.txt"), "a").unwrap();
         sh(&project, &["init", "-q"]);
+        // For the commits `merge` makes itself (CI has no global identity).
+        sh(&project, &["config", "user.name", "t"]);
+        sh(&project, &["config", "user.email", "t@t"]);
         sh(&project, &["add", "."]);
         sh(&project, &["commit", "-qm", "init"]);
         Fixture { root: dir.join("worktrees"), project, dir }
@@ -410,5 +636,217 @@ mod tests {
         let db = db_with_workers(&[]).await;
         assert_eq!(sweep(&db, &f.root).await, 1);
         assert!(!wt.exists());
+    }
+
+    fn read(path: &Path) -> String {
+        std::fs::read_to_string(path).unwrap()
+    }
+
+    fn commit_all(dir: &Path, message: &str) {
+        sh(dir, &["add", "-A"]);
+        sh(dir, &["commit", "-qm", message]);
+    }
+
+    fn head(dir: &Path) -> String {
+        git(dir, ["rev-parse", "HEAD"]).unwrap()
+    }
+
+    fn paths(d: &WorkerDiff) -> Vec<&str> {
+        let mut p: Vec<&str> = d.files.iter().map(|f| f.path.as_str()).collect();
+        p.sort();
+        p
+    }
+
+    #[test]
+    fn diff_shows_committed_and_uncommitted_work_without_touching_the_worktree() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("app/a.txt"), "a\ncommitted\n").unwrap();
+        commit_all(&wt, "work");
+        std::fs::write(wt.join("app/a.txt"), "a\ncommitted\nlater\n").unwrap();
+        std::fs::write(wt.join("new.txt"), "new\n").unwrap();
+        std::fs::write(wt.join(".gitignore"), "ignored.txt\n").unwrap();
+        std::fs::write(wt.join("ignored.txt"), "x").unwrap();
+        // The project moves on meanwhile: not part of the worker's diff.
+        std::fs::write(f.project.join("other.txt"), "o").unwrap();
+        commit_all(&f.project, "project work");
+        let status = git(&wt, ["status", "--porcelain"]).unwrap();
+
+        let d = diff(&f.project, &wt, "w1").unwrap();
+        assert_eq!(d.branch, "puppeteer/worker-w1");
+        assert_eq!(d.base, git(&f.project, ["rev-parse", "HEAD~1"]).unwrap());
+        assert_eq!(paths(&d), [".gitignore", "app/a.txt", "new.txt"]);
+        let a = d.files.iter().find(|f| f.path == "app/a.txt").unwrap();
+        assert_eq!((a.added, a.deleted), (Some(3), Some(1)));
+        assert!(d.patch.contains("+committed") && d.patch.contains("+later") && d.patch.contains("+new"));
+        assert!(!d.truncated);
+        // Nothing staged in the worker's own index.
+        assert_eq!(git(&wt, ["status", "--porcelain"]).unwrap(), status);
+        assert!(status.contains("?? new.txt"), "{status}");
+    }
+
+    #[test]
+    fn diff_reads_the_branch_once_the_worktree_is_gone() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("b.bin"), [0u8, 1, 2]).unwrap();
+        commit_all(&wt, "work");
+        remove(&f.root, &wt);
+        let d = diff(&f.project, &wt, "w1").unwrap();
+        assert_eq!(paths(&d), ["b.bin"]);
+        assert_eq!((d.files[0].added, d.files[0].deleted), (None, None), "binary");
+
+        // A branch that is gone cannot be compared.
+        assert!(diff(&f.project, &wt, "nobody").is_err());
+    }
+
+    #[test]
+    fn merge_brings_in_committed_and_uncommitted_work() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("app/a.txt"), "worker").unwrap();
+        commit_all(&wt, "work");
+        std::fs::write(wt.join("new.txt"), "new").unwrap();
+        // The project moved on too: a real merge commit.
+        std::fs::write(f.project.join("other.txt"), "o").unwrap();
+        commit_all(&f.project, "project work");
+        // Untracked files of the user's that the merge does not touch are fine.
+        std::fs::write(f.project.join("notes.txt"), "mine").unwrap();
+
+        let MergeOutcome::Merged { commit, rescued } = merge(&f.project, &wt, "w1").unwrap() else {
+            panic!("expected a merge")
+        };
+        assert!(rescued);
+        assert_eq!(commit, head(&f.project));
+        assert_eq!(git(&f.project, ["log", "-1", "--format=%s"]).unwrap(), "Merge worker branch puppeteer/worker-w1");
+        assert_eq!(read(&f.project.join("app/a.txt")), "worker");
+        assert_eq!(read(&f.project.join("new.txt")), "new");
+        assert_eq!(git(&wt, ["status", "--porcelain"]).unwrap(), "");
+        // The worker keeps its worktree and branch, and can be merged again.
+        assert!(branches(&f.project).contains("puppeteer/worker-w1"));
+        assert_eq!(
+            merge(&f.project, &wt, "w1").unwrap(),
+            MergeOutcome::Merged { commit: head(&f.project), rescued: false }
+        );
+        assert!(diff(&f.project, &wt, "w1").unwrap().files.is_empty());
+    }
+
+    #[test]
+    fn a_conflict_is_aborted_and_reported() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("app/a.txt"), "worker").unwrap();
+        std::fs::write(wt.join("app/w.txt"), "w").unwrap();
+        commit_all(&wt, "work");
+        std::fs::write(f.project.join("app/a.txt"), "user").unwrap();
+        commit_all(&f.project, "user work");
+        let before = head(&f.project);
+        let worker_head = head(&wt);
+
+        assert_eq!(
+            merge(&f.project, &wt, "w1").unwrap(),
+            MergeOutcome::Conflict { files: vec!["app/a.txt".to_string()] }
+        );
+        // The project is exactly as it was: no merge in progress, nothing changed.
+        assert_eq!(head(&f.project), before);
+        assert!(git(&f.project, ["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]).is_err());
+        assert_eq!(git(&f.project, ["status", "--porcelain"]).unwrap(), "");
+        assert_eq!(read(&f.project.join("app/a.txt")), "user");
+        assert!(!f.project.join("app/w.txt").exists());
+        // The worker's work is untouched.
+        assert_eq!(head(&wt), worker_head);
+        assert_eq!(read(&wt.join("app/a.txt")), "worker");
+    }
+
+    #[test]
+    fn merge_refuses_a_project_it_could_leave_in_a_mess() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("app/a.txt"), "worker").unwrap();
+        std::fs::write(wt.join("new.txt"), "worker").unwrap();
+
+        // Uncommitted changes of the user's: refused before anything is committed.
+        std::fs::write(f.project.join("app/a.txt"), "user, not committed").unwrap();
+        assert!(merge(&f.project, &wt, "w1").unwrap_err().contains("uncommitted changes"));
+        assert_ne!(git(&wt, ["status", "--porcelain"]).unwrap(), "", "worker's changes not committed");
+        sh(&f.project, &["checkout", "-q", "--", "app/a.txt"]);
+
+        // Detached HEAD.
+        sh(&f.project, &["checkout", "-q", "--detach"]);
+        assert!(merge(&f.project, &wt, "w1").unwrap_err().contains("detached HEAD"));
+        sh(&f.project, &["checkout", "-q", "-"]);
+
+        // The user's own merge in progress is left alone.
+        sh(&f.project, &["checkout", "-q", "-b", "side"]);
+        std::fs::write(f.project.join("app/a.txt"), "side").unwrap();
+        commit_all(&f.project, "side");
+        sh(&f.project, &["checkout", "-q", "-"]);
+        std::fs::write(f.project.join("app/a.txt"), "main").unwrap();
+        commit_all(&f.project, "main");
+        let ok = Command::new("git").arg("-C").arg(&f.project).args(["merge", "-q", "side"]).output().unwrap();
+        assert!(!ok.status.success(), "the user's merge conflicts");
+        assert!(merge(&f.project, &wt, "w1").unwrap_err().contains("middle of a merge"));
+        assert!(git(&f.project, ["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]).is_ok());
+        sh(&f.project, &["merge", "--abort"]);
+
+        // An untracked file of the user's in the way: git refuses before starting.
+        std::fs::write(f.project.join("new.txt"), "user").unwrap();
+        assert!(merge(&f.project, &wt, "w1").unwrap_err().contains("Could not merge"));
+        assert!(git(&f.project, ["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]).is_err());
+        assert_eq!(read(&f.project.join("new.txt")), "user");
+    }
+
+    #[test]
+    fn a_worktree_moved_off_its_branch_is_refused() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        sh(&wt, &["checkout", "-q", "-b", "elsewhere"]);
+        assert!(diff(&f.project, &wt, "w1").unwrap_err().contains("no longer on its branch"));
+        assert!(merge(&f.project, &wt, "w1").unwrap_err().contains("no longer on its branch"));
+    }
+
+    #[test]
+    fn a_long_patch_is_cut_on_a_line() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        let line = "é".repeat(100) + "\n";
+        std::fs::write(wt.join("big.txt"), line.repeat(MAX_PATCH_BYTES / line.len() + 10)).unwrap();
+        let d = diff(&f.project, &wt, "w1").unwrap();
+        assert!(d.truncated && d.patch.len() <= MAX_PATCH_BYTES && d.patch.ends_with('\n'));
+        assert_eq!(paths(&d), ["big.txt"]);
+    }
+
+    #[tokio::test]
+    async fn review_and_merge_go_through_the_switch_and_the_worker_row() {
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("new.txt"), "new").unwrap();
+        let db = db_with_workers(&[("w1", "running", &wt)]).await;
+        sqlx::query("UPDATE projects SET path = ? WHERE id = 'p1'")
+            .bind(f.project.to_string_lossy().to_string())
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO runs (id, project_id, type, created_at, role) VALUES ('w2', 'p1', 'session', 'c', 'worker')")
+            .execute(&db)
+            .await
+            .unwrap();
+
+        assert_eq!(paths(&worker_diff(&db, "w1").await.unwrap()), ["new.txt"]);
+        assert!(worker_merge(&db, "w1").await.unwrap_err().contains("still running"));
+        assert!(worker_diff(&db, "w2").await.unwrap_err().contains("no worktree"));
+        assert_eq!(worker_diff(&db, "nope").await.unwrap_err(), "worker not found");
+
+        sqlx::query("UPDATE runs SET status = 'done' WHERE id = 'w1'").execute(&db).await.unwrap();
+        assert!(matches!(worker_merge(&db, "w1").await.unwrap(), MergeOutcome::Merged { rescued: true, .. }));
+        assert_eq!(read(&f.project.join("new.txt")), "new");
+
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('feature.orchestration.conductor_worktree', 'false')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let off = format!("feature_disabled: {FEATURE}");
+        assert_eq!(worker_diff(&db, "w1").await.unwrap_err(), off);
+        assert_eq!(worker_merge(&db, "w1").await.unwrap_err(), off);
     }
 }

@@ -4,6 +4,7 @@ use serde::Serialize;
 use sqlx::Row;
 use tauri::{AppHandle, State};
 
+use super::worktree::{self, MergeOutcome, WorkerDiff};
 use super::{ConductorLaunch, ConductorState, DEFAULT_MAX_WORKERS, FEATURE};
 use crate::commands::runs::{start_run_inner, ImageAttachment, StartRunPayload};
 use crate::db::Db;
@@ -553,6 +554,19 @@ pub async fn set_conductor_max_workers(
         .set_max_workers(&conductor_run_id, clamped as usize);
 
     Ok(clamped)
+}
+
+/// What a worker changed in its worktree, to review before merging it.
+#[tauri::command]
+pub async fn conductor_worker_diff(db: State<'_, Db>, worker_id: String) -> Result<WorkerDiff, String> {
+    worktree::worker_diff(db.inner(), &worker_id).await
+}
+
+/// Merge a worker's branch into the project's current branch. A conflict is
+/// aborted and reported, never resolved here.
+#[tauri::command]
+pub async fn conductor_worker_merge(db: State<'_, Db>, worker_id: String) -> Result<MergeOutcome, String> {
+    worktree::worker_merge(db.inner(), &worker_id).await
 }
 
 /// On app startup, restore in-memory ownership for conductor sessions that were
