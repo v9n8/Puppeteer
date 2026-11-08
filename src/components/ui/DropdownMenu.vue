@@ -6,13 +6,21 @@
 //
 // The panel is teleported to <body> and positioned `fixed` against the trigger,
 // so a scroll container (`overflow-auto`) or a clipping rail around the trigger
-// can't cut it off. It opens below the trigger, flips above when its MEASURED
-// height doesn't fit below, and is clamped to the viewport either way — a tall
-// menu (e.g. a PR session's actions) stays fully visible. It is re-placed when
-// its size changes while open, staying on the side it opened on.
+// can't cut it off. It opens below the trigger (above with `prefer="above"`),
+// flips to the other side when its MEASURED height doesn't fit there, and is
+// clamped to the viewport either way — a tall menu (e.g. a PR session's
+// actions) stays fully visible. It is re-placed when its size changes while
+// open, staying on the side it opened on.
 import { ref, nextTick, onBeforeUnmount, watch } from 'vue'
 
-const props = withDefaults(defineProps<{ align?: 'left' | 'right' }>(), { align: 'right' })
+const props = withDefaults(
+  defineProps<{
+    align?: 'left' | 'right'
+    /** Side tried first, e.g. `above` for a trigger at the bottom of its content. */
+    prefer?: 'below' | 'above'
+  }>(),
+  { align: 'right', prefer: 'below' },
+)
 const emit = defineEmits<{ (e: 'update:open', open: boolean): void }>()
 
 const GAP = 6
@@ -45,10 +53,13 @@ async function place() {
   const fitsAbove = above >= EDGE_MARGIN
   // Keep the side picked when the menu opened while it still fits, so a panel
   // that resizes (async rows, a search narrowing the list) doesn't jump across
-  // the trigger. Otherwise: below if it fits, else above if it fits, else
-  // whichever side has more room.
+  // the trigger. Otherwise: the preferred side if it fits, else the other if it
+  // fits, else whichever side has more room.
   if (side === null || (side === 'below' ? !fitsBelow : !fitsAbove)) {
-    side = fitsBelow ? 'below' : fitsAbove || anchor.top > vh - anchor.bottom ? 'above' : 'below'
+    side =
+      props.prefer === 'above'
+        ? fitsAbove ? 'above' : fitsBelow || vh - anchor.bottom > anchor.top ? 'below' : 'above'
+        : fitsBelow ? 'below' : fitsAbove || anchor.top > vh - anchor.bottom ? 'above' : 'below'
   }
   // `above` is recomputed from the current height, so the panel grows upward
   // away from the trigger instead of down over it.

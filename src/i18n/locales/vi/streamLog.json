@@ -55,5 +55,17 @@
   "failed": "Thất bại",
   "turns": "{count} lượt",
   "tokensSuffix": "{tokens} tok",
-  "estimatedCost": "Ước tính (chạy bằng subscription)"
+  "estimatedCost": "Ước tính (chạy bằng subscription)",
+  "turn": {
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
+    "quote": "Trích dẫn → {target}",
+    "fullscreen": "Toàn màn hình",
+    "fullscreenTurn": "Toàn màn hình cả lượt",
+    "saveNote": "Lưu thành ghi chú",
+    "more": "Thêm",
+    "questionTitle": "Câu hỏi",
+    "answerTitle": "Câu trả lời",
+    "turnTitle": "Cả lượt"
+  }
 }

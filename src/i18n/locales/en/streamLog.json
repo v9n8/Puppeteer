@@ -55,5 +55,17 @@
   "failed": "Failed",
   "turns": "{count} turns",
   "tokensSuffix": "{tokens} tok",
-  "estimatedCost": "Estimated (subscription run)"
+  "estimatedCost": "Estimated (subscription run)",
+  "turn": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "quote": "Quote → {target}",
+    "fullscreen": "Fullscreen",
+    "fullscreenTurn": "Fullscreen the whole turn",
+    "saveNote": "Save as note",
+    "more": "More",
+    "questionTitle": "Question",
+    "answerTitle": "Answer",
+    "turnTitle": "Whole turn"
+  }
 }

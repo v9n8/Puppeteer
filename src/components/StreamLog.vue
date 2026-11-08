@@ -13,7 +13,12 @@ import { computeDiff } from '@/lib/diff'
 import { toolFileTarget, toolFileTargets, codexEditParts, type DiffPart } from '@/lib/toolFiles'
 import IdeContextChip from './IdeContextChip.vue'
 import DiffView from './DiffView.vue'
+import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
+import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import { CollapsibleMessage } from '@/components/ui'
+import { pickSurface } from '@/lib/selectionSurface'
+import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
+import { turnAnswerText, turnFooters, type TurnAction, type TurnFooter } from '@/lib/turnActions'
 
 const { t } = useI18n()
 
@@ -24,6 +29,8 @@ const props = defineProps<{
   renderText: (md: string, skipCache?: boolean) => string
   /** Resolve a raw inline-code token to a project file path, or null. */
   fileMatcher?: (raw: string) => string | null
+  /** No row of buttons under each turn (the whole-turn fullscreen nests a log). */
+  noTurnActions?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -708,6 +715,77 @@ onBeforeUnmount(() => {
   observedEntries.clear()
 })
 
+// ── Row of buttons under each turn (Copy · Quote · Fullscreen · …) ──────────
+// Only where a selection host exists (the desktop app, not the controller web
+// client). The selection surface declared around this log (RunView's output)
+// decides where a quote and a saved note go — the same place as for a
+// selection in it.
+const owner = computed(() => {
+  const el = rootEl.value
+  return el ? pickSurface(selectionSurfaces, surfaceEls, el, el) : null
+})
+const quoteTarget = computed(() => (owner.value?.allow.quote ? owner.value.quoteTarget?.() ?? null : null))
+const turnActionsOn = computed(() => !!selectionHost.value && !props.noTurnActions)
+
+// Recomputed when an entry is added, not per streamed chunk: the running turn,
+// whose text is still growing, is never read here.
+const footers = computed(() =>
+  turnActionsOn.value ? turnFooters(props.entries, !!props.running) : new Map<number, TurnFooter>(),
+)
+
+// v-memo dependency: the row under entry `i` and what it shows.
+function footerKey(i: number): string {
+  const f = footers.value.get(i)
+  return f ? `${f.side}:${f.from}:${f.to}:${f.hasText ? 1 : 0}` : ''
+}
+
+const msgActionsState: MsgActionsState = {
+  isOn: (id) => selectionHost.value?.isOn(id) ?? false,
+  quoteLabel: computed(() => quoteTarget.value?.label ?? null),
+  canSaveNote: computed(() => !!owner.value?.allow.saveNote && !!owner.value.capture),
+}
+
+interface Fullscreen {
+  title: string
+  /** The message, as copied: raw text of a question, markdown of an answer. */
+  text: string
+  /** Question: shown as typed, like its bubble. */
+  plain?: boolean
+  /** Whole turn: the answer's entries, tool calls included. */
+  entries?: StreamEntry[]
+}
+const fullscreen = ref<Fullscreen | null>(null)
+
+async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
+  const f = footers.value.get(i)
+  if (!f) return false
+  const e = props.entries[i]
+  const question = f.side === 'question'
+  const text = question ? (e.kind === 'user' ? e.text : '') : turnAnswerText(props.entries, f.from, f.to)
+  switch (action) {
+    case 'copy':
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch {
+        return false // clipboard denied
+      }
+    case 'quote':
+      quoteTarget.value?.append(text)
+      break
+    case 'fullscreen':
+      fullscreen.value = { title: t(question ? 'streamLog.turn.questionTitle' : 'streamLog.turn.answerTitle'), text, plain: question }
+      break
+    case 'fullscreenTurn':
+      fullscreen.value = { title: t('streamLog.turn.turnTitle'), text, entries: props.entries.slice(f.from, f.to + 1) }
+      break
+    case 'saveNote':
+      if (owner.value) selectionHost.value?.saveNote(owner.value, text)
+      break
+  }
+  return false
+}
+
 // A tool result attaches to its entry AFTER the tool call is first rendered
 // (same object, mutated in place). v-memo compares by reference, so we surface
 // it as an explicit memo dependency — this is the one in-place mutation an
@@ -743,7 +821,7 @@ function toolResult(e: StreamEntry): unknown {
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
         :class="{ 'stream-entry': running && i !== entries.length - 1 }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1]"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i)]"
       >
       <!-- System init banner -->
       <div
@@ -1357,6 +1435,21 @@ function toolResult(e: StreamEntry): unknown {
         <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
         <span class="whitespace-pre-wrap">{{ entry.text }}</span>
       </div>
+
+      <!-- Row of buttons ending a turn: under the question bubble (aligned with
+           it, past the avatar), after the answer's last entry. The row reads its
+           live state itself, so the memo only tracks where rows are. -->
+      <div
+        v-if="footers.has(i)"
+        :class="footers.get(i)!.side === 'question' ? 'flex justify-end pr-9 -mt-1' : 'mt-1'"
+      >
+        <MsgActions
+          :side="footers.get(i)!.side"
+          :has-text="footers.get(i)!.hasText"
+          :state="msgActionsState"
+          :run="(action) => runTurnAction(i, action)"
+        />
+      </div>
       </div><!-- /v-memo per-entry wrapper -->
     </template>
 
@@ -1375,6 +1468,37 @@ function toolResult(e: StreamEntry): unknown {
         <span class="thinking-dot"></span>
       </span>
     </div>
+
+    <MessageFullscreen
+      v-if="turnActionsOn"
+      :open="!!fullscreen"
+      :title="fullscreen?.title ?? ''"
+      :sources="fullscreen ? [fullscreen.text] : []"
+      :owner="owner"
+      @close="fullscreen = null"
+    >
+      <template v-if="fullscreen">
+        <StreamLog
+          v-if="fullscreen.entries"
+          no-turn-actions
+          :entries="fullscreen.entries"
+          :render-text="renderText"
+          :file-matcher="fileMatcher"
+          @open-file="(path, line) => emit('open-file', path, line)"
+          @open-url="(url) => emit('open-url', url)"
+        />
+        <div v-else-if="fullscreen.plain" class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ fullscreen.text }}</div>
+        <div
+          v-else
+          v-file-links
+          v-mermaid
+          v-copy-code
+          v-html="renderText(fullscreen.text)"
+          class="markdown-output text-sm leading-relaxed text-foreground"
+          @click="onProseClick"
+        />
+      </template>
+    </MessageFullscreen>
   </div>
 </template>
 

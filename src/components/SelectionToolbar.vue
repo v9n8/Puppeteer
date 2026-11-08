@@ -22,9 +22,11 @@ import {
 } from '@/lib/selectionSurface'
 import {
   selectionBar as bar,
+  selectionHost,
   selectionSurfaces,
   selectionTranslation as translation,
   surfaceEls,
+  type SelectionSurface,
 } from '@/composables/useSelectionSurface'
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
@@ -139,15 +141,18 @@ async function run(action: SelectionAction) {
       await navigator.clipboard.writeText(copyMdText(b.surface.markdownSource?.() ?? [], b.text)).catch(() => {})
       break
     }
-    case 'saveNote': {
-      const cap = b.surface.capture?.()
-      void openItemCreateWindow('note', cap?.context ?? {}, { title: cap?.noteTitle, content: b.text })
+    case 'saveNote':
+      saveNote(b.surface, b.text)
       break
-    }
     case 'saveTodo':
       void openItemCreateWindow('todo', b.surface.capture?.().context ?? {}, { content: b.text })
       break
   }
+}
+
+function saveNote(surface: SelectionSurface, text: string) {
+  const cap = surface.capture?.()
+  void openItemCreateWindow('note', cap?.context ?? {}, { title: cap?.noteTitle, content: text })
 }
 
 const defaultTranslateLang = computed(() => appSettings.settings?.translate_target_lang || 'vi')
@@ -158,11 +163,13 @@ function closeTranslate() {
 
 onMounted(() => {
   if (excludedWindow) return
+  selectionHost.value = { isOn: (id) => features.isOn(id), saveNote }
   window.addEventListener('mouseup', onSelectionEnd)
   window.addEventListener('contextmenu', onSelectionEnd)
   document.addEventListener('scroll', onScroll, true)
 })
 onUnmounted(() => {
+  selectionHost.value = null
   window.removeEventListener('mouseup', onSelectionEnd)
   window.removeEventListener('contextmenu', onSelectionEnd)
   document.removeEventListener('scroll', onScroll, true)

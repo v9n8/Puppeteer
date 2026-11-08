@@ -49,8 +49,21 @@ export interface SelectionTranslation {
   y: number
 }
 
+/**
+ * What this window does with a surface's text besides the surface's own
+ * callbacks: read the feature tree, file a note. Set by the toolbar; null where
+ * there is none — the controller web client renders StreamLog without Pinia or
+ * Tauri. The row under each chat turn (components/sessions/MsgActions.vue)
+ * acts through it, so its Quote / note go where the selection bar's would.
+ */
+export interface SelectionHost {
+  isOn: (featureId: string) => boolean
+  saveNote: (surface: SelectionSurface, text: string) => void
+}
+
 /** Surfaces declared in this window, in mount order. */
 export const selectionSurfaces: SelectionSurface[] = []
+export const selectionHost = shallowRef<SelectionHost | null>(null)
 export const selectionBar = shallowRef<SelectionBar | null>(null)
 export const selectionTranslation = shallowRef<SelectionTranslation | null>(null)
 
