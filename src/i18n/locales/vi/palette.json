@@ -1,0 +1,32 @@
+{
+  "placeholder": "Gõ lệnh, màn hình, session, project hoặc prompt…",
+  "noResults": "Không có kết quả",
+  "hint": "↑ ↓ để chọn · Enter để chạy · Esc để đóng",
+  "pin": "Ghim lên đầu",
+  "unpin": "Bỏ ghim",
+  "hide": "Ẩn khỏi bảng lệnh",
+  "untitledSession": "Session chưa đặt tên",
+  "untitledPrompt": "Prompt chưa đặt tên",
+  "promptCopied": "Chưa mở session nào: đã chép prompt vào clipboard",
+  "group": {
+    "pinned": "Đã ghim",
+    "nav": "Điều hướng",
+    "session": "Session",
+    "project": "Project",
+    "prompt": "Prompt đã lưu",
+    "settings": "Cài đặt"
+  },
+  "settings": {
+    "title": "Bảng lệnh nhanh",
+    "help": "Mở bằng {shortcut}. Ghim hoặc ẩn một mục ngay trong bảng lệnh; lựa chọn được nhớ theo id nên đổi tên vẫn giữ.",
+    "groups": "Nhóm",
+    "pinned": "Mục đã ghim",
+    "pinnedEmpty": "Chưa ghim mục nào.",
+    "hidden": "Mục đã ẩn",
+    "hiddenEmpty": "Chưa ẩn mục nào.",
+    "unhide": "Hiện lại",
+    "moveUp": "Lên trên",
+    "moveDown": "Xuống dưới",
+    "reset": "Khôi phục mặc định"
+  }
+}

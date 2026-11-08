@@ -178,6 +178,7 @@ pub static MODULES: &[Module] = &[
             Prop { legacy_key: Some("animated_background"), ..on("animated_background") },
             on("auto_update"),
             on("whats_new"),
+            on("command_palette"),
         ],
     },
 ];
@@ -403,6 +404,7 @@ mod tests {
         assert!(prop(&tree, "app.animated_background").effective);
         assert!(prop(&tree, "app.auto_update").effective);
         assert!(prop(&tree, "app.whats_new").effective);
+        assert!(prop(&tree, "app.command_palette").effective);
         assert!(tree.iter().flat_map(|m| &m.props).all(|p| p.stored.is_none()));
     }
 

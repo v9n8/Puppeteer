@@ -40,6 +40,8 @@ export interface AppSettings {
   quit_background_policy: string
   /** Newest version whose "What's new" notes were offered ('' = none yet); see lib/whatsNew.ts. */
   whats_new_seen_version: string
+  /** Command palette layout as JSON (the `palette.config` row); parse with `parsePaletteConfig`. */
+  palette_config: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {

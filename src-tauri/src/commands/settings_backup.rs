@@ -3832,6 +3832,29 @@ mod tests {
         }
     }
 
+    /// The command palette layout (`palette.*`) travels, also into a remote desktop's import.
+    #[tokio::test]
+    async fn palette_keys_travel_in_a_backup() {
+        use crate::commands::settings::set_setting;
+        assert!(is_portable_setting("palette.config"));
+        assert!(is_portable_setting("palette.anything_later"));
+        for key in ["palette.", "palette", "palettes.config"] {
+            assert!(!is_portable_setting(key), "{key}");
+        }
+
+        let db = test_db().await;
+        let config = r#"{"groups":[{"id":"prompt","enabled":true}],"pinned":["go./skills"],"hidden":[]}"#;
+        set_setting(&db, "palette.config", config).await.unwrap();
+        let exported = collect_settings(&db).await.unwrap();
+        assert_eq!(exported.get("palette.config").map(String::as_str), Some(config));
+
+        let target = test_db().await;
+        let mut report = ImportReport::default();
+        import_settings(&target, &settings_bundle(exported), true, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(setting(&target, "palette.config").await.as_deref(), Some(config));
+    }
+
     #[tokio::test]
     async fn feature_switches_round_trip_through_a_backup() {
         use crate::commands::settings::set_setting;

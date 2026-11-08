@@ -23,6 +23,7 @@ import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useCommandPaletteStore } from '@/stores/commandPalette'
 import { useFeaturesStore } from '@/stores/features'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
@@ -127,6 +128,7 @@ const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
 const claudeStore = useClaudeAccountsStore()
 const appSettings = useAppSettingsStore()
+const commandPalette = useCommandPaletteStore()
 const features = useFeaturesStore()
 const modelCatalog = useModelCatalogStore()
 const uiLayout = useUILayoutStore()
@@ -2007,6 +2009,8 @@ onMounted(async () => {
   unbindNewSessionMenu = registerMenuAction('file.newSession', () => {
     void handleNewSession()
   })
+  // A saved prompt picked in the command palette lands here, like one from the picker.
+  unbindPaletteComposer = commandPalette.bindComposer((body) => insertSavedPrompt({ id: '', title: '', body }))
   // Hydrate the persisted model caches so the composer's picker shows the last
   // refreshed lists (no discovery here — refresh is manual in Settings).
   modelCatalog.ensureLoaded().catch(() => {})
@@ -2141,6 +2145,8 @@ onUnmounted(() => {
   // while the user is on another screen.
   unbindNewSessionMenu?.()
   unbindNewSessionMenu = null
+  unbindPaletteComposer?.()
+  unbindPaletteComposer = null
   conductorStore.stopPolling()
   if (isResizing.value) stopResize()
   outputRO?.disconnect()
@@ -2357,6 +2363,7 @@ async function handleNewSession() {
 
 // Unbound on unmount so the menu item stops firing into a dead screen.
 let unbindNewSessionMenu: (() => void) | null = null
+let unbindPaletteComposer: (() => void) | null = null
 
 // Launch a fetched run (fresh session, issue/PR or engine handoff) as a
 // conductor with `goal` as its first message — the only first-run path, since

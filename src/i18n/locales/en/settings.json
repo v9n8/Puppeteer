@@ -16,7 +16,8 @@
     "inbox": "Inbox API",
     "azure": "Azure Accounts",
     "focus": "Focus",
-    "features": "Features"
+    "features": "Features",
+    "palette": "Command Palette"
   },
   "devicesTabs": {
     "remote": "Remote Control",

@@ -822,6 +822,8 @@ mod tests {
             "translate_engine",
             "focus.work_start",
             "featured",
+            // Command palette layout: a UI preference, like `saved_prompts`.
+            "palette.config",
         ] {
             assert!(remote_may_set_setting(key), "{key}");
         }

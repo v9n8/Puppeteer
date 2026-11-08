@@ -19,6 +19,7 @@ import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
 import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WhatsNewModal from '@/components/WhatsNewModal.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -1113,6 +1114,10 @@ onMounted(async () => {
     <!-- Notes of THIS app's new version, once; a remote-desktop window runs
          another machine's version. -->
     <WhatsNewModal v-if="features.isOn('app.whats_new') && !isRemoteMode()" />
+
+    <!-- ⌘K / Ctrl+K. Main window only: pop-outs (the Secret vault among them)
+         and session windows have none. -->
+    <CommandPalette v-if="features.isOn('app.command_palette')" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />

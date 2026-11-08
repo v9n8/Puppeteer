@@ -1,0 +1,32 @@
+{
+  "placeholder": "Type a command, screen, session, project or prompt…",
+  "noResults": "Nothing matches",
+  "hint": "↑ ↓ to move · Enter to run · Esc to close",
+  "pin": "Pin to the top",
+  "unpin": "Unpin",
+  "hide": "Hide from the palette",
+  "untitledSession": "Untitled session",
+  "untitledPrompt": "Untitled prompt",
+  "promptCopied": "No session open: prompt copied to the clipboard",
+  "group": {
+    "pinned": "Pinned",
+    "nav": "Navigation",
+    "session": "Sessions",
+    "project": "Projects",
+    "prompt": "Saved prompts",
+    "settings": "Settings"
+  },
+  "settings": {
+    "title": "Command palette",
+    "help": "Open it with {shortcut}. Pin or hide an item from the palette itself; it is remembered by its id, so renaming it keeps the choice.",
+    "groups": "Groups",
+    "pinned": "Pinned items",
+    "pinnedEmpty": "Nothing pinned yet.",
+    "hidden": "Hidden items",
+    "hiddenEmpty": "Nothing hidden.",
+    "unhide": "Show again",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "reset": "Restore defaults"
+  }
+}

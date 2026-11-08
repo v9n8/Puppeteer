@@ -16,7 +16,8 @@
     "inbox": "Inbox API",
     "azure": "Tài khoản Azure",
     "focus": "Focus",
-    "features": "Tính năng"
+    "features": "Tính năng",
+    "palette": "Bảng lệnh nhanh"
   },
   "devicesTabs": {
     "remote": "Điều khiển từ xa",

@@ -259,7 +259,8 @@ export function isMenuActionBound(id: string): boolean {
   return handlers.has(id)
 }
 
-function runMenuAction(id: string): void {
+/** Run a menu action as if its item was clicked (the command palette runs them too). */
+export function runMenuAction(id: string): void {
   // The menu (or tray) may still show an item whose feature was just turned off.
   if (!actionAllowed(id)) return
   handlers.get(id)?.()

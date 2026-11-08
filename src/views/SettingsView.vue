@@ -4,10 +4,10 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { invoke } from '@/lib/tauri'
 import {
-  Cpu, Palette, FileText, ShieldAlert, Sparkles, Github, Gitlab, Cloud, CloudCog,
-  CheckCircle2, AlertTriangle, Trash2, Plus, Pencil, Gauge, Radio,
+  Cpu, Palette, FileText, ShieldAlert, Sparkles, Github, Gitlab, Cloud,
+  CheckCircle2, AlertTriangle, Trash2, Plus, Pencil, Gauge,
   RefreshCw, Loader2, BadgeCheck, HardDrive, UserCircle,
-  LogIn, Star, ChevronDown, ArrowRightLeft, Inbox, GripVertical, Target, ToggleRight,
+  LogIn, Star, ChevronDown, ArrowRightLeft, GripVertical,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -17,6 +17,7 @@ import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.v
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
 import FeaturesSettings from '@/components/FeaturesSettings.vue'
+import CommandPaletteSettings from '@/components/CommandPaletteSettings.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useDragSort } from '@/composables/useDragSort'
@@ -32,6 +33,7 @@ import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAc
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { allowsFeature, errorText } from '@/lib/featureGate'
+import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/lib/settingsSections'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
@@ -214,24 +216,8 @@ async function setLaunchAtLogin(mode: LaunchAtLogin) {
   }
 }
 
-const SECTIONS = [
-  { id: 'general', labelKey: 'settings.sections.general', icon: Palette },
-  { id: 'features', labelKey: 'settings.sections.features', icon: ToggleRight },
-  { id: 'focus', labelKey: 'settings.sections.focus', icon: Target },
-  { id: 'github', labelKey: 'settings.sections.github', icon: Github },
-  { id: 'gitlab', labelKey: 'settings.sections.gitlab', icon: Gitlab },
-  { id: 'aws', labelKey: 'settings.sections.aws', icon: Cloud, feature: 'infra_access.aws' },
-  { id: 'azure', labelKey: 'settings.sections.azure', icon: CloudCog, feature: 'infra_access.azure' },
-  { id: 'claude', labelKey: 'settings.sections.claude', icon: UserCircle },
-  { id: 'engine', labelKey: 'settings.sections.engine', icon: Cpu },
-  { id: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
-  { id: 'google', labelKey: 'settings.sections.google', icon: HardDrive, feature: 'integrations.google' },
-  { id: 'usage', labelKey: 'settings.sections.usage', icon: Gauge },
-  { id: 'devices', labelKey: 'settings.sections.devices', icon: Radio },
-  { id: 'inbox', labelKey: 'settings.sections.inbox', icon: Inbox },
-  { id: 'prompts', labelKey: 'settings.sections.prompts', icon: FileText },
-] as const
-const activeSection = ref<(typeof SECTIONS)[number]['id']>('general')
+const SECTIONS = SETTINGS_SECTIONS
+const activeSection = ref<SettingsSectionId>('general')
 
 // Allow deep-linking to a specific section via `/settings?section=google` (used
 // by the "Google settings" button on the MCP Servers screen's built-in row).
@@ -246,7 +232,7 @@ function applySectionFromRoute() {
     target = 'devices'
   }
   if (typeof target === 'string' && SECTIONS.some(s => s.id === target)) {
-    activeSection.value = target as (typeof SECTIONS)[number]['id']
+    activeSection.value = target as SettingsSectionId
   }
 }
 applySectionFromRoute()
@@ -2416,6 +2402,11 @@ watch(() => settings.value.language, (v) => {
         <!-- Module → prop switches. Mounted only while shown: it re-reads the tree on open. -->
         <div v-if="!loading && activeSection === 'features'" class="max-w-lg">
           <FeaturesSettings />
+        </div>
+
+        <!-- Command palette (⌘K): groups, pins, hidden items. -->
+        <div v-if="!loading && activeSection === 'palette'" class="max-w-lg">
+          <CommandPaletteSettings />
         </div>
       </div>
     </div>
