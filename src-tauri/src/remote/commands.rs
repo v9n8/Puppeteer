@@ -75,6 +75,7 @@ pub async fn remote_set_config(
 }
 
 /// Enable Remote Control: persist the flag and start the agent (FR-001).
+/// Refused while the `remote.remote_control` feature is off.
 #[tauri::command]
 pub async fn remote_enable(
     app: AppHandle,
@@ -83,9 +84,8 @@ pub async fn remote_enable(
     broker_approvals: State<'_, BrokerApprovals>,
     state: State<'_, RemoteState>,
 ) -> Result<(), String> {
-    remote::set_setting(db.inner(), remote::KEY_ENABLED, "true").await?;
     state
-        .start(&app, db.inner(), registry.inner(), broker_approvals.inner())
+        .enable(&app, db.inner(), registry.inner(), broker_approvals.inner())
         .await
 }
 

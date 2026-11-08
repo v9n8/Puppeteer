@@ -26,7 +26,8 @@ use crate::remote::forwarder::{
     send_project_file_list, send_project_list, send_run_list, send_slash_command_list, SeqCounter,
 };
 use crate::remote::outbound::OutboundTx;
-use crate::remote::{FocusRun, RunSubscriptions};
+use crate::features::{self, ModuleState};
+use crate::remote::{FocusRun, RunSubscriptions, DESKTOP_FEATURE, TRANSFER_FEATURE};
 use crate::remote::protocol::{CmdPayload, Envelope, FrameType, ImageAttachmentWire, StreamPayload};
 use crate::runs::{BrokerApprovals, RunRegistry};
 use remote_e2e::Session;
@@ -328,9 +329,17 @@ pub async fn handle(ctx: &HandlerCtx, cmd: CmdPayload) {
     // by design (the paired device is trusted like the person at the keyboard)
     // — except what `ipc_refuses` (Remote Control config, controlling-side
     // plumbing, plugin commands). Sensitive calls are audited (`ipc_audit`).
+    // Its feature switches are read per command, so turning one off applies
+    // to the next call.
     if action.starts_with("ipc_") {
         if !ctx.ipc {
             reject(ctx, action, None, RejectReason::NotAllowed).await;
+            return;
+        }
+        // A failed read counts as off, as in `features::is_on`.
+        let tree = features::commands::load(&ctx.db).await.unwrap_or_default();
+        if let Some(feature) = ipc_switched_off(&cmd, &tree) {
+            refuse_ipc(ctx, &cmd, feature).await;
             return;
         }
         ctx.slide_idle();
@@ -415,6 +424,58 @@ pub async fn handle(ctx: &HandlerCtx, cmd: CmdPayload) {
         // Unreachable: allow-list already gated. Defensive audit.
         _ => reject(ctx, action, run_id.as_deref(), RejectReason::NotAllowed).await,
     }
+}
+
+/// File Transfer window commands run on this side of a copy (`transfer.rs`).
+/// `remote_fs_list` / `remote_fs_read` are not among them: the remote
+/// desktop's file dialogs and previews use them too.
+const TRANSFER_COMMANDS: &[&str] = &[
+    "remote_fs_mkdir",
+    "remote_fs_rename",
+    "remote_fs_delete",
+    "remote_fs_walk",
+    "remote_fs_hash",
+];
+
+/// Whether one `ipc_invoke` is part of a File Transfer copy. An upload into a
+/// chosen folder (`destDir`) is; a file dropped into the window is not.
+fn is_transfer_invoke(name: &str, args: Option<&serde_json::Value>) -> bool {
+    TRANSFER_COMMANDS.contains(&name)
+        || (name == "remote_upload_begin"
+            && args.and_then(|a| a.get("destDir")).is_some_and(|d| !d.is_null()))
+}
+
+/// The feature switch, off in `tree`, that refuses one `ipc_*` command:
+/// every one under [`DESKTOP_FEATURE`], a File Transfer one under
+/// [`TRANSFER_FEATURE`].
+fn ipc_switched_off(cmd: &CmdPayload, tree: &[ModuleState]) -> Option<&'static str> {
+    if !features::effective(tree, DESKTOP_FEATURE) {
+        return Some(DESKTOP_FEATURE);
+    }
+    let transfer = cmd.action == "ipc_invoke"
+        && cmd.cmd.as_deref().is_some_and(|n| is_transfer_invoke(n, cmd.args.as_ref()));
+    if transfer && !features::effective(tree, TRANSFER_FEATURE) {
+        return Some(TRANSFER_FEATURE);
+    }
+    None
+}
+
+/// Answer an `ipc_invoke` refused by a feature switch, without reaching the
+/// bridge: the Controller waits on every sent call until its result comes.
+/// Not audited, like other invokes (a remote desktop sends many a second).
+async fn refuse_ipc(ctx: &HandlerCtx, cmd: &CmdPayload, feature: &str) {
+    let Some(id) = cmd.id.clone().filter(|_| cmd.action == "ipc_invoke") else { return };
+    let error = format!("feature_disabled: {feature}");
+    send_payload(
+        ctx,
+        StreamPayload::IpcResult {
+            id,
+            ok: false,
+            value: serde_json::Value::Null,
+            error: Some(serde_json::Value::String(error)),
+        },
+    )
+    .await;
 }
 
 /// Whether `ipc_invoke` refuses `name` before it reaches the bridge.
@@ -1348,6 +1409,54 @@ mod tests {
         assert_eq!(req, serde_json::json!({ "type": "listen", "event": "run://status" }));
         assert!(ipc_request(&payload(serde_json::json!({ "action": "ipc_invoke", "id": "c1" }))).is_none());
         assert!(ipc_request(&payload(serde_json::json!({ "action": "ipc_hello" }))).is_none());
+    }
+
+    fn switches(pairs: &[(&str, &str)]) -> Vec<ModuleState> {
+        features::resolve(&pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())
+    }
+
+    fn invoke_cmd(name: &str, args: serde_json::Value) -> CmdPayload {
+        payload(serde_json::json!({ "action": "ipc_invoke", "id": "c1", "cmd": name, "args": args }))
+    }
+
+    #[test]
+    fn remote_desktop_off_refuses_every_ipc_command() {
+        let listen = payload(serde_json::json!({ "action": "ipc_listen", "event": "run://status" }));
+        let list = invoke_cmd("list_runs", serde_json::json!({}));
+        for tree in [
+            switches(&[("feature.remote", "true"), ("feature.remote.remote_desktop", "false")]),
+            // The module off turns its props off.
+            switches(&[("feature.remote", "false"), ("feature.remote.remote_desktop", "true")]),
+            // Fresh install: the module is off.
+            switches(&[]),
+        ] {
+            assert_eq!(ipc_switched_off(&list, &tree), Some("remote.remote_desktop"));
+            assert_eq!(ipc_switched_off(&listen, &tree), Some("remote.remote_desktop"));
+        }
+        let on = switches(&[("feature.remote", "true")]);
+        assert_eq!(ipc_switched_off(&list, &on), None);
+        assert_eq!(ipc_switched_off(&listen, &on), None);
+    }
+
+    #[test]
+    fn file_transfer_off_refuses_only_the_copy_commands() {
+        let tree = switches(&[("feature.remote", "true"), ("feature.remote.file_transfer", "false")]);
+        for name in TRANSFER_COMMANDS {
+            assert_eq!(ipc_switched_off(&invoke_cmd(name, serde_json::json!({ "path": "/x" })), &tree), Some("remote.file_transfer"), "{name}");
+        }
+        let into_folder = invoke_cmd("remote_upload_begin", serde_json::json!({ "name": "a", "size": 1, "destDir": "/x" }));
+        assert_eq!(ipc_switched_off(&into_folder, &tree), Some("remote.file_transfer"));
+        // A file dropped into the remote window, a preview, a file dialog.
+        for (name, args) in [
+            ("remote_upload_begin", serde_json::json!({ "name": "a.png", "size": 1 })),
+            ("remote_upload_begin", serde_json::json!({ "name": "a.png", "size": 1, "destDir": null })),
+            ("remote_fs_read", serde_json::json!({ "path": "/x" })),
+            ("remote_fs_list", serde_json::json!({ "path": "/x" })),
+        ] {
+            assert_eq!(ipc_switched_off(&invoke_cmd(name, args), &tree), None, "{name}");
+        }
+        let on = switches(&[("feature.remote", "true")]);
+        assert_eq!(ipc_switched_off(&into_folder, &on), None);
     }
 
     #[test]

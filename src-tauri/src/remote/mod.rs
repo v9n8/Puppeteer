@@ -43,12 +43,13 @@ pub use bus::{RemoteBus, RemoteRunEvent};
 pub use meta::{apply_run_meta, RunMetaStore};
 
 use crate::db::Db;
+use crate::features::{self, apply::Change, ModuleState};
 use crate::runs::{BrokerApprovals, RunRegistry};
 use session::BoundSession;
 use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
 /// Runs whose live transcript the Controller is currently streaming.
@@ -70,6 +71,13 @@ pub const KEY_DEVICE_ID: &str = "remote_device_id";
 /// Optional short name of this device; selects its password-login code so
 /// several Puppeteer hosts can share one relay (see `login::login_code`).
 pub const KEY_DEVICE_ALIAS: &str = "remote_device_alias";
+
+/// Feature switches (`crate::features`): the relay agent, its Web Push
+/// dispatcher, and what a remote desktop may do through the bridge.
+pub const FEATURE: &str = "remote.remote_control";
+pub const PUSH_FEATURE: &str = "remote.web_push";
+pub const DESKTOP_FEATURE: &str = "remote.remote_desktop";
+pub const TRANSFER_FEATURE: &str = "remote.file_transfer";
 
 /// Live control handle for the running agent task.
 struct AgentControl {
@@ -136,58 +144,111 @@ impl RemoteState {
         self.agent.lock().await.is_some()
     }
 
-    /// Start the agent if not already running. Requires a configured relay URL
-    /// and an auth_token in the keyring (SEC-001) — otherwise a no-op error.
-    pub async fn start(
+    /// Turn Remote Control on (`remote_enable`): persist `remote_enabled` and
+    /// start the agent. Refused while [`FEATURE`] is off, before anything is
+    /// written, so switching the feature on later does not connect by itself.
+    /// Starting also needs a relay URL and an auth_token in the keyring
+    /// (SEC-001).
+    pub async fn enable(
         &self,
         app: &AppHandle,
         db: &Db,
         registry: &RunRegistry,
         broker_approvals: &BrokerApprovals,
     ) -> Result<(), String> {
-        if self.is_running().await {
-            return Ok(());
-        }
-        let relay_url = get_setting(db, KEY_RELAY_URL).await.unwrap_or_default();
-        if relay_url.trim().is_empty() {
-            return Err("relay URL is not configured".to_string());
-        }
-        let auth_token = crate::secrets::get_remote_auth_token()
-            .ok_or_else(|| "relay auth token is not set (enable requires a token)".to_string())?;
-        let device_id = ensure_device_id(db).await?;
-
-        let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
-        let deps = agent::AgentDeps {
-            app: app.clone(),
-            db: db.clone(),
-            registry: registry.clone(),
-            broker_approvals: broker_approvals.clone(),
-            bus: self.bus.clone(),
-            bound: self.bound.clone(),
-            connected: self.connected.clone(),
-            reconnecting: self.reconnecting.clone(),
-            announce_signal: self.announce_signal.clone(),
-            kick_signal: self.kick_signal.clone(),
-            subscriptions: self.subscriptions.clone(),
-            focus_run_id: self.focus_run_id.clone(),
-            ipc: self.ipc.clone(),
-        };
-        let config = agent::AgentConfig {
-            relay_url,
-            device_id,
-        };
-        let handle = tokio::spawn(agent::run_agent(config, deps, auth_token, stop_rx));
-        self.push.start(db.clone(), self.bus.clone());
-        *self.agent.lock().await = Some(AgentControl {
-            stop: stop_tx,
-            handle,
-        });
-        Ok(())
+        let mut slot = self.agent.lock().await;
+        // Checked under the agent lock: a switch turned off meanwhile has its
+        // `follow` wait here, and it stops what this starts.
+        require_feature(db).await?;
+        set_setting(db, KEY_ENABLED, "true").await?;
+        self.start_locked(&mut slot, app, db, registry, broker_approvals).await
     }
 
     /// Stop the agent task if running (signals its reconnect loop to exit).
     pub async fn stop(&self) {
-        if let Some(ctrl) = self.agent.lock().await.take() {
+        let mut slot = self.agent.lock().await;
+        self.stop_locked(&mut slot);
+    }
+
+    /// Start or stop the agent to match `remote_enabled` and the switches as
+    /// stored now (startup, `features::apply`). They are read under the agent
+    /// lock, so racing calls end on the latest write.
+    pub async fn follow(
+        &self,
+        app: &AppHandle,
+        db: &Db,
+        registry: &RunRegistry,
+        broker_approvals: &BrokerApprovals,
+    ) {
+        let mut slot = self.agent.lock().await;
+        let enabled = get_setting(db, KEY_ENABLED).await.is_some_and(|v| v == "true");
+        // A failed read counts as off, as in `features::is_on`.
+        let tree = features::commands::load(db).await.unwrap_or_default();
+        if !wants_agent(enabled, &tree) {
+            self.stop_locked(&mut slot);
+            return;
+        }
+        if let Err(e) = self.start_locked(&mut slot, app, db, registry, broker_approvals).await {
+            tracing::warn!(event = "remote_autostart_failed", error = %e);
+        }
+    }
+
+    /// Spawn the agent unless it runs, and run its Web Push dispatcher while
+    /// [`PUSH_FEATURE`] is on. Caller holds the agent lock.
+    async fn start_locked(
+        &self,
+        slot: &mut Option<AgentControl>,
+        app: &AppHandle,
+        db: &Db,
+        registry: &RunRegistry,
+        broker_approvals: &BrokerApprovals,
+    ) -> Result<(), String> {
+        if slot.is_none() {
+            let relay_url = get_setting(db, KEY_RELAY_URL).await.unwrap_or_default();
+            if relay_url.trim().is_empty() {
+                return Err("relay URL is not configured".to_string());
+            }
+            let auth_token = crate::secrets::get_remote_auth_token()
+                .ok_or_else(|| "relay auth token is not set (enable requires a token)".to_string())?;
+            let device_id = ensure_device_id(db).await?;
+
+            let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+            let deps = agent::AgentDeps {
+                app: app.clone(),
+                db: db.clone(),
+                registry: registry.clone(),
+                broker_approvals: broker_approvals.clone(),
+                bus: self.bus.clone(),
+                bound: self.bound.clone(),
+                connected: self.connected.clone(),
+                reconnecting: self.reconnecting.clone(),
+                announce_signal: self.announce_signal.clone(),
+                kick_signal: self.kick_signal.clone(),
+                subscriptions: self.subscriptions.clone(),
+                focus_run_id: self.focus_run_id.clone(),
+                ipc: self.ipc.clone(),
+            };
+            let config = agent::AgentConfig {
+                relay_url,
+                device_id,
+            };
+            let handle = tokio::spawn(agent::run_agent(config, deps, auth_token, stop_rx));
+            *slot = Some(AgentControl {
+                stop: stop_tx,
+                handle,
+            });
+        }
+        if features::is_on(db, PUSH_FEATURE).await {
+            self.push.start(db.clone(), self.bus.clone());
+        } else {
+            self.push.stop_dispatch();
+        }
+        Ok(())
+    }
+
+    /// Caller holds the agent lock.
+    fn stop_locked(&self, slot: &mut Option<AgentControl>) {
+        if let Some(ctrl) = slot.take() {
             let _ = ctrl.stop.send(true);
             ctrl.handle.abort();
         }
@@ -197,6 +258,39 @@ impl RemoteState {
         self.reconnecting
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
+}
+
+/// Whether the relay agent should run: the owner turned Remote Control on
+/// (`remote_enabled`) and [`FEATURE`] is on in `tree`.
+fn wants_agent(enabled: bool, tree: &[ModuleState]) -> bool {
+    enabled && features::effective(tree, FEATURE)
+}
+
+/// `Err("feature_disabled: remote.remote_control")` while [`FEATURE`] is off.
+async fn require_feature(db: &Db) -> Result<(), String> {
+    if features::is_on(db, FEATURE).await {
+        Ok(())
+    } else {
+        Err(format!("feature_disabled: {FEATURE}"))
+    }
+}
+
+/// `features::apply` hook: start or stop the agent, or its Web Push
+/// dispatcher, as soon as their switch changes, including through the module.
+/// The remote-desktop switches are read per command (`handler`).
+pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
+    let same = |id| features::effective(change.before, id) == features::effective(change.after, id);
+    if same(FEATURE) && same(PUSH_FEATURE) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<RemoteState>().inner().clone();
+        let db = app.state::<Db>().inner().clone();
+        let registry = app.state::<RunRegistry>().inner().clone();
+        let approvals = app.state::<BrokerApprovals>().inner().clone();
+        state.follow(&app, &db, &registry, &approvals).await;
+    });
 }
 
 /// Lowercase hex encode (shared by agent/pairing for pubkey exchange).
@@ -274,6 +368,36 @@ pub(crate) async fn ensure_device_id(db: &Db) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn agent_runs_only_when_enabled_and_switched_on() {
+        let tree = |pairs: &[(&str, &str)]| {
+            features::resolve(&pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>())
+        };
+        let on = tree(&[("feature.remote", "true"), ("feature.remote.remote_control", "true")]);
+        assert!(wants_agent(true, &on));
+        assert!(!wants_agent(false, &on), "turning the module back on does not connect by itself");
+        // Fresh install: the module and the prop are off.
+        assert!(!wants_agent(true, &tree(&[])));
+        let module_off = tree(&[("feature.remote", "false"), ("feature.remote.remote_control", "true")]);
+        assert!(!wants_agent(true, &module_off));
+        let prop_off = tree(&[("feature.remote", "true"), ("feature.remote.remote_control", "false")]);
+        assert!(!wants_agent(true, &prop_off));
+    }
+
+    #[tokio::test]
+    async fn enabling_is_refused_while_the_feature_is_off() {
+        let db = push::store::tests::mem_db().await;
+        // Fresh install: module and prop are off.
+        assert_eq!(require_feature(&db).await.unwrap_err(), "feature_disabled: remote.remote_control");
+        set_setting(&db, "feature.remote", "true").await.unwrap();
+        assert!(require_feature(&db).await.is_err(), "the prop is still off");
+        set_setting(&db, "feature.remote.remote_control", "true").await.unwrap();
+        assert_eq!(require_feature(&db).await, Ok(()));
+        set_setting(&db, "feature.remote", "false").await.unwrap();
+        assert!(require_feature(&db).await.is_err(), "module off wins over the prop");
+    }
 
     #[test]
     fn hex_roundtrips() {

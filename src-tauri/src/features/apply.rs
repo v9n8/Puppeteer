@@ -21,6 +21,7 @@ pub type Hook = fn(&AppHandle, &Change<'_>);
 const HOOKS: &[Hook] = &[
     crate::inbox_api::server::on_features_changed,
     crate::runs::session_watcher::on_features_changed,
+    crate::remote::on_features_changed,
 ];
 
 /// Run the hooks, then emit [`CHANGED_EVENT`].

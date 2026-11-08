@@ -389,8 +389,9 @@ pub fn run() {
 
             // Remote Control (C1): managed state + event bus. The `drain_sidecar`
             // task publishes run events onto this bus (no-op when no room is
-            // ACTIVE). If the feature was left enabled, auto-start the outbound
-            // relay agent (FR-001 "app khởi động khi tính năng đang bật").
+            // ACTIVE). If Remote Control was left enabled and its feature
+            // switch is on, auto-start the outbound relay agent (FR-001 "app
+            // khởi động khi tính năng đang bật").
             let remote_state = RemoteState::default();
             // Register the RemoteBus as its own managed state so the run event
             // tap in `sidecar.rs` (app.try_state::<RemoteBus>()) publishes onto
@@ -411,18 +412,9 @@ pub fn run() {
                     .inner()
                     .clone();
                 tauri::async_runtime::spawn(async move {
-                    let enabled = remote::get_setting(&db_for_remote, remote::KEY_ENABLED)
-                        .await
-                        .map(|v| v == "true")
-                        .unwrap_or(false);
-                    if enabled {
-                        if let Err(e) = remote_state
-                            .start(&app_handle, &db_for_remote, &registry, &approvals)
-                            .await
-                        {
-                            tracing::warn!(event = "remote_autostart_failed", error = %e);
-                        }
-                    }
+                    remote_state
+                        .follow(&app_handle, &db_for_remote, &registry, &approvals)
+                        .await;
                 });
             }
 

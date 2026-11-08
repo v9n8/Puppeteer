@@ -121,6 +121,12 @@ impl PushHub {
 
     pub fn stop(&self) {
         self.controller_detached();
+        self.stop_dispatch();
+    }
+
+    /// Stop the dispatcher only (Web Push switched off while the agent runs):
+    /// whether a phone is attached stays known for when it is switched back on.
+    pub fn stop_dispatch(&self) {
         if let Some(t) = self.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             t.abort();
         }
