@@ -173,6 +173,7 @@ mod tests {
             "text_tools.selection.quote",
             "text_tools.selection.copy_md",
             "sessions.cross_session_search",
+            "sessions.rewind",
             "library.agents",
             "library.commands",
             "library.skill_doctor",

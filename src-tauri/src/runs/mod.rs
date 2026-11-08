@@ -5,6 +5,7 @@ pub mod permission;
 pub mod pricing;
 pub mod session_watcher;
 pub mod sidecar;
+pub mod snapshots;
 pub mod ssh_access;
 pub mod stdin_writer;
 pub mod usage_cost;

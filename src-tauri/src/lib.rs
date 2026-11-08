@@ -254,6 +254,9 @@ pub fn run() {
             if swept > 0 {
                 tracing::info!(event = "worker_worktrees_swept", count = swept);
             }
+            // Rewind snapshots: drop expired ones and blobs nothing points at.
+            runs::snapshots::set_root(app_data_dir.join("snapshots"));
+            runs::snapshots::sweep_in_background(db.clone());
             // One-time, off the startup path: re-derive the usage ledger from
             // run logs (reads every log, so it can take a while).
             {

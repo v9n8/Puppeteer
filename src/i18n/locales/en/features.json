@@ -52,7 +52,8 @@
       "handoff": "Hand-off between Claude and Codex",
       "mirror_claude": "Mirror Claude CLI sessions",
       "mirror_codex": "Mirror Codex CLI sessions",
-      "cross_session_search": "Search across sessions"
+      "cross_session_search": "Search across sessions",
+      "rewind": "Rewind: snapshot files before each turn"
     },
     "text_tools": {
       "find_in_page": "Find in page",

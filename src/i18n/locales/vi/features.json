@@ -52,7 +52,8 @@
       "handoff": "Chuyển phiên giữa Claude và Codex",
       "mirror_claude": "Mirror session của Claude CLI",
       "mirror_codex": "Mirror session của Codex CLI",
-      "cross_session_search": "Tìm xuyên các session"
+      "cross_session_search": "Tìm xuyên các session",
+      "rewind": "Tua lại: chụp file trước mỗi lượt"
     },
     "text_tools": {
       "find_in_page": "Tìm trong trang",

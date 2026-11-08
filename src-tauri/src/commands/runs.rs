@@ -548,7 +548,9 @@ pub(crate) async fn start_run_inner(
             log_path,
             false,
         ));
-        // Registered and drained: now hand the first turn to the writer.
+        // Registered and drained: now hand the first turn to the writer, once
+        // the workspace is captured for Rewind.
+        crate::runs::snapshots::before_turn(db, &payload.run_id).await;
         queue_first_prompt(input.as_ref(), first_line);
         return Ok(());
     }
@@ -700,7 +702,9 @@ pub(crate) async fn start_run_inner(
         log_path,
         false,
     ));
-    // Registered and drained: now hand the first turn to the writer.
+    // Registered and drained: now hand the first turn to the writer, once the
+    // workspace is captured for Rewind.
+    crate::runs::snapshots::before_turn(db, &payload.run_id).await;
     queue_first_prompt(input.as_ref(), first_line);
     Ok(())
 }
@@ -1234,6 +1238,9 @@ pub(crate) async fn send_user_message_inner(
             .ok_or_else(|| "run not active".to_string())?;
         handle.log_buf.clone()
     };
+    // Every later turn, a resumed run's first included: capture the workspace
+    // for Rewind before the agent can touch it.
+    crate::runs::snapshots::before_turn(db, &payload.run_id).await;
     write_run_stdin(
         registry,
         &payload.run_id,

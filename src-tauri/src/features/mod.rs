@@ -71,6 +71,7 @@ pub static MODULES: &[Module] = &[
             on("mirror_claude"),
             on("mirror_codex"),
             on("cross_session_search"),
+            on("rewind"),
         ],
     },
     Module {
