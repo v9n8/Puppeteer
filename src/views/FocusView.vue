@@ -19,6 +19,7 @@ import FocusDayPlan from '@/components/focus/FocusDayPlan.vue'
 import FocusTodoDrawer from '@/components/focus/FocusTodoDrawer.vue'
 import FocusTodoRow from '@/components/focus/FocusTodoRow.vue'
 import { useFocusText } from '@/components/focus/useFocusText'
+import { useFeaturesStore } from '@/stores/features'
 import { useFocusStore } from '@/stores/focus'
 import { useProjectsStore } from '@/stores/projects'
 import {
@@ -105,6 +106,11 @@ const calibration = computed(() => calibrationHint(store.board?.calibration))
 const capacity = computed(() => store.board?.capacity ?? null)
 /** Why there is no capacity bar: no Google account → connect hint; other errors → retry. */
 const capacityError = computed(() => (store.board && !store.board.capacity ? store.board.capacity_error ?? null : null))
+// Calendar or Google off: the backend counts no busy time (capacity degraded).
+const features = useFeaturesStore()
+const calendarOff = computed(
+  () => features.loaded && !(features.isOn('productivity.calendar') && features.isOn('integrations.google')),
+)
 const refreshingCalendar = ref(false)
 async function refreshCalendar() {
   if (refreshingCalendar.value) return
@@ -224,7 +230,12 @@ onBeforeUnmount(() => {
       <span v-if="capacity.busy.length" class="shrink-0 text-muted-foreground" :title="capacity.busy.map((b) => b.title).join('\n')">
         {{ t('focus.capacity.busy', { n: capacity.busy.length }, capacity.busy.length) }}
       </span>
+      <span v-if="calendarOff" class="flex shrink-0 items-center gap-1 text-muted-foreground">
+        <CalendarClock class="h-3.5 w-3.5" :stroke-width="1.75" />
+        {{ t('focus.capacity.calendarOff') }}
+      </span>
       <Button
+        v-else
         variant="ghost"
         size="icon-sm"
         :disabled="refreshingCalendar"

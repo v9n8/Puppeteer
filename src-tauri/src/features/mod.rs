@@ -614,6 +614,8 @@ mod tests {
             instruction_checks::FEATURE,
             groups::FEATURE,
             crate::slack_threads::FEATURE,
+            crate::commands::google::FEATURE,
+            crate::commands::gcalendar::FEATURE,
         ] {
             let (m, p) = entry(id).unwrap_or_else(|| panic!("{id} is not in the registry"));
             let key = p.unwrap().key(m);
@@ -621,6 +623,22 @@ mod tests {
             assert_eq!(require(&on, id).await, Ok(()), "{id}");
             let off = db_with(&[(key.as_str(), "false")]).await;
             assert_eq!(require(&off, id).await, Err(format!("feature_disabled: {id}")), "{id}");
+        }
+    }
+
+    /// Calendar calls go to Google: the Calendar alone is not enough.
+    #[tokio::test]
+    async fn calendar_commands_also_need_google() {
+        use crate::commands::gcalendar;
+        let calendar = ("feature.productivity.calendar", "true");
+        let google = ("feature.integrations.google", "true");
+        let cases: &[(&[(&str, &str)], Result<(), String>)] = &[
+            (&[calendar, google], Ok(())),
+            (&[calendar], Err("feature_disabled: integrations.google".into())),
+            (&[google], Err("feature_disabled: productivity.calendar".into())),
+        ];
+        for (rows, want) in cases {
+            assert_eq!(&gcalendar::require(&db_with(rows).await).await, want, "{rows:?}");
         }
     }
 }

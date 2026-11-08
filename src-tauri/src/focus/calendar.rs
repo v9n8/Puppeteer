@@ -91,13 +91,18 @@ async fn fetch_all(account: &str, cals: &[String], day: NaiveDate) -> Result<Vec
 /// Today's events, or an error code / message (`ERR_NO_ACCOUNT`,
 /// `ERR_LOADING`, or the Google error), waiting at most `wait` on Google (a
 /// slower fetch keeps going and fills the cache). `app` gets `focus:changed`
-/// when a fetch outlives a caller's wait.
+/// when a fetch outlives a caller's wait. Empty while the Calendar or Google is
+/// off: capacity then counts no busy time.
 pub async fn today_events(
     db: &Db,
     settings: &FocusSettings,
     app: Option<AppHandle>,
     wait: Duration,
 ) -> Result<Vec<BusyEvent>, String> {
+    // Before the account lookup: off must not read as "connect Google".
+    if crate::commands::gcalendar::require(db).await.is_err() {
+        return Ok(Vec::new());
+    }
     let account = match settings.calendar_account_id.clone() {
         Some(a) => a,
         None => default_google_account(db).await.ok_or_else(|| ERR_NO_ACCOUNT.to_string())?,
@@ -281,5 +286,38 @@ mod tests {
         // Let it land before the next test uses the slot.
         tokio::time::sleep(Duration::from_millis(400)).await;
         assert!(state().lock().unwrap().inflight.is_none());
+    }
+
+    async fn db_with(pairs: &[(&str, &str)]) -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for (key, value) in pairs {
+            crate::commands::settings::set_setting(&db, key, value).await.unwrap();
+        }
+        db
+    }
+
+    /// No Google account is linked: with the Calendar on that is
+    /// `ERR_NO_ACCOUNT`; off, the calendar is simply empty (capacity degraded).
+    #[tokio::test]
+    async fn calendar_or_google_off_means_no_busy_time() {
+        let settings = FocusSettings::default();
+        let on = [("feature.integrations.google", "true"), ("feature.productivity.calendar", "true")];
+        let cases: &[(&[(&str, &str)], Result<usize, String>)] = &[
+            (&on, Err(ERR_NO_ACCOUNT.to_string())),
+            (&[], Ok(0)),
+            (&[on[0]], Ok(0)),
+            (&[on[1]], Ok(0)),
+            (&[on[0], on[1], ("feature.productivity", "false")], Ok(0)),
+        ];
+        for (rows, want) in cases {
+            let db = db_with(rows).await;
+            let got = today_events(&db, &settings, None, Duration::from_millis(10)).await.map(|e| e.len());
+            assert_eq!(&got, want, "{rows:?}");
+        }
     }
 }

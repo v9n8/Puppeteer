@@ -50,6 +50,7 @@
     "busy": "{n} khung bận",
     "connect": "Kết nối Google Calendar (Cài đặt → Google) để xem giờ trống hôm nay.",
     "error": "Không tải được lịch hôm nay",
+    "calendarOff": "Thiếu Calendar: chưa trừ giờ bận",
     "refresh": "Làm mới lịch"
   },
   "calibration": {

@@ -50,6 +50,7 @@
     "busy": "{n} busy block | {n} busy blocks",
     "connect": "Connect Google Calendar (Settings → Google) to see today's free time.",
     "error": "Couldn't load today's calendar",
+    "calendarOff": "Calendar is off: busy time is not counted",
     "refresh": "Refresh calendar"
   },
   "calibration": {

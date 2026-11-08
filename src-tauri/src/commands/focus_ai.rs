@@ -731,6 +731,7 @@ pub async fn focus_plan_to_calendar(
     date: String,
     block_ids: Option<Vec<String>>,
 ) -> Result<DayPlan, String> {
+    crate::commands::gcalendar::require(db.inner()).await?;
     // One push per day at a time: a double click must not create every
     // event twice.
     let _guard = PlanPushGuard::take(&date)?;

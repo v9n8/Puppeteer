@@ -1083,8 +1083,9 @@ onMounted(async () => {
     <PermissionWindowManager />
 
     <!-- Headless: fires native reminders for upcoming calendar events app-wide;
-         clicking opens the event's detail drawer on the Calendar screen. -->
-    <CalendarReminder />
+         clicking opens the event's detail drawer on the Calendar screen.
+         Unmounted (timers cleared) while the Calendar or Google is off. -->
+    <CalendarReminder v-if="features.isOn('productivity.calendar') && features.isOn('integrations.google')" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />

@@ -12,6 +12,11 @@
 //! MCP server asks the credential broker for one when it needs it, so a run that
 //! outlives the 1h access token keeps working and the refresh_token never leaves
 //! this process.
+//!
+//! While `integrations.google` is off, every command that signs in, calls
+//! Google or changes an account is refused (`features::require`). Listing the
+//! accounts, the client status, removing an account and forgetting the client
+//! stay allowed: they call nothing and let the user drop credentials.
 
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -23,6 +28,8 @@ use uuid::Uuid;
 
 use crate::db::Db;
 use crate::secrets;
+
+pub const FEATURE: &str = "integrations.google";
 
 /// Scopes requested in a single consent: full Drive, Gmail modify (read/send/
 /// label/trash — not permanent delete of the mailbox), plus email for display.
@@ -364,6 +371,7 @@ pub async fn add_google_account(
     client_id: Option<String>,
     client_secret: Option<String>,
 ) -> Result<GoogleAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let label = label.trim().to_string();
     if label.is_empty() {
         return Err("A label is required.".into());
@@ -444,6 +452,7 @@ pub async fn validate_google_account(
     db: State<'_, Db>,
     id: String,
 ) -> Result<GoogleValidation, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let refresh_token =
         secrets::get_google_account_token(&id).ok_or_else(|| GOOGLE_LOGIN_REQUIRED.to_string())?;
     let (client_id, client_secret) = match secrets::get_google_client() {
@@ -545,6 +554,7 @@ pub async fn reauth_google_account(
     db: State<'_, Db>,
     id: String,
 ) -> Result<GoogleAccount, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let row = sqlx::query("SELECT id, label, email, scope, is_default, created_at FROM google_accounts WHERE id = ?")
         .bind(&id)
         .fetch_optional(db.inner())
@@ -628,6 +638,7 @@ pub async fn rename_google_account(
     id: String,
     label: String,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let label = label.trim().to_string();
     if label.is_empty() {
         return Err("A label is required.".into());
@@ -650,6 +661,7 @@ pub async fn rename_google_account(
 /// Mark one account as the default (used when a tool call omits `account`).
 #[tauri::command]
 pub async fn set_default_google_account(db: State<'_, Db>, id: String) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     sqlx::query("UPDATE google_accounts SET is_default = 0")
         .execute(db.inner())
         .await

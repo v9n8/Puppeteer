@@ -10,6 +10,8 @@
 //! Errors from one account never fail the whole screen — they are collected into
 //! an `errors` array so the UI can flag accounts that need reconnecting (e.g. one
 //! connected before the `calendar.readonly` scope was added).
+//!
+//! Every command is refused while the Calendar or Google is off ([`require`]).
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -26,6 +28,16 @@ use crate::secrets;
 /// Cap on simultaneous in-flight Google API requests (across all accounts and
 /// calendars) so a user with many calendars doesn't trip Google's rate limits.
 const MAX_CONCURRENCY: usize = 8;
+
+pub const FEATURE: &str = "productivity.calendar";
+
+/// The gate of every Calendar call: `productivity.calendar` and also
+/// `integrations.google`, since each call goes to Google and a missing
+/// dependency alone only marks the prop degraded.
+pub async fn require(db: &Db) -> Result<(), String> {
+    crate::features::require(db, crate::commands::google::FEATURE).await?;
+    crate::features::require(db, FEATURE).await
+}
 
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const CALENDAR_LIST_ENDPOINT: &str =
@@ -409,6 +421,7 @@ pub async fn list_google_calendars(
     db: State<'_, Db>,
     account_ids: Option<Vec<String>>,
 ) -> Result<CalendarListResult, String> {
+    require(db.inner()).await?;
     let accounts = selected_accounts(db.inner(), account_ids).await?;
     let client = reqwest::Client::new();
     let mut calendars = Vec::new();
@@ -568,6 +581,7 @@ pub async fn list_google_calendar_events(
     time_min: String,
     time_max: String,
 ) -> Result<EventsResult, String> {
+    require(db.inner()).await?;
     let accounts = selected_accounts(db.inner(), account_ids).await?;
     let client = reqwest::Client::new();
     let sem = std::sync::Arc::new(Semaphore::new(MAX_CONCURRENCY));
@@ -650,6 +664,7 @@ pub async fn create_google_calendar_event(
     calendar_id: String,
     payload: EventPayload,
 ) -> Result<CalEvent, String> {
+    require(db.inner()).await?;
     let client = reqwest::Client::new();
     let url = format!(
         "{EVENTS_BASE}/{}/events",
@@ -682,6 +697,7 @@ pub async fn update_google_calendar_event(
     event_id: String,
     payload: EventPayload,
 ) -> Result<CalEvent, String> {
+    require(db.inner()).await?;
     let client = reqwest::Client::new();
     let url = format!(
         "{EVENTS_BASE}/{}/events/{}",
@@ -714,7 +730,7 @@ pub async fn delete_google_calendar_event(
     calendar_id: String,
     event_id: String,
 ) -> Result<(), String> {
-    let _ = &db; // kept for signature symmetry with create/update
+    require(db.inner()).await?;
     let client = reqwest::Client::new();
     let url = format!(
         "{EVENTS_BASE}/{}/events/{}",
