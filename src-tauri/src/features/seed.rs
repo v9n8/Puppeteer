@@ -156,6 +156,25 @@ mod tests {
         }
     }
 
+    /// A machine seeded before a prop existed has no row for it: the seed does
+    /// not run again, and the prop takes its registry default.
+    #[tokio::test]
+    async fn a_prop_registered_after_the_seed_gets_its_default() {
+        let db = db().await;
+        add_project(&db).await;
+        set_setting(&db, SEEDED_KEY, "1").await.unwrap();
+        set_setting(&db, "feature.text_tools", "true").await.unwrap();
+        set_setting(&db, "feature.text_tools.selection.translate", "true").await.unwrap();
+        seed(&db).await.unwrap();
+        let r = rows(&db).await;
+
+        for id in ["text_tools.find_in_page", "text_tools.selection.quote", "text_tools.selection.copy_md"] {
+            let (m, p) = crate::features::entry(id).unwrap();
+            assert!(!r.contains_key(&p.unwrap().key(m)), "{id}");
+            assert!(crate::features::is_on(&db, id).await, "{id}");
+        }
+    }
+
     #[tokio::test]
     async fn an_existing_flag_skips_the_seed() {
         let db = db().await;

@@ -72,7 +72,10 @@ pub static MODULES: &[Module] = &[
         default: true,
         locked: false,
         props: &[
+            on("find_in_page"),
+            on("selection.quote"),
             on("selection.translate"),
+            on("selection.copy_md"),
             Prop { depends_on: &["productivity.notes"], ..on("selection.save_note") },
             Prop { depends_on: &["productivity.todos"], ..on("selection.save_todo") },
         ],
@@ -488,6 +491,23 @@ mod tests {
         let tree = resolve(&rows(&[("feature.text_tools.selection.translate", "false")]));
         assert!(!prop(&tree, "text_tools.selection.translate").effective);
         assert!(prop(&tree, "text_tools.selection.save_note").default);
+    }
+
+    #[test]
+    fn text_tools_props_are_on_by_default_and_follow_their_module() {
+        let ids = ["text_tools.find_in_page", "text_tools.selection.quote", "text_tools.selection.copy_md"];
+        let tree = resolve(&HashMap::new());
+        for id in ids {
+            let p = prop(&tree, id);
+            assert!(p.default && p.effective && !p.locked, "{id}");
+        }
+        let (m, p) = owner("feature.text_tools.selection.copy_md").unwrap();
+        assert_eq!((m.id, p.unwrap().id), ("text_tools", "selection.copy_md"));
+
+        let tree = resolve(&rows(&[("feature.text_tools", "false")]));
+        for id in ids {
+            assert_eq!(prop(&tree, id).reason_key, Some("features.reason.module_off"), "{id}");
+        }
     }
 
     #[test]

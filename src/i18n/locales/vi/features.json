@@ -43,8 +43,11 @@
       "mirror_codex": "Mirror session của Codex CLI"
     },
     "text_tools": {
+      "find_in_page": "Tìm trong trang",
       "selection": {
+        "quote": "Trích đoạn đã chọn vào ô chat",
         "translate": "Dịch đoạn đã chọn",
+        "copy_md": "Copy đoạn chọn dạng Markdown",
         "save_note": "Lưu đoạn chọn thành ghi chú",
         "save_todo": "Lưu đoạn chọn thành việc cần làm"
       }

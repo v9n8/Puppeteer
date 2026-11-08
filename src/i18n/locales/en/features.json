@@ -43,8 +43,11 @@
       "mirror_codex": "Mirror Codex CLI sessions"
     },
     "text_tools": {
+      "find_in_page": "Find in page",
       "selection": {
+        "quote": "Quote selected text into the chat",
         "translate": "Translate selected text",
+        "copy_md": "Copy selection as Markdown",
         "save_note": "Save selection as a note",
         "save_todo": "Save selection as a todo"
       }
