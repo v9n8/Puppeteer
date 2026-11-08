@@ -30,7 +30,8 @@
   },
   "adapter": {
     "claude_code": "Claude Code",
-    "codex": "Codex"
+    "codex": "Codex",
+    "cursor": "Cursor"
   },
   "conflict": {
     "exists": "Name already in the library",

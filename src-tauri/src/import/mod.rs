@@ -19,6 +19,7 @@ pub mod apply;
 pub mod claude_code;
 pub mod codex;
 pub mod commands;
+pub mod cursor;
 
 use crate::commands::library_items::LibraryKind;
 use crate::commands::mcp::McpServerExport;
@@ -163,7 +164,7 @@ pub trait Adapter: Sync {
     fn scan(&self, root: &Path, scope: Scope, ctx: &ScanContext) -> ScanReport;
 }
 
-pub static ADAPTERS: &[&dyn Adapter] = &[&claude_code::ClaudeCode, &codex::Codex];
+pub static ADAPTERS: &[&dyn Adapter] = &[&claude_code::ClaudeCode, &codex::Codex, &cursor::Cursor];
 
 pub fn adapter(id: &str) -> Result<&'static dyn Adapter, String> {
     ADAPTERS.iter().copied().find(|a| a.id() == id).ok_or_else(|| format!("unknown import adapter '{id}'"))

@@ -187,14 +187,23 @@ mod tests {
     use super::*;
     use crate::import::claude_code::ClaudeCode;
     use crate::import::codex::Codex;
+    use crate::import::cursor::Cursor;
     use crate::import::{scan, Adapter, ScanContext, Scope};
     use sqlx::sqlite::SqlitePoolOptions;
     use std::fs;
     use std::io::Write;
     use std::sync::{Arc, Mutex};
 
-    const SECRETS: &[&str] =
-        &["SECRET-ENV-VALUE", "SECRET-HEADER-VALUE", "SECRET-BROKEN-VALUE", "ACCOUNT-SECRET", "SECRET-CODEX-VALUE", "SECRET-CODEX-BROKEN"];
+    const SECRETS: &[&str] = &[
+        "SECRET-ENV-VALUE",
+        "SECRET-HEADER-VALUE",
+        "SECRET-BROKEN-VALUE",
+        "ACCOUNT-SECRET",
+        "SECRET-CODEX-VALUE",
+        "SECRET-CODEX-BROKEN",
+        "SECRET-CURSOR-VALUE",
+        "SECRET-CURSOR-CLIENT",
+    ];
 
     struct Fixture {
         db: Db,
@@ -389,6 +398,19 @@ mod tests {
         assert_eq!(target, "codex");
     }
 
+    #[tokio::test]
+    async fn a_cursor_rule_comes_in_scoped_as_claude_code_reads_it() {
+        let f = Fixture::new("cursor-rule").await;
+        write(&f.root.join(".cursor/rules/tsx.mdc"), "---\ndescription: React\nglobs: *.tsx\nalwaysApply: false\n---\nUse hooks.");
+        let report = scan(&f.db, &Cursor, &f.root, Scope::Project, &f.ctx).await;
+        let got = import(&f.db, &f.dirs, &report.candidates, &[pick("rules:.cursor/rules/tsx.mdc")], &no_secrets()).await;
+        assert_eq!(summary(&got), [("rules:.cursor/rules/tsx.mdc".to_string(), Status::Imported, Some("tsx".to_string()))]);
+        let file = fs::read_to_string(f.dirs.rules.join("tsx.md")).unwrap();
+        assert_eq!(file, "---\ndescription: \"React\"\npaths:\n  - \"*.tsx\"\n---\nUse hooks.");
+        let row: (String, String) = sqlx::query_as("SELECT description, target FROM rules WHERE name = 'tsx'").fetch_one(&f.db).await.unwrap();
+        assert_eq!(row, ("React".to_string(), "both".to_string()));
+    }
+
     /// Every value of every column of every table, as text.
     async fn db_text(db: &Db) -> String {
         let tables: Vec<String> =
@@ -468,15 +490,29 @@ mod tests {
         let codex_outcomes = import(&f.db, &f.dirs, &codex_report.candidates, &[pick("mcp:cx")], &sink).await;
         returned += &serde_json::to_string(&codex_outcomes).unwrap();
         assert_eq!(codex_outcomes[0].status, Status::Imported, "{codex_outcomes:?}");
+        write(
+            &home.join(".cursor/mcp.json"),
+            r#"{"mcpServers": {"cu": {"url": "https://cu", "headers": {"X-Key": "SECRET-CURSOR-VALUE"}},
+                "cuauth": {"url": "https://cu", "auth": {"CLIENT_ID": "id", "CLIENT_SECRET": "SECRET-CURSOR-CLIENT"}}}}"#,
+        );
+        let cursor_report = scan(&f.db, &Cursor, &home, Scope::Global, &f.ctx).await;
+        assert_eq!(cursor_report.problems.len(), 1, "{:?}", cursor_report.problems);
+        returned += &serde_json::to_string(&cursor_report).unwrap();
+        let cursor_outcomes = import(&f.db, &f.dirs, &cursor_report.candidates, &[pick("mcp:cu")], &sink).await;
+        returned += &serde_json::to_string(&cursor_outcomes).unwrap();
+        assert_eq!(cursor_outcomes[0].status, Status::Imported, "{cursor_outcomes:?}");
         // A failure is logged too.
         import(&f.db, &f.dirs, &report.candidates, &[Pick { name: Some("bad name!".into()), ..pick("mcp:api") }], &sink).await;
 
         let stored = stored.into_inner().unwrap();
         let values: Vec<_> = stored.iter().flat_map(|(_, env, headers)| env.values().chain(headers.values()).cloned()).collect();
-        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE"]);
+        assert_eq!(values, ["SECRET-ENV-VALUE", "Bearer SECRET-HEADER-VALUE", "SECRET-ENV-VALUE", "SECRET-CODEX-VALUE", "SECRET-CURSOR-VALUE"]);
 
         let db_text = db_text(&f.db).await;
-        assert!(db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN"), "the dump holds the KEY names");
+        assert!(
+            db_text.contains("GH_TOKEN") && db_text.contains("API_KEY") && db_text.contains("CX_TOKEN") && db_text.contains("X-Key"),
+            "the dump holds the KEY names"
+        );
         let logs = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
         assert!(logs.contains("import_item_failed"), "{logs}");
         for secret in SECRETS {
