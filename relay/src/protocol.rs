@@ -6,6 +6,12 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Longest `room_id` / `pair_code` / `device_id` the relay accepts. Real ones
+/// are a few dozen bytes; anything larger is refused before it is stored or
+/// echoed, so a single unauthenticated frame cannot make the relay hold or
+/// send back megabytes.
+pub const MAX_ID_BYTES: usize = 128;
+
 /// Frame type discriminator carried in the envelope's `t` field (SRS §5.1/§5.3).
 ///
 /// Control frames drive the room lifecycle; the `Stream`, `PermissionRequest`
@@ -103,6 +109,29 @@ pub struct Envelope {
 }
 
 impl Envelope {
+    /// Whether any routing/identity field is longer than [`MAX_ID_BYTES`].
+    pub fn has_oversized_id(&self) -> bool {
+        self.room_id.len() > MAX_ID_BYTES
+            || self.pair_code.as_deref().is_some_and(|p| p.len() > MAX_ID_BYTES)
+            || self.device_id.as_deref().is_some_and(|d| d.len() > MAX_ID_BYTES)
+    }
+
+    /// Rough serialized size, for the outbound byte budget. Only the
+    /// variable-length fields matter; the JSON scaffolding is small and fixed.
+    pub fn approx_len(&self) -> usize {
+        let opt = [
+            &self.cipher,
+            &self.device_id,
+            &self.auth_token,
+            &self.pair_code,
+            &self.resume_token,
+            &self.slot,
+            &self.code,
+            &self.message,
+        ];
+        64 + self.room_id.len() + opt.iter().filter_map(|f| f.as_deref()).map(str::len).sum::<usize>()
+    }
+
     /// Build an `error` control frame (relay → sender).
     pub fn error(code: ErrorCode, message: impl Into<String>) -> Self {
         Envelope {

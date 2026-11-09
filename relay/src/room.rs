@@ -36,16 +36,23 @@ pub type ConnId = u64;
 /// silently dropping frames and leaving the session desynced.
 pub const OUTBOUND_MAX_QUEUE: usize = 4096;
 
+/// Same rule by size: a few frames can be megabytes each, so the frame count
+/// alone lets one stalled reader pin far more memory than the relay has. A
+/// frame is accepted while the queue is under this, so one maximum-size message
+/// (32 MiB by default) still goes through.
+pub const OUTBOUND_MAX_QUEUE_BYTES: usize = 32 * 1024 * 1024;
+
 /// Sender half used to push envelopes to a connection's write task.
 ///
 /// The channel itself is unbounded — the relay routes from inside a lock and
 /// must never await on a send — so the depth is tracked explicitly. Exceeding
-/// [`OUTBOUND_MAX_QUEUE`] fires `kill`, which the connection task turns into a
-/// disconnect.
+/// [`OUTBOUND_MAX_QUEUE`] or [`OUTBOUND_MAX_QUEUE_BYTES`] fires `kill`, which
+/// the connection task turns into a disconnect.
 #[derive(Debug, Clone)]
 pub struct Outbound {
     tx: mpsc::UnboundedSender<Envelope>,
     depth: Arc<AtomicUsize>,
+    bytes: Arc<AtomicUsize>,
     kill: Arc<Notify>,
 }
 
@@ -53,19 +60,22 @@ pub struct Outbound {
 pub struct OutboundRx {
     rx: mpsc::UnboundedReceiver<Envelope>,
     depth: Arc<AtomicUsize>,
+    bytes: Arc<AtomicUsize>,
 }
 
 /// Create a connected pair for one connection.
 pub fn outbound_channel() -> (Outbound, OutboundRx) {
     let (tx, rx) = mpsc::unbounded_channel();
     let depth = Arc::new(AtomicUsize::new(0));
+    let bytes = Arc::new(AtomicUsize::new(0));
     (
         Outbound {
             tx,
             depth: depth.clone(),
+            bytes: bytes.clone(),
             kill: Arc::new(Notify::new()),
         },
-        OutboundRx { rx, depth },
+        OutboundRx { rx, depth, bytes },
     )
 }
 
@@ -74,16 +84,21 @@ impl Outbound {
     /// far behind; in the latter case the connection is also signalled to close.
     #[allow(clippy::result_unit_err)]
     pub fn send(&self, env: Envelope) -> Result<(), ()> {
-        if self.depth.load(Ordering::Relaxed) >= OUTBOUND_MAX_QUEUE {
+        if self.depth.load(Ordering::Relaxed) >= OUTBOUND_MAX_QUEUE
+            || self.bytes.load(Ordering::Relaxed) >= OUTBOUND_MAX_QUEUE_BYTES
+        {
             self.kill.notify_one();
             return Err(());
         }
         // Count before sending so the receiver's decrement never underflows.
+        let len = env.approx_len();
         self.depth.fetch_add(1, Ordering::Relaxed);
+        self.bytes.fetch_add(len, Ordering::Relaxed);
         match self.tx.send(env) {
             Ok(()) => Ok(()),
             Err(_) => {
                 self.depth.fetch_sub(1, Ordering::Relaxed);
+                self.bytes.fetch_sub(len, Ordering::Relaxed);
                 Err(())
             }
         }
@@ -112,6 +127,7 @@ impl OutboundRx {
     pub async fn recv(&mut self) -> Option<Envelope> {
         let env = self.rx.recv().await?;
         self.depth.fetch_sub(1, Ordering::Relaxed);
+        self.bytes.fetch_sub(env.approx_len(), Ordering::Relaxed);
         Some(env)
     }
 
@@ -121,6 +137,7 @@ impl OutboundRx {
         match self.rx.try_recv() {
             Ok(env) => {
                 self.depth.fetch_sub(1, Ordering::Relaxed);
+                self.bytes.fetch_sub(env.approx_len(), Ordering::Relaxed);
                 Ok(env)
             }
             Err(_) => Err(()),
@@ -615,5 +632,16 @@ mod tests {
         futures_util::FutureExt::now_or_never(tx.killed()).expect("kill signalled");
         assert!(rx.try_recv().is_ok());
         assert!(tx.send(Envelope::peer_left("rm_ok")).is_ok());
+    }
+
+    #[test]
+    fn outbound_kills_a_peer_whose_queue_grows_too_large_in_bytes() {
+        let (tx, _rx) = outbound_channel();
+        let mut big = Envelope::peer_left("rm_big");
+        big.cipher = Some("A".repeat(1024 * 1024));
+        // 128 MiB of frames: far under the frame-count cap.
+        let refused = (0..128).any(|_| tx.send(big.clone()).is_err());
+        assert!(refused, "a queue this large in bytes must trip the kill");
+        futures_util::FutureExt::now_or_never(tx.killed()).expect("kill signalled");
     }
 }

@@ -277,6 +277,14 @@ async fn handle_connection(
             }
         };
 
+        // Checked before any id is stored, hashed or echoed. The error carries
+        // no room id so an oversized one is never sent back.
+        if env.has_oversized_id() {
+            tracing::debug!(event = "oversized_id", conn = conn_id);
+            let _ = out_tx.send(Envelope::error(ErrorCode::BadRequest, "id too long"));
+            continue;
+        }
+
         // Rate-limit control frames to blunt join/register flooding (SEC-007).
         // Data and keepalives are exempt: a streaming Host legitimately sends
         // far more than any control budget, and dropping its frames would
@@ -458,6 +466,8 @@ async fn dispatch(
                 }
                 None => {
                     tracing::debug!(event = "route_dropped", conn = conn_id, room_id = %env.room_id);
+                    // Echoed because both clients match it against their current
+                    // room; the length check above keeps it at most MAX_ID_BYTES.
                     let mut e = Envelope::error(ErrorCode::RoomNotFound, "room not found");
                     e.room_id = env.room_id;
                     let _ = out_tx.send(e);
@@ -467,8 +477,10 @@ async fn dispatch(
         }
 
         // Application-level heartbeat: echo so the relay→peer leg stays warm.
+        // Peers only need *a* frame back, so the room id is not echoed: the
+        // echo stays tiny however keepalives are flooded.
         FrameType::Keepalive => {
-            let _ = out_tx.send(Envelope::keepalive(env.room_id));
+            let _ = out_tx.send(Envelope::keepalive(String::new()));
             false
         }
 

@@ -10,6 +10,13 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# Per-client-IP caps in front of the relay. Every socket may send frames before
+# it authenticates, so bound how many one address can open, and how fast.
+# A Host keeps one socket and each Controller tab one more; raise the numbers if
+# many devices share one NAT address.
+limit_conn_zone $binary_remote_addr zone=relay_conn:10m;
+limit_req_zone  $binary_remote_addr zone=relay_req:10m rate=5r/s;
+
 server {
     listen 443 ssl http2;
     server_name relay.example.com;   # <-- your relay subdomain
@@ -22,6 +29,12 @@ server {
 
     location /ws {
         proxy_pass http://127.0.0.1:8787;
+
+        limit_conn relay_conn 10;
+        # Counts WebSocket upgrades (one request each), not frames inside them.
+        limit_req  zone=relay_req burst=20 nodelay;
+        limit_conn_status 429;
+        limit_req_status  429;
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade    $http_upgrade;

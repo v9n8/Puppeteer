@@ -344,3 +344,47 @@ async fn login_slot_is_tagged_and_survives_ending_the_session() {
     send(&mut c2, json!({ "t": "join", "pair_code": "puppeteer-login" })).await;
     assert_eq!(recv_json(&mut c2).await.unwrap()["t"], "room_ready");
 }
+
+#[tokio::test]
+async fn oversized_ids_are_refused_without_echo() {
+    let url = start_relay().await;
+    let long = "r".repeat(200);
+    let mut ws = connect(&url).await;
+    for frame in [
+        json!({ "t": "keepalive", "room_id": long }),
+        json!({ "t": "cmd", "room_id": long, "cipher": "x" }),
+        json!({ "t": "join", "pair_code": long }),
+        json!({ "t": "register_host", "device_id": long, "auth_token": TEST_TOKEN }),
+    ] {
+        send(&mut ws, frame).await;
+        let err = recv_json(&mut ws).await.expect("error frame");
+        assert_eq!(err["t"], "error", "got {err}");
+        assert_eq!(err["code"], "bad_request", "got {err}");
+        assert!(!err.to_string().contains(&long), "the id must not be echoed");
+    }
+
+    // A normal keepalive is still answered, and no longer carries the room id.
+    send(&mut ws, json!({ "t": "keepalive", "room_id": "rm_x" })).await;
+    let ka = recv_json(&mut ws).await.expect("keepalive echo");
+    assert_eq!(ka["t"], "keepalive");
+    assert_eq!(ka["room_id"], "");
+}
+
+#[tokio::test]
+async fn a_peer_that_stops_reading_is_dropped_by_queued_bytes() {
+    let url = start_relay().await;
+    let mut host = register_host(&url).await;
+    listen(&mut host, "code-10").await;
+    // The controller joins and then never reads: frames for it pile up.
+    let (ctrl, room) = join(&url, &mut host, "code-10").await;
+
+    // 96 x 1 MiB is far under the frame-count cap but well over the byte cap.
+    let chunk = "A".repeat(1024 * 1024);
+    for _ in 0..96 {
+        send(&mut host, json!({ "t": "stream", "room_id": room, "cipher": chunk })).await;
+    }
+    let pl = recv_within(&mut host, Duration::from_secs(10)).await.expect("peer_left");
+    assert_eq!(pl["t"], "peer_left");
+    assert_eq!(pl["room_id"], room.as_str());
+    drop(ctrl);
+}
