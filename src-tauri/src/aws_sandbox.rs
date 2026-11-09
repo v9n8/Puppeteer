@@ -33,6 +33,15 @@ pub fn empty_aws_dir(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join(AWS_PROJECTS_DIR).join(EMPTY_DIR)
 }
 
+/// An AWS region name (`us-east-1`). The region is written into the sandbox config file, so a
+/// newline in it would add any key there (`credential_process = …`).
+pub fn valid_region(region: &str) -> bool {
+    (1..=32).contains(&region.len())
+        && region
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
 /// Write `contents` to `path` atomically (temp file in the same dir + rename) so
 /// a concurrent reader (an `aws`/SDK child) never observes a truncated file.
 fn atomic_write(path: &Path, contents: &str) -> std::io::Result<()> {
@@ -74,10 +83,12 @@ pub async fn write_project_aws_config(db: &Db, app_data_dir: &Path, project_id: 
         }
     };
     let dir = project_aws_dir(app_data_dir, project_id);
-    let _ = atomic_write(
-        &dir.join("config"),
-        &format!("[default]\nregion = {}\n", meta.region),
-    );
+    let config = if valid_region(&meta.region) {
+        format!("[default]\nregion = {}\n", meta.region)
+    } else {
+        "[default]\n".to_string()
+    };
+    let _ = atomic_write(&dir.join("config"), &config);
     let _ = atomic_write(&dir.join("credentials"), "");
 }
 
@@ -105,4 +116,42 @@ pub async fn sync_all(db: &Db, app_data_dir: &Path) {
 
     // Legacy scheme wrote one dir per run; none of them are referenced anymore.
     let _ = std::fs::remove_dir_all(app_data_dir.join("aws-runs"));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A region from an imported or older row must not add keys to the config file.
+    #[tokio::test]
+    async fn a_region_with_a_newline_is_not_written() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO aws_accounts (id, label, auth_method, region, profile_name, created_at) \
+             VALUES ('a1', 'prod', 'profile', 'us-east-1\ncredential_process = /bin/sh -c x', 'prod', 'c')",
+            "INSERT INTO projects (id, name, path, default_engine, created_at, aws_account_id) \
+             VALUES ('p1', 'shop', '/tmp/shop', 'claude', 'c', 'a1')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let dir =
+            std::env::temp_dir().join(format!("puppeteer-aws-sandbox-{}", uuid::Uuid::new_v4()));
+        write_project_aws_config(&db, &dir, "p1").await;
+        let config = std::fs::read_to_string(project_aws_dir(&dir, "p1").join("config")).unwrap();
+        assert_eq!(config, "[default]\n");
+
+        sqlx::query("UPDATE aws_accounts SET region = 'eu-west-2'")
+            .execute(&db)
+            .await
+            .unwrap();
+        write_project_aws_config(&db, &dir, "p1").await;
+        let config = std::fs::read_to_string(project_aws_dir(&dir, "p1").join("config")).unwrap();
+        assert_eq!(config, "[default]\nregion = eu-west-2\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

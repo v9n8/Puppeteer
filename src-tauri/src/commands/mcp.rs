@@ -663,13 +663,15 @@ pub(crate) async fn insert_export(db: &Db, export: &McpServerExport) -> Result<S
 
 /// Create or overwrite (by name) an MCP server from a settings backup. `secrets` replaces the
 /// stored VALUEs when present; without it a new server gets its KEY names only and an existing
-/// one keeps its current VALUEs.
+/// one keeps its current VALUEs. An existing server whose launch (transport, command, args, url)
+/// changes is saved turned off, with a note for the import report: a backup from someone else
+/// must not swap what the next run starts.
 pub(crate) async fn import_backup_mcp(
     db: &Db,
     id_hint: &str,
     server: &McpServer,
     secret: Option<&secrets::McpSecrets>,
-) -> Result<crate::commands::settings_backup::Upsert, String> {
+) -> Result<(crate::commands::settings_backup::Upsert, Option<String>), String> {
     use crate::commands::settings_backup::Upsert;
     use sqlx::Row;
     validate_name(&server.name)?;
@@ -684,18 +686,24 @@ pub(crate) async fn import_backup_mcp(
         .await
         .map_err(|e| e.to_string())?;
 
+    let mut note = None;
     let (id, outcome) = match local {
         Some(row) => {
             let id: String = row.get("id");
             let current = row_to_server(&row);
+            let launch_changed = current.transport != server.transport
+                || current.command != command
+                || current.args != server.args
+                || current.url != url;
+            let enabled = server.enabled && !launch_changed;
+            if launch_changed && current.enabled {
+                note = Some("turned off because its command changed".to_string());
+            }
             let same = current.description == server.description
-                && current.transport == server.transport
-                && current.command == command
-                && current.args == server.args
-                && current.url == url
+                && !launch_changed
                 && current.env_keys == server.env_keys
                 && current.header_keys == server.header_keys
-                && current.enabled == server.enabled;
+                && current.enabled == enabled;
             if !same {
                 sqlx::query(
                     "UPDATE mcp_servers SET description = ?, transport = ?, command = ?, args = ?, \
@@ -708,7 +716,7 @@ pub(crate) async fn import_backup_mcp(
                 .bind(&url)
                 .bind(serde_json::to_string(&server.env_keys).unwrap_or_else(|_| "[]".to_string()))
                 .bind(serde_json::to_string(&server.header_keys).unwrap_or_else(|_| "[]".to_string()))
-                .bind(server.enabled as i64)
+                .bind(enabled as i64)
                 .bind(&id)
                 .execute(db)
                 .await
@@ -753,11 +761,11 @@ pub(crate) async fn import_backup_mcp(
             secrets::set_mcp_secrets(&id, &secret.env, &secret.headers)
                 .map_err(|e| format!("Failed to store secrets: {}", e))?;
             if outcome == Upsert::Unchanged {
-                return Ok(Upsert::Updated);
+                return Ok((Upsert::Updated, note));
             }
         }
     }
-    Ok(outcome)
+    Ok((outcome, note))
 }
 
 async fn unique_name(db: &Db, base: &str) -> Result<String, String> {
