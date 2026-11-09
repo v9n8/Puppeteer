@@ -38,11 +38,19 @@ import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/lib/settingsSection
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
+import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import {
   type SavedPrompt, newPromptId, parseSavedPrompts, serializeSavedPrompts, promptLabel,
 } from '@/lib/savedPrompts'
 
 const { t } = useI18n()
+
+// Only this OS's terminals: the backend reads any other value as this OS's default.
+const terminalApps = TERMINAL_APPS[desktopOs(navigator.userAgent)]
+const terminalAppOptions = computed(() =>
+  terminalApps.map((a) => ({ value: a.value, label: t(`settings.general.${a.labelKey}`) })),
+)
+
 const appSettings = useAppSettingsStore()
 const budget = useBudgetStore()
 const modelCatalog = useModelCatalogStore()
@@ -97,7 +105,7 @@ const settings = ref<AppSettings>({
   animated_background: 'true',
   saved_prompts: '[]',
   default_permission_mode: 'default',
-  terminal_app: 'terminal',
+  terminal_app: terminalApps[0].value,
   context_warn_percent: '80',
   context_limit_override: '',
   budget_5h_percent: '',
@@ -1170,10 +1178,7 @@ watch(() => settings.value.language, (v) => {
               <AppSelect
                 size="sm"
                 v-model="settings.terminal_app"
-                :options="[
-                  { value: 'terminal', label: t('settings.general.terminalDefault') },
-                  { value: 'iterm', label: t('settings.general.terminalIterm') },
-                ]"
+                :options="terminalAppOptions"
               />
             </div>
             <div class="space-y-1.5">

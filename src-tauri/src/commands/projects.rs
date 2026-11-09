@@ -434,11 +434,112 @@ fn open_in_terminal_inner(path: String, terminal_app: String) -> Result<(), Stri
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = terminal_app;
-        return Err("Open in terminal is only supported on macOS".to_string());
+        let app = resolve_terminal_app(std::env::consts::OS, &terminal_app);
+        spawn_first_terminal(app, terminal_launches(std::env::consts::OS, app, &path)?)?;
     }
 
     Ok(())
+}
+
+/// Terminal apps Settings offers on `os` (`std::env::consts::OS`), the default first. Mirrored by
+/// `TERMINAL_APPS` in `src/lib/terminalApps.ts`.
+fn terminal_apps(os: &str) -> &'static [&'static str] {
+    match os {
+        "macos" => &["terminal", "iterm"],
+        // PowerShell ships with every Windows; Windows Terminal does not with Windows 10.
+        "windows" => &["powershell", "wt", "cmd"],
+        _ => &["auto", "gnome-terminal", "konsole", "xfce4-terminal", "xterm"],
+    }
+}
+
+/// The saved `terminal_app` when `os` offers it, else that OS's default: a value saved on another
+/// OS (a settings backup from a Mac restored on Windows) falls back instead of failing.
+pub fn resolve_terminal_app(os: &str, saved: &str) -> &'static str {
+    let apps = terminal_apps(os);
+    apps.iter().copied().find(|a| *a == saved).unwrap_or(apps[0])
+}
+
+/// One way to open a terminal in `cwd`: an argv, never a shell command line, so no character of
+/// the folder's name is interpreted.
+#[cfg(any(not(target_os = "macos"), test))]
+#[derive(Debug, PartialEq)]
+struct TerminalLaunch {
+    program: &'static str,
+    args: Vec<String>,
+    /// Also the process's working directory: the terminals without a folder flag start there.
+    cwd: String,
+    /// A console program (PowerShell, cmd) needs a console window of its own: the app has none.
+    new_console: bool,
+}
+
+/// What to run to open `dir` in `app` on Windows / Linux, tried in order until one is installed.
+/// Folder flags: `wt -d` (learn.microsoft.com/windows/terminal/command-line-arguments),
+/// `gnome-terminal --working-directory=` (gnome-terminal(1)), `konsole --workdir`
+/// (docs.kde.org, Konsole "Command-line Options"), `xfce4-terminal --working-directory=`
+/// (docs.xfce.org, xfce4-terminal "Command line"). PowerShell, cmd, xterm and
+/// `x-terminal-emulator` (Debian policy only requires `-e` / `-T`) have none: `cwd` does it.
+#[cfg(any(not(target_os = "macos"), test))]
+fn terminal_launches(os: &str, app: &str, dir: &str) -> Result<Vec<TerminalLaunch>, String> {
+    // A remote caller's path is canonical, `\\?\C:\…` on Windows, which cmd does not take as its
+    // working directory.
+    let dir = match dir.strip_prefix(r"\\?\") {
+        Some(rest) if os == "windows" && rest.as_bytes().get(1) == Some(&b':') => rest,
+        _ => dir,
+    };
+    let launch = |program: &'static str, args: Vec<String>, new_console: bool| TerminalLaunch {
+        program,
+        args,
+        cwd: dir.to_string(),
+        new_console,
+    };
+    if os == "windows" {
+        return Ok(vec![match app {
+            "wt" => {
+                // `wt` splits its arguments into commands at every `;`, and `\;` keeps the backslash.
+                if dir.contains(';') {
+                    return Err("Windows Terminal cannot open a folder whose path contains ';'. Choose PowerShell or Command Prompt in Settings.".to_string());
+                }
+                launch("wt.exe", vec!["-d".to_string(), dir.to_string()], false)
+            }
+            "cmd" => launch("cmd.exe", vec![], true),
+            _ => launch("powershell.exe", vec![], true),
+        }]);
+    }
+    let gnome = || launch("gnome-terminal", vec![format!("--working-directory={dir}")], false);
+    let konsole = || launch("konsole", vec!["--workdir".to_string(), dir.to_string()], false);
+    let xfce = || launch("xfce4-terminal", vec![format!("--working-directory={dir}")], false);
+    let xterm = || launch("xterm", vec![], false);
+    Ok(match app {
+        "gnome-terminal" => vec![gnome()],
+        "konsole" => vec![konsole()],
+        "xfce4-terminal" => vec![xfce()],
+        "xterm" => vec![xterm()],
+        // "auto": the distribution's chosen terminal, then the common ones.
+        _ => vec![launch("x-terminal-emulator", vec![], false), gnome(), konsole(), xfce(), xterm()],
+    })
+}
+
+/// Start the first of `launches` that is installed.
+#[cfg(not(target_os = "macos"))]
+fn spawn_first_terminal(app: &str, launches: Vec<TerminalLaunch>) -> Result<(), String> {
+    for l in launches {
+        let mut cmd = std::process::Command::new(l.program);
+        cmd.args(&l.args).current_dir(&l.cwd);
+        #[cfg(windows)]
+        if l.new_console {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+            cmd.creation_flags(CREATE_NEW_CONSOLE);
+        }
+        #[cfg(not(windows))]
+        let _ = l.new_console;
+        match cmd.spawn() {
+            Ok(_) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("Failed to open {}: {}", l.program, e)),
+        }
+    }
+    Err(format!("No terminal found for \"{app}\". Choose another one in Settings."))
 }
 
 /// Run an AppleScript snippet via `osascript`, returning stdout on success.
@@ -1570,7 +1671,7 @@ pub async fn resolve_sync_conflict(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_remote_url;
+    use super::{parse_remote_url, resolve_terminal_app, terminal_launches, TerminalLaunch};
 
     #[test]
     fn parses_github_https_and_scp_remotes() {
@@ -1602,5 +1703,51 @@ mod tests {
         assert!(parse_remote_url("https://bitbucket.org/acme/widget.git").is_none());
         assert!(parse_remote_url("https://github.com/acme").is_none());
         assert!(parse_remote_url("").is_none());
+    }
+
+    #[test]
+    fn terminal_app_falls_back_to_the_os_default() {
+        assert_eq!(resolve_terminal_app("macos", "iterm"), "iterm");
+        assert_eq!(resolve_terminal_app("macos", "wt"), "terminal");
+        // A Mac backup restored on Windows / Linux.
+        assert_eq!(resolve_terminal_app("windows", "iterm"), "powershell");
+        assert_eq!(resolve_terminal_app("windows", "terminal"), "powershell");
+        assert_eq!(resolve_terminal_app("windows", "cmd"), "cmd");
+        assert_eq!(resolve_terminal_app("linux", "iterm"), "auto");
+        assert_eq!(resolve_terminal_app("linux", ""), "auto");
+        assert_eq!(resolve_terminal_app("linux", "konsole"), "konsole");
+    }
+
+    fn launch(program: &'static str, args: &[&str], cwd: &str, new_console: bool) -> TerminalLaunch {
+        TerminalLaunch { program, args: args.iter().map(|a| a.to_string()).collect(), cwd: cwd.to_string(), new_console }
+    }
+
+    #[test]
+    fn windows_terminals_get_the_folder_as_an_argument_or_cwd() {
+        let dir = r"C:\Users\me\My Project & 'x' $(y)";
+        assert_eq!(terminal_launches("windows", "wt", dir).unwrap(), vec![launch("wt.exe", &["-d", dir], dir, false)]);
+        assert_eq!(terminal_launches("windows", "powershell", dir).unwrap(), vec![launch("powershell.exe", &[], dir, true)]);
+        assert_eq!(terminal_launches("windows", "cmd", dir).unwrap(), vec![launch("cmd.exe", &[], dir, true)]);
+        // A remote caller's canonical path loses its `\\?\` prefix; a UNC share keeps it.
+        assert_eq!(terminal_launches("windows", "wt", r"\\?\C:\p").unwrap(), vec![launch("wt.exe", &["-d", r"C:\p"], r"C:\p", false)]);
+        assert_eq!(terminal_launches("windows", "cmd", r"\\?\UNC\srv\share").unwrap()[0].cwd, r"\\?\UNC\srv\share");
+        // `wt` would split the path at `;` into two commands.
+        assert!(terminal_launches("windows", "wt", r"C:\a;b").is_err());
+        assert!(terminal_launches("windows", "cmd", r"C:\a;b").is_ok());
+    }
+
+    #[test]
+    fn linux_terminals_get_the_folder_as_one_argument() {
+        let dir = "/home/me/a b;$(rm -rf ~)";
+        assert_eq!(
+            terminal_launches("linux", "gnome-terminal", dir).unwrap(),
+            vec![launch("gnome-terminal", &["--working-directory=/home/me/a b;$(rm -rf ~)"], dir, false)]
+        );
+        assert_eq!(terminal_launches("linux", "konsole", dir).unwrap(), vec![launch("konsole", &["--workdir", dir], dir, false)]);
+        assert_eq!(terminal_launches("linux", "xterm", dir).unwrap(), vec![launch("xterm", &[], dir, false)]);
+        let auto: Vec<_> = terminal_launches("linux", "auto", dir).unwrap().into_iter().map(|l| l.program).collect();
+        assert_eq!(auto, ["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "xterm"]);
+        // Only Windows has the `\\?\` prefix.
+        assert_eq!(terminal_launches("linux", "xterm", r"\\?\C:\p").unwrap()[0].cwd, r"\\?\C:\p");
     }
 }

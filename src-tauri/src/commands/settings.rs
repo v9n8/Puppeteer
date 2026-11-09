@@ -26,7 +26,8 @@ pub struct AppSettings {
     /// backend only round-trips the string.
     pub saved_prompts: String,
     pub default_permission_mode: String,
-    /// Terminal app to open a project folder with ("terminal" = macOS Terminal.app, "iterm").
+    /// Terminal app to open a project folder with, one of this OS's (`projects::terminal_apps`):
+    /// "terminal" (Terminal.app) or "iterm" on macOS.
     pub terminal_app: String,
     /// Context-window meter: warn threshold as a percent string, e.g. "80".
     pub context_warn_percent: String,
@@ -155,7 +156,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         animated_background: "true".to_string(),
         saved_prompts: "[]".to_string(),
         default_permission_mode: "default".to_string(),
-        terminal_app: "terminal".to_string(),
+        terminal_app: String::new(),
         context_warn_percent: "80".to_string(),
         context_limit_override: "".to_string(),
         budget_5h_percent: "".to_string(),
@@ -216,6 +217,9 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             _ => {}
         }
     }
+    // Unset, or saved on another OS (a restored backup): this OS's default.
+    settings.terminal_app =
+        crate::commands::projects::resolve_terminal_app(std::env::consts::OS, &settings.terminal_app).to_string();
 
     Ok(settings)
 }
