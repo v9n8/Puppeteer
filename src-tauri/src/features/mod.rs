@@ -700,6 +700,7 @@ mod tests {
             crate::commands::stats::STATS_FEATURE,
             crate::commands::aws_accounts::FEATURE,
             crate::commands::azure_accounts::FEATURE,
+            crate::commands::vps_servers::FEATURE,
             crate::commands::translate::SELECTION_FEATURE,
             crate::remote::PUSH_FEATURE,
             crate::schedules::FEATURE,

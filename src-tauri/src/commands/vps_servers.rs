@@ -19,6 +19,11 @@ use std::{
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
+/// Adding, changing, testing or mapping a server is refused while it is off
+/// (`features::require`); listing, deleting and unmapping are not (no network,
+/// and a key can still be removed).
+pub const FEATURE: &str = "infra_access.vps";
+
 // ---- Wire types ------------------------------------------------------------
 
 /// Server summary for list/detail views. Never carries the passphrase VALUE —
@@ -395,6 +400,7 @@ pub async fn create_vps_server(
     db: State<'_, Db>,
     payload: CreateServerPayload,
 ) -> Result<VpsServer, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     remote_key_paths(&webview, db.inner(), &payload.private_key_path, &payload.private_key_source_path, None).await?;
     // Validate BEFORE any DB write (BR-001..003).
     let fields = validate_payload(
@@ -462,6 +468,7 @@ pub async fn update_vps_server(
     db: State<'_, Db>,
     payload: UpdateServerPayload,
 ) -> Result<VpsServer, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     // Ensure the server exists and keep its existing key path as the default
     // when the user edits other fields without selecting a replacement key.
     let existing = sqlx::query("SELECT private_key_path FROM servers WHERE id = ?")
@@ -570,6 +577,7 @@ pub async fn test_vps_connection(
     db: State<'_, Db>,
     id: String,
 ) -> Result<TestConnectionResult, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let server = fetch_server(db.inner(), &id).await?;
 
     let result = run_ssh_probe(&server).await;
@@ -722,6 +730,7 @@ pub async fn map_server_to_project(
     server_id: String,
     role: String,
 ) -> Result<(), String> {
+    crate::features::require(db.inner(), FEATURE).await?;
     let role = role.trim();
     let role = if role.is_empty() { "production" } else { role };
     let now = chrono::Utc::now().to_rfc3339();
@@ -748,6 +757,7 @@ pub async fn set_project_server_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     if enabled {
+        crate::features::require(db, FEATURE).await?;
         sqlx::query(
             "INSERT OR IGNORE INTO project_servers (project_id, server_id, role, created_at) \
              VALUES (?, ?, 'production', ?)",
@@ -822,5 +832,51 @@ mod tests {
         let err = validate_payload("Prod", "example.com", "root", Some(22), "key", &None, &None)
             .unwrap_err();
         assert!(err.contains("private key file"));
+    }
+
+    /// The phone's server switch (`project_toggle_set`) maps through here: it
+    /// must not hand a project a server while the switch is off, but can still
+    /// take one away.
+    #[tokio::test]
+    async fn mapping_a_server_needs_the_vps_switch() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/tmp/a', 'c')",
+            "INSERT INTO servers (id, label, host, port, username, auth_method, created_at) \
+             VALUES ('v1', 'prod', 'example.com', 22, 'root', 'agent', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let mapped = || async {
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM project_servers")
+                .fetch_one(&db)
+                .await
+                .unwrap()
+        };
+
+        assert_eq!(
+            set_project_server_enabled(&db, "p1", "v1", true).await,
+            Err(format!("feature_disabled: {FEATURE}"))
+        );
+        assert_eq!(mapped().await, 0);
+
+        sqlx::query(
+            "INSERT INTO project_servers (project_id, server_id, role, created_at) \
+             VALUES ('p1', 'v1', 'production', 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        assert_eq!(set_project_server_enabled(&db, "p1", "v1", false).await, Ok(()));
+        assert_eq!(mapped().await, 0);
+
+        crate::commands::settings::set_setting(&db, "feature.infra_access.vps", "true").await.unwrap();
+        assert_eq!(set_project_server_enabled(&db, "p1", "v1", true).await, Ok(()));
+        assert_eq!(mapped().await, 1);
     }
 }

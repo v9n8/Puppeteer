@@ -1,9 +1,9 @@
 //! One-time seed of the feature switches, run at startup right after the
 //! migrations and before anything else reads or writes settings.
 //!
-//! - Fresh install (no project yet): the registry defaults apply as they are.
-//!   Only `inbox_api_enabled` is written (`"false"`), because builds before
-//!   the registry read a missing key as on.
+//! - Fresh install (no user data yet, `used_before`): the registry defaults
+//!   apply as they are. Only `inbox_api_enabled` is written (`"false"`),
+//!   because builds before the registry read a missing key as on.
 //! - Upgrade: every switch that can be turned off and has no stored value is
 //!   written `"true"`, so the user keeps everything they had. Stored values,
 //!   such as a legacy key set to `"false"`, are kept. Opt-in props (features
@@ -18,6 +18,28 @@ use crate::db::Db;
 /// Set once the seed has run; it never runs again.
 pub const SEEDED_KEY: &str = "feature._seeded";
 
+/// Tables of what a user adds, with or without a project. Migration 0001
+/// already inserts `settings` rows, so they cannot tell a fresh install apart.
+const USER_TABLES: &[&str] = &[
+    "projects",
+    "todos",
+    "notes",
+    "skills",
+    "rules",
+    "skill_groups",
+    "rule_groups",
+    "mcp_servers",
+    "servers",
+    "github_accounts",
+    "gitlab_accounts",
+    "aws_accounts",
+    "azure_accounts",
+    "google_accounts",
+    "claude_accounts",
+    "slack_threads",
+    "slack_identities",
+];
+
 pub async fn seed(db: &Db) -> Result<(), sqlx::Error> {
     let mut tx = db.begin().await?;
     let seeded: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
@@ -27,10 +49,7 @@ pub async fn seed(db: &Db) -> Result<(), sqlx::Error> {
     if seeded.is_some() {
         return Ok(());
     }
-    // Migration 0001 already inserts settings rows, so a fresh install is told
-    // apart by its projects.
-    let projects: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects").fetch_one(&mut *tx).await?;
-    let (keys, value): (Vec<String>, &str) = if projects == 0 {
+    let (keys, value): (Vec<String>, &str) = if !used_before(&mut tx).await? {
         (vec![crate::inbox_api::ENABLED_SETTING_KEY.to_string()], "false")
     } else {
         let keep_default = |key: &String| matches!(owner(key), Some((_, Some(p))) if p.opt_in);
@@ -48,6 +67,18 @@ pub async fn seed(db: &Db) -> Result<(), sqlx::Error> {
         .execute(&mut *tx)
         .await?;
     tx.commit().await
+}
+
+/// Whether this database has any user data: a row in [`USER_TABLES`], or the
+/// remote switch, which only the user turning Remote on or off writes.
+/// The Secret vault lives in the Keychain, not here.
+async fn used_before(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) -> Result<bool, sqlx::Error> {
+    let tables = USER_TABLES.iter().map(|t| format!("EXISTS (SELECT 1 FROM {t})"));
+    let sql = format!(
+        "SELECT {} OR EXISTS (SELECT 1 FROM settings WHERE key = ?)",
+        tables.collect::<Vec<_>>().join(" OR ")
+    );
+    sqlx::query_scalar(&sql).bind(crate::remote::KEY_ENABLED).fetch_one(&mut **tx).await
 }
 
 #[cfg(test)]
@@ -149,6 +180,27 @@ mod tests {
         // The off-by-default features users had before the registry still come on.
         for id in ["productivity.todos", "productivity.focus", "security.secret_vault", "integrations.slack"] {
             assert!(crate::features::is_on(&db, id).await, "{id}");
+        }
+    }
+
+    /// A user who never added a project still used the app: the seed must not
+    /// hide the todos, notes or accounts they have.
+    #[tokio::test]
+    async fn any_user_data_without_a_project_is_an_upgrade() {
+        for sql in [
+            "INSERT INTO todos (id, text, position, created_at) VALUES ('t1', 'x', 0, 'c')",
+            "INSERT INTO notes (id, position, created_at, updated_at) VALUES ('n1', 0, 'c', 'c')",
+            "INSERT INTO google_accounts (id, label, created_at) VALUES ('g1', 'me', 'c')",
+            "INSERT INTO servers (id, label, host, port, username, auth_method, created_at) \
+             VALUES ('v1', 'prod', 'example.com', 22, 'root', 'agent', 'c')",
+            "INSERT INTO settings (key, value) VALUES ('remote_enabled', 'false')",
+        ] {
+            let db = db().await;
+            sqlx::query(sql).execute(&db).await.unwrap();
+            seed(&db).await.unwrap();
+            for id in ["productivity.todos", "productivity.notes", "integrations.google", "infra_access.vps"] {
+                assert!(crate::features::is_on(&db, id).await, "{id} after {sql}");
+            }
         }
     }
 

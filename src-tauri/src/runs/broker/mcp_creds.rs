@@ -83,6 +83,9 @@ pub async fn process(
 /// Access token for one of the connected Google accounts (label or email; the
 /// default account when absent). `refresh` forces a fresh mint after a 401.
 async fn google_token(req: &BrokerRequest, db: &Db) -> Result<BrokerResponse, String> {
+    // Checked per request: a run launched with the server keeps it after the
+    // switch goes off.
+    crate::features::require(db, crate::commands::google::FEATURE).await?;
     if !crate::commands::mcp::builtin_mcp_enabled(db, "google", &req.project_id).await {
         return Err("the Google MCP server is switched off for this project".into());
     }
@@ -243,6 +246,23 @@ mod tests {
         ] {
             assert_denied(&process(&req(json), &db, &Live, None).await);
         }
+    }
+
+    /// A run launched while `integrations.google` was on keeps asking after
+    /// the switch goes off: no token then.
+    #[tokio::test]
+    async fn google_token_needs_the_google_switch() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        crate::commands::settings::set_setting(&db, "feature.integrations.google", "false").await.unwrap();
+        let r = req(r#"{"project_id":"p1","run_id":"r1","tool":"google","argv":[]}"#);
+        let resp = process(&r, &db, &Live, None).await;
+        assert_denied(&resp);
+        assert_eq!(resp.reason.as_deref(), Some("feature_disabled: integrations.google"));
     }
 
     #[tokio::test]
