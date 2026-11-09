@@ -4,6 +4,7 @@
 //! leaving all surrounding (user-authored) content untouched.
 
 use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 
 fn block_start(kind: &str, name: &str) -> String {
@@ -20,7 +21,13 @@ pub fn upsert(agents_path: &Path, kind: &str, name: &str, body: &str) -> Result<
     let end = block_end(kind, name);
     let block = format!("{}\n{}\n{}", start, body.trim_end_matches('\n'), end);
 
-    let existing = fs::read_to_string(agents_path).unwrap_or_default();
+    refuse_symlink(agents_path)?;
+    let existing = match fs::read_to_string(agents_path) {
+        Ok(content) => content,
+        Err(e) if e.kind() == ErrorKind::NotFound => String::new(),
+        // Not UTF-8 (a Shift_JIS AGENTS.md) or unreadable: writing the block over "" would wipe it.
+        Err(e) => return Err(format!("Cannot read {}: {} — left it unchanged", agents_path.display(), e)),
+    };
 
     let new_content = if let Some(s) = existing.find(&start) {
         if let Some(e_rel) = existing[s..].find(&end) {
@@ -51,8 +58,12 @@ pub fn extract(agents_path: &Path, kind: &str, name: &str) -> Option<String> {
     Some(content[body_start..body_start + e_rel].trim_matches('\n').to_string())
 }
 
-/// Remove the managed block for `kind`/`name`, collapsing surrounding blank lines.
+/// Remove the managed block for `kind`/`name`, collapsing surrounding blank lines. Best effort:
+/// a symlinked or unreadable AGENTS.md is left as it is.
 pub fn remove(agents_path: &Path, kind: &str, name: &str) {
+    if refuse_symlink(agents_path).is_err() {
+        return;
+    }
     let Ok(content) = fs::read_to_string(agents_path) else { return };
     let start = block_start(kind, name);
     let end = block_end(kind, name);
@@ -97,6 +108,14 @@ fn next_block(content: &str) -> Option<(usize, usize)> {
     Some((s, e))
 }
 
+/// Writing through a symlinked AGENTS.md would put the block into whatever it points at.
+fn refuse_symlink(agents_path: &Path) -> Result<(), String> {
+    if fs::symlink_metadata(agents_path).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(format!("{} is a symlink — Puppeteer won't write its block through it", agents_path.display()));
+    }
+    Ok(())
+}
+
 fn join_block(existing: &str, block: &str) -> String {
     if existing.trim().is_empty() {
         block.to_string()
@@ -110,5 +129,65 @@ fn ensure_trailing_newline(s: &str) -> String {
         s.to_string()
     } else {
         format!("{}\n", s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn tmp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("puppeteer-agents-block-{}-{}", name, uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn creates_a_missing_file() {
+        let agents = tmp("missing").join("AGENTS.md");
+        upsert(&agents, "rule", "x", "body").unwrap();
+        assert_eq!(fs::read_to_string(&agents).unwrap(), "<!-- puppeteer:rule:x START -->\nbody\n<!-- puppeteer:rule:x END -->\n");
+    }
+
+    #[test]
+    fn keeps_utf8_content_around_the_block() {
+        let agents = tmp("utf8").join("AGENTS.md");
+        fs::write(&agents, "# Mine\n").unwrap();
+        upsert(&agents, "rule", "x", "one").unwrap();
+        upsert(&agents, "rule", "x", "two").unwrap();
+        assert_eq!(
+            fs::read_to_string(&agents).unwrap(),
+            "# Mine\n\n<!-- puppeteer:rule:x START -->\ntwo\n<!-- puppeteer:rule:x END -->\n"
+        );
+        remove(&agents, "rule", "x");
+        assert_eq!(fs::read_to_string(&agents).unwrap(), "# Mine\n");
+    }
+
+    #[test]
+    fn refuses_a_file_that_is_not_utf8() {
+        let agents = tmp("sjis").join("AGENTS.md");
+        // "日本語" in Shift_JIS.
+        let sjis = b"# \x93\xfa\x96\x7b\x8c\xea\n".to_vec();
+        fs::write(&agents, &sjis).unwrap();
+        assert!(upsert(&agents, "rule", "x", "body").is_err());
+        assert_eq!(fs::read(&agents).unwrap(), sjis);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_symlinked_file() {
+        let dir = tmp("link");
+        let readme = dir.join("README.md");
+        let block = "<!-- puppeteer:rule:x START -->\nold\n<!-- puppeteer:rule:x END -->\n";
+        fs::write(&readme, format!("# Readme\n\n{block}")).unwrap();
+        let agents = dir.join("proj/AGENTS.md");
+        fs::create_dir_all(agents.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&readme, &agents).unwrap();
+
+        assert!(upsert(&agents, "rule", "x", "new").is_err());
+        remove(&agents, "rule", "x");
+        assert_eq!(fs::read_to_string(&readme).unwrap(), format!("# Readme\n\n{block}"));
+        assert!(fs::symlink_metadata(&agents).unwrap().file_type().is_symlink());
     }
 }
