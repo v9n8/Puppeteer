@@ -15,6 +15,7 @@
   "dragToReorder": "Drag to reorder",
   "selectFolderTitle": "Select Project Folder",
   "toastAdded": "Project added",
+  "errorHomeFolder": "Your home folder can't be a project: its skill and rule folders are the global ones. Pick a project folder inside it.",
   "toastDeleted": "Deleted",
   "confirmRemoveTitle": "Remove project",
   "confirmRemoveMessage": "Remove project \"{name}\"? (Files are NOT deleted)",

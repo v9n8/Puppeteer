@@ -11,6 +11,7 @@ import { Languages, Copy, Check, X, Loader2, RefreshCw } from 'lucide-vue-next'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
 import { useMarkdown } from '@/lib/markdown'
+import { errorText } from '@/lib/featureGate'
 
 const { t } = useI18n()
 
@@ -71,7 +72,7 @@ async function runTranslate() {
     })
     currentTurn = turn
   } catch (e) {
-    errorMsg.value = String(e)
+    errorMsg.value = errorText(e, t)
     phase.value = 'error'
   }
 }

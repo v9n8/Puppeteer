@@ -835,6 +835,10 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
     if !Path::new(&payload.path).exists() {
         return Err("Project path does not exist".to_string());
     }
+    // Skills etc. would link into HOME's own `.claude/skills`, bypassing `library.skills_global`.
+    if crate::commands::project_links::is_home(Path::new(&payload.path)) {
+        return Err("project_is_home".to_string());
+    }
 
     let name = payload.name.unwrap_or_else(|| {
         Path::new(&payload.path)

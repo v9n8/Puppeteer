@@ -287,7 +287,9 @@ pub async fn plan_bulk(db: &Db, req: &SkillBulkRequest) -> Result<SkillBulkPlan,
                     })
                     .collect();
                 let legacy = skills::legacy_codex_skill_dir(path, skill_name);
-                let legacy_codex = matches!(project_links::at_dest(root, &legacy, source), AtDest::OwnLink | AtDest::Other)
+                // Behind a symlinked `.codex` the apply leaves the folder alone, so it isn't listed.
+                let legacy_codex = (project_links::parent_is_real(root, &legacy) == Ok(true)
+                    && matches!(project_links::at_dest(root, &legacy, source), AtDest::OwnLink | AtDest::Other))
                     .then(|| legacy.to_string_lossy().into_owned());
                 let pair = PairState {
                     project_id: project_id.clone(),
@@ -655,6 +657,21 @@ mod fs_tests {
         assert_eq!(fs::read_to_string(copy.join("SKILL.md")).unwrap(), "mine");
         assert_eq!(fs::read_to_string(team.join("SKILL.md")).unwrap(), "team");
         assert_eq!(fx.installed().await, [("alpha".to_string(), "p2".to_string(), "codex")]);
+    }
+
+    #[tokio::test]
+    async fn a_copy_era_folder_behind_a_symlinked_parent_is_left_out() {
+        let fx = Fixture::new("legacy-link").await;
+        // `.codex` shared from elsewhere: what sits in it isn't the project's, and the apply leaves it.
+        let shared = fx.dir.join("shared");
+        fs::create_dir_all(shared.join("skills/alpha")).unwrap();
+        std::os::unix::fs::symlink(&shared, Path::new(&fx.project("p1")).join(".codex")).unwrap();
+        let req = SkillBulkRequest { project_ids: vec!["p1".into()], ..request(&["alpha"], None, &["codex"], true) };
+        let plan = plan_bulk(&fx.db, &req).await.unwrap();
+        let files: Vec<_> = plan.changes.iter().flat_map(|c| c.files.iter().map(|f| (f.action, f.path.clone()))).collect();
+        assert_eq!(files, [(FileAction::Create, codex_skill_dir(&fx.project("p1"), "alpha").to_string_lossy().into_owned())]);
+        apply_bulk(&fx.db, &req).await.unwrap();
+        assert!(shared.join("skills/alpha").is_dir());
     }
 
     #[tokio::test]

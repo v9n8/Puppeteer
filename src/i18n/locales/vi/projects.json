@@ -15,6 +15,7 @@
   "dragToReorder": "Kéo để sắp xếp",
   "selectFolderTitle": "Chọn thư mục dự án",
   "toastAdded": "Đã thêm dự án",
+  "errorHomeFolder": "Không thể dùng thư mục home làm dự án: thư mục skill và rule trong đó là thư mục global. Hãy chọn một thư mục dự án bên trong.",
   "toastDeleted": "Đã xóa",
   "confirmRemoveTitle": "Gỡ dự án",
   "confirmRemoveMessage": "Gỡ dự án \"{name}\"? (Không xóa file)",

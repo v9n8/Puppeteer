@@ -144,7 +144,8 @@ const builtins = computed<Builtin[]>(() => {
     status: t(`mcp.list.builtin.${googleState}`),
     description: t('mcp.list.builtin.googleDescription', { tools: 'mcp__google__*' }),
     enabled: googleOn,
-    section: 'google',
+    // Settings hides the Google section while `integrations.google` is off.
+    section: features.isOn('integrations.google') ? 'google' : undefined,
   }
   return [puppeteer, google]
 })

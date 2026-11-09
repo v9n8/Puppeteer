@@ -85,12 +85,23 @@ fn git_tracked(root: &Path, dest: &Path) -> bool {
         .is_ok_and(|o| o.status.success() && !o.stdout.is_empty())
 }
 
+/// Whether `root` is the user's HOME, symlinks resolved. Its `.claude/skills` & co. are the global
+/// folders every CLI reads, holding the user's own items: never managed as a project's.
+pub fn is_home(root: &Path) -> bool {
+    std::env::home_dir().is_some_and(|home| same_file(root, &home))
+}
+
 fn require_project_dir(root: &Path) -> Result<(), String> {
-    if root.is_dir() {
-        Ok(())
-    } else {
-        Err(format!("Project folder not found: {}", root.display()))
+    if !root.is_dir() {
+        return Err(format!("Project folder not found: {}", root.display()));
     }
+    if is_home(root) {
+        return Err(format!(
+            "{} is your home folder — Puppeteer won't link a project's items there; use a project folder inside it",
+            root.display()
+        ));
+    }
+    Ok(())
 }
 
 /// What currently sits at a link destination.
@@ -116,7 +127,7 @@ fn inspect(dest: &Path) -> Result<Existing, String> {
 
 /// Whether every folder between `root` and `dest` is a real directory (no symlinked component).
 /// Folders that don't exist yet count as real — `create_dir_all` will make them so.
-fn parent_is_real(root: &Path, dest: &Path) -> Result<bool, String> {
+pub fn parent_is_real(root: &Path, dest: &Path) -> Result<bool, String> {
     let Some(parent) = dest.parent() else { return Ok(false) };
     let Ok(rel) = parent.strip_prefix(root) else { return Ok(false) };
     let mut dir = root.to_path_buf();
@@ -738,6 +749,18 @@ mod tests {
         std::os::unix::fs::symlink(&src, home.join("dotfiles/skills/skill")).unwrap();
         assert!(!unlink_if_own(&home, &dest, &src).unwrap());
         assert!(is_symlink(&home.join("dotfiles/skills/skill")));
+    }
+
+    #[test]
+    fn home_is_never_a_project_root() {
+        let Some(home) = std::env::home_dir() else { return };
+        let err = require_project_dir(&home).unwrap_err();
+        assert!(err.contains("home folder"), "{err}");
+        // Reached through a symlink it is still HOME; any other folder is a project.
+        let root = tmp("home");
+        std::os::unix::fs::symlink(&home, root.join("home")).unwrap();
+        assert!(require_project_dir(&root.join("home")).is_err());
+        assert!(require_project_dir(&root).is_ok());
     }
 
     #[test]

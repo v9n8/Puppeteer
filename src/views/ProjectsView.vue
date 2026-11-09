@@ -235,7 +235,7 @@ async function confirmAdd() {
     toast.success(t('projects.toastAdded'))
     router.push(`/projects/${project.id}`)
   } catch (e) {
-    toast.error(String(e))
+    toast.error(String(e).includes('project_is_home') ? t('projects.errorHomeFolder') : String(e))
   } finally {
     adding.value = false
   }

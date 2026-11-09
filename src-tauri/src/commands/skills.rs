@@ -433,6 +433,46 @@ pub async fn create_skill(
     Ok(Skill { id, name: payload.name, description: payload.description, target: payload.target, source_path, updated_at: now })
 }
 
+/// Rename a skill's library folder to `new_dir`, then drop its links under the old name from every
+/// applied project and from HOME. Returns the engines it was linked for in HOME, and what couldn't
+/// be cleaned up. The move comes first: if it fails, every link still works.
+async fn rename_skill_dir(
+    db: &Db,
+    home: Option<&Path>,
+    skill_id: &str,
+    old_name: &str,
+    old_path: &str,
+    new_dir: &Path,
+) -> Result<(Vec<&'static str>, Vec<String>), String> {
+    use sqlx::Row;
+    fs::rename(old_path, new_dir).map_err(|e| e.to_string())?;
+    let projects = sqlx::query(
+        "SELECT p.path, ps.synced_hash_claude, ps.synced_hash_codex
+         FROM project_skills ps JOIN projects p ON p.id = ps.project_id WHERE ps.skill_id = ?"
+    )
+    .bind(skill_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut errors = Vec::new();
+    for prow in &projects {
+        let ppath: String = prow.get("path");
+        let prev_claude: Option<String> = prow.get("synced_hash_claude");
+        let prev_codex: Option<String> = prow.get("synced_hash_codex");
+        if let Err(e) = remove_skill_artifacts(&ppath, old_name, old_path, prev_claude.as_deref(), prev_codex.as_deref()) {
+            errors.push(e);
+        }
+    }
+    let mut relink_global = Vec::new();
+    if let Some(home) = home {
+        match unlink_global(home, old_name, old_path) {
+            Ok(engines) => relink_global = engines,
+            Err(e) => errors.push(e),
+        }
+    }
+    Ok((relink_global, errors))
+}
+
 #[tauri::command]
 pub async fn update_skill(
     app: AppHandle,
@@ -475,45 +515,14 @@ pub async fn update_skill(
         }
     }
 
-    // If renamed, drop old artifacts from every applied project first.
     let home = app.path().home_dir().ok();
-    let mut relink_global = Vec::new();
-    if old_name != payload.name {
-        let projects = sqlx::query(
-            "SELECT p.path, ps.synced_hash_claude, ps.synced_hash_codex
-             FROM project_skills ps JOIN projects p ON p.id = ps.project_id WHERE ps.skill_id = ?"
-        )
-        .bind(&payload.id)
-        .fetch_all(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-        let mut errors = Vec::new();
-        for prow in &projects {
-            let ppath: String = prow.get("path");
-            let prev_claude: Option<String> = prow.get("synced_hash_claude");
-            let prev_codex: Option<String> = prow.get("synced_hash_codex");
-            if let Err(e) = remove_skill_artifacts(&ppath, &old_name, &old_path, prev_claude.as_deref(), prev_codex.as_deref()) {
-                errors.push(e);
-            }
-        }
-        if let Some(home) = &home {
-            match unlink_global(home, &old_name, &old_path) {
-                Ok(engines) => relink_global = engines,
-                Err(e) => errors.push(e),
-            }
-        }
-        if !errors.is_empty() {
-            return Err(format!("Not renamed — clean these up first:\n{}", errors.join("\n")));
-        }
-    }
-
-    let new_source_path = if old_name != payload.name {
-        // Rename directory
+    let (new_source_path, relink_global, mut failures) = if old_name != payload.name {
         let new_dir = skills_dir(&app).join(&payload.name);
-        fs::rename(&old_path, &new_dir).map_err(|e| e.to_string())?;
-        new_dir.to_string_lossy().to_string()
+        let (relink, errors) =
+            rename_skill_dir(db.inner(), home.as_deref(), &payload.id, &old_name, &old_path, &new_dir).await?;
+        (new_dir.to_string_lossy().to_string(), relink, errors)
     } else {
-        old_path
+        (old_path, Vec::new(), Vec::new())
     };
 
     fs::write(Path::new(&new_source_path).join("SKILL.md"), &payload.content)
@@ -535,9 +544,7 @@ pub async fn update_skill(
     // Projects link to the source, so content is already live; sync covers renames. A new target
     // is only the default for projects applied from now on. Failures surface so a broken link is
     // never silent.
-    let mut failures = sync_skill_to_projects(&db, &payload.id)
-        .await
-        .map_err(|e| e.to_string())?;
+    failures.extend(sync_skill_to_projects(&db, &payload.id).await.map_err(|e| e.to_string())?);
     // A global link follows the rename, unless the new name is taken in that folder.
     if let Some(home) = &home {
         for engine in relink_global {
@@ -979,4 +986,67 @@ pub async fn sync_skill_to_projects(db: &Db, skill_id: &str) -> Result<Vec<Strin
     }
 
     Ok(failures)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    /// Skill `old` in `<dir>/lib`, linked into project `<dir>/p` and into `<dir>/home` for Claude.
+    async fn fixture(label: &str) -> (PathBuf, Db) {
+        let dir = std::env::temp_dir().join(format!("puppeteer-skills-{}-{}", label, Uuid::new_v4()));
+        let source = dir.join("lib/old");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("SKILL.md"), "---\nname: old\ndescription: d\n---\n").unwrap();
+        for root in ["p", "home"] {
+            let dest = dir.join(root).join(".claude/skills");
+            fs::create_dir_all(&dest).unwrap();
+            std::os::unix::fs::symlink(&source, dest.join("old")).unwrap();
+        }
+        let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p', 'p', ?, 'c')")
+            .bind(dir.join("p").to_string_lossy().to_string())
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO skills (id, name, description, target, source_path, updated_at) VALUES ('s', 'old', 'd', 'claude', ?, 'c')",
+        )
+        .bind(source.to_string_lossy().to_string())
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO project_skills (project_id, skill_id, enabled_claude, enabled_codex, synced_hash_claude, applied_at, manual)
+             VALUES ('p', 's', 1, 0, 'h', 'c', 1)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        (dir, db)
+    }
+
+    #[tokio::test]
+    async fn a_failed_rename_keeps_every_link() {
+        let (dir, db) = fixture("rename-fails").await;
+        let old = dir.join("lib/old").to_string_lossy().to_string();
+        let home = dir.join("home");
+        // No such parent folder: the rename itself fails.
+        let err = rename_skill_dir(&db, Some(&home), "s", "old", &old, &dir.join("missing/new")).await;
+        assert!(err.is_err());
+        for root in ["p", "home"] {
+            let link = dir.join(root).join(".claude/skills/old");
+            assert_eq!(fs::read_link(&link).unwrap(), Path::new(&old), "{root}");
+        }
+
+        let (relink, errors) = rename_skill_dir(&db, Some(&home), "s", "old", &old, &dir.join("lib/new")).await.unwrap();
+        assert_eq!((relink, errors), (vec!["claude"], Vec::<String>::new()));
+        assert!(dir.join("lib/new/SKILL.md").exists());
+        for root in ["p", "home"] {
+            assert!(fs::symlink_metadata(dir.join(root).join(".claude/skills/old")).is_err(), "{root}");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
