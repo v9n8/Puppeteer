@@ -27,6 +27,7 @@ use crate::commands::mcp::McpServer;
 use crate::commands::settings::is_portable_setting;
 use crate::commands::{mcp, rules, skills, vps_servers};
 use crate::db::Db;
+use crate::remote::fs_policy::RemoteFs;
 use crate::secrets::{self, GoogleClientCreds, McpSecrets};
 use crate::slack_threads::{store as slack_store, SlackThreadsState};
 use base64::engine::general_purpose::STANDARD as B64;
@@ -1703,27 +1704,28 @@ pub async fn import_settings_backup(
         bundle,
         secret.unwrap_or_default(),
         create_missing_dirs.unwrap_or(false),
-        from_remote(&webview),
+        policy.as_ref(),
         report,
     )
     .await)
 }
 
-/// Merge `bundle` into this machine. `from_remote`: called by a Remote Control controller, so the
-/// settings it may not write are skipped ([`import_settings`]).
+/// Merge `bundle` into this machine. `policy`: called by a Remote Control controller, so the
+/// settings it may not write are skipped ([`import_settings`]) and projects stay within its reach
+/// ([`import_project`]).
 async fn apply_bundle(
     app: &AppHandle,
     db: &Db,
     mut bundle: Bundle,
     secret: SecretPayload,
     create_missing_dirs: bool,
-    from_remote: bool,
+    policy: Option<&RemoteFs>,
     mut report: ImportReport,
 ) -> ImportReport {
     remap_bundle_paths(&mut bundle, std::env::var("HOME").ok().as_deref());
 
     let features_before = crate::features::commands::load(db).await;
-    import_settings(db, &bundle, from_remote, &mut report).await;
+    import_settings(db, &bundle, policy.is_some(), &mut report).await;
 
     for entry in &bundle.skills {
         let result = import_skill(&app, db, entry).await;
@@ -1809,7 +1811,7 @@ async fn apply_bundle(
     let app_data = app.path().app_data_dir().ok();
     let mut project_ids: Vec<(usize, String)> = Vec::new();
     for (index, entry) in bundle.projects.iter().enumerate() {
-        match import_project(db, entry, create_missing_dirs).await {
+        match import_project(db, entry, create_missing_dirs, policy).await {
             Ok((outcome, id, warnings)) => {
                 report.tally("projects", outcome);
                 for warning in warnings {
@@ -3091,10 +3093,14 @@ async fn id_by_label(
 /// `create_missing_dirs` is set, the project is skipped otherwise. Links (skills, rules, groups,
 /// agents / commands, MCP / VPS servers) are added, never removed; agents / commands only while
 /// their prop is on. Returns the local project id and per-link problems.
+///
+/// `policy`: called by a Remote Control controller. A project / repo root becomes writable for it
+/// ([`RemoteFs::for_caller`]), so it may only add one it already reads, and creates no folder.
 async fn import_project(
     db: &Db,
     entry: &ProjectEntry,
     create_missing_dirs: bool,
+    policy: Option<&RemoteFs>,
 ) -> Result<(Upsert, String, Vec<String>), String> {
     let err = |e: sqlx::Error| e.to_string();
     let mut warnings = Vec::new();
@@ -3111,7 +3117,7 @@ async fn import_project(
         None => entry.path.clone(),
     };
     if !Path::new(&path).is_dir() {
-        if !create_missing_dirs {
+        if !create_missing_dirs || policy.is_some() {
             if local.is_none() {
                 return Err(format!(
                     "folder {path} does not exist on this machine (turn on \"create missing project folders\")"
@@ -3121,6 +3127,9 @@ async fn import_project(
         } else {
             std::fs::create_dir_all(&path).map_err(|e| format!("could not create {path}: {e}"))?;
         }
+    }
+    if let (Some(policy), None) = (policy, &local) {
+        policy.read(Path::new(&path))?;
     }
 
     let github = id_by_label(db, "github_accounts", &entry.github_account).await?;
@@ -3229,6 +3238,10 @@ async fn import_project(
         .await
         .map_err(err)?;
         if exists.is_some() {
+            continue;
+        }
+        if let Some(Err(e)) = policy.map(|p| p.read(Path::new(&repo.path))) {
+            warnings.push(format!("repo '{}': {e}", repo.name));
             continue;
         }
         let provider = if repo.provider.is_empty() {
@@ -3878,8 +3891,8 @@ mod tests {
         }
         let entry = &projects[0];
         // Missing folder without permission to create it: skipped.
-        assert!(import_project(&target, entry, false).await.is_err());
-        let (outcome, id, warnings) = import_project(&target, entry, true).await.unwrap();
+        assert!(import_project(&target, entry, false, None).await.is_err());
+        let (outcome, id, warnings) = import_project(&target, entry, true, None).await.unwrap();
         assert_eq!(outcome, Upsert::Created);
         assert!(warnings.is_empty(), "{warnings:?}");
         assert!(new_path.is_dir());
@@ -3907,9 +3920,74 @@ mod tests {
         assert_eq!(links, (1, 1, 1));
 
         // Second import: matched by path, nothing new.
-        let (outcome, again, _) = import_project(&target, entry, false).await.unwrap();
+        let (outcome, again, _) = import_project(&target, entry, false, None).await.unwrap();
         assert_eq!((outcome, again), (Upsert::Unchanged, id));
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// A project / repo path becomes a writable root of the remote desktop, so a remote import
+    /// may only add paths the controller already reads.
+    #[tokio::test]
+    async fn remote_import_keeps_projects_within_fs_policy() {
+        use crate::remote::fs_policy::Roots;
+        use crate::remote::guard::SecretPaths;
+
+        let base = std::env::temp_dir().join(format!("puppeteer-r31-{}", Uuid::new_v4()));
+        let home = base.join("home");
+        let outside = base.join("outside");
+        for dir in [home.join("shop/api"), outside.clone()] {
+            std::fs::create_dir_all(&dir).unwrap();
+        }
+        let home = home.canonicalize().unwrap();
+        let outside = outside.canonicalize().unwrap();
+        let roots = Roots { writable: vec![home.clone()], ..Roots::default() };
+        let policy = RemoteFs::new(roots, Some(&home), SecretPaths::new(Some(&home), None));
+        let entry = |name: &str, path: &Path, repos: &[&Path]| -> ProjectEntry {
+            let repos: Vec<_> = repos
+                .iter()
+                .map(|p| serde_json::json!({ "name": p.file_name().unwrap().to_string_lossy(), "path": p, "created_at": "c" }))
+                .collect();
+            serde_json::from_value(serde_json::json!({
+                "id": name, "name": name, "path": path, "default_engine": "claude",
+                "created_at": "c", "repos": repos,
+            }))
+            .unwrap()
+        };
+        let db = test_db().await;
+        let count = |sql: &'static str| {
+            let db = db.clone();
+            async move { sqlx::query_scalar::<_, i64>(sql).fetch_one(&db).await.unwrap() }
+        };
+
+        // Outside HOME: refused, nothing added.
+        let err = import_project(&db, &entry("bin", &outside, &[]), false, Some(&policy)).await.unwrap_err();
+        assert!(err.contains("permission denied"), "{err}");
+        assert_eq!(count("SELECT COUNT(*) FROM projects").await, 0);
+
+        // Missing folder: never created for a remote caller.
+        let missing = home.join("new");
+        assert!(import_project(&db, &entry("new", &missing, &[]), true, Some(&policy)).await.is_err());
+        assert!(!missing.exists());
+        assert_eq!(count("SELECT COUNT(*) FROM projects").await, 0);
+
+        // Inside HOME: added, but a repo outside it is left out.
+        let shop = home.join("shop");
+        let (outcome, _, warnings) =
+            import_project(&db, &entry("shop", &shop, &[&shop.join("api"), &outside]), false, Some(&policy))
+                .await
+                .unwrap();
+        assert_eq!(outcome, Upsert::Created);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("permission denied"), "{warnings:?}");
+        assert_eq!(count("SELECT COUNT(*) FROM repos").await, 1);
+
+        // The local UI keeps its own rules.
+        let (outcome, _, warnings) =
+            import_project(&db, &entry("bin", &outside, &[&outside]), false, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Created);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(count("SELECT COUNT(*) FROM projects").await, 2);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     /// Library skills `(name, target)` with a real source folder each, so applying them links.
@@ -3963,7 +4041,7 @@ mod tests {
             "skills": [{ "name": "lint", "manual": true }, { "name": "review", "manual": false }],
         }))
         .unwrap();
-        let (_, id, warnings) = import_project(&source, &old, true).await.unwrap();
+        let (_, id, warnings) = import_project(&source, &old, true, None).await.unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
         assert_eq!(
             skill_engines(&source, &id).await,
@@ -3984,7 +4062,7 @@ mod tests {
 
         let target = test_db().await;
         add_library_skills(&target, &root.join("lib-b"), &library).await;
-        let (_, id, warnings) = import_project(&target, entry, true).await.unwrap();
+        let (_, id, warnings) = import_project(&target, entry, true, None).await.unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
         let expected = [("lint".to_string(), 0, 1), ("review".to_string(), 1, 0)];
         assert_eq!(skill_engines(&target, &id).await, expected);
@@ -3993,7 +4071,7 @@ mod tests {
         // Imported again over engines changed locally: the backup's come back.
         let both = SkillEngines { claude: true, codex: true };
         apply_skill_with_engines(&target, &id, "id-review", false, Some(both)).await.unwrap();
-        import_project(&target, entry, false).await.unwrap();
+        import_project(&target, entry, false, None).await.unwrap();
         assert_eq!(skill_engines(&target, &id).await, expected);
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -4244,7 +4322,7 @@ mod tests {
         let report = import_library(&target, &lib_b, &bundle).await;
         assert!(report.warnings.is_empty(), "{:?}", report.warnings);
         assert_eq!((tally_of(&report, "agents"), tally_of(&report, "commands")), ((1, 0, 0), (1, 0, 0)));
-        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true).await.unwrap();
+        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true, None).await.unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
         for (folder, name) in [("agents", "reviewer"), ("commands", "deploy")] {
             let source = lib_b.join(folder).join(format!("{name}.md"));
@@ -4255,7 +4333,7 @@ mod tests {
         // Imported again: nothing changes.
         let report = import_library(&target, &lib_b, &bundle).await;
         assert_eq!(tally_of(&report, "agents"), (0, 0, 1));
-        let (outcome, _, _) = import_project(&target, &bundle.projects[0], false).await.unwrap();
+        let (outcome, _, _) = import_project(&target, &bundle.projects[0], false, None).await.unwrap();
         assert_eq!(outcome, Upsert::Unchanged);
 
         // Edited here: the backup's version wins (the edit is moved to the legacy backups).
@@ -4293,7 +4371,7 @@ mod tests {
         let db = test_db().await;
         let report = import_library(&db, &root.join("lib"), &bundle).await;
         assert!(report.counts.is_empty() && report.warnings.is_empty());
-        let (outcome, id, warnings) = import_project(&db, &bundle.projects[0], true).await.unwrap();
+        let (outcome, id, warnings) = import_project(&db, &bundle.projects[0], true, None).await.unwrap();
         assert_eq!(outcome, Upsert::Created);
         assert!(warnings.is_empty(), "{warnings:?}");
         assert!(library_items::applied_names(&db, LibraryKind::Agent, &id).await.unwrap().is_empty());
@@ -4320,7 +4398,7 @@ mod tests {
             library_items::list_items(&target, LibraryKind::Agent).await.unwrap().into_iter().map(|i| i.name).collect();
         assert_eq!(names, ["reviewer"]);
 
-        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true).await.unwrap();
+        let (_, id, warnings) = import_project(&target, &bundle.projects[0], true, None).await.unwrap();
         assert_eq!(warnings, ["agents: 1 not applied, library.agents is off"]);
         assert!(library_items::applied_names(&target, LibraryKind::Agent, &id).await.unwrap().is_empty());
         assert!(std::fs::symlink_metadata(shop_b.join(".claude/agents/reviewer.md")).is_err());
@@ -4353,7 +4431,7 @@ mod tests {
         // The library still takes the group.
         assert_eq!(import_group(&db, GroupKind::Skill, &bundle.skill_groups[0]).await.unwrap(), Upsert::Created);
 
-        let (_, id, warnings) = import_project(&db, &bundle.projects[0], true).await.unwrap();
+        let (_, id, warnings) = import_project(&db, &bundle.projects[0], true, None).await.unwrap();
         assert_eq!(warnings, ["skill_groups: 1 not enabled, library.groups is off"]);
         let enabled = || {
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM project_skill_groups WHERE project_id = ?")
@@ -4364,7 +4442,7 @@ mod tests {
 
         // Back on: the same import enables it.
         crate::commands::settings::set_setting(&db, "feature.library.groups", "true").await.unwrap();
-        let (_, _, warnings) = import_project(&db, &bundle.projects[0], false).await.unwrap();
+        let (_, _, warnings) = import_project(&db, &bundle.projects[0], false, None).await.unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
         assert_eq!(enabled().await.unwrap(), 1);
         let _ = std::fs::remove_dir_all(&root);
