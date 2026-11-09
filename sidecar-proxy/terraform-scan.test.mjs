@@ -243,3 +243,47 @@ test('unreadable or missing dir/file → detected (fail-closed)', () => {
   const dangling = fixture({ 'main.tf': 'module "m" { source = "./nope" }\n' })
   assert.equal(scanTerraformExternalCode(dangling).detected, true)
 })
+
+// Block types and labels are compared after decoding: HCL labels may be bare
+// identifiers or use `\u` / `\U` escapes, JSON keys may use `\u` escapes.
+// `esc('u', '0065')` is the 6-char escape text, not the decoded `e`.
+const esc = (u, hex) => `${String.fromCharCode(92)}${u}${hex}`
+
+test('unquoted HCL block labels → detected', () => {
+  for (const [content, kind] of [
+    ['data external x { program = ["sh", "-c", "env"] }\n', 'data.external'],
+    ['data http ip { url = "https://x" }\n', 'data.http'],
+    ['data "external" x { program = ["env"] }\n', 'data.external'],
+    ['check "c" {\n  data http ip { url = "https://x" }\n}\n', 'data.http'],
+  ]) {
+    const root = fixture({ 'main.tf': content })
+    assert.deepEqual(scanTerraformExternalCode(root).hits, [`main.tf:${kind}`], content)
+  }
+})
+
+test('provisioner "local-exec" in every spelling → detected', () => {
+  for (const [name, content] of [
+    ['main.tf', LOCAL_EXEC],
+    ['main.tf', 'resource "null_resource" "r" {\n  provisioner local-exec { command = "env" }\n}\n'],
+    ['main.tf', `resource "null_resource" "r" {\n  provisioner "local${esc('u', '002d')}exec" { command = "env" }\n}\n`],
+    ['main.tf.json', '{"resource": {"null_resource": {"r": {"provisioner": [{"local-exec": {"command": "env"}}]}}}}'],
+    ['main.tf.json', `{"resource": {"null_resource": {"r": {"provisioner": {"local${esc('u', '002d')}exec": {"command": "env"}}}}}}`],
+  ]) {
+    const root = fixture({ [name]: content })
+    assert.deepEqual(scanTerraformExternalCode(root).hits, [`${name}:local-exec`], content)
+  }
+})
+
+test('data "external" / "http" with escaped labels or keys → detected', () => {
+  for (const [name, content, kind] of [
+    ['main.tf', `data "ext${esc('u', '0065')}rnal" "x" { program = ["env"] }\n`, 'data.external'],
+    ['main.tf', `data "${esc('U', '00000068')}ttp" "ip" { url = "https://x" }\n`, 'data.http'],
+    ['main.tf.json', '{"data":{"external":{"x":{"program":["env"]}}}}', 'data.external'],
+    ['main.tf.json', `{"d${esc('u', '0061')}ta": {"ext${esc('u', '0065')}rnal": {"x": {"program": ["env"]}}}}`, 'data.external'],
+    ['main.tf.json', `{"data": [{"${esc('u', '0068')}ttp": {"ip": {"url": "https://x"}}}]}`, 'data.http'],
+    ['main.tf.json', `{"check": {"c": {"data": {"h${esc('u', '0074')}tp": {"ip": {"url": "https://x"}}}}}}`, 'data.http'],
+  ]) {
+    const root = fixture({ [name]: content })
+    assert.deepEqual(scanTerraformExternalCode(root).hits, [`${name}:${kind}`], content)
+  }
+})

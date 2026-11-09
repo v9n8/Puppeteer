@@ -10,8 +10,10 @@
 // sources (`module "x" { source = "./..." }` / `"../..."`, also `.\` / `..\`
 // like Terraform), and everything under `.terraform/modules` (downloaded
 // remote modules).
-// Fail-closed: any read error, hitting a scan limit, or a file whose module
-// blocks cannot be parsed with certainty counts as detected.
+// Block types and labels are matched after decoding too (bare identifier
+// labels, `\u` escapes in HCL labels and JSON keys), not only as raw text.
+// Fail-closed: any read error, hitting a scan limit, or a file whose blocks
+// cannot be parsed with certainty counts as detected.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,6 +22,8 @@ const MAX_DEPTH = 12
 const MAX_FILES = 2000
 const MAX_HITS = 5
 
+// Raw-text patterns, always applied. The parsers below add what they miss:
+// `data external x {}`, `provisioner "local\u002dexec"`, `{"d\u0061ta": …}`.
 const HCL_PATTERNS = [
   [/\bdata\s+"external"/, 'data.external'],
   [/"local-exec"/, 'local-exec'],
@@ -40,6 +44,14 @@ function jsonKinds(text) {
 function hclKinds(text) {
   return HCL_PATTERNS.filter(([re]) => re.test(text)).map(([, kind]) => kind)
 }
+
+// `<block type>:<first label>` (decoded) → kind. A Map, so that labels like
+// `constructor` cannot hit Object.prototype.
+const EXTERNAL_BLOCKS = new Map([
+  ['data:external', 'data.external'],
+  ['data:http', 'data.http'],
+  ['provisioner:local-exec', 'local-exec'],
+])
 
 // Local module sources. Only the `source` argument of a top-level `module`
 // block is a module path: `provisioner "file" { source = "./run.sh" }` is a
@@ -76,16 +88,20 @@ function decodeJson(body) {
   }
 }
 
-// `source` values of top-level `module` blocks in HCL native syntax, decoded.
+// HCL native syntax: `source` values of top-level `module` blocks (decoded),
+// and the kinds of `data` / `provisioner` blocks at any depth (`check` holds
+// `data` blocks, resources hold provisioners), from their decoded labels.
 // Returns null when unsure (unbalanced brackets, unterminated string /
 // heredoc / comment, a source that is not a plain literal): the caller then
 // reports the file and follows every `source` string, as before.
-function hclModuleSources(text) {
+function hclBlocks(text) {
   const out = []
+  const kinds = []
   // Frames: brackets `{ [ (` (code), `str` / `heredoc` (template), and `${` /
   // `%{` inside a template (code closed by `}`).
   const stack = []
   let stmt = [] // tokens of the current top-level / module-body line
+  let line = [] // tokens since the last newline / bracket, at any depth
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0
   const isIdent = (tok, name) => tok?.t === 'ident' && tok.v === name
   const atBody = () => stack.length === 0 || (stack.length === 1 && stack[0].module)
@@ -100,6 +116,16 @@ function hclModuleSources(text) {
   }
   const token = (t, v) => {
     if (atBody()) stmt.push({ t, v })
+    line.push({ t, v })
+  }
+  // A block header is `type label* {`, each label an identifier or a string.
+  const blockHeader = () => {
+    const [type, ...labels] = line
+    if (type?.t !== 'ident' || !labels.length) return
+    if (!labels.every((l) => l.t === 'ident' || l.t === 'str')) return
+    const label = labels[0].t === 'ident' ? labels[0].v : decodeHcl(labels[0].body)
+    const kind = EXTERNAL_BLOCKS.get(`${type.v}:${label}`)
+    if (kind) kinds.push(kind)
   }
   while (i < text.length) {
     const top = stack[stack.length - 1]
@@ -136,6 +162,7 @@ function hclModuleSources(text) {
       i++
     } else if (c === '\n') {
       if (atBody() && !endStmt()) return null
+      line = []
       i++
     } else if (c === '#' || text.startsWith('//', i)) {
       const nl = text.indexOf('\n', i)
@@ -147,6 +174,7 @@ function hclModuleSources(text) {
     } else if (c === '"') {
       const tok = { t: 'str', start: i + 1 }
       if (atBody()) stmt.push(tok)
+      line.push(tok)
       stack.push({ kind: 'str', tok })
       i++
     } else if (text.startsWith('<<', i)) {
@@ -160,8 +188,10 @@ function hclModuleSources(text) {
       i = m.lastIndex
     } else if (c === '{' || c === '[' || c === '(') {
       const module = stack.length === 0 && c === '{' && isIdent(stmt[0], 'module')
+      if (c === '{') blockHeader()
       if (stack.length === 0) stmt = []
       else token('other')
+      line = []
       stack.push({ kind: { '{': '}', '[': ']', '(': ')' }[c], module })
       i++
     } else if (c === '}' || c === ']' || c === ')') {
@@ -169,6 +199,7 @@ function hclModuleSources(text) {
       if (top.module && !endStmt()) return null
       stack.pop()
       if (stack.length === 0) stmt = []
+      line = []
       i++
     } else {
       IDENT.lastIndex = i
@@ -187,7 +218,7 @@ function hclModuleSources(text) {
     }
   }
   if (stack.length || !endStmt()) return null
-  return out
+  return { sources: out, kinds }
 }
 
 // Minimal JSON parser keeping duplicate keys (objects are `{ entries }`):
@@ -242,9 +273,11 @@ function parseJsonEntries(text) {
   return v
 }
 
-// `source` values of `"module"` blocks in .tf.json: `{"module": {"<name>":
-// {body}}}`, where each level may also be an array of objects. Null when unsure.
-function jsonModuleSources(text) {
+// .tf.json: `source` values of `"module"` blocks (`{"module": {"<name>":
+// {body}}}`, where each level may also be an array of objects), and the kinds
+// of `"data"` / `"provisioner"` blocks at any depth, from their decoded keys.
+// Null when unsure.
+function jsonBlocks(text) {
   let root
   try {
     root = parseJsonEntries(text)
@@ -255,6 +288,18 @@ function jsonModuleSources(text) {
   const objects = (v) => (Array.isArray(v) ? v : [v]).filter((o) => typeof o !== 'string')
   const isObj = (o) => o !== null && typeof o === 'object' && Array.isArray(o.entries)
   if (!isObj(root)) return null
+  const kinds = []
+  const walk = (v, parent) => {
+    for (const o of Array.isArray(v) ? v : [v]) {
+      if (!isObj(o)) continue
+      for (const [k, child] of o.entries) {
+        const kind = EXTERNAL_BLOCKS.get(`${parent}:${k}`)
+        if (kind) kinds.push(kind)
+        walk(child, k)
+      }
+    }
+  }
+  walk(root, '')
   const out = []
   for (const [type, labels] of root.entries) {
     if (type !== 'module') continue
@@ -272,7 +317,7 @@ function jsonModuleSources(text) {
       }
     }
   }
-  return out
+  return { sources: out, kinds }
 }
 
 // Every `source = "..."` string anywhere in the file (the pre-parse
@@ -284,13 +329,15 @@ function anySources(text, isJson) {
   return [...text.matchAll(re)].map((m) => (isJson ? decodeJson(m[1]) : decodeHcl(m[1])))
 }
 
-// `{ sources, certain }`: local module dirs to follow (`\` → `/`).
-function localSources(text, isJson) {
-  const mods = isJson ? jsonModuleSources(text) : hclModuleSources(text)
-  const sources = (mods ?? anySources(text, isJson))
+// `{ kinds, sources, certain }`: external-code kinds found, and local module
+// dirs to follow (`\` → `/`).
+function scanText(text, isJson) {
+  const parsed = isJson ? jsonBlocks(text) : hclBlocks(text)
+  const kinds = new Set([...(isJson ? jsonKinds(text) : hclKinds(text)), ...(parsed?.kinds ?? [])])
+  const sources = (parsed?.sources ?? anySources(text, isJson))
     .filter((src) => LOCAL_SOURCE_PREFIXES.some((p) => src.startsWith(p)))
     .map((src) => src.replaceAll('\\', '/'))
-  return { sources, certain: mods !== null }
+  return { kinds, sources, certain: parsed !== null }
 }
 
 /**
@@ -361,8 +408,8 @@ export function scanTerraformExternalCode(workDir) {
         hit(p, 'unreadable')
         continue
       }
-      for (const kind of isJson ? jsonKinds(text) : hclKinds(text)) hit(p, kind)
-      const { sources, certain } = localSources(text, isJson)
+      const { kinds, sources, certain } = scanText(text, isJson)
+      for (const kind of kinds) hit(p, kind)
       if (!certain) hit(p, 'unparsed')
       for (const src of sources) {
         scanDir(path.resolve(path.dirname(p), src), depth + 1, false)
