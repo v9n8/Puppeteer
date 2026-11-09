@@ -1,6 +1,7 @@
 //! The Controller's Web Push actions (`push_*`). Reached only through
 //! [`crate::remote::handler::handle`], after the allow-list, the rate limit
-//! and the `push` feature gate. Every outcome is audited exactly once, except
+//! and the negotiated `push` flag; the Web Push switch is checked here
+//! ([`permitted`]). Every outcome is audited exactly once, except
 //! an accepted `push_visibility`: it fires on every app switch and changes
 //! nothing but whether pushes are held back.
 //!
@@ -63,19 +64,33 @@ pub fn clean_label(raw: Option<&str>) -> String {
         .to_string()
 }
 
+/// Whether `action` may run under the Web Push switch
+/// ([`crate::remote::PUSH_FEATURE`]). While it is off, only what neither sends
+/// nor adds a recipient runs: removing a device, and `push_visibility`, which
+/// the phone sends on a heartbeat and would otherwise be refused (audited and
+/// noticed) over and over.
+pub async fn permitted(db: &crate::db::Db, action: &str) -> bool {
+    matches!(action, "push_unsubscribe" | "push_visibility")
+        || crate::features::is_on(db, crate::remote::PUSH_FEATURE).await
+}
+
 pub async fn handle(ctx: &HandlerCtx, cmd: &CmdPayload) {
     let action = cmd.action.as_str();
-    let result = match action {
-        "push_config" => config(ctx, cmd).await,
-        "push_visibility" => visibility(ctx, cmd),
-        "push_subscribe" => subscribe(ctx, cmd).await,
-        "push_unsubscribe" => unsubscribe(ctx, cmd).await,
-        "push_test" => match start_test(ctx, cmd).await {
-            // Audited and acknowledged by the send task.
-            Ok(()) => return,
-            Err(reason) => Err(reason),
-        },
-        _ => Err(RejectReason::NotAllowed.as_str()),
+    let result = if !permitted(&ctx.db, action).await {
+        Err(RejectReason::NotAllowed.as_str())
+    } else {
+        match action {
+            "push_config" => config(ctx, cmd).await,
+            "push_visibility" => visibility(ctx, cmd),
+            "push_subscribe" => subscribe(ctx, cmd).await,
+            "push_unsubscribe" => unsubscribe(ctx, cmd).await,
+            "push_test" => match start_test(ctx, cmd).await {
+                // Audited and acknowledged by the send task.
+                Ok(()) => return,
+                Err(reason) => Err(reason),
+            },
+            _ => Err(RejectReason::NotAllowed.as_str()),
+        }
     };
     match result {
         Ok(()) => {
@@ -313,6 +328,25 @@ mod tests {
         assert!(!counts_as_subscribed(Some(&row(false, "OLD")), "K"), "made for another key");
         assert!(!counts_as_subscribed(Some(&row(true, "K")), "K"), "removed on the desktop");
         assert!(!counts_as_subscribed(None, "K"));
+    }
+
+    #[tokio::test]
+    async fn only_unsubscribing_and_visibility_run_while_web_push_is_off() {
+        use crate::commands::settings::set_setting;
+        let db = store::tests::mem_db().await;
+        set_setting(&db, "feature.remote", "true").await.unwrap();
+        set_setting(&db, "feature.remote.remote_control", "true").await.unwrap();
+        set_setting(&db, "feature.remote.web_push", "false").await.unwrap();
+        for action in ["push_config", "push_subscribe", "push_test"] {
+            assert!(!permitted(&db, action).await, "{action}");
+        }
+        for action in ["push_unsubscribe", "push_visibility"] {
+            assert!(permitted(&db, action).await, "{action}");
+        }
+        set_setting(&db, "feature.remote.web_push", "true").await.unwrap();
+        for action in ["push_config", "push_subscribe", "push_test", "push_unsubscribe", "push_visibility"] {
+            assert!(permitted(&db, action).await, "{action}");
+        }
     }
 
     #[test]
