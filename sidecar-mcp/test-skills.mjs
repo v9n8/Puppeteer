@@ -134,6 +134,26 @@ check(!isLink(globalLink('claude', 'review2')) && deleted.includes('global link 
   'skills_delete: its global link removed');
 check(existsSync(join(usersOwn, 'SKILL.md')), "skills_delete: the user's own global skill is left alone");
 
+// Names differing only in case are one source on a case-insensitive file system (APFS).
+for (const [kind, sourceOf] of [
+  ['skill', (name) => join(appData, 'skills', name, 'SKILL.md')],
+  ['rule', (name) => join(appData, 'rules', `${name}.md`)],
+]) {
+  const tool = (op) => `${kind}s_${op}`;
+  const idOf = (text) => text.match(/\(([0-9a-f-]{36})\)/)?.[1];
+  const mine = idOf(await call(tool('create'), { name: 'reviewer', description: 'd', content: 'mine' }));
+  const other = idOf(await call(tool('create'), { name: 'critic', description: 'd', content: 'other' }));
+  const dup = await call(tool('create'), { name: 'Reviewer', description: 'd', content: 'new' });
+  check(dup.includes(`${kind} 'Reviewer' already exists`), `${tool('create')}: a name differing only in case is taken`);
+  const onto = await call(tool('update'), { id: other, name: 'REVIEWER' });
+  check(onto.includes(`${kind} 'REVIEWER' already exists`), `${tool('update')}: renaming onto a name differing only in case is refused`);
+  check(readFileSync(sourceOf('reviewer'), 'utf8') === 'mine', `${tool('create')}: the existing source is left alone`);
+  const own = await call(tool('update'), { id: mine, name: 'Reviewer', content: 'v2' });
+  const row = db.prepare(`SELECT name, source_path FROM ${kind}s WHERE id = ?`).get(mine);
+  check(own.startsWith(`Updated ${kind} 'Reviewer'`) && row?.name === 'Reviewer' && readFileSync(sourceOf('Reviewer'), 'utf8') === 'v2',
+    `${tool('update')}: only the case of its own name is still a rename`);
+}
+
 db.close();
 rmSync(appData, { recursive: true, force: true });
 if (failures.length) {

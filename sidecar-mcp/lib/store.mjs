@@ -919,7 +919,9 @@ function linkSkillGlobal(engine, name, sourcePath) {
 function occupied(from, to) {
   if (!existsSync(to)) return false;
   try {
-    return realpathSync(to) !== realpathSync(from);
+    // `.native`: the JS realpathSync keeps the letter case it is given, so `Reviewer` and the
+    // on-disk `reviewer` would look like two folders.
+    return realpathSync.native(to) !== realpathSync.native(from);
   } catch {
     return true;
   }
@@ -1019,7 +1021,7 @@ export function createSkill({ name, description = '', target = 'claude', content
   const t = validateTarget(target);
   const desc = String(description || '').trim();
   if (!desc) throw new Error('description is required');
-  if (db().prepare('SELECT id FROM skills WHERE name = ?').get(n)) {
+  if (db().prepare('SELECT id FROM skills WHERE name = ? COLLATE NOCASE').get(n)) {
     throw new Error(`skill '${n}' already exists`);
   }
   const dir = join(skillsDir(), n);
@@ -1045,7 +1047,7 @@ export function updateSkill({ id, name, description, target, content } = {}) {
   if (descParam === '') throw new Error('description cannot be empty');
   const targetParam = target != null ? validateTarget(target) : null;
   const newName = name != null ? validateLibName(name, 'skill') : row.name;
-  if (newName !== row.name && db().prepare('SELECT id FROM skills WHERE name = ? AND id != ?').get(newName, id)) {
+  if (newName !== row.name && db().prepare('SELECT id FROM skills WHERE name = ? COLLATE NOCASE AND id != ?').get(newName, id)) {
     throw new Error(`skill '${newName}' already exists`);
   }
   let sourcePath = row.source_path;
@@ -1225,7 +1227,7 @@ export function createRule({ name, description = '', target = 'both', content = 
   const t = validateTarget(target);
   const desc = String(description || '').trim();
   if (!desc) throw new Error('description is required');
-  if (db().prepare('SELECT id FROM rules WHERE name = ?').get(n)) {
+  if (db().prepare('SELECT id FROM rules WHERE name = ? COLLATE NOCASE').get(n)) {
     throw new Error(`rule '${n}' already exists`);
   }
   mkdirSync(rulesDir(), { recursive: true });
@@ -1251,7 +1253,7 @@ export function updateRule({ id, name, description, target, content } = {}) {
   if (descParam === '') throw new Error('description cannot be empty');
   const targetParam = target != null ? validateTarget(target) : null;
   const newName = name != null ? validateLibName(name, 'rule') : row.name;
-  if (newName !== row.name && db().prepare('SELECT id FROM rules WHERE name = ? AND id != ?').get(newName, id)) {
+  if (newName !== row.name && db().prepare('SELECT id FROM rules WHERE name = ? COLLATE NOCASE AND id != ?').get(newName, id)) {
     throw new Error(`rule '${newName}' already exists`);
   }
   let sourcePath = row.source_path;
