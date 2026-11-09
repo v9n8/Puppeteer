@@ -62,7 +62,8 @@
       "masterCleared": "Master password cleared",
       "auditCleared": "Cleared {count} audit entries",
       "auditAlreadyEmpty": "Audit log is already empty",
-      "deviceNameInvalid": "Device name: use only lowercase letters, digits and '-' (up to 32)"
+      "deviceNameInvalid": "Device name: use only lowercase letters, digits and '-' (up to 32)",
+      "masterTooShort": "Master password: use at least {min} characters"
     },
     "identity": {
       "title": "This device & relay",

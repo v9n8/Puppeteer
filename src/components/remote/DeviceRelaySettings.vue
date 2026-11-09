@@ -12,6 +12,9 @@ import { DEVICE_ALIAS_RE } from '@/lib/remoteLogin'
 import { KeyRound } from 'lucide-vue-next'
 import { errorText } from '@/lib/featureGate'
 
+// Must match `MIN_MASTER_PASSWORD_LEN` in `src-tauri/src/secrets.rs`.
+const MIN_MASTER_PASSWORD_LEN = 12
+
 const store = useRemoteControlStore()
 const { t } = useI18n()
 const { toast } = useToast()
@@ -49,6 +52,11 @@ async function saveConfig() {
   const alias = deviceAlias.value.trim().toLowerCase()
   if (!DEVICE_ALIAS_RE.test(alias)) {
     toast.error(t('remote.settings.toast.deviceNameInvalid'))
+    return
+  }
+  // Same rule as the backend (counts characters, like Rust's `chars()`).
+  if (masterPassword.value.trim() && [...masterPassword.value].length < MIN_MASTER_PASSWORD_LEN) {
+    toast.error(t('remote.settings.toast.masterTooShort', { min: MIN_MASTER_PASSWORD_LEN }))
     return
   }
   savingConfig.value = true

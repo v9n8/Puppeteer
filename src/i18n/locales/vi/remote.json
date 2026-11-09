@@ -62,7 +62,8 @@
       "masterCleared": "Đã xóa mật khẩu chính",
       "auditCleared": "Đã xóa {count} bản ghi kiểm toán",
       "auditAlreadyEmpty": "Nhật ký kiểm toán đã trống",
-      "deviceNameInvalid": "Tên thiết bị: chỉ dùng chữ thường, số và '-' (tối đa 32 ký tự)"
+      "deviceNameInvalid": "Tên thiết bị: chỉ dùng chữ thường, số và '-' (tối đa 32 ký tự)",
+      "masterTooShort": "Mật khẩu chính: cần ít nhất {min} ký tự"
     },
     "identity": {
       "title": "Thiết bị này & Relay",

@@ -534,7 +534,7 @@ async fn handle_login_frame(
             let room_id = l.room_id.clone();
             let allowed = crate::remote::login::FAILURES
                 .lock()
-                .map(|mut f| f.allow(Instant::now()))
+                .map(|mut f| f.allow(&controller_pub, Instant::now()))
                 .unwrap_or(false);
             if !allowed {
                 tracing::warn!(event = "remote_login_throttled");
@@ -553,7 +553,7 @@ async fn handle_login_frame(
                 .and_then(|s| s.open(&cipher).ok().map(|pt| (s, pt)));
             let Some((session, _)) = opened else {
                 if let Ok(mut f) = crate::remote::login::FAILURES.lock() {
-                    f.record_failure(Instant::now());
+                    f.record_failure(&controller_pub, Instant::now());
                 }
                 tracing::warn!(event = "remote_login_failed", room_id = %room_id);
                 audit::audit(&deps.db, None, Some(&room_id), None, "login", audit::RESULT_REJECTED, Some("bad_password")).await;

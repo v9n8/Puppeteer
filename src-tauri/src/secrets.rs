@@ -726,9 +726,21 @@ pub fn delete_remote_auth_token() -> Result<()> {
     persist(store)
 }
 
+/// Shortest master password accepted when one is set or changed. A shorter one
+/// stored before this rule keeps working: only setting checks it.
+pub const MIN_MASTER_PASSWORD_LEN: usize = 12;
+
+fn check_master_password(password: &str) -> Result<()> {
+    if !password.trim().is_empty() && password.chars().count() < MIN_MASTER_PASSWORD_LEN {
+        return Err(anyhow!("master password must be at least {MIN_MASTER_PASSWORD_LEN} characters"));
+    }
+    Ok(())
+}
+
 /// Persist (or clear) the owner's remote master password. An empty string
 /// clears it (falls back to the OTP flow).
 pub fn set_remote_master_password(password: &str) -> Result<()> {
+    check_master_password(password)?;
     let mut guard = CACHE.lock().map_err(|_| anyhow!("secret cache poisoned"))?;
     ensure_loaded(&mut guard);
     let store = guard.as_mut().expect("store loaded");
@@ -1029,6 +1041,16 @@ mod tests {
         let mut stand_in = SecretStore { unreadable: Some(err.clone()), ..Default::default() };
         let refused = persist(&mut stand_in).unwrap_err().to_string();
         assert!(refused.starts_with(&err), "{refused}");
+    }
+
+    #[test]
+    fn a_master_password_needs_twelve_characters() {
+        assert!(check_master_password(&"a".repeat(11)).is_err());
+        // Refused before the store is touched.
+        assert!(set_remote_master_password("elevenchars").is_err());
+        assert!(check_master_password(&"a".repeat(12)).is_ok());
+        assert!(check_master_password(&"é".repeat(12)).is_ok(), "counts characters, not bytes");
+        assert!(check_master_password("").is_ok(), "empty clears the password");
     }
 
     #[test]
