@@ -25,6 +25,39 @@ const STORE_SERVICE: &str = SERVICE_NAME;
 /// reinstall, regardless of how many accounts are stored.
 const STORE_KEY: &str = "puppeteer_secret_store_v1";
 
+/// The OS store behind `keyring` (features in `Cargo.toml`), named in errors.
+/// There is no fallback: without it secrets are not saved at all, never to a
+/// plain file.
+#[cfg(target_os = "macos")]
+const STORE_NAME: &str = "macOS Keychain";
+#[cfg(windows)]
+const STORE_NAME: &str = "Windows Credential Manager";
+#[cfg(not(any(target_os = "macos", windows)))]
+const STORE_NAME: &str = "Secret Service (GNOME Keyring, KWallet… on D-Bus)";
+
+/// Largest value one item may hold, or `None` when the store has no practical
+/// limit. A Windows credential blob is at most 2560 bytes
+/// (`CRED_MAX_CREDENTIAL_BLOB_SIZE`, which `keyring` enforces as `TooLong`),
+/// far less than the store with a few secret notes, so there the store is
+/// split across several items (see `write_raw`).
+#[cfg(windows)]
+const ITEM_MAX_BYTES: Option<usize> = Some(2560);
+#[cfg(not(windows))]
+const ITEM_MAX_BYTES: Option<usize> = None;
+
+/// Main-item value of a store split into chunks: `<prefix><gen>:<count>`. Not
+/// JSON, so a build that predates chunks fails to parse it (and then never
+/// writes) instead of reading it as an empty store.
+const CHUNK_HEADER: &str = "puppeteer-chunks-v1:";
+
+/// Where a split store's bytes are: chunk `i` of generation `gen` holds bytes
+/// `i * max ..` of the JSON.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Chunks {
+    gen: u8,
+    count: usize,
+}
+
 /// In-memory view of the consolidated store. Keyed by account id → PAT.
 #[derive(Default, Serialize, Deserialize, Clone)]
 struct SecretStore {
@@ -66,11 +99,15 @@ struct SecretStore {
     /// `crate::secret_vault`).
     #[serde(default)]
     secret_vault: crate::secret_vault::VaultData,
-    /// The Keychain item exists but could not be read (access denied, bad
-    /// JSON): this in-memory store is an empty stand-in and must never be
-    /// written back, or it would wipe the real item.
+    /// Why the store could not be read (access denied, bad JSON, no Secret
+    /// Service on Linux). `Some`: this in-memory store is an empty stand-in
+    /// and must never be written back, or it would wipe the real item.
     #[serde(skip)]
-    unreadable: bool,
+    unreadable: Option<String>,
+    /// The split the OS store has now, so a write replaces it without reading
+    /// the store again (a read can prompt on macOS).
+    #[serde(skip)]
+    layout: Option<Chunks>,
 }
 
 /// Process-lifetime cache of the decrypted store.
@@ -95,22 +132,101 @@ fn store_entry() -> Result<Entry> {
     Ok(Entry::new(STORE_SERVICE, STORE_KEY)?)
 }
 
+/// Opens one item of a store: the main item (`STORE_KEY`) or a chunk.
+type Open<'a> = &'a dyn Fn(&str) -> keyring::Result<Entry>;
+
+fn os_item(user: &str) -> keyring::Result<Entry> {
+    Entry::new(STORE_SERVICE, user)
+}
+
+fn chunk_user(gen: u8, i: usize) -> String {
+    format!("{STORE_KEY}.{gen}.{i}")
+}
+
+fn parse_header(value: &str) -> Option<Chunks> {
+    let (gen, count) = value.strip_prefix(CHUNK_HEADER)?.split_once(':')?;
+    Some(Chunks { gen: gen.parse().ok()?, count: count.parse().ok()? })
+}
+
+/// The store's JSON and split, or `None` when there is no store yet. Any other
+/// failure is an error, never `None`: a missing chunk or an unreachable OS
+/// store must not pass for "no secrets", or the next write would wipe them.
+fn read_raw(open: Open) -> Result<Option<(String, Option<Chunks>)>> {
+    let head = match open(STORE_KEY).and_then(|e| e.get_password()) {
+        Ok(v) => v,
+        Err(keyring::Error::NoEntry) => return Ok(None),
+        Err(e) => return Err(anyhow!("{STORE_NAME} unavailable: {e}")),
+    };
+    let Some(chunks) = parse_header(&head) else {
+        return Ok(Some((head, None)));
+    };
+    let mut bytes = Vec::new();
+    for i in 0..chunks.count {
+        let part = open(&chunk_user(chunks.gen, i))
+            .and_then(|e| e.get_secret())
+            .map_err(|e| anyhow!("{STORE_NAME}: secret store chunk {i} unreadable: {e}"))?;
+        bytes.extend(part);
+    }
+    let json = String::from_utf8(bytes).map_err(|_| anyhow!("{STORE_NAME}: secret store chunks are not UTF-8"))?;
+    Ok(Some((json, Some(chunks))))
+}
+
+/// Write `json` as the whole store, replacing the split `prev`; returns the new
+/// split. A value over `max` goes to the other generation of chunks, and the
+/// main item points to it only once every chunk is written, so a failed write
+/// leaves the previous store whole.
+fn write_raw(open: Open, json: &str, prev: Option<Chunks>, max: Option<usize>) -> keyring::Result<Option<Chunks>> {
+    // Windows keeps a password as UTF-16, two bytes per unit.
+    let next = match max.filter(|&m| json.encode_utf16().count() * 2 > m) {
+        None => {
+            open(STORE_KEY)?.set_password(json)?;
+            None
+        }
+        Some(max) => {
+            let gen = prev.map_or(0, |p| 1 - p.gen);
+            let mut count = 0;
+            for part in json.as_bytes().chunks(max) {
+                open(&chunk_user(gen, count))?.set_secret(part)?;
+                count += 1;
+            }
+            // Left by an earlier write that failed before switching.
+            delete_chunks(open, gen, count);
+            let next = Chunks { gen, count };
+            open(STORE_KEY)?.set_password(&format!("{CHUNK_HEADER}{gen}:{count}"))?;
+            Some(next)
+        }
+    };
+    if let Some(p) = prev {
+        delete_chunks(open, p.gen, 0);
+    }
+    Ok(next)
+}
+
+/// Delete chunks `from..` of `gen` until one is missing. Best effort: the main
+/// item names the live chunks, so one left behind is never read.
+fn delete_chunks(open: Open, gen: u8, from: usize) {
+    for i in from.. {
+        if open(&chunk_user(gen, i)).and_then(|e| e.delete_credential()).is_err() {
+            break;
+        }
+    }
+}
+
 /// Load the store into the cache if not already loaded. This is the ONLY place
 /// that may trigger a Keychain password prompt (besides `loaded_strict`).
 fn ensure_loaded(guard: &mut Option<SecretStore>) {
     if guard.is_some() {
         return;
     }
-    *guard = Some(read_store().unwrap_or_else(|_| SecretStore { unreadable: true, ..Default::default() }));
+    *guard = Some(read_store().unwrap_or_else(|e| SecretStore { unreadable: Some(e.to_string()), ..Default::default() }));
 }
 
-/// The Keychain item, or an empty store when there is none yet. Fails when it
-/// exists but cannot be read or parsed.
+/// The OS store's item, or an empty store when there is none yet. Fails when
+/// it exists but cannot be read or parsed, or the OS store is unreachable.
 fn read_store() -> Result<SecretStore> {
-    match store_entry()?.get_password() {
-        Ok(json) => Ok(serde_json::from_str(&json)?),
-        Err(keyring::Error::NoEntry) => Ok(seed_from_release()),
-        Err(e) => Err(anyhow!("keychain unavailable: {e}")),
+    match read_raw(&os_item)? {
+        Some((json, layout)) => Ok(SecretStore { layout, ..serde_json::from_str(&json)? }),
+        None => Ok(seed_from_release()),
     }
 }
 
@@ -120,10 +236,11 @@ fn read_store() -> Result<SecretStore> {
 /// would pose as the release one. Never in tests.
 #[cfg(all(debug_assertions, not(test)))]
 fn seed_from_release() -> SecretStore {
-    let mut store: SecretStore = Entry::new(SERVICE_NAME, STORE_KEY)
+    let open = |user: &str| Entry::new(SERVICE_NAME, user);
+    let mut store: SecretStore = read_raw(&open)
         .ok()
-        .and_then(|e| e.get_password().ok())
-        .and_then(|json| serde_json::from_str(&json).ok())
+        .flatten()
+        .and_then(|(json, _)| serde_json::from_str(&json).ok())
         .unwrap_or_default();
     store.remote.session = None;
     store
@@ -134,13 +251,13 @@ fn seed_from_release() -> SecretStore {
     SecretStore::default()
 }
 
-/// Persist the whole store back to the single Keychain item.
-fn persist(store: &SecretStore) -> Result<()> {
-    if store.unreadable {
-        return Err(anyhow!("keychain unavailable: not overwriting an item this run could not read"));
+/// Persist the whole store back to the OS store.
+fn persist(store: &mut SecretStore) -> Result<()> {
+    if let Some(why) = &store.unreadable {
+        return Err(anyhow!("{why}; not overwriting a secret store this run could not read"));
     }
     let json = serde_json::to_string(store)?;
-    store_entry()?.set_password(&json)?;
+    store.layout = write_raw(&os_item, &json, store.layout, ITEM_MAX_BYTES)?;
     Ok(())
 }
 
@@ -702,7 +819,7 @@ pub fn delete_remote_session() -> Result<()> {
 /// An earlier read that failed is retried here (an explicit user action),
 /// never answered from the empty stand-in.
 fn loaded_strict(guard: &mut Option<SecretStore>) -> Result<&mut SecretStore> {
-    if guard.as_ref().is_none_or(|s| s.unreadable) {
+    if guard.as_ref().is_none_or(|s| s.unreadable.is_some()) {
         *guard = Some(read_store()?);
     }
     Ok(guard.as_mut().expect("store loaded"))
@@ -729,4 +846,196 @@ pub fn with_vault<R>(
         return Err(format!("keychain write failed: {e}"));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use keyring::credential::CredentialApi;
+    use std::sync::Arc;
+
+    type Items = Arc<Mutex<HashMap<String, Vec<u8>>>>;
+
+    /// One item of an in-memory store that, like a Windows credential, refuses
+    /// a value over `limit` bytes (a password counted as UTF-16). Tests never
+    /// touch the machine's real store.
+    struct MemItem {
+        items: Items,
+        user: String,
+        limit: usize,
+        fail: bool,
+    }
+
+    impl MemItem {
+        fn put(&self, bytes: &[u8]) -> keyring::Result<()> {
+            if bytes.len() > self.limit {
+                return Err(keyring::Error::TooLong("secret".into(), self.limit as u32));
+            }
+            self.items.lock().unwrap().insert(self.user.clone(), bytes.to_vec());
+            Ok(())
+        }
+    }
+
+    fn platform_failure() -> keyring::Error {
+        keyring::Error::PlatformFailure("no D-Bus session".into())
+    }
+
+    impl CredentialApi for MemItem {
+        fn set_password(&self, password: &str) -> keyring::Result<()> {
+            if password.encode_utf16().count() * 2 > self.limit {
+                return Err(keyring::Error::TooLong("password".into(), self.limit as u32));
+            }
+            self.set_secret(password.as_bytes())
+        }
+        fn set_secret(&self, secret: &[u8]) -> keyring::Result<()> {
+            if self.fail {
+                return Err(platform_failure());
+            }
+            self.put(secret)
+        }
+        fn get_secret(&self) -> keyring::Result<Vec<u8>> {
+            if self.fail {
+                return Err(platform_failure());
+            }
+            self.items.lock().unwrap().get(&self.user).cloned().ok_or(keyring::Error::NoEntry)
+        }
+        fn delete_credential(&self) -> keyring::Result<()> {
+            self.items.lock().unwrap().remove(&self.user).map(|_| ()).ok_or(keyring::Error::NoEntry)
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    const WIN: usize = 2560;
+
+    /// An `Open` over `items`; `fail_user` makes that one item fail like an
+    /// unreachable store.
+    fn mem(items: &Items, limit: usize, fail_user: Option<String>) -> impl Fn(&str) -> keyring::Result<Entry> {
+        let items = items.clone();
+        move |user: &str| {
+            let fail = fail_user.as_deref().is_some_and(|f| f == user || f == "*");
+            Ok(Entry::new_with_credential(Box::new(MemItem { items: items.clone(), user: user.to_string(), limit, fail })))
+        }
+    }
+
+    /// A store JSON of about `kb` KiB with non-ASCII text, so chunk edges fall
+    /// inside multi-byte characters.
+    fn big_json(kb: usize) -> String {
+        let mut store = SecretStore::default();
+        for i in 0..kb * 8 {
+            store.github.insert(format!("acc-{i}"), format!("ghp_é😀{i:0>100}"));
+        }
+        serde_json::to_string(&store).unwrap()
+    }
+
+    fn users(items: &Items) -> Vec<String> {
+        let mut v: Vec<String> = items.lock().unwrap().keys().cloned().collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn without_a_limit_the_store_stays_one_item() {
+        // macOS / Linux: same single item (service + account) as before, whatever the size.
+        let items = Items::default();
+        let json = big_json(64);
+        assert_eq!(write_raw(&mem(&items, usize::MAX, None), &json, None, None).unwrap(), None);
+        assert_eq!(users(&items), vec![STORE_KEY.to_string()]);
+        assert_eq!(read_raw(&mem(&items, usize::MAX, None)).unwrap(), Some((json, None)));
+    }
+
+    #[test]
+    fn a_small_store_is_one_windows_item() {
+        let items = Items::default();
+        let json = serde_json::to_string(&SecretStore::default()).unwrap();
+        assert_eq!(write_raw(&mem(&items, WIN, None), &json, None, Some(WIN)).unwrap(), None);
+        assert_eq!(users(&items), vec![STORE_KEY.to_string()]);
+        assert_eq!(read_raw(&mem(&items, WIN, None)).unwrap(), Some((json, None)));
+    }
+
+    #[test]
+    fn a_large_store_is_split_within_the_windows_limit() {
+        let items = Items::default();
+        let open = mem(&items, WIN, None);
+        let json = big_json(20);
+        // The single item alone would be refused, as Windows does.
+        assert!(matches!(open(STORE_KEY).unwrap().set_password(&json), Err(keyring::Error::TooLong(..))));
+
+        let layout = write_raw(&open, &json, None, Some(WIN)).unwrap().expect("split");
+        assert_eq!(layout.gen, 0);
+        assert_eq!(layout.count, json.len().div_ceil(WIN));
+        assert_eq!(users(&items).len(), layout.count + 1);
+        let (back, read_layout) = read_raw(&open).unwrap().unwrap();
+        assert_eq!(back, json);
+        assert_eq!(read_layout, Some(layout));
+        let store: SecretStore = serde_json::from_str(&back).unwrap();
+        assert_eq!(store.github.len(), 20 * 8);
+    }
+
+    #[test]
+    fn a_rewrite_switches_generation_and_drops_old_chunks() {
+        let items = Items::default();
+        let open = mem(&items, WIN, None);
+        let first = write_raw(&open, &big_json(20), None, Some(WIN)).unwrap();
+        let smaller = big_json(6);
+        let second = write_raw(&open, &smaller, first, Some(WIN)).unwrap().expect("split");
+        assert_eq!(second.gen, 1);
+        let mut want: Vec<String> = (0..second.count).map(|i| chunk_user(1, i)).collect();
+        want.push(STORE_KEY.to_string());
+        want.sort();
+        assert_eq!(users(&items), want);
+        assert_eq!(read_raw(&open).unwrap().unwrap().0, smaller);
+
+        // Shrinking back to one item removes every chunk.
+        let tiny = serde_json::to_string(&SecretStore::default()).unwrap();
+        assert_eq!(write_raw(&open, &tiny, Some(second), Some(WIN)).unwrap(), None);
+        assert_eq!(users(&items), vec![STORE_KEY.to_string()]);
+    }
+
+    #[test]
+    fn a_failed_split_write_keeps_the_previous_store() {
+        let items = Items::default();
+        let old = big_json(20);
+        let layout = write_raw(&mem(&items, WIN, None), &old, None, Some(WIN)).unwrap();
+        let failing = mem(&items, WIN, Some(chunk_user(1, 5)));
+        assert!(write_raw(&failing, &big_json(30), layout, Some(WIN)).is_err());
+        assert_eq!(read_raw(&mem(&items, WIN, None)).unwrap(), Some((old.clone(), layout)));
+
+        // The next write reuses generation 1 and clears what the failed one left.
+        let new = big_json(4);
+        let next = write_raw(&mem(&items, WIN, None), &new, layout, Some(WIN)).unwrap().unwrap();
+        assert_eq!(users(&items).len(), next.count + 1);
+        assert_eq!(read_raw(&mem(&items, WIN, None)).unwrap().unwrap().0, new);
+    }
+
+    #[test]
+    fn a_missing_chunk_is_an_error_not_an_empty_store() {
+        let items = Items::default();
+        write_raw(&mem(&items, WIN, None), &big_json(20), None, Some(WIN)).unwrap();
+        items.lock().unwrap().remove(&chunk_user(0, 1));
+        let err = read_raw(&mem(&items, WIN, None)).unwrap_err().to_string();
+        assert!(err.contains("chunk 1"), "{err}");
+    }
+
+    #[test]
+    fn an_unreachable_store_is_an_error_and_is_never_written() {
+        // Linux without a Secret Service: an error, not "no secrets yet".
+        let items = Items::default();
+        let err = read_raw(&mem(&items, usize::MAX, Some("*".into()))).unwrap_err().to_string();
+        assert!(err.starts_with(&format!("{STORE_NAME} unavailable:")), "{err}");
+
+        // The stand-in for it refuses to persist (before reaching any OS store).
+        let mut stand_in = SecretStore { unreadable: Some(err.clone()), ..Default::default() };
+        let refused = persist(&mut stand_in).unwrap_err().to_string();
+        assert!(refused.starts_with(&err), "{refused}");
+    }
+
+    #[test]
+    fn the_chunk_header_is_not_a_store() {
+        let header = format!("{CHUNK_HEADER}1:12");
+        assert_eq!(parse_header(&header), Some(Chunks { gen: 1, count: 12 }));
+        assert!(serde_json::from_str::<SecretStore>(&header).is_err());
+        assert_eq!(parse_header(&serde_json::to_string(&SecretStore::default()).unwrap()), None);
+    }
 }
