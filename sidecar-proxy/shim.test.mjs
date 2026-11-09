@@ -2,7 +2,11 @@
 // Run with: node --test sidecar-proxy/shim.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { scrubCloudEnv, pathWithoutDir, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
+import net from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
+import fs from 'node:fs'
+import { ask, scrubCloudEnv, pathWithoutDir, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
 
 const inherited = () => ({
   PATH: '/usr/bin',
@@ -86,6 +90,33 @@ test('remoteHost: https / ssh / scp-like remotes, null otherwise', () => {
   assert.equal(remoteHost('group/repo'), null)
   assert.equal(remoteHost(''), null)
   assert.equal(remoteHost(null), null)
+})
+
+test('ask: one NDJSON round trip over the broker endpoint (named pipe on Windows)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'puppeteer-shim-'))
+  const endpoint = process.platform === 'win32'
+    ? `\\\\.\\pipe\\${path.basename(dir)}`
+    : path.join(dir, 'b.sock')
+  let received = null
+  const server = net.createServer((c) => {
+    let buf = ''
+    c.on('data', (d) => {
+      buf += d
+      const nl = buf.indexOf('\n')
+      if (nl < 0) return
+      received = JSON.parse(buf.slice(0, nl))
+      c.end(JSON.stringify({ decision: 'deny', reason: 'test' }) + '\n')
+    })
+  })
+  await new Promise((r) => server.listen(endpoint, r))
+  try {
+    const resp = await ask(endpoint, { project_id: 'p1', tool: 'gh', argv: ['pr', 'list'], host: null })
+    assert.deepEqual(resp, { decision: 'deny', reason: 'test' })
+    assert.deepEqual(received, { project_id: 'p1', tool: 'gh', argv: ['pr', 'list'], host: null })
+  } finally {
+    await new Promise((r) => server.close(r))
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('glabTargetHost: -R URL > GITLAB_HOST > origin remote', () => {

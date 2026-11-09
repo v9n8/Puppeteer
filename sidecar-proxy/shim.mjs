@@ -2,7 +2,8 @@
 //
 // A tiny wrapper placed at the FRONT of the sidecar PATH under the names
 // `gh`/`glab`/`aws`/`az`/`terraform`. Every invocation asks the Puppeteer broker (over
-// a per-run Unix socket) whether the call is allowed and, if so, receives
+// the app-wide Unix socket, or a named pipe `\\.\pipe\…` on Windows — both are a
+// path for `net.createConnection`) whether the call is allowed and, if so, receives
 // credentials for the project's linked account. The real binary is then executed
 // with credentials injected ONLY into that child process's environment.
 //

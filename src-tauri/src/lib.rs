@@ -178,7 +178,8 @@ pub fn run() {
         // MUST be the first plugin: a second launch of the same build hands its
         // args to the running instance and exits, instead of starting a rival
         // process that would steal the broker's fixed Unix socket (start_broker
-        // unlinks + rebinds the same path), stranding the live runs' shims.
+        // unlinks + rebinds the same path), stranding the live runs' shims. (On
+        // Windows the rival would instead fail to create the broker's pipe.)
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             use tauri::Manager;
             if let Some(w) = app.get_webview_window("main") {
@@ -297,7 +298,8 @@ pub fn run() {
             // shared empty AZURE_CONFIG_DIR every run's sidecar points at.
             azure_sandbox::sync_all(&app_data_dir);
 
-            // App-wide singleton credential broker (GĐ7). One Unix socket serves
+            // App-wide singleton credential broker (GĐ7). One Unix socket (a
+            // named pipe on Windows, see runs::broker::pipe) serves
             // every run for the whole app lifetime, so runs never race a per-run
             // socket that appears/disappears with them (fixes the sporadic
             // "broker unreachable" deny). Token isolation is unchanged: each
@@ -314,7 +316,7 @@ pub fn run() {
                 db.clone(),
                 BrokerConfig {
                     // Tách socket theo build để bản dev và bản đã cài không
-                    // giành chung /tmp/puppeteer-broker/app.sock (start_broker xoá
+                    // giành chung socket `<label>.sock` hay named pipe (start_broker xoá
                     // socket cũ khi khởi động; nếu trùng label sẽ kill broker
                     // của bản kia khi chạy song song).
                     socket_label: if cfg!(debug_assertions) { "app-dev" } else { "app" }.to_string(),

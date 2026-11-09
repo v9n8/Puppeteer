@@ -17,7 +17,10 @@ const LAUNCHER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'puppet
 /** Fake broker: records requests, answers each with `reply(req)`. */
 async function fakeBroker(reply) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'puppeteer-launch-'))
-  const sock = path.join(dir, 'b.sock')
+  // Windows has no Unix sockets: the broker listens on a named pipe there.
+  const sock = process.platform === 'win32'
+    ? `\\\\.\\pipe\\${path.basename(dir)}`
+    : path.join(dir, 'b.sock')
   const requests = []
   const server = net.createServer((c) => {
     let buf = ''

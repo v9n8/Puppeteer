@@ -3,7 +3,8 @@
 //! Tools served: `gh`/`glab`/`git` (tokens), `aws` (minted creds), `az` (the
 //! linked Azure account's config dir), `terraform` (AWS and/or Azure).
 //!
-//! A per-run Unix-socket server that receives `{project_id,tool,argv,host}`
+//! An app-wide local server (a Unix socket; a named pipe on Windows, see
+//! `pipe`) that receives `{project_id,tool,argv,host}`
 //! NDJSON requests from the (future GĐ3) `gh`/`glab`/git shim, applies the pure
 //! policy engine (`policy`), consults an injectable `Approver` on `Ask`, resolves
 //! the project's token fail-closed (`token`), and replies with
@@ -16,6 +17,8 @@
 pub mod approver;
 pub mod audit;
 pub mod mcp_creds;
+#[cfg(windows)]
+mod pipe;
 pub mod policy;
 pub mod token;
 
@@ -23,8 +26,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+#[cfg(unix)]
+use tokio::net::UnixListener;
 
 use crate::db::Db;
 use approver::Approver;
@@ -227,8 +231,9 @@ pub trait ApproverResolver: Send + Sync {
 
 /// Config for the app-wide singleton broker.
 pub struct BrokerConfig {
-    /// Label used for the socket file name (`<label>.sock`). One stable label
-    /// ("app") gives one long-lived socket shared by every run.
+    /// Label used for the socket file name (`<label>.sock`), or the end of the
+    /// pipe name on Windows. One stable label ("app") gives one long-lived
+    /// socket shared by every run.
     pub socket_label: String,
     /// Per-request approver resolver (see `ApproverResolver`).
     pub resolver: Arc<dyn ApproverResolver>,
@@ -239,8 +244,11 @@ pub struct BrokerConfig {
 }
 
 /// Handle to a running broker. Dropping it aborts the accept loop and removes the
-/// socket file (best-effort — never panics if the file is already gone).
+/// socket file (best-effort — never panics if the file is already gone). On
+/// Windows the pipe goes away with its last server instance, closed by the abort.
 pub struct BrokerHandle {
+    /// Unix socket path, or the named-pipe name (`\\.\pipe\…`) on Windows. The
+    /// shim's `net.createConnection` takes either.
     pub path: PathBuf,
     task: tokio::task::JoinHandle<()>,
 }
@@ -257,24 +265,127 @@ impl BrokerHandle {
 impl Drop for BrokerHandle {
     fn drop(&mut self) {
         self.task.abort();
+        #[cfg(unix)]
         let _ = std::fs::remove_file(&self.path);
     }
 }
 
+#[cfg(unix)]
 fn socket_path(label: &str) -> PathBuf {
-    std::env::temp_dir()
-        .join("puppeteer-broker")
-        .join(format!("{label}.sock"))
+    socket_dir().join(format!("{label}.sock"))
 }
 
-/// Bind the app-wide Unix socket, spawn the accept loop, and return a handle.
-/// The socket path is `BrokerHandle.path`; pass it to every run's shim via env.
+/// macOS: `$TMPDIR` is already per user (`/var/folders/…`, mode 0700).
+#[cfg(all(unix, not(target_os = "linux")))]
+fn socket_dir() -> PathBuf {
+    std::env::temp_dir().join("puppeteer-broker")
+}
+
+#[cfg(target_os = "linux")]
+fn socket_dir() -> PathBuf {
+    // SAFETY: getuid has no preconditions and cannot fail.
+    let uid = unsafe { libc::getuid() };
+    linux_socket_dir(std::env::var_os("XDG_RUNTIME_DIR"), &std::env::temp_dir(), uid)
+}
+
+/// Linux: `$XDG_RUNTIME_DIR` (per user, mode 0700) when the session has one.
+/// Otherwise a per-uid dir in the shared `/tmp`: a fixed name there could be
+/// created first by another local user, who could then swap our socket for
+/// theirs and answer the shims. A relative value is ignored, as the XDG spec says.
+#[cfg(any(target_os = "linux", test))]
+fn linux_socket_dir(
+    xdg_runtime_dir: Option<std::ffi::OsString>,
+    tmp: &std::path::Path,
+    uid: u32,
+) -> PathBuf {
+    match xdg_runtime_dir.map(PathBuf::from) {
+        Some(dir) if dir.is_absolute() => dir.join("puppeteer-broker"),
+        _ => tmp.join(format!("puppeteer-broker-{uid}")),
+    }
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn prepare_socket_dir(dir: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())
+}
+
+/// Create the socket dir private to this user, and refuse one that is not
+/// (owned by someone else, open to others, or a symlink).
+#[cfg(target_os = "linux")]
+fn prepare_socket_dir(dir: &std::path::Path) -> Result<(), String> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(dir)
+        .map_err(|e| e.to_string())?;
+    let meta = std::fs::symlink_metadata(dir).map_err(|e| e.to_string())?;
+    // SAFETY: getuid has no preconditions and cannot fail.
+    let uid = unsafe { libc::getuid() };
+    if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o077 != 0 {
+        return Err(format!("broker socket dir {} is not private to this user", dir.display()));
+    }
+    Ok(())
+}
+
+/// Windows pipe name. Pipe names are machine-wide, so the user SID and the
+/// logon session keep two users (or one user in two sessions) apart; the DACL
+/// set in `pipe` is what actually keeps other users out.
+#[cfg(any(windows, test))]
+fn pipe_name(user_sid: &str, session_id: u32, label: &str) -> String {
+    format!(r"\\.\pipe\puppeteer-broker-{user_sid}-{session_id}-{label}")
+}
+
+/// What each accepted connection needs.
+#[derive(Clone)]
+struct ConnCtx {
+    db: Db,
+    resolver: Arc<dyn ApproverResolver>,
+    app: Option<AppHandle>,
+}
+
+impl ConnCtx {
+    /// One task per connection; a bad client must not kill the accept loop.
+    fn serve<R, W>(&self, read: R, write: W)
+    where
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
+    {
+        let ctx = self.clone();
+        tokio::spawn(async move {
+            if let Err(e) = handle_connection(read, write, &ctx.db, ctx.resolver, ctx.app).await {
+                tracing::warn!(target: "puppeteer::broker", "connection error: {e}");
+            }
+        });
+    }
+}
+
+/// Bind the app-wide Unix socket (named pipe on Windows), spawn the accept loop,
+/// and return a handle. The socket path is `BrokerHandle.path`; pass it to every
+/// run's shim via env.
 /// Lives for the whole app lifetime (dropped only on app exit), so runs never
 /// race a per-run socket that appears/disappears with them.
 pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, String> {
-    let path = socket_path(&cfg.socket_label);
+    let ctx = ConnCtx {
+        db,
+        resolver: cfg.resolver.clone(),
+        app: cfg.app.clone(),
+    };
+    #[cfg(unix)]
+    let (path, task) = listen_unix(&cfg.socket_label, ctx)?;
+    #[cfg(windows)]
+    let (path, task) = pipe::listen(&cfg.socket_label, ctx)?;
+    Ok(BrokerHandle { path, task })
+}
+
+#[cfg(unix)]
+fn listen_unix(
+    label: &str,
+    ctx: ConnCtx,
+) -> Result<(PathBuf, tokio::task::JoinHandle<()>), String> {
+    let path = socket_path(label);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        prepare_socket_dir(parent)?;
     }
     // Remove any stale socket (e.g. from a previous app run) to avoid AddrInUse.
     let _ = std::fs::remove_file(&path);
@@ -282,7 +393,6 @@ pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, Str
     let listener = UnixListener::bind(&path).map_err(|e| e.to_string())?;
 
     // Best-effort: restrict the socket to the owner.
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         if let Ok(meta) = std::fs::metadata(&path) {
@@ -292,23 +402,12 @@ pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, Str
         }
     }
 
-    let resolver = cfg.resolver.clone();
-    let db_clone = db.clone();
-    let app = cfg.app.clone();
-
     let task = tokio::spawn(async move {
         loop {
             match listener.accept().await {
                 Ok((stream, _addr)) => {
-                    let db = db_clone.clone();
-                    let resolver = resolver.clone();
-                    let app = app.clone();
-                    // One task per connection; a bad client must not kill the loop.
-                    tokio::spawn(async move {
-                        if let Err(e) = handle_connection(stream, &db, resolver, app).await {
-                            tracing::warn!(target: "puppeteer::broker", "connection error: {e}");
-                        }
-                    });
+                    let (read, write) = stream.into_split();
+                    ctx.serve(read, write);
                 }
                 Err(e) => {
                     // Transient accept error; log and continue — never panic.
@@ -317,18 +416,21 @@ pub async fn start_broker(db: Db, cfg: BrokerConfig) -> Result<BrokerHandle, Str
             }
         }
     });
-
-    Ok(BrokerHandle { path, task })
+    Ok((path, task))
 }
 
 /// Read NDJSON requests from one connection and reply to each. Loops until EOF.
-async fn handle_connection(
-    stream: UnixStream,
+async fn handle_connection<R, W>(
+    read_half: R,
+    mut write_half: W,
     db: &Db,
     resolver: Arc<dyn ApproverResolver>,
     app: Option<AppHandle>,
-) -> Result<(), String> {
-    let (read_half, mut write_half) = stream.into_split();
+) -> Result<(), String>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
     let mut lines = BufReader::new(read_half).lines();
     // Lines that arrived while a previous request was still being processed.
     let mut queued: std::collections::VecDeque<String> = std::collections::VecDeque::new();
@@ -911,6 +1013,17 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+    /// A client connection to a test broker, as the shim makes it.
+    #[cfg(unix)]
+    async fn connect(path: &std::path::Path) -> tokio::net::UnixStream {
+        tokio::net::UnixStream::connect(path).await.unwrap()
+    }
+
+    #[cfg(windows)]
+    async fn connect(path: &std::path::Path) -> tokio::net::windows::named_pipe::NamedPipeClient {
+        tokio::net::windows::named_pipe::ClientOptions::new().open(path).unwrap()
+    }
+
     /// Test resolver: always returns the same approver regardless of `run_id`,
     /// so the existing round-trip tests exercise the approver branch directly.
     struct StaticResolver(Arc<dyn Approver>);
@@ -1002,8 +1115,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let stream = UnixStream::connect(&handle.path).await.unwrap();
-        let (r, mut w) = stream.into_split();
+        let (r, mut w) = tokio::io::split(connect(&handle.path).await);
         let mut line = req_json.to_string();
         line.push('\n');
         w.write_all(line.as_bytes()).await.unwrap();
@@ -1418,7 +1530,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut stream = UnixStream::connect(&handle.path).await.unwrap();
+        let mut stream = connect(&handle.path).await;
         stream
             .write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"pr\",\"create\"]}\n")
             .await
@@ -1464,8 +1576,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let stream = UnixStream::connect(&handle.path).await.unwrap();
-        let (r, mut w) = stream.into_split();
+        let (r, mut w) = tokio::io::split(connect(&handle.path).await);
         w.write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"issue\",\"comment\"]}\n")
             .await
             .unwrap();
@@ -1589,6 +1700,7 @@ mod tests {
         assert!(resp.token.is_none());
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn socket_cleaned_up_on_drop() {
         let db = mem_db().await;
@@ -1611,6 +1723,71 @@ mod tests {
         // Give the abort + remove a moment.
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         assert!(!path.exists(), "socket file should be removed on drop");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn pipe_gone_after_drop_and_name_not_shared() {
+        let db = mem_db().await;
+        let socket_label = test_socket_label();
+        let resolver: Arc<dyn ApproverResolver> =
+            Arc::new(StaticResolver(Arc::new(DenyAllApprover)));
+        let start = |label: String| {
+            start_broker(
+                db.clone(),
+                BrokerConfig {
+                    socket_label: label,
+                    resolver: resolver.clone(),
+                    app: None,
+                },
+            )
+        };
+        let handle = start(socket_label.clone()).await.unwrap();
+        // A second server on the same pipe name is refused (first_pipe_instance).
+        assert!(start(socket_label).await.is_err());
+        let path = handle.path.clone();
+        drop(handle);
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert!(tokio::net::windows::named_pipe::ClientOptions::new().open(&path).is_err());
+    }
+
+    #[test]
+    fn linux_socket_dir_prefers_xdg_runtime_dir() {
+        let tmp = std::path::Path::new("/tmp");
+        assert_eq!(
+            linux_socket_dir(Some("/run/user/1000".into()), tmp, 1000),
+            PathBuf::from("/run/user/1000/puppeteer-broker")
+        );
+        // Unset, empty or relative → a per-uid dir in /tmp, never the shared fixed name.
+        for xdg in [None, Some("".into()), Some("run/user".into())] {
+            assert_eq!(linux_socket_dir(xdg, tmp, 1000), PathBuf::from("/tmp/puppeteer-broker-1000"));
+        }
+    }
+
+    #[test]
+    fn pipe_name_is_per_user_and_session() {
+        assert_eq!(
+            pipe_name("S-1-5-21-1-2-3-1001", 2, "app"),
+            r"\\.\pipe\puppeteer-broker-S-1-5-21-1-2-3-1001-2-app"
+        );
+        assert_ne!(pipe_name("S-1-5-21-1-2-3-1001", 1, "app"), pipe_name("S-1-5-21-1-2-3-1002", 1, "app"));
+        assert_ne!(pipe_name("S-1-5-21-1-2-3-1001", 1, "app"), pipe_name("S-1-5-21-1-2-3-1001", 2, "app"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn socket_dir_must_be_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("pb-{}", test_socket_label()));
+        let dir = root.join("broker");
+        prepare_socket_dir(&dir).unwrap();
+        assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(prepare_socket_dir(&dir).is_err(), "a dir open to others is refused");
+        let link = root.join("link");
+        std::os::unix::fs::symlink(&root, &link).unwrap();
+        assert!(prepare_socket_dir(&link).is_err(), "a symlink is refused");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     // ---- several enabled git accounts ----
