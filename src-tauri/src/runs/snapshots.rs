@@ -13,9 +13,9 @@
 //! Storage, under `<app data>/snapshots/blobs/<2 hex>/<sha256>`: file contents
 //! and manifests, content-addressed and shared by every run, so an unchanged
 //! file is stored once. A manifest lists the captured files and the in-scope
-//! files it does not hold (`unmanaged`: too large or unreadable), which a
-//! restore must leave alone. `run_snapshots` (migration 0006) has one row per
-//! turn pointing at its manifest.
+//! files it does not hold (`unmanaged`: too large or unreadable) and what the
+//! walk left out (`ignored`), which a restore must leave alone. `run_snapshots`
+//! (migration 0006) has one row per turn pointing at its manifest.
 //!
 //! Scope: files under the workspace that git would not ignore (`.gitignore`,
 //! `.git/info/exclude`, global excludes); `.git` and Puppeteer's own
@@ -32,7 +32,8 @@
 //!
 //! Restore ([`preview`], then [`restore`]) is Rewind's file half (`runs::rewind`):
 //! files that differ are written back, files created since are deleted, and
-//! the unmanaged ones (and new files too large to have a copy) are left alone.
+//! the unmanaged ones, those the snapshot left out as ignored (whatever the
+//! ignore rules say now), and new files too large to have a copy are left alone.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -111,6 +112,11 @@ struct ManifestFile {
 struct Manifest {
     files: Vec<ManifestFile>,
     unmanaged: Vec<String>,
+    /// Files and folders in the walked folders that the walk left out (ignored,
+    /// or unreadable); a folder stands for everything under it. `None` in a
+    /// manifest written before this was recorded.
+    #[serde(default)]
+    ignored: Option<Vec<String>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -155,24 +161,37 @@ struct Listed {
     modified: SystemTime,
 }
 
-/// The workspace's in-scope regular files, or `None` past `max_files`.
-fn list(workspace: &Path, max_files: usize) -> Option<Vec<Listed>> {
+fn left_out_by_name(name: &std::ffi::OsStr) -> bool {
+    name == ".git" || name == ".puppeteer"
+}
+
+/// The workspace's in-scope regular files and the folders walked (`""` is the
+/// workspace), or `None` past `max_files`.
+fn list(workspace: &Path, max_files: usize) -> Option<(Vec<Listed>, Vec<String>)> {
+    // `.gitignore` applies outside a git repo too: a plain folder's `.env` and
+    // `node_modules` stay out of the store.
     let walker = ignore::WalkBuilder::new(workspace)
         .hidden(false)
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
+        .require_git(false)
         .parents(true)
-        .filter_entry(|e| e.file_name() != ".git" && e.file_name() != ".puppeteer")
+        .filter_entry(|e| !left_out_by_name(e.file_name()))
         .build();
     let mut out = Vec::new();
+    let mut dirs = Vec::new();
     for entry in walker.flatten() {
-        if !entry.file_type().is_some_and(|t| t.is_file()) {
-            continue;
-        }
         let Ok(rel) = entry.path().strip_prefix(workspace) else {
             continue;
         };
+        if entry.file_type().is_some_and(|t| t.is_dir()) {
+            dirs.push(rel.to_string_lossy().replace('\\', "/"));
+            continue;
+        }
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
+            continue;
+        }
         let Ok(meta) = entry.metadata() else {
             continue;
         };
@@ -186,7 +205,32 @@ fn list(workspace: &Path, max_files: usize) -> Option<Vec<Listed>> {
             modified: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         });
     }
-    Some(out)
+    Some((out, dirs))
+}
+
+/// What sits in the walked folders but was not walked: ignored by the rules of
+/// the moment, or unreadable. Links are skipped, not ignored, so not listed.
+fn left_out(workspace: &Path, listed: &[Listed], dirs: &[String]) -> Vec<String> {
+    let walked: HashSet<&str> = listed.iter().map(|l| l.rel.as_str()).chain(dirs.iter().map(String::as_str)).collect();
+    let mut out = Vec::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(workspace.join(dir)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if left_out_by_name(&name) || entry.file_type().is_ok_and(|t| t.is_symlink()) {
+                continue;
+            }
+            let name = name.to_string_lossy();
+            let rel = if dir.is_empty() { name.into_owned() } else { format!("{dir}/{name}") };
+            if !walked.contains(rel.as_str()) {
+                out.push(rel);
+            }
+        }
+    }
+    out.sort();
+    out
 }
 
 /// Capture `workspace` into `store`. Only changed files are read: the rest
@@ -200,9 +244,10 @@ fn capture(
     if !workspace.is_dir() {
         return Err(format!("not a folder: {}", workspace.display()));
     }
-    let Some(listed) = list(workspace, limits.max_files) else {
+    let Some((listed, dirs)) = list(workspace, limits.max_files) else {
         return Ok(Captured::Skipped("too_many_files"));
     };
+    let ignored = left_out(workspace, &listed, &dirs);
     // The size limits first, from the walk alone: nothing is read for a
     // workspace that will not be captured.
     let mut unmanaged = Vec::new();
@@ -256,7 +301,7 @@ fn capture(
     files.sort_by(|a, b| a.path.cmp(&b.path));
     unmanaged.sort();
     let (count, bytes) = (files.len(), files.iter().map(|f| f.size).sum());
-    let manifest = serde_json::to_vec(&Manifest { files, unmanaged }).map_err(|e| e.to_string())?;
+    let manifest = serde_json::to_vec(&Manifest { files, unmanaged, ignored: Some(ignored) }).map_err(|e| e.to_string())?;
     let sha = sha256(&manifest);
     put_blob(store, &sha, &manifest)?;
     Ok(Captured::Saved { manifest: sha, files: count, bytes })
@@ -608,23 +653,41 @@ fn current_sha(item: &Listed, cache: &mut StatCache) -> Option<String> {
     Some(sha)
 }
 
-/// What restoring `manifest` into `workspace` would change. The manifest's
-/// unmanaged files are never touched.
+/// A regular file at `rel` that the walk did not list: ignored since the snapshot.
+fn unlisted(workspace: &Path, rel: &str) -> Option<Listed> {
+    let abs = workspace.join(rel);
+    let meta = std::fs::symlink_metadata(&abs).ok().filter(|m| m.is_file())?;
+    let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+    Some(Listed { rel: rel.to_string(), abs, len: meta.len(), modified })
+}
+
+/// What restoring `manifest` (taken at `taken`) into `workspace` would change.
+/// The manifest's unmanaged and ignored files are never touched.
 fn plan_restore(
     store: &Path,
     workspace: &Path,
     manifest: &str,
     limits: &Limits,
     since: Option<SystemTime>,
+    taken: SystemTime,
     cache: &mut StatCache,
 ) -> Result<Planned, String> {
     let m = read_manifest(store, manifest).ok_or("snapshot_missing")?;
     if !workspace.is_dir() {
         return Err("workspace_missing".into());
     }
-    let listed = list(workspace, limits.max_files).ok_or("too_many_files")?;
+    let (listed, _) = list(workspace, limits.max_files).ok_or("too_many_files")?;
     let mut current: HashMap<String, Listed> = listed.into_iter().map(|l| (l.rel.clone(), l)).collect();
     let unmanaged: HashSet<&str> = m.unmanaged.iter().map(String::as_str).collect();
+    let ignored: Option<HashSet<&str>> = m.ignored.as_ref().map(|v| v.iter().map(String::as_str).collect());
+    // The snapshot holds no copy of a file it left out, so deleting it would
+    // lose it for good, even if the ignore rules no longer leave it out.
+    let left_out = |item: &Listed| match &ignored {
+        Some(ignored) => std::iter::successors(Some(item.rel.as_str()), |r| r.rfind('/').map(|i| &r[..i]))
+            .any(|p| ignored.contains(p)),
+        // An older manifest does not say: a file not written since was there then.
+        None => item.modified <= taken,
+    };
     let outside = |item: &Listed| since.is_some_and(|s| item.modified > s);
 
     let mut changes = Vec::new();
@@ -637,7 +700,7 @@ fn plan_restore(
         format!("{}:{nanos}", item.len)
     };
     for f in &m.files {
-        let change = match current.remove(&f.path) {
+        let change = match current.remove(&f.path).or_else(|| unlisted(workspace, &f.path)) {
             None => Some((Change::Create, false, "-".to_string())),
             Some(item) => {
                 let same = item.len == f.size && current_sha(&item, cache).as_deref() == Some(f.sha.as_str());
@@ -650,7 +713,8 @@ fn plan_restore(
             writes.push((f.path.clone(), f.sha.clone()));
         }
     }
-    let mut created: Vec<Listed> = current.into_values().filter(|l| !unmanaged.contains(l.rel.as_str())).collect();
+    let mut created: Vec<Listed> =
+        current.into_values().filter(|l| !unmanaged.contains(l.rel.as_str()) && !left_out(l)).collect();
     created.sort_by(|a, b| a.rel.cmp(&b.rel));
     for item in created {
         if item.len > limits.max_file_bytes {
@@ -676,13 +740,22 @@ fn inside(root: &Path, rel: &str, create_parent: bool) -> Result<PathBuf, String
     }
     let path = root.join(rel_path);
     let parent = path.parent().ok_or_else(|| format!("unsafe path: {rel}"))?;
+    let check = |dir: &Path| match dir.canonicalize() {
+        Ok(real) if real.starts_with(root) => Ok(()),
+        Ok(_) => Err(format!("outside the workspace: {rel}")),
+        Err(e) => Err(e.to_string()),
+    };
     if create_parent {
+        // The deepest folder that exists first: folders must not be made
+        // through a link that leads out.
+        let mut existing = parent;
+        while std::fs::symlink_metadata(existing).is_err() {
+            existing = existing.parent().ok_or_else(|| format!("unsafe path: {rel}"))?;
+        }
+        check(existing)?;
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let real = parent.canonicalize().map_err(|e| e.to_string())?;
-    if !real.starts_with(root) {
-        return Err(format!("outside the workspace: {rel}"));
-    }
+    check(parent)?;
     Ok(path)
 }
 
@@ -731,10 +804,10 @@ fn apply_restore(store: &Path, workspace: &Path, planned: &Planned) -> Result<Re
     Ok(out)
 }
 
-/// The folder and manifest of a turn's snapshot, if it can be restored.
-async fn restorable(db: &Db, run_id: &str, turn: i64) -> Result<(PathBuf, String), String> {
-    let row: Option<(String, String, Option<String>)> = sqlx::query_as(
-        "SELECT workspace, status, manifest_sha FROM run_snapshots WHERE run_id = ? AND turn = ?",
+/// The folder, manifest and capture time of a turn's snapshot, if it can be restored.
+async fn restorable(db: &Db, run_id: &str, turn: i64) -> Result<(PathBuf, String, SystemTime), String> {
+    let row: Option<(String, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT workspace, status, manifest_sha, created_at FROM run_snapshots WHERE run_id = ? AND turn = ?",
     )
     .bind(run_id)
     .bind(turn)
@@ -742,8 +815,10 @@ async fn restorable(db: &Db, run_id: &str, turn: i64) -> Result<(PathBuf, String
     .await
     .map_err(|e| e.to_string())?;
     match row {
-        Some((workspace, status, Some(manifest))) if status == "ok" && !workspace.is_empty() => {
-            Ok((PathBuf::from(workspace), manifest))
+        Some((workspace, status, Some(manifest), created_at)) if status == "ok" && !workspace.is_empty() => {
+            // Recorded once the capture is done, so never before a file it saw.
+            let taken = DateTime::parse_from_rfc3339(&created_at).map_err(|e| e.to_string())?;
+            Ok((PathBuf::from(workspace), manifest, taken.into()))
         }
         Some(_) => Err("snapshot_unavailable".into()),
         None => Err("snapshot_not_found".into()),
@@ -752,7 +827,7 @@ async fn restorable(db: &Db, run_id: &str, turn: i64) -> Result<(PathBuf, String
 
 /// The folder a turn's snapshot was taken of.
 pub async fn workspace_of_turn(db: &Db, run_id: &str, turn: i64) -> Result<PathBuf, String> {
-    restorable(db, run_id, turn).await.map(|(dir, _)| dir)
+    restorable(db, run_id, turn).await.map(|(dir, _, _)| dir)
 }
 
 async fn preview_at(
@@ -763,12 +838,12 @@ async fn preview_at(
     since: Option<SystemTime>,
     limits: &Limits,
 ) -> Result<RestorePlan, String> {
-    let (workspace, manifest) = restorable(db, run_id, turn).await?;
+    let (workspace, manifest, taken_at) = restorable(db, run_id, turn).await?;
     let mut cache = STATE.lock().await;
     let (store, limits) = (store.to_path_buf(), *limits);
     let mut taken = std::mem::take(&mut *cache);
     let (res, taken) = tokio::task::spawn_blocking(move || {
-        let res = plan_restore(&store, &workspace, &manifest, &limits, since, &mut taken);
+        let res = plan_restore(&store, &workspace, &manifest, &limits, since, taken_at, &mut taken);
         (res, taken)
     })
     .await
@@ -791,13 +866,13 @@ async fn restore_at(
     fingerprint: &str,
     limits: &Limits,
 ) -> Result<Restored, String> {
-    let (workspace, manifest) = restorable(db, run_id, turn).await?;
+    let (workspace, manifest, taken_at) = restorable(db, run_id, turn).await?;
     // Held throughout: the sweep must not drop the blobs being read.
     let mut cache = STATE.lock().await;
     let (store, limits, expected) = (store.to_path_buf(), *limits, fingerprint.to_string());
     let mut taken = std::mem::take(&mut *cache);
     let (res, taken) = tokio::task::spawn_blocking(move || {
-        let res = plan_restore(&store, &workspace, &manifest, &limits, since, &mut taken).and_then(|planned| {
+        let res = plan_restore(&store, &workspace, &manifest, &limits, since, taken_at, &mut taken).and_then(|planned| {
             if planned.plan.fingerprint != expected {
                 return Err("files_changed".to_string());
             }
@@ -1180,6 +1255,83 @@ mod tests {
         assert_eq!(preview_at(&db, &store, "r1", 1, None, &SMALL).await, Err("snapshot_unavailable".into()));
     }
 
+    #[tokio::test]
+    async fn a_file_the_snapshot_left_out_as_ignored_is_never_deleted() {
+        let (ws, store) = (git_repo("unignored"), temp("store"));
+        write(&ws, ".gitignore", b".env\n");
+        write(&ws, ".env", b"SECRET=1");
+        write(&ws, "a.txt", b"one");
+        let db = db_with_run(&ws, true).await;
+        before_turn_at(&db, &store, "r1", &SMALL).await;
+
+        // The agent stops ignoring .env, edits it and makes a new file.
+        write(&ws, ".gitignore", b"");
+        write(&ws, ".env", b"SECRET=2");
+        write(&ws, "new.txt", b"made");
+        let plan = preview_at(&db, &store, "r1", 1, None, &SMALL).await.unwrap();
+        assert_eq!(changes(&plan), [(".gitignore", Change::Restore, false), ("new.txt", Change::Delete, false)]);
+
+        restore_at(&db, &store, "r1", 1, None, &plan.fingerprint, &SMALL).await.unwrap();
+        assert_eq!(std::fs::read(ws.join(".env")).unwrap(), b"SECRET=2");
+        assert!(!ws.join("new.txt").exists());
+    }
+
+    #[test]
+    fn a_manifest_without_the_ignored_list_deletes_only_files_written_after_it() {
+        let (ws, store) = (temp("old-manifest"), temp("store"));
+        write(&ws, "a.txt", b"one");
+        write(&ws, "was-ignored.env", b"old");
+        write(&ws, "new.txt", b"made");
+        let taken = SystemTime::now() - Duration::from_secs(60);
+        set_mtime(&ws.join("was-ignored.env"), taken - Duration::from_secs(60));
+        // As written before the manifest listed what the walk left out.
+        let manifest = format!(r#"{{"files":[{{"path":"a.txt","sha":"{}","size":3}}],"unmanaged":[]}}"#, sha256(b"one"));
+        let sha = sha256(manifest.as_bytes());
+        put_blob(&store, &sha, manifest.as_bytes()).unwrap();
+
+        let planned = plan_restore(&store, &ws, &sha, &SMALL, None, taken, &mut StatCache::new()).unwrap();
+        assert_eq!(changes(&planned.plan), [("new.txt", Change::Delete, false)]);
+    }
+
+    #[tokio::test]
+    async fn a_file_ignored_since_the_snapshot_is_restored_as_it_is_now() {
+        let (ws, store) = (git_repo("ignored-later"), temp("store"));
+        write(&ws, "config/app.yml", b"v1");
+        write(&ws, "config/same.yml", b"same");
+        let db = db_with_run(&ws, true).await;
+        before_turn_at(&db, &store, "r1", &SMALL).await;
+
+        let stopped = SystemTime::now() - Duration::from_secs(60);
+        write(&ws, ".gitignore", b"config/\n");
+        write(&ws, "config/app.yml", b"v2");
+        let plan = preview_at(&db, &store, "r1", 1, Some(stopped), &SMALL).await.unwrap();
+        assert_eq!(
+            changes(&plan),
+            [(".gitignore", Change::Delete, true), ("config/app.yml", Change::Restore, true)]
+        );
+
+        // The overwrite is part of the confirmed state: editing it again is caught.
+        write(&ws, "config/app.yml", b"v3");
+        assert_eq!(
+            restore_at(&db, &store, "r1", 1, Some(stopped), &plan.fingerprint, &SMALL).await,
+            Err("files_changed".into())
+        );
+    }
+
+    #[test]
+    fn a_workspace_outside_git_still_follows_its_gitignore() {
+        let (ws, store) = (temp("no-git"), temp("store"));
+        write(&ws, ".gitignore", b".env\nnode_modules/\n");
+        write(&ws, ".env", b"SECRET=1");
+        write(&ws, "node_modules/x/index.js", b"x");
+        write(&ws, "a.txt", b"one");
+        let limits = Limits { max_file_bytes: 64, ..SMALL };
+        let m = read_manifest(&store, &saved(capture(&store, &ws, &limits, &mut StatCache::new()).unwrap())).unwrap();
+        let paths: Vec<&str> = m.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, [".gitignore", "a.txt"]);
+        assert_eq!(m.ignored, Some(vec![".env".to_string(), "node_modules".to_string()]));
+    }
+
     #[test]
     fn a_restore_never_writes_outside_the_workspace() {
         let (ws, elsewhere) = (temp("inside"), temp("elsewhere"));
@@ -1191,6 +1343,8 @@ mod tests {
         {
             std::os::unix::fs::symlink(&elsewhere, ws.join("link")).unwrap();
             assert!(inside(&root, "link/file.txt", true).is_err());
+            assert!(inside(&root, "link/sub/file.txt", true).is_err());
+            assert!(!elsewhere.join("sub").exists(), "no folder made through the link");
         }
     }
 }
