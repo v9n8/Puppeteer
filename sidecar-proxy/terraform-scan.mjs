@@ -7,9 +7,9 @@
 // otherwise-allowed evaluating command into an approval prompt when found.
 //
 // Scope: `*.tf` / `*.tf.json` in the working dir, recursively in LOCAL module
-// sources (`source = "./..."` / `"../..."`), and everything under
-// `.terraform/modules` (downloaded remote modules). Fail-closed: any read error
-// or hitting a scan limit counts as detected.
+// sources (`source = "./..."` / `"../..."`, also `.\` / `..\` like Terraform),
+// and everything under `.terraform/modules` (downloaded remote modules).
+// Fail-closed: any read error or hitting a scan limit counts as detected.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,12 +41,42 @@ function hclKinds(text) {
 
 // Local module sources: only module blocks use `./` / `../` paths (provider
 // sources look like `hashicorp/aws`), so a global match is sufficient.
+// Terraform also accepts `.\` / `..\` and turns every `\` into `/` on every
+// OS (hashicorp/terraform internal/getmodules/moduleaddrs/source_parsing.go,
+// moduleSourceLocalPrefixes + parseModuleSourceLocal), so match the decoded
+// string value, not the raw text: `".\\mod"` in a .tf file is `.\mod`.
+const LOCAL_SOURCE_PREFIXES = ['./', '../', '.\\', '..\\']
+const HCL_ESCAPES = { n: '\n', r: '\r', t: '\t', '"': '"', '\\': '\\' }
+
+// HCL quoted-string escapes (\n \r \t \" \\ \uNNNN \UNNNNNNNN). Template
+// sequences are left as-is: a module source must be a literal anyway.
+function decodeHcl(body) {
+  return body.replace(/\\(?:u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8})|(.))/gs, (m, u, U, c) => {
+    if (u || U) {
+      const cp = parseInt(u || U, 16)
+      return cp <= 0x10ffff ? String.fromCodePoint(cp) : m
+    }
+    return HCL_ESCAPES[c] ?? m
+  })
+}
+
+function decodeJson(body) {
+  try {
+    return JSON.parse(`"${body}"`)
+  } catch {
+    return body
+  }
+}
+
 function localSources(text, isJson) {
   const re = isJson
-    ? /"source"\s*:\s*"(\.\.?\/[^"]*)"/g
-    : /\bsource\s*=\s*"(\.\.?\/[^"]*)"/g
+    ? /"source"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+    : /\bsource\s*=\s*"((?:[^"\\]|\\.)*)"/g
   const out = []
-  for (const m of text.matchAll(re)) out.push(m[1])
+  for (const m of text.matchAll(re)) {
+    const src = isJson ? decodeJson(m[1]) : decodeHcl(m[1])
+    if (LOCAL_SOURCE_PREFIXES.some((p) => src.startsWith(p))) out.push(src.replaceAll('\\', '/'))
+  }
   return out
 }
 

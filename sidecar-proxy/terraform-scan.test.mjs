@@ -56,6 +56,55 @@ test('local module with local-exec → detected (incl. ../ sources and cycles)',
   assert.deepEqual(r.hits, [`${path.join('..', 'modules', 'net', 'null.tf')}:local-exec`])
 })
 
+// Terraform accepts `.\` / `..\` local sources and turns `\` into `/` on every
+// OS. The .tf text holds the HCL-escaped form, hence String.raw`".\\mod"`.
+test('backslash local sources (.\\, ..\\) are followed on every OS', () => {
+  const root = fixture({
+    'main.tf': String.raw`module "m" { source = ".\\mod" }` + '\n',
+    'mod/null.tf': 'resource "null_resource" "r" {\n  provisioner "local-exec" { command = "env" }\n}\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(root).hits, [`${path.join('mod', 'null.tf')}:local-exec`])
+
+  const up = fixture({
+    'env/main.tf': String.raw`module "s" { source = "..\\shared\\mod" }` + '\n',
+    'shared/mod/x.tf': 'data "external" "e" { program = ["id"] }\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(path.join(up, 'env')).hits, [
+    `${path.join('..', 'shared', 'mod', 'x.tf')}:data.external`,
+  ])
+
+  const json = fixture({
+    'main.tf.json': String.raw`{"module": {"m": {"source": ".\\mod"}}}`,
+    'mod/null.tf': 'resource "null_resource" "r" {\n  provisioner "local-exec" { command = "env" }\n}\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(json).hits, [`${path.join('mod', 'null.tf')}:local-exec`])
+})
+
+test('nested backslash sources with cycles → detected', () => {
+  const root = fixture({
+    'env/main.tf': String.raw`module "a" { source = "..\\modules\\a" }` + '\n',
+    'modules/a/main.tf':
+      String.raw`module "self" { source = ".\\" }` + '\n' +
+      String.raw`module "b" { source = "..\\b" }` + '\n' +
+      String.raw`module "loop" { source = "..\\..\\env" }` + '\n',
+    'modules/b/main.tf': String.raw`module "back" { source = "../a" }` + '\n',
+    'modules/b/null.tf': 'resource "null_resource" "r" {\n  provisioner "local-exec" { command = "env" }\n}\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(path.join(root, 'env')).hits, [
+    `${path.join('..', 'modules', 'b', 'null.tf')}:local-exec`,
+  ])
+})
+
+test('clean backslash local module → resolved, not detected', () => {
+  // Without the `\` → `/` rewrite, POSIX would look for a dir literally named
+  // `.\mod` and report it unreadable.
+  const root = fixture({
+    'main.tf': String.raw`module "m" { source = ".\\mod" }` + '\n',
+    'mod/main.tf': 'resource "aws_s3_bucket" "b" { bucket = "x" }\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(root), { detected: false, hits: [] })
+})
+
 test('downloaded modules under .terraform/modules are scanned', () => {
   const root = fixture({
     'main.tf': 'module "x" { source = "terraform-aws-modules/x/aws" }\n',
