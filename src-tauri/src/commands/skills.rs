@@ -670,6 +670,85 @@ pub async fn export_skill_zip(
     Ok(())
 }
 
+// A shared skill zip is untrusted: cap it so it cannot fill the disk or memory.
+const IMPORT_ZIP_MAX_ENTRIES: usize = 2000;
+const IMPORT_ZIP_MAX_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Unpack a skill zip (`<name>/...`) into `<skills_root>/<name>`. Every entry is checked and read
+/// before anything is written, so a refused zip leaves nothing behind.
+fn extract_skill_zip(zip_path: &Path, skills_root: &Path) -> Result<(String, PathBuf), String> {
+    use std::io::Read;
+    use std::path::Component;
+    use zip::ZipArchive;
+
+    let file = fs::File::open(zip_path).map_err(|e| e.to_string())?;
+    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
+    if archive.len() > IMPORT_ZIP_MAX_ENTRIES {
+        return Err(format!("Skill zip has more than {IMPORT_ZIP_MAX_ENTRIES} entries"));
+    }
+
+    let mut skill_name = None;
+    // (path below the skill folder, file bytes or None for a folder)
+    let mut entries: Vec<(PathBuf, Option<Vec<u8>>)> = Vec::new();
+    let mut total = 0u64;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let unsafe_path = || format!("Skill zip has an unsafe path: {}", entry.name());
+        let name = entry.enclosed_name().ok_or_else(unsafe_path)?;
+        // `\` is a separator on Windows, so a `..` behind it must be refused everywhere.
+        let name = name.to_string_lossy().replace('\\', "/");
+        let mut parts = Vec::new();
+        for component in Path::new(&name).components() {
+            match component {
+                Component::Normal(part) => parts.push(part),
+                _ => return Err(unsafe_path()),
+            }
+        }
+        let Some((first, rest)) = parts.split_first() else { continue };
+        // The first component is the skill name prefix.
+        skill_name.get_or_insert_with(|| first.to_string_lossy().into_owned());
+        let rel: PathBuf = rest.iter().collect();
+        // A link could point anywhere once written.
+        if rel.as_os_str().is_empty() || entry.is_symlink() {
+            continue;
+        }
+        if entry.is_dir() {
+            entries.push((rel, None));
+            continue;
+        }
+        // Count the bytes really read: the size in the header is whatever the zip claims.
+        let mut data = Vec::new();
+        (&mut entry)
+            .take(IMPORT_ZIP_MAX_BYTES - total + 1)
+            .read_to_end(&mut data)
+            .map_err(|e| e.to_string())?;
+        total += data.len() as u64;
+        if total > IMPORT_ZIP_MAX_BYTES {
+            return Err(format!("Skill zip unpacks to more than {} MiB", IMPORT_ZIP_MAX_BYTES >> 20));
+        }
+        entries.push((rel, Some(data)));
+    }
+
+    let skill_name = skill_name.ok_or("Skill zip is empty")?;
+    validate_skill_name(&skill_name)?;
+
+    let dest_dir = skills_root.join(&skill_name);
+    fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    for (rel, data) in entries {
+        let out = dest_dir.join(&rel);
+        match data {
+            None => fs::create_dir_all(&out).map_err(|e| e.to_string())?,
+            Some(data) => {
+                if let Some(parent) = out.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                fs::write(&out, &data).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok((skill_name, dest_dir))
+}
+
 #[tauri::command]
 pub async fn import_skill_zip(
     app: AppHandle,
@@ -678,47 +757,8 @@ pub async fn import_skill_zip(
     zip_path: String,
 ) -> Result<Skill, String> {
     let policy = crate::remote::fs_policy::RemoteFs::for_caller(&webview, db.inner()).await?;
-    let zip_path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&zip_path))?
-        .to_string_lossy()
-        .into_owned();
-    use std::io::Read;
-    use zip::ZipArchive;
-
-    let file = fs::File::open(&zip_path).map_err(|e| e.to_string())?;
-    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
-
-    // Detect skill name from first path component
-    let skill_name = {
-        let first = archive.by_index(0).map_err(|e| e.to_string())?;
-        first.name().split('/').next().unwrap_or("imported").to_string()
-    };
-
-    validate_skill_name(&skill_name)?;
-
-    let dest_dir = skills_dir(&app).join(&skill_name);
-    fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
-
-    // Extract files
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
-        // Strip first component (skill name prefix)
-        let rel: PathBuf = name.split('/').skip(1).collect();
-        if rel.to_string_lossy().is_empty() {
-            continue;
-        }
-        let out = dest_dir.join(&rel);
-        if entry.is_dir() {
-            fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-        } else {
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            let mut data = Vec::new();
-            entry.read_to_end(&mut data).map_err(|e| e.to_string())?;
-            fs::write(&out, &data).map_err(|e| e.to_string())?;
-        }
-    }
+    let zip_path = crate::remote::fs_policy::read(policy.as_ref(), Path::new(&zip_path))?;
+    let (skill_name, dest_dir) = extract_skill_zip(&zip_path, &skills_dir(&app))?;
 
     // Read SKILL.md to get description
     let skill_md_path = dest_dir.join("SKILL.md");
@@ -1048,5 +1088,98 @@ mod tests {
             assert!(fs::symlink_metadata(dir.join(root).join(".claude/skills/old")).is_err(), "{root}");
         }
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    enum ZipItem<'a> {
+        File(&'a [u8]),
+        Dir,
+        Link(&'a str),
+    }
+
+    /// A fresh `<tmp>/a/b` with the zip at `<tmp>/a/b/in.zip`; skills go to `<tmp>/a/b/skills`.
+    fn write_zip(label: &str, items: &[(&str, ZipItem)]) -> PathBuf {
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+        let dir = std::env::temp_dir().join(format!("puppeteer-skill-zip-{}-{}", label, Uuid::new_v4())).join("a/b");
+        fs::create_dir_all(&dir).unwrap();
+        let mut zip = zip::ZipWriter::new(fs::File::create(dir.join("in.zip")).unwrap());
+        let options = SimpleFileOptions::default();
+        for (name, item) in items {
+            match item {
+                ZipItem::File(data) => {
+                    zip.start_file(*name, options).unwrap();
+                    zip.write_all(data).unwrap();
+                }
+                ZipItem::Dir => zip.add_directory(*name, options).unwrap(),
+                ZipItem::Link(target) => zip.add_symlink(*name, *target, options).unwrap(),
+            }
+        }
+        zip.finish().unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_skill_zip_is_unpacked_under_its_name() {
+        let dir = write_zip(
+            "valid",
+            &[
+                ("good/SKILL.md", ZipItem::File(b"---\nname: good\n---\n")),
+                ("good/sub/", ZipItem::Dir),
+                ("good/sub/a.txt", ZipItem::File(b"a")),
+            ],
+        );
+        let (name, dest) = extract_skill_zip(&dir.join("in.zip"), &dir.join("skills")).unwrap();
+        assert_eq!((name.as_str(), dest.as_path()), ("good", dir.join("skills/good").as_path()));
+        assert_eq!(fs::read(dest.join("SKILL.md")).unwrap(), b"---\nname: good\n---\n");
+        assert_eq!(fs::read(dest.join("sub/a.txt")).unwrap(), b"a");
+        let _ = fs::remove_dir_all(dir.join("../.."));
+    }
+
+    #[test]
+    fn a_zip_with_an_unsafe_path_is_refused_whole() {
+        let outside = std::env::temp_dir().join(format!("puppeteer-skill-zip-abs-{}", Uuid::new_v4()));
+        let absolute = outside.join("x.txt").to_string_lossy().into_owned();
+        for bad in ["evil/../../escaped.txt", "evil/sub/../x.txt", absolute.as_str(), "evil/..\\..\\escaped.txt"] {
+            let dir = write_zip(
+                "unsafe",
+                &[("evil/SKILL.md", ZipItem::File(b"s")), (bad, ZipItem::File(b"pwned"))],
+            );
+            let res = extract_skill_zip(&dir.join("in.zip"), &dir.join("skills"));
+            assert!(!dir.join("escaped.txt").exists(), "{bad} escaped the skill folder");
+            assert!(!outside.exists(), "{bad} was written outside");
+            assert!(res.is_err(), "{bad} was accepted");
+            // Nothing at all is written, not even the safe entries before the bad one.
+            assert!(!dir.join("skills/evil").exists(), "{bad} left files behind");
+            let _ = fs::remove_dir_all(dir.join("../.."));
+        }
+    }
+
+    #[test]
+    fn symlinks_in_a_skill_zip_are_skipped() {
+        let dir = write_zip(
+            "link",
+            &[("ln/SKILL.md", ZipItem::File(b"s")), ("ln/passwd", ZipItem::Link("/etc/passwd"))],
+        );
+        let (_, dest) = extract_skill_zip(&dir.join("in.zip"), &dir.join("skills")).unwrap();
+        assert!(dest.join("SKILL.md").exists());
+        assert!(fs::symlink_metadata(dest.join("passwd")).is_err());
+        let _ = fs::remove_dir_all(dir.join("../.."));
+    }
+
+    #[test]
+    fn an_oversized_skill_zip_is_refused() {
+        let names: Vec<String> = (0..=IMPORT_ZIP_MAX_ENTRIES).map(|i| format!("many/f{i}")).collect();
+        let items: Vec<(&str, ZipItem)> = names.iter().map(|n| (n.as_str(), ZipItem::File(b"x"))).collect();
+        let dir = write_zip("entries", &items);
+        assert!(extract_skill_zip(&dir.join("in.zip"), &dir.join("skills")).is_err());
+        assert!(!dir.join("skills/many").exists());
+        let _ = fs::remove_dir_all(dir.join("../.."));
+
+        // Two files that only break the cap together: the total counts, not each file.
+        let half = vec![0u8; (IMPORT_ZIP_MAX_BYTES / 2 + 1) as usize];
+        let dir = write_zip("bytes", &[("big/a", ZipItem::File(&half)), ("big/b", ZipItem::File(&half))]);
+        assert!(extract_skill_zip(&dir.join("in.zip"), &dir.join("skills")).is_err());
+        assert!(!dir.join("skills/big").exists());
+        let _ = fs::remove_dir_all(dir.join("../.."));
     }
 }
