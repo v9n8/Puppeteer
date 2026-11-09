@@ -166,7 +166,12 @@ fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -
         return Err(format!("{file_path} is a directory, not a file"));
     }
 
-    let bytes = std::fs::read(&canonical).map_err(|e| format!("read {file_path}: {e}"))?;
+    // One byte past the cap tells it was cut, without reading a huge file whole.
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(&canonical)
+        .and_then(|f| f.take(MAX_FILE_BYTES as u64 + 1).read_to_end(&mut bytes))
+        .map_err(|e| format!("read {file_path}: {e}"))?;
     // Reject binary files (NUL byte heuristic) — the viewer renders text only.
     if bytes.iter().take(8000).any(|&b| b == 0) {
         return Err("Binary file — cannot preview".to_string());
@@ -948,6 +953,17 @@ mod tests {
 
         let res = res.expect("temp-dir file should be readable");
         assert_eq!(res.content, "# commitment\n");
+    }
+
+    #[test]
+    fn a_file_past_the_cap_is_cut_and_one_at_the_cap_is_not() {
+        let path = std::env::temp_dir().join(format!("puppeteer-viewer-cap-{}.txt", uuid::Uuid::new_v4()));
+        for (len, cut) in [(MAX_FILE_BYTES, false), (MAX_FILE_BYTES + 10, true)] {
+            std::fs::write(&path, vec![b'a'; len]).unwrap();
+            let res = read_within(env!("CARGO_MANIFEST_DIR"), path.to_str().unwrap(), None).unwrap();
+            assert_eq!((res.content.len(), res.truncated), (MAX_FILE_BYTES, cut));
+        }
+        let _ = std::fs::remove_file(&path);
     }
 
     /// `/tmp` is a symlink to `/private/tmp` on macOS — the literal path the AI

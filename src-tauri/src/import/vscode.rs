@@ -88,7 +88,7 @@ impl Adapter for VsCode {
         let mut report = ScanReport::default();
         let (path, key) = &l.mcp;
         if path.is_file() {
-            let file = read_text(path, MAX_CONFIG_BYTES)
+            let file = read_config(path, root, scope, ctx)
                 .and_then(|raw| serde_json::from_str::<McpFile>(&strip_jsonc(&raw)).map_err(|e| json_error(&e)));
             let servers = match file {
                 Ok(McpFile { servers, mcp_servers }) => if *key == "servers" { servers } else { mcp_servers },

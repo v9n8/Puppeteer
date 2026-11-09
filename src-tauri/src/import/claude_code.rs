@@ -82,7 +82,7 @@ impl Adapter for ClaudeCode {
         let l = layout(root, scope);
         let mut report = ScanReport::default();
         if l.mcp.is_file() {
-            let config = read_text(&l.mcp, MAX_CONFIG_BYTES)
+            let config = read_config(&l.mcp, root, scope, ctx)
                 .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
             match config {
                 Ok(McpConfig { mcp_servers: Some(servers) }) => mcp_candidates(&mut report, &l.mcp, &servers),
@@ -168,6 +168,7 @@ mod tests {
         let by_id = |id: &str| report.candidates.iter().find(|c| c.id == id).unwrap();
         let mcp = by_id("mcp:gh.tools").mcp.as_ref().unwrap();
         assert_eq!((mcp.transport.as_str(), mcp.env_keys.clone()), ("stdio", vec!["GH_TOKEN".to_string()]));
+        assert_eq!((mcp.command.as_deref(), mcp.args.clone()), (Some("npx"), vec!["gh".to_string()]));
         assert_eq!(by_id("rules:.claude/rules/style.md").description, "Style");
         assert_eq!(by_id("rules:CLAUDE.md").target.as_deref(), Some("claude"));
         assert_eq!(by_id("skills:.claude/skills/pdf").target.as_deref(), Some("both"));

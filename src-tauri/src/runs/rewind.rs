@@ -189,6 +189,17 @@ pub fn pending(records: &[String]) -> Option<EngineCut> {
     None
 }
 
+/// Open the run log, never through a link: it lies in the project, where the
+/// agent writes, so a link there could point the rewind at any file.
+fn open_log(path: &Path, options: &mut std::fs::OpenOptions) -> std::io::Result<std::fs::File> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    options.open(path)
+}
+
 /// Cut the log at `offset` and record the pending engine cut after it.
 fn cut_log(path: &Path, offset: u64, cut: &EngineCut, turn: i64) -> Result<(), String> {
     use std::io::Write;
@@ -196,10 +207,10 @@ fn cut_log(path: &Path, offset: u64, cut: &EngineCut, turn: i64) -> Result<(), S
     record["type"] = Value::from(MARKER);
     record["turn"] = Value::from(turn);
     record["at"] = Value::from(chrono::Utc::now().to_rfc3339());
-    let f = std::fs::OpenOptions::new().write(true).open(path).map_err(|e| e.to_string())?;
+    let f = open_log(path, std::fs::OpenOptions::new().write(true)).map_err(|e| e.to_string())?;
     f.set_len(offset).map_err(|e| e.to_string())?;
     drop(f);
-    let mut f = std::fs::OpenOptions::new().append(true).open(path).map_err(|e| e.to_string())?;
+    let mut f = open_log(path, std::fs::OpenOptions::new().append(true)).map_err(|e| e.to_string())?;
     f.write_all(format!("{record}\n").as_bytes()).map_err(|e| e.to_string())
 }
 
@@ -255,7 +266,7 @@ async fn ensure_folder_idle(db: &Db, registry: &RunRegistry, run_id: &str, turn:
 async fn log_cut(facts: &RunFacts, turn: i64) -> Result<Option<LogCut>, String> {
     let (path, engine, session) = (facts.log.clone(), facts.engine.clone(), facts.session_id.clone());
     tokio::task::spawn_blocking(move || {
-        let file = match std::fs::File::open(&path) {
+        let file = match open_log(&path, std::fs::OpenOptions::new().read(true)) {
             Ok(f) => f,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.to_string()),
@@ -541,5 +552,23 @@ mod tests {
         assert_eq!(pending(&resumed), None);
         assert_eq!(pending(&claude_log().lines().map(str::to_string).collect::<Vec<_>>()), None);
         let _ = std::fs::remove_file(path);
+    }
+
+    // The log sits in the project, where the agent writes: a link there must not
+    // get the rewind to truncate (or read) a file elsewhere.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_linked_log_is_neither_read_nor_cut() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-rewind-link-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (target, log) = (dir.join("notes.txt"), dir.join("r1.log"));
+        std::fs::write(&target, claude_log()).unwrap();
+        std::os::unix::fs::symlink(&target, &log).unwrap();
+        let facts = RunFacts { engine: "claude".into(), session_id: Some("s1".into()), log: log.clone(), stopped: None };
+        assert!(log_cut(&facts, 2).await.is_err());
+        let c = cut(&claude_log(), "claude", Some("s1"), 2).unwrap();
+        assert!(cut_log(&log, c.offset, &c.conversation.unwrap(), 2).is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), claude_log());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

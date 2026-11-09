@@ -69,13 +69,11 @@ impl OutboundTx {
     /// `Err(())` means the writer task is gone (socket closed) — callers treat
     /// that as "the room is gone" and stop.
     pub fn send(&self, env: Envelope) -> Result<(), ()> {
-        match self.tx.send(env) {
-            Ok(()) => {
-                self.depth.fetch_add(1, Ordering::Relaxed);
-                Ok(())
-            }
-            Err(_) => Err(()),
-        }
+        // Count before sending so the receiver's decrement never underflows.
+        self.depth.fetch_add(1, Ordering::Relaxed);
+        self.tx.send(env).map_err(|_| {
+            self.depth.fetch_sub(1, Ordering::Relaxed);
+        })
     }
 
     /// Queue a frame that may be dropped when the link is congested.
@@ -193,6 +191,7 @@ mod tests {
         let (tx, rx) = channel();
         drop(rx);
         assert!(tx.send(frame(1)).is_err());
+        assert_eq!(tx.depth(), 0, "a frame that was not queued is not counted");
         assert!(tx.send_lossy(frame(2)).is_err());
         assert!(tx.offer(frame(3)).is_err());
     }

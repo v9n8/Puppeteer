@@ -34,6 +34,9 @@ const PROJECT_FILES_MAX: usize = 500;
 /// (BR-006). Newer-than-cap logs are truncated from the FRONT (oldest dropped)
 /// so the Controller still lands on the most recent context.
 pub const REPLAY_MAX_LINES: usize = 2000;
+/// Bytes read from the end of a log for a replay: a log of a few huge lines
+/// must not be read whole either.
+const REPLAY_MAX_BYTES: u64 = 4 * 1024 * 1024;
 /// Lines per replay batch envelope.
 const REPLAY_BATCH: usize = 200;
 
@@ -791,6 +794,23 @@ pub fn run_log_path(project_path: &str, run_id: &str) -> PathBuf {
         .join(format!("{run_id}.log"))
 }
 
+/// The last lines of the log (BR-006: at most [`REPLAY_MAX_LINES`]), from its
+/// last [`REPLAY_MAX_BYTES`] only. No log → none.
+fn log_tail(path: &std::path::Path) -> Vec<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else { return Vec::new() };
+    let start = f.metadata().map_or(0, |m| m.len().saturating_sub(REPLAY_MAX_BYTES));
+    let mut bytes = Vec::new();
+    if f.seek(SeekFrom::Start(start)).and_then(|_| f.take(REPLAY_MAX_BYTES).read_to_end(&mut bytes)).is_err() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&bytes);
+    // Read from the middle of a line: drop that partial first line.
+    let skip = usize::from(start > 0);
+    let lines: Vec<&str> = text.lines().skip(skip).collect();
+    lines[lines.len().saturating_sub(REPLAY_MAX_LINES)..].iter().map(|l| l.to_string()).collect()
+}
+
 /// Send the persisted log for `run_id` back to the Controller in batches
 /// (FR-005/AC-07). Returns the number of lines sent. The final batch carries
 /// `done = true`; live stream then continues without overlap because the
@@ -803,13 +823,8 @@ pub async fn replay_history(
     out: &OutboundTx,
     seq: &SeqCounter,
 ) -> usize {
-    let content = std::fs::read_to_string(log_path).unwrap_or_default();
-    let mut lines: Vec<String> = content.lines().map(str::to_string).collect();
-    // BR-006: cap the replay; keep the most recent lines.
-    if lines.len() > REPLAY_MAX_LINES {
-        let drop = lines.len() - REPLAY_MAX_LINES;
-        lines.drain(0..drop);
-    }
+    let path = log_path.to_path_buf();
+    let lines = tokio::task::spawn_blocking(move || log_tail(&path)).await.unwrap_or_default();
     let total = lines.len();
 
     let mut chunks = lines.chunks(REPLAY_BATCH).peekable();
@@ -976,6 +991,38 @@ mod tests {
         // Oldest dropped: first kept line is line-500, last is line-(n-1).
         assert_eq!(got.first().unwrap(), "line-500");
         assert_eq!(got.last().unwrap(), &format!("line-{}", n - 1));
+    }
+
+    #[test]
+    fn replay_reads_only_the_end_of_a_huge_log() {
+        let a = Keypair::generate();
+        let b = Keypair::generate();
+        let psk = b"replay-test-psk-0123456789";
+        let host = Session::new(psk, &a, &b.public).unwrap();
+        let ctrl = Session::new(psk, &b, &a.public).unwrap();
+
+        // Few lines, many bytes: the line cap alone would still read it whole.
+        let path = temp_log("replay-huge");
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(&vec![b'x'; 2 * REPLAY_MAX_BYTES as usize]).unwrap();
+        f.write_all(b"\nline-a\nline-b\n").unwrap();
+        drop(f);
+
+        let (tx, mut rx) = crate::remote::outbound::channel();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let sent = rt.block_on(replay_history(&host, "rm_1", "r_1", &path, &tx, &SeqCounter::default()));
+        drop(tx);
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(sent, 2);
+        let mut got: Vec<String> = Vec::new();
+        while let Ok(env) = rx.try_recv() {
+            let pt = ctrl.open(env.cipher.as_deref().unwrap()).unwrap();
+            if let StreamPayload::History { lines, .. } = serde_json::from_slice(&pt).unwrap() {
+                got.extend(lines);
+            }
+        }
+        assert_eq!(got, ["line-a", "line-b"]);
     }
 
     #[test]

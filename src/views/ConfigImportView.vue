@@ -188,7 +188,7 @@ function nameHint(id: string): string | null {
 function mcpLine(c: ImportCandidate): string {
   const m = c.mcp
   if (!m) return ''
-  const where = m.command ?? m.url ?? ''
+  const where = m.command ? [m.command, ...m.args].join(' ') : (m.url ?? '')
   const keys = [...m.env_keys, ...m.header_keys]
   return [m.transport, where, keys.length ? t('configImport.secretKeys', { keys: keys.join(', ') }) : '']
     .filter(Boolean)

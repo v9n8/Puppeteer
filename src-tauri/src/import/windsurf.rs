@@ -86,7 +86,7 @@ impl Adapter for Windsurf {
         let mut report = ScanReport::default();
         if let Some(path) = l.mcp.as_ref().filter(|p| p.is_file()) {
             let config =
-                read_text(path, MAX_CONFIG_BYTES).and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
+                read_config(path, root, scope, ctx).and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
             match config {
                 Ok(McpConfig { mcp_servers: Some(servers) }) => {
                     let disabled = disabled_servers(&servers);

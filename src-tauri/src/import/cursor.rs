@@ -63,7 +63,7 @@ impl Adapter for Cursor {
         let l = layout(root, scope);
         let mut report = ScanReport::default();
         if l.mcp.is_file() {
-            let config = read_text(&l.mcp, MAX_CONFIG_BYTES)
+            let config = read_config(&l.mcp, root, scope, ctx)
                 .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
             match config {
                 Ok(McpConfig { mcp_servers: Some(servers) }) => {

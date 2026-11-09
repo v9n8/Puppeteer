@@ -49,6 +49,8 @@ const SALT_LEN: usize = 16;
 pub const MIN_PASSWORD_LEN: usize = 6;
 pub const MAX_TITLE_LEN: usize = 512;
 pub const MAX_CONTENT_LEN: usize = 64 * 1024;
+/// Old headers a backup import may park: merging runs Argon2id once per header.
+const MAX_OLD_HEADERS: usize = 8;
 /// Idle time after which an unlocked vault locks itself.
 pub const AUTO_LOCK: Duration = Duration::from_secs(5 * 60);
 
@@ -138,6 +140,13 @@ impl VaultData {
     fn keep_old(&mut self, h: VaultHeader) {
         if !self.old_headers.iter().any(|o| o.vault_id == h.vault_id) {
             self.old_headers.push(h);
+        }
+    }
+
+    /// [`Self::keep_old`] for a header from a backup, which can hold any number of them.
+    fn park(&mut self, h: VaultHeader) {
+        if self.old_headers.len() < MAX_OLD_HEADERS {
+            self.keep_old(h);
         }
     }
 
@@ -488,11 +497,11 @@ pub fn import(data: &mut VaultData, incoming: VaultData) -> usize {
     match data.current_id() {
         None => data.header = Some(header),
         Some(id) if id == header.vault_id => {}
-        Some(_) => data.keep_old(header),
+        Some(_) => data.park(header),
     }
     for h in incoming.old_headers {
         if data.current_id() != Some(h.vault_id.as_str()) {
-            data.keep_old(h);
+            data.park(h);
         }
     }
     let mut taken = 0;
@@ -798,6 +807,23 @@ mod tests {
         let mut empty = VaultData::default();
         assert_eq!(import(&mut empty, other.clone()), 1);
         assert_eq!(import(&mut empty, other), 0);
+    }
+
+    #[test]
+    fn an_import_parks_a_bounded_number_of_old_headers() {
+        // Each parked header costs an Argon2id run on every merge attempt.
+        let (mut mine, _, _) = vault("mine password");
+        let (mut other, other_dek, _) = vault("other password");
+        let note = create(&mut other, &other_dek, "o", "o", None).unwrap();
+        let (header, sealed) = (other.header.clone().unwrap(), other.notes[&note.id].clone());
+        for i in 0..50 {
+            let vault_id = format!("v{i}");
+            other.old_headers.push(VaultHeader { vault_id: vault_id.clone(), ..header.clone() });
+            other.notes.insert(format!("n{i}"), SealedNote { vault_id, ..sealed.clone() });
+        }
+        import(&mut mine, other);
+        assert_eq!(mine.old_headers.len(), MAX_OLD_HEADERS);
+        assert_eq!(mine.old_headers[0].vault_id, header.vault_id, "the backup's own vault comes first");
     }
 
     #[test]

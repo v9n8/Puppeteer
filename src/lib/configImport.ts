@@ -49,6 +49,7 @@ export interface ImportSourceRef {
 export interface McpSummary {
   transport: string
   command: string | null
+  args: string[]
   url: string | null
   /** KEY names only: a value never leaves the backend. */
   env_keys: string[]

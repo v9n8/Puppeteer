@@ -44,14 +44,14 @@ impl Adapter for ClaudeDesktop {
         if scope == Scope::Global && config_path(root).is_file() { vec![ImportKind::Mcp] } else { Vec::new() }
     }
 
-    fn scan(&self, root: &Path, scope: Scope, _ctx: &ScanContext) -> ScanReport {
+    fn scan(&self, root: &Path, scope: Scope, ctx: &ScanContext) -> ScanReport {
         let mut report = ScanReport::default();
         let path = config_path(root);
         if scope != Scope::Global || !path.is_file() {
             return report;
         }
         let config =
-            read_text(&path, MAX_CONFIG_BYTES).and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
+            read_config(&path, root, scope, ctx).and_then(|raw| serde_json::from_str::<McpConfig>(&raw).map_err(|e| json_error(&e)));
         match config {
             Ok(McpConfig { mcp_servers: Some(servers) }) => mcp_candidates(&mut report, &path, &servers),
             Ok(_) => {}

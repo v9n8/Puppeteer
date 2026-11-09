@@ -86,7 +86,7 @@ impl Adapter for Codex {
         let l = layout(root, scope);
         let mut report = ScanReport::default();
         if let Some(config) = l.config.as_ref().filter(|p| p.is_file()) {
-            let parsed = read_text(config, MAX_CONFIG_BYTES)
+            let parsed = read_config(config, root, scope, ctx)
                 .and_then(|raw| toml::from_str::<CodexConfig>(&raw).map_err(|e| toml_error(&e, &raw)));
             match parsed {
                 Ok(CodexConfig { mcp_servers: Some(servers) }) => {

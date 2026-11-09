@@ -1060,7 +1060,15 @@ fn wire_git_config(cmd: &mut Command, helper_path: &Path) {
     // linked to an account), git must FAIL immediately rather than fall back to
     // an interactive username/password prompt (which would hang the sidecar).
     cmd.env("GIT_TERMINAL_PROMPT", "0");
+    // A token the app was launched with would let anything in the run reach
+    // GitHub / GitLab past the broker; the gh / glab shims set the project's own
+    // per call. `SSH_AUTH_SOCK` stays: the user's ssh needs it.
+    for key in INHERITED_GIT_TOKENS {
+        cmd.env_remove(key);
+    }
 }
+
+const INHERITED_GIT_TOKENS: [&str; 4] = ["GH_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN"];
 
 /// The `credential.helper` value naming `helper`. git runs an absolute helper
 /// path through `sh -c` when it holds a shell metacharacter, which a Windows
@@ -5175,6 +5183,16 @@ mod shim_path_tests {
         let mut cmd = Command::new("x");
         cmd.env("PATH", std::env::temp_dir());
         assert!(prepend_shim_path(&mut cmd, bad).is_err());
+    }
+
+    #[test]
+    fn inherited_git_tokens_do_not_reach_the_run() {
+        let mut cmd = Command::new("x");
+        wire_git_config(&mut cmd, Path::new("/shims/git-credential-puppeteer"));
+        let envs: Vec<_> = cmd.as_std().get_envs().collect();
+        for key in ["GH_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN"] {
+            assert!(envs.contains(&(std::ffi::OsStr::new(key), None)), "{key} not removed");
+        }
     }
 
     #[test]

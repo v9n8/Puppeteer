@@ -41,7 +41,7 @@ pub const FEATURE: &str = "library.import_external";
 /// Markdown read for a rule, agent, command or SKILL.md.
 const MAX_TEXT_BYTES: u64 = 1024 * 1024;
 /// A JSON config (`~/.claude.json` also keeps the CLI's history and caches).
-pub(crate) const MAX_CONFIG_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_CONFIG_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -100,6 +100,8 @@ pub enum Payload {
 pub struct McpSummary {
     pub transport: String,
     pub command: Option<String>,
+    /// Shown with the command: `npx -y some-pkg` must not read as just `npx`.
+    pub args: Vec<String>,
     pub url: Option<String>,
     pub env_keys: Vec<String>,
     pub header_keys: Vec<String>,
@@ -249,6 +251,12 @@ pub(crate) fn read_text(path: &Path, limit: u64) -> Result<String, String> {
         return Err(format!("file too large ({} bytes, limit {limit})", meta.len()));
     }
     String::from_utf8(fs::read(path).map_err(|e| e.to_string())?).map_err(|_| "not UTF-8 text".to_string())
+}
+
+/// A tool's config file, read where [`readable_path`] lets its source reach: a project's
+/// `.mcp.json` linked to `~/.claude.json` would bring the user's own servers (and secrets) along.
+pub(crate) fn read_config(path: &Path, root: &Path, scope: Scope, ctx: &ScanContext) -> Result<String, String> {
+    readable_path(path, root, scope, ctx).and_then(|real| read_text(&real, MAX_CONFIG_BYTES))
 }
 
 /// Where `path` really is (links followed), when the source at `root` may read it from there. A
@@ -596,9 +604,15 @@ pub(crate) fn mcp_candidate(path: &Path, raw_name: &str, export: McpServerExport
     let mut header_keys: Vec<String> = export.headers.keys().cloned().collect();
     env_keys.sort();
     header_keys.sort();
-    let summary =
-        McpSummary { transport: export.transport.clone(), command: export.command.clone(), url: export.url.clone(), env_keys, header_keys };
-    let fingerprint = serde_json::json!([summary.transport, summary.command, export.args, summary.url, summary.env_keys, summary.header_keys]);
+    let summary = McpSummary {
+        transport: export.transport.clone(),
+        command: export.command.clone(),
+        args: export.args.clone(),
+        url: export.url.clone(),
+        env_keys,
+        header_keys,
+    };
+    let fingerprint = serde_json::json!([summary.transport, summary.command, summary.args, summary.url, summary.env_keys, summary.header_keys]);
     Candidate {
         id: format!("mcp:{raw_name}"),
         kind: ImportKind::Mcp,
@@ -756,6 +770,8 @@ mod tests {
         let (home, proj) = (base.join("home"), base.join("proj"));
         let ctx = ScanContext { library_root: home.join("Library/Application Support/io.github.v9n8.puppeteer") };
         write(&home.join(".ssh/id_ed25519"), "SECRET-PRIVATE-KEY");
+        write(&home.join(".claude.json"), r#"{"mcpServers": {"mine": {"command": "m", "env": {"K": "SECRET-MCP-ENV"}}}}"#);
+        write(&home.join(".aws/mcp.json"), r#"{"mcpServers": {"aws": {"command": "a", "env": {"K": "SECRET-AWS-ENV"}}}}"#);
         write(&home.join(".aws/kit/SKILL.md"), "SECRET-AWS-SKILL");
         write(&home.join("dotfiles/agents/rev.md"), "Review.");
         write(&base.join("elsewhere/notes.md"), "SECRET-OUTSIDE");
@@ -769,6 +785,8 @@ mod tests {
         link(&base.join("elsewhere/kit"), &proj.join(".claude/skills/kit"));
         link(&base.join("elsewhere/kit/SKILL.md"), &proj.join(".claude/skills/inner/SKILL.md"));
         link(Path::new("../../../home/.ssh/id_ed25519"), &proj.join(".cursor/rules/style.mdc"));
+        link(Path::new("../home/.claude.json"), &proj.join(".mcp.json"));
+        link(&home.join(".claude.json"), &proj.join(".cursor/mcp.json"));
         let mut report = claude_code::ClaudeCode.scan(&proj, Scope::Project, &ctx);
         let cursor = cursor::Cursor.scan(&proj, Scope::Project, &ctx);
         report.candidates.extend(cursor.candidates);
@@ -783,16 +801,29 @@ mod tests {
         assert_eq!(names(&report), ["style"]);
         assert_eq!(
             refused(&report, &proj),
-            [".claude/agents/key.md", ".claude/rules/notes.md", ".claude/skills/inner/SKILL.md", ".claude/skills/kit", ".cursor/rules/style.mdc"]
+            [
+                ".claude/agents/key.md",
+                ".claude/rules/notes.md",
+                ".claude/skills/inner/SKILL.md",
+                ".claude/skills/kit",
+                ".cursor/mcp.json",
+                ".cursor/rules/style.mdc",
+                ".mcp.json"
+            ]
         );
 
         link(&home.join(".ssh/id_ed25519"), &home.join(".claude/agents/key.md"));
         link(&home.join("dotfiles/agents/rev.md"), &home.join(".claude/agents/rev.md"));
         link(&home.join(".aws/kit"), &home.join(".claude/skills/aws"));
         link(&base.join("elsewhere/notes.md"), &home.join(".claude/rules/notes.md"));
-        let global = claude_code::ClaudeCode.scan(&home, Scope::Global, &ctx);
-        assert_eq!(names(&global), ["notes", "rev"]);
-        assert_eq!(refused(&global, &home), [".claude/agents/key.md", ".claude/skills/aws"]);
+        link(&home.join(".aws/mcp.json"), &home.join(".cursor/mcp.json"));
+        let mut global = claude_code::ClaudeCode.scan(&home, Scope::Global, &ctx);
+        let cursor = cursor::Cursor.scan(&home, Scope::Global, &ctx);
+        global.candidates.extend(cursor.candidates);
+        global.problems.extend(cursor.problems);
+        // `~/.claude.json` itself is the tool's own config, read without a link.
+        assert_eq!(names(&global), ["mine", "notes", "rev"]);
+        assert_eq!(refused(&global, &home), [".claude/agents/key.md", ".claude/skills/aws", ".cursor/mcp.json"]);
 
         // HOME may link outside itself (`notes`), but never into `~/.ssh` or `~/.aws`.
         for (r, leak) in [(&report, "SECRET-"), (&global, "SECRET-PRIVATE-KEY"), (&global, "SECRET-AWS")] {

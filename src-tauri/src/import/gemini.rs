@@ -75,7 +75,7 @@ impl Adapter for Gemini {
         let l = layout(root, scope);
         let mut report = ScanReport::default();
         if l.settings.is_file() {
-            let settings = read_text(&l.settings, MAX_CONFIG_BYTES)
+            let settings = read_config(&l.settings, root, scope, ctx)
                 .and_then(|raw| serde_json::from_str::<Settings>(&strip_jsonc(&raw)).map_err(|e| json_error(&e)));
             match settings {
                 Ok(Settings { mcp_servers: Some(servers) }) => {

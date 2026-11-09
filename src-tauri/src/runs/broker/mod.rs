@@ -418,6 +418,58 @@ fn listen_unix(
     Ok((path, task))
 }
 
+/// Longest request line read. Any same-user process can write to the socket:
+/// past this, the line is not buffered further and the connection is dropped.
+const MAX_LINE_BYTES: usize = 1024 * 1024;
+/// Requests read ahead while one is processed. The shim sends one per connection.
+const MAX_QUEUED: usize = 16;
+
+/// `BufReader::lines` that stops at [`MAX_LINE_BYTES`]. Cancel-safe like
+/// `Lines::next_line`: a partly read line stays in `line` for the next call.
+struct BoundedLines<R> {
+    reader: BufReader<R>,
+    line: Vec<u8>,
+}
+
+impl<R: AsyncRead + Unpin> BoundedLines<R> {
+    fn new(read: R) -> Self {
+        Self { reader: BufReader::new(read), line: Vec::new() }
+    }
+
+    async fn next_line(&mut self) -> std::io::Result<Option<String>> {
+        let invalid = |msg| std::io::Error::new(std::io::ErrorKind::InvalidData, msg);
+        loop {
+            let buf = self.reader.fill_buf().await?;
+            if buf.is_empty() {
+                if self.line.is_empty() {
+                    return Ok(None);
+                }
+                break;
+            }
+            let (taken, ended) = match buf.iter().position(|&b| b == b'\n') {
+                Some(i) => (i + 1, true),
+                None => (buf.len(), false),
+            };
+            self.line.extend_from_slice(&buf[..taken]);
+            self.reader.consume(taken);
+            if self.line.len() > MAX_LINE_BYTES {
+                return Err(invalid("request line too long"));
+            }
+            if ended {
+                break;
+            }
+        }
+        let mut line = std::mem::take(&mut self.line);
+        if line.last() == Some(&b'\n') {
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+        }
+        String::from_utf8(line).map(Some).map_err(|_| invalid("request line is not UTF-8"))
+    }
+}
+
 /// Read NDJSON requests from one connection and reply to each. Loops until EOF.
 async fn handle_connection<R, W>(
     read_half: R,
@@ -430,7 +482,7 @@ where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
-    let mut lines = BufReader::new(read_half).lines();
+    let mut lines = BoundedLines::new(read_half);
     // Lines that arrived while a previous request was still being processed.
     let mut queued: std::collections::VecDeque<String> = std::collections::VecDeque::new();
 
@@ -456,6 +508,7 @@ where
             tokio::select! {
                 resp = &mut processing => break Some(resp),
                 next = lines.next_line() => match next {
+                    Ok(Some(_)) if queued.len() >= MAX_QUEUED => return Err("too many queued requests".into()),
                     Ok(Some(l)) => queued.push_back(l),
                     // EOF or read error: the requester is gone.
                     _ => break None,
@@ -1569,6 +1622,49 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
         panic!("approval was not abandoned after the requester disconnected");
+    }
+
+    /// Serve one in-memory connection; its client half is returned to write to.
+    fn serve_in_memory(approver: Arc<dyn Approver>, db: Db) -> (tokio::io::DuplexStream, tokio::task::JoinHandle<Result<(), String>>) {
+        let (client, server) = tokio::io::duplex(64 * 1024);
+        let resolver: Arc<dyn ApproverResolver> = Arc::new(StaticResolver(approver));
+        let task = tokio::spawn(async move {
+            let (r, w) = tokio::io::split(server);
+            handle_connection(r, w, &db, resolver, None).await
+        });
+        (client, task)
+    }
+
+    #[tokio::test]
+    async fn an_endless_request_line_ends_the_connection() {
+        let (mut client, task) = serve_in_memory(Arc::new(DenyAllApprover), mem_db().await);
+        let chunk = vec![b'a'; 64 * 1024];
+        let writer = tokio::spawn(async move {
+            // Never a newline, never EOF: only a bound stops the buffering.
+            while client.write_all(&chunk).await.is_ok() {}
+        });
+        let ended = tokio::time::timeout(std::time::Duration::from_secs(10), task).await;
+        assert!(ended.expect("connection still buffering").unwrap().is_err());
+        writer.abort();
+    }
+
+    #[tokio::test]
+    async fn requests_queued_behind_a_pending_ask_are_bounded() {
+        struct WaitForever;
+        #[async_trait]
+        impl Approver for WaitForever {
+            async fn approve(&self, _req: &BrokerRequest, _reason: &str) -> bool {
+                std::future::pending::<bool>().await
+            }
+        }
+        let (mut client, task) = serve_in_memory(Arc::new(WaitForever), mem_db().await);
+        let ask = b"{\"project_id\":\"p1\",\"run_id\":\"r1\",\"tool\":\"gh\",\"argv\":[\"pr\",\"create\"]}\n";
+        for _ in 0..=MAX_QUEUED + 1 {
+            client.write_all(ask).await.unwrap();
+        }
+        let ended = tokio::time::timeout(std::time::Duration::from_secs(10), task).await;
+        assert!(ended.expect("queue still growing").unwrap().is_err());
+        drop(client);
     }
 
     #[tokio::test]
