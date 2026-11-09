@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// JSON-RPC fixture for test-framing-seed.mjs, test-rewind.mjs and
-// test-steer.mjs: records thread/start, thread/resume, thread/rollback,
+// JSON-RPC fixture for test-framing-seed.mjs, test-rewind.mjs, test-steer.mjs
+// and test-queue.mjs: records thread/start, thread/resume, thread/rollback,
 // turn/start and turn/steer params to PUPPETEER_FRAMING_RPC_OUT (NDJSON). A
-// turn never completes, so it stays steerable.
+// turn never completes, so it stays steerable — unless
+// PUPPETEER_FIXTURE_COMPLETE_MS is set: then it completes after that long
+// (recorded as `turn/completed`).
 import { appendFileSync } from 'node:fs'
 
 const out = process.env.PUPPETEER_FRAMING_RPC_OUT
 let buffer = ''
+let refusedTurn = false
 const send = (m) => process.stdout.write(JSON.stringify(m) + '\n')
 
 process.stdin.on('data', (chunk) => {
@@ -30,7 +33,21 @@ process.stdin.on('data', (chunk) => {
       const turns = held ? { turns: Array.from({ length: Number(held) }, (_, i) => ({ id: `t${i}` })) } : {}
       send({ jsonrpc: '2.0', id: m.id, result: { thread: { id: m.params.threadId, ...turns }, model: 'fixture' } })
     } else if (m.method === 'turn/start') {
-      send({ jsonrpc: '2.0', id: m.id, result: { turn: { id: `turn-${m.id}` } } })
+      // PUPPETEER_FIXTURE_FAIL_FIRST_TURN: refuse the first turn/start.
+      if (process.env.PUPPETEER_FIXTURE_FAIL_FIRST_TURN && !refusedTurn) {
+        refusedTurn = true
+        send({ jsonrpc: '2.0', id: m.id, error: { code: -32600, message: 'bad input' } })
+        continue
+      }
+      const turn = { id: `turn-${m.id}` }
+      send({ jsonrpc: '2.0', id: m.id, result: { turn } })
+      const completeMs = process.env.PUPPETEER_FIXTURE_COMPLETE_MS
+      if (completeMs) {
+        setTimeout(() => {
+          appendFileSync(out, JSON.stringify({ method: 'turn/completed', params: { turnId: turn.id } }) + '\n')
+          send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: m.params.threadId, turn } })
+        }, Number(completeMs))
+      }
     } else if (m.method === 'turn/steer') {
       // PUPPETEER_FIXTURE_STEER_ERROR: refuse it like a turn that just ended.
       const refuse = process.env.PUPPETEER_FIXTURE_STEER_ERROR

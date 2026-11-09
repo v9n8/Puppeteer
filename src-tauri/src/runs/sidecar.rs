@@ -12,6 +12,8 @@
 //!         `permission_response` line back to the sidecar's stdin.
 //!     `_puppeteer_stderr` / `_puppeteer_error` → surfaced on `run:output:<run_id>`.
 //!     `_puppeteer_ready` / `_puppeteer_done` / `_puppeteer_closed` → lifecycle, swallowed.
+//!     `_puppeteer_turn_failed` (Codex) → a prompt never became a turn; like a
+//!         `result`, it lets the next follow-up waiting in the `TurnGate` start.
 //!
 //! Auth: the SDK uses its bundled CLI, which reads the same macOS Keychain login
 //! as `claude` — so runs bill against the user's subscription, no API key.
@@ -544,6 +546,10 @@ pub async fn drain_sidecar(
     // `drain_should_close_stdin`. Background subagents keep streaming after the
     // parent's `result`; they must not count (see `is_main_turn_activity`).
     let mut turn_active = false;
+    // The engine's own activity for the current turn has marked the run's
+    // `TurnGate` busy (once per turn): a turn the engine began by itself (a
+    // Claude wake-up) holds follow-ups back like one Puppeteer started.
+    let mut gate_marked = false;
 
     // Watchdog: nothing may wait forever silently, and nothing is stopped or
     // answered on suspicion. Policy lives in `runs::liveness` (notices only);
@@ -593,6 +599,24 @@ pub async fn drain_sidecar(
             &format!("run:output:{}", run_id),
             serde_json::json!({ "run_id": run_id, "line": msg, "is_stderr": is_err, "level": level }),
         );
+    }
+
+    // A turn just ended: start the next follow-up waiting for it, if any
+    // (`TurnGate`). True when one started.
+    async fn start_queued_turn(
+        app: &AppHandle,
+        db: &sqlx::SqlitePool,
+        registry: &RunRegistry,
+        buf: &Arc<TokioMutex<String>>,
+        bus: &Option<crate::remote::RemoteBus>,
+        run_id: &str,
+    ) -> bool {
+        let (started, lost) = crate::commands::runs::start_queued_prompt(db, registry, run_id).await;
+        if lost > 0 {
+            let notice = crate::commands::runs::queued_prompts_lost_notice(lost);
+            watchdog_line(app, buf, bus, run_id, "warn", &notice).await;
+        }
+        started
     }
 
     // Carry out the liveness decisions: notices go to the UI as a banner with a
@@ -891,6 +915,12 @@ pub async fn drain_sidecar(
                             (Some(_), "_puppeteer_framing_seeded") => {
                                 crate::conductor::commands::mark_framing_seeded(&db_pool, &run_id).await;
                             }
+                            // ---- control: a prompt never became a turn ----------
+                            // (Codex refused turn/start; the error came before it.)
+                            // No `result` follows, so the next follow-up starts here.
+                            (Some(_), "_puppeteer_turn_failed") => {
+                                start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
+                            }
                             // ---- control: lifecycle (swallow) -------------------
                             (Some(_), "_puppeteer_ready") | (Some(_), "_puppeteer_done") => {}
                             // The session is torn down for good (finished, or the
@@ -1003,6 +1033,14 @@ pub async fn drain_sidecar(
                                 }
                                 if is_main_turn_activity(v) {
                                     turn_active = true;
+                                    // Not `system/init`: Codex sends it at start-up,
+                                    // before any turn.
+                                    if !gate_marked && v.get("type").and_then(|x| x.as_str()) != Some("system") {
+                                        gate_marked = true;
+                                        if let Some(handles) = registry.lock().await.get_mut(&run_id) {
+                                            handles.turn_gate.busy = true;
+                                        }
+                                    }
                                 }
                                 // End the turn: closing stdin makes the sidecar's
                                 // input stream close, the query finish, and the
@@ -1037,10 +1075,18 @@ pub async fn drain_sidecar(
                                     // drains; follow-ups then go to this same live
                                     // sidecar rather than a resume.
                                     turn_active = false;
+                                    gate_marked = false;
                                     if result_ends_user_turn(v) {
                                         user_turn_ended_once = true;
                                     }
-                                    if result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once) {
+                                    // A follow-up sent during this turn starts now,
+                                    // as a turn of its own: keep the session open.
+                                    // Not on a leftover task's `result` landing
+                                    // before the user's turn ended: that turn is
+                                    // still running.
+                                    let next_turn = user_turn_ended_once
+                                        && start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
+                                    if !next_turn && result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once) {
                                         let mut reg = registry.lock().await;
                                         if let Some(handles) = reg.get_mut(&run_id) {
                                             handles.stdin.take();
@@ -1161,6 +1207,18 @@ pub async fn drain_sidecar(
             &format!("run:output:{}", run_id),
             serde_json::json!({ "run_id": run_id, "line": l, "is_stderr": true }),
         );
+    }
+
+    // Follow-ups still waiting for a turn can never start now: say so.
+    let lost = registry
+        .lock()
+        .await
+        .get_mut(&run_id)
+        .map(|h| std::mem::take(&mut h.turn_gate.queued).len())
+        .unwrap_or(0);
+    if lost > 0 {
+        let notice = crate::commands::runs::queued_prompts_lost_notice(lost);
+        watchdog_line(&app, &log_buf, &remote_bus, &run_id, "warn", &notice).await;
     }
 
     // Final persist (anything appended since the last periodic flush).

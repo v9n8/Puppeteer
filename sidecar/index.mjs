@@ -642,7 +642,11 @@ rl.on('line', (raw) => {
         started = true
         startQuery(cmd.text ?? '', cmd.options || {}, cmd.images)
       } else if (inputQueue) {
-        inputQueue.push(userMessage(cmd.text ?? '', cmd.images))
+        // A follow-up is a turn of its own: priority `later` has the CLI run it
+        // after any turn in flight, never fold it in (the broker logged it as a
+        // new Rewind turn). The broker already holds follow-ups until a turn
+        // ends; this covers one landing as the engine starts a turn itself.
+        inputQueue.push({ ...userMessage(cmd.text ?? '', cmd.images), priority: 'later' })
       }
       break
     // Steer: a message for the turn in flight. Priority `next` has the CLI fold

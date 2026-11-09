@@ -14,9 +14,10 @@
 //         {type:"_puppeteer_ready"} / {type:"_puppeteer_done"} / {type:"_puppeteer_error",error}
 //         {type:"_puppeteer_closed",code,signal}   ← session over (signal ⇒ crash)
 //         {type:"_puppeteer_permission_request",requestId,tool_name,tool_input,title,description}
+//         {type:"_puppeteer_turn_failed"}          ← a prompt never became a turn (no result follows)
 //
 //   stdin (from broker): one JSON command per line
-//     {type:"prompt",text,options?}            → start a turn
+//     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
 //     {type:"permission_response",requestId,decision}  ("allow" | "deny")
 //     {type:"interrupt"} / {type:"abort"}
 //
@@ -99,6 +100,10 @@ const DEVELOPER_INSTRUCTIONS = process.env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTION
 // ignores developerInstructions on thread/resume, so the broker hands us a
 // ready-made <session-framing> block to prepend to this sidecar's first turn.
 let SEED_FRAMING = process.env.PUPPETEER_CODEX_SEED_FRAMING || null
+// Session runs: stay up after a turn until the broker closes stdin (it does once
+// the turn's `result` leaves nothing queued), so a follow-up it hands over then
+// still finds the session. Without it (translation), a turn's end ends the session.
+const KEEP_OPEN = process.env.PUPPETEER_CODEX_KEEP_OPEN === '1'
 // Per-call MCP tool timeout. The broker sets MCP_TOOL_TIMEOUT (ms) above the
 // conductor's longest `session_wait`; Codex's own default (~60s) would cut a
 // blocking wait short. Applied to every server, matching Claude's global env.
@@ -901,7 +906,9 @@ function onServerMessage(msg) {
         turnActive = false
         turnCompleted = true
         currentTurn = null
-        shutdown(0)
+        // A prompt that came in during the turn runs now, as a turn of its own.
+        if (waitingPrompts.length) startNextWaiting()
+        else if (!KEEP_OPEN || inputClosed) shutdown(0)
         break
       }
       case 'error':
@@ -955,7 +962,7 @@ let ready = false
 let turnStartedAt = null
 // A turn was started and hasn't completed (turn/completed) yet.
 let turnActive = false
-// A turn/completed was observed: the session reached its terminal state.
+// The last turn started got its turn/completed (reset by the next turn/start).
 let turnCompleted = false
 // The broker closed our stdin: no prompt or permission answer can arrive.
 let inputClosed = false
@@ -963,6 +970,9 @@ let inputClosed = false
 // `turn/steer` must name it, and a steer can arrive before turn/start answers.
 let currentTurn = null
 const promptQueue = []
+// Prompts that arrived while a turn was in flight: never a second turn/start
+// over it, they start one by one as each turn completes.
+const waitingPrompts = []
 
 async function bringUp() {
   rpcResult(await request('initialize', {
@@ -1015,7 +1025,7 @@ async function bringUp() {
     .catch(() => {})
 
   ready = true
-  for (const t of promptQueue.splice(0)) (t.steer ? steerTurn : startTurn)(t.text, t.images)
+  for (const t of promptQueue.splice(0)) (t.steer ? steerTurn : runPrompt)(t.text, t.images)
 }
 
 // Lightweight usage probe: initialize the app-server, read the account's plan
@@ -1067,9 +1077,20 @@ function sandboxPolicyObject(sandbox) {
   }
 }
 
+function runPrompt(text, images) {
+  if (turnActive) waitingPrompts.push({ text, images })
+  else startTurn(text, images)
+}
+
+function startNextWaiting() {
+  const next = waitingPrompts.shift()
+  startTurn(next.text, next.images)
+}
+
 async function startTurn(text, images) {
   if (!threadId) { ctrl('_puppeteer_error', { error: 'no thread' }); return }
   turnActive = true
+  turnCompleted = false
   turnStartedAt = Date.now()
   // Prepend the one-time framing seed to the first turn of a resumed thread.
   // Claimed up front so a second turn queued meanwhile can't seed it twice.
@@ -1095,8 +1116,10 @@ async function startTurn(text, images) {
   if (res?.error) {
     turnActive = false
     ctrl('_puppeteer_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
-    if (inputClosed) shutdown(1)
+    ctrl('_puppeteer_turn_failed')
     if (seed) SEED_FRAMING = seed // not delivered — retry on the next turn
+    if (waitingPrompts.length) startNextWaiting()
+    else if (inputClosed) shutdown(1)
   } else if (seed) {
     // Accepted: the framing is now in the thread history. Seed only once.
     ctrl('_puppeteer_framing_seeded')
@@ -1153,7 +1176,7 @@ function handleCommand(cmd) {
   switch (cmd.type) {
     case 'prompt':
       if (!ready) promptQueue.push({ text: cmd.text, images: cmd.images })
-      else startTurn(cmd.text, cmd.images)
+      else runPrompt(cmd.text, cmd.images)
       break
     case 'steer':
       steerTurn(cmd.text, cmd.images)

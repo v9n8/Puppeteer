@@ -8,7 +8,7 @@ use crate::runs::sidecar::{
 };
 use crate::runs::ssh_access::{self, SshAccessGuard};
 use crate::runs::stdin_writer::SidecarInput;
-use crate::runs::{BrokerRunCtx, BrokerRunGuard, BrokerRuns, RunHandles, RunRegistry};
+use crate::runs::{BrokerRunCtx, BrokerRunGuard, BrokerRuns, QueuedPrompt, RunHandles, RunRegistry, TurnGate};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -540,6 +540,7 @@ pub(crate) async fn start_run_inner(
                     log_buf: log_buf.clone(),
                     broker_run: Some(broker_run),
                     ssh_access,
+                    turn_gate: TurnGate { busy: first_line.is_some(), ..Default::default() },
                 },
             );
         }
@@ -589,6 +590,9 @@ pub(crate) async fn start_run_inner(
         cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
     }
     cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
+    // The session ends when the drain closes its input, not at the end of
+    // each turn: a follow-up sent meanwhile starts after it (`TurnGate`).
+    cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
     if let Some(m) = &model {
         cmd.env("PUPPETEER_CODEX_MODEL", m);
     }
@@ -696,6 +700,7 @@ pub(crate) async fn start_run_inner(
                 log_buf: log_buf.clone(),
                 broker_run: Some(broker_run),
                 ssh_access,
+                turn_gate: TurnGate { busy: first_line.is_some(), ..Default::default() },
             },
         );
     }
@@ -1257,35 +1262,34 @@ pub(crate) async fn send_user_message_inner(
     if text.is_empty() && payload.images.is_empty() {
         return Err("empty message".to_string());
     }
-    // Command the sidecar to run another turn with this user text + images.
-    let send_line = format!(
-        "{}\n",
-        serde_json::json!({ "type": "prompt", "text": text, "images": images_payload(&payload.images) })
-    );
-    let log_buf = {
-        let reg = registry.lock().await;
+    // A turn is running: the message waits for it to end and starts then as a
+    // turn of its own (`TurnGate`, `start_queued_prompt`). Not logged yet and
+    // no turn number: both come when it starts.
+    let held = {
+        let mut reg = registry.lock().await;
         let handle = reg
-            .get(&payload.run_id)
+            .get_mut(&payload.run_id)
             .ok_or_else(|| "run not active".to_string())?;
-        handle.log_buf.clone()
+        if handle.stdin.is_none() {
+            return Err(FOLLOW_UP_REFUSED.to_string());
+        }
+        let gate = &mut handle.turn_gate;
+        if gate.busy {
+            gate.queued.push_back(QueuedPrompt { text: text.to_string(), images: payload.images.clone() });
+        }
+        std::mem::replace(&mut gate.busy, true)
     };
-    // Every later turn, a resumed run's first included: capture the workspace
-    // for Rewind before the agent can touch it.
-    let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
-    // For the persisted log we record the equivalent stream-json user message so
-    // the history view renders it (parseStreamLog only understands stream-json).
-    let log_line = prompt_log_line(text, &payload.images, turn);
-    write_run_stdin(
-        registry,
-        &payload.run_id,
-        &send_line,
-        "run does not accept follow-up input",
-    )
-    .await?;
-    {
-        let mut buf = log_buf.lock().await;
-        buf.push_str(&log_line);
-    }
+    let turn = if held {
+        None
+    } else {
+        let res = send_prompt(db, registry, &payload.run_id, text, &payload.images).await;
+        if res.is_err() {
+            if let Some(handle) = registry.lock().await.get_mut(&payload.run_id) {
+                handle.turn_gate.busy = false;
+            }
+        }
+        res?
+    };
     // The turn is now the run's newest activity. Stamped here rather than only on
     // `run:done` so the History row moves the moment the user hits send, even for
     // a turn that then runs for minutes.
@@ -1297,6 +1301,79 @@ pub(crate) async fn send_user_message_inner(
             .await;
     }
     Ok(turn)
+}
+
+const FOLLOW_UP_REFUSED: &str = "run does not accept follow-up input";
+
+/// Hand the sidecar a prompt that starts a turn now. Every later turn, a
+/// resumed run's first included: the workspace is captured for Rewind first,
+/// before the agent can touch it, and the returned turn is the one the
+/// prompt's log line carries.
+async fn send_prompt(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    run_id: &str,
+    text: &str,
+    images: &[ImageAttachment],
+) -> Result<Option<i64>, String> {
+    let send_line = format!(
+        "{}\n",
+        serde_json::json!({ "type": "prompt", "text": text, "images": images_payload(images) })
+    );
+    let log_buf = {
+        let reg = registry.lock().await;
+        let handle = reg.get(run_id).ok_or_else(|| "run not active".to_string())?;
+        handle.log_buf.clone()
+    };
+    let turn = crate::runs::snapshots::before_turn(db, run_id).await;
+    // For the persisted log we record the equivalent stream-json user message so
+    // the history view renders it (parseStreamLog only understands stream-json).
+    let log_line = prompt_log_line(text, images, turn);
+    write_run_stdin(registry, run_id, &send_line, FOLLOW_UP_REFUSED).await?;
+    log_buf.lock().await.push_str(&log_line);
+    Ok(turn)
+}
+
+/// A turn of `run_id` just ended (its `result`, or a Codex turn that never
+/// started): start the next follow-up waiting for it, if any. Returns whether
+/// one started, in which case the session must stay open for it (otherwise
+/// the run has no turn in flight any more), and how many could not be handed
+/// over (the session's input closed first).
+pub(crate) async fn start_queued_prompt(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    run_id: &str,
+) -> (bool, usize) {
+    let mut lost = 0;
+    loop {
+        let next = {
+            let mut reg = registry.lock().await;
+            let Some(handle) = reg.get_mut(run_id) else {
+                return (false, lost);
+            };
+            let next = handle.turn_gate.queued.pop_front();
+            handle.turn_gate.busy = next.is_some();
+            next
+        };
+        let Some(prompt) = next else {
+            return (false, lost);
+        };
+        match send_prompt(db, registry, run_id, &prompt.text, &prompt.images).await {
+            Ok(_) => return (true, lost),
+            Err(e) => {
+                tracing::warn!(event = "queued_prompt_failed", run_id = %run_id, error = %e);
+                lost += 1;
+            }
+        }
+    }
+}
+
+/// The run log's warning for follow-ups that waited for a turn but never
+/// reached the engine.
+pub(crate) fn queued_prompts_lost_notice(count: usize) -> String {
+    format!(
+        "⚠ {count} message(s) sent while the agent was working never reached it: the session ended first. Send again to continue."
+    )
 }
 
 /// Switch of [`steer_run`].
@@ -3917,6 +3994,7 @@ pub(crate) async fn resume_run_with(
     let broker_run: Option<BrokerRunGuard> = Some(broker);
     if engine == "codex" {
         cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
+        cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
         if codex_path != "codex" && !codex_path.trim().is_empty() {
             cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
         }
@@ -4069,6 +4147,7 @@ pub(crate) async fn resume_run_with(
                 log_buf: log_buf.clone(),
                 broker_run,
                 ssh_access,
+                turn_gate: TurnGate::default(),
             },
         );
     }
@@ -4646,6 +4725,7 @@ mod startup_input_tests {
                 log_buf: Arc::new(TokioMutex::new(String::new())),
                 broker_run: None,
                 ssh_access: None,
+                turn_gate: TurnGate::default(),
             },
         );
         queue_first_prompt(input.as_ref(), first_line);
@@ -4804,5 +4884,129 @@ mod prompt_log_tests {
         assert!(line.ends_with('\n'));
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v, serde_json::json!({ "type": "user", "message": { "role": "user", "content": "use tabs" }, "steer": true }));
+    }
+}
+
+#[cfg(test)]
+mod turn_gate_tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    // A run whose "sidecar" is `cat`: every line handed to it comes back on its
+    // stdout, so the test sees exactly what reached the engine and when.
+    async fn running(
+        busy: bool,
+    ) -> (Db, RunRegistry, tokio::io::Lines<BufReader<tokio::process::ChildStdout>>) {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let dir = std::env::temp_dir().join(format!("puppeteer-gate-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'p', ?, 'c')")
+            .bind(dir.to_string_lossy().to_string())
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO runs (id, project_id, type, status, created_at) VALUES ('r1', 'p1', 'session', 'running', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let mut child = Command::new("cat")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let stdout = BufReader::new(child.stdout.take().unwrap()).lines();
+        let input = child.stdin.take().map(|w| SidecarInput::spawn(w, Box::new(|_| {})));
+        let registry = crate::runs::new_registry();
+        registry.lock().await.insert(
+            "r1".to_string(),
+            RunHandles {
+                proc: None,
+                pgid: None,
+                child,
+                stdin: input,
+                session_id: Arc::new(TokioMutex::new(None)),
+                log_buf: Arc::new(TokioMutex::new(String::new())),
+                broker_run: None,
+                ssh_access: None,
+                turn_gate: TurnGate { busy, ..Default::default() },
+            },
+        );
+        (db, registry, stdout)
+    }
+
+    fn follow_up(text: &str) -> SendUserMessagePayload {
+        SendUserMessagePayload { run_id: "r1".into(), content: text.into(), images: Vec::new(), override_budget: true }
+    }
+
+    async fn next_line(out: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>) -> Option<serde_json::Value> {
+        let line = tokio::time::timeout(Duration::from_millis(300), out.next_line()).await.ok()?.ok()??;
+        serde_json::from_str(&line).ok()
+    }
+
+    async fn log_of(registry: &RunRegistry) -> String {
+        let buf = registry.lock().await.get("r1").unwrap().log_buf.clone();
+        let log = buf.lock().await.clone();
+        log
+    }
+
+    #[tokio::test]
+    async fn a_follow_up_sent_during_a_turn_waits_and_starts_as_its_own_turn() {
+        let (db, registry, mut out) = running(true).await;
+
+        // Mid-turn: nothing reaches the engine, nothing is logged, no turn yet.
+        assert_eq!(send_user_message_inner(&db, &registry, follow_up("second"), false).await.unwrap(), None);
+        assert!(next_line(&mut out).await.is_none());
+        assert!(log_of(&registry).await.is_empty());
+
+        // The turn ends: it goes out now, logged as a prompt of its own.
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (true, 0));
+        let sent = next_line(&mut out).await.expect("the follow-up reached the engine");
+        assert_eq!((sent["type"].as_str(), sent["text"].as_str()), (Some("prompt"), Some("second")));
+        let logged: serde_json::Value = serde_json::from_str(log_of(&registry).await.trim()).unwrap();
+        assert_eq!(logged["message"]["content"], "second");
+        assert!(logged.get("steer").is_none());
+        assert!(registry.lock().await.get("r1").unwrap().turn_gate.busy);
+
+        // Its own turn ends with nothing waiting: the run is idle again, and a
+        // follow-up now goes straight out.
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (false, 0));
+        assert!(!registry.lock().await.get("r1").unwrap().turn_gate.busy);
+        send_user_message_inner(&db, &registry, follow_up("third"), false).await.unwrap();
+        assert_eq!(next_line(&mut out).await.unwrap()["text"], "third");
+        assert!(registry.lock().await.get("r1").unwrap().turn_gate.busy);
+    }
+
+    #[tokio::test]
+    async fn follow_ups_start_one_per_turn_in_order() {
+        let (db, registry, mut out) = running(true).await;
+        for text in ["a", "b"] {
+            send_user_message_inner(&db, &registry, follow_up(text), false).await.unwrap();
+        }
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (true, 0));
+        assert_eq!(next_line(&mut out).await.unwrap()["text"], "a");
+        assert!(next_line(&mut out).await.is_none(), "b waits for a's turn to end");
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (true, 0));
+        assert_eq!(next_line(&mut out).await.unwrap()["text"], "b");
+    }
+
+    #[tokio::test]
+    async fn a_follow_up_that_can_no_longer_be_handed_over_is_reported_lost() {
+        let (db, registry, _out) = running(true).await;
+        send_user_message_inner(&db, &registry, follow_up("late"), false).await.unwrap();
+        registry.lock().await.get_mut("r1").unwrap().stdin.take();
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (false, 1));
+        // Closed input: refused up front, never queued.
+        assert_eq!(
+            send_user_message_inner(&db, &registry, follow_up("later"), false).await,
+            Err(FOLLOW_UP_REFUSED.to_string())
+        );
+        assert!(registry.lock().await.get("r1").unwrap().turn_gate.queued.is_empty());
     }
 }

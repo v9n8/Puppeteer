@@ -16,7 +16,7 @@ function runSidecar(name, env, prompts) {
   const work = mkdtempSync(join(tmpdir(), `puppeteer-codex-framing-${name}-`))
   const rpcOut = join(work, 'rpc.ndjson')
   const childEnv = { ...process.env }
-  for (const k of ['PUPPETEER_RESUME_SESSION', 'PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS', 'PUPPETEER_CODEX_SEED_FRAMING', 'PUPPETEER_CODEX_MCP']) delete childEnv[k]
+  for (const k of ['PUPPETEER_RESUME_SESSION', 'PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS', 'PUPPETEER_CODEX_SEED_FRAMING', 'PUPPETEER_CODEX_MCP', 'PUPPETEER_FIXTURE_COMPLETE_MS']) delete childEnv[k]
   return new Promise((resolve) => {
     const child = spawn('node', [join(here, 'index.mjs')], {
       cwd: work,
@@ -53,7 +53,8 @@ const startOk = aStart?.params?.developerInstructions === 'FRAMING-A' &&
   seeded(a.ctrl) === 1 && turnTexts(a.rpc)[0] === 'hello'
 
 const seed = '<session-framing>\nFRAMING-B\n</session-framing>'
-const b = await runSidecar('resume', { PUPPETEER_RESUME_SESSION: 'thr-old', PUPPETEER_CODEX_SEED_FRAMING: seed }, ['first', 'second'])
+// Turns complete here: the second prompt waits for the first (D4-15).
+const b = await runSidecar('resume', { PUPPETEER_RESUME_SESSION: 'thr-old', PUPPETEER_CODEX_SEED_FRAMING: seed, PUPPETEER_FIXTURE_COMPLETE_MS: '200' }, ['first', 'second'])
 const bResume = b.rpc.find((r) => r.method === 'thread/resume')
 const texts = turnTexts(b.rpc)
 const resumeOk = bResume && !('developerInstructions' in bResume.params) &&

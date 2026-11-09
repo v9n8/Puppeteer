@@ -58,6 +58,26 @@ pub struct RunHandles {
     /// listed as a leftover until it exits or the user stops it.
     #[allow(dead_code)]
     pub proc: Option<crate::procs::ProcGuard>,
+    /// The turn in flight and the follow-ups waiting for it to end.
+    pub turn_gate: TurnGate,
+}
+
+/// D4-15: a follow-up sent while a turn runs waits here instead of going to
+/// the sidecar at once (where Claude could fold it into the running turn and
+/// Codex would start a second turn over it). It is handed over when that
+/// turn's `result` comes back, its Rewind snapshot taken right then, so it
+/// runs as a turn of its own and its `turn` matches what Rewind cuts.
+#[derive(Default)]
+pub struct TurnGate {
+    /// A prompt went to the sidecar, or the engine began a turn of its own (a
+    /// Claude wake-up), and no `result` has ended it yet.
+    pub busy: bool,
+    pub queued: std::collections::VecDeque<QueuedPrompt>,
+}
+
+pub struct QueuedPrompt {
+    pub text: String,
+    pub images: Vec<crate::commands::runs::ImageAttachment>,
 }
 
 pub type RunRegistry = Arc<Mutex<HashMap<String, RunHandles>>>;

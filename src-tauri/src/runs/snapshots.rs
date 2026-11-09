@@ -3,11 +3,12 @@
 //! Puppeteer captures the run's workspace (the folder the agent works in, a
 //! Conductor worker's worktree included) right before it hands a prompt to the
 //! sidecar: the first one in `start_run`, every later one (resumed turns
-//! included) in `send_user_message`. Taking it here, not from the engines'
-//! edit events, covers Claude and Codex alike, and files a shell command
-//! changes, which no event names reliably. A turn that changes nothing costs
-//! one row and no new blob, so every turn is captured and a rewind can go back
-//! to any of them.
+//! included) in `send_user_message` — or, for a follow-up sent while a turn
+//! runs, when that turn ends and it starts (`TurnGate`). Taking it here, not
+//! from the engines' edit events, covers Claude and Codex alike, and files a
+//! shell command changes, which no event names reliably. A turn that changes
+//! nothing costs one row and no new blob, so every turn is captured and a
+//! rewind can go back to any of them.
 //!
 //! Storage, under `<app data>/snapshots/blobs/<2 hex>/<sha256>`: file contents
 //! and manifests, content-addressed and shared by every run, so an unchanged

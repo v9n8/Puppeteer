@@ -243,9 +243,10 @@ const tests = {
   },
 
   // Steer (D4-06): a steer reaches the SDK as a user message with priority
-  // `next` (folded into the running turn); a plain follow-up keeps the CLI
-  // default. Before any turn there is nothing to steer: a warning, no crash.
-  async 'steer reaches the SDK with priority next; a follow-up does not'() {
+  // `next` (folded into the running turn); a plain follow-up goes with `later`
+  // (D4-15: a turn of its own, after the one in flight). Before any turn there
+  // is nothing to steer: a warning, no crash.
+  async 'steer reaches the SDK with priority next; a follow-up with later'() {
     const img = { media_type: 'image/png', data: 'AAAA' }
     const { messages, code } = await runSidecar('echo', (msg, ctl) => {
       if (msg.type === '_puppeteer_ready') {
@@ -266,7 +267,7 @@ const tests = {
       { type: 'text', text: 'focus on the tests' },
       { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
     ])
-    assert.equal(followUp.priority, undefined)
+    assert.equal(followUp.priority, 'later')
     assert.equal(followUp.message.content, 'then this')
     assert.equal(code, 0)
   },
