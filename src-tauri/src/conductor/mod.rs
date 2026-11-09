@@ -638,11 +638,13 @@ mod tests {
         let mcp = with_conductor(serde_json::json!({}), "http://127.0.0.1:1/mcp", &launch());
         let c = &mcp["conductor"];
         assert!(c.get("headers").is_none(), "no bearer in the config");
-        assert_eq!(
-            c["headersHelper"],
+        let expected = if cfg!(windows) {
+            r#""/bin/node" "/shims/puppeteer-mcp-launch.mjs" "headers" "@conductor""#
+        } else {
             "PUPPETEER_BROKER_SOCK='/tmp/b.sock' PUPPETEER_PROJECT_ID='p' PUPPETEER_RUN_ID='c1' \
              '/bin/node' '/shims/puppeteer-mcp-launch.mjs' 'headers' '@conductor'"
-        );
+        };
+        assert_eq!(c["headersHelper"], expected);
     }
 
     #[test]

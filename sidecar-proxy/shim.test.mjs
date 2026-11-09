@@ -6,7 +6,8 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
-import { ask, scrubCloudEnv, pathWithoutDir, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
+import { fileURLToPath } from 'node:url'
+import { ask, scrubCloudEnv, pathWithoutDir, pathKey, resolveReal, isWindowsBatch, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
 
 const inherited = () => ({
   PATH: '/usr/bin',
@@ -53,7 +54,12 @@ test('other tools are untouched', () => {
 })
 
 test('pathWithoutDir removes only the given dir', () => {
-  assert.equal(pathWithoutDir('/shim:/usr/bin:/shim/:/bin', '/shim'), '/usr/bin:/bin')
+  assert.equal(pathWithoutDir('/shim:/usr/bin:/shim/:/bin', '/shim', 'linux'), '/usr/bin:/bin')
+  // Windows: `;`, any case, quoted entries.
+  assert.equal(
+    pathWithoutDir('C:\\App\\shim;"C:\\Program Files\\GitHub CLI";c:\\app\\SHIM\\;C:\\bin', 'C:\\App\\shim', 'win32'),
+    'C:\\Program Files\\GitHub CLI;C:\\bin',
+  )
 })
 
 test('azureMfaRequired spots Entra / ARM MFA rejections only', () => {
@@ -128,4 +134,39 @@ test('glabTargetHost: -R URL > GITLAB_HOST > origin remote', () => {
   assert.equal(glabTargetHost(['mr', 'list'], { GL_HOST: 'Y.io' }, origin), 'y.io')
   assert.equal(glabTargetHost(['mr', 'list'], {}, origin), 'git.corp.io')
   assert.equal(glabTargetHost(['mr', 'list'], {}, () => null), null)
+})
+
+test('resolveReal skips the shim dir and, on Windows, follows PATHEXT', () => {
+  const on = (...files) => (c) => files.includes(c)
+  assert.equal(
+    resolveReal('gh', { pathValue: '/shim:/usr/bin:/opt/bin', dir: '/shim', platform: 'darwin', runnable: on('/shim/gh', '/opt/bin/gh') }),
+    '/opt/bin/gh',
+  )
+  const win = { pathValue: 'C:\\shim;C:\\Windows;C:\\gh', dir: 'C:\\shim', platform: 'win32', pathext: '.COM;.EXE;.BAT;.CMD' }
+  // The shim's own gh.cmd and the extensionless script are never picked.
+  assert.equal(resolveReal('gh', { ...win, runnable: on('C:\\shim\\gh.cmd', 'C:\\shim\\gh', 'C:\\gh\\gh.exe') }), 'C:\\gh\\gh.exe')
+  assert.equal(resolveReal('gh', { ...win, runnable: on('C:\\gh\\gh') }), null)
+  // First match in PATHEXT order within a dir, first dir wins — as cmd does.
+  assert.equal(resolveReal('az', { ...win, runnable: on('C:\\Windows\\az.cmd', 'C:\\gh\\az.exe') }), 'C:\\Windows\\az.cmd')
+})
+
+test('isWindowsBatch: .cmd / .bat on Windows only', () => {
+  assert.equal(isWindowsBatch('C:\\az\\az.CMD', 'win32'), true)
+  assert.equal(isWindowsBatch('C:\\x\\t.bat', 'win32'), true)
+  assert.equal(isWindowsBatch('C:\\gh\\gh.exe', 'win32'), false)
+  assert.equal(isWindowsBatch('/usr/bin/x.cmd', 'linux'), false)
+})
+
+test('pathKey finds the inherited spelling on Windows', () => {
+  assert.equal(pathKey({ Path: 'C:\\bin' }, 'win32'), 'Path')
+  assert.equal(pathKey({}, 'win32'), 'PATH')
+  assert.equal(pathKey({ Path: '/x' }, 'linux'), 'PATH')
+})
+
+test('every PATH shim has a Windows .cmd wrapper that runs it with node', () => {
+  const dir = path.dirname(fileURLToPath(import.meta.url))
+  for (const tool of ['gh', 'glab', 'aws', 'az', 'terraform', 'ssh', 'scp']) {
+    assert.ok(fs.readFileSync(path.join(dir, tool), 'utf8').startsWith('#!/usr/bin/env node'), tool)
+    assert.match(fs.readFileSync(path.join(dir, `${tool}.cmd`), 'utf8'), new RegExp(`^@node "%~dp0${tool}" %\\*\\r?$`, 'm'), tool)
+  }
 })

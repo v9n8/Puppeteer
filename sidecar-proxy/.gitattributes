@@ -1,0 +1,4 @@
+# The extensionless shims run by their `#!/usr/bin/env node` line under Git Bash /
+# git's sh on Windows too, which a CRLF checkout (core.autocrlf) breaks.
+* text=auto eol=lf
+*.cmd text eol=crlf

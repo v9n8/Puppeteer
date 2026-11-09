@@ -289,8 +289,28 @@ pub fn augment_command_path(cmd: &mut tokio::process::Command) {
         parts.push(&current);
     }
     if !parts.is_empty() {
-        cmd.env("PATH", parts.join(":"));
+        match join_path_lists(&[], &parts) {
+            Ok(path) => {
+                cmd.env("PATH", path);
+            }
+            Err(e) => tracing::warn!(event = "path_join_failed", error = %e),
+        }
     }
+}
+
+/// `dirs`, then every entry of the PATH-style `lists` (an empty list adds
+/// none), joined with the OS separator: `:` on Unix, `;` on Windows (where
+/// `C:\…` makes `:` wrong). Fails when an entry cannot be put in a PATH (holds
+/// `:` on Unix, `"` on Windows).
+pub(crate) fn join_path_lists<S: AsRef<std::ffi::OsStr>>(
+    dirs: &[&Path],
+    lists: &[S],
+) -> Result<std::ffi::OsString, std::env::JoinPathsError> {
+    let entries = lists
+        .iter()
+        .filter(|l| !l.as_ref().is_empty())
+        .flat_map(|l| std::env::split_paths(l.as_ref()));
+    std::env::join_paths(dirs.iter().map(|d| d.to_path_buf()).chain(entries))
 }
 
 /// Put the spawned sidecar in its own process group (Unix) so the whole tree —
@@ -2312,6 +2332,8 @@ mod turn_end_tests {
         drop(stdout);
     }
 
+    // `ExitStatus::from_raw` takes a Unix wait status (signals included).
+    #[cfg(unix)]
     #[test]
     fn final_status_rules() {
         use std::os::unix::process::ExitStatusExt;

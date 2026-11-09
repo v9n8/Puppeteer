@@ -816,7 +816,8 @@ fn resolve_shim_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// Prepend the shim dir to the command's PATH so brokered tools resolve to the
 /// Puppeteer shims first. Must be called AFTER `augment_command_path` so the shim
 /// dir ends up ABSOLUTELY first, ahead of the real binaries in the login PATH.
-fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
+/// Fails closed: without the shims first, the real tools would run unbrokered.
+fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) -> Result<(), String> {
     // Read the PATH already set on the command (by augment_command_path); fall
     // back to the process PATH if it was somehow not set.
     let current = cmd
@@ -824,14 +825,13 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) {
         .get_envs()
         .find(|(k, _)| *k == std::ffi::OsStr::new("PATH"))
         .and_then(|(_, v)| v)
-        .map(|v| v.to_string_lossy().into_owned())
-        .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default());
-    let joined = if current.is_empty() {
-        shim_dir.display().to_string()
-    } else {
-        format!("{}:{}", shim_dir.display(), current)
-    };
+        .map(|v| v.to_os_string())
+        .or_else(|| std::env::var_os("PATH"))
+        .unwrap_or_default();
+    let joined = crate::runs::sidecar::join_path_lists(&[shim_dir], &[current])
+        .map_err(|e| format!("shim dir {} cannot go on PATH: {e}", shim_dir.display()))?;
     cmd.env("PATH", joined);
+    Ok(())
 }
 
 /// The MCP map for a run on `engine` ("claude" | "codex"): the project's
@@ -951,7 +951,7 @@ async fn wire_broker(
 
     // Shim dir goes FIRST on PATH (after augment_command_path has run).
     let shim_dir = resolve_shim_dir(app)?;
-    prepend_shim_path(cmd, &shim_dir);
+    prepend_shim_path(cmd, &shim_dir)?;
     cmd.env("PUPPETEER_BROKER_SOCK", &sock_path);
     cmd.env("PUPPETEER_PROJECT_ID", project_id);
     // Fallback working directory for the sidecar: if `process.cwd()` throws
@@ -1012,7 +1012,7 @@ pub(crate) async fn wire_tool_broker(
         .path
         .clone();
     let shim_dir = resolve_shim_dir(app)?;
-    prepend_shim_path(cmd, &shim_dir);
+    prepend_shim_path(cmd, &shim_dir)?;
     cmd.env("PUPPETEER_BROKER_SOCK", &sock_path);
     cmd.env("PUPPETEER_PROJECT_ID", project_id);
     wire_git_config(cmd, &shim_dir.join("git-credential-puppeteer"));
@@ -1035,7 +1035,7 @@ fn wire_git_config(cmd: &mut Command, helper_path: &Path) {
     cmd.env("GIT_CONFIG_VALUE_0", "");
     // 1: the Puppeteer helper (absolute path → independent of PATH resolution).
     cmd.env("GIT_CONFIG_KEY_1", "credential.helper");
-    cmd.env("GIT_CONFIG_VALUE_1", helper_path.as_os_str());
+    cmd.env("GIT_CONFIG_VALUE_1", git_credential_helper(helper_path, cfg!(windows)));
     // 2: credentials keyed per host, not per repo path.
     cmd.env("GIT_CONFIG_KEY_2", "credential.useHttpPath");
     cmd.env("GIT_CONFIG_VALUE_2", "false");
@@ -1043,6 +1043,25 @@ fn wire_git_config(cmd: &mut Command, helper_path: &Path) {
     // linked to an account), git must FAIL immediately rather than fall back to
     // an interactive username/password prompt (which would hang the sidecar).
     cmd.env("GIT_TERMINAL_PROMPT", "0");
+}
+
+/// The `credential.helper` value naming `helper`. git runs an absolute helper
+/// path through `sh -c` when it holds a shell metacharacter, which a Windows
+/// path always does (`\`), so Git for Windows' `sh` would eat the backslashes
+/// (and split at a space in `C:\Users\John Doe`). There the helper is a quoted
+/// `!` command with `/` separators instead; its `#!/usr/bin/env node` line runs
+/// in that `sh` with the `node` that `augment_command_path` put on PATH.
+fn git_credential_helper(helper: &Path, windows: bool) -> std::ffi::OsString {
+    if !windows {
+        return helper.as_os_str().to_os_string();
+    }
+    let path = helper.to_string_lossy();
+    // `\\?\C:\…` (a canonical path) means nothing to `sh`; a drive path does.
+    let path: &str = match path.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest,
+        _ => &path,
+    };
+    format!("!{}", crate::commands::mcp::sh_quote(&path.replace('\\', "/"))).into()
 }
 
 async fn wire_aws_config(app: &AppHandle, db: &Db, cmd: &mut Command, project_id: &str) {
@@ -4687,7 +4706,8 @@ mod tool_record_tests {
     }
 }
 
-#[cfg(test)]
+// The stand-in sidecars are `sleep` / `cat`, which Windows does not ship.
+#[cfg(all(test, unix))]
 mod startup_input_tests {
     use super::*;
     use std::time::{Duration, Instant};
@@ -4887,7 +4907,8 @@ mod prompt_log_tests {
     }
 }
 
-#[cfg(test)]
+// The stand-in sidecar is `cat`, which Windows does not ship.
+#[cfg(all(test, unix))]
 mod turn_gate_tests {
     use super::*;
     use std::time::Duration;
@@ -5008,5 +5029,57 @@ mod turn_gate_tests {
             Err(FOLLOW_UP_REFUSED.to_string())
         );
         assert!(registry.lock().await.get("r1").unwrap().turn_gate.queued.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod shim_path_tests {
+    use super::*;
+
+    fn path_of(cmd: &Command) -> Vec<PathBuf> {
+        let (_, v) = cmd.as_std().get_envs().find(|(k, _)| *k == "PATH").unwrap();
+        std::env::split_paths(v.unwrap()).collect()
+    }
+
+    #[test]
+    fn the_shim_dir_goes_first_with_the_os_separator() {
+        let shim = std::env::temp_dir().join("puppeteer shims");
+        let (a, b) = (std::env::temp_dir().join("a"), std::env::temp_dir().join("b"));
+        let mut cmd = Command::new("x");
+        cmd.env("PATH", std::env::join_paths([&a, &b]).unwrap());
+        prepend_shim_path(&mut cmd, &shim).unwrap();
+        assert_eq!(path_of(&cmd), vec![shim, a, b]);
+    }
+
+    #[test]
+    fn an_empty_path_gets_only_the_shim_dir() {
+        // Not `shim:` — an empty entry would put the working directory on PATH.
+        let shim = std::env::temp_dir().join("shims");
+        let mut cmd = Command::new("x");
+        cmd.env("PATH", "");
+        prepend_shim_path(&mut cmd, &shim).unwrap();
+        assert_eq!(cmd.as_std().get_envs().find(|(k, _)| *k == "PATH").unwrap().1, Some(shim.as_os_str()));
+    }
+
+    #[test]
+    fn a_shim_dir_that_cannot_go_on_path_fails_the_run() {
+        let bad = Path::new(if cfg!(windows) { r#"C:\a"b"# } else { "/a:b" });
+        let mut cmd = Command::new("x");
+        cmd.env("PATH", std::env::temp_dir());
+        assert!(prepend_shim_path(&mut cmd, bad).is_err());
+    }
+
+    #[test]
+    fn the_git_credential_helper_survives_git_for_windows_sh() {
+        let helper = Path::new("/Applications/Puppeteer.app/Contents/Resources/sidecar-proxy/git-credential-puppeteer");
+        assert_eq!(git_credential_helper(helper, false), helper.as_os_str());
+        assert_eq!(
+            git_credential_helper(Path::new(r"C:\Users\A B\AppData\Local\Puppeteer\sidecar-proxy\git-credential-puppeteer"), true),
+            "!'C:/Users/A B/AppData/Local/Puppeteer/sidecar-proxy/git-credential-puppeteer'"
+        );
+        assert_eq!(
+            git_credential_helper(Path::new(r"\\?\C:\Users\O'Neil\sidecar-proxy\git-credential-puppeteer"), true),
+            r"!'C:/Users/O'\''Neil/sidecar-proxy/git-credential-puppeteer'"
+        );
     }
 }

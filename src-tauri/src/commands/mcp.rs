@@ -1196,20 +1196,43 @@ impl McpLaunch {
         if engine == "codex" {
             cfg["puppeteer_headers_helper"] = serde_json::json!(argv);
         } else {
-            // The CLI passes its own env through, which already carries these;
-            // spelling them out keeps the helper working if that ever changes.
-            let env = self
-                .broker_env()
-                .into_iter()
-                .map(|(k, v)| format!("{k}={}", sh_quote(v.as_str().unwrap_or_default())));
-            let cmd = env.chain(argv.iter().map(|a| sh_quote(a))).collect::<Vec<_>>().join(" ");
-            cfg["headersHelper"] = serde_json::Value::String(cmd);
+            match headers_helper_command(&self.broker_env(), &argv, cfg!(windows)) {
+                Some(cmd) => cfg["headersHelper"] = serde_json::Value::String(cmd),
+                // Without the helper the server gets no secret headers: it is
+                // refused, never handed anything else.
+                None => tracing::warn!(event = "mcp_headers_helper_unquotable", server = %server),
+            }
         }
     }
 }
 
+/// The `headersHelper` command line. Claude runs it with `shell: true`: `/bin/sh`
+/// on Unix, `cmd.exe` on Windows. The CLI passes its own env through, which
+/// already carries the broker env; for `sh` it is also spelled out (single
+/// quotes keep a `\\.\pipe\…` name literal) so the helper keeps working if
+/// that ever changes. `cmd` has no `VAR=value command` form, so there it is left
+/// to the CLI, and an argument `cmd` would still expand or cut inside double
+/// quotes (`%`, `!`, `"`, a line break) gives no command at all.
+fn headers_helper_command(
+    env: &serde_json::Map<String, serde_json::Value>,
+    argv: &[String],
+    windows: bool,
+) -> Option<String> {
+    if windows {
+        let quoted = argv
+            .iter()
+            .map(|a| (!a.contains(['%', '!', '"', '\r', '\n'])).then(|| format!("\"{a}\"")))
+            .collect::<Option<Vec<_>>>()?;
+        return Some(quoted.join(" "));
+    }
+    let env = env
+        .iter()
+        .map(|(k, v)| format!("{k}={}", sh_quote(v.as_str().unwrap_or_default())));
+    Some(env.chain(argv.iter().map(|a| sh_quote(a))).collect::<Vec<_>>().join(" "))
+}
+
 /// Single-quote `s` for a POSIX shell.
-fn sh_quote(s: &str) -> String {
+pub(crate) fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
@@ -1616,8 +1639,8 @@ pub async fn with_builtin_google(
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_secrets, remote_test_payload, sh_quote, McpLaunch, McpServer, SecretEntry,
-        TestMcpConnectionPayload,
+        headers_helper_command, merge_secrets, remote_test_payload, sh_quote, McpLaunch, McpServer,
+        SecretEntry, TestMcpConnectionPayload,
     };
     use std::collections::HashMap;
 
@@ -1704,11 +1727,13 @@ mod tests {
         let mut claude = serde_json::json!({ "type": "http", "url": "https://x" });
         launch().set_headers_helper(&mut claude, "claude", "srv-1");
         assert!(claude.get("headers").is_none());
-        assert_eq!(
-            claude["headersHelper"],
+        let expected = if cfg!(windows) {
+            r#""/opt/node" "/App Support/puppeteer-mcp-launch.mjs" "headers" "srv-1""#
+        } else {
             "PUPPETEER_BROKER_SOCK='/tmp/b.sock' PUPPETEER_PROJECT_ID='p1' PUPPETEER_RUN_ID='r1' \
              '/opt/node' '/App Support/puppeteer-mcp-launch.mjs' 'headers' 'srv-1'"
-        );
+        };
+        assert_eq!(claude["headersHelper"], expected);
 
         let mut codex = serde_json::json!({ "type": "http", "url": "https://x" });
         launch().set_headers_helper(&mut codex, "codex", "srv-1");
@@ -1717,6 +1742,37 @@ mod tests {
             codex["puppeteer_headers_helper"],
             serde_json::json!(["/opt/node", "/App Support/puppeteer-mcp-launch.mjs", "headers", "srv-1"])
         );
+    }
+
+    #[test]
+    fn headers_helper_command_fits_the_shell_claude_runs_it_with() {
+        let mut env = serde_json::Map::new();
+        env.insert("PUPPETEER_BROKER_SOCK".into(), r"\\.\pipe\puppeteer-broker-S-1-5-21-1".into());
+        let argv = |launcher: &str| -> Vec<String> {
+            vec![r"C:\Program Files\nodejs\node.exe".into(), launcher.into(), "headers".into(), "@conductor".into()]
+        };
+        let launcher = r"C:\Users\A B\AppData\Local\Puppeteer\sidecar-proxy\puppeteer-mcp-launch.mjs";
+
+        // sh: single quotes keep every backslash of the pipe name and the paths.
+        assert_eq!(
+            headers_helper_command(&env, &argv(launcher), false).unwrap(),
+            [
+                r"PUPPETEER_BROKER_SOCK='\\.\pipe\puppeteer-broker-S-1-5-21-1'",
+                r"'C:\Program Files\nodejs\node.exe'",
+                r"'C:\Users\A B\AppData\Local\Puppeteer\sidecar-proxy\puppeteer-mcp-launch.mjs'",
+                "'headers' '@conductor'",
+            ]
+            .join(" ")
+        );
+        // cmd.exe: no env prefix (the CLI passes its env through), double quotes.
+        assert_eq!(
+            headers_helper_command(&env, &argv(launcher), true).unwrap(),
+            r#""C:\Program Files\nodejs\node.exe" "C:\Users\A B\AppData\Local\Puppeteer\sidecar-proxy\puppeteer-mcp-launch.mjs" "headers" "@conductor""#
+        );
+        // cmd would expand `%VAR%` / `!VAR!` even inside quotes: no helper at all.
+        for bad in [r"C:\Users\100%\x.mjs", r"C:\Users\a!b!\x.mjs", "C:\\a\"b.mjs"] {
+            assert_eq!(headers_helper_command(&env, &argv(bad), true), None, "{bad}");
+        }
     }
 
     #[test]

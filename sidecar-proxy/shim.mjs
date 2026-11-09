@@ -85,23 +85,54 @@ export function ask(sockPath, req) {
 
 /**
  * Resolve the real tool binary by scanning PATH with the shim's own
- * directory removed, so we never re-invoke the shim.
+ * directory removed, so we never re-invoke the shim. On Windows a bare name
+ * only runs with a PATHEXT extension (`gh.exe`), tried in PATHEXT order in each
+ * directory as cmd does; the shim's own `gh.cmd` is skipped with its directory.
  * @param {string} tool
+ * @param {{pathValue?: string, dir?: string, platform?: string, pathext?: string, runnable?: (candidate: string) => boolean}} [opts]
  * @returns {string|null}
  */
-function resolveReal(tool) {
-  const dirs = pathWithoutDir(process.env.PATH, shimDir()).split(path.delimiter)
+export function resolveReal(tool, opts = {}) {
+  const platform = opts.platform ?? process.platform
+  const p = platform === 'win32' ? path.win32 : path.posix
+  const runnable = opts.runnable ?? ((c) => isRunnable(c, platform))
+  const names = platform === 'win32'
+    ? (opts.pathext ?? process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+        .split(';')
+        .filter(Boolean)
+        .map((ext) => tool + ext.toLowerCase())
+    : [tool]
+  const dirs = pathWithoutDir(opts.pathValue ?? process.env.PATH, opts.dir ?? shimDir(), platform)
+    .split(p.delimiter)
   for (const d of dirs) {
     if (!d) continue
-    const candidate = path.join(d, tool)
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK)
-      return candidate
-    } catch {
-      // not here; keep looking
+    for (const name of names) {
+      const candidate = p.join(d, name)
+      if (runnable(candidate)) return candidate
     }
   }
   return null
+}
+
+function isRunnable(candidate, platform) {
+  try {
+    if (platform === 'win32') return fs.statSync(candidate).isFile()
+    fs.accessSync(candidate, fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Is `bin` a Windows batch file? Node can only start one through cmd.exe,
+ * which re-parses argv: a crafted argument to an approved call could run
+ * another command with the injected credentials. So a shim refuses it.
+ * @param {string} bin
+ * @param {string} [platform]
+ */
+export function isWindowsBatch(bin, platform = process.platform) {
+  return platform === 'win32' && /\.(bat|cmd)$/i.test(bin)
 }
 
 // Non-prefixed managed-identity env honored by Azure SDKs / azurerm.
@@ -149,15 +180,33 @@ function shimDir() {
  * PATH with the shim dir removed. Used for children that shell out to a
  * shimmed tool themselves (terraform's azurerm runs `az account
  * get-access-token`, which must reach the REAL az, not the policy-gated shim).
+ * Windows paths compare case-insensitively, and an entry may be quoted.
  * @param {string|undefined} pathValue
  * @param {string} dir
+ * @param {string} [platform]
  * @returns {string}
  */
-export function pathWithoutDir(pathValue, dir) {
+export function pathWithoutDir(pathValue, dir, platform = process.platform) {
+  const win = platform === 'win32'
+  const p = win ? path.win32 : path.posix
+  const key = (d) => (win ? p.resolve(d.replaceAll('"', '')).toLowerCase() : p.resolve(d))
+  const own = key(dir)
   return (pathValue || '')
-    .split(path.delimiter)
-    .filter((d) => d && path.resolve(d) !== dir)
-    .join(path.delimiter)
+    .split(p.delimiter)
+    .map((d) => (win ? d.replaceAll('"', '') : d))
+    .filter((d) => d && key(d) !== own)
+    .join(p.delimiter)
+}
+
+/**
+ * The env key holding PATH. Windows env names are case-insensitive and a copy
+ * of `process.env` keeps the inherited spelling (`Path`).
+ * @param {Record<string, string|undefined>} env
+ * @param {string} [platform]
+ */
+export function pathKey(env, platform = process.platform) {
+  if (platform !== 'win32') return 'PATH'
+  return Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
 }
 
 /**
@@ -280,6 +329,12 @@ export async function run(tool) {
     )
     process.exit(EXIT_REAL_NOT_FOUND)
   }
+  if (isWindowsBatch(realBin)) {
+    process.stderr.write(
+      `puppeteer: real ${tool} is a batch file (${path.basename(realBin)}); Puppeteer does not run one with credentials\n`,
+    )
+    process.exit(EXIT_DENIED)
+  }
 
   // Credentials go ONLY into the child env. Never logged, never persisted.
   const childEnv = { ...process.env }
@@ -374,7 +429,8 @@ export async function run(tool) {
       // Drop the shim dir from the child's PATH: azurerm shells out to `az
       // account get-access-token`, which via the az shim would fail (broker env
       // is stripped from this child, and policy denies get-access-token).
-      childEnv.PATH = pathWithoutDir(childEnv.PATH, shimDir())
+      const key = pathKey(childEnv)
+      childEnv[key] = pathWithoutDir(childEnv[key], shimDir())
     }
   } else if (resp.token) {
     if (tool === 'gh') {

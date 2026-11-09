@@ -16,8 +16,7 @@
 //   - Never log anything sensitive; propagate the real binary's exit code.
 
 import { spawn } from 'node:child_process'
-import path from 'node:path'
-import fs from 'node:fs'
+import { resolveReal } from './shim.mjs'
 
 const EXIT_REAL_NOT_FOUND = 96 // real ssh/scp not on PATH
 const EXIT_EXEC_FAILED = 95 // spawning the real binary failed
@@ -33,30 +32,6 @@ const EXIT_EXEC_FAILED = 95 // spawning the real binary failed
 export function buildArgs(config, argv) {
   const args = Array.isArray(argv) ? argv : []
   return config ? ['-F', config, ...args] : [...args]
-}
-
-/**
- * Resolve the real ssh/scp binary by scanning PATH with the shim's own
- * directory removed, so we never re-invoke the shim. Mirrors shim.mjs.
- * @param {string} tool
- * @returns {string|null}
- */
-function resolveReal(tool) {
-  // process.argv[1] is the shim script path (ssh/scp). Its dir is the shim dir.
-  const shimDir = path.resolve(path.dirname(process.argv[1] || ''))
-  const dirs = (process.env.PATH || '')
-    .split(path.delimiter)
-    .filter((d) => d && path.resolve(d) !== shimDir)
-  for (const d of dirs) {
-    const candidate = path.join(d, tool)
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK)
-      return candidate
-    } catch {
-      // not here; keep looking
-    }
-  }
-  return null
 }
 
 /**
