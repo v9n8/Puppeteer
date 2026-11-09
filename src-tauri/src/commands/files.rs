@@ -459,18 +459,26 @@ fn rel_of(root: &Path, target: &Path) -> String {
 }
 
 /// Resolve an EXISTING entry (`rel_path`) confined to the project root.
+///
+/// Only the parent is canonicalized: a link as the last segment stays the
+/// link, so delete / rename / move act on it and not on its target.
 fn resolve_existing(root: &Path, rel_path: &str) -> Result<PathBuf, String> {
     if rel_path.is_empty() {
         return Err("Cannot operate on the project root".to_string());
     }
-    let canonical = root
-        .join(rel_path)
+    let joined = root.join(rel_path);
+    let (Some(parent), Some(name)) = (joined.parent(), joined.file_name()) else {
+        return Err(format!("Not found: {rel_path}"));
+    };
+    let parent = parent
         .canonicalize()
         .map_err(|_| format!("Not found: {rel_path}"))?;
-    if !canonical.starts_with(root) {
+    if !parent.starts_with(root) {
         return Err("Path is outside the project".to_string());
     }
-    Ok(canonical)
+    let entry = parent.join(name);
+    std::fs::symlink_metadata(&entry).map_err(|_| format!("Not found: {rel_path}"))?;
+    Ok(entry)
 }
 
 /// Resolve a directory (`rel_dir`, `""` = root) that must already exist.
@@ -494,8 +502,10 @@ fn resolve_dir(root: &Path, rel_dir: &str) -> Result<PathBuf, String> {
 /// A destination path in `dir` for `name` that doesn't clobber an existing entry.
 /// On collision, appends " copy", " copy 2", … before the extension (VSCode-style).
 fn unique_dest(dir: &Path, name: &str) -> PathBuf {
+    // `exists()` follows links, so a dangling link would look free.
+    let taken = |p: &Path| std::fs::symlink_metadata(p).is_ok();
     let candidate = dir.join(name);
-    if !candidate.exists() {
+    if !taken(&candidate) {
         return candidate;
     }
     let p = Path::new(name);
@@ -514,23 +524,42 @@ fn unique_dest(dir: &Path, name: &str) -> PathBuf {
             format!(" copy {i}")
         };
         let cand = dir.join(format!("{stem}{suffix}{ext}"));
-        if !cand.exists() {
+        if !taken(&cand) {
             return cand;
         }
     }
     dir.join(format!("{stem} copy{ext}"))
 }
 
-/// Recursively copy a file or directory tree.
+/// Recursively copy a file or directory tree. Links are copied as links, never
+/// followed (a `loop -> .` would nest forever), and every destination is
+/// created fresh, so a link planted at `dest` is not written through.
 fn copy_recursive(src: &Path, dest: &Path) -> Result<(), String> {
-    if src.is_dir() {
+    let meta = std::fs::symlink_metadata(src).map_err(|e| format!("copy file: {e}"))?;
+    if meta.file_type().is_symlink() {
+        // Creating links on Windows needs Developer Mode or admin, so they are
+        // skipped there rather than followed.
+        #[cfg(unix)]
+        {
+            let target = std::fs::read_link(src).map_err(|e| format!("copy link: {e}"))?;
+            std::os::unix::fs::symlink(target, dest).map_err(|e| format!("copy link: {e}"))?;
+        }
+    } else if meta.is_dir() {
         std::fs::create_dir(dest).map_err(|e| format!("create directory: {e}"))?;
         for entry in std::fs::read_dir(src).map_err(|e| format!("read directory: {e}"))? {
             let entry = entry.map_err(|e| format!("read directory: {e}"))?;
             copy_recursive(&entry.path(), &dest.join(entry.file_name()))?;
         }
     } else {
-        std::fs::copy(src, dest).map_err(|e| format!("copy file: {e}"))?;
+        let mut from = std::fs::File::open(src).map_err(|e| format!("copy file: {e}"))?;
+        let mut to = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dest)
+            .map_err(|e| format!("copy file: {e}"))?;
+        std::io::copy(&mut from, &mut to).map_err(|e| format!("copy file: {e}"))?;
+        to.set_permissions(meta.permissions())
+            .map_err(|e| format!("copy file: {e}"))?;
     }
     Ok(())
 }
@@ -776,9 +805,19 @@ pub async fn start_file_drag(
     rel_paths: Vec<String>,
 ) -> Result<String, String> {
     let root = canonical_root(&project_path)?;
+    // Dragging out exports what the entry shows, so a link is followed here —
+    // but only to a target inside the project.
     let paths = rel_paths
         .iter()
-        .map(|p| resolve_existing(&root, p))
+        .map(|p| {
+            let target = resolve_existing(&root, p)?
+                .canonicalize()
+                .map_err(|_| format!("Not found: {p}"))?;
+            if !target.starts_with(&root) {
+                return Err("Path is outside the project".to_string());
+            }
+            Ok(target)
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
@@ -970,6 +1009,95 @@ mod tests {
         // The local UI is unaffected.
         assert_eq!(read_within(home_s, ".ssh/id_rsa", None).unwrap().content, "KEY");
         assert_eq!(std::fs::read_to_string(home.join(".ssh/id_rsa")).unwrap(), "KEY");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A fresh `<tmp>/puppeteer-tree-<uuid>` with `proj/` and `outside/`.
+    #[cfg(unix)]
+    fn tree_fixture() -> (PathBuf, PathBuf) {
+        let base = std::env::temp_dir().canonicalize().unwrap().join(format!("puppeteer-tree-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(base.join("proj")).unwrap();
+        std::fs::create_dir_all(base.join("outside")).unwrap();
+        let proj = base.join("proj");
+        (base, proj)
+    }
+
+    /// Duplicating `notes.md` next to a dangling `notes copy.md -> outside`
+    /// must not write through the link.
+    #[cfg(unix)]
+    #[test]
+    fn duplicating_next_to_a_dangling_link_stays_in_the_project() {
+        let (base, proj) = tree_fixture();
+        std::fs::write(proj.join("notes.md"), "mine").unwrap();
+        std::os::unix::fs::symlink(base.join("outside/stolen.md"), proj.join("notes copy.md")).unwrap();
+
+        let dest = unique_dest(&proj, "notes.md");
+        let res = copy_recursive(&proj.join("notes.md"), &dest);
+
+        assert!(!base.join("outside/stolen.md").exists(), "wrote through the link");
+        res.unwrap();
+        assert_eq!(dest, proj.join("notes copy 2.md"));
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), "mine");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A destination that turns into a link after the name was picked is not
+    /// followed either.
+    #[cfg(unix)]
+    #[test]
+    fn copying_onto_a_link_fails_instead_of_following_it() {
+        let (base, proj) = tree_fixture();
+        std::fs::write(proj.join("a.txt"), "mine").unwrap();
+        std::os::unix::fs::symlink(base.join("outside/stolen.txt"), proj.join("b.txt")).unwrap();
+
+        assert!(copy_recursive(&proj.join("a.txt"), &proj.join("b.txt")).is_err());
+        assert!(!base.join("outside/stolen.txt").exists(), "wrote through the link");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Copying a folder holding `loop -> .` copies the link, not an endless
+    /// nest of folders.
+    #[cfg(unix)]
+    #[test]
+    fn copying_a_folder_keeps_links_as_links() {
+        let (base, proj) = tree_fixture();
+        std::fs::create_dir(proj.join("dir")).unwrap();
+        std::fs::write(proj.join("dir/a.txt"), "a").unwrap();
+        std::os::unix::fs::symlink(".", proj.join("dir/loop")).unwrap();
+        std::os::unix::fs::symlink(base.join("outside"), proj.join("dir/out")).unwrap();
+
+        copy_recursive(&proj.join("dir"), &proj.join("dir copy")).unwrap();
+
+        let copy = proj.join("dir copy");
+        assert_eq!(std::fs::read_to_string(copy.join("a.txt")).unwrap(), "a");
+        assert_eq!(std::fs::read_link(copy.join("loop")).unwrap(), Path::new("."));
+        assert_eq!(std::fs::read_link(copy.join("out")).unwrap(), base.join("outside"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Delete / rename / move act on the link itself, not on what it points
+    /// at; the parent still has to resolve inside the project.
+    #[cfg(unix)]
+    #[test]
+    fn resolving_an_entry_stops_at_a_link() {
+        let (base, proj) = tree_fixture();
+        std::fs::create_dir(proj.join("src")).unwrap();
+        std::fs::write(proj.join("src/f"), "f").unwrap();
+        std::os::unix::fs::symlink(proj.join("src"), proj.join("link")).unwrap();
+        std::os::unix::fs::symlink(base.join("outside"), proj.join("out")).unwrap();
+        std::os::unix::fs::symlink(base.join("outside/gone"), proj.join("dangling")).unwrap();
+
+        assert_eq!(resolve_existing(&proj, "link").unwrap(), proj.join("link"));
+        assert_eq!(resolve_existing(&proj, "out").unwrap(), proj.join("out"));
+        assert_eq!(resolve_existing(&proj, "dangling").unwrap(), proj.join("dangling"));
+        assert_eq!(resolve_existing(&proj, "link/f").unwrap(), proj.join("src/f"));
+        assert_eq!(resolve_existing(&proj, "src/f").unwrap(), proj.join("src/f"));
+        for bad in ["", ".", "..", "src/..", "../outside", "out/x", "missing"] {
+            assert!(resolve_existing(&proj, bad).is_err(), "{bad:?}");
+        }
+        std::fs::write(base.join("outside/x"), "x").unwrap();
+        assert!(resolve_existing(&proj, "out/x").is_err());
+        assert!(resolve_existing(&proj, base.join("outside/x").to_str().unwrap()).is_err());
         let _ = std::fs::remove_dir_all(&base);
     }
 }
