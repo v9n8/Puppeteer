@@ -18,7 +18,7 @@ import { ref } from 'vue'
 import { emit, listen } from '@tauri-apps/api/event'
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { invoke } from '@/lib/tauri'
-import { revealIn } from '@/lib/fileActionsCore'
+import { openInDefault, revealIn } from '@/lib/fileActionsCore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useFileTreeStore } from '@/stores/fileTree'
@@ -116,7 +116,8 @@ export function useFileActions() {
   }
 
   function openInDefaultApp(projectPath: string, target: FileTarget) {
-    return openPath(absPath(projectPath, target.path)).catch(() => { /* opener unavailable */ })
+    return openInDefault({ openPath, revealItemInDir }, absPath(projectPath, target.path), target.isDir)
+      .catch(() => { /* opener unavailable */ })
   }
 
   async function openInVscode(projectPath: string, target: FileTarget) {

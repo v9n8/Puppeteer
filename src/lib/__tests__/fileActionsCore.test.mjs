@@ -1,8 +1,8 @@
-// Unit tests for lib/fileActionsCore.ts ("Reveal in folder").
+// Unit tests for lib/fileActionsCore.ts ("Reveal in folder", "Open in default app").
 // Run: node --test src/lib/__tests__/fileActionsCore.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { revealIn } from '../fileActionsCore.ts'
+import { openInDefault, revealIn } from '../fileActionsCore.ts'
 
 function spyOpener() {
   const calls = []
@@ -31,4 +31,18 @@ test('revealIn: a file is revealed inside its folder', async () => {
   const opener = spyOpener()
   await revealIn(opener, '/p/src/a.ts')
   assert.deepEqual(opener.calls, [['revealItemInDir', '/p/src/a.ts']])
+})
+
+test('openInDefault: a folder, a .app bundle included, is revealed, never opened', async () => {
+  for (const abs of ['/p/Docs.app', '/p/Docs.APP/', '/p/src']) {
+    const opener = spyOpener()
+    await openInDefault(opener, abs, true)
+    assert.deepEqual(opener.calls, [['revealItemInDir', abs]], abs)
+  }
+})
+
+test('openInDefault: a file still opens in its default app', async () => {
+  const opener = spyOpener()
+  await openInDefault(opener, '/p/docs/a.pdf', false)
+  assert.deepEqual(opener.calls, [['openPath', '/p/docs/a.pdf']])
 })
