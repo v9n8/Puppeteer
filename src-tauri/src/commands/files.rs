@@ -805,6 +805,12 @@ pub async fn start_file_drag(
                 }
             };
             let icon = drag::Image::Raw(include_bytes!("../../icons/64x64.png").to_vec());
+            // On Linux `drag` takes the GTK window, which only exists on the UI thread.
+            #[cfg(target_os = "linux")]
+            let w = match w.gtk_window() {
+                Ok(gtk_window) => gtk_window,
+                Err(e) => return send(Err(format!("Drag failed: {e}"))),
+            };
             if let Err(e) = drag::start_drag(
                 &w,
                 drag::DragItem::Files(paths),

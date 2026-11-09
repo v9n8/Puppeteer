@@ -121,8 +121,15 @@ jobs:
   sidecar:
     needs: detect
     if: needs.detect.outputs.sidecar == 'true'
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,10 +156,16 @@ jobs:
           node --test sidecar-proxy/*.test.mjs
           run() { echo "::group::$1/$2"; (cd "$1" && node "$2"); echo "::endgroup::"; }
           run sidecar test-mocked.mjs
-          for t in always-allow deny exit-signal framing-seed keychain-rules mcp-permission-key \
-                   no-tools-fail-closed no-tools queue rewind steer stdin-eof-midturn; do
-            run sidecar-codex "test-$t.mjs"
-          done
+          # The Codex tests stand a .mjs fixture in for the codex binary, and Windows
+          # cannot start a script without a shell.
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            echo "::notice::sidecar-codex tests skipped on Windows"
+          else
+            for t in always-allow deny exit-signal framing-seed keychain-rules mcp-permission-key \
+                     no-tools-fail-closed no-tools queue rewind steer stdin-eof-midturn; do
+              run sidecar-codex "test-$t.mjs"
+            done
+          fi
           for t in code-index dev-servers feature-groups google-server item-links projects schedules skills slack-threads todos; do
             run sidecar-mcp "test-$t.mjs"
           done
@@ -160,13 +173,28 @@ jobs:
   rust:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 45
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-22.04: the runner release.yml builds the Linux bundles on.
+        os: [macos-latest, ubuntu-22.04, windows-latest]
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Same packages as release.yml: Tauri v2 prerequisites, plus libdbus for keyring.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential file pkg-config libssl-dev libdbus-1-dev libxdo-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
@@ -218,16 +246,35 @@ jobs:
   release-cache:
     needs: detect
     if: github.event_name != 'pull_request' && needs.detect.outputs.release-cache == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 45
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
     strategy:
+      fail-fast: false
       matrix:
-        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+        # The runner and target of each release.yml build: the cache key includes the OS.
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential file pkg-config libssl-dev libdbus-1-dev libxdo-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Build binary and save cache
         uses: ./.github/actions/build-macos-binary

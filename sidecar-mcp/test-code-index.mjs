@@ -54,6 +54,7 @@ const appData = join(base, 'appdata');
 mkdirSync(home, { recursive: true });
 mkdirSync(appData, { recursive: true });
 process.env.HOME = home;
+process.env.USERPROFILE = home; // os.homedir() on Windows
 process.env.PUPPETEER_DB_PATH = join(appData, 'data.db');
 
 const write = (root, rel, body) => {

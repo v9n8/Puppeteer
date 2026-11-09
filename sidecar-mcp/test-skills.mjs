@@ -71,7 +71,7 @@ writeFileSync(join(usersOwn, 'SKILL.md'), 'mine');
 function drive(frames) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
-      env: { ...process.env, HOME: home, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
+      env: { ...process.env, HOME: home, USERPROFILE: home, PUPPETEER_DB_PATH: dbPath, PUPPETEER_PROJECT_ID: PROJECT },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';

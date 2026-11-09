@@ -56,7 +56,7 @@ pub fn snapshot() -> Option<Vec<PsRow>> {
     }
     #[cfg(not(unix))]
     {
-        let _ = Command::new;
+        let _ = Command::new::<&str>;
         None
     }
 }

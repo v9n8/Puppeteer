@@ -34,6 +34,13 @@ import {
   resolveEntryCwd,
 } from './lib/dev-servers.mjs';
 
+// Dev servers are found with `lsof` and launched by a POSIX shell command line: no
+// Windows support yet.
+if (process.platform === 'win32') {
+  process.stdout.write('Skipped: dev servers need lsof and a POSIX shell.\n');
+  process.exit(0);
+}
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, 'index.mjs');
 

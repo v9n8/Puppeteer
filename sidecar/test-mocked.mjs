@@ -6,7 +6,7 @@
 // Run: node test-mocked.mjs   (from the sidecar/ dir)
 
 import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
 
@@ -18,7 +18,8 @@ function runSidecar(scenario, onMessage, timeoutMs = 10_000, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      ['--import', join(here, 'test-fixtures', 'mock-sdk-register.mjs'), join(here, 'index.mjs')],
+      // A URL: `--import` reads a Windows path (C:\...) as a URL with scheme `c:`.
+      ['--import', pathToFileURL(join(here, 'test-fixtures', 'mock-sdk-register.mjs')).href, join(here, 'index.mjs')],
       {
         cwd: here,
         env: { ...process.env, MOCK_SCENARIO: scenario, PUPPETEER_SIDECAR_HEARTBEAT_MS: '100', ...extraEnv },
