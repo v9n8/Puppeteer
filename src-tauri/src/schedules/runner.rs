@@ -12,11 +12,14 @@
 //!    time is still running;
 //! 3. fire: open a new session in its project and start it with the prompt
 //!    through `start_run_inner`, as the Start button would.
+//!
+//! A slot still ahead is moved when the machine's zone changed since it was
+//! worked out ([`on_this_clock`]).
 
-use super::{next_run, parse_stamp, stamp, CHANGED_EVENT, FEATURE};
+use super::{next_run, parse_stamp, stamp, Timing, CHANGED_EVENT, FEATURE};
 use crate::db::Db;
 use crate::features::{self, apply::Change};
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use std::future::Future;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -40,6 +43,8 @@ pub struct Firing {
 /// Schedule ids by outcome, for tests and the log.
 #[derive(Debug, Default, PartialEq)]
 pub struct TickResult {
+    /// Slots moved to the machine's new zone.
+    pub moved: Vec<String>,
     pub fired: Vec<String>,
     pub skipped: Vec<String>,
     pub failed: Vec<String>,
@@ -47,13 +52,13 @@ pub struct TickResult {
 
 impl TickResult {
     fn is_empty(&self) -> bool {
-        self.fired.is_empty() && self.skipped.is_empty() && self.failed.is_empty()
+        self.moved.is_empty() && self.fired.is_empty() && self.skipped.is_empty() && self.failed.is_empty()
     }
 }
 
 /// One pass at `now`. `fire` opens and starts the session and returns its
 /// run id. Nothing is read beyond the switch while [`FEATURE`] is off.
-pub async fn tick<F, Fut>(db: &Db, now: DateTime<Local>, mut fire: F) -> Result<TickResult, String>
+pub async fn tick<Tz: TimeZone, F, Fut>(db: &Db, now: DateTime<Tz>, mut fire: F) -> Result<TickResult, String>
 where
     F: FnMut(Firing) -> Fut,
     Fut: Future<Output = Result<String, String>>,
@@ -67,8 +72,27 @@ where
         if !s.enabled || s.proposed {
             continue;
         }
-        let Some(due) = s.next_run_at.as_deref().and_then(parse_stamp) else { continue };
+        let Some(stored) = s.next_run_at.as_deref().and_then(parse_stamp) else { continue };
+        let due = on_this_clock(s.timing.as_ref(), stored, &now);
         if due > now_utc {
+            if due != stored {
+                // Conditional like the claim below: a switch-off or an edit in between wins.
+                let moved = sqlx::query(
+                    "UPDATE schedules SET next_run_at = ?
+                     WHERE id = ? AND enabled = 1 AND proposed = 0 AND next_run_at = ?",
+                )
+                .bind(stamp(due))
+                .bind(&s.id)
+                .bind(&s.next_run_at)
+                .execute(db)
+                .await
+                .map_err(|e| e.to_string())?
+                .rows_affected()
+                    == 1;
+                if moved {
+                    out.moved.push(s.id);
+                }
+            }
             continue;
         }
         let next = s.timing.as_ref().and_then(|t| next_run(t, &now));
@@ -116,6 +140,22 @@ where
         }
     }
     Ok(out)
+}
+
+/// The slot `stored` stands for on the clock of `now`. A daily, weekly or
+/// once slot is a wall-clock time, stored as an instant worked out with the
+/// machine's zone at the time; after the zone changes (travel, a new zone
+/// setting) that instant is another hour here, so the slot is worked out
+/// again. A slot already past is left as it is: it fires as a missed one.
+/// A once that the change put behind `now` fires now rather than never.
+fn on_this_clock<Tz: TimeZone>(timing: Option<&Timing>, stored: DateTime<Utc>, now: &DateTime<Tz>) -> DateTime<Utc> {
+    let now_utc = now.with_timezone(&Utc);
+    match timing {
+        None | Some(Timing::Interval { .. }) => stored,
+        _ if stored <= now_utc => stored,
+        Some(t @ Timing::Once { .. }) => next_run(t, now).unwrap_or(now_utc),
+        Some(t) => next_run(t, now).unwrap_or(stored),
+    }
 }
 
 /// `run_id` when that run is still going.
@@ -245,7 +285,7 @@ pub fn start(app: AppHandle, db: Db) {
         loop {
             match tick(&db, Local::now(), |f| fire(&app, &db, f)).await {
                 Ok(r) if !r.is_empty() => {
-                    tracing::info!(event = "schedules_tick", fired = ?r.fired, skipped = ?r.skipped, failed = ?r.failed);
+                    tracing::info!(event = "schedules_tick", moved = ?r.moved, fired = ?r.fired, skipped = ?r.skipped, failed = ?r.failed);
                     let _ = app.emit(CHANGED_EVENT, ());
                 }
                 Ok(_) => {}
@@ -258,7 +298,7 @@ pub fn start(app: AppHandle, db: Db) {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{db, input};
+    use super::super::tests::{at, db, input};
     use super::super::{get, save, set_enabled, Timing};
     use super::*;
     use std::sync::{Arc, Mutex};
@@ -392,5 +432,90 @@ mod tests {
         assert!(tick(&db, now(), fire).await.unwrap().is_empty());
         assert!(seen.lock().unwrap().is_empty());
         assert!(get(&db, &id).await.unwrap().enabled);
+    }
+
+    /// Enabled at `now`, then ticked at each `(moment, fires)` in turn, with
+    /// the offset of the moment as the machine's.
+    async fn ticks_after_a_zone_change(timing: Timing, now: &str, ticks: &[(&str, bool)]) {
+        let db = db().await;
+        switch(&db, true).await;
+        let id = save(&db, input(None, timing), false, &at(now)).await.unwrap().id;
+        set_enabled(&db, &id, true, &at(now)).await.unwrap();
+        for (i, (moment, fires)) in ticks.iter().enumerate() {
+            let (seen, fire) = recorder();
+            let r = tick(&db, at(moment), fire).await.unwrap();
+            assert_eq!(seen.lock().unwrap().len(), usize::from(*fires), "tick at {moment}");
+            if i == 0 && !fires {
+                assert_eq!(r.moved, [id.clone()], "the first tick in the new zone moves the slot");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_daily_slot_follows_the_clock_to_a_new_zone() {
+        // Set in Hanoi (+07): 08:30 there is 01:30Z. The machine moves to Tokyo
+        // (+09), where 01:30Z is 10:30 and 08:30 has already gone today.
+        ticks_after_a_zone_change(
+            Timing::Daily { time: "08:30".into() },
+            "2026-11-08T07:00:00+07:00",
+            &[
+                ("2026-11-08T09:10:00+09:00", false),
+                ("2026-11-08T10:30:00+09:00", false),
+                ("2026-11-09T08:30:00+09:00", true),
+            ],
+        )
+        .await;
+        // Westward: set in Tokyo, 08:30 there is 06:30 in Hanoi.
+        ticks_after_a_zone_change(
+            Timing::Weekly { weekdays: vec![0, 1], time: "08:30".into() },
+            "2026-11-08T07:00:00+09:00",
+            &[
+                ("2026-11-08T06:00:00+07:00", false),
+                ("2026-11-08T06:30:00+07:00", false),
+                ("2026-11-08T08:30:00+07:00", true),
+            ],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn a_daily_slot_follows_a_one_hour_offset_change() {
+        // New York's offsets either side of 2026-11-01 (-04 → -05). With `Local`
+        // a slot past a daylight-saving change already gets its own day's
+        // offset; here the machine's offset itself changes in between (a new
+        // zone setting), and the slot worked out at -04 must fire at 09:00 -05.
+        ticks_after_a_zone_change(
+            Timing::Daily { time: "09:00".into() },
+            "2026-10-31T20:00:00-04:00",
+            &[
+                ("2026-11-01T07:00:00-05:00", false),
+                ("2026-11-01T08:00:00-05:00", false),
+                ("2026-11-01T09:00:00-05:00", true),
+            ],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn a_once_follows_the_clock_and_fires_when_the_zone_put_it_behind() {
+        // The screen takes a `once` as a wall-clock time (`datetime-local`).
+        ticks_after_a_zone_change(
+            Timing::Once { at: "2026-11-09T09:00".into() },
+            "2026-11-08T12:00:00+07:00",
+            &[
+                ("2026-11-09T08:00:00+09:00", false),
+                ("2026-11-09T09:00:00+09:00", true),
+                ("2026-11-09T11:00:00+09:00", false),
+            ],
+        )
+        .await;
+        // East by two hours at 09:30 there: 09:00 has gone, the stored slot
+        // (11:00) is ahead. It runs now rather than late or never.
+        ticks_after_a_zone_change(
+            Timing::Once { at: "2026-11-09T09:00".into() },
+            "2026-11-08T12:00:00+07:00",
+            &[("2026-11-09T09:30:00+09:00", true)],
+        )
+        .await;
     }
 }
