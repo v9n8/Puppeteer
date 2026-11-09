@@ -1114,11 +1114,13 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       </div>
       <!-- Rendered HTML preview: an iframe over the real file on disk, so its
            own styles, scripts and relative assets load like in a browser.
-           Sandboxed to keep the page out of the app window. -->
+           Sandboxed to keep the page out of the app window. No allow-same-origin:
+           the asset scope covers every path, so a page sharing the asset origin
+           could fetch() any file on disk. Its tags still load relative assets. -->
       <iframe
         v-else-if="htmlPreview"
         :src="assetUrl"
-        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
+        sandbox="allow-scripts allow-forms allow-popups allow-modals"
         class="w-full h-full min-h-[400px] bg-white"
         :title="t('files.viewer.htmlPreview')"
       />
