@@ -273,6 +273,20 @@ chmodSync(webLog, 0o644);
 r = await call('dev_server_start', { name: 'web' });
 check(!isError(r) && modeOf(webLog) === 0o600, 'start: an existing log is made private again');
 
+// lsof cannot tell who writes the log: the command's `>` would wipe a running copy's log.
+const stubBin = realpathSync(mkdtempSync(join(tmpdir(), 'puppeteer-dev-servers-bin-')));
+writeFileSync(join(stubBin, 'lsof'), '#!/bin/sh\nexit 2\n', { mode: 0o755 });
+writeFileSync(webLog, 'output of a running copy\n');
+chmodSync(webLog, 0o644);
+r = await call('dev_server_start', { name: 'web' }, { PATH: `${stubBin}:${process.env.PATH}` });
+check(isError(r) && /lsof/.test(text(r)) && !text(r).includes(command), 'lsof cannot tell: start refuses, no command');
+check(readFileSync(webLog, 'utf8') === 'output of a running copy\n' && modeOf(webLog) === 0o644, 'lsof cannot tell: the log is untouched');
+// No lsof at all and no log yet: nothing can be writing it, the first start goes on.
+rmSync(webLog);
+r = await call('dev_server_start', { name: 'web' }, { PATH: join(stubBin, 'missing') });
+check(!isError(r) && text(r).includes(command), 'no lsof, no log yet: start returns the command');
+rmSync(stubBin, { recursive: true, force: true });
+
 // The repo links the run directory out of the project: no command to run there.
 const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'puppeteer-dev-servers-out-')));
 symlinkSync(elsewhere, join(root, 'linked'));

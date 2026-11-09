@@ -476,6 +476,13 @@ async function start({ name }) {
       `dev_server_logs({ name: "${v.name}" }) or stop it with dev_server_stop({ name: "${v.name}" }).`
     );
   }
+  // The command's `>` truncates the log: a copy lsof could not see would lose it.
+  if (v.pids === null) {
+    throw new Error(
+      `Cannot tell whether "${v.name}" is already running: lsof did not answer for its log. ` +
+        'Ask the user to stop it, or to delete the log if nothing runs, then start again.',
+    );
+  }
   if (v.portBusy) {
     throw new Error(
       `Port ${v.port} is already in use by a process this tool did not start, so "${v.name}" would not come up. ` +
