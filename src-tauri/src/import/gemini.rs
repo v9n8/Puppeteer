@@ -89,10 +89,10 @@ impl Adapter for Gemini {
         let mut found = Vec::new();
         let (path, name) = &l.context;
         if path.is_file() && !is_own_link(path, ctx) {
-            found.extend(text_candidate(&mut report, root, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)));
+            found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)));
         }
         for dir in skill_dirs(&l.skills, ctx) {
-            found.extend(skill_candidate(&mut report, root, &dir, TARGET));
+            found.extend(skill_candidate(&mut report, root, scope, ctx, &dir, TARGET));
         }
         report.candidates.extend(found);
         report

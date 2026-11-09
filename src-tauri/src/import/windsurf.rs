@@ -105,7 +105,7 @@ impl Adapter for Windsurf {
         let mut found = Vec::new();
         if let Some((dir, legacy, legacy_name)) = &l.rules {
             for path in md_files(dir, ctx) {
-                if let Some(mut c) = text_candidate(&mut report, root, ImportKind::Rule, &path, None, Some(TARGET)) {
+                if let Some(mut c) = text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, &path, None, Some(TARGET)) {
                     let Payload::Text(text) = &c.payload else { unreachable!("a text candidate") };
                     let rule = library_rule(text);
                     c.hash = crate::commands::rules::content_hash(&rule);
@@ -114,11 +114,11 @@ impl Adapter for Windsurf {
                 }
             }
             if legacy.is_file() && !is_own_link(legacy, ctx) {
-                found.extend(text_candidate(&mut report, root, ImportKind::Rule, legacy, Some(legacy_name.clone()), Some(TARGET)));
+                found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, legacy, Some(legacy_name.clone()), Some(TARGET)));
             }
         }
         for dir in skill_dirs(&l.skills, ctx) {
-            found.extend(skill_candidate(&mut report, root, &dir, TARGET));
+            found.extend(skill_candidate(&mut report, root, scope, ctx, &dir, TARGET));
         }
         report.candidates.extend(found);
         report

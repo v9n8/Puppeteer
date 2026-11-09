@@ -104,7 +104,7 @@ impl Adapter for Codex {
         let mut found = Vec::new();
         let (path, name) = &l.agents_md;
         if path.is_file() {
-            if let Some(mut c) = text_candidate(&mut report, root, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)) {
+            if let Some(mut c) = text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)) {
                 let Payload::Text(text) = &c.payload else { unreachable!("a text candidate") };
                 let own = agents_block::strip_all(text);
                 // Only blocks Puppeteer wrote: the user has nothing of their own there.
@@ -119,7 +119,7 @@ impl Adapter for Codex {
         let mut kept: Vec<(String, Option<String>)> = Vec::new();
         let current = skill_dirs(&l.skills, ctx).into_iter().map(|d| (d, false));
         for (dir, legacy) in current.chain(skill_dirs(&l.legacy_skills, ctx).into_iter().map(|d| (d, true))) {
-            let Some(c) = skill_candidate(&mut report, root, &dir, TARGET) else { continue };
+            let Some(c) = skill_candidate(&mut report, root, scope, ctx, &dir, TARGET) else { continue };
             let body = skill_body_hash(&dir);
             if legacy && kept.iter().any(|(name, hash)| *name == c.name || (hash.is_some() && *hash == body)) {
                 continue;
@@ -129,7 +129,7 @@ impl Adapter for Codex {
         }
         if let Some(prompts) = &l.prompts {
             for path in md_files(prompts, ctx) {
-                found.extend(text_candidate(&mut report, root, ImportKind::Command, &path, None, None));
+                found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Command, &path, None, None));
             }
         }
         report.candidates.extend(found);

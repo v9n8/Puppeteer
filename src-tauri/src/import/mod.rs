@@ -29,6 +29,7 @@ pub mod windsurf;
 use crate::commands::library_items::LibraryKind;
 use crate::commands::mcp::McpServerExport;
 use crate::db::Db;
+use crate::remote::guard::SecretPaths;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -249,6 +250,26 @@ pub(crate) fn read_text(path: &Path, limit: u64) -> Result<String, String> {
     String::from_utf8(fs::read(path).map_err(|e| e.to_string())?).map_err(|_| "not UTF-8 text".to_string())
 }
 
+/// Where `path` really is (links followed), when the source at `root` may read it from there. A
+/// project's file must lie in the project, whatever a cloned repo links to. A HOME file may link
+/// into a dotfiles folder, but not into a credential store or the app's data; one reached without
+/// a link is the tool's own, even in a store (Codex keeps its prompts in `~/.codex`). Read the
+/// returned path, so a link swapped in after the check is not followed. Errors name no content.
+pub(crate) fn readable_path(path: &Path, root: &Path, scope: Scope, ctx: &ScanContext) -> Result<PathBuf, String> {
+    let real = fs::canonicalize(path).map_err(|e| e.to_string())?;
+    let base = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    match scope {
+        Scope::Project if !real.starts_with(&base) => Err("links outside the project, not imported".to_string()),
+        Scope::Global
+            if !path.strip_prefix(root).is_ok_and(|rel| base.join(rel) == real)
+                && SecretPaths::new(Some(root), Some(&ctx.library_root)).denies(&real) =>
+        {
+            Err("links into a credential store or Puppeteer's data, not imported".to_string())
+        }
+        _ => Ok(real),
+    }
+}
+
 /// A name every library accepts: ASCII letters, digits, `-`, `_` (anything else becomes `-`).
 pub(crate) fn library_name(raw: &str) -> String {
     let name: String =
@@ -354,15 +375,18 @@ pub(crate) fn with_frontmatter_name(content: &str, name: &str) -> String {
 }
 
 /// A rule, agent or command file as a candidate; `None` (with a problem) when unreadable.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn text_candidate(
     report: &mut ScanReport,
     root: &Path,
+    scope: Scope,
+    ctx: &ScanContext,
     kind: ImportKind,
     path: &Path,
     name: Option<String>,
     target: Option<&str>,
 ) -> Option<Candidate> {
-    let content = match read_text(path, MAX_TEXT_BYTES) {
+    let content = match readable_path(path, root, scope, ctx).and_then(|real| read_text(&real, MAX_TEXT_BYTES)) {
         Ok(c) => c,
         Err(e) => {
             report.problem(path, None, e);
@@ -391,9 +415,23 @@ pub(crate) fn text_candidate(
 }
 
 /// A skill folder as a candidate; `None` (with a problem) when its SKILL.md is unreadable.
-pub(crate) fn skill_candidate(report: &mut ScanReport, root: &Path, dir: &Path, default_target: &str) -> Option<Candidate> {
+pub(crate) fn skill_candidate(
+    report: &mut ScanReport,
+    root: &Path,
+    scope: Scope,
+    ctx: &ScanContext,
+    dir: &Path,
+    default_target: &str,
+) -> Option<Candidate> {
+    let real_dir = match readable_path(dir, root, scope, ctx) {
+        Ok(d) => d,
+        Err(e) => {
+            report.problem(dir, None, e);
+            return None;
+        }
+    };
     let skill_md = dir.join("SKILL.md");
-    let content = match read_text(&skill_md, MAX_TEXT_BYTES) {
+    let content = match readable_path(&skill_md, root, scope, ctx).and_then(|real| read_text(&real, MAX_TEXT_BYTES)) {
         Ok(c) => c,
         Err(e) => {
             report.problem(&skill_md, None, e);
@@ -415,7 +453,7 @@ pub(crate) fn skill_candidate(report: &mut ScanReport, root: &Path, dir: &Path, 
         exists: false,
         duplicate_of: None,
         mcp: None,
-        payload: Payload::SkillDir(dir.to_path_buf()),
+        payload: Payload::SkillDir(real_dir),
     })
 }
 
@@ -699,6 +737,68 @@ mod tests {
         assert_eq!(frontmatter_field("\ntrigger: glob", "trig"), None);
         assert_eq!(library_rule_text("", &[], "b"), "b");
         assert_eq!(library_rule_text("Tests", &["*.ts".into()], "b"), "---\ndescription: \"Tests\"\npaths:\n  - \"*.ts\"\n---\nb");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn links_are_read_only_where_their_source_may_reach() {
+        use std::os::unix::fs::symlink;
+        let base = std::env::temp_dir().join(format!("puppeteer-import-links-{}", uuid::Uuid::new_v4()));
+        let write = |path: &Path, content: &str| {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, content).unwrap();
+        };
+        let link = |target: &Path, path: &Path| {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            symlink(target, path).unwrap();
+        };
+        let (home, proj) = (base.join("home"), base.join("proj"));
+        let ctx = ScanContext { library_root: home.join("Library/Application Support/io.github.v9n8.puppeteer") };
+        write(&home.join(".ssh/id_ed25519"), "SECRET-PRIVATE-KEY");
+        write(&home.join(".aws/kit/SKILL.md"), "SECRET-AWS-SKILL");
+        write(&home.join("dotfiles/agents/rev.md"), "Review.");
+        write(&base.join("elsewhere/notes.md"), "SECRET-OUTSIDE");
+        write(&base.join("elsewhere/kit/SKILL.md"), "SECRET-OUTSIDE-SKILL");
+        write(&proj.join("docs/style.md"), "Use tabs.");
+        write(&proj.join(".claude/skills/inner/ref.md"), "ref");
+
+        link(&proj.join("docs/style.md"), &proj.join(".claude/rules/style.md"));
+        link(&base.join("elsewhere/notes.md"), &proj.join(".claude/rules/notes.md"));
+        link(&home.join(".ssh/id_ed25519"), &proj.join(".claude/agents/key.md"));
+        link(&base.join("elsewhere/kit"), &proj.join(".claude/skills/kit"));
+        link(&base.join("elsewhere/kit/SKILL.md"), &proj.join(".claude/skills/inner/SKILL.md"));
+        link(Path::new("../../../home/.ssh/id_ed25519"), &proj.join(".cursor/rules/style.mdc"));
+        let mut report = claude_code::ClaudeCode.scan(&proj, Scope::Project, &ctx);
+        let cursor = cursor::Cursor.scan(&proj, Scope::Project, &ctx);
+        report.candidates.extend(cursor.candidates);
+        report.problems.extend(cursor.problems);
+        let names = |r: &ScanReport| r.candidates.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
+        let refused = |r: &ScanReport, root: &Path| {
+            let mut p: Vec<String> =
+                r.problems.iter().map(|p| Path::new(&p.path).strip_prefix(root).unwrap().display().to_string()).collect();
+            p.sort();
+            p
+        };
+        assert_eq!(names(&report), ["style"]);
+        assert_eq!(
+            refused(&report, &proj),
+            [".claude/agents/key.md", ".claude/rules/notes.md", ".claude/skills/inner/SKILL.md", ".claude/skills/kit", ".cursor/rules/style.mdc"]
+        );
+
+        link(&home.join(".ssh/id_ed25519"), &home.join(".claude/agents/key.md"));
+        link(&home.join("dotfiles/agents/rev.md"), &home.join(".claude/agents/rev.md"));
+        link(&home.join(".aws/kit"), &home.join(".claude/skills/aws"));
+        link(&base.join("elsewhere/notes.md"), &home.join(".claude/rules/notes.md"));
+        let global = claude_code::ClaudeCode.scan(&home, Scope::Global, &ctx);
+        assert_eq!(names(&global), ["notes", "rev"]);
+        assert_eq!(refused(&global, &home), [".claude/agents/key.md", ".claude/skills/aws"]);
+
+        // HOME may link outside itself (`notes`), but never into `~/.ssh` or `~/.aws`.
+        for (r, leak) in [(&report, "SECRET-"), (&global, "SECRET-PRIVATE-KEY"), (&global, "SECRET-AWS")] {
+            let shown = format!("{:?}{:?}", r.problems, r.candidates.iter().map(|c| (&c.description, &c.payload)).collect::<Vec<_>>());
+            assert!(!shown.contains(leak), "{shown}");
+        }
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

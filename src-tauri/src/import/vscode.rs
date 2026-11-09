@@ -115,12 +115,12 @@ impl Adapter for VsCode {
         let mut found = Vec::new();
         if let Some((file, name, dir)) = &l.rules {
             if file.is_file() && !is_own_link(file, ctx) {
-                found.extend(text_candidate(&mut report, root, ImportKind::Rule, file, Some(name.clone()), Some(TARGET)));
+                found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, file, Some(name.clone()), Some(TARGET)));
             }
             for path in instruction_files(dir, ctx) {
                 let stem = path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
                 let name = library_name(stem.trim_end_matches(".instructions.md"));
-                if let Some(mut c) = text_candidate(&mut report, root, ImportKind::Rule, &path, Some(name), Some(TARGET)) {
+                if let Some(mut c) = text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, &path, Some(name), Some(TARGET)) {
                     let Payload::Text(text) = &c.payload else { unreachable!("a text candidate") };
                     let rule = library_rule(text);
                     c.hash = crate::commands::rules::content_hash(&rule);
@@ -130,7 +130,7 @@ impl Adapter for VsCode {
             }
         }
         for dir in skill_dirs(&l.skills, ctx) {
-            found.extend(skill_candidate(&mut report, root, &dir, TARGET));
+            found.extend(skill_candidate(&mut report, root, scope, ctx, &dir, TARGET));
         }
         report.candidates.extend(found);
         report

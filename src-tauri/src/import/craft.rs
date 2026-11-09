@@ -49,7 +49,7 @@ impl Adapter for Craft {
         let mut seen: Vec<String> =
             skill_dirs(&root.join(".agents").join("skills"), ctx).iter().filter_map(|d| skill_body_hash(d)).collect();
         for dir in workspace_skills(root, ctx) {
-            let Some(c) = skill_candidate(&mut report, root, &dir, TARGET) else { continue };
+            let Some(c) = skill_candidate(&mut report, root, scope, ctx, &dir, TARGET) else { continue };
             if let Some(body) = skill_body_hash(&dir) {
                 if seen.contains(&body) {
                     continue;

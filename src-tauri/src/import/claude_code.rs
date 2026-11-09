@@ -93,18 +93,18 @@ impl Adapter for ClaudeCode {
         let mut found = Vec::new();
         for (path, name) in &l.claude_mds {
             if path.is_file() && !is_own_link(path, ctx) {
-                found.extend(text_candidate(&mut report, root, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)));
+                found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, path, Some(name.clone()), Some(TARGET)));
             }
         }
         for path in md_files(&l.dot.join("rules"), ctx) {
-            found.extend(text_candidate(&mut report, root, ImportKind::Rule, &path, None, Some(TARGET)));
+            found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, &path, None, Some(TARGET)));
         }
         for dir in skill_dirs(&l.dot.join("skills"), ctx) {
-            found.extend(skill_candidate(&mut report, root, &dir, TARGET));
+            found.extend(skill_candidate(&mut report, root, scope, ctx, &dir, TARGET));
         }
         for (folder, kind) in [("agents", ImportKind::Agent), ("commands", ImportKind::Command)] {
             for path in md_files(&l.dot.join(folder), ctx) {
-                found.extend(text_candidate(&mut report, root, kind, &path, None, None));
+                found.extend(text_candidate(&mut report, root, scope, ctx, kind, &path, None, None));
             }
         }
         report.candidates.extend(found);

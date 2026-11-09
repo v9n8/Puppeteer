@@ -79,7 +79,7 @@ impl Adapter for Cursor {
         for path in mdc_files(&dir, ctx) {
             let rel = path.strip_prefix(&dir).unwrap_or(&path).with_extension("");
             let name = library_name(&rel.to_string_lossy());
-            if let Some(mut c) = text_candidate(&mut report, root, ImportKind::Rule, &path, Some(name), Some(TARGET)) {
+            if let Some(mut c) = text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, &path, Some(name), Some(TARGET)) {
                 let Payload::Text(text) = &c.payload else { unreachable!("a text candidate") };
                 let rule = library_rule(text);
                 c.hash = crate::commands::rules::content_hash(&rule);
@@ -88,7 +88,7 @@ impl Adapter for Cursor {
             }
         }
         if legacy.is_file() && !is_own_link(&legacy, ctx) {
-            found.extend(text_candidate(&mut report, root, ImportKind::Rule, &legacy, Some(legacy_name), Some(TARGET)));
+            found.extend(text_candidate(&mut report, root, scope, ctx, ImportKind::Rule, &legacy, Some(legacy_name), Some(TARGET)));
         }
         report.candidates.extend(found);
         report
