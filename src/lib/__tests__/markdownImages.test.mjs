@@ -136,3 +136,15 @@ test('both markdown renderers install the guard', () => {
   assert.match(viewer, /guardMarkdownImages\(_md\)/)
   assert.match(viewer, /addHook\('uponSanitizeAttribute', dropRemoteMediaAttr\)/)
 })
+
+// Rule, skill and library-item previews build their own markdown-it (html:false,
+// no DOMPurify) for content an agent can write, so each needs the guard too.
+test('the rule, skill and library-item previews install the guard', () => {
+  for (const path of [
+    '../../components/rules/RuleDetail.vue',
+    '../../components/skills/SkillDetail.vue',
+    '../../components/libraryItems/LibraryItemDetail.vue',
+  ]) {
+    assert.match(read(path), /guardMarkdownImages\(mdi\)/, path)
+  }
+})

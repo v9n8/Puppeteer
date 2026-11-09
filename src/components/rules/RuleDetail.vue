@@ -21,6 +21,7 @@ import { useRulesStore, type Rule, type RuleTarget } from '@/stores/rules'
 import type { Group } from '@/stores/groups'
 import { useToast } from '@/composables/useToast'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
+import { guardMarkdownImages } from '@/lib/markdownImages'
 import { vCopyCode } from '@/lib/copyCode'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { SCREEN_SELECTION } from '@/lib/selectionScreens'
@@ -182,6 +183,7 @@ async function updatePreview(md: string) {
     const MarkdownIt = (await import('markdown-it')).default
     const mdi = new MarkdownIt({ html: false, linkify: true, typographer: true })
     applyMermaidFence(mdi)
+    guardMarkdownImages(mdi)
     html = mdi.render(md)
   } catch {
     html = `<pre>${md.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] ?? c)}</pre>`
