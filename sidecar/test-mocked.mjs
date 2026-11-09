@@ -257,7 +257,8 @@ const tests = {
   // Steer (D4-06): a steer reaches the SDK as a user message with priority
   // `next` (folded into the running turn); a plain follow-up goes with `later`
   // (D4-15: a turn of its own, after the one in flight). Before any turn there
-  // is nothing to steer: a warning, no crash.
+  // is nothing to steer: a warning, no crash. Only the steer that reached the
+  // SDK is reported back (`_puppeteer_steered`), for the broker to log (R-13).
   async 'steer reaches the SDK with priority next; a follow-up with later'() {
     const img = { media_type: 'image/png', data: 'AAAA' }
     const { messages, code } = await runSidecar('echo', (msg, ctl) => {
@@ -273,6 +274,9 @@ const tests = {
     })
     const early = of(messages, '_puppeteer_log').filter((m) => m.level === 'warn' && /Steer not applied/.test(m.text))
     assert.equal(early.length, 1)
+    assert.deepEqual(of(messages, '_puppeteer_steered').map(({ text, images }) => ({ text, images })), [
+      { text: 'focus on the tests', images: [img] },
+    ])
     const [steer, followUp] = of(messages, 'mock_echo').map((m) => m.mock_input)
     assert.equal(steer.priority, 'next')
     assert.deepEqual(steer.message.content, [

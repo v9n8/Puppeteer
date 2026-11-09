@@ -15,6 +15,7 @@
 //         {type:"_puppeteer_closed",code,signal}   ← session over (signal ⇒ crash)
 //         {type:"_puppeteer_permission_request",requestId,tool_name,tool_input,title,description}
 //         {type:"_puppeteer_turn_failed"}          ← a prompt never became a turn (no result follows)
+//         {type:"_puppeteer_steered",text,images}  ← codex took a steer (turn/steer accepted)
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
@@ -1154,7 +1155,8 @@ async function startTurn(text, images) {
 
 // Steer (D4-06): add input to the turn in flight with `turn/steer`, which
 // starts no turn. A turn that is over (or a codex without turn/steer) refuses
-// it: say so, never replay it as a new turn behind the user's back.
+// it: say so, never replay it as a new turn behind the user's back. Only a
+// steer codex took is reported back: the broker logs it then, not on sending.
 async function steerTurn(text, images) {
   // Still starting up with the first prompt waiting: steer the turn it starts.
   if (!ready && promptQueue.length) { promptQueue.push({ text, images, steer: true }); return }
@@ -1164,6 +1166,8 @@ async function steerTurn(text, images) {
     : null
   if (!turnId || res?.error) {
     note(`⚠ Steer not applied: ${res?.error?.message || 'no turn is running'}. Send it as a new message instead.`, 'warn')
+  } else {
+    ctrl('_puppeteer_steered', { text, images })
   }
 }
 

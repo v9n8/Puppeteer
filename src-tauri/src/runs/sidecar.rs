@@ -14,6 +14,7 @@
 //!     `_puppeteer_ready` / `_puppeteer_done` / `_puppeteer_closed` → lifecycle, swallowed.
 //!     `_puppeteer_turn_failed` (Codex) → a prompt never became a turn; like a
 //!         `result`, it lets the next follow-up waiting in the `TurnGate` start.
+//!     `_puppeteer_steered` → the engine took a steer; only now is it logged.
 //!
 //! Auth: the SDK uses its bundled CLI, which reads the same macOS Keychain login
 //! as `claude` — so runs bill against the user's subscription, no API key.
@@ -934,6 +935,12 @@ pub async fn drain_sidecar(
                             // later resumes don't seed it again.
                             (Some(_), "_puppeteer_framing_seeded") => {
                                 crate::conductor::commands::mark_framing_seeded(&db_pool, &run_id).await;
+                            }
+                            // ---- control: the engine took a steer --------------
+                            // Logged now, not when sent: a steer it refused (no
+                            // turn to steer) must not read as delivered.
+                            (Some(v), "_puppeteer_steered") => {
+                                append_log(&log_buf, &crate::commands::runs::steered_log_line(v)).await;
                             }
                             // ---- control: a prompt never became a turn ----------
                             // (Codex refused turn/start; the error came before it.)

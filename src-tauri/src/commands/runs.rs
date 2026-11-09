@@ -105,6 +105,17 @@ fn steer_log_line(text: &str, images: &[ImageAttachment]) -> String {
     format!("{line}\n")
 }
 
+/// [`steer_log_line`] of a steer the engine took, from the sidecar's
+/// `_puppeteer_steered` report, which echoes the steer it was handed.
+pub(crate) fn steered_log_line(steered: &serde_json::Value) -> String {
+    let text = steered.get("text").and_then(|t| t.as_str()).unwrap_or("");
+    let images: Vec<ImageAttachment> = steered
+        .get("images")
+        .and_then(|i| serde_json::from_value(i.clone()).ok())
+        .unwrap_or_default();
+    steer_log_line(text, &images)
+}
+
 async fn claude_usage_capture_mode(db: &Db, claude_account_id: Option<&str>) -> &'static str {
     match crate::commands::stats::budget_status_for(db, "claude", claude_account_id).await {
         Ok(status) if status.source == "plan" && (status.is_warning || status.is_over) => "warning",
@@ -1412,8 +1423,11 @@ pub async fn steer_run(
     registry: State<'_, RunRegistry>,
     payload: SendUserMessagePayload,
 ) -> Result<(), String> {
+    steer_run_inner(db.inner(), registry.inner(), payload).await
+}
+
+async fn steer_run_inner(db: &Db, registry: &RunRegistry, payload: SendUserMessagePayload) -> Result<(), String> {
     use sqlx::Row;
-    let db = db.inner();
     crate::features::require(db, STEER_FEATURE).await?;
     // It extends a turn that consumes tokens: same guardrail as a follow-up.
     let run_meta = sqlx::query("SELECT engine, claude_account_id FROM runs WHERE id = ?")
@@ -1433,15 +1447,9 @@ pub async fn steer_run(
         "{}\n",
         serde_json::json!({ "type": "steer", "text": text, "images": images_payload(&payload.images) })
     );
-    let log_buf = {
-        let reg = registry.lock().await;
-        let handle = reg
-            .get(&payload.run_id)
-            .ok_or_else(|| "run not active".to_string())?;
-        handle.log_buf.clone()
-    };
-    write_run_stdin(registry.inner(), &payload.run_id, &send_line, "run does not accept steering").await?;
-    log_buf.lock().await.push_str(&steer_log_line(text, &payload.images));
+    // Not logged here: the engine may still refuse it. The drain logs it on the
+    // sidecar's `_puppeteer_steered` ([`steered_log_line`]).
+    write_run_stdin(registry, &payload.run_id, &send_line, "run does not accept steering").await?;
     let _ = sqlx::query("UPDATE runs SET last_activity_at = ? WHERE id = ?")
         .bind(chrono::Utc::now().to_rfc3339())
         .bind(&payload.run_id)
@@ -4974,6 +4982,17 @@ mod prompt_log_tests {
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v, serde_json::json!({ "type": "user", "message": { "role": "user", "content": "use tabs" }, "steer": true }));
     }
+
+    #[test]
+    fn a_steer_the_engine_took_is_logged_from_its_echo() {
+        let img = serde_json::json!({ "media_type": "image/png", "data": "AAAA" });
+        let echo = serde_json::json!({ "type": "_puppeteer_steered", "text": "use tabs", "images": [img] });
+        let images = vec![ImageAttachment { media_type: "image/png".into(), data: "AAAA".into() }];
+        assert_eq!(steered_log_line(&echo), steer_log_line("use tabs", &images));
+        // A sidecar handed no `images` echoes none (undefined is dropped from the JSON).
+        let text_only = serde_json::json!({ "type": "_puppeteer_steered", "text": "use tabs" });
+        assert_eq!(steered_log_line(&text_only), steer_log_line("use tabs", &[]));
+    }
 }
 
 // The stand-in sidecar is `cat`, which Windows does not ship.
@@ -5044,6 +5063,18 @@ mod turn_gate_tests {
         let buf = registry.lock().await.get("r1").unwrap().log_buf.clone();
         let log = buf.lock().await.clone();
         log
+    }
+
+    // The sidecar decides whether a steer lands (Codex refuses one with no turn
+    // to steer), so handing it over logs nothing yet: the drain logs it when the
+    // sidecar reports `_puppeteer_steered`.
+    #[tokio::test]
+    async fn a_steer_reaches_the_engine_but_is_not_logged_until_it_takes_it() {
+        let (db, registry, mut out) = running(true).await;
+        steer_run_inner(&db, &registry, follow_up("use tabs")).await.unwrap();
+        let sent = next_line(&mut out).await.expect("the steer reached the engine");
+        assert_eq!((sent["type"].as_str(), sent["text"].as_str()), (Some("steer"), Some("use tabs")));
+        assert!(log_of(&registry).await.is_empty());
     }
 
     #[tokio::test]

@@ -36,6 +36,7 @@
 //   { "type": "_puppeteer_permission_cancelled", requestId, level, text }
 //                                      // a request settled here (CLI cancelled
 //                                      // it, or no answer can arrive any more)
+//   { "type": "_puppeteer_steered", text, images }  // a steer reached the SDK
 //
 // Control messages are namespaced with a `_puppeteer_` prefix so they never collide
 // with real stream-json message types.
@@ -666,10 +667,12 @@ rl.on('line', (raw) => {
       break
     // Steer: a message for the turn in flight. Priority `next` has the CLI fold
     // it into the running turn between tool calls instead of queueing a new
-    // turn; a turn that has just ended takes it as the next prompt.
+    // turn; a turn that has just ended takes it as the next prompt. Reported
+    // back once handed over: the broker logs a steer only when one landed.
     case 'steer':
       if (started && inputQueue) {
         inputQueue.push({ ...userMessage(cmd.text ?? '', cmd.images), priority: 'next' })
+        send({ type: '_puppeteer_steered', text: cmd.text ?? '', images: cmd.images })
       } else {
         send({ type: '_puppeteer_log', level: 'warn', text: '⚠ Steer not applied: no turn is running.' })
       }
