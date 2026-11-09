@@ -10,6 +10,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { gapi } from '../google.mjs';
+import { confinePath } from './local-path.mjs';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const enc = encodeURIComponent;
@@ -259,13 +260,14 @@ export const tools = {
       type: 'object',
       properties: {
         message_id: { type: 'string' },
-        dest_path: { type: 'string', description: 'Absolute local path to write' },
+        dest_path: { type: 'string', description: 'Absolute local path to write, inside the project or ~/Downloads' },
         attachment_id: { type: 'string', description: 'From mail_list_attachments; most precise' },
         filename_contains: { type: 'string', description: 'Case-insensitive substring of the attachment filename' },
       },
       required: ['message_id', 'dest_path'],
     },
     handler: async (a) => {
+      const dest = await confinePath(a.dest_path);
       const all = collectAttachments((await gapi(`${BASE}/messages/${a.message_id}?format=full`)).payload);
       let matches = all;
       if (a.attachment_id) {
@@ -284,8 +286,8 @@ export const tools = {
       }
       const att = matches[0];
       const buf = await attachmentBuffer(a.message_id, att);
-      await mkdir(dirname(a.dest_path), { recursive: true });
-      await writeFile(a.dest_path, buf);
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, buf);
       return `Downloaded ${att.filename} (${att.mimeType}, ${buf.length} bytes) → ${a.dest_path}`;
     },
   },
@@ -296,7 +298,7 @@ export const tools = {
       type: 'object',
       properties: {
         message_id: { type: 'string' },
-        dest_dir: { type: 'string', description: 'Absolute local directory; created if missing' },
+        dest_dir: { type: 'string', description: 'Absolute local directory inside the project or ~/Downloads; created if missing' },
         mime_prefix: { type: 'string', description: 'Only parts whose mimeType starts with this, e.g. "image/"' },
         filename_contains: { type: 'string' },
         skip_inline: { type: 'boolean', description: 'Skip inline images (signature logos and the like)' },
@@ -304,13 +306,14 @@ export const tools = {
       required: ['message_id', 'dest_dir'],
     },
     handler: async (a) => {
+      const dir = await confinePath(a.dest_dir);
       const atts = await loadAttachments(a);
       if (!atts.length) return 'No attachments matched — nothing downloaded.';
-      await mkdir(a.dest_dir, { recursive: true });
+      await mkdir(dir, { recursive: true });
       const used = new Set();
       const lines = [];
       for (const att of atts) {
-        const dest = uniquePath(a.dest_dir, safeName(att.filename), used);
+        const dest = uniquePath(dir, safeName(att.filename), used);
         // Sequential: a mail with many parts would otherwise burst the Gmail API.
         const buf = await attachmentBuffer(a.message_id, att);
         await writeFile(dest, buf);

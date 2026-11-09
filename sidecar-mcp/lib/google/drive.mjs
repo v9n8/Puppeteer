@@ -10,6 +10,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { gapi } from '../google.mjs';
+import { confinePath } from './local-path.mjs';
 
 const BASE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -138,11 +139,12 @@ export const tools = {
       type: 'object',
       properties: {
         file_id: { type: 'string' },
-        dest_path: { type: 'string', description: 'Absolute local path to write' },
+        dest_path: { type: 'string', description: 'Absolute local path to write, inside the project or ~/Downloads' },
       },
       required: ['file_id', 'dest_path'],
     },
     handler: async (a) => {
+      const dest = await confinePath(a.dest_path);
       const meta = await gapi(`${BASE}/files/${a.file_id}?fields=id,name,mimeType&${SHARED}`);
       let res;
       if (meta.mimeType && meta.mimeType.startsWith('application/vnd.google-apps')) {
@@ -152,7 +154,7 @@ export const tools = {
         res = await gapi(`${BASE}/files/${a.file_id}?alt=media&${SHARED}`, { raw: true });
       }
       const buf = Buffer.from(await res.arrayBuffer());
-      await writeFile(a.dest_path, buf);
+      await writeFile(dest, buf);
       return `Downloaded ${meta.name} (${buf.length} bytes) → ${a.dest_path}`;
     },
   },
@@ -213,7 +215,7 @@ export const tools = {
     inputSchema: {
       type: 'object',
       properties: {
-        local_path: { type: 'string', description: 'Absolute local path to upload' },
+        local_path: { type: 'string', description: 'Absolute local path to upload, inside the project or ~/Downloads' },
         name: { type: 'string', description: 'Defaults to the local filename' },
         mime_type: { type: 'string', description: 'Defaults to application/octet-stream' },
         parent_id: { type: 'string' },
@@ -221,7 +223,7 @@ export const tools = {
       required: ['local_path'],
     },
     handler: async (a) => {
-      const data = await readFile(a.local_path);
+      const data = await readFile(await confinePath(a.local_path));
       const name = a.name || basename(a.local_path);
       const mime = a.mime_type || 'application/octet-stream';
       const boundary = `puppeteer${process.pid}${Date.now()}`;
