@@ -12,7 +12,7 @@
 //! audited exactly once; writes are answered with a `command_ack`.
 
 use crate::commands::project_git_accounts::{self as git_accounts, Provider};
-use crate::commands::{claude_accounts, mcp, notes, projects, rules, settings, todos, vps_servers};
+use crate::commands::{claude_accounts, mcp, notes, projects, rules, todos, vps_servers};
 use crate::db::Db;
 use crate::item_links::{self, ItemKind};
 use crate::remote::command::RejectReason;
@@ -40,9 +40,6 @@ pub const MAX_QUERY: usize = 200;
 pub const TODO_PATCH_KEYS: [&str; 3] = ["text", "due_date", "project_id"];
 /// Keys a `note_update` patch may carry.
 pub const NOTE_PATCH_KEYS: [&str; 3] = ["title", "content", "project_id"];
-
-/// The settings key behind the built-in `puppeteer` MCP switch (app-wide).
-const BUILTIN_PUPPETEER_KEY: &str = "mcp_builtin_puppeteer_enabled";
 
 // ---- Pure validation ---------------------------------------------------------
 
@@ -164,7 +161,7 @@ pub enum ToggleKind {
     Skill,
     Rule,
     Mcp,
-    /// The built-in `puppeteer` MCP server (an app-wide setting today).
+    /// The built-in `puppeteer` MCP server, for this project only.
     BuiltinMcp,
     /// A VPS server.
     Server,
@@ -330,8 +327,8 @@ pub async fn project_toggles(db: &Db, project_id: &str) -> Result<StreamPayload,
         skills,
         rules,
         builtin_puppeteer: BuiltinToggle {
-            enabled: mcp::builtin_puppeteer_enabled(db).await,
-            global: true,
+            enabled: mcp::builtin_mcp_enabled(db, "puppeteer", project_id).await,
+            global: false,
         },
         servers,
         github_accounts: account_rows(db, "github_accounts", "project_github_accounts", project_id).await?,
@@ -632,9 +629,7 @@ async fn toggle_set(ctx: &HandlerCtx, cmd: &CmdPayload) -> DataResult {
     let pid = require_project_id(ctx, cmd).await?;
     let db = &ctx.db;
     let outcome = match kind {
-        ToggleKind::BuiltinMcp => {
-            settings::set_setting(db, BUILTIN_PUPPETEER_KEY, if enabled { "true" } else { "false" }).await
-        }
+        ToggleKind::BuiltinMcp => set_builtin_puppeteer(db, &pid, enabled).await,
         ToggleKind::Skill | ToggleKind::Rule | ToggleKind::Mcp => {
             let id = valid_id(cmd.item_id.as_deref())?;
             let table = match kind {
@@ -703,6 +698,13 @@ async fn toggle_set(ctx: &HandlerCtx, cmd: &CmdPayload) -> DataResult {
         return Err(Failure::Failed(e));
     }
     send_toggles(ctx, &pid).await
+}
+
+/// The phone flips the built-in server for its project only. The app-wide
+/// switch is the `library.builtin_mcp_puppeteer` feature prop, which stays
+/// desktop-only (`set_builtin_mcp_enabled` is local-only).
+async fn set_builtin_puppeteer(db: &Db, project_id: &str, enabled: bool) -> Result<(), String> {
+    mcp::set_project_builtin_mcp(db, project_id, "puppeteer", enabled).await
 }
 
 async fn project_claude_account(db: &Db, project_id: &str) -> Option<String> {
@@ -875,6 +877,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn builtin_switch_from_the_phone_stays_in_its_project() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at) \
+             VALUES ('p1', 'a', '/tmp/a', 'c'), ('p2', 'b', '/tmp/b', 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        set_builtin_puppeteer(&db, "p1", false).await.unwrap();
+        let app_wide = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'mcp_builtin_puppeteer_enabled'",
+        )
+        .fetch_optional(&db)
+        .await
+        .unwrap();
+        assert_eq!(app_wide, None, "the phone must never write the app-wide switch");
+        assert!(!mcp::builtin_mcp_enabled(&db, "puppeteer", "p1").await);
+        assert!(mcp::builtin_mcp_enabled(&db, "puppeteer", "p2").await, "other projects keep it");
+
+        let state = |pid: &'static str| {
+            let db = db.clone();
+            async move { serde_json::to_value(project_toggles(&db, pid).await.unwrap()).unwrap() }
+        };
+        assert_eq!(state("p1").await["builtin_puppeteer"], json!({ "enabled": false, "global": false }));
+        assert_eq!(state("p2").await["builtin_puppeteer"], json!({ "enabled": true, "global": false }));
+
+        set_builtin_puppeteer(&db, "p1", true).await.unwrap();
+        assert!(mcp::builtin_mcp_enabled(&db, "puppeteer", "p1").await);
+    }
+
+    #[tokio::test]
     async fn project_toggles_never_carry_server_config_or_secrets() {
         let db = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
@@ -919,7 +959,7 @@ mod tests {
         ]));
         assert_eq!(v["skills"], json!([{ "id": "s1", "name": "git-flow", "enabled": false }]));
         assert_eq!(v["rules"], json!([{ "id": "r1", "name": "git-rule", "enabled": false }]));
-        assert_eq!(v["builtin_puppeteer"], json!({ "enabled": false, "global": true }));
+        assert_eq!(v["builtin_puppeteer"], json!({ "enabled": false, "global": false }));
         assert_eq!(v["servers"], json!([{ "id": "v1", "name": "prod", "enabled": true }]));
         assert_eq!(v["github_accounts"], json!([{ "id": "g1", "name": "work", "enabled": true }]));
         assert_eq!(v["gitlab_accounts"], json!([]));

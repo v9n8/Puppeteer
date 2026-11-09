@@ -1357,11 +1357,6 @@ pub async fn builtin_mcp_globally_enabled(db: &Db, name: &str) -> bool {
     !matches!(v.as_deref(), Some("false"))
 }
 
-/// Whether the built-in `puppeteer` MCP server is on app-wide.
-pub async fn builtin_puppeteer_enabled(db: &Db) -> bool {
-    builtin_mcp_globally_enabled(db, "puppeteer").await
-}
-
 pub async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str) -> bool {
     sqlx::query_scalar::<_, i64>(
         "SELECT 1 FROM project_builtin_mcp_disabled WHERE project_id = ? AND name = ?",
