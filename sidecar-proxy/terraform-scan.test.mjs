@@ -52,7 +52,8 @@ test('local module with local-exec → detected (incl. ../ sources and cycles)',
   })
   const r = scanTerraformExternalCode(path.join(root, 'env'))
   assert.equal(r.detected, true)
-  assert.deepEqual(r.hits, ['../modules/net/null.tf:local-exec'])
+  // Hits are `path.relative` labels, so they use the OS separator (`\` on Windows).
+  assert.deepEqual(r.hits, [`${path.join('..', 'modules', 'net', 'null.tf')}:local-exec`])
 })
 
 test('downloaded modules under .terraform/modules are scanned', () => {
@@ -62,14 +63,16 @@ test('downloaded modules under .terraform/modules are scanned', () => {
   })
   const r = scanTerraformExternalCode(root)
   assert.equal(r.detected, true)
-  assert.deepEqual(r.hits, ['.terraform/modules/x/sub/run.tf:data.external'])
+  assert.deepEqual(r.hits, [`${path.join('.terraform', 'modules', 'x', 'sub', 'run.tf')}:data.external`])
 })
 
 test('-chdir handling', () => {
-  assert.equal(terraformWorkDir(['-chdir=envs/dev', 'plan'], '/repo'), '/repo/envs/dev')
-  assert.equal(terraformWorkDir(['-chdir=/abs', 'plan'], '/repo'), '/abs')
-  assert.equal(terraformWorkDir(['plan', '-chdir=ignored'], '/repo'), '/repo')
-  assert.equal(terraformWorkDir([], '/repo'), '/repo')
+  // `path.resolve` adds the current drive on Windows (`/repo` → `D:\repo`).
+  const repo = path.resolve('/repo')
+  assert.equal(terraformWorkDir(['-chdir=envs/dev', 'plan'], '/repo'), path.join(repo, 'envs', 'dev'))
+  assert.equal(terraformWorkDir(['-chdir=/abs', 'plan'], '/repo'), path.resolve('/abs'))
+  assert.equal(terraformWorkDir(['plan', '-chdir=ignored'], '/repo'), repo)
+  assert.equal(terraformWorkDir([], '/repo'), repo)
   const root = fixture({ 'envs/dev/main.tf': 'data "external" "x" { program = ["id"] }\n' })
   const r = scanTerraformExternalCode(terraformWorkDir(['-chdir=envs/dev', 'plan'], root))
   assert.equal(r.detected, true)

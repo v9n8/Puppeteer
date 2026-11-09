@@ -21,6 +21,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 // `@intlify/message-compiler` is vue-i18n's own dependency, not ours, and pnpm's
 // strict layout hides it from this script. Resolve it the way vue-i18n would, so
@@ -35,7 +36,9 @@ const CODE_NAMES = Object.fromEntries(
   Object.entries(CompileErrorCodes).map(([name, code]) => [code, name]),
 )
 
-const LOCALES_DIR = new URL('../src/i18n/locales/', import.meta.url).pathname
+// `URL.pathname` is `/D:/…` on Windows (and keeps %-escapes); fileURLToPath
+// gives a real filesystem path on every OS.
+const LOCALES_DIR = fileURLToPath(new URL('../src/i18n/locales/', import.meta.url))
 
 /** Walk a message tree, yielding `[dottedKey, message]` for every string leaf. */
 function* leaves(node, prefix = '') {
