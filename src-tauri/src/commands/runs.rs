@@ -308,8 +308,13 @@ pub(crate) async fn start_run_inner(
     // every start path (desktop, Remote Control, rerun/handoff) is covered.
     let conductor_launch = match app.try_state::<crate::conductor::ConductorState>() {
         Some(cst) => {
-            crate::conductor::commands::ensure_conductor_launch(db, cst.inner(), &payload.run_id)
-                .await?
+            let launch =
+                crate::conductor::commands::ensure_conductor_launch(db, cst.inner(), &payload.run_id)
+                    .await?;
+            if launch.is_some() {
+                cst.set_permission_mode(&payload.run_id, &permission_mode);
+            }
+            launch
         }
         None => None,
     };
@@ -3933,6 +3938,9 @@ pub(crate) async fn resume_run_with(
                 "default".to_string()
             }
         });
+    if let (Some(cst), Some(_)) = (&cst, &conductor_launch) {
+        cst.set_permission_mode(&run_id, &permission_mode);
+    }
 
     // A worker resumes in its worktree (restored if the startup sweep removed
     // it): Claude finds the transcript by that folder.

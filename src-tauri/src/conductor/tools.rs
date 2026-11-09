@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 use super::mcp_http::HttpState;
+use super::ConductorState;
 use crate::commands::runs::{start_run_inner, StartRunPayload};
 use crate::db::Db;
 use crate::runs::RunRegistry;
@@ -109,11 +110,6 @@ async fn session_spawn(
     conductor_run_id: &str,
     args: Value,
 ) -> Result<Value, String> {
-    let session = state
-        .conductor
-        .session(conductor_run_id)
-        .ok_or_else(|| "unknown session".to_string())?;
-
     let prompt = arg_str(&args, "prompt")
         .ok_or_else(|| "`prompt` is required".to_string())?;
     let role_label = arg_str(&args, "role_label").unwrap_or_else(|| "worker".to_string());
@@ -123,8 +119,6 @@ async fn session_spawn(
     // it when it belongs to the other engine, so a cross-engine spawn falls back to
     // that engine's global default instead of leaking the conductor's model.
     let model = arg_str(&args, "model");
-    // No override => worker uses the project's default permission mode, exactly
-    // like a normal session; its prompts surface in the standard drawer.
     let permission_mode = arg_str(&args, "permission_mode");
 
     let db = db(state);
@@ -135,36 +129,17 @@ async fn session_spawn(
 
     // Held until the worker is running, so parallel spawns see each other.
     let _start_guard = state.conductor.lock_worker_start().await;
-    let running = count_running_workers(&db, conductor_run_id).await?;
-
-    let worker_id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
     let title = truncate(&format!("[{}] {}", role_label, prompt), 80);
-
-    sqlx::query(
-        "INSERT INTO runs (id, project_id, type, status, engine, created_at, title, role, conductor_run_id, system_instruction)
-         VALUES (?, ?, 'session', 'fetched', ?, ?, ?, 'worker', ?, ?)",
+    let (worker_id, permission_mode) = reserve_worker(
+        &db,
+        &state.conductor,
+        conductor_run_id,
+        &engine,
+        &title,
+        instruction.as_deref(),
+        permission_mode.as_deref(),
     )
-    .bind(&worker_id)
-    .bind(&session.project_id)
-    .bind(&engine)
-    .bind(&now)
-    .bind(&title)
-    .bind(conductor_run_id)
-    // Persisted so a resume (session_send to a stopped worker) re-applies it.
-    .bind(&instruction)
-    .execute(&db)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    // Reserve the worker slot (enforces the per-conductor concurrency cap).
-    if !state.conductor.add_worker(conductor_run_id, &worker_id, running) {
-        let _ = sqlx::query("DELETE FROM runs WHERE id = ?")
-            .bind(&worker_id)
-            .execute(&db)
-            .await;
-        return Err(cap_reached(session.max_workers));
-    }
+    .await?;
 
     let branch = match super::worktree::assign(&db, &super::worktree::root(), &worker_id).await {
         Ok(worktree) => worktree.map(|_| super::worktree::branch_for(&worker_id)),
@@ -181,7 +156,7 @@ async fn session_spawn(
     let payload = StartRunPayload {
         run_id: worker_id.clone(),
         engine_override: Some(engine.clone()),
-        permission_mode_override: permission_mode,
+        permission_mode_override: Some(permission_mode),
         prompt_override: Some(prompt.clone()),
         model_override: model,
         images: Vec::new(),
@@ -201,6 +176,127 @@ async fn session_spawn(
     .await;
 
     Ok(json!({ "worker_id": worker_id, "role_label": role_label, "status": "running", "branch": branch }))
+}
+
+/// Create a worker's run row and take its slot under the conductor's cap.
+/// Returns the worker id and the permission mode it starts with. Nothing is
+/// written when a check fails.
+async fn reserve_worker(
+    db: &Db,
+    conductor: &ConductorState,
+    conductor_run_id: &str,
+    engine: &str,
+    title: &str,
+    instruction: Option<&str>,
+    permission_mode: Option<&str>,
+) -> Result<(String, String), String> {
+    let session = conductor
+        .session(conductor_run_id)
+        .ok_or_else(|| "unknown session".to_string())?;
+    let permission_mode =
+        worker_permission_mode(db, conductor, conductor_run_id, permission_mode, engine).await?;
+    let running = count_running_workers(db, conductor_run_id).await?;
+
+    let worker_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO runs (id, project_id, type, status, engine, created_at, title, role, conductor_run_id, system_instruction)
+         VALUES (?, ?, 'session', 'fetched', ?, ?, ?, 'worker', ?, ?)",
+    )
+    .bind(&worker_id)
+    .bind(&session.project_id)
+    .bind(engine)
+    .bind(&now)
+    .bind(title)
+    .bind(conductor_run_id)
+    // Persisted so a resume (session_send to a stopped worker) re-applies it.
+    .bind(instruction)
+    .execute(db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // Reserve the worker slot (enforces the per-conductor concurrency cap).
+    if !conductor.add_worker(conductor_run_id, &worker_id, running) {
+        let _ = sqlx::query("DELETE FROM runs WHERE id = ?")
+            .bind(&worker_id)
+            .execute(db)
+            .await;
+        return Err(cap_reached(session.max_workers));
+    }
+    Ok((worker_id, permission_mode))
+}
+
+/// The permission mode a worker runs with: the requested one, else the
+/// `default_permission_mode` setting lowered to fit. A worker never gets more
+/// than its conductor's live mode allows: the conductor's own tools run without
+/// a prompt, so a looser worker would let it (or a prompt injection) skip every
+/// prompt the user is relying on.
+async fn worker_permission_mode(
+    db: &Db,
+    conductor: &ConductorState,
+    conductor_run_id: &str,
+    requested: Option<&str>,
+    worker_engine: &str,
+) -> Result<String, String> {
+    let own = conductor
+        .session(conductor_run_id)
+        .and_then(|s| s.permission_mode)
+        .ok_or_else(|| {
+            "this session's permission mode is unknown; resume it before spawning workers".to_string()
+        })?;
+    let own_engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
+        .bind(conductor_run_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let ceiling = permission_rank(&own, &own_engine).unwrap_or(0);
+
+    if let Some(mode) = requested {
+        let rank = permission_rank(mode, worker_engine)
+            .ok_or_else(|| format!("unknown permission_mode '{mode}'"))?;
+        if rank > ceiling {
+            return Err(format!(
+                "permission_mode '{mode}' would give the worker more than this session's own mode '{own}' allows; use '{own}' or a stricter mode, or omit it"
+            ));
+        }
+        return Ok(mode.to_string());
+    }
+    // An unknown setting starts as `default`, as in `start_run_inner`.
+    let setting = Some(default_permission_mode(db).await)
+        .filter(|m| permission_rank(m, worker_engine).is_some())
+        .unwrap_or_else(|| "default".to_string());
+    let mode = [setting.as_str(), "acceptEdits", "default", "plan"]
+        .into_iter()
+        .find(|m| permission_rank(m, worker_engine).is_some_and(|r| r <= ceiling))
+        .unwrap_or("plan")
+        .to_string();
+    Ok(mode)
+}
+
+/// How much a mode lets a run do without asking, as each engine applies it:
+/// Claude runs `auto`/`dontAsk` as `default` (`runs::sidecar::sdk_permission_mode`),
+/// Codex runs them with the `acceptEdits` policy (`policyFor` in
+/// sidecar-codex). Any engine but `claude` launches the Codex sidecar. `None`
+/// for a mode no engine knows.
+fn permission_rank(mode: &str, engine: &str) -> Option<u8> {
+    match mode {
+        "plan" => Some(0),
+        "default" => Some(1),
+        "auto" | "dontAsk" if engine == "claude" => Some(1),
+        "auto" | "dontAsk" | "acceptEdits" => Some(2),
+        "bypassPermissions" => Some(3),
+        _ => None,
+    }
+}
+
+async fn default_permission_mode(db: &Db) -> String {
+    sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'default_permission_mode'")
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default".to_string())
 }
 
 async fn session_list(state: &HttpState, conductor_run_id: &str) -> Result<Value, String> {
@@ -412,12 +508,21 @@ async fn session_send(
         if count_running_workers(&db, conductor_run_id).await? >= max_workers {
             return Err(cap_reached(max_workers));
         }
+        // A resume would otherwise fall back to the global default mode, which
+        // may be looser than the conductor's.
+        let engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
+            .bind(&worker_id)
+            .fetch_one(&db)
+            .await
+            .map_err(|e| e.to_string())?;
+        let permission_mode =
+            worker_permission_mode(&db, &state.conductor, conductor_run_id, None, &engine).await?;
         crate::commands::runs::resume_run_with(
             state.app.clone(),
             state.app.state::<Db>(),
             state.app.state::<RunRegistry>(),
             worker_id.clone(),
-            None,
+            Some(permission_mode),
             None,
             Some(false),
             false,
@@ -752,5 +857,104 @@ fn truncate(s: &str, max: usize) -> String {
         format!("{}…", t)
     } else {
         t
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    /// A conductor `c` on `engine`, launched in `mode`.
+    async fn setup(engine: &str, mode: &str) -> (Db, ConductorState) {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'proj', '/tmp/p1', '2026-01-01')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, role)
+             VALUES ('c', 'p1', 'session', 'running', ?, '2026-01-01', 'conductor')",
+        )
+        .bind(engine)
+        .execute(&db)
+        .await
+        .unwrap();
+        let cst = ConductorState::new();
+        cst.register_session("c", "p1", 5);
+        cst.set_permission_mode("c", mode);
+        (db, cst)
+    }
+
+    async fn workers(db: &Db) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM runs WHERE conductor_run_id = 'c'")
+            .fetch_one(db)
+            .await
+            .unwrap()
+    }
+
+    async fn spawn(db: &Db, cst: &ConductorState, engine: &str, mode: Option<&str>) -> Result<String, String> {
+        reserve_worker(db, cst, "c", engine, "[w] task", None, mode)
+            .await
+            .map(|(_, mode)| mode)
+    }
+
+    #[tokio::test]
+    async fn a_worker_never_gets_more_than_its_conductor() {
+        let (db, cst) = setup("claude", "default").await;
+        let err = spawn(&db, &cst, "claude", Some("bypassPermissions")).await.unwrap_err();
+        assert!(err.contains("bypassPermissions") && err.contains("default"), "{err}");
+        assert_eq!(workers(&db).await, 0, "a refused spawn creates no run");
+
+        let (db, cst) = setup("claude", "plan").await;
+        assert!(spawn(&db, &cst, "claude", Some("acceptEdits")).await.is_err());
+        assert_eq!(workers(&db).await, 0);
+        assert_eq!(spawn(&db, &cst, "claude", Some("plan")).await.as_deref(), Ok("plan"));
+
+        let (db, cst) = setup("claude", "bypassPermissions").await;
+        assert_eq!(
+            spawn(&db, &cst, "claude", Some("bypassPermissions")).await.as_deref(),
+            Ok("bypassPermissions")
+        );
+        assert_eq!(workers(&db).await, 1);
+    }
+
+    #[tokio::test]
+    async fn the_default_mode_is_lowered_to_the_conductors() {
+        let (db, cst) = setup("claude", "default").await;
+        crate::commands::settings::set_setting(&db, "default_permission_mode", "bypassPermissions")
+            .await
+            .unwrap();
+        assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("default"));
+        assert_eq!(spawn(&db, &cst, "codex", None).await.as_deref(), Ok("default"));
+
+        let (db, cst) = setup("claude", "acceptEdits").await;
+        crate::commands::settings::set_setting(&db, "default_permission_mode", "bypassPermissions")
+            .await
+            .unwrap();
+        assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("acceptEdits"));
+        crate::commands::settings::set_setting(&db, "default_permission_mode", "plan")
+            .await
+            .unwrap();
+        assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("plan"));
+    }
+
+    #[tokio::test]
+    async fn auto_and_dont_ask_are_ranked_as_each_engine_runs_them() {
+        // Codex runs `dontAsk` with the `acceptEdits` policy; Claude runs it as `default`.
+        let (db, cst) = setup("claude", "default").await;
+        assert!(spawn(&db, &cst, "codex", Some("dontAsk")).await.is_err());
+        assert_eq!(spawn(&db, &cst, "claude", Some("dontAsk")).await.as_deref(), Ok("dontAsk"));
+        assert!(spawn(&db, &cst, "claude", Some("nope")).await.is_err());
+
+        let (db, cst) = setup("codex", "auto").await;
+        assert_eq!(spawn(&db, &cst, "codex", Some("auto")).await.as_deref(), Ok("auto"));
+        assert_eq!(spawn(&db, &cst, "claude", Some("acceptEdits")).await.as_deref(), Ok("acceptEdits"));
+        assert!(spawn(&db, &cst, "claude", Some("bypassPermissions")).await.is_err());
     }
 }

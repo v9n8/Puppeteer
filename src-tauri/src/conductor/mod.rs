@@ -196,6 +196,9 @@ pub struct ConductorSession {
     pub token: String,
     pub worker_ids: Vec<String>,
     pub max_workers: usize,
+    /// The permission mode its sidecar was last launched with (start or
+    /// resume); `None` until then. Caps the workers it may spawn.
+    pub permission_mode: Option<String>,
 }
 
 struct Inner {
@@ -300,6 +303,7 @@ impl ConductorState {
                     token: token.clone(),
                     worker_ids: Vec::new(),
                     max_workers,
+                    permission_mode: None,
                 },
             );
         }
@@ -350,6 +354,15 @@ impl ConductorState {
             }
         }
         false
+    }
+
+    /// Record the permission mode a conductor's sidecar was just launched with.
+    pub fn set_permission_mode(&self, conductor_run_id: &str, mode: &str) {
+        if let Ok(mut g) = self.inner.lock() {
+            if let Some(s) = g.sessions.get_mut(conductor_run_id) {
+                s.permission_mode = Some(mode.to_string());
+            }
+        }
     }
 
     /// Install the finished-run channel sender (called once when the MCP server's
@@ -467,6 +480,7 @@ impl ConductorState {
                     token: token.clone(),
                     worker_ids,
                     max_workers,
+                    permission_mode: None,
                 },
             );
         }
