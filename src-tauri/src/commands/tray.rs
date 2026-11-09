@@ -1,9 +1,19 @@
-//! macOS menu-bar (system tray) icon with a quick window + session switcher.
+//! System tray icon with a quick window + session switcher: the menu-bar extra on
+//! macOS, the notification-area icon on Windows, an AppIndicator / StatusNotifier
+//! item on Linux.
 //!
 //! Clicking the tray icon drops a menu with two sections: every open window (jump
 //! straight to a pop-out or back to the main window without hunting through
 //! Mission Control) and every running session (open it where it lives — its own
 //! pop-out if it has one, otherwise the main window).
+//!
+//! Per OS (Tauri v2 `TrayIconBuilder` / `TrayIcon` docs):
+//! - macOS: monochrome template glyph, menu on any click, running count beside it.
+//! - Windows: colored app icon, left click raises the main window and right click
+//!   opens the menu (the notification-area convention). No title text there.
+//! - Linux: colored app icon. The indicator host opens the menu itself and Tauri
+//!   gets no click events, so the menu (which lists the main window) is the only
+//!   way in; `show_menu_on_left_click` and the tooltip are ignored.
 //!
 //! Same split as the app menu (`app_menu.rs`): the menu's *contents* are described
 //! by the frontend and sent down via `set_tray_menu`, so labels follow the app
@@ -27,12 +37,19 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, Submenu, SubmenuBuilder};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 /// Monochrome menu-bar glyph (`</>`), black + alpha so macOS can tint it as a
 /// template image — it turns white on a dark menu bar, black on a light one.
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../../icons/tray-template.png");
+/// Only macOS tints template images. Windows and Linux would draw the glyph as
+/// plain black, which vanishes on a dark taskbar or panel, so they use the
+/// colored app icon instead.
+const USE_TEMPLATE_ICON: bool = cfg!(target_os = "macos");
+/// Windows opens the menu on right click and leaves left click to the app. Linux
+/// ignores this setting (the indicator host decides).
+const MENU_ON_LEFT_CLICK: bool = !cfg!(windows);
 
 /// Stable id so `set_tray_menu` can find the tray built at startup.
 pub const TRAY_ID: &str = "puppeteer-tray";
@@ -114,7 +131,8 @@ pub struct TraySpec {
     /// Localized label for the Quit row. Absent → keep the cached one.
     #[serde(default, rename = "quitLabel")]
     quit_label: Option<String>,
-    /// Text shown next to the menu-bar glyph (macOS) — the count of running
+    /// Text shown next to the tray glyph (macOS; the indicator label on Linux;
+    /// Windows has no tray title and ignores it) — the count of running
     /// sessions, including ones not popped out into their own window. Only the
     /// main window sends this; other windows omit it so they don't clobber the
     /// count. The double Option lets serde tell "key absent" (outer `None` →
@@ -251,6 +269,32 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEvent) 
     // Anything else is an app-menu id; app_menu::on_menu_event owns it.
 }
 
+/// Whether a click on the icon itself should raise the main window: a left click
+/// on Windows, where the menu sits on the right button. Never on macOS (the
+/// left click opens the menu) or Linux (no click events reach the app).
+fn left_click_opens_main(button: MouseButton, state: MouseButtonState) -> bool {
+    !MENU_ON_LEFT_CLICK && button == MouseButton::Left && state == MouseButtonState::Up
+}
+
+fn on_tray_icon_event<R: Runtime>(tray: &tauri::tray::TrayIcon<R>, event: TrayIconEvent) {
+    let TrayIconEvent::Click {
+        button,
+        button_state,
+        ..
+    } = event
+    else {
+        return;
+    };
+    if !left_click_opens_main(button, button_state) {
+        return;
+    }
+    if let Some(win) = tray.app_handle().get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
 /// The cached open-window section, for the app menu's Window submenu.
 pub fn cached_windows<R: Runtime>(app: &AppHandle<R>) -> Vec<TrayItem> {
     app.try_state::<TrayState>()
@@ -271,17 +315,26 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Puppeteer")
         .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(on_menu_event);
+        .show_menu_on_left_click(MENU_ON_LEFT_CLICK)
+        .on_menu_event(on_menu_event)
+        .on_tray_icon_event(on_tray_icon_event);
 
-    // Prefer the monochrome template glyph; fall back to the colored app icon if
-    // it somehow fails to decode, so the tray still appears.
-    match Image::from_bytes(TRAY_ICON_PNG) {
-        Ok(icon) => {
+    // macOS: the monochrome template glyph. Elsewhere — or if the glyph somehow
+    // fails to decode — the colored app icon (Tauri's default window icon:
+    // `icon.ico` on Windows, the first bundle PNG on Linux), so the tray still
+    // appears.
+    let template = if USE_TEMPLATE_ICON {
+        Image::from_bytes(TRAY_ICON_PNG)
+            .inspect_err(|e| tracing::warn!(event = "tray_icon_decode_failed", error = %e))
+            .ok()
+    } else {
+        None
+    };
+    match template {
+        Some(icon) => {
             builder = builder.icon(icon).icon_as_template(true);
         }
-        Err(e) => {
-            tracing::warn!(event = "tray_icon_decode_failed", error = %e);
+        None => {
             if let Some(icon) = app.default_window_icon() {
                 builder = builder.icon(icon.clone());
             }
@@ -335,4 +388,35 @@ pub fn set_tray_menu<R: Runtime>(app: AppHandle<R>, spec: TraySpec) -> Result<()
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_windows_raises_main_on_left_click() {
+        assert_eq!(
+            left_click_opens_main(MouseButton::Left, MouseButtonState::Up),
+            cfg!(windows)
+        );
+        // The press half of the click, and the other buttons, never do: the
+        // right button opens the menu on Windows.
+        for (button, state) in [
+            (MouseButton::Left, MouseButtonState::Down),
+            (MouseButton::Right, MouseButtonState::Up),
+            (MouseButton::Middle, MouseButtonState::Up),
+        ] {
+            assert!(!left_click_opens_main(button, state));
+        }
+    }
+
+    #[test]
+    fn template_glyph_and_left_click_menu_only_where_they_apply() {
+        assert_eq!(USE_TEMPLATE_ICON, cfg!(target_os = "macos"));
+        assert_eq!(MENU_ON_LEFT_CLICK, !cfg!(windows));
+        // macOS relies on the glyph decoding, or it falls back to the colored icon.
+        let glyph = Image::from_bytes(TRAY_ICON_PNG).expect("tray glyph decodes");
+        assert!(glyph.width() > 0 && glyph.height() > 0);
+    }
 }

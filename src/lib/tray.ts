@@ -1,4 +1,5 @@
-// macOS menu-bar (system tray) window + session switcher.
+// System tray window + session switcher (macOS menu bar, Windows notification
+// area, Linux AppIndicator). Per-OS icon and click handling live in Rust.
 //
 // The tray icon is created in Rust (see src-tauri/src/commands/tray.rs); its menu
 // is described here and pushed down via `set_tray_menu`, mirroring how the app

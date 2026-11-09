@@ -449,7 +449,8 @@ pub fn run() {
                 });
             }
 
-            // macOS menu-bar icon: a quick switcher for open windows. The menu
+            // System tray icon (macOS menu bar, Windows notification area, Linux
+            // AppIndicator): a quick switcher for open windows. The menu
             // contents are pushed by the frontend (set_tray_menu); this only
             // installs the icon so it appears immediately at launch.
             if let Err(e) = commands::tray::init(app.handle()) {
