@@ -41,6 +41,22 @@ const SECRET_HOME_DIRS = [
   '.config/glab-cli',
   '.config/gcloud',
   'Library/Keychains',
+  'Library/Application Support/glab-cli',
+  '.local/share/keyrings',
+  '.gnome2/keyrings',
+  '.local/share/kwalletd',
+  'AppData/Roaming/Microsoft/Credentials',
+  'AppData/Local/Microsoft/Credentials',
+  'AppData/Roaming/Microsoft/Vault',
+  'AppData/Local/Microsoft/Vault',
+  'AppData/Roaming/Microsoft/Protect',
+  'AppData/Roaming/Microsoft/Crypto',
+  'AppData/Roaming/Microsoft/SystemCertificates',
+  'AppData/Roaming/GitHub CLI',
+  'AppData/Local/glab-cli',
+  'AppData/Roaming/gcloud',
+  'AppData/Roaming/gnupg',
+  'AppData/Local/gnupg',
 ];
 const APP_ID_PREFIX = 'io.github.v9n8.puppeteer';
 

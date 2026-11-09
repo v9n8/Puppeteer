@@ -238,6 +238,8 @@ pub fn audited_command(name: &str) -> bool {
 // ---- On-disk credentials ----------------------------------------------------
 
 /// Directories under HOME holding credentials (keys, CLI logins, tokens).
+/// Every OS's stores on every OS: a disk of another machine can be mounted
+/// here, and a name that does not exist denies nothing.
 const SECRET_HOME_DIRS: &[&str] = &[
     ".puppeteer",
     ".ssh",
@@ -252,6 +254,29 @@ const SECRET_HOME_DIRS: &[&str] = &[
     ".config/glab-cli",
     ".config/gcloud",
     "Library/Keychains",
+    // macOS: glab's config when the legacy `~/.config/glab-cli` is absent.
+    "Library/Application Support/glab-cli",
+    // Linux: GNOME Keyring (`$XDG_DATA_HOME/keyrings`, before 2012
+    // `~/.gnome2/keyrings`) and KWallet.
+    ".local/share/keyrings",
+    ".gnome2/keyrings",
+    ".local/share/kwalletd",
+    // Windows: Credential Manager / Vault and the DPAPI master keys, user
+    // certificates and private keys that unlock them.
+    "AppData/Roaming/Microsoft/Credentials",
+    "AppData/Local/Microsoft/Credentials",
+    "AppData/Roaming/Microsoft/Vault",
+    "AppData/Local/Microsoft/Vault",
+    "AppData/Roaming/Microsoft/Protect",
+    "AppData/Roaming/Microsoft/Crypto",
+    "AppData/Roaming/Microsoft/SystemCertificates",
+    // Windows: CLI logins kept under AppData instead of `.config` / `~/.gnupg`
+    // (GnuPG: roaming by default, local on some installs).
+    "AppData/Roaming/GitHub CLI",
+    "AppData/Local/glab-cli",
+    "AppData/Roaming/gcloud",
+    "AppData/Roaming/gnupg",
+    "AppData/Local/gnupg",
 ];
 
 /// Readable parts of a [`SECRET_HOME_DIRS`] entry: Codex session transcripts
@@ -277,6 +302,25 @@ const SECRET_HOME_FILE_PREFIXES: &[&str] = &[".claude.json"];
 /// server keys, sandboxed CLI logins) are named after this identifier.
 const APP_ID_PREFIX: &str = "io.github.v9n8.puppeteer";
 
+/// Windows: the webview keeps its data (cookies, storage) in the local app
+/// data dir (`%LOCALAPPDATA%\io.github.v9n8.puppeteer`), not next to the
+/// roaming one Tauri calls app data. Elsewhere both are the same folder.
+#[cfg(windows)]
+const LOCAL_APP_DATA: &str = "AppData/Local";
+
+/// Folders holding every user's home (`/Users`, `C:\Users`; Linux `/home`),
+/// lower-cased.
+#[cfg(target_os = "macos")]
+const HOME_PARENTS: &[&str] = &["users"];
+#[cfg(not(target_os = "macos"))]
+const HOME_PARENTS: &[&str] = &["users", "home"];
+
+/// Where an app's data folder lies in a home: Tauri's data dirs.
+#[cfg(target_os = "macos")]
+const APP_DATA_BASES: &[&str] = &["Library/Application Support"];
+#[cfg(not(target_os = "macos"))]
+const APP_DATA_BASES: &[&str] = &["Library/Application Support", ".local/share", "AppData/Roaming", "AppData/Local"];
+
 /// Readable parts of this app's data dir: Slack thread downloads (previews)
 /// and the log folder (`remote_fs_log_dir`). Never credentials.
 const ALLOWED_APP_DIRS: &[&str] = &["slack-threads", "logs"];
@@ -288,33 +332,81 @@ const BACKUP_SUFFIXES: &[&str] = &[".backupbundle", ".sparsebundle"];
 
 /// macOS: the data volume's firmlink. `/Users/x` and
 /// `/System/Volumes/Data/Users/x` are the same files, and `canonicalize` keeps
-/// whichever form it was given.
+/// whichever form it was given. No path elsewhere starts with it.
 pub const DATA_VOLUME: &str = "/System/Volumes/Data";
 
-/// A file's identity: (device, inode). Matching on it sees through every
-/// alias of a path (firmlinks, hard-linked directories, case, bind mounts).
+/// A file's identity: (device, inode) — on Windows (volume serial, file id).
+/// Matching on it sees through every alias of a path (firmlinks, hard links,
+/// junctions, case, bind mounts).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FileId(u64, u64);
+pub struct FileId(u64, u128);
 
 impl FileId {
-    /// The device the file lives on.
+    /// The device (Windows: volume) the file lives on.
     pub fn dev(&self) -> u64 {
         self.0
     }
 
-    /// `None` when `path` does not exist (or on a platform without inodes).
+    /// `None` when `path` does not exist (or its file system has no ids).
     pub fn of(path: &Path) -> Option<FileId> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            std::fs::metadata(path).ok().map(|m| FileId(m.dev(), m.ino()))
+            std::fs::metadata(path).ok().map(|m| FileId(m.dev(), u128::from(m.ino())))
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            windows_file_id(path)
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = path;
             None
         }
     }
+}
+
+/// `GetFileInformationByHandleEx(FileIdInfo)`: the 128-bit id, as the 64-bit
+/// index of `GetFileInformationByHandle` is not unique on ReFS (Dev Drives).
+/// Declared here because std's `MetadataExt::file_index` is still unstable.
+#[cfg(windows)]
+fn windows_file_id(path: &Path) -> Option<FileId> {
+    use std::ffi::c_void;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+
+    /// `FILE_ID_INFO` (winbase.h).
+    #[repr(C)]
+    struct FileIdInfo {
+        volume_serial_number: u64,
+        file_id: [u8; 16],
+    }
+    /// `FILE_INFO_BY_HANDLE_CLASS::FileIdInfo`.
+    const FILE_ID_INFO: i32 = 18;
+    /// Lets a directory be opened; links and junctions are followed.
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileInformationByHandleEx(file: *mut c_void, class: i32, info: *mut c_void, size: u32) -> i32;
+    }
+
+    // No access rights asked (like std's `fs::metadata`): the file is only queried.
+    let file = std::fs::OpenOptions::new()
+        .access_mode(0)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+        .ok()?;
+    let mut info = FileIdInfo { volume_serial_number: 0, file_id: [0; 16] };
+    // SAFETY: `info` is a FILE_ID_INFO of the size passed, `file` stays open.
+    let ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FILE_ID_INFO,
+            (&mut info as *mut FileIdInfo).cast(),
+            std::mem::size_of::<FileIdInfo>() as u32,
+        )
+    };
+    (ok != 0).then(|| FileId(info.volume_serial_number, u128::from_le_bytes(info.file_id)))
 }
 
 /// `path` without the [`DATA_VOLUME`] prefix (`/System/Volumes/Data/Users/x`
@@ -364,9 +456,11 @@ impl SecretPaths {
         };
         if let Some(home) = home {
             for h in both_forms(home) {
-                p.dirs.extend(SECRET_HOME_DIRS.iter().flat_map(|d| both_forms(&h.join(d))));
-                p.allowed.extend(ALLOWED_HOME_DIRS.iter().flat_map(|d| both_forms(&h.join(d))));
-                p.files.extend(SECRET_HOME_FILES.iter().flat_map(|f| both_forms(&h.join(f))));
+                p.dirs.extend(SECRET_HOME_DIRS.iter().flat_map(|d| both_forms(&join_rel(&h, d))));
+                p.allowed.extend(ALLOWED_HOME_DIRS.iter().flat_map(|d| both_forms(&join_rel(&h, d))));
+                p.files.extend(SECRET_HOME_FILES.iter().flat_map(|f| both_forms(&join_rel(&h, f))));
+                #[cfg(windows)]
+                p.app_parents.extend(both_forms(&join_rel(&h, LOCAL_APP_DATA)));
             }
             p.home = Some(canonical_or_self(home));
         }
@@ -466,15 +560,16 @@ impl SecretPaths {
             rest.len() >= r.len() && rest[..r.len()] == r[..]
         };
         for i in 0..p.len().saturating_sub(2) {
-            if p[i] != "users" || own.as_deref() == Some(&p[..i + 2]) {
+            if !HOME_PARENTS.contains(&p[i].as_str()) || own.as_deref() == Some(&p[..i + 2]) {
                 continue;
             }
             let rest = &p[i + 2..];
             if ALLOWED_HOME_DIRS.iter().any(|d| starts(rest, d)) {
                 continue;
             }
-            let app = starts(rest, "library/application support")
-                && rest.get(2).is_some_and(|n| n.starts_with(APP_ID_PREFIX));
+            let app = APP_DATA_BASES.iter().any(|base| {
+                starts(rest, base) && rest.get(split(base).len()).is_some_and(|n| n.starts_with(APP_ID_PREFIX))
+            });
             if app
                 || SECRET_HOME_DIRS.iter().any(|d| starts(rest, d))
                 || SECRET_HOME_FILES.iter().any(|f| split(f) == rest)
@@ -542,6 +637,12 @@ fn both_forms(path: &Path) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+/// `base` joined with a `/`-separated `rel`, one component at a time: under a
+/// Windows `\\?\` path (what `canonicalize` returns there) `/` is no separator.
+fn join_rel(base: &Path, rel: &str) -> PathBuf {
+    rel.split('/').fold(base.to_path_buf(), |p, c| p.join(c))
 }
 
 fn canonical_or_self(path: &Path) -> PathBuf {
@@ -939,6 +1040,10 @@ mod tests {
     impl CanonParent for PathBuf {
         /// The temp dir itself may sit behind a symlink (`/var` → `/private/var`).
         fn canonicalize_parent(self) -> PathBuf {
+            // Windows: `canonicalize` gives a `\\?\` path, where the tests' `a/b` joins break.
+            if cfg!(windows) {
+                return self;
+            }
             let parent = self.parent().unwrap().canonicalize().unwrap();
             parent.join(self.file_name().unwrap())
         }
@@ -993,6 +1098,7 @@ mod tests {
         assert!(fx.policy.denies(&fx.home.join("library/application support/IO.GITHUB.V9N8.PUPPETEER/x")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_data_volume_firmlink_is_the_same_place() {
         let fx = Fixture::new();
@@ -1048,6 +1154,82 @@ mod tests {
         let policy = SecretPaths::new(Some(&fx.home), None);
         assert!(policy.check(&real_aws.join("credentials").to_string_lossy()).is_err());
         assert!(policy.check(&fx.p(".aws/credentials")).is_err());
+    }
+
+    #[test]
+    fn hard_links_to_a_credential_file_are_refused() {
+        // A second name in a project: only the file's identity (inode / Windows
+        // file id) gives it away.
+        let fx = Fixture::new();
+        let link = fx.home.join("proj").join("netrc-copy");
+        fs::hard_link(fx.home.join(".netrc"), &link).unwrap();
+        assert!(fx.policy.check(&link.to_string_lossy()).is_err());
+        assert!(FileId::of(&link).is_some());
+        assert_eq!(FileId::of(&link), FileId::of(&fx.home.join(".netrc")));
+        assert_ne!(FileId::of(&link), FileId::of(&fx.home.join("proj/src/main.rs")));
+    }
+
+    #[test]
+    fn stores_of_every_os_are_not_readable() {
+        let fx = Fixture::new();
+        let stores = [
+            "Library/Application Support/glab-cli/config.yml",
+            ".local/share/keyrings/login.keyring",
+            ".local/share/kwalletd/kdewallet.kwl",
+            "AppData/Roaming/Microsoft/Credentials/DFBE70A7",
+            "AppData/Local/Microsoft/Credentials/DFBE70A7",
+            "AppData/Local/Microsoft/Vault/4BF4C442/policy.vpol",
+            "AppData/Roaming/Microsoft/Protect/S-1-5-21-1/a1b2",
+            "AppData/Roaming/Microsoft/Crypto/RSA/S-1-5-21-1/k",
+            "AppData/Roaming/GitHub CLI/hosts.yml",
+            "AppData/Local/glab-cli/config.yml",
+            "AppData/Roaming/gcloud/credentials.db",
+            "AppData/Roaming/gnupg/private-keys-v1.d/k.key",
+            "AppData/Local/gnupg/private-keys-v1.d/k.key",
+        ];
+        let open = [".local/share/other/x", "AppData/Roaming/Code/User/settings.json", "AppData/Local/Temp/t"];
+        for rel in stores.iter().chain(&open) {
+            let path = join_rel(&fx.home, rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"x").unwrap();
+        }
+        let policy = SecretPaths::new(Some(&fx.home), None);
+        for rel in stores {
+            let err = policy.check(&fx.p(rel)).unwrap_err();
+            assert!(err.starts_with("permission denied"), "{rel}: {err}");
+        }
+        for rel in open {
+            policy.check(&fx.p(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
+        }
+    }
+
+    #[test]
+    fn other_homes_are_matched_by_name() {
+        let fx = Fixture::new();
+        // A Windows disk mounted anywhere: same names on every OS.
+        assert!(fx.policy.denies(Path::new("/mnt/c/Users/bob/AppData/Roaming/Microsoft/Protect/S-1/k")));
+        assert!(fx.policy.denies(Path::new("/mnt/c/Users/bob/.ssh/id_rsa")));
+        assert!(!fx.policy.denies(Path::new("/mnt/c/Users/bob/AppData/Roaming/Code/x")));
+        // Linux homes and the app data of Linux / Windows: not on macOS, as before.
+        let linux_home = Path::new("/media/me/disk/home/bob/.ssh/id_rsa");
+        let linux_app = Path::new("/media/me/disk/home/bob/.local/share/io.github.v9n8.puppeteer/k");
+        let windows_app = Path::new("/mnt/c/Users/bob/AppData/Local/io.github.v9n8.puppeteer/EBWebView/x");
+        let elsewhere = !cfg!(target_os = "macos");
+        assert_eq!(fx.policy.denies(linux_home), elsewhere);
+        assert_eq!(fx.policy.denies(linux_app), elsewhere);
+        assert_eq!(fx.policy.denies(windows_app), elsewhere);
+        assert!(fx.policy.denies(Path::new("/Volumes/x/Users/bob/Library/Application Support/io.github.v9n8.puppeteer/k")));
+    }
+
+    /// Windows: the webview's data sits in the local app data dir.
+    #[cfg(windows)]
+    #[test]
+    fn the_local_app_data_dir_is_a_store() {
+        let fx = Fixture::new();
+        let ebw = join_rel(&fx.home, "AppData/Local/io.github.v9n8.puppeteer/EBWebView");
+        fs::create_dir_all(&ebw).unwrap();
+        fs::write(ebw.join("Cookies"), b"x").unwrap();
+        assert!(fx.policy.check(&ebw.join("Cookies").to_string_lossy()).is_err());
     }
 
     /// The code index of the `puppeteer` MCP server (JS) keeps its own copy of
