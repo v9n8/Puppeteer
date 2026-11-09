@@ -3,7 +3,8 @@
 // PUPPETEER_MCP_DISABLED_GROUPS (notes, todos, slack, vps, aws, azure, schedules, dev_servers, code_index) are
 // missing from tools/list and their tools answer tools/call as unknown; every
 // other tool stays. `cloud_accounts_list` serves aws and azure: it goes once
-// both are off and lists only the accounts of the one still on.
+// both are off and lists only the accounts of the one still on. `vps_run` ends
+// ssh's options with `--`, so a username such as `-oProxyCommand=…` is never an option.
 //
 // Builds a throwaway DB from every real migration, then drives `index.mjs`
 // over stdio. No network.
@@ -17,6 +18,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { disabledGroups, dropGroups, hidden, keepEnabled, toolGroup } from './lib/feature-groups.mjs';
+import { sshArgs } from './lib/ssh.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, 'index.mjs');
@@ -51,6 +53,13 @@ check(
 check(!hidden('git_accounts_list', disabledGroups('notes,todos,slack,vps,aws,azure')), 'hidden: git_accounts_list is core');
 const kept = keepEnabled({ aws: [1], azure: [2] }, disabledGroups('aws'));
 check(kept.aws.length === 0 && kept.azure.length === 1, 'keepEnabled: empties the rows of a disabled group');
+const argv = sshArgs(
+  { host: 'example.com', port: 2222, username: '-oProxyCommand=touch /tmp/x', auth_method: 'key', private_key_path: '/k' },
+  'uptime',
+);
+const dest = argv.indexOf('-oProxyCommand=touch /tmp/x@example.com');
+check(dest > 0 && argv[dest - 1] === '--' && argv.indexOf('--') === dest - 1, 'vps_run: `--` sits right before the ssh destination');
+check(argv.indexOf('-i') < dest - 1 && argv.indexOf('-p') < dest - 1 && argv.at(-1) === 'uptime', 'vps_run: options before `--`, command after the destination');
 
 // ---- Fixture -------------------------------------------------------------------
 
