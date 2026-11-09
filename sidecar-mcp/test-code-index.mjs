@@ -184,6 +184,19 @@ check(
 check(parseSource('export function solo() {}\n', 'a.ts').refs.solo === undefined, 'parse: a declaration line is no call site');
 check(same(parseSource('list.map(f)\nmap(other)\n', 'a.ts').refs.map, [2]), 'parse: built-in member calls dropped, bare call kept');
 check(same(parseSource('x.toString()\ntoString(y)\n', 'a.ts').refs.toString, [2]), "parse: a name of Object's prototype is a plain name");
+check(same(parseSource('make<T> (a)\nrun  (b)\n', 'a.ts').refs, { make: [1], run: [2] }), 'parse: a call with type arguments or spaces before `(`');
+{
+  // One long line must not stall the build: BUILD_DEADLINE_MS is only checked between files.
+  const timed = (src) => {
+    const started = performance.now();
+    parseSource(src, 'a.ts');
+    return performance.now() - started;
+  };
+  const identMs = timed(`const x = ${'a'.repeat(100_000)};\n`);
+  check(identMs < 100, `parse: a 100k-character identifier parses under 100 ms (${identMs.toFixed(0)} ms)`);
+  const spaceMs = timed(`foo${' '.repeat(100_000)};\n`);
+  check(spaceMs < 100, `parse: 100k spaces after a name parse under 100 ms (${spaceMs.toFixed(0)} ms)`);
+}
 {
   const sfc = ['<template>', '  <SessionList :items="rows" />', '</template>', '', '<script setup lang="ts">', "import { useTheme } from '~/composables/useTheme'", 'const rows = compute()', '</script>'].join('\n');
   const { decls, imports, refs } = parseSource(sfc, 'components/X.vue');

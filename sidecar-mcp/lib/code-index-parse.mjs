@@ -236,7 +236,10 @@ const TYPE_RE = /(?<![\w$.])(export\s+)?(?:declare\s+)?type\s+([A-Za-z_$][\w$]*)
 const ENUM_RE = /(?<![\w$.])(export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/g;
 const VAR_RE = /(?<![\w$.])(export\s+)?(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*[:=]/g;
 
-const REF_RE = /([A-Za-z_$][\w$]*)\s*(?:<[^<>()]{0,80}>)?\s*\(/g;
+// Kept linear on one long line: without the lookbehind and the cap, a long name is
+// rescanned from each of its characters; with two space runs side by side, a long run
+// of spaces is retried at every split. A name over 255 characters is no call site.
+const REF_RE = /(?<![\w$])([A-Za-z_$][\w$]{0,254})\s*(?:<[^<>()]{0,80}>\s*)?\(/g;
 
 // Class members at depth 1: a method (`name(`) or an arrow property (`name = (…) =>`).
 const MEMBER_RE =
