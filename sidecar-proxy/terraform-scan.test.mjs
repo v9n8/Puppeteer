@@ -105,6 +105,104 @@ test('clean backslash local module → resolved, not detected', () => {
   assert.deepEqual(scanTerraformExternalCode(root), { detected: false, hits: [] })
 })
 
+const LOCAL_EXEC = 'resource "null_resource" "r" {\n  provisioner "local-exec" { command = "env" }\n}\n'
+
+test('provisioner "file" source is a file, not a module → not followed', () => {
+  const root = fixture({
+    'main.tf':
+      'resource "null_resource" "r" {\n' +
+      '  provisioner "file" {\n    source      = "./script.sh"\n    destination = "/tmp/script.sh"\n  }\n' +
+      String.raw`  provisioner "file" { source = ".\\script.ps1" }` + '\n' +
+      '  provisioner "file" { source = "./missing.sh" }\n' +
+      '}\n',
+    'script.sh': 'echo hi\n',
+    'script.ps1': 'Write-Host hi\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(root), { detected: false, hits: [] })
+
+  const json = fixture({
+    'main.tf.json':
+      '{"resource": {"null_resource": {"r": {"provisioner": [{"file": {"source": "./script.sh"}}]}}}}',
+    'script.sh': 'echo hi\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(json), { detected: false, hits: [] })
+})
+
+test('real module next to a provisioner "file" is still followed', () => {
+  const root = fixture({
+    'main.tf':
+      'resource "null_resource" "r" {\n  provisioner "file" { source = "./script.sh" }\n}\n' +
+      'module "m" {\n  source = "./mod"\n}\n',
+    'script.sh': 'echo hi\n',
+    'mod/null.tf': LOCAL_EXEC,
+  })
+  assert.deepEqual(scanTerraformExternalCode(root).hits, [`${path.join('mod', 'null.tf')}:local-exec`])
+
+  // A missing local module dir stays fail-closed.
+  const dangling = fixture({
+    'main.tf': 'resource "null_resource" "r" {\n  provisioner "file" { source = "./script.sh" }\n}\n' +
+      'module "m" { source = "./nope" }\n',
+    'script.sh': 'echo hi\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(dangling).hits, ['nope:unreadable'])
+})
+
+test('nested braces, `}` in strings / heredocs / comments do not confuse module blocks', () => {
+  const root = fixture({
+    'main.tf': [
+      'locals {',
+      '  a = { b = { c = "}}" } }',
+      '  t = "${ { k = "}" }.k } $${not} %%{not}"',
+      '  h = <<-EOT',
+      '    } module "fake" { source = "./nope-heredoc" }',
+      '    ${jsonencode({ x = "}" })}',
+      '    EOT',
+      '}',
+      '# module "c" { source = "./nope-hash" }',
+      '/* module "d" {',
+      '  source = "./nope-block" } */',
+      'module "m" {',
+      '  source = "./mod" // the real one',
+      '  providers = { aws = aws.east }',
+      '  tags = { source = "./nope-attr" }',
+      '}',
+      '',
+    ].join('\n'),
+    'mod/null.tf': LOCAL_EXEC,
+  })
+  // Any `./nope-*` followed would add an `unreadable` hit.
+  assert.deepEqual(scanTerraformExternalCode(root).hits, [`${path.join('mod', 'null.tf')}:local-exec`])
+
+  // .tf.json: duplicate "module" keys and arrays are all module blocks.
+  const json = fixture({
+    'main.tf.json':
+      '{"module": {"a": {"source": "terraform-aws-modules/x/aws"}},' +
+      ' "module": [{"b": [{"//": "x", "source": "./mod"}]}]}',
+    'mod/x.tf': 'data "external" "e" { program = ["id"] }\n',
+  })
+  assert.deepEqual(scanTerraformExternalCode(json).hits, [`${path.join('mod', 'x.tf')}:data.external`])
+})
+
+test('config that cannot be parsed with certainty → detected (fail-closed)', () => {
+  for (const [name, content] of [
+    ['main.tf', 'module "m" {\n  source = "./mod"\n'], // unbalanced
+    ['main.tf', 'locals {\n  x = <<EOT\nno end marker\n}\n'], // unterminated heredoc
+    ['main.tf', 'module "m" { source = "${"./mod"}" }\n'], // not a literal source
+    ['main.tf.json', '{"module": {"m": {"source": "./mod"}}'], // invalid JSON
+  ]) {
+    const root = fixture({ [name]: content, 'mod/main.tf': 'resource "a" "b" {}\n' })
+    const r = scanTerraformExternalCode(root)
+    assert.equal(r.detected, true, content)
+    assert.deepEqual(r.hits, [`${name}:unparsed`], content)
+  }
+  // Unsure → every `source` is followed as before, so local-exec is still named.
+  const root = fixture({ 'main.tf': 'module "m" { source = "./mod"\n', 'mod/null.tf': LOCAL_EXEC })
+  assert.deepEqual(scanTerraformExternalCode(root).hits, [
+    'main.tf:unparsed',
+    `${path.join('mod', 'null.tf')}:local-exec`,
+  ])
+})
+
 test('downloaded modules under .terraform/modules are scanned', () => {
   const root = fixture({
     'main.tf': 'module "x" { source = "terraform-aws-modules/x/aws" }\n',
