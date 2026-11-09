@@ -366,7 +366,12 @@ mod tests {
         assert!(f.fs.write(&f.volumes.join("USB/photos/b.jpg")).is_ok());
         assert!(f.fs.read(&f.base.join("elsewhere-proj/main.rs")).is_ok());
         assert!(f.fs.write(&f.base.join("uploads/s.zip")).is_ok());
-        for p in [f.base.join("outside/x.txt"), PathBuf::from("/etc/hosts")] {
+        #[cfg(unix)]
+        let system = PathBuf::from("/etc/hosts");
+        #[cfg(windows)]
+        let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()))
+            .join(r"System32\drivers\etc\hosts");
+        for p in [f.base.join("outside/x.txt"), system] {
             assert!(f.fs.read(&p).unwrap_err().starts_with("permission denied"), "{}", p.display());
             assert!(f.fs.write(&p).is_err(), "{}", p.display());
         }
@@ -452,6 +457,7 @@ mod tests {
         assert!(f.fs.tree(&f.proj.join("src")).is_ok());
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn the_data_volume_alias_of_a_root_is_the_same_root() {
         let f = fx();

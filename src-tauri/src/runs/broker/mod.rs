@@ -292,7 +292,7 @@ fn socket_dir() -> PathBuf {
 /// Otherwise a per-uid dir in the shared `/tmp`: a fixed name there could be
 /// created first by another local user, who could then swap our socket for
 /// theirs and answer the shims. A relative value is ignored, as the XDG spec says.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(target_os = "linux", all(unix, test)))]
 fn linux_socket_dir(
     xdg_runtime_dir: Option<std::ffi::OsString>,
     tmp: &std::path::Path,
@@ -1751,6 +1751,7 @@ mod tests {
         assert!(tokio::net::windows::named_pipe::ClientOptions::new().open(&path).is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn linux_socket_dir_prefers_xdg_runtime_dir() {
         let tmp = std::path::Path::new("/tmp");

@@ -603,6 +603,8 @@ mod tests {
         assert!(desktop_entry_status(&other).enabled);
     }
 
+    // XDG paths are Unix paths: `/xdg/cfg` is not absolute on Windows.
+    #[cfg(unix)]
     #[test]
     fn xdg_autostart_dir_falls_back_to_home_config() {
         let home = Path::new("/home/u");
@@ -616,6 +618,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn appimage_path_wins_over_the_mounted_exe() {
         let exe = PathBuf::from("/tmp/.mount_PuppeXYZ/usr/bin/puppeteer");

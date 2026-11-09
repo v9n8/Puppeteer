@@ -135,7 +135,15 @@ pub fn walk(root: &Path, max: usize, hide: impl Fn(&Path) -> bool) -> Result<Wal
 /// SHA-256 (lowercase hex) of a file, streamed.
 pub fn hash_file(path: &Path) -> Result<String, String> {
     let shown = path.to_string_lossy();
-    let mut file = fs::File::open(path).map_err(|e| io_err(&shown, e))?;
+    // Windows refuses to open a folder (access denied) where Unix opens it:
+    // report it the same way on every OS.
+    let mut file = fs::File::open(path).map_err(|e| {
+        if path.is_dir() {
+            format!("is a directory: {shown}")
+        } else {
+            io_err(&shown, e)
+        }
+    })?;
     if file.metadata().map_err(|e| io_err(&shown, e))?.is_dir() {
         return Err(format!("is a directory: {shown}"));
     }

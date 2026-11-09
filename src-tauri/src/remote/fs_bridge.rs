@@ -164,7 +164,15 @@ pub fn stat(path: &str) -> Result<FsEntry, String> {
 }
 
 pub fn read_chunk(path: &str, offset: u64, len: u64) -> Result<FsChunk, String> {
-    let mut file = fs::File::open(path).map_err(|e| io_err(path, e))?;
+    // Windows refuses to open a folder (access denied) where Unix opens it:
+    // report it the same way on every OS.
+    let mut file = fs::File::open(path).map_err(|e| {
+        if Path::new(path).is_dir() {
+            format!("is a directory: {path}")
+        } else {
+            io_err(path, e)
+        }
+    })?;
     let meta = file.metadata().map_err(|e| io_err(path, e))?;
     if meta.is_dir() {
         return Err(format!("is a directory: {path}"));

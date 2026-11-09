@@ -882,6 +882,8 @@ mod tests {
         assert!(find_entry(&c.servers, "nope").is_none());
     }
 
+    // The launch command is a POSIX shell line; dev servers are Unix only.
+    #[cfg(unix)]
     #[test]
     fn launch_command_matches_the_mcp_tool() {
         let r = root();
