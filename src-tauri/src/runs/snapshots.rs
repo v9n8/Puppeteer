@@ -1311,7 +1311,8 @@ mod tests {
         );
 
         // The overwrite is part of the confirmed state: editing it again is caught.
-        write(&ws, "config/app.yml", b"v3");
+        // A new size, as two writes can share one mtime tick (Windows).
+        write(&ws, "config/app.yml", b"v3, edited after the dialog opened");
         assert_eq!(
             restore_at(&db, &store, "r1", 1, Some(stopped), &plan.fingerprint, &SMALL).await,
             Err("files_changed".into())
