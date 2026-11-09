@@ -11,13 +11,16 @@
 //
 // Kept free of imports so it can be unit-tested with `node --test`.
 //
-// Matching runs on a "skeleton" of each string: letters + digits only, lowercased. Every
+// Matching runs on a "skeleton" of each string: letters + digits only. Every
 // markdown marker (`**`, `` ` ``, `#`, `-`, `|`, `[](…)`) is punctuation, so it drops out of
 // BOTH sides — which is what makes a plain-text needle findable inside marked-up source,
 // and what lets a selection span several blocks (the `\n\n## ` between them is invisible to
 // the skeleton). Text the renderer does NOT show still lives in the source skeleton though
 // (chiefly a link's URL and an image's src), so a selection crossing one is no longer
-// contiguous there — hence the second, gap-tolerant pass.
+// contiguous there — hence the second, gap-tolerant pass. Case is matched exactly across
+// every source first, and only then ignored: a reply often repeats the prompt (or another
+// reply) in a different case, and the first source matching loosely is not always the one
+// the selection came from.
 
 const WORD = /[\p{L}\p{N}]/u
 
@@ -25,13 +28,13 @@ const WORD = /[\p{L}\p{N}]/u
 // to a raw slice).
 type Skeleton = { chars: string; at: number[] }
 
-function skeletonize(s: string): Skeleton {
+function skeletonize(s: string, fold: boolean): Skeleton {
   let chars = ''
   const at: number[] = []
   for (let i = 0; i < s.length; i++) {
     const c = s[i] as string
     if (!WORD.test(c)) continue
-    chars += c.toLowerCase()
+    chars += fold ? c.toLowerCase() : c
     at.push(i)
   }
   return { chars, at }
@@ -106,6 +109,36 @@ function expandToMarkdownBounds(
   return [s, e]
 }
 
+// A code fence line (```` ``` ````, `~~~`, possibly indented inside a list item).
+const FENCE = /^[ \t]*(`{3,}|~{3,})/
+
+// The opening line of the fence still open at the end of `text`, or null. A fence closes on
+// a bare run of its own char, at least as long.
+function openFenceAfter(text: string): string | null {
+  let open: { line: string; run: string } | null = null
+  for (const line of text.split('\n')) {
+    const m = FENCE.exec(line)
+    if (!m) continue
+    const run = m[1] as string
+    if (!open) open = { line, run }
+    else if (run[0] === open.run[0] && run.length >= open.run.length && !line.slice(m[0].length).trim()) open = null
+  }
+  return open?.line ?? null
+}
+
+// A slice cutting across a code fence would paste unbalanced: ending inside one leaves it
+// open (everything pasted after it turns into code), starting inside one leaves a stray
+// closing fence (which opens a new one). Re-add the missing half. A slice entirely inside a
+// fence has no fence line and stays the bare code lines.
+function balanceFences(src: string, start: number, slice: string): string {
+  let out = slice
+  const outer = openFenceAfter(src.slice(0, src.lastIndexOf('\n', start - 1) + 1))
+  if (outer !== null && out.split('\n').some((l) => FENCE.test(l))) out = `${outer}\n${out}`
+  const open = openFenceAfter(out)
+  if (open !== null) out += `\n${(FENCE.exec(open) as RegExpExecArray)[0]}`
+  return out
+}
+
 // Drop blank lines around the slice but KEEP leading indentation on its first line — a
 // nested list item's indent is what makes it nest again when pasted.
 const trimEdges = (s: string) => s.replace(/^[ \t]*\n+/, '').replace(/\s+$/, '')
@@ -121,26 +154,28 @@ export function rawMarkdownForSelection(
   sources: readonly string[],
   selected: string,
 ): string | null {
-  const needle = skeletonize(selected).chars
   // Punctuation the selection ended on, to re-attach after the match (see step 0).
   const tail = /[^\p{L}\p{N}\s]+$/u.exec(selected.replace(/\s+$/, ''))?.[0] ?? ''
   // A one-character selection carries no signal to align on (and copying its source syntax
   // would be meaningless) — let the caller copy it verbatim.
-  if (needle.length < 2) return null
-  for (const src of sources) {
-    if (!src) continue
-    const hay = skeletonize(src)
-    if (!hay.chars) continue
-    // Whole source selected (select-all inside one block) → hand it back as-is.
-    if (hay.chars === needle) return trimEdges(src)
-    const at = hay.chars.indexOf(needle)
-    const range: [number, number] | null =
-      at >= 0 ? [at, at + needle.length] : findWithGaps(hay.chars, needle)
-    if (!range) continue
-    const rawStart = hay.at[range[0]] as number
-    const rawEnd = (hay.at[range[1] - 1] as number) + 1
-    const [s, e] = expandToMarkdownBounds(src, rawStart, rawEnd, tail)
-    return trimEdges(src.slice(s, e))
+  if (skeletonize(selected, false).chars.length < 2) return null
+  for (const fold of [false, true]) {
+    const needle = skeletonize(selected, fold).chars
+    for (const src of sources) {
+      if (!src) continue
+      const hay = skeletonize(src, fold)
+      if (!hay.chars) continue
+      // Whole source selected (select-all inside one block) → hand it back as-is.
+      if (hay.chars === needle) return trimEdges(src)
+      const at = hay.chars.indexOf(needle)
+      const range: [number, number] | null =
+        at >= 0 ? [at, at + needle.length] : findWithGaps(hay.chars, needle)
+      if (!range) continue
+      const rawStart = hay.at[range[0]] as number
+      const rawEnd = (hay.at[range[1] - 1] as number) + 1
+      const [s, e] = expandToMarkdownBounds(src, rawStart, rawEnd, tail)
+      return balanceFences(src, s, trimEdges(src.slice(s, e)))
+    }
   }
   return null
 }

@@ -10,6 +10,7 @@ use crate::runs::ssh_access::{self, SshAccessGuard};
 use crate::runs::stdin_writer::SidecarInput;
 use crate::runs::{BrokerRunCtx, BrokerRunGuard, BrokerRuns, QueuedPrompt, RunHandles, RunRegistry, TurnGate};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -2550,13 +2551,17 @@ pub struct RunLogSearch {
 /// The text a reader sees of a record: user prompts and assistant replies.
 /// Tool input / output and thinking are left out — they are mostly file bodies,
 /// and shown collapsed, so a hit there could not be highlighted after the jump.
-pub(crate) fn record_texts(v: &serde_json::Value) -> Vec<&str> {
+/// So are the user records the transcript (`lib/streamEvents.ts`) turns into
+/// collapsed markers or drops: harness-injected ones (`isMeta` / `isSynthetic`:
+/// skill bodies, local-command caveats) and a slash command's `<command-*>`
+/// wrapper, of which only the name, args and stdout are shown.
+pub(crate) fn record_texts(v: &serde_json::Value) -> Vec<Cow<'_, str>> {
     use serde_json::Value;
     let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
     if ty != "user" && ty != "assistant" {
         return Vec::new();
     }
-    match v.get("message").and_then(|m| m.get("content")) {
+    let texts: Vec<&str> = match v.get("message").and_then(|m| m.get("content")) {
         Some(Value::String(s)) => vec![s.as_str()],
         Some(Value::Array(blocks)) => blocks
             .iter()
@@ -2564,7 +2569,42 @@ pub(crate) fn record_texts(v: &serde_json::Value) -> Vec<&str> {
             .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
             .collect(),
         _ => Vec::new(),
+    };
+    if ty == "assistant" {
+        return texts.into_iter().map(Cow::Borrowed).collect();
     }
+    let injected = ["isMeta", "isSynthetic"].iter().any(|k| v.get(*k) == Some(&Value::Bool(true)));
+    texts
+        .into_iter()
+        .filter_map(|t| {
+            if t.contains("<command-name>") || t.contains("<local-command-") {
+                let shown = shown_command_text(t);
+                (!shown.is_empty()).then_some(Cow::Owned(shown))
+            } else {
+                (!injected).then_some(Cow::Borrowed(t))
+            }
+        })
+        .collect()
+}
+
+/// What the transcript shows of a slash-command message: the caveat for the
+/// model and the `<command-message>` echo are dropped, the name, args and
+/// stdout kept without their tags.
+fn shown_command_text(text: &str) -> String {
+    let mut s = text.to_string();
+    for (open, close) in [
+        ("<local-command-caveat>", "</local-command-caveat>"),
+        ("<command-message>", "</command-message>"),
+    ] {
+        while let Some(at) = s.find(open) {
+            let Some(len) = s[at..].find(close) else { break };
+            s.replace_range(at..at + len + close.len(), "");
+        }
+    }
+    for tag in ["command-name", "command-args", "local-command-stdout"] {
+        s = s.replace(&format!("<{tag}>"), "").replace(&format!("</{tag}>"), "");
+    }
+    s.trim().to_string()
 }
 
 /// Byte range of the first match of `needle` in `hay`. Case-insensitive
@@ -2654,7 +2694,7 @@ fn search_log_file(
             continue;
         };
         let hit = record_texts(&v).into_iter().find_map(|text| {
-            find_match(text, query, case_sensitive).map(|(s, e)| match_snippet(text, s, e))
+            find_match(&text, query, case_sensitive).map(|(s, e)| match_snippet(&text, s, e))
         });
         if let Some(snippet) = hit {
             if hits.len() == max_hits {
@@ -4548,6 +4588,35 @@ mod log_page_tests {
         let p = temp_log("search_once", &user_line("abc abc abc"));
         let found = search_log_file(&p, "abc", false, 10).unwrap();
         assert_eq!(found.hits, vec![RunLogHit { offset: 0, snippet: "abc abc abc".into() }]);
+        let _ = fs::remove_file(&p);
+    }
+
+    #[test]
+    fn search_skips_what_the_transcript_hides() {
+        let meta = |flag: &str, content: serde_json::Value| {
+            let mut v = serde_json::json!({ "type": "user", "message": { "content": content } });
+            v[flag] = serde_json::Value::Bool(true);
+            format!("{v}\n")
+        };
+        let skill = meta("isMeta", "Base directory for this skill: /s/needle".into());
+        let synthetic = meta("isSynthetic", serde_json::json!([{ "type": "text", "text": "needle body" }]));
+        let caveat = meta(
+            "isMeta",
+            "<local-command-caveat>Caveat: needle, DO NOT respond.</local-command-caveat>".into(),
+        );
+        let command = user_line(
+            "<command-name>/compact</command-name>\n<command-message>compact needle</command-message>\n\
+             <command-args>keep the needle</command-args>",
+        );
+        let typed = user_line("the real needle");
+        let log = [skill, synthetic, caveat, command, typed].concat();
+        let p = temp_log("search_hidden", &log);
+        let found = search_log_file(&p, "needle", false, 10).unwrap();
+        let snippets: Vec<_> = found.hits.iter().map(|h| h.snippet.as_str()).collect();
+        // A slash command shows as its name and args, never its tags.
+        assert_eq!(snippets, vec!["/compact keep the needle", "the real needle"]);
+        assert!(search_log_file(&p, "command", false, 10).unwrap().hits.is_empty());
+        assert!(search_log_file(&p, "caveat", false, 10).unwrap().hits.is_empty());
         let _ = fs::remove_file(&p);
     }
 

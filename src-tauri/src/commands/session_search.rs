@@ -395,6 +395,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn records_the_transcript_hides_are_not_indexed() {
+        let skill = format!(
+            "{}\n",
+            serde_json::json!({ "type": "user", "isMeta": true,
+                "message": { "content": "Base directory for this skill: /s/review" } })
+        );
+        let caveat = format!(
+            "{}\n",
+            serde_json::json!({ "type": "user", "isMeta": true,
+                "message": { "content": "<local-command-caveat>Caveat: DO NOT respond.</local-command-caveat>" } })
+        );
+        let command = user("<command-name>/review</command-name>\n<command-message>review</command-message>");
+        let log = [skill.clone(), caveat.clone(), command].concat();
+        let path = std::env::temp_dir().join(format!("puppeteer-search-{}.log", uuid::Uuid::new_v4()));
+        fs::write(&path, &log).unwrap();
+        let got = log_records(&path).unwrap();
+        let _ = fs::remove_file(&path);
+        assert_eq!(got, vec![((skill.len() + caveat.len()) as i64, "/review".to_string())]);
+    }
+
     #[tokio::test]
     async fn search_finds_runs_with_a_snippet_and_offset() {
         let db = db().await;

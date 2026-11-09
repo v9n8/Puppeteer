@@ -86,14 +86,22 @@ test('stepMatch: a delta larger than the count still wraps', () => {
   assert.equal(stepMatch(1, 3, -4), 3)
 })
 
-test('isFindShortcut: Cmd+F and Ctrl+F, either case', () => {
-  assert.equal(isFindShortcut({ key: 'f', metaKey: true, ctrlKey: false }), true)
-  assert.equal(isFindShortcut({ key: 'F', metaKey: false, ctrlKey: true }), true)
+test('isFindShortcut: Cmd+F on macOS, Ctrl+F elsewhere, either case', () => {
+  assert.equal(isFindShortcut({ key: 'f', metaKey: true, ctrlKey: false }, true), true)
+  assert.equal(isFindShortcut({ key: 'F', metaKey: true, ctrlKey: false }, true), true)
+  assert.equal(isFindShortcut({ key: 'f', metaKey: false, ctrlKey: true }, false), true)
+  assert.equal(isFindShortcut({ key: 'F', metaKey: false, ctrlKey: true }, false), true)
+})
+
+test('isFindShortcut: Ctrl+F on macOS is not (cursor forward in a text field)', () => {
+  assert.equal(isFindShortcut({ key: 'f', metaKey: false, ctrlKey: true }, true), false)
 })
 
 test('isFindShortcut: plain F or another key is not', () => {
-  assert.equal(isFindShortcut({ key: 'f', metaKey: false, ctrlKey: false }), false)
-  assert.equal(isFindShortcut({ key: 'g', metaKey: true, ctrlKey: false }), false)
+  for (const isMac of [true, false]) {
+    assert.equal(isFindShortcut({ key: 'f', metaKey: false, ctrlKey: false }, isMac), false)
+    assert.equal(isFindShortcut({ key: 'g', metaKey: isMac, ctrlKey: !isMac }, isMac), false)
+  }
 })
 
 test('FIND_IN_PAGE_FEATURE is the registry prop id', () => {

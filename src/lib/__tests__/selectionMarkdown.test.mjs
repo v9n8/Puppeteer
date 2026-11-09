@@ -80,6 +80,22 @@ test('sources are tried in order; empty ones are skipped', () => {
   assert.equal(rawMarkdownForSelection(sources, 'answer'), '**answer**')
 })
 
+test('a source matching in the selection\'s own case wins over an earlier one matching only without case', () => {
+  const sources = ['the foo bar is ready', 'Now **Foo Bar** is ready']
+  assert.equal(rawMarkdownForSelection(sources, 'Foo Bar'), '**Foo Bar**')
+  assert.equal(rawMarkdownForSelection(sources, 'FOO BAR'), 'foo bar')
+})
+
+test('a selection ending inside a code fence gets the fence closed', () => {
+  const src = 'Intro\n\n```ts\nconst x = 1\nconsole.log(x)\n```\n\nAfter'
+  assert.equal(md(src, 'Intro\nconst x = 1'), 'Intro\n\n```ts\nconst x = 1\n```')
+})
+
+test('a selection starting inside a code fence gets the fence reopened', () => {
+  const src = 'Intro\n\n```ts\nconst x = 1\nconsole.log(x)\n```\n\nAfter'
+  assert.equal(md(src, 'console.log(x)\nAfter'), '```ts\nconsole.log(x)\n```\n\nAfter')
+})
+
 test('no match returns null so the caller falls back to the plain text', () => {
   const selected = 'nothing like this'
   assert.equal(md('Some other markdown', selected), null)

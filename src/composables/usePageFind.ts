@@ -11,6 +11,7 @@
 // `pickFindArea`). The registry is module state: each webview has its own copy.
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { IS_MAC } from '@/lib/appMenu'
 import { FIND_IN_PAGE_FEATURE, findMatches, isFindShortcut, pickFindArea, stepMatch } from '@/lib/pageFind'
 import { isSelectionExcludedWindow } from '@/lib/selectionSurface'
 import { useFeaturesStore } from '@/stores/features'
@@ -203,7 +204,7 @@ export function useFindShortcut(): void {
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (e.defaultPrevented || !isFindShortcut(e)) return
+    if (e.defaultPrevented || !isFindShortcut(e, IS_MAC)) return
     const overlays = document.querySelectorAll('.ui-backdrop')
     const area = pickFindArea(findAreas, shownRoot, {
       excludedWindow,

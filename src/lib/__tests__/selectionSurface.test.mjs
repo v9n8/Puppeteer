@@ -266,7 +266,7 @@ test('Copy MD: the owning surface\'s source turns a rendered table back into mar
   // Mid-message, the outer pipes of the first and last row are not re-attached
   // (lib/selectionMarkdown) — still a table once pasted.
   assert.equal(
-    copyMdText(owner.markdownSource().slice(1), 'Name\tAge\nAnn\t30\nBob\t41'),
+    copyMdText(owner.markdownSource().slice(2), 'Name\tAge\nAnn\t30\nBob\t41'),
     'Name | Age |\n| --- | --- |\n| Ann | 30 |\n| Bob | 41',
   )
   const inner = pickSurface([run, viewer], els, modalText, modalText)
@@ -279,7 +279,7 @@ test('Copy MD: no source holding the selection copies the selected text as is', 
   assert.equal(copyMdText([TABLE], 'x'), 'x')
 })
 
-test('transcript sources: assistant text and a result\'s own text, in order', () => {
+test('transcript sources: user prompts, assistant text and a result\'s own text, in order', () => {
   assert.deepEqual(
     transcriptMarkdownSources([
       { kind: 'system', model: 'm' },
@@ -292,8 +292,17 @@ test('transcript sources: assistant text and a result\'s own text, in order', ()
       { kind: 'result', text: 'failed **badly**', is_error: true },
       { kind: 'result', text: '', is_error: false },
     ]),
-    ['first', 'second', 'failed **badly**'],
+    ['hi', 'first', 'second', 'failed **badly**'],
   )
+})
+
+test('Copy MD: a selected user prompt copies the prompt, not a reply quoting it in another case', () => {
+  const sources = transcriptMarkdownSources([
+    { kind: 'user', text: 'What does Foo Bar return?' },
+    { kind: 'text', text: '**what does foo bar return?** It returns `null`.' },
+  ])
+  assert.equal(copyMdText(sources, 'What does Foo Bar return?'), 'What does Foo Bar return?')
+  assert.equal(copyMdText(sources, 'what does foo bar return?'), '**what does foo bar return?**')
 })
 
 // ── Scroll ──────────────────────────────────────────────────────────────────

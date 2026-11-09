@@ -107,13 +107,16 @@ export function copyMdText(sources: readonly string[], selected: string): string
 }
 
 /**
- * A run transcript's Copy MD sources: the markdown its messages render from
- * (assistant text, a result's own text), in transcript order.
+ * A run transcript's Copy MD sources: the text its messages render from (user
+ * prompts, assistant text, a result's own text), in transcript order. A prompt
+ * left out would have its selection matched to a reply quoting it.
  */
 export function transcriptMarkdownSources(
   entries: readonly { kind: string; text?: string }[],
 ): string[] {
-  return entries.flatMap((e) => ((e.kind === 'text' || e.kind === 'result') && e.text ? [e.text] : []))
+  return entries.flatMap((e) =>
+    (e.kind === 'user' || e.kind === 'text' || e.kind === 'result') && e.text ? [e.text] : [],
+  )
 }
 
 /**
