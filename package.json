@@ -35,10 +35,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
-    "dompurify": "^3.4.12",
+    "dompurify": "^3.4.17",
     "libsodium-wrappers": "^0.8.4",
     "lucide-vue-next": "^1.0.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.3.3",
     "mermaid": "^11.15.0",
     "pdfjs-dist": "^6.3.289",
     "pinia": "^3.0.4",
@@ -48,7 +48,7 @@
     "tailwind-merge": "^3.5.0",
     "vue": "^3.5.13",
     "vue-chartjs": "^5.3.3",
-    "vue-i18n": "11",
+    "vue-i18n": "^11.4.18",
     "vue-router": "4"
   },
   "devDependencies": {
