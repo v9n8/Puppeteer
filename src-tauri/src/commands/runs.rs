@@ -1014,9 +1014,9 @@ async fn wire_broker(
 
 /// [`wire_broker`] for a process that is not a run (a dev server started from
 /// the Processes screen): the same shims first on PATH, broker socket, git
-/// credential helper and AWS / Azure sandboxes. No run is registered, so with
-/// nobody to answer, the broker denies whatever needs approval; no per-run
-/// ssh-agent either.
+/// credential helper and AWS / Azure sandboxes. No run is registered, so the
+/// broker denies every request from it: the shims only keep the process off
+/// the user's own credentials. No per-run ssh-agent either.
 pub(crate) async fn wire_tool_broker(
     app: &AppHandle,
     db: &Db,

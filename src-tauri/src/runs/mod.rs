@@ -98,8 +98,7 @@ pub struct BrokerRunCtx {
 
 /// Live runs known to the singleton broker, keyed by `run_id`. Presence in this
 /// map == "this run is alive, its `Ask` modal can be shown". Absence == the run
-/// ended → the broker fail-closed denies any `Ask` for it (a read/allow needs no
-/// approver and still works). A plain `std::sync::Mutex` (not tokio) so
+/// ended → the broker fail-closed denies every request naming it. A plain `std::sync::Mutex` (not tokio) so
 /// `BrokerRunGuard::drop` can deregister synchronously from any context.
 pub type BrokerRuns = Arc<StdMutex<HashMap<String, BrokerRunCtx>>>;
 

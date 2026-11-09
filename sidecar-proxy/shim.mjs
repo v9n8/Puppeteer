@@ -252,8 +252,8 @@ export async function run(tool) {
   const sock = process.env.PUPPETEER_BROKER_SOCK
   const projectId = process.env.PUPPETEER_PROJECT_ID
   // GĐ7: the app-wide broker serves many runs from one socket; run_id tells it
-  // which run's modal to route an `Ask` to. Absent → broker fail-closed denies
-  // any `Ask` (reads/allows still work).
+  // which run's modal to route an `Ask` to. Absent → the broker denies every
+  // request.
   const runId = process.env.PUPPETEER_RUN_ID || null
   // aws: drop `--profile` before building the request, so the broker judges
   // the exact argv that runs. Left in, its value reads as a positional and a

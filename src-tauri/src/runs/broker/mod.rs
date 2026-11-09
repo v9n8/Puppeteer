@@ -45,9 +45,8 @@ pub struct BrokerRequest {
     #[serde(default)]
     pub host: Option<String>,
     /// GĐ7: the run that issued this request. The app-wide singleton broker uses
-    /// it to route an `Ask` to the right run's permission modal. Optional for
-    /// backward-compat: absent → no live run to approve against, so any `Ask`
-    /// fail-closed denies (reads/allows are unaffected).
+    /// it to route an `Ask` to the right run's permission modal. Absent, or not
+    /// a live run of `project_id` → every request is denied.
     #[serde(default)]
     pub run_id: Option<String>,
     /// gh / glab / git: the account the command picked (`PUPPETEER_GIT_ACCOUNT`) —
@@ -493,6 +492,23 @@ async fn process_line(
             return BrokerResponse::deny("malformed request");
         }
     };
+
+    // Only a live run is served, and only for the project it was started in:
+    // `project_id` and `run_id` are claims any same-user process can make by
+    // writing to the socket.
+    match req.run_id.as_deref().and_then(|r| resolver.run_project(r)) {
+        None => {
+            let reason = "no live run for this request";
+            audit::audit_request("?", &req.tool, &req.argv, "deny", Some(reason));
+            return BrokerResponse::deny(reason);
+        }
+        Some(p) if p != req.project_id => {
+            let reason = "run does not belong to this project";
+            audit::audit_request(req.run_id.as_deref().unwrap_or("?"), &req.tool, &req.argv, "deny", Some(reason));
+            return BrokerResponse::deny(reason);
+        }
+        Some(_) => {}
+    }
 
     // MCP credentials (Google access tokens, MCP server env/headers) are not
     // command invocations; they have their own fail-closed path.
@@ -1026,12 +1042,16 @@ mod tests {
 
     /// Test resolver: always returns the same approver regardless of `run_id`,
     /// so the existing round-trip tests exercise the approver branch directly.
+    /// Their requests come from run `r1`, live in project `p1`.
     struct StaticResolver(Arc<dyn Approver>);
 
     #[async_trait]
     impl ApproverResolver for StaticResolver {
         async fn resolve(&self, _run_id: Option<&str>) -> Option<Arc<dyn Approver>> {
             Some(self.0.clone())
+        }
+        fn run_project(&self, run_id: &str) -> Option<String> {
+            (run_id == "r1").then(|| "p1".to_string())
         }
     }
 
@@ -1194,7 +1214,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"az","argv":["account","show"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["account","show"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1209,7 +1229,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["group","list"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1227,7 +1247,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--resource-group","show"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["vm","list","--resource-group","show"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1245,7 +1265,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"az","argv":["account","get-access-token"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["account","get-access-token"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1261,7 +1281,7 @@ mod tests {
         let resp = round_trip(
             db.clone(),
             Arc::new(FixedApprover(false)),
-            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1272,7 +1292,7 @@ mod tests {
             let resp = round_trip(
                 db.clone(),
                 Arc::new(FixedApprover(false)),
-                &format!(r#"{{"project_id":"p1","tool":"az","argv":{argv}}}"#),
+                &format!(r#"{{"project_id":"p1","run_id":"r1","tool":"az","argv":{argv}}}"#),
             )
             .await;
             assert_eq!(resp.decision, "allow", "argv={argv}");
@@ -1281,7 +1301,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["vm","list","--subscription","other-sub"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1295,7 +1315,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1335,7 +1355,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["group","list"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1356,7 +1376,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1374,7 +1394,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1392,7 +1412,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1410,7 +1430,7 @@ mod tests {
         let resp = round_trip(
             db.clone(),
             Arc::new(FixedApprover(false)),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"],"tf_external_code":true,"tf_external_hits":["main.tf:data.external"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"],"tf_external_code":true,"tf_external_hits":["main.tf:data.external"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1420,7 +1440,7 @@ mod tests {
         let resp = round_trip(
             db.clone(),
             Arc::new(FixedApprover(true)),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"],"tf_external_code":true}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"],"tf_external_code":true}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1428,7 +1448,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(false)),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1445,7 +1465,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1459,7 +1479,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"terraform","argv":["plan"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["plan"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1475,7 +1495,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"gh","argv":["auth","token"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["auth","token"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1489,7 +1509,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(FixedApprover(false)),
-            r#"{"project_id":"p1","tool":"gh","argv":["pr","create"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["pr","create"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1532,7 +1552,7 @@ mod tests {
         .unwrap();
         let mut stream = connect(&handle.path).await;
         stream
-            .write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"pr\",\"create\"]}\n")
+            .write_all(b"{\"project_id\":\"p1\",\"run_id\":\"r1\",\"tool\":\"gh\",\"argv\":[\"pr\",\"create\"]}\n")
             .await
             .unwrap();
         stream.flush().await.unwrap();
@@ -1577,7 +1597,7 @@ mod tests {
         .await
         .unwrap();
         let (r, mut w) = tokio::io::split(connect(&handle.path).await);
-        w.write_all(b"{\"project_id\":\"p1\",\"tool\":\"gh\",\"argv\":[\"issue\",\"comment\"]}\n")
+        w.write_all(b"{\"project_id\":\"p1\",\"run_id\":\"r1\",\"tool\":\"gh\",\"argv\":[\"issue\",\"comment\"]}\n")
             .await
             .unwrap();
         w.flush().await.unwrap();
@@ -1586,6 +1606,44 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&resp_line).unwrap();
         assert_eq!(v["decision"].as_str().unwrap(), "deny");
         assert!(v.get("token").and_then(|x| x.as_str()).is_none());
+    }
+
+    /// One live run, `r1`, started in the given project.
+    struct LiveRun(&'static str);
+
+    #[async_trait]
+    impl ApproverResolver for LiveRun {
+        async fn resolve(&self, run_id: Option<&str>) -> Option<Arc<dyn Approver>> {
+            (run_id == Some("r1")).then(|| Arc::new(DenyAllApprover) as Arc<dyn Approver>)
+        }
+        fn run_project(&self, run_id: &str) -> Option<String> {
+            (run_id == "r1").then(|| self.0.to_string())
+        }
+    }
+
+    // Any same-user process can reach the socket and claim a project, so an
+    // allowed read is only served to a live run of that very project.
+    #[tokio::test]
+    async fn request_must_come_from_a_live_run_of_its_project() {
+        let db = mem_db().await;
+        let dir = link_azure(&db, "p1", true).await;
+        let read = |extra: &str| {
+            format!(r#"{{"project_id":"p1","tool":"az","argv":["vm","list"]{extra}}}"#)
+        };
+        for (resolver, extra, want) in [
+            (LiveRun("p1"), "", "no live run for this request"),
+            (LiveRun("p1"), r#","run_id":"r9""#, "no live run for this request"),
+            (LiveRun("p2"), r#","run_id":"r1""#, "run does not belong to this project"),
+        ] {
+            let resp = process_line(&read(extra), &db, &resolver, None).await;
+            assert_eq!(resp.decision, "deny", "{extra}");
+            assert_eq!(resp.reason.as_deref(), Some(want), "{extra}");
+            assert!(resp.azure_config_dir.is_none(), "{extra}");
+        }
+        let resp = process_line(&read(r#","run_id":"r1""#), &db, &LiveRun("p1"), None).await;
+        assert_eq!(resp.decision, "allow");
+        assert_eq!(resp.azure_config_dir.as_deref(), Some(dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]
@@ -1599,7 +1657,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"gh","argv":["pr","list"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["pr","list"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1625,7 +1683,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["sts","get-caller-identity"]}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1667,7 +1725,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"git","argv":["credential","get"],"host":"github.com"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"git","argv":["credential","get"],"host":"github.com"}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1693,7 +1751,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"git","argv":["credential","get"],"host":"github.attacker.io"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"git","argv":["credential","get"],"host":"github.attacker.io"}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1823,7 +1881,7 @@ mod tests {
         let resp = round_trip(
             db,
             approver.clone(),
-            r#"{"project_id":"p1","tool":"gh","argv":["pr","merge","1"],"account":"nobody"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["pr","merge","1"],"account":"nobody"}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1841,7 +1899,7 @@ mod tests {
         let _ = round_trip(
             db,
             approver.clone(),
-            r#"{"project_id":"p1","tool":"gh","argv":["pr","merge","1"],"account":"@worker"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["pr","merge","1"],"account":"@worker"}"#,
         )
         .await;
         let reasons = approver.0.lock().unwrap().clone();
@@ -1880,7 +1938,7 @@ mod tests {
         let resp = round_trip(
             db.clone(),
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"az","argv":["group","list"],"azure_account":"prod"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["group","list"],"azure_account":"prod"}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1890,7 +1948,7 @@ mod tests {
         let resp = round_trip(
             db.clone(),
             Arc::new(FixedApprover(false)),
-            r#"{"project_id":"p1","tool":"az","argv":["vm","list","--subscription","sub-2"],"azure_account":"Prod"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["vm","list","--subscription","sub-2"],"azure_account":"Prod"}"#,
         )
         .await;
         assert_eq!(resp.decision, "allow");
@@ -1898,7 +1956,7 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
-            r#"{"project_id":"p1","tool":"az","argv":["group","list"]}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"az","argv":["group","list"]}"#,
         )
         .await;
         assert_eq!(resp.azure_config_dir.as_deref(), Some(default_dir.to_str().unwrap()));
@@ -1914,7 +1972,7 @@ mod tests {
         let resp = round_trip(
             db,
             approver.clone(),
-            r#"{"project_id":"p1","tool":"terraform","argv":["apply"],"azure_account":"nobody"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"terraform","argv":["apply"],"azure_account":"nobody"}"#,
         )
         .await;
         assert_eq!(resp.decision, "deny");
@@ -1953,9 +2011,9 @@ mod tests {
         let db = mem_db().await;
         seed_aws_accounts(&db, 2).await;
         for req in [
-            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"nobody"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"nobody"}"#,
             // With several accounts, a --profile naming none is refused too.
-            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
         ] {
             let approver = Arc::new(RecordingApprover::default());
             let resp = round_trip(db.clone(), approver.clone(), req).await;
@@ -1972,9 +2030,9 @@ mod tests {
         let db = mem_db().await;
         seed_aws_accounts(&db, 2).await;
         for (req, want) in [
-            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"222222222222"}"#, "prod"),
-            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"prod-profile"}"#, "prod"),
-            (r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"]}"#, "main"),
+            (r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_account":"222222222222"}"#, "prod"),
+            (r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"prod-profile"}"#, "prod"),
+            (r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"]}"#, "main"),
         ] {
             let approver = Arc::new(RecordingApprover::default());
             let _ = round_trip(db.clone(), approver.clone(), req).await;
@@ -1992,7 +2050,7 @@ mod tests {
         let _ = round_trip(
             db,
             approver.clone(),
-            r#"{"project_id":"p1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
+            r#"{"project_id":"p1","run_id":"r1","tool":"aws","argv":["s3","rm","s3://b/k"],"aws_profile":"stray"}"#,
         )
         .await;
         let reasons = approver.0.lock().unwrap().clone();
