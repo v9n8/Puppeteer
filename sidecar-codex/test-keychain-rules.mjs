@@ -1,6 +1,7 @@
-// Every Codex session installs Puppeteer's execpolicy rule that forbids reading the
-// macOS Keychain through `security` ($CODEX_HOME/rules/puppeteer-keychain.rules),
-// and puts it back when it was changed. Uses the fixture app-server (no CLI).
+// Every Codex session installs Puppeteer's execpolicy rules that forbid reading the
+// OS secret store — macOS `security`, Linux `secret-tool` / D-Bus clients, Windows
+// `cmdkey` / `vaultcmd` ($CODEX_HOME/rules/puppeteer-keychain.rules) — and puts them
+// back when they were changed. Uses the fixture app-server (no CLI).
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -37,9 +38,13 @@ const first = readFileSync(rules, 'utf8')
 assert.match(first, /prefix_rule\(/)
 assert.match(first, /"find-generic-password"/)
 assert.match(first, /decision = "forbidden"/)
+for (const word of ['secret-tool', 'kwallet-query', 'cmdkey.exe', 'vaultcmd', 'Get-StoredCredential',
+  'gdbus', 'busctl', 'dbus-send', 'qdbus', 'org.freedesktop.secrets', '--dest=org.kde.kwalletd5']) {
+  assert.ok(first.includes(`"${word}"`), word)
+}
 
 writeFileSync(rules, '# tampered\n')
 await runSession()
 assert.equal(readFileSync(rules, 'utf8'), first)
 
-console.log('ok   codex sessions install the Keychain execpolicy rule')
+console.log('ok   codex sessions install the secret store execpolicy rules')

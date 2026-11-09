@@ -211,8 +211,19 @@ const tests = {
     assert.equal(o.tools, undefined)
     assert.equal(o.strictMcpConfig, undefined)
     assert.equal(o.permissionMode, 'default')
-    // Keychain reads through the `security` CLI are denied in every session.
-    assert.ok(o.disallowedTools.includes('Bash(security find-generic-password:*)'))
+    // Secret store reads are denied in every session, whatever the OS.
+    for (const rule of [
+      'Bash(security find-generic-password:*)',
+      'Bash(secret-tool:*)',
+      'Bash(kwallet-query:*)',
+      'Bash(gdbus *org.freedesktop.secrets*)',
+      'Bash(dbus-send *org.kde.kwalletd*)',
+      'Bash(cmdkey.exe:*)',
+      'PowerShell(vaultcmd:*)',
+      'PowerShell(*Get-StoredCredential*)',
+      'PowerShell(*CredRead*)',
+      'Bash(*PasswordVault*)',
+    ]) assert.ok(o.disallowedTools.includes(rule), rule)
     assert.equal(o.resume, undefined)
     assert.equal(o.resumeSessionAt, undefined)
   },

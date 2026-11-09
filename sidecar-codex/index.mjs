@@ -385,21 +385,47 @@ try {
   }) + '\n')
   process.exit(1)
 }
-// Agents never read the macOS Keychain through the `security` CLI: Puppeteer's item
-// holds PATs / tokens (and the sealed secret notes vault). Codex applies the
-// execpolicy rules under $CODEX_HOME/rules in every approval mode, bypass
-// included (verified with codex-cli 0.165), so keep Puppeteer's rule file there —
-// like the Claude sidecar's disallowedTools. User-level on purpose: a project's
-// `.codex/rules` would land in the user's repo. Best effort: a write failure is
-// reported, the session still starts.
+// Agents never read the OS secret store where Puppeteer keeps PATs / tokens (and the
+// sealed secret notes vault): the macOS Keychain, the Linux Secret Service / KWallet,
+// the Windows Credential Manager. Codex applies the execpolicy rules under
+// $CODEX_HOME/rules in every approval mode, bypass included (verified with
+// codex-cli 0.165), so keep Puppeteer's rule file there — like the Claude sidecar's
+// disallowedTools, every OS gets every rule (WSL reaches `cmdkey.exe`). User-level
+// on purpose: a project's `.codex/rules` would land in the user's repo. Best effort:
+// a write failure is reported, the session still starts.
+// This is a deny list, not a security boundary: a prefix rule only matches a
+// command's leading words exactly, so another binary or path, other casing or
+// argument order, or a script (PowerShell `CredRead`, `PasswordVault`) goes around it.
 const KEYCHAIN_RULES_FILE = 'puppeteer-keychain.rules'
-const KEYCHAIN_RULES = `# Managed by Puppeteer: agents never read the macOS Keychain. Rewritten on every Puppeteer Codex session.
-prefix_rule(
-    pattern = ["security", ["find-generic-password", "find-internet-password", "dump-keychain", "export"]],
+const SECRET_SERVICE_BUSES = ['org.freedesktop.secrets', 'org.kde.kwalletd', 'org.kde.kwalletd5', 'org.kde.kwalletd6']
+const DEST_FLAGS = SECRET_SERVICE_BUSES.map((bus) => `--dest=${bus}`)
+const DBUS_SEND_OPTS = ['--session', '--print-reply', '--print-reply=literal', '--type=method_call']
+const KEYCHAIN_RULE_PATTERNS = [
+  ['security', ['find-generic-password', 'find-internet-password', 'dump-keychain', 'export']],
+  // The stores' own CLIs: they do nothing else.
+  [['secret-tool', 'kwallet-query', 'kwalletcli', 'cmdkey', 'cmdkey.exe', 'vaultcmd', 'vaultcmd.exe', 'Get-StoredCredential']],
+  // D-Bus clients calling the Secret Service / KWallet, in their usual argument orders.
+  ['gdbus', 'call', ['--session', '-e'], ['--dest', '-d'], SECRET_SERVICE_BUSES],
+  ['gdbus', 'call', ['--session', '-e'], DEST_FLAGS],
+  ['gdbus', 'call', ['--dest', '-d'], SECRET_SERVICE_BUSES],
+  ['gdbus', 'call', DEST_FLAGS],
+  ['busctl', '--user', 'call', SECRET_SERVICE_BUSES],
+  ['busctl', 'call', '--user', SECRET_SERVICE_BUSES],
+  ['busctl', 'call', SECRET_SERVICE_BUSES],
+  ['dbus-send', DEST_FLAGS],
+  ['dbus-send', DBUS_SEND_OPTS, DEST_FLAGS],
+  ['dbus-send', DBUS_SEND_OPTS, DBUS_SEND_OPTS, DEST_FLAGS],
+  ['dbus-send', DBUS_SEND_OPTS, DBUS_SEND_OPTS, DBUS_SEND_OPTS, DEST_FLAGS],
+  [['qdbus', 'qdbus6', 'qdbus-qt5'], SECRET_SERVICE_BUSES],
+]
+// JSON string lists are valid Starlark list literals.
+const KEYCHAIN_RULES = `# Managed by Puppeteer: agents never read the OS secret store. Rewritten on every Puppeteer Codex session.
+${KEYCHAIN_RULE_PATTERNS.map((pattern) => `prefix_rule(
+    pattern = ${JSON.stringify(pattern)},
     decision = "forbidden",
-    justification = "Puppeteer: agents never read the macOS Keychain",
+    justification = "Puppeteer: agents never read the OS secret store",
 )
-`
+`).join('')}`
 
 function ensureKeychainRules(env) {
   const file = join(env.CODEX_HOME || join(homedir(), '.codex'), 'rules', KEYCHAIN_RULES_FILE)

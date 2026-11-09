@@ -246,16 +246,31 @@ function cancelPermission(requestId, reason, level, text) {
 }
 const NO_TOOLS_REASON = 'This session has no tool access.'
 
-// Agents never read the macOS Keychain through the `security` CLI: Puppeteer's item
-// holds PATs / tokens (and the sealed secret notes vault). Deny rules hold in
-// every permission mode, bypass included. A determined agent can still go around
-// a prefix rule (another binary, a script), which is why secret notes are also
-// encrypted under a password only the user knows.
+// Agents never read the OS secret store where Puppeteer keeps PATs / tokens (and the
+// sealed secret notes vault): the macOS Keychain, the Linux Secret Service / KWallet,
+// the Windows Credential Manager. Deny rules hold in every permission mode, bypass
+// included. Every OS gets every rule: a rule for another OS never fires, and WSL can
+// still reach the Windows store (`cmdkey.exe`, `powershell.exe`).
+// This is a deny list, not a security boundary: a determined agent goes around it
+// (another binary or path, a script, other casing — Bash rules are case-sensitive),
+// which is why secret notes are also encrypted under a password only the user knows.
+const SECRET_SERVICE_BUSES = ['org.freedesktop.secrets', 'org.kde.kwalletd']
 const KEYCHAIN_DENY_RULES = [
   'Bash(security find-generic-password:*)',
   'Bash(security find-internet-password:*)',
   'Bash(security dump-keychain:*)',
   'Bash(security export:*)',
+  // Linux: the store's own CLIs (they do nothing else), and D-Bus clients that
+  // name the store's service.
+  ...['secret-tool', 'kwallet-query', 'kwalletcli'].map((cli) => `Bash(${cli}:*)`),
+  ...['gdbus', 'busctl', 'dbus-send', 'qdbus'].flatMap((cli) =>
+    SECRET_SERVICE_BUSES.map((bus) => `Bash(${cli} *${bus}*)`)),
+  // Windows, from Git Bash / WSL and from the PowerShell tool (whose rules match
+  // case-insensitively, with or without `.exe`).
+  ...['cmdkey', 'cmdkey.exe', 'vaultcmd', 'vaultcmd.exe'].map((cli) => `Bash(${cli}:*)`),
+  ...['cmdkey', 'vaultcmd'].map((cli) => `PowerShell(${cli}:*)`),
+  ...['Get-StoredCredential', 'CredRead', 'CredEnumerate', 'PasswordVault'].flatMap((api) =>
+    [`Bash(*${api}*)`, `PowerShell(*${api}*)`]),
 ]
 
 // Lock a session's options down to text-only: no built-in tools, no MCP servers
