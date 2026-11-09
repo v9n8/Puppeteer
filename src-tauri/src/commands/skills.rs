@@ -401,7 +401,7 @@ pub async fn create_skill(
     }
 
     // Check name uniqueness
-    let existing = sqlx::query("SELECT id FROM skills WHERE name = ?")
+    let existing = sqlx::query("SELECT id FROM skills WHERE name = ? COLLATE NOCASE")
         .bind(&payload.name)
         .fetch_optional(db.inner())
         .await
@@ -458,7 +458,7 @@ pub async fn update_skill(
     let old_path: String = row.get("source_path");
 
     if old_name != payload.name {
-        let taken = sqlx::query("SELECT id FROM skills WHERE name = ? AND id != ?")
+        let taken = sqlx::query("SELECT id FROM skills WHERE name = ? COLLATE NOCASE AND id != ?")
             .bind(&payload.name)
             .bind(&payload.id)
             .fetch_optional(db.inner())
@@ -721,7 +721,7 @@ pub async fn import_skill_zip(
     let target = parse_target(&content);
 
     // Upsert into DB
-    let existing = sqlx::query("SELECT id FROM skills WHERE name = ?")
+    let existing = sqlx::query("SELECT id FROM skills WHERE name = ? COLLATE NOCASE")
         .bind(&skill_name)
         .fetch_optional(db.inner())
         .await
@@ -836,7 +836,7 @@ pub(crate) async fn import_backup_skill(
     validate_skill_name(name)?;
     validate_target(target)?;
 
-    let local = sqlx::query("SELECT id, description, target, source_path FROM skills WHERE name = ?")
+    let local = sqlx::query("SELECT id, description, target, source_path FROM skills WHERE name = ? COLLATE NOCASE")
         .bind(name)
         .fetch_optional(db)
         .await

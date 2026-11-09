@@ -233,7 +233,8 @@ pub async fn create_item(
     payload: CreateItemPayload,
 ) -> Result<LibraryItem, String> {
     validate(kind, &payload.name, &payload.description)?;
-    let taken_sql = format!("SELECT 1 FROM {} WHERE name = ?", kind.table());
+    // Case-insensitive like the file system (APFS) the `<name>.md` sources live on.
+    let taken_sql = format!("SELECT 1 FROM {} WHERE name = ? COLLATE NOCASE", kind.table());
     let taken: Option<i64> =
         sqlx::query_scalar(&taken_sql).bind(&payload.name).fetch_optional(db).await.map_err(|e| e.to_string())?;
     if taken.is_some() {
@@ -279,7 +280,7 @@ pub async fn update_item(
     let mut source_path = PathBuf::from(&old.source_path);
 
     if renamed {
-        let taken_sql = format!("SELECT 1 FROM {} WHERE name = ? AND id != ?", kind.table());
+        let taken_sql = format!("SELECT 1 FROM {} WHERE name = ? COLLATE NOCASE AND id != ?", kind.table());
         let taken: Option<i64> = sqlx::query_scalar(&taken_sql)
             .bind(&payload.name)
             .bind(&payload.id)
@@ -448,7 +449,7 @@ pub(crate) async fn import_backup_item(
     use crate::commands::settings_backup::Upsert;
     validate(kind, name, description)?;
 
-    let sql = format!("SELECT id, description, source_path FROM {} WHERE name = ?", kind.table());
+    let sql = format!("SELECT id, description, source_path FROM {} WHERE name = ? COLLATE NOCASE", kind.table());
     let local = sqlx::query(&sql).bind(name).fetch_optional(db).await.map_err(|e| e.to_string())?;
     let path = match &local {
         Some(row) => PathBuf::from(row.get::<String, _>("source_path")),
@@ -721,6 +722,31 @@ mod tests {
         assert!(list_items(&f.db, Agent).await.unwrap().is_empty());
         assert!(!f.lib(Agent).join("reviewer.md").exists());
         assert_eq!(list_items(&f.db, Cmd).await.unwrap(), vec![command]);
+    }
+
+    #[tokio::test]
+    async fn a_name_differing_only_in_case_is_taken() {
+        let f = Fixture::new("case").await;
+        for kind in [Agent, Cmd] {
+            let item = f.create(kind, "reviewer", "mine").await;
+            let other = f.create(kind, "critic", "other").await;
+
+            let dup = CreateItemPayload { name: "Reviewer".into(), description: "d".into(), content: "new".into() };
+            let err = create_item(&f.db, kind, &f.lib(kind), dup).await.unwrap_err();
+            assert!(err.contains("already exists"), "{err}");
+            let err = f.update(kind, &other.id, "REVIEWER", "other").await.unwrap_err();
+            assert!(err.contains("already exists"), "{err}");
+            assert_eq!(fs::read_to_string(&item.source_path).unwrap(), "mine");
+
+            // A backup's `Reviewer` is the local `reviewer`, not a second row on the same file.
+            import_backup_item(&f.db, kind, &f.lib(kind), "", "Reviewer", "d", "restored", false).await.unwrap();
+            let names: Vec<String> = list_items(&f.db, kind).await.unwrap().into_iter().map(|i| i.name).collect();
+            assert_eq!(names, vec!["critic", "reviewer"]);
+
+            // Only the case of its own name: still a rename of the same item.
+            let renamed = f.update(kind, &item.id, "Reviewer", "v2").await.unwrap();
+            assert_eq!(fs::read_to_string(&renamed.source_path).unwrap(), "v2");
+        }
     }
 
     #[tokio::test]

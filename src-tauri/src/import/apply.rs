@@ -354,6 +354,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_name_differing_only_in_case_is_taken() {
+        let f = Fixture::new("case").await;
+        f.import(&all_picks(), &no_secrets()).await;
+        write(&f.root.join(".claude/skills/pdf/SKILL.md"), "---\nname: pdf\ndescription: PDFs\n---\nRead PDFs, v2.");
+        let ids = [
+            ("rules:.claude/rules/style.md", "Style"),
+            ("skills:.claude/skills/pdf", "PDF"),
+            ("agents:.claude/agents/rev.md", "Rev"),
+            ("commands:.claude/commands/ship.md", "SHIP"),
+        ];
+        let mut picks: Vec<Pick> = ids.iter().map(|(id, name)| Pick { name: Some(name.to_string()), ..pick(id) }).collect();
+        assert!(f.import(&picks, &no_secrets()).await.iter().all(|o| o.status == Status::Skipped));
+        assert_eq!(fs::read_to_string(f.dirs.agents.join("rev.md")).unwrap(), "---\nname: rev\ndescription: Reviews\n---\nReview.");
+
+        for p in &mut picks {
+            p.on_conflict = OnConflict::Rename;
+        }
+        let names: Vec<_> = f.import(&picks, &no_secrets()).await.into_iter().map(|o| (o.status, o.name.unwrap())).collect();
+        assert_eq!(names, ["Style-2", "PDF-2", "Rev-2", "SHIP-2"].map(|n| (Status::Imported, n.to_string())));
+        assert_eq!(f.names("agents").await, ["Rev-2", "rev"]);
+    }
+
+    #[tokio::test]
     async fn one_failing_pick_does_not_stop_the_others() {
         let f = Fixture::new("fail").await;
         let mut picks = vec![pick("mcp:broken"), pick("rules:gone.md"), pick("mcp:api")];

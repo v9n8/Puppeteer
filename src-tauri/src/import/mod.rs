@@ -211,8 +211,9 @@ pub(crate) async fn kind_on(db: &Db, kind: ImportKind) -> bool {
     }
 }
 
+/// Case-insensitive like the file system (APFS) the library files live on.
 pub(crate) async fn name_taken(db: &Db, kind: ImportKind, name: &str) -> Result<bool, String> {
-    let sql = format!("SELECT 1 FROM {} WHERE name = ?", kind.table());
+    let sql = format!("SELECT 1 FROM {} WHERE name = ? COLLATE NOCASE", kind.table());
     let hit: Option<i64> = sqlx::query_scalar(&sql).bind(name).fetch_optional(db).await.map_err(|e| e.to_string())?;
     Ok(hit.is_some())
 }

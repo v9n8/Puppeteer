@@ -237,7 +237,7 @@ pub async fn create_rule(
         return Err("Description is required".to_string());
     }
 
-    let existing = sqlx::query("SELECT id FROM rules WHERE name = ?")
+    let existing = sqlx::query("SELECT id FROM rules WHERE name = ? COLLATE NOCASE")
         .bind(&payload.name)
         .fetch_optional(db.inner())
         .await
@@ -302,7 +302,7 @@ pub async fn update_rule(
     // Check before touching any file: renaming onto another rule's file would overwrite its
     // source — and through the links, every project using it.
     if renamed {
-        let taken = sqlx::query("SELECT id FROM rules WHERE name = ? AND id != ?")
+        let taken = sqlx::query("SELECT id FROM rules WHERE name = ? COLLATE NOCASE AND id != ?")
             .bind(&payload.name)
             .bind(&payload.id)
             .fetch_optional(db.inner())
@@ -487,7 +487,7 @@ pub async fn import_rule(
     let source_path = source_path.to_string_lossy().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let existing = sqlx::query("SELECT id FROM rules WHERE name = ?")
+    let existing = sqlx::query("SELECT id FROM rules WHERE name = ? COLLATE NOCASE")
         .bind(&name)
         .fetch_optional(db.inner())
         .await
@@ -1235,7 +1235,7 @@ pub(crate) async fn import_backup_rule(
     validate_rule_name(name)?;
     validate_target(target)?;
 
-    let local = sqlx::query("SELECT id, description, target, source_path FROM rules WHERE name = ?")
+    let local = sqlx::query("SELECT id, description, target, source_path FROM rules WHERE name = ? COLLATE NOCASE")
         .bind(name)
         .fetch_optional(db)
         .await
@@ -1494,6 +1494,21 @@ mod tests {
         assert!(sync_rule_to_projects(&db, "lang").await.unwrap().is_empty());
         assert!(is_symlink(&project.join(".claude/rules/lang.md")));
         assert!(!project.join("AGENTS.md").exists());
+    }
+
+    #[tokio::test]
+    async fn a_backup_name_differing_only_in_case_is_the_local_item() {
+        let (db, _project, lib) = setup("case").await;
+        import_backup_rule(&lib.join("rules"), &db, "", "lang", "d", "claude", "mine").await.unwrap();
+        import_backup_rule(&lib.join("rules"), &db, "", "Lang", "d", "claude", "restored").await.unwrap();
+        let rules: Vec<String> = sqlx::query_scalar("SELECT name FROM rules").fetch_all(&db).await.unwrap();
+        assert_eq!(rules, ["lang"]);
+
+        let files = |body: &str| vec![(PathBuf::from("SKILL.md"), body.as_bytes().to_vec())];
+        crate::commands::skills::import_backup_skill(&lib.join("skills"), &db, "", "pdf", "d", "claude", &files("mine")).await.unwrap();
+        crate::commands::skills::import_backup_skill(&lib.join("skills"), &db, "", "PDF", "d", "claude", &files("restored")).await.unwrap();
+        let skills: Vec<String> = sqlx::query_scalar("SELECT name FROM skills").fetch_all(&db).await.unwrap();
+        assert_eq!(skills, ["pdf"]);
     }
 
     #[tokio::test]
