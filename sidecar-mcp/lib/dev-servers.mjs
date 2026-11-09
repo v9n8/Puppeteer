@@ -140,6 +140,19 @@ function checkCwd(name, cwd, root) {
 
 const inside = (root, target) => target === root || target.startsWith(root + path.sep);
 
+/** `resolveEntryCwd` as the disk resolves it: a directory the repo commits as a symlink must not send the server out. */
+function assertRealCwd(root, entry, cwdAbs) {
+  let realRoot;
+  let realCwd;
+  try {
+    realRoot = fs.realpathSync(root);
+    realCwd = fs.realpathSync(cwdAbs);
+  } catch (e) {
+    throw new Error(`Dev server "${entry.name}": cannot resolve ${cwdAbs} (${e.code ?? e.message})`);
+  }
+  if (!inside(realRoot, realCwd)) throw new Error(`Dev server "${entry.name}": cwd leaves the project through a symbolic link`);
+}
+
 /** Absolute run directory of `entry`; throws when it would leave the project. */
 export function resolveEntryCwd(root, entry) {
   const base = path.resolve(root);
@@ -176,6 +189,7 @@ export function loadDevServerConfig(root) {
   const problems = [];
   const servers = [];
   const seen = new Set();
+  const ports = new Set();
   for (const item of json.servers) {
     if (servers.length >= MAX_SERVERS) {
       problems.push(`only the first ${MAX_SERVERS} servers are used; the rest were ignored`);
@@ -192,7 +206,15 @@ export function loadDevServerConfig(root) {
       problems.push(`server "${checked.entry.name}": duplicate name, the later entry was ignored`);
       continue;
     }
+    // Two servers on one port: before the first listens, the port probe cannot tell
+    // the second it is taken.
+    const { port } = checked.entry;
+    if (port != null && ports.has(port)) {
+      problems.push(`server "${checked.entry.name}": port ${port} is declared by an earlier entry, the later entry was ignored`);
+      continue;
+    }
     seen.add(key);
+    if (port != null) ports.add(port);
     servers.push(checked.entry);
   }
   return { configPath, servers, problems, missing: false };
@@ -460,9 +482,19 @@ async function start({ name }) {
         'Ask the user what holds the port before starting anything.',
     );
   }
+  assertRealCwd(root, v, v.cwdAbs);
   // The redirect target's directory must exist before the command runs.
   fs.mkdirSync(path.dirname(v.log), { recursive: true });
   assertLocalPath(root, v.log);
+  // The shell's `>` would create the log with its umask, and keeps the mode of one that
+  // exists; a server log can hold secrets. Never through a link swapped in after the check.
+  const { O_WRONLY, O_CREAT, O_NOFOLLOW = 0 } = fs.constants;
+  const fd = fs.openSync(v.log, O_WRONLY | O_CREAT | O_NOFOLLOW, 0o600);
+  try {
+    fs.fchmodSync(fd, 0o600);
+  } finally {
+    fs.closeSync(fd);
+  }
   return (
     `"${v.name}" is not running. This tool does not launch it: run this exact command yourself, in the background, ` +
     `so the user approves it (Claude: Bash with run_in_background: true; a shell tool with no background option: ` +

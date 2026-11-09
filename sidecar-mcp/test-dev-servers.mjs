@@ -19,7 +19,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import net from 'node:net';
-import { mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   MAX_SERVERS,
@@ -58,6 +58,7 @@ const throws = (fn) => {
   }
 };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const modeOf = (file) => (existsSync(file) ? statSync(file).mode & 0o777 : null);
 
 // realpath: macOS tmpdir is a symlink, and lsof reports resolved paths.
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'puppeteer-dev-servers-')));
@@ -113,6 +114,11 @@ for (const [label, entry] of [
 writeConfig({ servers: [WEB, { ...WEB, name: 'WEB', command: 'npm' }] });
 cfg = loadDevServerConfig(root);
 check(cfg.servers.length === 1 && cfg.servers[0].command === 'pnpm' && cfg.problems.length === 1, 'config: duplicate name (any case) keeps the first');
+
+// Two names on one port: before the first listens, nothing tells the second it is taken.
+writeConfig({ servers: [WEB, { ...WEB, name: 'api' }, { name: 'worker', command: 'node' }] });
+cfg = loadDevServerConfig(root);
+check(same(cfg.servers.map((s) => s.name), ['web', 'worker']) && /port 3000/.test(cfg.problems.join()), 'config: a second server on one port keeps the first');
 
 writeConfig({ servers: Array.from({ length: 30 }, (_, i) => ({ name: `s${i}`, command: 'node' })) });
 cfg = loadDevServerConfig(root);
@@ -218,14 +224,17 @@ check(same(tools.sort(), ['dev_server_list', 'dev_server_logs', 'dev_server_star
 let r = await call('dev_server_list');
 check(text(r).includes('web: stopped') && text(r).includes(command), 'list: name, status and the exact command');
 
+check(isError(await call('dev_server_logs', { name: 'web' })), 'logs: never started → error, no log yet');
+
 r = await call('dev_server_start', { name: 'web' });
 check(!isError(r) && text(r).includes(command) && text(r).includes('run_in_background'), 'start: returns the command to run');
-check(existsSync(dirname(webLog)) && !existsSync(webLog) && same(logWriters(webLog), []), 'start: spawns nothing (log dir ready, no log, no process)');
+check(existsSync(webLog) && readFileSync(webLog, 'utf8') === '' && same(logWriters(webLog), []), 'start: spawns nothing (empty log ready, no process)');
+// The shell redirect would create it with the umask: a server log may hold secrets.
+check(modeOf(webLog) === 0o600, 'start: the log is created private (0600)');
 
 r = await call('dev_server_start', { name: 'ghost' });
 check(isError(r) && text(r).includes('web'), 'start: unknown name is an error listing the declared ones');
 check(isError(await call('dev_server_logs', {})), 'logs: no name is an error, no guessing');
-check(isError(await call('dev_server_logs', { name: 'web' })), 'logs: never started → error, no log yet');
 check(isError(await call('dev_server_stop', { name: 'web' })), 'stop: not running → error');
 
 // Something else holds the port: start refuses, stop leaves it alone.
@@ -260,6 +269,19 @@ await exited(server);
 check(!isError(r) && /Stopped dev server "web"/.test(text(r)) && server.signalCode === 'SIGTERM', 'stop: signals the process writing its log');
 check(text(await call('dev_server_list')).includes('web: stopped'), 'stop: listed as stopped afterwards');
 closeSync(reader);
+chmodSync(webLog, 0o644);
+r = await call('dev_server_start', { name: 'web' });
+check(!isError(r) && modeOf(webLog) === 0o600, 'start: an existing log is made private again');
+
+// The repo links the run directory out of the project: no command to run there.
+const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'puppeteer-dev-servers-out-')));
+symlinkSync(elsewhere, join(root, 'linked'));
+writeConfig({ servers: [{ name: 'web', command: 'node', args: ['server.js'], cwd: 'linked' }] });
+r = await call('dev_server_start', { name: 'web' });
+check(isError(r) && /symbolic link/.test(text(r)) && !text(r).includes('&&'), 'linked cwd: start refuses, no command');
+rmSync(join(root, 'linked'));
+rmSync(elsewhere, { recursive: true, force: true });
+writeConfig({ version: 1, servers: [{ name: 'web', command: 'node', args: ['server.js'], port, description: 'Test server' }] });
 
 // The repo links the log somewhere else: nothing reads, offers or signals through it.
 const outside = join(root, 'outside.txt');

@@ -145,6 +145,20 @@ pub fn resolve_entry_cwd(root: &Path, entry: &DevServer) -> Result<PathBuf, Stri
     Ok(target)
 }
 
+/// [`resolve_entry_cwd`] as the disk resolves it: a directory the repo commits as
+/// a symlink must not send the server out of the project.
+fn real_entry_cwd(root: &Path, entry: &DevServer) -> Result<PathBuf, String> {
+    let cwd = resolve_entry_cwd(root, entry)?;
+    let real = |p: &Path| {
+        std::fs::canonicalize(p).map_err(|e| format!("Dev server \"{}\": cannot resolve {}: {e}", entry.name, p.display()))
+    };
+    let real_cwd = real(&cwd)?;
+    if !inside(&real(root)?, &real_cwd) {
+        return Err(format!("Dev server \"{}\": cwd leaves the project through a symbolic link", entry.name));
+    }
+    Ok(real_cwd)
+}
+
 /// Fails when `file`, or a directory between the project root and it, is a
 /// symlink or not what it should be. The repo can commit
 /// `.puppeteer/dev-servers/web.log` as a link to any file: starting would
@@ -283,6 +297,7 @@ pub fn load_config(root: &Path) -> Result<DevServerConfig, String> {
     let mut servers: Vec<DevServer> = Vec::new();
     let mut problems = Vec::new();
     let mut seen = BTreeSet::new();
+    let mut ports = BTreeSet::new();
     for item in items {
         if servers.len() >= MAX_SERVERS {
             problems.push(format!("only the first {MAX_SERVERS} servers are used; the rest were ignored"));
@@ -293,6 +308,15 @@ pub fn load_config(root: &Path) -> Result<DevServerConfig, String> {
             // Case-insensitive: names are also log file names, and macOS folds case.
             Ok(entry) if !seen.insert(entry.name.to_lowercase()) => {
                 problems.push(format!("server \"{}\": duplicate name, the later entry was ignored", entry.name));
+            }
+            // Two servers on one port: before the first listens, the port probe
+            // cannot tell the second it is taken.
+            Ok(entry) if entry.port.is_some_and(|p| !ports.insert(p)) => {
+                problems.push(format!(
+                    "server \"{}\": port {} is declared by an earlier entry, the later entry was ignored",
+                    entry.name,
+                    entry.port.unwrap_or_default()
+                ));
             }
             Ok(entry) => servers.push(entry),
         }
@@ -418,7 +442,15 @@ fn open_log(log: &Path) -> Result<std::fs::File, String> {
         // Never through a link swapped in after the check.
         o.mode(0o600).custom_flags(libc::O_NOFOLLOW);
     }
-    o.open(log).map_err(|e| format!("Cannot open {}: {e}", log.display()))
+    let file = o.open(log).map_err(|e| format!("Cannot open {}: {e}", log.display()))?;
+    // `mode` only applies to a new file; one the agent's shell created has its umask.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Cannot restrict {}: {e}", log.display()))?;
+    }
+    Ok(file)
 }
 
 fn already_running(entry: &DevServer, pids: &[u32]) -> String {
@@ -431,19 +463,42 @@ fn already_running(entry: &DevServer, pids: &[u32]) -> String {
     )
 }
 
+/// `live`: the pid of the copy started here; `writers`: [`log_writers`].
+fn not_running(entry: &DevServer, live: Option<u32>, writers: Option<Vec<u32>>) -> Result<(), String> {
+    if let Some(pid) = live {
+        return Err(already_running(entry, &[pid]));
+    }
+    match writers {
+        Some(pids) if !pids.is_empty() => Err(already_running(entry, &pids)),
+        Some(_) => Ok(()),
+        // Start truncates the log: a copy lsof could not see would lose it.
+        None => Err(format!(
+            "Cannot tell whether \"{}\" is already running: lsof did not answer for its log. Stop it, or delete the log if nothing runs, then start again.",
+            entry.name
+        )),
+    }
+}
+
 /// Dev servers this app started, and the lock that keeps two Starts apart.
 #[derive(Default)]
 pub struct DevServers {
     /// Held from the checks to the spawn: two quick Starts of one server
     /// cannot both find it stopped.
     starting: tokio::sync::Mutex<()>,
-    /// Log path → root pid of each server started here that has not exited.
-    live: Arc<Mutex<HashMap<PathBuf, u32>>>,
+    /// Log path → root pid and declared port of each server started here that
+    /// has not exited.
+    live: Arc<Mutex<HashMap<PathBuf, (u32, Option<u16>)>>>,
 }
 
 impl DevServers {
     fn live_pid(&self, log: &Path) -> Option<u32> {
-        self.live.lock().unwrap_or_else(|e| e.into_inner()).get(log).copied()
+        self.live.lock().unwrap_or_else(|e| e.into_inner()).get(log).map(|(pid, _)| *pid)
+    }
+
+    /// A server started here on `port`: it may not listen yet, so the probe misses it.
+    fn live_on_port(&self, port: u16) -> Option<u32> {
+        let live = self.live.lock().unwrap_or_else(|e| e.into_inner());
+        live.values().find(|(_, p)| *p == Some(port)).map(|(pid, _)| *pid)
     }
 
     /// Start `entry` with exactly `env`, unless a copy already writes its log or
@@ -459,13 +514,15 @@ impl DevServers {
         let root = normalize(root);
         let log = log_path(&root, &entry.name);
         assert_local_path(&root, &log)?;
-        if let Some(pid) = self.live_pid(&log) {
-            return Err(already_running(entry, &[pid]));
-        }
-        if let Some(pids) = log_writers(&log).await.filter(|p| !p.is_empty()) {
-            return Err(already_running(entry, &pids));
-        }
+        let live = self.live_pid(&log);
+        not_running(entry, live, log_writers(&log).await)?;
         if let Some(port) = entry.port {
+            if let Some(pid) = self.live_on_port(port) {
+                return Err(format!(
+                    "Port {port} is already taken by another dev server Puppeteer started (pid {pid}), so \"{}\" would not come up.",
+                    entry.name
+                ));
+            }
             if port_in_use(port).await {
                 return Err(format!(
                     "Port {port} is already in use by a process Puppeteer did not start, so \"{}\" would not come up.",
@@ -473,7 +530,7 @@ impl DevServers {
                 ));
             }
         }
-        let cwd = resolve_entry_cwd(&root, entry)?;
+        let cwd = real_entry_cwd(&root, entry)?;
         if let Some(dir) = log.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
         }
@@ -496,7 +553,7 @@ impl DevServers {
             // app must never count as a writer (the MCP `stop` would signal it).
         };
         let pid = child.id().ok_or_else(|| format!("\"{}\" exited at once", entry.name))?;
-        self.live.lock().unwrap_or_else(|e| e.into_inner()).insert(log.clone(), pid);
+        self.live.lock().unwrap_or_else(|e| e.into_inner()).insert(log.clone(), (pid, entry.port));
         let mut spec = ProcSpec::new(ProcKind::DevServer, entry.name.clone());
         spec.project_id = project_id;
         let guard = super::track(spec, Some(pid));
@@ -504,7 +561,7 @@ impl DevServers {
         tokio::spawn(async move {
             let _ = child.wait().await;
             let mut live = live.lock().unwrap_or_else(|e| e.into_inner());
-            if live.get(&log) == Some(&pid) {
+            if live.get(&log).map(|(p, _)| *p) == Some(pid) {
                 live.remove(&log);
             }
             drop(guard);
@@ -1061,5 +1118,76 @@ mod tests {
         for secret in ["GH_TOKEN", "AWS_", "ghp_from_parent", "aws_from_parent"] {
             assert!(!log.contains(secret), "{secret} leaked: {log}");
         }
+    }
+
+    // Start opens the log with truncate: when lsof cannot tell whether a copy
+    // writes it, going on would wipe the log of a running server.
+    #[test]
+    fn start_is_refused_when_lsof_cannot_tell() {
+        let e = sleeper();
+        assert!(not_running(&e, None, Some(vec![])).is_ok());
+        assert!(not_running(&e, None, Some(vec![42])).unwrap_err().contains("already running"));
+        assert!(not_running(&e, Some(7), None).unwrap_err().contains("already running"));
+        let err = not_running(&e, None, None).unwrap_err();
+        assert!(err.contains("lsof"), "{err}");
+    }
+
+    #[test]
+    fn config_drops_a_second_server_on_one_port() {
+        let r = root();
+        let mut api = web();
+        api["name"] = json!("api");
+        write_config(&r.0, &json!({ "servers": [web(), api, { "name": "worker", "command": "node" }] }).to_string());
+        let c = load_config(&r.0).unwrap();
+        assert_eq!(names(&c), ["web", "worker"]);
+        assert!(c.problems.join(",").contains("port 3000"), "{:?}", c.problems);
+    }
+
+    // Before the first one listens, the port probe sees nothing.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_port_held_by_a_server_started_here_is_refused() {
+        let r = root();
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let servers = DevServers::default();
+        let env = clean_env(std::env::vars_os());
+        let first = DevServer { port: Some(port), ..sleeper() };
+        let pid = servers.start(&r.0, &first, env.clone(), None).await.unwrap();
+        let second = DevServer { name: "web2".into(), ..first.clone() };
+        let res = servers.start(&r.0, &second, env, None).await;
+        servers.stop(&r.0, &first).await.unwrap();
+        if let Ok(other) = res {
+            let _ = servers.stop(&r.0, &second).await;
+            panic!("a second server started on port {port} (pid {other}, first {pid})");
+        }
+        assert!(res.unwrap_err().contains(&format!("Port {port}")));
+        assert!(gone(pid).await);
+    }
+
+    // The agent's shell creates the log with its umask; a later Start keeps it
+    // unless it sets the mode itself.
+    #[cfg(unix)]
+    #[test]
+    fn the_log_is_private_even_when_it_already_exists() {
+        use std::os::unix::fs::PermissionsExt;
+        let r = root();
+        let log = log_path(&r.0, "web");
+        std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+        std::fs::write(&log, "old\n").unwrap();
+        std::fs::set_permissions(&log, std::fs::Permissions::from_mode(0o644)).unwrap();
+        drop(open_log(&log).unwrap());
+        assert_eq!(std::fs::metadata(&log).unwrap().permissions().mode() & 0o777, 0o600);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_cwd_linked_out_of_the_project_is_refused() {
+        let r = root();
+        let outside = root();
+        std::os::unix::fs::symlink(&outside.0, r.0.join("apps")).unwrap();
+        let entry = DevServer { command: "true".into(), args: vec![], cwd: "apps".into(), ..sleeper() };
+        let res = DevServers::default().start(&r.0, &entry, clean_env(std::env::vars_os()), None).await;
+        let err = res.expect_err("the server ran outside the project");
+        assert!(err.contains("symbolic link"), "{err}");
     }
 }
