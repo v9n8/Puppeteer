@@ -88,12 +88,16 @@ fn repo_of(project: &Path) -> Option<(PathBuf, PathBuf)> {
 }
 
 /// Give `worker_id` a new worktree of the project's repository on a new branch
-/// from the current `HEAD`. `Ok(None)` when the project is not a git project:
-/// the worker then runs in the project folder.
+/// from the current `HEAD`. `Ok(None)` when the project is not a git project,
+/// or its repository has no commit yet (no `HEAD` to branch from): the worker
+/// then runs in the project folder.
 pub fn create(project: &Path, root: &Path, worker_id: &str) -> Result<Option<PathBuf>, String> {
     let Some((top, _)) = repo_of(project) else {
         return Ok(None);
     };
+    if git(&top, ["rev-parse", "--verify", "--quiet", "HEAD"]).is_err() {
+        return Ok(None);
+    }
     std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let path = root.join(worker_id);
     let branch = branch_for(worker_id);
@@ -337,8 +341,9 @@ fn commit_pending(worktree: &Path, worker_id: &str) -> Result<bool, String> {
 
 /// Merge `worker_id`'s branch into the project's current branch, after
 /// committing what the worker left uncommitted. A conflict is aborted and
-/// reported ([`MergeOutcome::Conflict`]); the branch and worktree stay for
-/// another try. Refused while the project is not on a branch, is in the middle
+/// reported ([`MergeOutcome::Conflict`]), one a hook stops is aborted with the
+/// hook's output as the error; the branch and worktree stay for another try.
+/// Refused while the project is not on a branch, is in the middle
 /// of a merge, or has uncommitted changes to tracked files (an aborted merge
 /// cannot always give those back).
 pub fn merge(project: &Path, worktree: &Path, worker_id: &str) -> Result<MergeOutcome, String> {
@@ -379,13 +384,19 @@ pub fn merge(project: &Path, worktree: &Path, worker_id: &str) -> Result<MergeOu
         let said = [&out.stderr[..], &out.stdout[..]].map(String::from_utf8_lossy).join("\n");
         return Err(format!("Could not merge the worker's branch: {}", said.trim()));
     }
-    let files = git(&top, ["-c", "core.quotepath=false", "diff", "--name-only", "--diff-filter=U"])
+    let files: Vec<String> = git(&top, ["-c", "core.quotepath=false", "diff", "--name-only", "--diff-filter=U"])
         .unwrap_or_default()
         .lines()
         .map(str::to_string)
         .collect();
     git(&top, ["merge", "--abort"])
         .map_err(|e| format!("The merge conflicted and could not be aborted, finish it by hand: {e}"))?;
+    if files.is_empty() {
+        // Nothing in conflict: a hook (`pre-merge-commit`, `commit-msg`)
+        // stopped the merge commit, and only git's output says why.
+        let said = [&out.stderr[..], &out.stdout[..]].map(String::from_utf8_lossy).join("\n");
+        return Err(format!("Could not merge the worker's branch: {}", said.trim()));
+    }
     Ok(MergeOutcome::Conflict { files })
 }
 
@@ -516,6 +527,16 @@ mod tests {
     fn a_project_outside_git_runs_in_place() {
         let dir = std::env::temp_dir().join(format!("puppeteer-wt-nogit-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(create(&dir, &dir.join("worktrees"), "w1").unwrap(), None);
+        assert!(!dir.join("worktrees").join("w1").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_repository_without_a_commit_runs_in_place() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-wt-unborn-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        sh(&dir, &["init", "-q"]);
         assert_eq!(create(&dir, &dir.join("worktrees"), "w1").unwrap(), None);
         assert!(!dir.join("worktrees").join("w1").exists());
         let _ = std::fs::remove_dir_all(&dir);
@@ -756,6 +777,29 @@ mod tests {
         // The worker's work is untouched.
         assert_eq!(head(&wt), worker_head);
         assert_eq!(read(&wt.join("app/a.txt")), "worker");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_merge_stopped_by_a_hook_is_aborted_and_says_why() {
+        use std::os::unix::fs::PermissionsExt;
+        let f = fixture();
+        let wt = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        std::fs::write(wt.join("new.txt"), "new").unwrap();
+        commit_all(&wt, "work");
+        // The project moved on: a merge commit, so the hook runs.
+        std::fs::write(f.project.join("other.txt"), "o").unwrap();
+        commit_all(&f.project, "project work");
+        let before = head(&f.project);
+        let hook = f.project.join(".git/hooks/pre-merge-commit");
+        std::fs::write(&hook, "#!/bin/sh\necho 'merges need a ticket' >&2\nexit 1\n").unwrap();
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let err = merge(&f.project, &wt, "w1").unwrap_err();
+        assert!(err.contains("merges need a ticket"), "{err}");
+        assert_eq!(head(&f.project), before);
+        assert!(git(&f.project, ["rev-parse", "--quiet", "--verify", "MERGE_HEAD"]).is_err());
+        assert_eq!(git(&f.project, ["status", "--porcelain"]).unwrap(), "");
     }
 
     #[test]
