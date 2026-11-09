@@ -18,6 +18,7 @@ import { ref } from 'vue'
 import { emit, listen } from '@tauri-apps/api/event'
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { invoke } from '@/lib/tauri'
+import { revealIn } from '@/lib/fileActionsCore'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useFileTreeStore } from '@/stores/fileTree'
@@ -110,10 +111,8 @@ export function useFileActions() {
   }
 
   function revealInFolder(projectPath: string, target: FileTarget) {
-    const abs = absPath(projectPath, target.path)
-    // Folders open themselves; a file reveals itself inside its folder.
-    const p = target.isDir ? openPath(abs) : revealItemInDir(abs)
-    return p.catch(() => { /* opener unavailable */ })
+    return revealIn({ openPath, revealItemInDir }, absPath(projectPath, target.path))
+      .catch(() => { /* opener unavailable */ })
   }
 
   function openInDefaultApp(projectPath: string, target: FileTarget) {
