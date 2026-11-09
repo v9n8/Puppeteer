@@ -311,7 +311,12 @@ fn evaluate_aws(argv: &[String]) -> PolicyDecision {
         (service, op),
         ("sts", "get-session-token" | "assume-role" | "get-federation-token")
             | ("sso", "get-role-credentials")
-            | ("cognito-identity", "get-credentials-for-identity")
+            | (
+                "cognito-identity",
+                "get-credentials-for-identity"
+                    | "get-open-id-token"
+                    | "get-open-id-token-for-developer-identity"
+            )
     ) {
         return deny("AWS credential minting is blocked");
     }
@@ -333,6 +338,15 @@ fn evaluate_aws(argv: &[String]) -> PolicyDecision {
                 || aws_flag_is(a, "--cli-input-json")
                 || aws_flag_is(a, "--cli-input-yaml")
         });
+    // `get-api-keys --include-values` prints every key. `--include-value`
+    // (of `get-api-key`) is a prefix of it, so one check covers both.
+    let apigw_key_value = service == "apigateway"
+        && matches!(op, "get-api-key" | "get-api-keys")
+        && argv.iter().any(|a| {
+            aws_flag_is(a, "--include-values")
+                || aws_flag_is(a, "--cli-input-json")
+                || aws_flag_is(a, "--cli-input-yaml")
+        });
     let secret_read = matches!(
         (service, op),
         ("secretsmanager", "get-secret-value")
@@ -343,8 +357,12 @@ fn evaluate_aws(argv: &[String]) -> PolicyDecision {
             | ("redshift", "get-cluster-credentials" | "get-cluster-credentials-with-iam")
             | ("redshift-serverless", "get-credentials")
             | ("lightsail", "get-instance-access-details")
+            // The function's environment variables.
+            | ("lambda", "get-function" | "get-function-configuration")
+            // The Windows admin password; `--priv-launch-key` decrypts it.
+            | ("ec2", "get-password-data")
     );
-    if ssm_decrypt || secret_read {
+    if ssm_decrypt || apigw_key_value || secret_read {
         return ask("AWS command reveals a secret or credential — needs confirmation");
     }
 
@@ -873,6 +891,8 @@ mod tests {
             &["sts", "get-federation-token", "--name", "x"][..],
             &["sso", "get-role-credentials", "--role-name", "r", "--account-id", "1"][..],
             &["cognito-identity", "get-credentials-for-identity", "--identity-id", "i"][..],
+            &["cognito-identity", "get-open-id-token", "--identity-id", "i"][..],
+            &["cognito-identity", "get-open-id-token-for-developer-identity", "--identity-pool-id", "p"][..],
             // Global flags (and their values) in front must not hide the operation.
             &["--region", "us-east-1", "sts", "get-federation-token", "--name", "x"][..],
             &["sts", "--output", "json", "assume-role", "--role-arn", "a"][..],
@@ -907,6 +927,14 @@ mod tests {
             &["redshift", "get-cluster-credentials", "--cluster-identifier", "c"][..],
             &["redshift-serverless", "get-credentials", "--workgroup-name", "w"][..],
             &["lightsail", "get-instance-access-details", "--instance-name", "i"][..],
+            &["lambda", "get-function", "--function-name", "f"][..],
+            &["lambda", "get-function-configuration", "--function-name", "f"][..],
+            &["ec2", "get-password-data", "--instance-id", "i-1"][..],
+            &["apigateway", "get-api-key", "--api-key", "k", "--include-value"][..],
+            &["apigateway", "get-api-key", "--api-key", "k", "--include-val"][..],
+            &["apigateway", "get-api-key", "--cli-input-json", "file://k.json"][..],
+            &["apigateway", "get-api-keys", "--include-values"][..],
+            &["apigateway", "get-api-keys", "--include-value"][..],
             &["--region", "us-east-1", "secretsmanager", "get-secret-value", "--secret-id", "x"][..],
             &["--region=us-east-1", "secretsmanager", "get-secret-value", "--secret-id", "x"][..],
         ] {
@@ -926,6 +954,9 @@ mod tests {
             &["ssm", "get-parameter", "--name", "x", "--no-with-decryption"][..],
             &["ssm", "get-parameters-by-path", "--path", "/app"][..],
             &["secretsmanager", "list-secrets"][..],
+            &["lambda", "list-functions"][..],
+            &["apigateway", "get-api-key", "--api-key", "k"][..],
+            &["apigateway", "get-api-keys"][..],
             &["--region", "us-east-1", "ec2", "describe-instances"][..],
             &["--debug", "--output=json", "ec2", "describe-instances"][..],
             &["ec2", "--reg", "us-east-1", "describe-instances"][..],
