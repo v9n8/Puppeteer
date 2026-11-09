@@ -198,17 +198,96 @@ fn evaluate_gh_like(argv: &[String], is_glab: bool) -> PolicyDecision {
     ask("unknown or unlisted subcommand — needs confirmation")
 }
 
+/// aws global flags that take a value (`--region us-east-1`), from the CLI's
+/// own option table (`awscli/data/cli.json`).
+const AWS_GLOBAL_VALUE_FLAGS: &[&str] = &[
+    "--endpoint-url",
+    "--output",
+    "--query",
+    "--profile",
+    "--region",
+    "--color",
+    "--ca-bundle",
+    "--cli-read-timeout",
+    "--cli-connect-timeout",
+    "--cli-binary-format",
+    "--cli-error-format",
+];
+/// aws global flags without a value.
+const AWS_GLOBAL_BOOL_FLAGS: &[&str] = &[
+    "--debug",
+    "--no-verify-ssl",
+    "--no-paginate",
+    "--version",
+    "--no-sign-request",
+    "--no-cli-pager",
+    "--cli-auto-prompt",
+    "--no-cli-auto-prompt",
+];
+
+/// The aws global flag `token` names, exact or as a unique abbreviation (the
+/// CLI's argparse accepts `--reg` for `--region`), ignoring a `=value` part.
+fn aws_global_flag(token: &str) -> Option<&'static str> {
+    let name = token.split('=').next().unwrap_or(token);
+    let all = || AWS_GLOBAL_VALUE_FLAGS.iter().chain(AWS_GLOBAL_BOOL_FLAGS).copied();
+    if let Some(f) = all().find(|f| *f == name) {
+        return Some(f);
+    }
+    if name.len() <= 2 {
+        return None;
+    }
+    let mut hits = all().filter(|f| f.starts_with(name));
+    match (hits.next(), hits.next()) {
+        (Some(f), None) => Some(f),
+        _ => None,
+    }
+}
+
+/// `token` is the aws flag `full` or an abbreviation of it, with or without a
+/// `=value` part.
+fn aws_flag_is(token: &str, full: &str) -> bool {
+    let name = token.split('=').next().unwrap_or(token);
+    name.len() > 2 && full.starts_with(name)
+}
+
+/// `(service, operation)` as the CLI reads them. Global flags may sit anywhere,
+/// also between service and operation, and consume their value, so
+/// `split_argv` (which keeps flag values as positionals) would read
+/// `aws secretsmanager --ca-bundle list-x get-secret-value` as `list-x`. Any
+/// other flag before the operation sets `unsure`: this table may lag a newer
+/// CLI, so the caller must not auto-allow.
+fn aws_command_path(argv: &[String]) -> (Vec<String>, bool) {
+    let mut path = Vec::new();
+    let mut unsure = false;
+    let mut i = 0;
+    while i < argv.len() && path.len() < 2 {
+        let a = argv[i].as_str();
+        i += 1;
+        if !a.starts_with('-') {
+            path.push(a.to_ascii_lowercase());
+            continue;
+        }
+        match aws_global_flag(a) {
+            // `--flag value` consumes the next token; `--flag=value` does not.
+            Some(f) if AWS_GLOBAL_VALUE_FLAGS.contains(&f) && !a.contains('=') => i += 1,
+            Some(_) => {}
+            None => unsure = true,
+        }
+    }
+    (path, unsure)
+}
+
 /// AWS CLI policy. Shape is usually `aws <service> <operation> ...`, except
 /// global commands such as `configure`. The policy is intentionally
-/// conservative: credential/auth mutation denies, obvious reads allow, writes
-/// ask, unknowns ask.
+/// conservative: credential/auth mutation denies, secret-revealing reads ask,
+/// obvious reads allow, writes ask, unknowns ask.
 fn evaluate_aws(argv: &[String]) -> PolicyDecision {
-    let (pos, _flags) = split_argv(argv);
-    let service = match pos.first() {
+    let (path, unsure) = aws_command_path(argv);
+    let service = match path.first() {
         Some(s) => s.as_str(),
         None => return ask("empty aws command — needs confirmation"),
     };
-    let op = pos.get(1).map(|s| s.as_str()).unwrap_or("");
+    let op = path.get(1).map(|s| s.as_str()).unwrap_or("");
 
     if service == "configure" {
         return deny("`aws configure` mutates local credential/config state");
@@ -228,8 +307,45 @@ fn evaluate_aws(argv: &[String]) -> PolicyDecision {
     {
         return deny("AWS IAM credential/user management is blocked");
     }
-    if service == "sts" && matches!(op, "get-session-token" | "assume-role") {
-        return deny("AWS STS credential minting is blocked");
+    if matches!(
+        (service, op),
+        ("sts", "get-session-token" | "assume-role" | "get-federation-token")
+            | ("sso", "get-role-credentials")
+            | ("cognito-identity", "get-credentials-for-identity")
+    ) {
+        return deny("AWS credential minting is blocked");
+    }
+
+    if unsure {
+        return ask("unrecognized aws flag before the operation — needs confirmation");
+    }
+
+    // `get-*` reads that print a secret value or a usable credential; checked
+    // before the `get-` prefix allow below.
+    let ssm_decrypt = service == "ssm"
+        && matches!(
+            op,
+            "get-parameter" | "get-parameters" | "get-parameters-by-path" | "get-parameter-history"
+        )
+        && argv.iter().any(|a| {
+            // `--cli-input-*` can set `WithDecryption` without the flag.
+            aws_flag_is(a, "--with-decryption")
+                || aws_flag_is(a, "--cli-input-json")
+                || aws_flag_is(a, "--cli-input-yaml")
+        });
+    let secret_read = matches!(
+        (service, op),
+        ("secretsmanager", "get-secret-value")
+            | ("ecr" | "ecr-public", "get-login-password" | "get-authorization-token")
+            | ("eks", "get-token")
+            | ("codeartifact", "get-authorization-token")
+            | ("kms", "decrypt")
+            | ("redshift", "get-cluster-credentials" | "get-cluster-credentials-with-iam")
+            | ("redshift-serverless", "get-credentials")
+            | ("lightsail", "get-instance-access-details")
+    );
+    if ssm_decrypt || secret_read {
+        return ask("AWS command reveals a secret or credential — needs confirmation");
     }
 
     if service == "sts" && op == "get-caller-identity" {
@@ -749,6 +865,91 @@ mod tests {
             evaluate_policy("aws", &argv(&["sts", "get-session-token"])),
             PolicyDecision::Deny { .. }
         ));
+    }
+
+    #[test]
+    fn deny_aws_get_commands_that_mint_credentials() {
+        for a in [
+            &["sts", "get-federation-token", "--name", "x"][..],
+            &["sso", "get-role-credentials", "--role-name", "r", "--account-id", "1"][..],
+            &["cognito-identity", "get-credentials-for-identity", "--identity-id", "i"][..],
+            // Global flags (and their values) in front must not hide the operation.
+            &["--region", "us-east-1", "sts", "get-federation-token", "--name", "x"][..],
+            &["sts", "--output", "json", "assume-role", "--role-arn", "a"][..],
+        ] {
+            assert!(
+                matches!(evaluate_policy("aws", &argv(a)), PolicyDecision::Deny { .. }),
+                "argv={a:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ask_aws_get_commands_that_read_secrets() {
+        for a in [
+            &["secretsmanager", "get-secret-value", "--secret-id", "prod/db"][..],
+            &["ssm", "get-parameter", "--name", "x", "--with-decryption"][..],
+            &["ssm", "get-parameters", "--names", "a", "b", "--with-decryption"][..],
+            &["ssm", "get-parameters-by-path", "--path", "/", "--with-decryption"][..],
+            &["ssm", "get-parameter-history", "--name", "x", "--with-decryption"][..],
+            // The CLI accepts unique abbreviations, and `--cli-input-*` can set
+            // `WithDecryption` without the flag.
+            &["ssm", "get-parameter", "--name", "x", "--with-decr"][..],
+            &["ssm", "get-parameter", "--with-decryption", "--no-with-decryption", "--name", "x"][..],
+            &["ssm", "get-parameter", "--cli-input-json", "file://p.json"][..],
+            &["ssm", "get-parameter", "--cli-input-yaml=file://p.yaml"][..],
+            &["ecr", "get-login-password"][..],
+            &["ecr", "get-authorization-token"][..],
+            &["ecr-public", "get-login-password"][..],
+            &["eks", "get-token", "--cluster-name", "c"][..],
+            &["codeartifact", "get-authorization-token", "--domain", "d"][..],
+            &["kms", "decrypt", "--ciphertext-blob", "fileb://x"][..],
+            &["redshift", "get-cluster-credentials", "--cluster-identifier", "c"][..],
+            &["redshift-serverless", "get-credentials", "--workgroup-name", "w"][..],
+            &["lightsail", "get-instance-access-details", "--instance-name", "i"][..],
+            &["--region", "us-east-1", "secretsmanager", "get-secret-value", "--secret-id", "x"][..],
+            &["--region=us-east-1", "secretsmanager", "get-secret-value", "--secret-id", "x"][..],
+        ] {
+            assert!(
+                matches!(evaluate_policy("aws", &argv(a)), PolicyDecision::Ask { .. }),
+                "argv={a:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn allow_aws_reads_that_reveal_no_secret() {
+        for a in [
+            &["ec2", "describe-instances"][..],
+            &["s3", "ls"][..],
+            &["ssm", "get-parameter", "--name", "x"][..],
+            &["ssm", "get-parameter", "--name", "x", "--no-with-decryption"][..],
+            &["ssm", "get-parameters-by-path", "--path", "/app"][..],
+            &["secretsmanager", "list-secrets"][..],
+            &["--region", "us-east-1", "ec2", "describe-instances"][..],
+            &["--debug", "--output=json", "ec2", "describe-instances"][..],
+            &["ec2", "--reg", "us-east-1", "describe-instances"][..],
+        ] {
+            assert_eq!(evaluate_policy("aws", &argv(a)), PolicyDecision::Allow, "argv={a:?}");
+        }
+    }
+
+    // The CLI lets a global flag (also abbreviated) sit between service and
+    // operation and consumes its value; a read-looking value must not stand in
+    // for the operation that really runs.
+    #[test]
+    fn aws_global_flag_value_is_not_the_operation() {
+        for a in [
+            &["secretsmanager", "--ca-bundle", "list-certs", "get-secret-value", "--secret-id", "x"][..],
+            &["secretsmanager", "--ca", "list-certs", "get-secret-value", "--secret-id", "x"][..],
+            &["ec2", "--query", "describe-x", "terminate-instances", "--instance-ids", "i-1"][..],
+            // Unknown flags before the operation: cannot tell what the CLI does
+            // with them, so never auto-allow.
+            &["ec2", "--dry-run", "describe-instances"][..],
+            &["--", "ec2", "describe-instances"][..],
+        ] {
+            assert_ne!(evaluate_policy("aws", &argv(a)), PolicyDecision::Allow, "argv={a:?}");
+        }
     }
 
     #[test]
