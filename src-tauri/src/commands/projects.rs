@@ -274,12 +274,10 @@ fn open_in_vscode_inner(path: String, file: Option<String>) -> Result<(), String
 
     #[cfg(target_os = "windows")]
     {
-        let mut cmd = std::process::Command::new("cmd");
-        cmd.args(["/C", "code", &path]);
-        if let Some(ref f) = file {
-            cmd.arg(f);
-        }
-        cmd.spawn()
+        let (program, args) = windows_vscode_command(&path, file.as_deref());
+        std::process::Command::new(program)
+            .args(args)
+            .spawn()
             .map_err(|e| format!("Failed to open VS Code: {}", e))?;
     }
 
@@ -295,6 +293,16 @@ fn open_in_vscode_inner(path: String, file: Option<String>) -> Result<(), String
     }
 
     Ok(())
+}
+
+/// VS Code's launcher on Windows, run as itself rather than as `cmd /C code …`: std quotes the
+/// arguments of a `.cmd` for cmd (CVE-2024-24576) and refuses what it cannot quote, whereas
+/// through `cmd /C` a `&`, `^` or `%VAR%` in a file name would run as a command.
+#[cfg(any(target_os = "windows", test))]
+fn windows_vscode_command(path: &str, file: Option<&str>) -> (&'static str, Vec<String>) {
+    let mut args = vec![path.to_string()];
+    args.extend(file.map(str::to_string));
+    ("code.cmd", args)
 }
 
 /// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
@@ -324,9 +332,9 @@ fn open_in_chrome_inner(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "chrome", &path])
-            .spawn()
+        // ShellExecute finds Chrome as `start chrome` did (App Paths), with no cmd to read the path.
+        let (app, params) = windows_chrome_launch(&path);
+        tauri_plugin_opener::open_path(params, Some(app))
             .map_err(|e| format!("Failed to open Chrome: {}", e))?;
     }
 
@@ -339,6 +347,15 @@ fn open_in_chrome_inner(path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// The app and parameters `ShellExecute` gets to open `path` in Chrome on Windows. Chrome splits
+/// the parameters like any command line: a Windows path has no `"`, so quoting it whole keeps it
+/// one argument, with the backslashes before the closing quote doubled (`C:\"` escapes it).
+#[cfg(any(target_os = "windows", test))]
+fn windows_chrome_launch(path: &str) -> (&'static str, String) {
+    let trailing = path.len() - path.trim_end_matches('\\').len();
+    ("chrome", format!("\"{path}{}\"", "\\".repeat(trailing)))
 }
 
 /// A remote desktop may only open what it may read ([`crate::remote::fs_policy`]).
@@ -1675,7 +1692,10 @@ pub async fn resolve_sync_conflict(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_remote_url, resolve_terminal_app, terminal_launches, TerminalLaunch};
+    use super::{
+        parse_remote_url, resolve_terminal_app, terminal_launches, windows_chrome_launch, windows_vscode_command,
+        TerminalLaunch,
+    };
 
     #[test]
     fn parses_github_https_and_scp_remotes() {
@@ -1753,5 +1773,21 @@ mod tests {
         assert_eq!(auto, ["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "xterm"]);
         // Only Windows has the `\\?\` prefix.
         assert_eq!(terminal_launches("linux", "xterm", r"\\?\C:\p").unwrap()[0].cwd, r"\\?\C:\p");
+    }
+
+    #[test]
+    fn windows_vscode_runs_its_launcher_not_cmd() {
+        let path = r"C:\repo\x&calc";
+        let file = r"C:\repo\%PATH%^&notes.md";
+        assert_eq!(windows_vscode_command(path, Some(file)), ("code.cmd", vec![path.to_string(), file.to_string()]));
+        assert_eq!(windows_vscode_command(path, None), ("code.cmd", vec![path.to_string()]));
+    }
+
+    #[test]
+    fn windows_chrome_gets_the_path_as_one_quoted_parameter() {
+        assert_eq!(windows_chrome_launch(r"C:\repo\x&calc.html"), ("chrome", r#""C:\repo\x&calc.html""#.to_string()));
+        assert_eq!(windows_chrome_launch(r"C:\My Site\%TEMP%.html"), ("chrome", r#""C:\My Site\%TEMP%.html""#.to_string()));
+        // `C:\"` would read as an escaped quote, not the closing one.
+        assert_eq!(windows_chrome_launch(r"C:\"), ("chrome", r#""C:\\""#.to_string()));
     }
 }
