@@ -457,7 +457,7 @@ pub fn run() {
                 tracing::warn!(event = "tray_init_failed", error = %e);
             }
 
-            // Launch at login: keep the LaunchAgent pointing at this executable,
+            // Launch at login: keep the login item pointing at this executable,
             // and honour its "start minimized" flag.
             commands::autostart::refresh(app.handle());
             if commands::autostart::launched_minimized() {

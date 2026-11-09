@@ -188,7 +188,7 @@ const loading = ref(true)
 let lastSaved: AppSettings | null = null
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-// Launch at login lives in a macOS LaunchAgent, not in the settings table, so
+// Launch at login lives in the OS's login item, not in the settings table, so
 // it is applied on change instead of going through the debounced auto-save.
 type LaunchAtLogin = 'off' | 'on' | 'minimized'
 const launchAtLogin = ref<LaunchAtLogin>('off')

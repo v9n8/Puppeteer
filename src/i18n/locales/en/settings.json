@@ -71,7 +71,7 @@
     "launchAtLoginOff": "Off",
     "launchAtLoginOn": "Open window",
     "launchAtLoginMinimized": "Start minimized",
-    "launchAtLoginHint": "Starts Puppeteer when you log in to macOS. \"Start minimized\" keeps the window in the Dock."
+    "launchAtLoginHint": "Starts Puppeteer when you log in. \"Start minimized\" keeps the window minimized (in the Dock or taskbar)."
   },
   "google": {
     "title": "Google Account (Drive + Gmail + Calendar)",

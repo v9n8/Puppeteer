@@ -67,11 +67,11 @@
     "quitPolicyStopAll": "Dừng tất cả",
     "quitPolicyKeep": "Giữ tiến trình nền",
     "quitPolicyHint": "Áp dụng khi còn phiên đang chạy hoặc tiến trình còn sót. \"Giữ\" vẫn dừng các phiên và tiến trình hỗ trợ của Puppeteer.",
-    "launchAtLogin": "Khởi động cùng macOS",
+    "launchAtLogin": "Khởi động khi đăng nhập",
     "launchAtLoginOff": "Tắt",
     "launchAtLoginOn": "Mở cửa sổ",
     "launchAtLoginMinimized": "Thu nhỏ khi khởi động",
-    "launchAtLoginHint": "Tự mở Puppeteer khi đăng nhập macOS. \"Thu nhỏ khi khởi động\" giữ cửa sổ ở Dock."
+    "launchAtLoginHint": "Tự mở Puppeteer khi đăng nhập. \"Thu nhỏ khi khởi động\" giữ cửa sổ thu nhỏ (ở Dock hoặc thanh tác vụ)."
   },
   "google": {
     "title": "Tài khoản Google (Drive + Gmail + Lịch)",
