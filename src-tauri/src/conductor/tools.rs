@@ -804,12 +804,13 @@ the human your final summary.";
 
     let outcome = async {
         if !alive {
+            let permission_mode = wake_permission_mode(cst, conductor_run_id)?;
             crate::commands::runs::resume_run_with(
                 app.clone(),
                 app.state::<Db>(),
                 app.state::<RunRegistry>(),
                 conductor_run_id.to_string(),
-                None,
+                Some(permission_mode),
                 None,
                 Some(false),
                 false,
@@ -841,6 +842,16 @@ the human your final summary.";
             cst.defer_wake(conductor_run_id);
         }
     }
+}
+
+/// The mode a woken conductor resumes with: the one it last ran with. Without
+/// it the resume would fall back to `default_permission_mode`, which may be
+/// looser (a `plan` session woken in bypass, then free to spawn bypass workers).
+/// Unknown (an app restart forgets it) means no wake: guessing could loosen it.
+fn wake_permission_mode(cst: &ConductorState, conductor_run_id: &str) -> Result<String, String> {
+    cst.session(conductor_run_id)
+        .and_then(|s| s.permission_mode)
+        .ok_or_else(|| "its permission mode is unknown; resume it by hand".to_string())
 }
 
 fn db_from(app: &tauri::AppHandle) -> Db {
@@ -956,5 +967,19 @@ mod tests {
         assert_eq!(spawn(&db, &cst, "codex", Some("auto")).await.as_deref(), Ok("auto"));
         assert_eq!(spawn(&db, &cst, "claude", Some("acceptEdits")).await.as_deref(), Ok("acceptEdits"));
         assert!(spawn(&db, &cst, "claude", Some("bypassPermissions")).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_woken_conductor_keeps_its_own_mode() {
+        let (db, cst) = setup("claude", "plan").await;
+        crate::commands::settings::set_setting(&db, "default_permission_mode", "bypassPermissions")
+            .await
+            .unwrap();
+        assert_eq!(wake_permission_mode(&cst, "c").as_deref(), Ok("plan"));
+
+        // Unknown mode (e.g. restored after an app restart): no wake rather than
+        // falling back to the looser setting.
+        cst.reregister_session("c", "p1", 5, Vec::new());
+        assert!(wake_permission_mode(&cst, "c").is_err());
     }
 }
