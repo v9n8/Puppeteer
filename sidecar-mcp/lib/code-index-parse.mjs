@@ -242,8 +242,10 @@ const VAR_RE = /(?<![\w$.])(export\s+)?(?:declare\s+)?(?:const|let|var)\s+([A-Za
 const REF_RE = /(?<![\w$])([A-Za-z_$][\w$]{0,254})\s*(?:<[^<>()]{0,80}>\s*)?\(/g;
 
 // Class members at depth 1: a method (`name(`) or an arrow property (`name = (…) =>`).
+// Each space run follows a token it belongs to, so no two runs sit side by side: a long
+// run of spaces (a masked comment, too) would otherwise be retried at every split.
 const MEMBER_RE =
-  /^\s*(?:(?:public|private|protected|readonly|static|abstract|override|declare|async|get|set)\s+)*\*?\s*#?([A-Za-z_$][\w$]*)\s*\??\s*(?:<[^<>]{0,80}>)?\s*\(/;
+  /^\s*(?:(?:public|private|protected|readonly|static|abstract|override|declare|async|get|set)\s+)*(?:\*\s*)?#?([A-Za-z_$][\w$]*)\s*(?:\?\s*)?(?:<[^<>]{0,80}>\s*)?\(/;
 const MEMBER_ARROW_RE =
   /^\s*(?:(?:public|private|protected|readonly|static|abstract|override|declare)\s+)*#?([A-Za-z_$][\w$]*)\s*(?::[^=]{0,120})?=\s*(?:async\s*)?\(/;
 

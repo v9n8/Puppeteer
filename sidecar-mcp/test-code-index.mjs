@@ -137,6 +137,32 @@ check(masked('const a = "hở\nconst b = call(1)\n').includes('call(1)'), 'mask:
   check(!decls.some((d) => d.name === 'if'), 'parse: `if (` in a method body is no method');
 }
 {
+  const methods = (body) =>
+    parseSource(['class Shape {', ...body, '}'].join('\n'), 'a.ts')
+      .decls.filter((d) => d.kind === 'method')
+      .map((d) => d.name);
+  check(
+    same(methods(['  area?(): number', '  map<T>(f: () => T) {}', '  static async  *walk ? <K> (k: K) {}', '  #hide  (x) {}', '  get size() {}']), [
+      'area',
+      'map',
+      'walk',
+      'hide',
+      'size',
+    ]),
+    'parse: methods with `?`, type parameters, `*`, `#` and spaces before `(`',
+  );
+  // A class member line must not stall the build: BUILD_DEADLINE_MS is only checked between files.
+  const timed = (body) => {
+    const started = performance.now();
+    methods(body);
+    return performance.now() - started;
+  };
+  const memberMs = timed([`  foo${' '.repeat(100_000)}`]);
+  check(memberMs < 100, `parse: 100k spaces after a class member parse under 100 ms (${memberMs.toFixed(0)} ms)`);
+  const blankMs = timed([' '.repeat(100_000)]);
+  check(blankMs < 100, `parse: a class line of 100k spaces parses under 100 ms (${blankMs.toFixed(0)} ms)`);
+}
+{
   const names = parseSource(
     [
       'const prompt = `Gọi hàm như sau: function ghostOne() {}`',
