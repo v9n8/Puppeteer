@@ -10,6 +10,7 @@
 import { ref } from 'vue'
 import type MarkdownIt from 'markdown-it'
 import { applyMermaidFence } from '@/lib/mermaid'
+import { guardMarkdownImages } from '@/lib/markdownImages'
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -60,6 +61,7 @@ export function useMarkdown() {
       const MarkdownIt = (await import('markdown-it')).default
       _md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: true })
       applyMermaidFence(_md)
+      guardMarkdownImages(_md)
       mdReady.value = true
       mdError.value = false
     } catch {

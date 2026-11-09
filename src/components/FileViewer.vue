@@ -29,6 +29,7 @@ import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
 import { useImageCompareStore } from '@/stores/imageCompare'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
+import { dropRemoteMediaAttr, guardMarkdownImages } from '@/lib/markdownImages'
 import { vCopyCode } from '@/lib/copyCode'
 import { matchProjectFile, parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
 
@@ -538,7 +539,12 @@ async function loadMarkdown() {
     ])
     _md = new MarkdownIt({ html: true, linkify: true, typographer: true, breaks: true })
     applyMermaidFence(_md)
-    _sanitize = (html: string) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true, svg: true, svgFilters: true } })
+    guardMarkdownImages(_md)
+    // Raw HTML can still carry <img src=https:…>, srcset or SVG <image href>.
+    // A private instance keeps the hook off the shared DOMPurify (Slack uses it).
+    const purify = DOMPurify(window)
+    purify.addHook('uponSanitizeAttribute', dropRemoteMediaAttr)
+    _sanitize = (html: string) => purify.sanitize(html, { USE_PROFILES: { html: true, svg: true, svgFilters: true } })
     mdReady.value = true
   } catch {
     /* leave _md null; renderText falls back to escaped text */
