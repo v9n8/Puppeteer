@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ShieldAlert, Check, X, FileEdit, HelpCircle, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
+import { canRememberPermission } from '@/lib/permissionMemory'
 
 const { t } = useI18n()
 
@@ -85,11 +86,8 @@ const isQuestions = computed(() => props.request.tool_name === 'AskUserQuestion'
 // and asking to leave plan mode. Render it as a plan review (Approve / Keep
 // planning) instead of the generic "allow this tool call?" permission prompt.
 const isPlan = computed(() => props.request.tool_name === 'ExitPlanMode')
-// "Always" needs a stable key to store the choice under. Bare `MCP` is the
-// fallback an engine emits when it can't name the server/tool, so remembering
-// it would silently allow every MCP request from every server — keep it
-// once-only. Keyed prompts (`mcp__<server>[__<tool>]`) are rememberable.
-const canRemember = computed(() => !isPlan.value && props.request.tool_name !== 'MCP')
+// "Always" needs a stable key to store the choice under (see canRememberPermission).
+const canRemember = computed(() => canRememberPermission(props.request))
 // Codex's elicitation carries no tool name, so its MCP prompts key on the SERVER
 // (`mcp__google`) — and the built-in `google` server is Drive + Gmail + Calendar
 // in one. "Always" there is therefore much broader than the single action shown:

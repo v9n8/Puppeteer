@@ -10,6 +10,7 @@ import {
   type StreamEntry,
   type ImageAttachment,
 } from '@/lib/streamEvents'
+import { standingPermissionDecision } from '@/lib/permissionMemory'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
 import { useToolPermissionsStore } from './toolPermissions'
@@ -564,25 +565,21 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       // this run: the phone sets them with the same Always buttons, and the
       // Host tells it to drop a prompt answered here (`permission_resolved`),
       // so asking again remotely would only undo the choice.
-      // AskUserQuestion must always reach the user — auto-deciding it would
-      // submit empty answers. Other tools honor the project's standing
-      // deny/allow choices (deny wins if both somehow apply).
-      if (req.tool_name !== 'AskUserQuestion') {
-        // A failed auto-answer falls back to a visible prompt (see respond).
-        if (s.deniedTools.includes(req.tool_name)) {
-          void respondPermission(runId, req, 'deny', { reason: 'Auto-denied for this project' })
-          return
-        }
-        if (s.allowedTools.includes(req.tool_name)) {
-          void respondPermission(runId, req, 'allow', {
-            reason: 'Auto-allowed for this session',
-            // The tool is already on the project's standing allow list, so
-            // let the engine cache it too (codex `acceptForSession`) rather
-            // than prompting through this path again for every call.
-            remember: true,
-          })
-          return
-        }
+      // A failed auto-answer falls back to a visible prompt (see respond).
+      const standing = standingPermissionDecision(req, s.allowedTools, s.deniedTools)
+      if (standing === 'deny') {
+        void respondPermission(runId, req, 'deny', { reason: 'Auto-denied for this project' })
+        return
+      }
+      if (standing === 'allow') {
+        void respondPermission(runId, req, 'allow', {
+          reason: 'Auto-allowed for this session',
+          // The tool is already on the project's standing allow list, so
+          // let the engine cache it too (codex `acceptForSession`) rather
+          // than prompting through this path again for every call.
+          remember: true,
+        })
+        return
       }
       s.permissionQueue.push(req)
     }
