@@ -234,7 +234,7 @@ check(row(full).project_id === null && out['note-global'].includes('global (no p
   const other = new DatabaseSync(txPath); // busy_timeout 0: never waits
   other.exec("CREATE TABLE t (id TEXT PRIMARY KEY, n INTEGER); INSERT INTO t VALUES ('a', 0)");
   process.env.PUPPETEER_DB_PATH = txPath;
-  const { tx } = await import('./lib/store.mjs');
+  const { tx, db: storeDb } = await import('./lib/store.mjs');
   let otherErr = null;
   const err = throws(() =>
     tx((d) => {
@@ -254,6 +254,8 @@ check(row(full).project_id === null && out['note-global'].includes('global (no p
   check(err === null, `tx: a read-then-write keeps the write lock it needs (got: ${err})`);
   check(/locked/.test(otherErr ?? '') && other.prepare('SELECT n FROM t').get().n === 1, 'tx: the other writer is the one kept waiting');
   other.close();
+  // Windows cannot remove a file that is still open.
+  storeDb().close();
 }
 
 db.close();
