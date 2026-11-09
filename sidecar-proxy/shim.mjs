@@ -255,7 +255,12 @@ export async function run(tool) {
   // which run's modal to route an `Ask` to. Absent → broker fail-closed denies
   // any `Ask` (reads/allows still work).
   const runId = process.env.PUPPETEER_RUN_ID || null
-  const argv = process.argv.slice(2) // drop [node, shimPath]
+  // aws: drop `--profile` before building the request, so the broker judges
+  // the exact argv that runs. Left in, its value reads as a positional and a
+  // read-only op name (`ec2 --profile describe-instances terminate-instances`)
+  // would be checked instead of the one that runs.
+  const awsProfile = tool === 'aws' ? stripAwsProfileArgs(process.argv.slice(2)) : null
+  const argv = awsProfile ? awsProfile.argv : process.argv.slice(2) // drop [node, shimPath]
 
   if (!sock || !projectId) {
     process.stderr.write(
@@ -281,7 +286,7 @@ export async function run(tool) {
     // (`PUPPETEER_AWS_ACCOUNT=prod aws ...`, or `aws --profile <label|profile>`).
     req.aws_account = cloudAccountSelector(process.env, 'PUPPETEER_AWS_ACCOUNT')
     if (tool === 'aws') {
-      const profile = stripAwsProfileArgs(argv).profile
+      const profile = awsProfile.profile
       if (profile && profile.trim()) req.aws_profile = profile.trim()
     }
   }
@@ -340,7 +345,6 @@ export async function run(tool) {
 
   // Credentials go ONLY into the child env. Never logged, never persisted.
   const childEnv = { ...process.env }
-  let execArgv = argv
   const originalAwsConfigFile = childEnv.PUPPETEER_ORIGINAL_AWS_CONFIG_FILE
   const originalAwsCredentialsFile = childEnv.PUPPETEER_ORIGINAL_AWS_SHARED_CREDENTIALS_FILE
   delete childEnv.PUPPETEER_BROKER_SOCK
@@ -378,15 +382,13 @@ export async function run(tool) {
   } else if (tool === 'aws' || tool === 'terraform') {
     if (tool === 'aws') {
       // The broker already picked the account (a `--profile` naming an enabled
-      // account selects it), and the sandbox config holds no profiles, so drop
-      // the flag instead of letting `aws` fail on it.
-      const sanitized = stripAwsProfileArgs(argv)
-      if (sanitized.stripped && resp.aws_account_label) {
+      // account selects it), and the sandbox config holds no profiles, so the
+      // flag was dropped from argv instead of letting `aws` fail on it.
+      if (awsProfile.stripped && resp.aws_account_label) {
         process.stderr.write(
           `puppeteer: aws — using the project's AWS account "${resp.aws_account_label}" (--profile handled by Puppeteer)\n`,
         )
       }
-      execArgv = sanitized.argv
     }
     // terraform: same AWS env as the aws CLI — the AWS provider/S3 backend read
     // the standard env credential chain (or AWS_PROFILE for SSO profiles). AWS is
@@ -451,7 +453,7 @@ export async function run(tool) {
   // can be explained — the real CLI's advice (`az logout`/`az login`) does not
   // apply inside a run, whose login lives in Puppeteer's managed account dir.
   const watchMfa = hasAzure && (tool === 'az' || tool === 'terraform')
-  const child = spawn(realBin, execArgv, {
+  const child = spawn(realBin, argv, {
     stdio: watchMfa ? ['inherit', 'inherit', 'pipe'] : 'inherit',
     env: childEnv,
   })

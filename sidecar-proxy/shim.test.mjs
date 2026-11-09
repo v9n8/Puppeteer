@@ -6,6 +6,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
+import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { ask, scrubCloudEnv, pathWithoutDir, pathKey, resolveReal, isWindowsBatch, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
 
@@ -173,5 +174,53 @@ test('every PATH shim has a Windows .cmd wrapper that runs it with node', () => 
   for (const tool of ['gh', 'glab', 'aws', 'az', 'terraform', 'ssh', 'scp']) {
     assert.ok(fs.readFileSync(path.join(dir, tool), 'utf8').startsWith('#!/usr/bin/env node'), tool)
     assert.match(fs.readFileSync(path.join(dir, `${tool}.cmd`), 'utf8'), new RegExp(`^@node "%~dp0${tool}" %\\*\\r?$`, 'm'), tool)
+  }
+})
+
+// The broker must judge the very argv the real `aws` runs: a `--profile` value
+// left in the request reads as a positional (`ec2 <describe-instances>`), so a
+// read-only op name could stand in for the destructive one that actually runs.
+test('aws: the broker sees the argv that runs, --profile goes only in aws_profile', { skip: process.platform === 'win32' && 'fake real aws is a sh script' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'puppeteer-shim-'))
+  const bin = path.join(dir, 'bin')
+  fs.mkdirSync(bin)
+  fs.writeFileSync(path.join(bin, 'aws'), '#!/bin/sh\nfor a in "$@"; do printf \'%s\\n\' "$a"; done\n', { mode: 0o755 })
+  const endpoint = path.join(dir, 'b.sock')
+  let received = null
+  const server = net.createServer((c) => {
+    let buf = ''
+    c.on('data', (d) => {
+      buf += d
+      const nl = buf.indexOf('\n')
+      if (nl < 0) return
+      received = JSON.parse(buf.slice(0, nl))
+      c.end(JSON.stringify({ decision: 'allow', aws_access_key_id: 'AKIA', aws_secret_access_key: 's' }) + '\n')
+    })
+  })
+  await new Promise((r) => server.listen(endpoint, r))
+  const shim = path.join(path.dirname(fileURLToPath(import.meta.url)), 'aws')
+  const cases = [
+    [['ec2', '--profile', 'describe-instances', 'terminate-instances', '--instance-ids', 'i-1'], 'describe-instances'],
+    [['s3', '--profile=prod', 'rm', 's3://bucket', '--recursive'], 'prod'],
+  ]
+  try {
+    for (const [argv, profile] of cases) {
+      received = null
+      const child = spawn(process.execPath, [shim, ...argv], {
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, PUPPETEER_BROKER_SOCK: endpoint, PUPPETEER_PROJECT_ID: 'p1' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let out = ''
+      child.stdout.on('data', (d) => { out += d })
+      const code = await new Promise((r) => child.on('close', r))
+      assert.equal(code, 0)
+      const ran = out.split('\n').slice(0, -1)
+      assert.ok(!received.argv.some((a) => a.startsWith('--profile') || a === profile), JSON.stringify(received.argv))
+      assert.equal(received.aws_profile, profile)
+      assert.deepEqual(received.argv, ran)
+    }
+  } finally {
+    await new Promise((r) => server.close(r))
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 })
