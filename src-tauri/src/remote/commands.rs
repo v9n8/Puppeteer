@@ -64,7 +64,11 @@ pub async fn remote_set_config(
     relay_url: String,
     auth_token: Option<String>,
 ) -> Result<(), String> {
-    remote::set_setting(db.inner(), remote::KEY_RELAY_URL, relay_url.trim()).await?;
+    let relay_url = relay_url.trim();
+    if !relay_url.is_empty() {
+        remote::check_relay_url(relay_url)?;
+    }
+    remote::set_setting(db.inner(), remote::KEY_RELAY_URL, relay_url).await?;
     if let Some(token) = auth_token {
         if !token.trim().is_empty() {
             crate::secrets::set_remote_auth_token(token.trim()).map_err(|e| e.to_string())?;

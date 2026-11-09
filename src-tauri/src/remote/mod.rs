@@ -72,6 +72,21 @@ pub const KEY_DEVICE_ID: &str = "remote_device_id";
 /// several Puppeteer hosts can share one relay (see `login::login_code`).
 pub const KEY_DEVICE_ALIAS: &str = "remote_device_alias";
 
+/// The Host sends its relay auth token on this socket, so it must be TLS.
+/// Plain `ws://` is kept for a relay on this machine (dev, tests).
+pub fn check_relay_url(url: &str) -> Result<(), String> {
+    let ok = reqwest::Url::parse(url).is_ok_and(|u| match u.scheme() {
+        "wss" => true,
+        "ws" => matches!(u.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")),
+        _ => false,
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err("relay URL must start with wss:// (ws:// only for localhost)".to_string())
+    }
+}
+
 /// Feature switches (`crate::features`): the relay agent, its Web Push
 /// dispatcher, and what a remote desktop may do through the bridge.
 pub const FEATURE: &str = "remote.remote_control";
@@ -212,6 +227,7 @@ impl RemoteState {
             if relay_url.trim().is_empty() {
                 return Err("relay URL is not configured".to_string());
             }
+            check_relay_url(&relay_url)?;
             let auth_token = crate::secrets::get_remote_auth_token()
                 .ok_or_else(|| "relay auth token is not set (enable requires a token)".to_string())?;
             let device_id = ensure_device_id(db).await?;
@@ -371,6 +387,29 @@ pub(crate) async fn ensure_device_id(db: &Db) -> Result<String, String> {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn relay_url_must_be_wss_unless_loopback() {
+        for ok in [
+            "wss://relay.example.com/ws",
+            "WSS://relay.example.com:8443/ws",
+            "ws://localhost:8080/ws",
+            "ws://127.0.0.1:8080/ws",
+            "ws://[::1]:8080/ws",
+        ] {
+            assert!(check_relay_url(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "ws://relay.example.com/ws",
+            "ws://10.0.0.2:8080/ws",
+            "ws://localhost.evil.com/ws",
+            "https://relay.example.com/ws",
+            "relay.example.com/ws",
+            "",
+        ] {
+            assert!(check_relay_url(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn agent_runs_only_when_enabled_and_switched_on() {

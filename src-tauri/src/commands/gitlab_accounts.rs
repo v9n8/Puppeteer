@@ -64,7 +64,8 @@ fn normalize_host(host: Option<&str>) -> String {
 /// tokens. Unlike GitHub, `GET /api/v4/user` does not expose the token scopes,
 /// so `scopes` is intentionally left empty in phase 1.
 async fn validate_token(host: &str, pat: &str) -> Result<PatValidation, String> {
-    let client = reqwest::Client::new();
+    crate::gitlab::check_host(host)?;
+    let client = crate::gitlab::http_client()?;
     let pat = pat.trim();
     let resp = client
         .get(format!("{}/api/v4/user", host))
@@ -166,6 +167,8 @@ pub async fn update_gitlab_account(
     email: Option<String>,
 ) -> Result<GitlabAccount, String> {
     let host = normalize_host(host.as_deref());
+    // Without a new PAT nothing is validated, yet the stored PAT goes to this host next.
+    crate::gitlab::check_host(&host)?;
     // If a new PAT is supplied, re-validate and refresh username/email/scopes.
     if let Some(pat) = pat.as_ref().filter(|p| !p.trim().is_empty()) {
         let validation = validate_token(&host, pat).await?;

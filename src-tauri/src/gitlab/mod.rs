@@ -35,7 +35,9 @@ impl GitlabClient {
         project_path: Option<&str>,
         pat: String,
     ) -> Result<Self, String> {
-        let api_base = format!("{}/api/v4", normalize_host(host));
+        let host = normalize_host(host);
+        check_host(&host)?;
+        let api_base = format!("{}/api/v4", host);
         let project_ref = match project_id {
             Some(id) => id.to_string(),
             None => {
@@ -47,7 +49,7 @@ impl GitlabClient {
             }
         };
         Ok(Self {
-            client: reqwest::Client::new(),
+            client: http_client()?,
             api_base,
             project_ref,
             pat,
@@ -133,6 +135,44 @@ pub fn normalize_host(host: Option<&str>) -> String {
     let h = host.map(|s| s.trim()).unwrap_or("");
     let h = if h.is_empty() { "https://gitlab.com" } else { h };
     h.trim_end_matches('/').to_string()
+}
+
+/// The PAT rides in a header, so it only goes over TLS. Plain `http://` is
+/// kept for loopback (a local GitLab, test servers).
+pub fn check_host(host: &str) -> Result<(), String> {
+    let ok = reqwest::Url::parse(host).is_ok_and(|u| match u.scheme() {
+        "https" => true,
+        "http" => matches!(u.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")),
+        _ => false,
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "Host GitLab phải bắt đầu bằng https:// (chỉ localhost được dùng http://): {host}"
+        ))
+    }
+}
+
+/// Client for PAT requests. reqwest keeps a hand-set `PRIVATE-TOKEN` header
+/// across redirects, so only redirects that stay on the same origin are
+/// followed; anything else comes back as the 3xx response itself.
+pub fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let same_origin = attempt
+                .previous()
+                .first()
+                .is_some_and(|start| start.origin() == attempt.url().origin());
+            if same_origin && attempt.previous().len() < 10 {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
+        .build()
+        // No fallback to a default client: it would follow every redirect.
+        .map_err(|_| "Không tạo được HTTP client cho GitLab.".to_string())
 }
 
 /// URL-encode a `namespace/project` path for use as GitLab's `:id` segment.
@@ -745,6 +785,85 @@ mod tests {
         assert_eq!(normalize_host(None), "https://gitlab.com");
         assert_eq!(normalize_host(Some("  ")), "https://gitlab.com");
         assert_eq!(normalize_host(Some("https://git.acme.io/")), "https://git.acme.io");
+    }
+
+    #[test]
+    fn plain_http_host_is_refused_except_loopback() {
+        let pat = || "glpat-x".to_string();
+        assert!(GitlabClient::new(Some("http://git.acme.io"), Some(1), None, pat()).is_err());
+        assert!(GitlabClient::new(Some("git.acme.io"), Some(1), None, pat()).is_err());
+        assert!(GitlabClient::new(Some("https://git.acme.io"), Some(1), None, pat()).is_ok());
+        assert!(GitlabClient::new(None, Some(1), None, pat()).is_ok());
+        for local in ["http://localhost:8080", "http://127.0.0.1:3000", "http://[::1]:3000"] {
+            assert!(GitlabClient::new(Some(local), Some(1), None, pat()).is_ok(), "{local}");
+        }
+    }
+
+    /// Serves `router` on a fresh loopback port and returns its origin.
+    async fn serve(router: axum::Router) -> String {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        format!("http://127.0.0.1:{port}")
+    }
+
+    /// A router that records the `PRIVATE-TOKEN` it is sent.
+    fn recording(seen: std::sync::Arc<std::sync::Mutex<Option<String>>>) -> axum::Router {
+        axum::Router::new().fallback(move |headers: axum::http::HeaderMap| {
+            let seen = seen.clone();
+            async move {
+                *seen.lock().unwrap() = headers
+                    .get("PRIVATE-TOKEN")
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string);
+                axum::Json(json!({}))
+            }
+        })
+    }
+
+    fn redirecting_to(target: String) -> axum::Router {
+        axum::Router::new().fallback(move || {
+            let target = target.clone();
+            async move { axum::response::Redirect::temporary(&target) }
+        })
+    }
+
+    #[tokio::test]
+    async fn redirect_to_another_host_does_not_carry_the_pat() {
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let other = serve(recording(seen.clone())).await;
+        let origin = serve(redirecting_to(format!("{other}/stolen"))).await;
+
+        let client = GitlabClient::new(Some(&origin), Some(1), None, "glpat-secret".into()).unwrap();
+        let res = client.get_json(&client.url("issues/1")).await;
+
+        assert!(res.is_err(), "a cross-origin redirect must not be followed");
+        assert_eq!(*seen.lock().unwrap(), None, "PAT reached the other host");
+    }
+
+    #[tokio::test]
+    async fn redirect_within_the_same_host_is_followed() {
+        // GitLab answers a renamed project's old path with a redirect on the
+        // same host; that must keep working.
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let origin = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        let moved = format!("{origin}/api/v4/projects/2/issues/1");
+        let router = axum::Router::new()
+            .route("/api/v4/projects/1/issues/1", axum::routing::get(move || {
+                let moved = moved.clone();
+                async move { axum::response::Redirect::temporary(&moved) }
+            }))
+            .merge(recording(seen.clone()));
+        tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+
+        let client = GitlabClient::new(Some(&origin), Some(1), None, "glpat-secret".into()).unwrap();
+        client.get_json(&client.url("issues/1")).await.unwrap();
+        assert_eq!(seen.lock().unwrap().as_deref(), Some("glpat-secret"));
     }
 
     #[test]

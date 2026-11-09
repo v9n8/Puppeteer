@@ -208,6 +208,51 @@ async fn read_request_target(stream: &mut tokio::net::TcpStream) -> Option<Strin
     Some(parts.next()?.to_string())
 }
 
+/// How long one connection may take to send its request. Connections are
+/// served one at a time, so a silent one must not hold up the real redirect.
+const REQUEST_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Wait on `listener` for the OAuth redirect and return its query string.
+/// Only a request carrying our `state` ends the wait: anything else (favicon,
+/// a stale tab, another local process) is answered and ignored, so it can
+/// neither stall nor cancel the sign-in.
+async fn wait_for_callback(listener: &TcpListener, state: &str) -> Result<String, String> {
+    loop {
+        let (mut stream, _) = match listener.accept().await {
+            Ok(pair) => pair,
+            Err(_) => continue,
+        };
+        let Ok(target) =
+            tokio::time::timeout(REQUEST_READ_TIMEOUT, read_request_target(&mut stream)).await
+        else {
+            continue;
+        };
+        let query = target
+            .as_deref()
+            .and_then(|t| t.split_once('?'))
+            .map(|(_, q)| q.to_string())
+            .filter(|q| query_param(q, "state").as_deref() == Some(state));
+        let denied = query.as_deref().and_then(|q| query_param(q, "error"));
+        let has_code = query.as_deref().is_some_and(|q| query_param(q, "code").is_some());
+        let ok = denied.is_none() && has_code;
+        let _ = stream.write_all(done_page(ok).as_bytes()).await;
+        let _ = stream.flush().await;
+        match (denied, query) {
+            (Some(err), _) => return Err(format!("Authorization denied: {err}")),
+            (None, Some(q)) if has_code => return Ok(q),
+            _ => {}
+        }
+    }
+}
+
+/// PKCE (RFC 7636) S256 challenge for `verifier`: a code caught on the
+/// loopback redirect is useless without the verifier, which stays here.
+fn pkce_challenge(verifier: &str) -> String {
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
 /// Result of a completed OAuth consent flow.
 struct OauthResult {
     refresh_token: String,
@@ -233,54 +278,32 @@ async fn run_oauth(
         .port();
     let redirect_uri = format!("http://127.0.0.1:{port}");
     let state = Uuid::new_v4().to_string();
+    let code_verifier = {
+        use base64::Engine;
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
+    };
 
     let auth_url = format!(
-        "{AUTH_ENDPOINT}?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent&state={}",
+        "{AUTH_ENDPOINT}?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent&state={}&code_challenge={}&code_challenge_method=S256",
         pct_encode(client_id),
         pct_encode(&redirect_uri),
         pct_encode(SCOPES),
         pct_encode(&state),
+        pkce_challenge(&code_verifier),
     );
 
     app.opener()
         .open_url(auth_url, None::<&str>)
         .map_err(|e| format!("Failed to open browser: {e}"))?;
 
-    // Wait for the redirect (5 min budget). Loop so favicon / preflight hits
-    // don't consume the real callback.
-    let target = tokio::time::timeout(std::time::Duration::from_secs(300), async {
-        loop {
-            let (mut stream, _) = match listener.accept().await {
-                Ok(pair) => pair,
-                Err(_) => continue,
-            };
-            let target = read_request_target(&mut stream).await;
-            match target {
-                Some(t) if t.contains("code=") || t.contains("error=") => {
-                    let ok = t.contains("code=");
-                    let _ = stream.write_all(done_page(ok).as_bytes()).await;
-                    let _ = stream.flush().await;
-                    return Some(t);
-                }
-                _ => {
-                    let _ = stream.write_all(done_page(false).as_bytes()).await;
-                    let _ = stream.flush().await;
-                }
-            }
-        }
-    })
+    // Wait for the redirect (5 min budget).
+    let query = tokio::time::timeout(
+        std::time::Duration::from_secs(300),
+        wait_for_callback(&listener, &state),
+    )
     .await
-    .map_err(|_| "Timed out waiting for Google authorization (5 min).".to_string())?
-    .ok_or_else(|| "No authorization response received.".to_string())?;
-
-    let query = target.splitn(2, '?').nth(1).unwrap_or("");
-    if let Some(err) = query_param(query, "error") {
-        return Err(format!("Authorization denied: {err}"));
-    }
-    if query_param(query, "state").as_deref() != Some(state.as_str()) {
-        return Err("State mismatch — possible CSRF, aborting.".into());
-    }
-    let code = query_param(query, "code")
+    .map_err(|_| "Timed out waiting for Google authorization (5 min).".to_string())??;
+    let code = query_param(&query, "code")
         .ok_or_else(|| "No authorization code in redirect.".to_string())?;
 
     // Exchange the code for tokens.
@@ -293,6 +316,7 @@ async fn run_oauth(
             ("client_id", client_id),
             ("client_secret", client_secret),
             ("code", code.as_str()),
+            ("code_verifier", code_verifier.as_str()),
             ("grant_type", "authorization_code"),
             ("redirect_uri", redirect_uri.as_str()),
         ])
@@ -691,4 +715,72 @@ pub async fn google_forget_client(db: State<'_, Db>) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     secrets::delete_google_client().map_err(|e| format!("Failed to clear credentials: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    async fn send(port: u16, target: &str) -> tokio::net::TcpStream {
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        s.write_all(format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").as_bytes())
+            .await
+            .unwrap();
+        s
+    }
+
+    #[test]
+    fn pkce_challenge_matches_rfc7636_example() {
+        // RFC 7636, Appendix B.
+        assert_eq!(
+            pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        );
+    }
+
+    #[tokio::test]
+    async fn silent_connection_does_not_block_the_callback() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let wait = tokio::spawn(async move { wait_for_callback(&listener, "s1").await });
+
+        // Connects first and never sends a byte.
+        let _idle = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _real = send(port, "/?code=c1&state=s1").await;
+
+        let got = tokio::time::timeout(Duration::from_secs(15), wait)
+            .await
+            .expect("the real callback is stuck behind a silent connection")
+            .unwrap();
+        assert_eq!(got.unwrap(), "code=c1&state=s1");
+    }
+
+    #[tokio::test]
+    async fn request_with_wrong_state_is_ignored() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let wait = tokio::spawn(async move { wait_for_callback(&listener, "s1").await });
+
+        let _forged = send(port, "/?code=evil&state=nope").await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _cancel = send(port, "/?error=access_denied").await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _real = send(port, "/?code=c1&state=s1").await;
+
+        let got = tokio::time::timeout(Duration::from_secs(5), wait).await.unwrap().unwrap();
+        assert_eq!(got.unwrap(), "code=c1&state=s1");
+    }
+
+    #[tokio::test]
+    async fn denial_with_the_right_state_ends_the_login() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let wait = tokio::spawn(async move { wait_for_callback(&listener, "s1").await });
+
+        let _deny = send(port, "/?error=access_denied&state=s1").await;
+        let got = tokio::time::timeout(Duration::from_secs(5), wait).await.unwrap().unwrap();
+        assert_eq!(got.unwrap_err(), "Authorization denied: access_denied");
+    }
 }
