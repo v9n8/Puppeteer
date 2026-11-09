@@ -1581,6 +1581,7 @@ pub async fn with_builtin_google(
     launch: &McpLaunch,
     google_script: &std::path::Path,
     project_id: &str,
+    project_path: &str,
 ) -> serde_json::Value {
     use sqlx::Row;
     if !builtin_mcp_enabled(db, "google", project_id).await {
@@ -1615,11 +1616,7 @@ pub async fn with_builtin_google(
         return mcp;
     }
 
-    let mut env = launch.broker_env();
-    env.insert(
-        "GOOGLE_ACCOUNTS".into(),
-        serde_json::Value::Array(accounts).to_string().into(),
-    );
+    let env = google_server_env(launch, accounts, project_path);
 
     let mut map = match mcp {
         serde_json::Value::Object(m) => m,
@@ -1637,6 +1634,24 @@ pub async fn with_builtin_google(
     }
 
     serde_json::Value::Object(map)
+}
+
+/// Env of the built-in `google` server: broker coordinates and the connected
+/// accounts, never a credential.
+fn google_server_env(
+    launch: &McpLaunch,
+    accounts: Vec<serde_json::Value>,
+    project_path: &str,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut env = launch.broker_env();
+    env.insert(
+        "GOOGLE_ACCOUNTS".into(),
+        serde_json::Value::Array(accounts).to_string().into(),
+    );
+    // The file tools confine local paths to the project (and ~/Downloads). Codex
+    // does not pass the sidecar's env on, so the root has to be set here.
+    env.insert("PUPPETEER_PROJECT_PATH".into(), project_path.into());
+    env
 }
 
 #[cfg(test)]
@@ -1946,5 +1961,19 @@ mod tests {
         };
         assert_eq!(env(&["todos", "vps"]), "todos,vps");
         assert_eq!(env(&[]), "");
+    }
+
+    #[test]
+    fn builtin_google_gets_the_project_path() {
+        // Codex starts stdio servers with a minimal env, so the server's file
+        // tools only find the project root if it is set here.
+        let accounts = vec![serde_json::json!({ "label": "work", "email": "a@b.c", "default": true })];
+        let env = super::google_server_env(&launch(), accounts, "/Users/me/proj");
+        assert_eq!(env["PUPPETEER_PROJECT_PATH"], "/Users/me/proj");
+        assert_eq!(env["PUPPETEER_BROKER_SOCK"], "/tmp/b.sock");
+        assert_eq!(
+            env["GOOGLE_ACCOUNTS"],
+            r#"[{"default":true,"email":"a@b.c","label":"work"}]"#
+        );
     }
 }

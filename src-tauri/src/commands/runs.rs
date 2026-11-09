@@ -914,6 +914,7 @@ async fn assemble_run_mcp(
             &launch,
             &crate::runs::sidecar::resolve_mcp_script(app, "google.mjs"),
             project_id,
+            project_path,
         )
         .await
     } else {
