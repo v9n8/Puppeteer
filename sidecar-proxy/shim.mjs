@@ -140,8 +140,9 @@ const AZURE_IDENTITY_ENV = ['MSI_ENDPOINT', 'MSI_SECRET', 'IDENTITY_ENDPOINT', '
 
 // Terraform CLI env that could change what a policy-approved command does
 // (`TF_CLI_ARGS_init=-migrate-state` smuggles flags past the policy) or load
-// unvetted config/providers.
-const TERRAFORM_UNSAFE_ENV = ['TF_CLI_CONFIG_FILE', 'TERRAFORM_CONFIG', 'TF_PLUGIN_CACHE_DIR']
+// unvetted config/providers. `TF_DATA_DIR` would move downloaded modules out
+// of `<root>/.terraform/modules`, the only place the external-code scan looks.
+const TERRAFORM_UNSAFE_ENV = ['TF_CLI_CONFIG_FILE', 'TERRAFORM_CONFIG', 'TF_PLUGIN_CACHE_DIR', 'TF_DATA_DIR']
 
 /**
  * Drop inherited env that could redirect an az/terraform child away from the
@@ -150,7 +151,8 @@ const TERRAFORM_UNSAFE_ENV = ['TF_CLI_CONFIG_FILE', 'TERRAFORM_CONFIG', 'TF_PLUG
  *     AZURE_EXTENSION_DIR loads arbitrary Python) and every `ARM_*` (azurerm
  *     auth/endpoint overrides such as ARM_METADATA_HOSTNAME), plus MSI/identity
  *     endpoints;
- *   - terraform only: `TF_CLI_ARGS*`, CLI config / plugin cache overrides.
+ *   - terraform only: `TF_CLI_ARGS*`, CLI config / plugin cache / data dir
+ *     overrides.
  * Mutates and returns `env`. Never inspects values.
  * @param {Record<string, string|undefined>} env
  * @param {string} tool

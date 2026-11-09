@@ -48,6 +48,11 @@ test('terraform: also drops TF_CLI_ARGS*, CLI config and plugin cache overrides'
   assert.equal(env.TF_LOG, 'INFO')
 })
 
+test('terraform: drops TF_DATA_DIR so modules land where the scanner looks', () => {
+  const env = scrubCloudEnv({ ...inherited(), TF_DATA_DIR: '/tmp/d' }, 'terraform')
+  assert.equal(env.TF_DATA_DIR, undefined)
+})
+
 test('other tools are untouched', () => {
   const env = scrubCloudEnv(inherited(), 'gh')
   assert.equal(env.AZURE_EXTENSION_DIR, '/evil/ext')
