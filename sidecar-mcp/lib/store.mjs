@@ -66,7 +66,10 @@ function nowRfc3339() {
 /** Run `fn` inside a transaction so a failure mid-batch rolls the whole thing back. */
 function tx(fn) {
   const d = db();
-  d.exec('BEGIN');
+  // IMMEDIATE takes the write lock up front, where busy_timeout applies. A deferred
+  // BEGIN that reads first fails its first write with SQLITE_BUSY at once when
+  // another sidecar took the lock in between (SQLite skips the wait: it could deadlock).
+  d.exec('BEGIN IMMEDIATE');
   try {
     const out = fn(d);
     d.exec('COMMIT');
@@ -144,16 +147,17 @@ function setRowsProject(table, label, ids, projectId, now) {
 function reorderRows(table, ids, orderBy, { where = '', params = [], label = table } = {}) {
   // `where`/`params` narrow the set being renumbered.
   const filter = where ? `WHERE ${where}` : '';
-  const all = db()
-    .prepare(`SELECT id FROM ${table} ${filter} ORDER BY ${orderBy}`)
-    .all(...params)
-    .map((r) => r.id);
-  const known = new Set(all);
-  const missing = ids.filter((id) => !known.has(id));
-  if (missing.length) throw new Error(`unknown ${label} id(s): ${missing.join(', ')}`);
-  const moved = new Set(ids);
-  const order = [...ids, ...all.filter((id) => !moved.has(id))];
+  // Read inside the transaction, so a row another writer adds meanwhile is renumbered too.
   return tx((d) => {
+    const all = d
+      .prepare(`SELECT id FROM ${table} ${filter} ORDER BY ${orderBy}`)
+      .all(...params)
+      .map((r) => r.id);
+    const known = new Set(all);
+    const missing = ids.filter((id) => !known.has(id));
+    if (missing.length) throw new Error(`unknown ${label} id(s): ${missing.join(', ')}`);
+    const moved = new Set(ids);
+    const order = [...ids, ...all.filter((id) => !moved.has(id))];
     const stmt = d.prepare(`UPDATE ${table} SET position = ? WHERE id = ?`);
     order.forEach((id, index) => stmt.run(index, id));
     return { ordered: order.length };

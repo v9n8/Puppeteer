@@ -232,6 +232,10 @@ export function runServer({ serverInfo, tools, multiAccount = false }) {
   }
 
   let buffer = '';
+  // Calls still awaiting Google or the broker when stdin closes must answer
+  // before the process exits (same as sidecar-mcp/index.mjs).
+  let inflight = 0;
+  let stdinEnded = false;
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
     buffer += chunk;
@@ -247,13 +251,22 @@ export function runServer({ serverInfo, tools, multiAccount = false }) {
         log('failed to parse line:', e.message);
         continue;
       }
-      Promise.resolve(handle(msg)).catch((e) => {
-        log('handler crashed:', e && e.stack ? e.stack : e);
-        if (msg && msg.id != null) replyError(msg.id, -32603, 'Internal error');
-      });
+      inflight += 1;
+      Promise.resolve(handle(msg))
+        .catch((e) => {
+          log('handler crashed:', e && e.stack ? e.stack : e);
+          if (msg && msg.id != null) replyError(msg.id, -32603, 'Internal error');
+        })
+        .finally(() => {
+          inflight -= 1;
+          if (stdinEnded && inflight === 0) process.exit(0);
+        });
     }
   });
-  process.stdin.on('end', () => process.exit(0));
+  process.stdin.on('end', () => {
+    stdinEnded = true;
+    if (inflight === 0) process.exit(0);
+  });
   process.on('SIGTERM', () => process.exit(0));
   process.on('SIGINT', () => process.exit(0));
   log('ready');

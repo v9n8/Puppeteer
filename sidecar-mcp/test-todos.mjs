@@ -223,6 +223,39 @@ check(out['note-home'] === `Note ${noteId} is now in project "proj" (${PROJECT})
   'notes_set_project: back to the current project');
 check(row(full).project_id === null && out['note-global'].includes('global (no project)'), 'todos_set_project: scope=global detaches');
 
+// ---- Concurrent writers ----------------------------------------------------------
+
+// Several sidecars write the same data.db. A transaction that reads, then writes
+// (todos_set_project, todos_reorder) must take the write lock at BEGIN: if another
+// connection takes it between the read and the write, SQLite fails the write with
+// SQLITE_BUSY at once, without waiting out busy_timeout (that wait could deadlock).
+{
+  const txPath = join(appData, 'tx.db');
+  const other = new DatabaseSync(txPath); // busy_timeout 0: never waits
+  other.exec("CREATE TABLE t (id TEXT PRIMARY KEY, n INTEGER); INSERT INTO t VALUES ('a', 0)");
+  process.env.PUPPETEER_DB_PATH = txPath;
+  const { tx } = await import('./lib/store.mjs');
+  let otherErr = null;
+  const err = throws(() =>
+    tx((d) => {
+      d.prepare('SELECT n FROM t').get();
+      try {
+        other.exec('BEGIN IMMEDIATE');
+        other.exec('UPDATE t SET n = 2');
+      } catch (e) {
+        otherErr = e.message;
+      }
+      d.prepare('UPDATE t SET n = 1').run();
+    }),
+  );
+  try {
+    other.exec('ROLLBACK');
+  } catch { /* the other writer never got its transaction */ }
+  check(err === null, `tx: a read-then-write keeps the write lock it needs (got: ${err})`);
+  check(/locked/.test(otherErr ?? '') && other.prepare('SELECT n FROM t').get().n === 1, 'tx: the other writer is the one kept waiting');
+  other.close();
+}
+
 db.close();
 rmSync(appData, { recursive: true, force: true });
 if (failures.length) {

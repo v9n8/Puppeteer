@@ -166,7 +166,7 @@ jobs:
               run sidecar-codex "test-$t.mjs"
             done
           fi
-          for t in code-index dev-servers feature-groups google-server item-links projects schedules skills slack-threads todos; do
+          for t in code-index dev-servers feature-groups file-tree google-server item-links projects schedules skills slack-threads todos; do
             run sidecar-mcp "test-$t.mjs"
           done
 

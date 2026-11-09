@@ -127,7 +127,7 @@ function collectAttachments(payload, out = []) {
 async function attachmentBuffer(messageId, att) {
   if (att.data) return Buffer.from(att.data, 'base64url');
   if (!att.attachmentId) throw new Error(`Attachment '${att.filename}' has no downloadable body.`);
-  const r = await gapi(`${BASE}/messages/${messageId}/attachments/${att.attachmentId}`);
+  const r = await gapi(`${BASE}/messages/${enc(messageId)}/attachments/${enc(att.attachmentId)}`);
   return Buffer.from(r.data || '', 'base64url');
 }
 
@@ -144,7 +144,7 @@ const fmtAttachment = (a, i) =>
 
 /** Load a message and its attachment list, applying the shared filters. */
 async function loadAttachments(a) {
-  const m = await gapi(`${BASE}/messages/${a.message_id}?format=full`);
+  const m = await gapi(`${BASE}/messages/${enc(a.message_id)}?format=full`);
   let atts = collectAttachments(m.payload);
   if (a.skip_inline) atts = atts.filter((x) => !x.inline);
   if (a.mime_prefix) atts = atts.filter((x) => x.mimeType.startsWith(a.mime_prefix));
@@ -167,7 +167,7 @@ function uniquePath(dir, name, used) {
 }
 
 async function fetchSummary(id) {
-  const m = await gapi(`${BASE}/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
+  const m = await gapi(`${BASE}/messages/${enc(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
   return `- [${id}] ${headerOf(m.payload, 'Date')} · ${headerOf(m.payload, 'From')}\n  ${headerOf(m.payload, 'Subject') || '(no subject)'}${m.snippet ? `\n  ${m.snippet}` : ''}`;
 }
 
@@ -218,7 +218,7 @@ export const tools = {
       required: ['message_id'],
     },
     handler: async (a) => {
-      const m = await gapi(`${BASE}/messages/${a.message_id}?format=full`);
+      const m = await gapi(`${BASE}/messages/${enc(a.message_id)}?format=full`);
       const body = extractBody(m.payload);
       const atts = collectAttachments(m.payload);
       return [
@@ -268,7 +268,7 @@ export const tools = {
     },
     handler: async (a) => {
       const dest = await confinePath(a.dest_path);
-      const all = collectAttachments((await gapi(`${BASE}/messages/${a.message_id}?format=full`)).payload);
+      const all = collectAttachments((await gapi(`${BASE}/messages/${enc(a.message_id)}?format=full`)).payload);
       let matches = all;
       if (a.attachment_id) {
         matches = all.filter((x) => x.attachmentId === a.attachment_id);
@@ -331,7 +331,7 @@ export const tools = {
       required: ['thread_id'],
     },
     handler: async (a) => {
-      const t = await gapi(`${BASE}/threads/${a.thread_id}?format=full`);
+      const t = await gapi(`${BASE}/threads/${enc(a.thread_id)}?format=full`);
       return (t.messages || [])
         .map((m) => {
           const body = extractBody(m.payload);
@@ -411,7 +411,7 @@ export const tools = {
       required: ['message_id', 'body'],
     },
     handler: async (a) => {
-      const orig = await gapi(`${BASE}/messages/${a.message_id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Message-ID`);
+      const orig = await gapi(`${BASE}/messages/${enc(a.message_id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Message-ID`);
       const from = headerOf(orig.payload, 'From');
       const msgId = headerOf(orig.payload, 'Message-ID');
       let subject = headerOf(orig.payload, 'Subject') || '';
@@ -445,7 +445,7 @@ export const tools = {
       required: ['message_id'],
     },
     handler: async (a) => {
-      await gapi(`${BASE}/messages/${a.message_id}/modify`, {
+      await gapi(`${BASE}/messages/${enc(a.message_id)}/modify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -469,7 +469,7 @@ export const tools = {
     },
     handler: async (a) => {
       const key = a.read ? 'removeLabelIds' : 'addLabelIds';
-      await gapi(`${BASE}/messages/${a.message_id}/modify`, {
+      await gapi(`${BASE}/messages/${enc(a.message_id)}/modify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [key]: ['UNREAD'] }),
@@ -486,7 +486,7 @@ export const tools = {
       required: ['message_id'],
     },
     handler: async (a) => {
-      await gapi(`${BASE}/messages/${a.message_id}/trash`, { method: 'POST' });
+      await gapi(`${BASE}/messages/${enc(a.message_id)}/trash`, { method: 'POST' });
       return `Trashed ${a.message_id}.`;
     },
   },
@@ -499,7 +499,7 @@ export const tools = {
       required: ['message_id'],
     },
     handler: async (a) => {
-      await gapi(`${BASE}/messages/${a.message_id}`, { method: 'DELETE', raw: true });
+      await gapi(`${BASE}/messages/${enc(a.message_id)}`, { method: 'DELETE', raw: true });
       return `Permanently deleted ${a.message_id}.`;
     },
   },

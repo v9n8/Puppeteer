@@ -16,6 +16,7 @@
 //     server holds no refresh token or client secret).
 
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -41,20 +42,7 @@ function drive(frames, env = {}) {
     });
     let out = '';
     let err = '';
-    // The server exits as soon as stdin closes, dropping calls still awaiting
-    // file I/O, so keep it open until every request has its reply.
-    const pending = new Set(frames.filter((f) => f.id != null).map((f) => f.id));
-    const finish = () => child.stdin.end();
-    setTimeout(finish, 10_000).unref();
-    child.stdout.on('data', (d) => {
-      out += d;
-      for (const line of out.split('\n')) {
-        try {
-          pending.delete(JSON.parse(line).id);
-        } catch { /* partial or noise line */ }
-      }
-      if (!pending.size) finish();
-    });
+    child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('error', reject);
     child.on('close', () => {
@@ -71,7 +59,8 @@ function drive(frames, env = {}) {
       resolve({ parsed, noise, stderr: err });
     });
     for (const f of frames) child.stdin.write(`${JSON.stringify(f)}\n`);
-    if (!pending.size) finish();
+    // Closing stdin right away also checks that calls still in flight answer.
+    child.stdin.end();
   });
 }
 
@@ -205,6 +194,95 @@ for (const n of ['cal_create_event', 'cal_update_event', 'cal_delete_event', 'ca
   });
   check(!existsSync(join(outside, 'made')), 'a refused dest_dir is not created');
   check(!existsSync(join(outside, 'planted.txt')), 'nothing written through the dangling symlink');
+  rmSync(tmp, { recursive: true, force: true });
+}
+
+/** A fake credential broker that answers `reply` after `delayMs`. */
+async function fakeBroker(dir, reply, delayMs = 0) {
+  const sock = process.platform === 'win32' ? `\\\\.\\pipe\\puppeteer-google-${process.pid}-${Date.now()}` : join(dir, 'broker.sock');
+  const server = net.createServer((conn) => {
+    conn.on('data', () => setTimeout(() => conn.end(`${JSON.stringify(reply)}\n`), delayMs));
+  });
+  await new Promise((res) => server.listen(sock, res));
+  return { sock, close: () => server.close() };
+}
+
+// The host closes stdin when the run ends; a call still waiting on the broker
+// must answer before the server exits, not be dropped.
+{
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'google-eof-')));
+  const broker = await fakeBroker(tmp, { decision: 'deny', reason: 'slow broker' }, 300);
+  const child = spawn(process.execPath, [SERVER], {
+    env: {
+      ...process.env,
+      GOOGLE_ACCOUNTS: JSON.stringify([{ label: 'A', email: 'a@x', default: true }]),
+      PUPPETEER_BROKER_SOCK: broker.sock,
+      PUPPETEER_PROJECT_ID: 'p',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  child.stdin.end(`${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'drive_list', arguments: {} } })}\n`);
+  await new Promise((res) => child.on('close', res));
+  broker.close();
+  const r = out.split('\n').filter(Boolean).map((l) => JSON.parse(l)).find((m) => m.id === 7);
+  const text = (r && r.result && r.result.content && r.result.content[0].text) || '';
+  check(/slow broker/.test(text), `a call in flight when stdin closes still answers (got: ${text.slice(0, 80) || 'no reply'})`);
+  rmSync(tmp, { recursive: true, force: true });
+}
+
+// Ids from the model (or a mail it read) go into the URL path: one carrying
+// `/../` must stay a single encoded segment, never re-target another endpoint.
+{
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'google-ids-')));
+  writeFileSync(join(tmp, 'up.txt'), 'hi');
+  const broker = await fakeBroker(tmp, { decision: 'allow', token: 't' });
+  // lib/google.mjs reads GOOGLE_ACCOUNTS when first imported, just below.
+  Object.assign(process.env, {
+    GOOGLE_ACCOUNTS: JSON.stringify([{ label: 'A', email: 'a@x', default: true }]),
+    PUPPETEER_BROKER_SOCK: broker.sock,
+    PUPPETEER_PROJECT_ID: 'p',
+    PUPPETEER_PROJECT_PATH: tmp,
+  });
+  const EVIL = 'ID/../x';
+  const body = {
+    id: EVIL,
+    threadId: EVIL,
+    name: 'n',
+    mimeType: 'text/plain',
+    parents: [EVIL],
+    messages: [{ id: EVIL }],
+    payload: { headers: [], parts: [{ partId: '1', filename: 'a.txt', mimeType: 'text/plain', body: { attachmentId: EVIL, size: 1 } }] },
+    data: 'aGk',
+  };
+  const urls = [];
+  let current = '';
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    urls.push({ tool: current, url: String(url) });
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const groups = {
+    drive_: (await import('./lib/google/drive.mjs')).tools,
+    mail_: (await import('./lib/google/mail.mjs')).tools,
+  };
+  const args = {
+    file_id: EVIL, message_id: EVIL, thread_id: EVIL, permission_id: EVIL, attachment_id: EVIL, new_parent_id: 'p',
+    name: 'n', content: 'c', role: 'reader', type: 'anyone', email: 'a@x', to: 'a@x', subject: 's', body: 'b',
+    add_label_ids: ['L'], read: true, local_path: join(tmp, 'up.txt'), dest_path: join(tmp, 'out.txt'), dest_dir: join(tmp, 'out'),
+  };
+  for (const [prefix, tools] of Object.entries(groups)) {
+    for (const [name, tool] of Object.entries(tools)) {
+      current = `${prefix}${name}`;
+      await Promise.resolve().then(() => tool.handler({ ...args })).catch(() => {});
+    }
+  }
+  globalThis.fetch = realFetch;
+  broker.close();
+  const raw = urls.filter((u) => u.url.split('?')[0].includes(EVIL));
+  check(raw.length === 0, `ids are encoded in URL paths${raw.length ? ` (raw in: ${[...new Set(raw.map((u) => u.tool))].join(', ')})` : ''}`);
+  check(urls.some((u) => u.url.includes(encodeURIComponent(EVIL))), 'the id still reaches the URL, encoded');
   rmSync(tmp, { recursive: true, force: true });
 }
 

@@ -98,7 +98,7 @@ export const tools = {
     },
     handler: async (a) => {
       const f = await gapi(
-        `${BASE}/files/${a.file_id}?fields=${FILE_FIELDS},owners,shared,createdTime,description&${SHARED}`,
+        `${BASE}/files/${enc(a.file_id)}?fields=${FILE_FIELDS},owners,shared,createdTime,description&${SHARED}`,
       );
       return JSON.stringify(f, null, 2);
     },
@@ -113,16 +113,16 @@ export const tools = {
       required: ['file_id'],
     },
     handler: async (a) => {
-      const meta = await gapi(`${BASE}/files/${a.file_id}?fields=id,name,mimeType&${SHARED}`);
+      const meta = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=id,name,mimeType&${SHARED}`);
       if (meta.mimeType && meta.mimeType.startsWith('application/vnd.google-apps')) {
         const exportMime = EXPORT_MAP[meta.mimeType] || 'text/plain';
         const res = await gapi(
-          `${BASE}/files/${a.file_id}/export?mimeType=${enc(exportMime)}`,
+          `${BASE}/files/${enc(a.file_id)}/export?mimeType=${enc(exportMime)}`,
           { raw: true },
         );
         return await res.text();
       }
-      const res = await gapi(`${BASE}/files/${a.file_id}?alt=media&${SHARED}`, { raw: true });
+      const res = await gapi(`${BASE}/files/${enc(a.file_id)}?alt=media&${SHARED}`, { raw: true });
       const ct = res.headers.get('content-type') || '';
       if (/^(text\/|application\/(json|xml|javascript|x-yaml))/.test(ct)) return await res.text();
       const buf = Buffer.from(await res.arrayBuffer());
@@ -145,13 +145,13 @@ export const tools = {
     },
     handler: async (a) => {
       const dest = await confinePath(a.dest_path);
-      const meta = await gapi(`${BASE}/files/${a.file_id}?fields=id,name,mimeType&${SHARED}`);
+      const meta = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=id,name,mimeType&${SHARED}`);
       let res;
       if (meta.mimeType && meta.mimeType.startsWith('application/vnd.google-apps')) {
         const exportMime = EXPORT_MAP[meta.mimeType] || 'text/plain';
-        res = await gapi(`${BASE}/files/${a.file_id}/export?mimeType=${enc(exportMime)}`, { raw: true });
+        res = await gapi(`${BASE}/files/${enc(a.file_id)}/export?mimeType=${enc(exportMime)}`, { raw: true });
       } else {
-        res = await gapi(`${BASE}/files/${a.file_id}?alt=media&${SHARED}`, { raw: true });
+        res = await gapi(`${BASE}/files/${enc(a.file_id)}?alt=media&${SHARED}`, { raw: true });
       }
       const buf = Buffer.from(await res.arrayBuffer());
       await writeFile(dest, buf);
@@ -251,14 +251,14 @@ export const tools = {
       required: ['file_id', 'content'],
     },
     handler: async (a) => {
-      const meta = await gapi(`${BASE}/files/${a.file_id}?fields=name,mimeType&${SHARED}`);
+      const meta = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=name,mimeType&${SHARED}`);
       if (meta.mimeType && meta.mimeType.startsWith('application/vnd.google-apps')) {
         const hint = meta.mimeType === 'application/vnd.google-apps.spreadsheet' ? ' Use sheets_update to change specific cells.' : '';
         throw new Error(`Refusing to overwrite ${meta.name} (${meta.mimeType}): it would replace the whole document.${hint}`);
       }
       const mime = a.mime_type || 'text/plain';
       const f = await gapi(
-        `${UPLOAD}/${a.file_id}?uploadType=media&fields=${FILE_FIELDS}&${SHARED}`,
+        `${UPLOAD}/${enc(a.file_id)}?uploadType=media&fields=${FILE_FIELDS}&${SHARED}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': mime },
@@ -277,7 +277,7 @@ export const tools = {
       required: ['file_id', 'name'],
     },
     handler: async (a) => {
-      const f = await gapi(`${BASE}/files/${a.file_id}?fields=${FILE_FIELDS}&${SHARED}`, {
+      const f = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=${FILE_FIELDS}&${SHARED}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: a.name }),
@@ -297,10 +297,10 @@ export const tools = {
       required: ['file_id', 'new_parent_id'],
     },
     handler: async (a) => {
-      const meta = await gapi(`${BASE}/files/${a.file_id}?fields=parents&${SHARED}`);
+      const meta = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=parents&${SHARED}`);
       const removeParents = (meta.parents || []).join(',');
       const f = await gapi(
-        `${BASE}/files/${a.file_id}?addParents=${enc(a.new_parent_id)}${removeParents ? `&removeParents=${enc(removeParents)}` : ''}&fields=${FILE_FIELDS}&${SHARED}`,
+        `${BASE}/files/${enc(a.file_id)}?addParents=${enc(a.new_parent_id)}${removeParents ? `&removeParents=${enc(removeParents)}` : ''}&fields=${FILE_FIELDS}&${SHARED}`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' },
       );
       return `Moved ${f.name} [${f.id}] to parent ${a.new_parent_id}.`;
@@ -316,7 +316,7 @@ export const tools = {
       required: ['file_id'],
     },
     handler: async (a) => {
-      await gapi(`${BASE}/files/${a.file_id}?${SHARED}`, { method: 'DELETE', raw: true });
+      await gapi(`${BASE}/files/${enc(a.file_id)}?${SHARED}`, { method: 'DELETE', raw: true });
       return `Permanently deleted ${a.file_id}.`;
     },
   },
@@ -340,10 +340,10 @@ export const tools = {
       if (type === 'user' && !a.email) throw new Error('email is required for type=user.');
       const body = { type, role, ...(type === 'user' ? { emailAddress: a.email } : {}) };
       const perm = await gapi(
-        `${BASE}/files/${a.file_id}/permissions?fields=id&sendNotificationEmail=false&${SHARED}`,
+        `${BASE}/files/${enc(a.file_id)}/permissions?fields=id&sendNotificationEmail=false&${SHARED}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
       );
-      const meta = await gapi(`${BASE}/files/${a.file_id}?fields=webViewLink&${SHARED}`);
+      const meta = await gapi(`${BASE}/files/${enc(a.file_id)}?fields=webViewLink&${SHARED}`);
       return `Granted ${role} to ${type === 'user' ? a.email : 'anyone with the link'} (permission ${perm.id}).\nLink: ${meta.webViewLink || '(n/a)'}`;
     },
   },
@@ -357,7 +357,7 @@ export const tools = {
     },
     handler: async (a) => {
       const data = await gapi(
-        `${BASE}/files/${a.file_id}/permissions?fields=permissions(id,type,role,emailAddress,displayName)&${SHARED}`,
+        `${BASE}/files/${enc(a.file_id)}/permissions?fields=permissions(id,type,role,emailAddress,displayName)&${SHARED}`,
       );
       const perms = data.permissions || [];
       return perms.length
@@ -377,7 +377,7 @@ export const tools = {
       required: ['file_id', 'permission_id'],
     },
     handler: async (a) => {
-      await gapi(`${BASE}/files/${a.file_id}/permissions/${a.permission_id}?${SHARED}`, {
+      await gapi(`${BASE}/files/${enc(a.file_id)}/permissions/${enc(a.permission_id)}?${SHARED}`, {
         method: 'DELETE',
         raw: true,
       });

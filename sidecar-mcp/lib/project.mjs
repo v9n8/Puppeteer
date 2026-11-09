@@ -25,8 +25,14 @@ function projectRoot() {
 export function fileTree({ subpath = '', maxDepth = 3, maxEntries = 400 } = {}) {
   const root = projectRoot();
   const start = path.resolve(root, subpath || '.');
-  if (!start.startsWith(path.resolve(root))) throw new Error('subpath escapes the project directory');
   if (!fs.existsSync(start)) throw new Error(`path not found: ${subpath || '.'}`);
+  // Real paths, compared with a separator: a symlink out of the project, or a
+  // sibling sharing its name as a prefix (`proj-secrets` vs `proj`), must not pass.
+  const r = fs.realpathSync(root);
+  const t = fs.realpathSync(start);
+  if (t !== r && !t.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) {
+    throw new Error('subpath escapes the project directory');
+  }
 
   const lines = [];
   let count = 0;
