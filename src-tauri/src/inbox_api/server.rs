@@ -1925,10 +1925,10 @@ mod tests {
         l.set(false).await;
         assert!(!l.api.info().running && !l.api.info().enabled);
         assert!(!l.feature_on().await);
-        // Port released: nothing listens, it can be bound again.
-        assert!(tokio::net::TcpStream::connect(("127.0.0.1", port))
-            .await
-            .is_err());
+        // Port released: the task is gone and the port can be bound again.
+        // Not probed with `connect`: on macOS under load a refused loopback
+        // connect can come back `Ok` with a dead socket.
+        assert!(l.api.server.lock().await.is_none());
         assert!(tokio::net::TcpListener::bind(("127.0.0.1", port))
             .await
             .is_ok());
@@ -2022,9 +2022,11 @@ mod tests {
         set_setting(&l.db, "feature.integrations", "false").await.unwrap();
         l.follow().await;
         assert!(!l.api.info().enabled && !l.api.info().running);
-        assert!(tokio::net::TcpStream::connect(("127.0.0.1", port))
+        // See `toggle_starts_and_stops_the_listener` for why not `connect`.
+        assert!(l.api.server.lock().await.is_none());
+        assert!(tokio::net::TcpListener::bind(("127.0.0.1", port))
             .await
-            .is_err());
+            .is_ok());
         assert_eq!(stored_switch(&l.db).await.as_deref(), Some("true"), "prop choice kept");
 
         set_setting(&l.db, "feature.integrations", "true").await.unwrap();
