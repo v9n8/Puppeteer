@@ -8,7 +8,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ask, scrubCloudEnv, pathWithoutDir, pathKey, resolveReal, isWindowsBatch, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
+import { ask, scrubCloudEnv, pinToolEnv, pathWithoutDir, pathKey, resolveReal, isWindowsBatch, azureMfaRequired, gitAccountSelector, cloudAccountSelector, stripAwsProfileArgs, remoteHost, glabTargetHost } from './shim.mjs'
 
 const inherited = () => ({
   PATH: '/usr/bin',
@@ -223,4 +223,82 @@ test('aws: the broker sees the argv that runs, --profile goes only in aws_profil
     await new Promise((r) => server.close(r))
     fs.rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// A pager / browser runs as a command with the injected token in its env
+// (`GH_PAGER='sh -c "echo $GH_TOKEN"' gh pr diff 1` is an allowed read), and an
+// agent-chosen config dir can hold shell aliases.
+test('gh / aws: the child gets pinned pager/browser env, not the agent\'s', { skip: process.platform === 'win32' && 'fake real tool is a sh script' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'puppeteer-shim-'))
+  const bin = path.join(dir, 'bin')
+  fs.mkdirSync(bin)
+  for (const tool of ['gh', 'aws']) fs.writeFileSync(path.join(bin, tool), '#!/bin/sh\nenv\n', { mode: 0o755 })
+  const endpoint = path.join(dir, 'b.sock')
+  const server = net.createServer((c) => {
+    c.once('data', () => c.end(JSON.stringify({ decision: 'allow', token: 't', aws_access_key_id: 'AKIA', aws_secret_access_key: 's' }) + '\n'))
+  })
+  await new Promise((r) => server.listen(endpoint, r))
+  const runShim = async (tool) => {
+    const child = spawn(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), tool), 'x'], {
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+        PUPPETEER_BROKER_SOCK: endpoint,
+        PUPPETEER_PROJECT_ID: 'p1',
+        GH_PAGER: 'evil',
+        PAGER: 'evil',
+        GH_BROWSER: 'evil',
+        BROWSER: 'evil',
+        AWS_PAGER: 'evil',
+        GH_CONFIG_DIR: '/evil/gh',
+        GLAB_CONFIG_DIR: '/evil/glab',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let out = ''
+    child.stdout.on('data', (d) => { out += d })
+    assert.equal(await new Promise((r) => child.on('close', r)), 0)
+    return Object.fromEntries(out.split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]))
+  }
+  try {
+    const gh = await runShim('gh')
+    assert.equal(gh.GH_PAGER, 'cat')
+    assert.equal(gh.GLAB_PAGER, 'cat')
+    assert.equal(gh.PAGER, 'cat')
+    assert.equal(gh.GH_BROWSER, 'false')
+    assert.equal(gh.BROWSER, 'false')
+    assert.equal(gh.GH_PROMPT_DISABLED, '1')
+    assert.equal(gh.GH_CONFIG_DIR, undefined)
+    assert.equal(gh.GLAB_CONFIG_DIR, undefined)
+    const aws = await runShim('aws')
+    assert.equal(aws.AWS_PAGER, '')
+  } finally {
+    await new Promise((r) => server.close(r))
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('pinToolEnv: gh/glab and aws pin their pager env, other tools are untouched', () => {
+  const agent = () => ({ PATH: '/usr/bin', GH_PAGER: 'evil', AWS_PAGER: 'evil', GH_CONFIG_DIR: '/evil' })
+  const gh = pinToolEnv(agent(), 'glab', 'linux')
+  assert.equal(gh.GH_PAGER, 'cat')
+  assert.equal(gh.GH_CONFIG_DIR, undefined)
+  assert.equal(gh.PATH, '/usr/bin')
+  assert.equal(pinToolEnv(agent(), 'aws', 'linux').AWS_PAGER, '')
+  assert.deepEqual(pinToolEnv(agent(), 'az', 'linux'), agent())
+  // POSIX names are case-sensitive: `gh_pager` is not gh's variable.
+  assert.equal(pinToolEnv({ gh_pager: 'x' }, 'gh', 'linux').gh_pager, 'x')
+})
+
+// Windows env names are case-insensitive: a lower-case spelling is the same
+// variable to the child and must go too.
+test('Windows: other spellings of a pinned or dropped var do not survive', () => {
+  const gh = pinToolEnv({ Path: 'C:\\bin', gh_pager: 'evil', Gh_Config_Dir: 'C:\\evil', browser: 'evil' }, 'gh', 'win32')
+  assert.deepEqual(Object.keys(gh).filter((k) => /^(gh_pager|gh_config_dir|browser)$/i.test(k)).sort(), ['BROWSER', 'GH_PAGER'])
+  assert.equal(gh.GH_PAGER, 'cat')
+  assert.equal(gh.Path, 'C:\\bin')
+  const aws = pinToolEnv({ aws_pager: 'evil' }, 'aws', 'win32')
+  assert.deepEqual(aws, { AWS_PAGER: '' })
+  const tf = scrubCloudEnv({ Path: 'C:\\bin', azure_extension_dir: 'x', Arm_Environment: 'x', msi_endpoint: 'x', tf_cli_args_init: 'x', Tf_Data_Dir: 'x' }, 'terraform', 'win32')
+  assert.deepEqual(tf, { Path: 'C:\\bin' })
 })

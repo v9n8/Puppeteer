@@ -156,18 +156,65 @@ const TERRAFORM_UNSAFE_ENV = ['TF_CLI_CONFIG_FILE', 'TERRAFORM_CONFIG', 'TF_PLUG
  * Mutates and returns `env`. Never inspects values.
  * @param {Record<string, string|undefined>} env
  * @param {string} tool
+ * @param {string} [platform]
  */
-export function scrubCloudEnv(env, tool) {
+export function scrubCloudEnv(env, tool, platform = process.platform) {
   if (tool !== 'az' && tool !== 'terraform') return env
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('AZURE_') || key.startsWith('ARM_')) delete env[key]
-    if (tool === 'terraform' && key.startsWith('TF_CLI_ARGS')) delete env[key]
-  }
-  for (const key of AZURE_IDENTITY_ENV) delete env[key]
-  if (tool === 'terraform') {
-    for (const key of TERRAFORM_UNSAFE_ENV) delete env[key]
-  }
+  const tf = tool === 'terraform'
+  dropEnv(env, (k) =>
+    k.startsWith('AZURE_') || k.startsWith('ARM_') || AZURE_IDENTITY_ENV.includes(k) ||
+    (tf && (k.startsWith('TF_CLI_ARGS') || TERRAFORM_UNSAFE_ENV.includes(k))), platform)
   return env
+}
+
+// A pager or browser runs as a command with the injected token in its env:
+// `GH_PAGER='sh -c "echo $GH_TOKEN"' gh pr diff 1` is an allowed read. An
+// agent-chosen config dir could hold shell aliases. gh documents `GH_PAGER`,
+// `PAGER`, `GH_BROWSER`, `BROWSER`; glab is pinned with the same set plus
+// `GLAB_PAGER`. NOT covered here: aws CLI aliases (`~/.aws/cli/alias`, e.g.
+// `x = !env`) and terraform providers (`.terraform/providers`, `dev_overrides`
+// in `~/.terraformrc`) — both are files the agent can write; see the open
+// design question on giving these children their own HOME / CLI config.
+const GIT_HOST_PINNED_ENV = {
+  GH_PAGER: 'cat',
+  GLAB_PAGER: 'cat',
+  PAGER: 'cat',
+  GH_BROWSER: 'false',
+  BROWSER: 'false',
+  GH_PROMPT_DISABLED: '1',
+}
+const GIT_HOST_UNSAFE_ENV = ['GH_CONFIG_DIR', 'GLAB_CONFIG_DIR']
+// Empty disables the aws CLI v2 pager, ahead of `cli_pager` and `PAGER`.
+const AWS_PINNED_ENV = { AWS_PAGER: '' }
+
+/**
+ * Pin the gh/glab/aws child env that would run a command of the agent's
+ * choosing (pager, browser) or load its config from an agent-chosen dir.
+ * Mutates and returns `env`.
+ * @param {Record<string, string|undefined>} env
+ * @param {string} tool
+ * @param {string} [platform]
+ */
+export function pinToolEnv(env, tool, platform = process.platform) {
+  const gitHost = tool === 'gh' || tool === 'glab'
+  const pinned = gitHost ? GIT_HOST_PINNED_ENV : tool === 'aws' ? AWS_PINNED_ENV : null
+  if (!pinned) return env
+  dropEnv(env, (k) => Object.hasOwn(pinned, k) || (gitHost && GIT_HOST_UNSAFE_ENV.includes(k)), platform)
+  return Object.assign(env, pinned)
+}
+
+/**
+ * Delete every `env` key whose name `matches`. Windows env names are
+ * case-insensitive, so there `matches` sees the upper-cased name: an
+ * agent-set `gh_config_dir` is the same variable to the child.
+ * @param {Record<string, string|undefined>} env
+ * @param {(name: string) => boolean} matches
+ * @param {string} platform
+ */
+function dropEnv(env, matches, platform) {
+  for (const key of Object.keys(env)) {
+    if (matches(platform === 'win32' ? key.toUpperCase() : key)) delete env[key]
+  }
 }
 
 /**
@@ -365,6 +412,7 @@ export async function run(tool) {
   // to ~/.azure.
   const sandboxAzureConfigDir = childEnv.AZURE_CONFIG_DIR
   scrubCloudEnv(childEnv, tool)
+  pinToolEnv(childEnv, tool)
 
   if (tool === 'terraform' && !hasAws && !hasAzure) {
     process.stderr.write(`puppeteer: ${tool} — credential unavailable\n`)
