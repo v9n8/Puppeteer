@@ -1,0 +1,24 @@
+{
+  "title": "Memory",
+  "hint": "Các file chỉ dẫn mà Claude Code và Codex tự đọc khi bắt đầu mỗi Session. Nội dung ở đây đi vào mọi Session, kể cả Session chạy ngoài Puppeteer. Khác với Rules: Rules là thư viện Puppeteer áp vào từng Project.",
+  "kind": {
+    "user": "Người dùng · CLAUDE.md",
+    "project_claude": "Project · CLAUDE.md",
+    "project_agents": "Project · AGENTS.md"
+  },
+  "pickProject": "Chọn một Project để sửa file của nó.",
+  "linkTo": "Liên kết tới {path}",
+  "size": "{size} · ≈ {tokens} token",
+  "reload": "Tải lại từ đĩa",
+  "managedBlocks": "Rules / Skills đang giữ {count} khối trong file này ({names}). Hãy sửa ở đó: lần áp tiếp theo sẽ ghi lại khối, còn sửa tay ở đây sẽ hiện thành xung đột bên đó.",
+  "conflict": "File đã bị sửa bên ngoài Puppeteer từ lúc mở. Tải lại (mất phần bạn sửa ở đây) hoặc ghi đè bằng bản của bạn.",
+  "reloadDiscard": "Tải lại",
+  "overwrite": "Ghi đè",
+  "missing": "File này chưa có.",
+  "create": "Tạo",
+  "unsaved": "Chưa lưu",
+  "saved": "Đã lưu",
+  "discardTitle": "Bỏ thay đổi chưa lưu?",
+  "discardMessage": "Phần bạn sửa trong file này chưa được lưu.",
+  "discard": "Bỏ thay đổi"
+}

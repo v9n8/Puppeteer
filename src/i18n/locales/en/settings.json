@@ -7,6 +7,7 @@
     "ai": "Defaults for new sessions",
     "styles": "Response styles",
     "translate": "Translation",
+    "memory": "Memory",
     "sessions": "Sessions",
     "devices": "Devices",
     "inbox": "Inbox API",

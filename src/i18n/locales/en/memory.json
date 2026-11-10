@@ -1,0 +1,24 @@
+{
+  "title": "Memory",
+  "hint": "The instruction files Claude Code and Codex read at the start of every session. What you write here goes into every session, including ones started outside Puppeteer. Not the same as Rules: Rules is a library Puppeteer applies to projects.",
+  "kind": {
+    "user": "User · CLAUDE.md",
+    "project_claude": "Project · CLAUDE.md",
+    "project_agents": "Project · AGENTS.md"
+  },
+  "pickProject": "Pick a project to edit its file.",
+  "linkTo": "Link to {path}",
+  "size": "{size} · ≈ {tokens} tokens",
+  "reload": "Reload from disk",
+  "managedBlocks": "Rules / Skills keep a block in this file ({names}). Edit it there: applying again rewrites it, and an edit made here shows up there as a conflict. | Rules / Skills keep {count} blocks in this file ({names}). Edit them there: applying again rewrites them, and an edit made here shows up there as a conflict.",
+  "conflict": "This file changed outside Puppeteer since it was opened. Reload it (your edits here are lost) or overwrite it with your version.",
+  "reloadDiscard": "Reload",
+  "overwrite": "Overwrite",
+  "missing": "This file doesn't exist yet.",
+  "create": "Create",
+  "unsaved": "Unsaved changes",
+  "saved": "Saved",
+  "discardTitle": "Discard unsaved changes?",
+  "discardMessage": "Your edits to this file haven't been saved.",
+  "discard": "Discard"
+}

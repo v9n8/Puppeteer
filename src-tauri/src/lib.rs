@@ -122,6 +122,7 @@ use commands::stats::{
 use commands::storage::get_storage_stats;
 use commands::trash::list_trash;
 use commands::instruction_checks::get_instruction_warnings;
+use commands::memory::{memory_read, memory_write};
 use commands::inbox_api::{get_inbox_api_info, regenerate_inbox_api_token, set_inbox_api_enabled};
 use commands::slack_threads::{
     add_slack_thread, delete_slack_threads, get_slack_thread, get_slack_thread_prompt_text,
@@ -528,6 +529,8 @@ pub fn run() {
             import::commands::scan_import_source,
             import::commands::import_candidates,
             get_instruction_warnings,
+            memory_read,
+            memory_write,
             list_groups,
             create_group,
             update_group,

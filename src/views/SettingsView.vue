@@ -21,6 +21,7 @@ import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettin
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import SessionsSettings from '@/components/settings/SessionsSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
+import MemorySettings from '@/components/settings/MemorySettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -167,6 +168,12 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <TranslateSettings v-show="activeSection === 'translate'" />
         <SessionsSettings v-show="activeSection === 'sessions'" />
 
+        </div>
+
+        <!-- Memory: CLAUDE.md / AGENTS.md editor, wider than the forms. Kept mounted (v-show) so
+             switching section doesn't drop unsaved edits. -->
+        <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-3xl">
+          <MemorySettings />
         </div>
 
         <!-- Remote Control + Sync & backup under their shared relay / device name / master password

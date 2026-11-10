@@ -25,6 +25,7 @@ pub mod library_allocation;
 pub mod library_items;
 pub mod mcp;
 pub mod mcp_packages;
+pub mod memory;
 pub mod models;
 pub mod notes;
 pub mod notifications;

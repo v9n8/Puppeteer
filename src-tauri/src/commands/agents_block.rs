@@ -97,6 +97,19 @@ pub fn strip_all(content: &str) -> String {
     out
 }
 
+/// `kind:name` of the managed blocks in `content`, in file order (up to one with no END marker,
+/// like [`strip_all`]).
+pub fn block_names(content: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = content;
+    while let Some((s, e)) = next_block(rest) {
+        let marker = &rest[s + "<!-- puppeteer:".len()..e];
+        names.extend(marker.split(" START -->").next().map(str::to_string));
+        rest = &rest[e..];
+    }
+    names
+}
+
 /// Byte range of the first managed block, from its START marker to the end of its END marker.
 fn next_block(content: &str) -> Option<(usize, usize)> {
     const OPEN: &str = "<!-- puppeteer:";
@@ -172,6 +185,14 @@ mod tests {
         fs::write(&agents, &sjis).unwrap();
         assert!(upsert(&agents, "rule", "x", "body").is_err());
         assert_eq!(fs::read(&agents).unwrap(), sjis);
+    }
+
+    #[test]
+    fn lists_block_names_in_order() {
+        let content = "# Mine\n\n<!-- puppeteer:rule:a START -->\nx\n<!-- puppeteer:rule:a END -->\n\n\
+                       <!-- puppeteer:skill:b START -->\ny\n<!-- puppeteer:skill:b END -->\n";
+        assert_eq!(block_names(content), vec!["rule:a".to_string(), "skill:b".to_string()]);
+        assert!(block_names("# Mine\n").is_empty());
     }
 
     #[cfg(unix)]

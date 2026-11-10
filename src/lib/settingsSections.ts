@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Command, Keyboard, Languages,
+  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -31,6 +31,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'ai', group: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
   { id: 'styles', group: 'ai', labelKey: 'settings.sections.styles', icon: MessageSquareText },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
+  { id: 'memory', group: 'ai', labelKey: 'settings.sections.memory', icon: Brain },
   { id: 'sessions', group: 'ai', labelKey: 'settings.sections.sessions', icon: Gauge },
   // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
   // is gated inside the screen, and `?section=github` etc. open it filtered.

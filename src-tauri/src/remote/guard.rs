@@ -43,8 +43,9 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// record of who did (Remote Control config, master password, OTP / session
 /// links, kicking a Controller, clearing the audit, Web Push recipients, the
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
-/// skills installed into HOME, importing from this machine's other AI tools,
-/// switching a schedule on (it starts runs while nobody is at this machine),
+/// skills installed into HOME, the Memory files every session reads (read
+/// and write), importing from this machine's other AI tools, switching a
+/// schedule on (it starts runs while nobody is at this machine),
 /// installing an app update, purging the Trash, resetting the usage stats
 /// (it deletes every run), plus the plumbing of the
 /// CONTROLLING side.
@@ -77,6 +78,9 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "set_builtin_mcp_enabled",
     // Skills in this machine's HOME: every CLI run outside Puppeteer reads them.
     "set_skill_global",
+    // Memory: `~/.claude/CLAUDE.md` and a project's CLAUDE.md / AGENTS.md go into every session.
+    "memory_read",
+    "memory_write",
     // Import from other tools: reads this machine's tool configs (`~/.claude.json` holds the
     // Claude account) and fills the libraries from them.
     "list_import_sources",
