@@ -19,7 +19,7 @@ import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
-import UsageBudgetSettings from '@/components/settings/UsageBudgetSettings.vue'
+import SessionsSettings from '@/components/settings/SessionsSettings.vue'
 import PromptTemplatesSettings from '@/components/settings/PromptTemplatesSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
@@ -54,7 +54,8 @@ const devicesTab = ref<DevicesTab>('remote')
 // Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
 const DEVICES_TAB_OF: Record<string, DevicesTab> = { remote: 'remote', sync: 'backup', backup: 'backup' }
 // Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
-const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines' }
+// Usage & Budget is now AI › Sessions.
+const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines', usage: 'sessions' }
 // GitHub, GitLab, AWS, Azure and Google were sections too: now Connections, filtered to that type.
 const connectionsFilter = ref<ConnectionFilter>('all')
 function applySectionFromRoute() {
@@ -165,7 +166,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <AiModelsSettings v-show="activeSection === 'ai'" />
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
-        <UsageBudgetSettings v-show="activeSection === 'usage'" />
+        <SessionsSettings v-show="activeSection === 'sessions'" />
         <PromptTemplatesSettings v-show="activeSection === 'prompts'" />
 
         </div>

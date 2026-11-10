@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
+import type { QuotaWarnWindow } from '@/lib/quotaWarn'
 import { ref } from 'vue'
 
 export interface ClaudeAccount {
@@ -34,6 +35,9 @@ export interface AccountBudget {
   is_stale: boolean
   status: 'allowed' | 'warning' | 'blocked' | null
   rolled_over: boolean
+  /** A window reached the quota warning tier (`quota_warn_percent`); never blocks. */
+  is_quota_warn?: boolean
+  quota_warn_windows?: QuotaWarnWindow[]
 }
 
 export interface AccountLoad {

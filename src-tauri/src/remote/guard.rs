@@ -979,6 +979,9 @@ mod tests {
             "member",
             "secret_salt",
             "translate_engine",
+            // Usage quota tiers: the warning one follows the block ones.
+            "budget_5h_percent",
+            "quota_warn_percent",
             "focus.work_start",
             "featured",
             // Command palette layout: a UI preference, like `saved_prompts`.

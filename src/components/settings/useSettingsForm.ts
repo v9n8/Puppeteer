@@ -32,6 +32,7 @@ export interface AppSettings {
   context_limit_override: string
   budget_5h_percent: string
   budget_week_percent: string
+  quota_warn_percent: string
   claude_auto_balance: string
   claude_auto_balance_min_swap_minutes: string
   claude_auto_balance_swap_threshold_pct: string
@@ -78,6 +79,7 @@ export function createSettingsForm(): SettingsForm {
     context_limit_override: '',
     budget_5h_percent: '',
     budget_week_percent: '',
+    quota_warn_percent: '',
     claude_auto_balance: 'true',
     claude_auto_balance_min_swap_minutes: '10',
     claude_auto_balance_swap_threshold_pct: '10',

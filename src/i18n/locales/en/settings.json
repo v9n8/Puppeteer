@@ -7,7 +7,7 @@
     "ai": "Run defaults",
     "styles": "Response styles",
     "translate": "Translation",
-    "usage": "Usage & Budget",
+    "sessions": "Sessions",
     "devices": "Devices",
     "prompts": "Prompt Templates",
     "inbox": "Inbox API",
@@ -300,18 +300,23 @@
     "styleFormal": "Formal — formal tone",
     "styleCasual": "Casual — friendly tone"
   },
-  "usage": {
-    "title": "Usage & Budget",
-    "contextMeter": "Context window meter",
-    "contextMeterHint": "Shows how full the current run's context window is. The bar turns amber past the warn threshold and offers a one-click /compact.",
+  "sessions": {
+    "title": "Sessions",
+    "contextTitle": "Context",
+    "contextHint": "Shows how full the current session's context window is. The bar turns amber past the warn threshold and offers a one-click /compact.",
     "warnAt": "Warn at (%)",
     "limitOverride": "Limit override (tokens)",
     "limitOverridePlaceholder": "auto from model",
     "limitOverrideHint": "Leave the override empty to auto-resolve from the model (Claude 200k / 1M, Codex 272k).",
-    "budgetTitle": "Usage budget (blocks new runs)",
-    "budgetHint": "Checked before each run & follow-up: Puppeteer blocks a new run (override per turn) when the run's engine reaches a limit below. Thresholds map to that engine's real subscription plan windows (from /usage) — a rolling 5h window and a weekly window (resets per account). A run is blocked if any set window is reached. Codex usually exposes only the weekly window, so set Weekly to cover it. Leave a field empty to skip that window; with no plan data (e.g. API-key sessions) the guardrail is inactive.",
+    "quotaTitle": "Quota",
+    "quotaHint": "Follows each engine's real subscription plan windows (from /usage): a rolling 5h window and a weekly window (resets per account). With no plan data (e.g. API-key sessions) these settings do nothing.",
+    "quotaWarnAt": "Warn at (%)",
+    "quotaWarnHint": "Shows a toast once when a 5h or weekly window reaches this percent, and turns the usage badge amber. It never blocks; the toast comes back only after the window resets or drops below.",
     "block5h": "5h window — block at (%)",
     "blockWeekly": "Weekly window — block at (%)",
+    "blockHint": "Checked before each new session and follow-up: Puppeteer blocks it (you can override per turn) when its engine reaches any window set here. Codex usually exposes only the weekly window, so set Weekly to cover it.",
+    "orderHint": "Keep the warning below the block thresholds, e.g. warn at 70 and block at 90, so you are warned before you are blocked.",
+    "warnNotBelowBlock": "The warning is at or above a block threshold, so that window blocks without warning first. Lower the warning.",
     "emptyOff": "empty = off"
   },
   "prompts": {

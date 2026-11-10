@@ -40,7 +40,10 @@
     "planUsageTitle": "Mức dùng plan đăng ký {label} · {period}",
     "usageStatusTitle": "Trạng thái mức dùng {label}",
     "refreshUsage": "Làm mới mức dùng plan {label}",
-    "refreshUsageTitle": "Làm mới mức dùng plan {label} ngay"
+    "refreshUsageTitle": "Làm mới mức dùng plan {label} ngay",
+    "window5h": "cửa sổ 5h",
+    "windowWeek": "cửa sổ tuần",
+    "quotaWarnToast": "{label} đã dùng {percent}% {window}."
   },
   "tabs": {
     "project": "Project",

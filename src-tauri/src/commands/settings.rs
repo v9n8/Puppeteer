@@ -45,6 +45,9 @@ pub struct AppSettings {
     /// Block new runs when the weekly plan window reaches this percent
     /// ("" = don't enforce the weekly window).
     pub budget_week_percent: String,
+    /// Quota warning tier: warn (toast + badge colour) once a plan window reaches
+    /// this percent ("" = off). Never blocks; see `stats::quota_warn_windows`.
+    pub quota_warn_percent: String,
     /// Auto-balance the default Claude account across managed accounts, so plan
     /// usage spreads instead of hammering one login. "true" (default) | "false".
     /// When on, new runs that aren't pinned to a project/account follow whichever
@@ -109,6 +112,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "context_limit_override",
     "budget_5h_percent",
     "budget_week_percent",
+    "quota_warn_percent",
     "claude_auto_balance",
     "claude_auto_balance_min_swap_minutes",
     "claude_auto_balance_swap_threshold_pct",
@@ -171,6 +175,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         context_limit_override: "".to_string(),
         budget_5h_percent: "".to_string(),
         budget_week_percent: "".to_string(),
+        quota_warn_percent: "".to_string(),
         claude_auto_balance: "true".to_string(),
         claude_auto_balance_min_swap_minutes: "10".to_string(),
         claude_auto_balance_swap_threshold_pct: "10".to_string(),
@@ -209,6 +214,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "context_limit_override" => settings.context_limit_override = value,
             "budget_5h_percent" => settings.budget_5h_percent = value,
             "budget_week_percent" => settings.budget_week_percent = value,
+            "quota_warn_percent" => settings.quota_warn_percent = value,
             "claude_auto_balance" => settings.claude_auto_balance = value,
             "claude_auto_balance_min_swap_minutes" => {
                 settings.claude_auto_balance_min_swap_minutes = value

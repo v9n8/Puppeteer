@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@/lib/tauri'
+import { takeQuotaWarnCrossings, type QuotaWarnRow, type QuotaWarnWindow } from '@/lib/quotaWarn'
 
 type PlanRefreshReason = 'startup' | 'manual'
 
@@ -28,6 +29,10 @@ interface BudgetStatus {
   is_stale: boolean
   status: 'allowed' | 'warning' | 'blocked' | null
   rolled_over: boolean
+  /** A window reached the quota warning tier (`quota_warn_percent`); never blocks. */
+  is_quota_warn?: boolean
+  /** The windows at or past that tier ([] while it is off). */
+  quota_warn_windows?: QuotaWarnWindow[]
 }
 
 export const useBudgetStore = defineStore('budget', () => {
@@ -58,6 +63,8 @@ export const useBudgetStore = defineStore('budget', () => {
   const capturedAt = computed(() => status.value?.captured_at ?? null)
   const isStale = computed(() => status.value?.is_stale ?? false)
   const rolledOver = computed(() => status.value?.rolled_over ?? false)
+  const isQuotaWarn = computed(() => status.value?.is_quota_warn ?? false)
+  const quotaWarnWindows = computed(() => status.value?.quota_warn_windows)
   const refreshUnavailable = computed(() =>
     refreshError.value?.includes('without a fresh usage snapshot') ?? false
   )
@@ -74,6 +81,16 @@ export const useBudgetStore = defineStore('budget', () => {
   const codexCapturedAt = computed(() => codexStatus.value?.captured_at ?? null)
   const codexIsStale = computed(() => codexStatus.value?.is_stale ?? false)
   const codexRolledOver = computed(() => codexStatus.value?.rolled_over ?? false)
+  const codexIsQuotaWarn = computed(() => codexStatus.value?.is_quota_warn ?? false)
+  const codexQuotaWarnWindows = computed(() => codexStatus.value?.quota_warn_windows)
+
+  // Windows already warned about. Kept in the store, not the badge, so a badge
+  // remounted on a project switch doesn't warn again for the same crossing.
+  const quotaWarnLatch = new Set<string>()
+  /** Windows that newly reached the quota warning tier; each is returned once per crossing. */
+  function takeQuotaWarnings(rows: QuotaWarnRow[]) {
+    return takeQuotaWarnCrossings(quotaWarnLatch, rows)
+  }
   const codexRefreshUnavailable = computed(() =>
     codexRefreshError.value?.includes('without a fresh usage snapshot') ?? false
   )
@@ -174,6 +191,8 @@ export const useBudgetStore = defineStore('budget', () => {
     capturedAt,
     isStale,
     rolledOver,
+    isQuotaWarn,
+    quotaWarnWindows,
     refreshUnavailable,
     refresh,
     refreshPlanUsage,
@@ -192,8 +211,11 @@ export const useBudgetStore = defineStore('budget', () => {
     codexCapturedAt,
     codexIsStale,
     codexRolledOver,
+    codexIsQuotaWarn,
+    codexQuotaWarnWindows,
     codexRefreshUnavailable,
     refreshCodex,
     refreshCodexPlanUsage,
+    takeQuotaWarnings,
   }
 })

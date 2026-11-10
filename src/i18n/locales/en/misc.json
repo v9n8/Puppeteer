@@ -40,7 +40,10 @@
     "planUsageTitle": "{label} subscription plan usage · {period}",
     "usageStatusTitle": "{label} usage status",
     "refreshUsage": "Refresh {label} plan usage",
-    "refreshUsageTitle": "Refresh {label} plan usage now"
+    "refreshUsageTitle": "Refresh {label} plan usage now",
+    "window5h": "5-hour window",
+    "windowWeek": "weekly window",
+    "quotaWarnToast": "{label} has used {percent}% of its {window}."
   },
   "tabs": {
     "project": "Project",

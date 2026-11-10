@@ -538,6 +538,23 @@ pub struct BudgetStatus {
     /// captured, so the displayed percent is a stale pre-reset value.
     #[serde(default)]
     pub rolled_over: bool,
+    /// True when a plan window (5h or weekly) reached the quota warning tier
+    /// (`quota_warn_percent`). Only a heads-up: never feeds `is_over`, which
+    /// stays the block tier (`budget_5h_percent` / `budget_week_percent`).
+    pub is_quota_warn: bool,
+    /// The windows at or past `quota_warn_percent`, so the UI can warn once per
+    /// window. Empty while the setting is off (empty / 0).
+    pub quota_warn_windows: Vec<QuotaWarnWindow>,
+}
+
+/// One plan window at or past the quota warning tier (`quota_warn_percent`).
+#[derive(Debug, Serialize, PartialEq)]
+pub struct QuotaWarnWindow {
+    /// "5h" | "week".
+    pub period: String,
+    pub percent: i64,
+    /// RFC3339 reset instant of the window, if known.
+    pub reset: Option<String>,
 }
 
 // ── Plan (subscription) usage — real /usage data ───────────────────────────
@@ -905,6 +922,34 @@ fn weekly_window(snapshot: &serde_json::Value, stale_secs: i64) -> Option<PlanWi
     best
 }
 
+/// `quota_warn_percent` as a threshold: 0 (off) when empty or not a number.
+fn parse_quota_warn_percent(value: &str) -> i64 {
+    value.trim().parse::<i64>().unwrap_or(0).clamp(0, 100)
+}
+
+/// The windows the guardrail checks (rolling 5h, binding weekly) that reached
+/// `warn_percent`. A rolled-over window is skipped: its % predates the reset.
+fn quota_warn_windows(snapshot: &serde_json::Value, stale_secs: i64, warn_percent: i64) -> Vec<QuotaWarnWindow> {
+    if warn_percent <= 0 {
+        return Vec::new();
+    }
+    [
+        (plan_window_by_key("five_hour", snapshot, stale_secs), "5h"),
+        (weekly_window(snapshot, stale_secs), "week"),
+    ]
+    .into_iter()
+    .filter_map(|(view, period)| {
+        let view = view?;
+        let percent = view.utilization.round() as i64;
+        (!view.rolled_over && percent >= warn_percent).then(|| QuotaWarnWindow {
+            period: period.into(),
+            percent,
+            reset: view.resets_at,
+        })
+    })
+    .collect()
+}
+
 fn plan_window_by_key(key: &str, snapshot: &serde_json::Value, stale_secs: i64) -> Option<PlanWindowView> {
     if !snapshot.get("rate_limits_available").and_then(|v| v.as_bool()).unwrap_or(false) {
         return None;
@@ -975,16 +1020,17 @@ async fn default_claude_plan_usage_key(db: &Db) -> String {
     claude_plan_usage_key(id.as_deref())
 }
 
-/// Read the latest plan snapshot JSON (`key`) and `plan_stale_secs` from the
-/// settings KV — everything the badge needs, without touching the guardrail's
-/// block-threshold / token-limit settings.
-async fn read_plan_snapshot(db: &Db, key: &str) -> Result<(Option<String>, i64), String> {
+/// Read the latest plan snapshot JSON (`key`), `plan_stale_secs` and the quota
+/// warning tier (`quota_warn_percent`, 0 = off) from the settings KV — everything
+/// the badge needs, without touching the guardrail's block thresholds.
+async fn read_plan_snapshot(db: &Db, key: &str) -> Result<(Option<String>, i64, i64), String> {
     let rows = sqlx::query("SELECT key, value FROM settings")
         .fetch_all(db)
         .await
         .map_err(|e| e.to_string())?;
     let mut plan_json: Option<String> = None;
     let mut stale_secs: i64 = 120;
+    let mut warn_percent: i64 = 0;
     for row in &rows {
         let k: String = row.get("key");
         let value: String = row.get("value");
@@ -993,10 +1039,11 @@ async fn read_plan_snapshot(db: &Db, key: &str) -> Result<(Option<String>, i64),
             "plan_stale_secs" => {
                 stale_secs = value.trim().parse::<i64>().unwrap_or(120).clamp(10, 3600)
             }
+            "quota_warn_percent" => warn_percent = parse_quota_warn_percent(&value),
             _ => {}
         }
     }
-    Ok((plan_json, stale_secs))
+    Ok((plan_json, stale_secs, warn_percent))
 }
 
 /// Pick the SMALLEST available plan window, independent of any configured budget
@@ -1018,15 +1065,17 @@ fn plan_display_view(
 
 /// Build the badge verdict from a plan snapshot, independent of the Usage budget
 /// setting. Warning/over come from the plan's own live status plus a fixed
-/// display threshold — never from the guardrail block thresholds. Returns
+/// display threshold — never from the guardrail block thresholds. The quota
+/// warning tier (`warn_percent`, 0 = off) is reported on its own fields. Returns
 /// `disabled` when no plan window is present (e.g. API-key sessions).
-fn plan_display_status(plan_json: Option<&str>, stale_secs: i64) -> BudgetStatus {
+fn plan_display_status(plan_json: Option<&str>, stale_secs: i64, warn_percent: i64) -> BudgetStatus {
     if let Some(snapshot) =
         plan_json.and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
     {
         if let Some((period, view)) = plan_display_view(&snapshot, stale_secs) {
             let percent = view.utilization.round() as i64;
             let blocked = view.status.as_deref() == Some("blocked");
+            let quota_warn = quota_warn_windows(&snapshot, stale_secs, warn_percent);
             return BudgetStatus {
                 source: "plan".into(),
                 period,
@@ -1043,6 +1092,8 @@ fn plan_display_status(plan_json: Option<&str>, stale_secs: i64) -> BudgetStatus
                 is_stale: view.is_stale,
                 status: view.status,
                 rolled_over: view.rolled_over,
+                is_quota_warn: !quota_warn.is_empty(),
+                quota_warn_windows: quota_warn,
             };
         }
     }
@@ -1057,6 +1108,8 @@ fn plan_display_status(plan_json: Option<&str>, stale_secs: i64) -> BudgetStatus
         is_stale: false,
         status: None,
         rolled_over: false,
+        is_quota_warn: false,
+        quota_warn_windows: Vec::new(),
     }
 }
 
@@ -1085,6 +1138,7 @@ pub async fn budget_status_for(
         .map_err(|e| e.to_string())?;
     let mut block_5h: i64 = 0;
     let mut block_week: i64 = 0;
+    let mut warn_percent: i64 = 0;
     let mut stale_secs: i64 = 120;
     let mut plan_claude: Option<String> = None;
     let mut plan_codex: Option<String> = None;
@@ -1094,6 +1148,7 @@ pub async fn budget_status_for(
         match key.as_str() {
             "budget_5h_percent" => block_5h = value.trim().parse::<i64>().unwrap_or(0).clamp(0, 100),
             "budget_week_percent" => block_week = value.trim().parse::<i64>().unwrap_or(0).clamp(0, 100),
+            "quota_warn_percent" => warn_percent = parse_quota_warn_percent(&value),
             "plan_stale_secs" => stale_secs = value.trim().parse::<i64>().unwrap_or(120).clamp(10, 3600),
             "plan_usage_codex" => plan_codex = Some(value),
             s if s == claude_key => plan_claude = Some(value),
@@ -1136,6 +1191,7 @@ pub async fn budget_status_for(
                 }
             }
             if let Some((_, period, view)) = report {
+                let quota_warn = quota_warn_windows(&snapshot, stale_secs, warn_percent);
                 return Ok(BudgetStatus {
                     source: "plan".into(),
                     period: period.into(),
@@ -1147,6 +1203,8 @@ pub async fn budget_status_for(
                     is_stale: view.is_stale,
                     status: view.status,
                     rolled_over: view.rolled_over,
+                    is_quota_warn: !quota_warn.is_empty(),
+                    quota_warn_windows: quota_warn,
                 });
             }
         }
@@ -1164,6 +1222,8 @@ pub async fn budget_status_for(
         is_stale: false,
         status: None,
         rolled_over: false,
+        is_quota_warn: false,
+        quota_warn_windows: Vec::new(),
     })
 }
 
@@ -1173,8 +1233,8 @@ pub async fn budget_status_for(
 /// any read error so the caller always gets a renderable status.
 pub async fn budget_status(db: &Db, key: &str) -> BudgetStatus {
     match read_plan_snapshot(db, key).await {
-        Ok((plan_json, stale_secs)) => plan_display_status(plan_json.as_deref(), stale_secs),
-        Err(_) => plan_display_status(None, 0),
+        Ok((plan_json, stale_secs, warn)) => plan_display_status(plan_json.as_deref(), stale_secs, warn),
+        Err(_) => plan_display_status(None, 0, 0),
     }
 }
 
@@ -1183,8 +1243,8 @@ pub async fn budget_status(db: &Db, key: &str) -> BudgetStatus {
 /// the auto-balancer so swaps follow the same number the user sees.
 pub async fn claude_display_percent(db: &Db, account_id: &str) -> Option<f64> {
     let key = claude_plan_usage_key(Some(account_id));
-    let (plan_json, stale_secs) = read_plan_snapshot(db, &key).await.ok()?;
-    let status = plan_display_status(plan_json.as_deref(), stale_secs);
+    let (plan_json, stale_secs, warn) = read_plan_snapshot(db, &key).await.ok()?;
+    let status = plan_display_status(plan_json.as_deref(), stale_secs, warn);
     (status.source == "plan").then_some(status.percent as f64)
 }
 
@@ -1195,16 +1255,16 @@ pub async fn get_budget_status(db: State<'_, Db>) -> Result<BudgetStatus, String
     // run-blocking via `enforce_budget`. Multi-account: each account keeps its
     // own snapshot; the badge follows whichever account is currently default.
     let key = default_claude_plan_usage_key(db.inner()).await;
-    let (plan_json, stale_secs) = read_plan_snapshot(db.inner(), &key).await?;
-    Ok(plan_display_status(plan_json.as_deref(), stale_secs))
+    let (plan_json, stale_secs, warn) = read_plan_snapshot(db.inner(), &key).await?;
+    Ok(plan_display_status(plan_json.as_deref(), stale_secs, warn))
 }
 
 #[tauri::command]
 pub async fn get_codex_budget_status(db: State<'_, Db>) -> Result<BudgetStatus, String> {
     // Same as the Claude badge: the account's REAL Codex rate-limit usage,
     // independent of the Usage budget setting.
-    let (plan_json, stale_secs) = read_plan_snapshot(db.inner(), "plan_usage_codex").await?;
-    Ok(plan_display_status(plan_json.as_deref(), stale_secs))
+    let (plan_json, stale_secs, warn) = read_plan_snapshot(db.inner(), "plan_usage_codex").await?;
+    Ok(plan_display_status(plan_json.as_deref(), stale_secs, warn))
 }
 
 /// Plan-usage badge for one specific Claude account, read from its own snapshot
@@ -1217,8 +1277,8 @@ pub async fn get_claude_account_budget(
     account_id: String,
 ) -> Result<BudgetStatus, String> {
     let key = claude_plan_usage_key(Some(&account_id));
-    let (plan_json, stale_secs) = read_plan_snapshot(db.inner(), &key).await?;
-    Ok(plan_display_status(plan_json.as_deref(), stale_secs))
+    let (plan_json, stale_secs, warn) = read_plan_snapshot(db.inner(), &key).await?;
+    Ok(plan_display_status(plan_json.as_deref(), stale_secs, warn))
 }
 
 /// Preflight the run-blocking guardrail for `engine` WITHOUT side effects, so
@@ -1451,6 +1511,48 @@ mod account_stats_tests {
         set("feature.usage", "false".into()).await;
         assert_eq!(enforce_budget(&db, "codex", None, false).await, Ok(()), "module off");
     }
+
+    /// The warning tier is reported next to the block tier but never blocks:
+    /// `is_over` and `enforce_budget` only follow `budget_*_percent`.
+    #[tokio::test]
+    async fn quota_warn_never_blocks_and_blocking_ignores_it() {
+        let db = db().await;
+        let snapshot = serde_json::json!({
+            "captured_at": Utc::now().to_rfc3339(),
+            "rate_limits_available": true,
+            "windows": { "five_hour": {
+                "utilization": 85.0,
+                "resets_at": (Utc::now() + Duration::hours(2)).to_rfc3339(),
+            } },
+        });
+        let set = |key: &'static str, value: String| {
+            let db = db.clone();
+            async move { crate::commands::settings::set_setting(&db, key, &value).await.unwrap() }
+        };
+        set("plan_usage_codex", snapshot.to_string()).await;
+
+        // Warn only: reported, run still allowed.
+        set("quota_warn_percent", "80".into()).await;
+        let status = guard_status(&db, "codex", None).await.unwrap();
+        assert!(status.is_quota_warn && !status.is_over);
+        assert_eq!(status.quota_warn_windows.len(), 1);
+        assert_eq!(enforce_budget(&db, "codex", None, false).await, Ok(()));
+        let badge = budget_status(&db, "plan_usage_codex").await;
+        assert!(badge.is_quota_warn && !badge.is_over);
+
+        // Block tier set below usage, warn off: blocked, no warning.
+        set("quota_warn_percent", "".into()).await;
+        set("budget_5h_percent", "80".into()).await;
+        let status = guard_status(&db, "codex", None).await.unwrap();
+        assert!(status.is_over && !status.is_quota_warn);
+        assert!(enforce_budget(&db, "codex", None, false).await.is_err());
+
+        // Warn below the block tier, usage between them: warned, not blocked.
+        set("quota_warn_percent", "70".into()).await;
+        set("budget_5h_percent", "90".into()).await;
+        let status = guard_status(&db, "codex", None).await.unwrap();
+        assert!(status.is_quota_warn && !status.is_over);
+    }
 }
 
 #[cfg(test)]
@@ -1531,5 +1633,62 @@ mod plan_window_tests {
         });
         let v = weekly_window(&snap, 120).expect("weekly window");
         assert_eq!(v.utilization.round() as i64, 71);
+    }
+
+    fn two_windows(five_hour: f64, week: f64) -> serde_json::Value {
+        let now = Utc::now().to_rfc3339();
+        let future = (Utc::now() + Duration::hours(2)).to_rfc3339();
+        serde_json::json!({
+            "captured_at": now,
+            "rate_limits_available": true,
+            "windows": {
+                "five_hour": { "utilization": five_hour, "resets_at": future },
+                "seven_day": { "utilization": week, "resets_at": future },
+            },
+        })
+    }
+
+    fn periods(windows: &[QuotaWarnWindow]) -> Vec<(&str, i64)> {
+        windows.iter().map(|w| (w.period.as_str(), w.percent)).collect()
+    }
+
+    #[test]
+    fn quota_warn_only_for_windows_at_or_past_the_threshold() {
+        let snap = two_windows(79.0, 85.0);
+        assert_eq!(periods(&quota_warn_windows(&snap, 120, 80)), vec![("week", 85)]);
+        assert_eq!(periods(&quota_warn_windows(&snap, 120, 79)), vec![("5h", 79), ("week", 85)], "equal counts");
+        assert!(quota_warn_windows(&snap, 120, 90).is_empty());
+    }
+
+    #[test]
+    fn quota_warn_empty_or_zero_is_off() {
+        let snap = two_windows(99.0, 99.0);
+        for value in ["", "  ", "0", "abc"] {
+            let warn = parse_quota_warn_percent(value);
+            assert_eq!(warn, 0, "{value:?}");
+            assert!(quota_warn_windows(&snap, 120, warn).is_empty(), "{value:?}");
+        }
+        assert_eq!(parse_quota_warn_percent(" 75 "), 75);
+    }
+
+    #[test]
+    fn quota_warn_skips_a_rolled_over_window() {
+        let now = Utc::now().to_rfc3339();
+        let past = (Utc::now() - Duration::minutes(5)).to_rfc3339();
+        let snap = snapshot(serde_json::json!({ "utilization": 95.0, "resets_at": past }), &now);
+        assert!(quota_warn_windows(&snap, 120, 50).is_empty());
+    }
+
+    #[test]
+    fn badge_status_reports_quota_warn_without_touching_is_over() {
+        let snap = two_windows(85.0, 10.0).to_string();
+        let status = plan_display_status(Some(&snap), 120, 80);
+        assert!(status.is_quota_warn);
+        assert_eq!(periods(&status.quota_warn_windows), vec![("5h", 85)]);
+        assert!(!status.is_over);
+
+        let off = plan_display_status(Some(&snap), 120, 0);
+        assert!(!off.is_quota_warn && off.quota_warn_windows.is_empty());
+        assert_eq!((off.is_warning, off.is_over), (status.is_warning, status.is_over));
     }
 }

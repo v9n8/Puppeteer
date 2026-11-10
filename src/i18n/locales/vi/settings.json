@@ -7,7 +7,7 @@
     "ai": "Mặc định khi chạy",
     "styles": "Phong cách trả lời",
     "translate": "Dịch",
-    "usage": "Sử dụng & Ngân sách",
+    "sessions": "Session",
     "devices": "Thiết bị",
     "prompts": "Mẫu Prompt",
     "inbox": "Inbox API",
@@ -300,18 +300,23 @@
     "styleFormal": "Formal — trang trọng",
     "styleCasual": "Casual — thân mật"
   },
-  "usage": {
-    "title": "Sử dụng & Ngân sách",
-    "contextMeter": "Thước đo cửa sổ Context",
-    "contextMeterHint": "Hiển thị cửa sổ Context của lần chạy hiện tại đã đầy đến đâu. Thanh chuyển sang màu hổ phách khi vượt ngưỡng cảnh báo và cung cấp nút /compact chỉ một cú nhấp.",
+  "sessions": {
+    "title": "Session",
+    "contextTitle": "Context",
+    "contextHint": "Hiển thị cửa sổ Context của Session hiện tại đã đầy đến đâu. Thanh chuyển sang màu hổ phách khi vượt ngưỡng cảnh báo và có nút /compact chỉ một cú nhấp.",
     "warnAt": "Cảnh báo tại (%)",
     "limitOverride": "Ghi đè giới hạn (token)",
     "limitOverridePlaceholder": "tự động theo model",
     "limitOverrideHint": "Để trống ô ghi đè để tự động lấy từ model (Claude 200k / 1M, Codex 272k).",
-    "budgetTitle": "Ngân sách sử dụng (chặn lần chạy mới)",
-    "budgetHint": "Kiểm tra trước mỗi lần chạy & follow-up: Puppeteer chặn lần chạy mới (có thể ghi đè theo lượt) khi engine của lần chạy đạt giới hạn dưới đây. Ngưỡng ánh xạ tới các cửa sổ gói đăng ký thực của engine đó (từ /usage) — một cửa sổ 5h trượt và một cửa sổ theo tuần (reset theo tài khoản). Lần chạy bị chặn nếu bất kỳ cửa sổ nào đã đặt bị đạt tới. Codex thường chỉ hiển thị cửa sổ theo tuần, nên hãy đặt Weekly để bao quát. Để trống một ô để bỏ qua cửa sổ đó; khi không có dữ liệu gói (ví dụ Session dùng API key), guardrail sẽ không hoạt động.",
+    "quotaTitle": "Quota",
+    "quotaHint": "Theo các cửa sổ thật trong gói đăng ký của từng engine (lấy từ /usage): cửa sổ 5h trượt và cửa sổ tuần (reset theo tài khoản). Khi không có dữ liệu gói (ví dụ Session dùng API key), các ngưỡng này không có tác dụng.",
+    "quotaWarnAt": "Cảnh báo tại (%)",
+    "quotaWarnHint": "Hiện toast một lần khi cửa sổ 5h hoặc cửa sổ tuần chạm mức này, và đổi badge usage sang màu hổ phách. Không bao giờ chặn; toast chỉ hiện lại sau khi cửa sổ reset hoặc tụt xuống dưới mức này.",
     "block5h": "Cửa sổ 5h — chặn tại (%)",
     "blockWeekly": "Cửa sổ tuần — chặn tại (%)",
+    "blockHint": "Kiểm trước mỗi Session mới và mỗi lượt gửi tiếp: Puppeteer chặn lại (có thể bỏ qua cho từng lượt) khi engine của nó chạm bất kỳ cửa sổ nào đã đặt ở đây. Codex thường chỉ có cửa sổ tuần, nên hãy đặt ô tuần để bao quát.",
+    "orderHint": "Đặt mức cảnh báo thấp hơn mức chặn, ví dụ cảnh báo ở 70 và chặn ở 90, để được báo trước khi bị chặn.",
+    "warnNotBelowBlock": "Mức cảnh báo đang bằng hoặc cao hơn một mức chặn, nên cửa sổ đó sẽ chặn mà không cảnh báo trước. Hãy hạ mức cảnh báo.",
     "emptyOff": "để trống = tắt"
   },
   "prompts": {

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { AlertTriangle, RefreshCw } from 'lucide-vue-next'
 import { useBudgetStore } from '@/stores/budget'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useClaudeAccountsStore, type ClaudeAccount } from '@/stores/claudeAccounts'
+import { useToast } from '@/composables/useToast'
+import type { QuotaWarnWindow } from '@/lib/quotaWarn'
 
 const { t } = useI18n()
 const budget = useBudgetStore()
 const app = useAppSettingsStore()
 const claudeAccounts = useClaudeAccountsStore()
+const { toast } = useToast()
 const now = ref(Date.now())
 
 const PERIOD_LABEL = computed<Record<string, string>>(() => ({
@@ -32,6 +35,9 @@ interface ProviderView {
   percent: number
   isWarning: boolean
   isOver: boolean
+  /** Reached the quota warning tier (Settings › Sessions); never blocks. */
+  isQuotaWarn: boolean
+  quotaWarnWindows: QuotaWarnWindow[] | undefined
   reset: string | null
   capturedAt: string | null
   isStale: boolean
@@ -54,6 +60,8 @@ const claudeView = computed<ProviderView>(() => ({
   percent: budget.percent,
   isWarning: budget.isWarning,
   isOver: budget.isOver,
+  isQuotaWarn: budget.isQuotaWarn,
+  quotaWarnWindows: budget.quotaWarnWindows,
   reset: budget.reset,
   capturedAt: budget.capturedAt,
   isStale: budget.isStale,
@@ -76,6 +84,8 @@ const codexView = computed<ProviderView>(() => ({
   percent: budget.codexPercent,
   isWarning: budget.codexIsWarning,
   isOver: budget.codexIsOver,
+  isQuotaWarn: budget.codexIsQuotaWarn,
+  quotaWarnWindows: budget.codexQuotaWarnWindows,
   reset: budget.codexReset,
   capturedAt: budget.codexCapturedAt,
   isStale: budget.codexIsStale,
@@ -103,6 +113,8 @@ function claudeAccountView(acc: ClaudeAccount): ProviderView {
     percent: b?.percent ?? 0,
     isWarning: b?.is_warning ?? false,
     isOver: b?.is_over ?? false,
+    isQuotaWarn: b?.is_quota_warn ?? false,
+    quotaWarnWindows: b?.quota_warn_windows,
     reset: b?.reset ?? null,
     capturedAt: b?.captured_at ?? null,
     isStale: b?.is_stale ?? false,
@@ -123,6 +135,24 @@ const views = computed<ProviderView[]>(() => {
     : [claudeView.value]
   return [...claudeRows, codexView.value]
 })
+
+// Quota warning tier: one toast per window (5h / weekly) and row when it first
+// reaches `quota_warn_percent`; again only after it dropped below or reset.
+const WINDOW_LABEL = computed<Record<string, string>>(() => ({
+  '5h': t('misc.budget.window5h'),
+  week: t('misc.budget.windowWeek'),
+}))
+watch(views, (list) => {
+  const crossings = budget.takeQuotaWarnings(
+    list.map((v) => ({ key: v.key, windows: v.hasStatus ? v.quotaWarnWindows : undefined })),
+  )
+  for (const c of crossings) {
+    const label = list.find((v) => v.key === c.key)?.label ?? c.key
+    toast.info(t('misc.budget.quotaWarnToast', {
+      label, percent: c.percent, window: WINDOW_LABEL.value[c.period] ?? c.period,
+    }), 8000)
+  }
+}, { immediate: true })
 
 function resetText(v: ProviderView): string {
   if (!v.reset) return v.period === '5h' && !v.hasPlan ? t('misc.budget.rolling5h') : ''
@@ -154,7 +184,7 @@ function tone(v: ProviderView): 'over' | 'warning' | 'stale' | 'ok' | 'neutral' 
   // Real usage severity wins — a genuine near/over-limit must always show, even
   // if the last refresh failed.
   if (v.isOver) return 'over'
-  if (v.isWarning) return 'warning'
+  if (v.isWarning || v.isQuotaWarn) return 'warning'
   // A failed refresh with stale data is a data-freshness issue, NOT a usage
   // warning. Render it quietly (no amber, no alert icon) so a low % like 3%
   // doesn't masquerade as "approaching limit".
