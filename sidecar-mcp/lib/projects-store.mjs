@@ -129,13 +129,27 @@ function insertRepo(d, projectId, f, now) {
 /**
  * Register a folder as a Puppeteer project (appended to the manual order). With
  * `detect_repos` (default) the root and its immediate git subfolders are linked
- * as repos, like the app's "Add project" dialog.
+ * as repos, like the app's "Add project" dialog. A folder whose project is in
+ * the Trash brings that project back as it was (same id, sessions and repos;
+ * `name` / `detect_repos` are not applied), like `add_project`; the result then
+ * has `restored: true`.
  */
 export function createProject({ path, name, detect_repos = true } = {}) {
   const dir = normDir(path);
   const projectName = String(name ?? '').trim() || basename(dir) || 'Project';
   const d = db();
-  const dup = d.prepare('SELECT id, name FROM projects WHERE path = ?').get(dir);
+  const dup = d.prepare('SELECT id, name, deleted_at FROM projects WHERE path = ?').get(dir);
+  if (dup?.deleted_at) {
+    return tx((t) => {
+      t.prepare('UPDATE projects SET deleted_at = NULL WHERE id = ?').run(dup.id);
+      const repos = t
+        .prepare(
+          'SELECT id, name, path, provider, github_owner, github_repo, gitlab_project_path FROM repos WHERE project_id = ? ORDER BY name',
+        )
+        .all(dup.id);
+      return { id: dup.id, name: dup.name, path: dir, repos, restored: true };
+    });
+  }
   if (dup) throw new Error(`"${dir}" is already the project "${dup.name}" (${dup.id})`);
   const repos = detect_repos === false ? [] : detectRepos(dir).map((r) => repoFields(r));
   const now = nowRfc3339();

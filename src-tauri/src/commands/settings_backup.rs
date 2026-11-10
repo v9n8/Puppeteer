@@ -3141,6 +3141,19 @@ async fn import_project(
     let azure = id_by_label(db, "azure_accounts", &entry.azure_account).await?;
     let claude = id_by_label(db, "claude_accounts", &entry.claude_account).await?;
 
+    // Importing onto a project in the Trash brings it back.
+    let restored = match &local {
+        Some(id) => {
+            sqlx::query("UPDATE projects SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL")
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(err)?
+                .rows_affected()
+                > 0
+        }
+        None => false,
+    };
     let (id, mut outcome) = match local {
         Some(id) => {
             // Account links only move when the imported account exists here.
@@ -3228,7 +3241,7 @@ async fn import_project(
             (id, Upsert::Created)
         }
     };
-    let mut touched = false;
+    let mut touched = restored;
 
     for repo in &entry.repos {
         let exists: Option<String> = sqlx::query_scalar(
@@ -3940,6 +3953,35 @@ mod tests {
         let (outcome, again, _) = import_project(&target, entry, false, None).await.unwrap();
         assert_eq!((outcome, again), (Upsert::Unchanged, id));
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[tokio::test]
+    async fn importing_onto_a_project_in_the_trash_restores_it() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-backup-trash-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().into_owned();
+        let source = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'shop', ?, 'c')")
+            .bind(&path)
+            .execute(&source)
+            .await
+            .unwrap();
+        let projects = collect_projects(&source).await.unwrap();
+
+        let target = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('local', 'shop', ?, 'c', 'd')")
+            .bind(&path)
+            .execute(&target)
+            .await
+            .unwrap();
+        let (outcome, id, _) = import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!((outcome, id.as_str()), (Upsert::Updated, "local"), "same project, not a second row");
+        let deleted_at: Option<String> = sqlx::query_scalar("SELECT deleted_at FROM projects WHERE id = 'local'")
+            .fetch_one(&target)
+            .await
+            .unwrap();
+        assert_eq!(deleted_at, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A project / repo path becomes a writable root of the remote desktop, so a remote import

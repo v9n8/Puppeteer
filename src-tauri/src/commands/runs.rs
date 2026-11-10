@@ -3139,6 +3139,34 @@ pub(crate) async fn delete_run_tree(
     conductor: Option<&crate::conductor::ConductorState>,
     run_id: &str,
 ) -> Result<DeleteOutcome, String> {
+    let worker_ids = ensure_tree_idle(db, registry, run_id).await?;
+
+    let mut outcome = DeleteOutcome::default();
+    for worker_id in &worker_ids {
+        outcome.leftover_files.extend(delete_single_run(db, registry, worker_id).await?);
+        if let Some(c) = conductor {
+            c.unregister_session(worker_id);
+        }
+        outcome.deleted_ids.push(worker_id.clone());
+    }
+    outcome.leftover_files.extend(delete_single_run(db, registry, run_id).await?);
+    if let Some(c) = conductor {
+        c.unregister_session(run_id);
+    }
+    outcome.deleted_ids.push(run_id.to_string());
+    outcome.deleted = outcome.deleted_ids.len() as u32;
+    Ok(outcome)
+}
+
+/// Refuse to delete a run (to the Trash or for good) while it or any worker it
+/// spawned is still active. All-or-nothing: the whole tree is checked before
+/// anything is touched, so a refusal never leaves it half deleted. Returns the
+/// worker ids.
+async fn ensure_tree_idle(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    run_id: &str,
+) -> Result<Vec<String>, String> {
     let worker_ids: Vec<String> =
         sqlx::query_scalar("SELECT id FROM runs WHERE conductor_run_id = ? AND id != ?")
             .bind(run_id)
@@ -3182,22 +3210,118 @@ pub(crate) async fn delete_run_tree(
             "A worker of this session is still running — cancel it before deleting".to_string(),
         );
     }
+    Ok(worker_ids)
+}
 
-    let mut outcome = DeleteOutcome::default();
-    for worker_id in &worker_ids {
-        outcome.leftover_files.extend(delete_single_run(db, registry, worker_id).await?);
-        if let Some(c) = conductor {
-            c.unregister_session(worker_id);
-        }
-        outcome.deleted_ids.push(worker_id.clone());
-    }
-    outcome.leftover_files.extend(delete_single_run(db, registry, run_id).await?);
+/// Move a run to the Trash together with every worker it spawned, all under
+/// one `deleted_at` (`now`), so a restore brings back the same set. Only the
+/// rows are stamped: log, transcripts, links and audit stay until a purge
+/// ([`delete_run_tree`]). Refused like a delete while anything in the tree is
+/// active. The trashed runs leave the in-memory conductor state, so their
+/// tokens stop working (a resume registers them again). Returns the ids newly
+/// trashed: empty when the tree already is in the Trash.
+pub(crate) async fn trash_run_tree(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    run_id: &str,
+    now: &str,
+) -> Result<Vec<String>, String> {
+    ensure_tree_idle(db, registry, run_id).await?;
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT id FROM runs WHERE (id = ?1 OR conductor_run_id = ?1) AND deleted_at IS NULL",
+    )
+    .bind(run_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    sqlx::query(
+        "UPDATE runs SET deleted_at = ?1 WHERE (id = ?2 OR conductor_run_id = ?2) AND deleted_at IS NULL",
+    )
+    .bind(now)
+    .bind(run_id)
+    .execute(db)
+    .await
+    .map_err(|e| e.to_string())?;
     if let Some(c) = conductor {
-        c.unregister_session(run_id);
+        for id in &ids {
+            c.unregister_session(id);
+        }
     }
-    outcome.deleted_ids.push(run_id.to_string());
-    outcome.deleted = outcome.deleted_ids.len() as u32;
-    Ok(outcome)
+    Ok(ids)
+}
+
+/// What [`restore_run_inner`] brought back from the Trash.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct RestoreOutcome {
+    /// The run and the workers trashed together with it.
+    pub run_ids: Vec<String>,
+    /// The run's project was in the Trash too and is live again.
+    pub project_restored: bool,
+}
+
+/// Bring a run back from the Trash with the workers trashed together with it
+/// (same `deleted_at`; a worker trashed on its own earlier stays there), and
+/// its project when that is in the Trash: a session is only live inside a live
+/// project.
+pub(crate) async fn restore_run_inner(db: &sqlx::SqlitePool, run_id: &str) -> Result<RestoreOutcome, String> {
+    use sqlx::Row;
+    let row = sqlx::query("SELECT project_id, deleted_at FROM runs WHERE id = ?")
+        .bind(run_id)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "run not found".to_string())?;
+    let project_id: String = row.get("project_id");
+    let deleted_at: Option<String> = row.get("deleted_at");
+    let mut tx = db.begin().await.map_err(|e| e.to_string())?;
+    let mut run_ids = Vec::new();
+    if let Some(at) = deleted_at {
+        const TREE: &str = "(id = ?1 OR (conductor_run_id = ?1 AND deleted_at = ?2))";
+        run_ids = sqlx::query_scalar(&format!("SELECT id FROM runs WHERE {TREE}"))
+            .bind(run_id)
+            .bind(&at)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        sqlx::query(&format!("UPDATE runs SET deleted_at = NULL WHERE {TREE}"))
+            .bind(run_id)
+            .bind(&at)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    let project_restored =
+        sqlx::query("UPDATE projects SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL")
+            .bind(&project_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?
+            .rows_affected()
+            > 0;
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(RestoreOutcome { run_ids, project_restored })
+}
+
+/// Whether a run is in the Trash: trashed itself, or inside a trashed project.
+pub(crate) async fn run_in_trash(db: &sqlx::SqlitePool, run_id: &str) -> Result<bool, String> {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT r.deleted_at IS NOT NULL OR p.deleted_at IS NOT NULL \
+         FROM runs r JOIN projects p ON p.id = r.project_id WHERE r.id = ?",
+    )
+    .bind(run_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or_else(|| "run not found".to_string())
+}
+
+/// Runs or projects went to / came back from the Trash: a paired Controller
+/// gets fresh run and project lists. No-op with Remote Control off.
+pub(crate) fn notify_remote_lists(app: &AppHandle) {
+    if let Some(bus) = app.try_state::<crate::remote::RemoteBus>() {
+        bus.publish(crate::remote::RemoteRunEvent::ListsChanged);
+    }
 }
 
 /// Drop the Remote Control audit entries of deleted runs — only when the
@@ -3427,17 +3551,55 @@ fn remove_paths(paths: &[PathBuf]) -> Vec<String> {
     failed
 }
 
-/// Delete a run together with everything belonging to it (see
-/// [`delete_single_run`]). Running runs are refused — cancel first. Returns the
-/// transcript paths that could not be removed, so the UI can warn about them.
+/// Move a run (and its workers) to the Trash ([`trash_run_tree`]). Running
+/// runs are refused — stop first. Returns the ids moved to the Trash.
 #[tauri::command]
-pub async fn delete_run(
+pub async fn trash_run(
+    app: AppHandle,
+    db: State<'_, Db>,
+    registry: State<'_, RunRegistry>,
+    run_id: String,
+) -> Result<Vec<String>, String> {
+    let conductor = app.try_state::<crate::conductor::ConductorState>();
+    let now = chrono::Utc::now().to_rfc3339();
+    let ids = trash_run_tree(
+        db.inner(),
+        registry.inner(),
+        conductor.as_ref().map(|c| c.inner()),
+        &run_id,
+        &now,
+    )
+    .await?;
+    if !ids.is_empty() {
+        notify_remote_lists(&app);
+    }
+    Ok(ids)
+}
+
+/// Bring a run back from the Trash ([`restore_run_inner`]).
+#[tauri::command]
+pub async fn restore_run(app: AppHandle, db: State<'_, Db>, run_id: String) -> Result<RestoreOutcome, String> {
+    let outcome = restore_run_inner(db.inner(), &run_id).await?;
+    notify_remote_lists(&app);
+    Ok(outcome)
+}
+
+/// Delete a run in the Trash for good, together with everything belonging to
+/// it (see [`delete_single_run`]). A run outside the Trash is refused, so one
+/// stray call cannot wipe a live session. Running runs are refused — cancel
+/// first. Returns the transcript paths that could not be removed, so the UI can
+/// warn about them. Local only: a remote desktop may not purge.
+#[tauri::command]
+pub async fn purge_run(
     app: AppHandle,
     webview: tauri::Webview,
     db: State<'_, Db>,
     registry: State<'_, RunRegistry>,
     run_id: String,
 ) -> Result<Vec<String>, String> {
+    if !run_in_trash(db.inner(), &run_id).await? {
+        return Err("Run is not in the Trash — move it there first".to_string());
+    }
     let conductor = app.try_state::<crate::conductor::ConductorState>();
     let outcome = delete_run_tree(
         db.inner(),
@@ -3717,57 +3879,61 @@ pub async fn set_run_protected(
     Ok(())
 }
 
-/// Bulk delete all non-running, non-protected runs for a project. Returns the
-/// number deleted. Protected runs are kept so an important session survives, and
-/// protection cascades: a worker whose conductor is protected is kept too (users
-/// can still delete such a worker individually via `delete_run`).
+/// "Clear all": move every non-running, non-protected run of a project to the
+/// Trash, under one shared `deleted_at`. Returns the number trashed. Protected
+/// runs are kept so an important session survives, and protection cascades: a
+/// worker whose conductor is protected is kept too (users can still delete such
+/// a worker individually via `trash_run`).
 #[tauri::command]
-pub async fn delete_all_runs(
+pub async fn trash_all_runs(
     app: AppHandle,
-    webview: tauri::Webview,
     db: State<'_, Db>,
     registry: State<'_, RunRegistry>,
     project_id: String,
 ) -> Result<u32, String> {
-    use sqlx::Row;
+    let conductor = app.try_state::<crate::conductor::ConductorState>();
+    let trashed = trash_all_runs_inner(
+        db.inner(),
+        registry.inner(),
+        conductor.as_ref().map(|c| c.inner()),
+        &project_id,
+    )
+    .await?;
+    if trashed > 0 {
+        notify_remote_lists(&app);
+    }
+    Ok(trashed)
+}
 
-    let rows = sqlx::query(
+/// [`trash_all_runs`] over concrete refs.
+pub(crate) async fn trash_all_runs_inner(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    project_id: &str,
+) -> Result<u32, String> {
+    let ids: Vec<String> = sqlx::query_scalar(
         "SELECT id FROM runs r \
-         WHERE r.project_id = ? AND r.status != 'running' AND r.protected = 0 \
+         WHERE r.project_id = ? AND r.status != 'running' AND r.protected = 0 AND r.deleted_at IS NULL \
          AND NOT EXISTS ( \
              SELECT 1 FROM runs c WHERE c.id = r.conductor_run_id AND c.protected = 1 \
          )",
     )
-        .bind(&project_id)
-        .fetch_all(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
+    .bind(project_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
 
-    let conductor = app.try_state::<crate::conductor::ConductorState>();
-    let mut deleted = 0u32;
-    for row in &rows {
-        let id: String = row.get("id");
-        // A worker already removed with its session simply fails to load here.
-        if let Ok(outcome) = delete_run_tree(
-            db.inner(),
-            registry.inner(),
-            conductor.as_ref().map(|c| c.inner()),
-            &id,
-        )
-        .await
-        {
-            deleted += outcome.deleted;
-            prune_run_audit(&webview, db.inner(), &outcome.deleted_ids).await;
-            for path in outcome.leftover_files {
-                eprintln!("[delete_all_runs] could not remove transcript {path}");
-            }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut trashed = 0u32;
+    for id in &ids {
+        // A tree with an active worker is skipped, like the old bulk delete; a
+        // worker already trashed with its session adds nothing.
+        if let Ok(done) = trash_run_tree(db, registry, conductor, id, &now).await {
+            trashed += done.len() as u32;
         }
     }
-    if deleted > 0 {
-        crate::slack_threads::emit_all_changed(&app);
-        crate::item_links::emit_changed(&app, None);
-    }
-    Ok(deleted)
+    Ok(trashed)
 }
 
 #[tauri::command]
@@ -5208,5 +5374,216 @@ mod shim_path_tests {
             git_credential_helper(Path::new(r"\\?\C:\Users\O'Neil\sidecar-proxy\git-credential-puppeteer"), true),
             r"!'C:/Users/O'\''Neil/sidecar-proxy/git-credential-puppeteer'"
         );
+    }
+}
+
+#[cfg(test)]
+mod trash_tests {
+    use super::*;
+    use crate::conductor::ConductorState;
+
+    struct Fx {
+        db: Db,
+        dir: PathBuf,
+        registry: RunRegistry,
+    }
+
+    impl Drop for Fx {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    impl Fx {
+        fn log(&self, id: &str) -> PathBuf {
+            self.dir.join(".puppeteer").join("runs").join(format!("{id}.log"))
+        }
+
+        async fn deleted_at(&self, table: &str, id: &str) -> Option<String> {
+            sqlx::query_scalar(&format!("SELECT deleted_at FROM {table} WHERE id = ?"))
+                .bind(id)
+                .fetch_one(&self.db)
+                .await
+                .unwrap()
+        }
+
+        async fn count(&self, sql: &str) -> i64 {
+            sqlx::query_scalar(sql).fetch_one(&self.db).await.unwrap()
+        }
+
+        async fn exec(&self, sql: &str) {
+            sqlx::query(sql).execute(&self.db).await.unwrap();
+        }
+    }
+
+    /// Project `p1` (a temp folder) with session `s` (workers `w1`, `w2`),
+    /// session `other`, a log per run, and a note link + audit row on `s` and `w1`.
+    async fn fx() -> Fx {
+        let dir = std::env::temp_dir().join(format!("puppeteer-trash-{}", Uuid::new_v4()));
+        fs::create_dir_all(dir.join(".puppeteer").join("runs")).unwrap();
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let fx = Fx { db, dir, registry: crate::runs::new_registry() };
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'proj', ?, 'c')")
+            .bind(fx.dir.to_string_lossy().to_string())
+            .execute(&fx.db)
+            .await
+            .unwrap();
+        fx.exec(
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, role, conductor_run_id) VALUES \
+             ('s', 'p1', 'session', 'done', 'codex', 'c', 'conductor', NULL), \
+             ('w1', 'p1', 'session', 'done', 'codex', 'c', 'worker', 's'), \
+             ('w2', 'p1', 'session', 'error', 'codex', 'c', 'worker', 's'), \
+             ('other', 'p1', 'session', 'done', 'codex', 'c', 'conductor', NULL)",
+        )
+        .await;
+        fx.exec("INSERT INTO notes (id, position, created_at, updated_at) VALUES ('n1', 0, 'c', 'c')").await;
+        fx.exec(
+            "INSERT INTO note_runs (note_id, run_id, project_id, source, linked_at) VALUES \
+             ('n1', 's', 'p1', 'manual', 'c'), ('n1', 'w1', 'p1', 'manual', 'c')",
+        )
+        .await;
+        fx.exec(
+            "INSERT INTO remote_audit (id, ts, run_id, action, result) VALUES \
+             ('a1', 'c', 's', 'send_user_message', 'accepted')",
+        )
+        .await;
+        for id in ["s", "w1", "w2", "other"] {
+            fs::write(fx.log(id), "x").unwrap();
+        }
+        fx
+    }
+
+    const NOW: &str = "2026-11-10T00:00:00+00:00";
+
+    #[tokio::test]
+    async fn trash_keeps_everything_and_restore_brings_the_tree_back() {
+        let fx = fx().await;
+        let cst = ConductorState::new();
+        let token = cst.register_session("s", "p1", 3);
+
+        let mut ids = trash_run_tree(&fx.db, &fx.registry, Some(&cst), "s", NOW).await.unwrap();
+        ids.sort();
+        assert_eq!(ids, ["s", "w1", "w2"], "the session takes its workers along");
+        for id in ["s", "w1", "w2"] {
+            assert_eq!(fx.deleted_at("runs", id).await.as_deref(), Some(NOW), "{id}");
+            assert!(fx.log(id).exists(), "{id} log must stay until a purge");
+        }
+        assert_eq!(fx.deleted_at("runs", "other").await, None);
+        assert_eq!(fx.count("SELECT COUNT(*) FROM note_runs").await, 2, "links stay");
+        assert_eq!(fx.count("SELECT COUNT(*) FROM remote_audit").await, 1, "audit stays");
+        assert!(cst.session("s").is_none() && cst.resolve_token(&token).is_none(), "token revoked");
+        let listed: Vec<String> = crate::commands::github::list_runs_inner(&fx.db, "p1")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(listed, ["other"]);
+        // Trashing again changes nothing.
+        assert!(trash_run_tree(&fx.db, &fx.registry, None, "s", "later").await.unwrap().is_empty());
+
+        let mut outcome = restore_run_inner(&fx.db, "s").await.unwrap();
+        outcome.run_ids.sort();
+        assert_eq!(
+            outcome,
+            RestoreOutcome { run_ids: vec!["s".into(), "w1".into(), "w2".into()], project_restored: false }
+        );
+        for id in ["s", "w1", "w2"] {
+            assert_eq!(fx.deleted_at("runs", id).await, None, "{id}");
+        }
+        assert_eq!(fx.count("SELECT COUNT(*) FROM note_runs").await, 2);
+    }
+
+    #[tokio::test]
+    async fn restoring_a_session_leaves_a_worker_trashed_on_its_own() {
+        let fx = fx().await;
+        trash_run_tree(&fx.db, &fx.registry, None, "w2", "2026-11-01T00:00:00+00:00").await.unwrap();
+        assert_eq!(trash_run_tree(&fx.db, &fx.registry, None, "s", NOW).await.unwrap().len(), 2);
+        restore_run_inner(&fx.db, "s").await.unwrap();
+        assert_eq!(fx.deleted_at("runs", "w1").await, None);
+        assert!(fx.deleted_at("runs", "w2").await.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_running_session_or_worker_is_not_trashed() {
+        let fx = fx().await;
+        fx.exec("UPDATE runs SET status = 'running' WHERE id = 'w2'").await;
+        assert!(trash_run_tree(&fx.db, &fx.registry, None, "s", NOW).await.is_err());
+        fx.exec("UPDATE runs SET status = 'done' WHERE id = 'w2'").await;
+        fx.exec("UPDATE runs SET status = 'running' WHERE id = 's'").await;
+        assert!(trash_run_tree(&fx.db, &fx.registry, None, "s", NOW).await.is_err());
+        assert_eq!(fx.count("SELECT COUNT(*) FROM runs WHERE deleted_at IS NOT NULL").await, 0);
+        assert!(trash_run_tree(&fx.db, &fx.registry, None, "nope", NOW).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn restoring_a_session_restores_its_trashed_project() {
+        let fx = fx().await;
+        trash_run_tree(&fx.db, &fx.registry, None, "other", NOW).await.unwrap();
+        fx.exec("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").await;
+        let outcome = restore_run_inner(&fx.db, "other").await.unwrap();
+        assert_eq!(outcome, RestoreOutcome { run_ids: vec!["other".into()], project_restored: true });
+        assert_eq!(fx.deleted_at("projects", "p1").await, None);
+        // A live session of a trashed project: only the project comes back.
+        fx.exec("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").await;
+        let outcome = restore_run_inner(&fx.db, "other").await.unwrap();
+        assert_eq!(outcome, RestoreOutcome { run_ids: vec![], project_restored: true });
+        assert!(restore_run_inner(&fx.db, "nope").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn only_runs_in_the_trash_can_be_purged_and_a_purge_cleans_up_as_before() {
+        let fx = fx().await;
+        assert!(!run_in_trash(&fx.db, "s").await.unwrap());
+        fx.exec("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").await;
+        assert!(run_in_trash(&fx.db, "s").await.unwrap(), "a run of a trashed project is in the Trash");
+        fx.exec("UPDATE projects SET deleted_at = NULL WHERE id = 'p1'").await;
+        trash_run_tree(&fx.db, &fx.registry, None, "s", NOW).await.unwrap();
+        assert!(run_in_trash(&fx.db, "w1").await.unwrap());
+        assert!(run_in_trash(&fx.db, "nope").await.is_err());
+
+        // The purge is the old delete: rows, logs, links and conductor rows go.
+        fx.exec("INSERT INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at) VALUES ('s', 'p1', '', 'done', 3, 'c')").await;
+        let outcome = delete_run_tree(&fx.db, &fx.registry, None, "s").await.unwrap();
+        assert_eq!(outcome.deleted, 3);
+        for id in ["s", "w1", "w2"] {
+            assert!(!fx.log(id).exists(), "{id} log left behind");
+        }
+        assert!(fx.log("other").exists());
+        assert_eq!(fx.count("SELECT COUNT(*) FROM runs").await, 1);
+        assert_eq!(fx.count("SELECT COUNT(*) FROM note_runs").await, 0);
+        assert_eq!(fx.count("SELECT COUNT(*) FROM conductor_sessions").await, 0);
+    }
+
+    #[tokio::test]
+    async fn clear_all_trashes_under_one_stamp_and_skips_protected_and_running() {
+        let fx = fx().await;
+        fx.exec(
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, protected, role, conductor_run_id) VALUES \
+             ('kept', 'p1', 'session', 'done', 'codex', 'c', 1, 'conductor', NULL), \
+             ('kept_w', 'p1', 'session', 'done', 'codex', 'c', 0, 'worker', 'kept'), \
+             ('live', 'p1', 'session', 'running', 'codex', 'c', 0, 'conductor', NULL)",
+        )
+        .await;
+        let trashed = trash_all_runs_inner(&fx.db, &fx.registry, None, "p1").await.unwrap();
+        assert_eq!(trashed, 4, "s, w1, w2, other");
+        let left: Vec<String> =
+            sqlx::query_scalar("SELECT id FROM runs WHERE deleted_at IS NULL ORDER BY id")
+                .fetch_all(&fx.db)
+                .await
+                .unwrap();
+        assert_eq!(left, ["kept", "kept_w", "live"], "protected (and its worker) and running are kept");
+        let stamps = fx.count("SELECT COUNT(DISTINCT deleted_at) FROM runs WHERE deleted_at IS NOT NULL").await;
+        assert_eq!(stamps, 1, "one Clear all, one stamp: a restore brings the tree back together");
+        for id in ["s", "w1", "w2", "other"] {
+            assert!(fx.log(id).exists());
+        }
+        // A protected session can still be trashed on its own, as it could be deleted before.
+        assert_eq!(trash_run_tree(&fx.db, &fx.registry, None, "kept", NOW).await.unwrap().len(), 2);
     }
 }

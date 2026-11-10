@@ -862,6 +862,13 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
     if crate::commands::project_links::is_home(Path::new(&payload.path)) {
         return Err("project_is_home".to_string());
     }
+    // A path whose project is in the Trash brings that project back (same id,
+    // sessions, links and settings; the payload's name and repos are not
+    // applied) instead of failing on UNIQUE(path).
+    if let Some(id) = restore_trashed_path(db.inner(), &payload.path).await? {
+        crate::commands::runs::notify_remote_lists(webview.app_handle());
+        return project_by_id(db.inner(), &id).await;
+    }
 
     let name = payload.name.unwrap_or_else(|| {
         Path::new(&payload.path)
@@ -941,12 +948,118 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
     })
 }
 
+/// Move a project to the Trash ([`trash_project_inner`]).
 #[tauri::command]
-pub async fn remove_project(
+pub async fn trash_project(
+    app: AppHandle,
+    db: State<'_, Db>,
+    registry: State<'_, crate::runs::RunRegistry>,
+    id: String,
+) -> Result<(), String> {
+    let run_ids = trash_project_inner(db.inner(), registry.inner(), &id).await?;
+    if let Some(conductor) = app.try_state::<crate::conductor::ConductorState>() {
+        for run_id in &run_ids {
+            conductor.unregister_session(run_id);
+        }
+    }
+    crate::commands::runs::notify_remote_lists(&app);
+    Ok(())
+}
+
+/// Stamp a project's `deleted_at`. Its runs are NOT stamped, so a restore
+/// brings back exactly the sessions that were not trashed on their own. Only
+/// the row changes: links, AWS config and the folder stay until a purge.
+/// Refused while one of its runs is active. Returns the project's run ids, to
+/// drop from the in-memory conductor state.
+pub(crate) async fn trash_project_inner(
+    db: &Db,
+    registry: &crate::runs::RunRegistry,
+    id: &str,
+) -> Result<Vec<String>, String> {
+    let found: Option<i64> = sqlx::query_scalar("SELECT 1 FROM projects WHERE id = ?")
+        .bind(id)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    if found.is_none() {
+        return Err("project not found".to_string());
+    }
+    let runs: Vec<(String, String)> = sqlx::query_as("SELECT id, status FROM runs WHERE project_id = ?")
+        .bind(id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let active = {
+        let reg = registry.lock().await;
+        runs.iter().any(|(run_id, status)| status == "running" || reg.contains_key(run_id))
+    };
+    if active {
+        return Err("A session of this project is still running — stop it before deleting".to_string());
+    }
+    sqlx::query("UPDATE projects SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")
+        .bind(chrono::Utc::now().to_rfc3339())
+        .bind(id)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(runs.into_iter().map(|(run_id, _)| run_id).collect())
+}
+
+/// Bring a project back from the Trash, with its sessions that were not
+/// trashed on their own.
+#[tauri::command]
+pub async fn restore_project(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
+    restore_project_inner(db.inner(), &id).await?;
+    crate::commands::runs::notify_remote_lists(&app);
+    Ok(())
+}
+
+/// Bring back the project in the Trash that owns `path`, if any. Returns its id.
+pub(crate) async fn restore_trashed_path(db: &Db, path: &str) -> Result<Option<String>, String> {
+    let trashed: Option<String> =
+        sqlx::query_scalar("SELECT id FROM projects WHERE path = ? AND deleted_at IS NOT NULL")
+            .bind(path)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?;
+    if let Some(id) = &trashed {
+        restore_project_inner(db, id).await?;
+    }
+    Ok(trashed)
+}
+
+pub(crate) async fn restore_project_inner(db: &Db, id: &str) -> Result<(), String> {
+    let found = sqlx::query("UPDATE projects SET deleted_at = NULL WHERE id = ?")
+        .bind(id)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+    if found == 0 {
+        return Err("project not found".to_string());
+    }
+    Ok(())
+}
+
+/// Delete a project in the Trash for good: its row, runs (cascade), session
+/// links and AWS config. A project outside the Trash is refused. Local only:
+/// a remote desktop may not purge.
+#[tauri::command]
+pub async fn purge_project(
     app: AppHandle,
     db: State<'_, Db>,
     id: String,
 ) -> Result<(), String> {
+    let in_trash: Option<bool> = sqlx::query_scalar("SELECT deleted_at IS NOT NULL FROM projects WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+    match in_trash {
+        None => return Err("project not found".to_string()),
+        Some(false) => return Err("Project is not in the Trash — move it there first".to_string()),
+        Some(true) => {}
+    }
     // Session links of Slack threads / notes / todos: the project's runs cascade
     // away below and the link tables have no FK to runs.
     let unlinked = crate::slack_threads::run_links::delete_for_project(db.inner(), &id)
@@ -980,7 +1093,6 @@ pub async fn update_project(
     github_project_board_url: Option<String>,
     github_project_field_mappings: Option<String>,
 ) -> Result<Project, String> {
-    use sqlx::Row;
     sqlx::query(
         "UPDATE projects SET name = ?, github_project_board_url = ?, github_project_field_mappings = ? WHERE id = ?"
     )
@@ -992,6 +1104,12 @@ pub async fn update_project(
         .await
         .map_err(|e| e.to_string())?;
 
+    project_by_id(db.inner(), &id).await
+}
+
+/// One project by id, trashed or not, with the same counts as the list.
+pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> {
+    use sqlx::Row;
     let row = sqlx::query(
         "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
@@ -1002,8 +1120,8 @@ pub async fn update_project(
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )
-        .bind(&id)
-        .fetch_one(db.inner())
+        .bind(id)
+        .fetch_one(db)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1846,5 +1964,101 @@ mod tests {
         assert_eq!(projects.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), ["p1"]);
         // The newest run is r4, but its project is in the trash.
         assert_eq!(crate::remote::agent::latest_run_id(&db).await.as_deref(), Some("r3"));
+    }
+}
+
+#[cfg(test)]
+mod trash_tests {
+    use super::*;
+
+    async fn db_with(rows: &[&str]) -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in rows {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        db
+    }
+
+    const SHOP: &[&str] = &[
+        "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'shop', '/w/shop', 'c')",
+        "INSERT INTO repos (id, project_id, name, path, created_at) VALUES ('rp1', 'p1', 'api', '/w/shop/api', 'c')",
+        "INSERT INTO runs (id, project_id, type, status, engine, created_at) VALUES \
+         ('r1', 'p1', 'session', 'done', 'claude', '2026-01-01'), \
+         ('r2', 'p1', 'session', 'done', 'claude', '2026-01-02'), \
+         ('r3', 'p1', 'session', 'done', 'claude', '2026-01-03')",
+    ];
+
+    async fn deleted_at(db: &Db, table: &str, id: &str) -> Option<String> {
+        sqlx::query_scalar(&format!("SELECT deleted_at FROM {table} WHERE id = ?"))
+            .bind(id)
+            .fetch_one(db)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn trashing_a_project_stamps_only_the_project_and_keeps_its_rows() {
+        let db = db_with(SHOP).await;
+        let registry = crate::runs::new_registry();
+        let run_ids = trash_project_inner(&db, &registry, "p1").await.unwrap();
+        assert_eq!(run_ids.len(), 3, "every run is handed back for the conductor state");
+        assert!(deleted_at(&db, "projects", "p1").await.is_some());
+        for r in ["r1", "r2", "r3"] {
+            assert_eq!(deleted_at(&db, "runs", r).await, None, "{r} must not be stamped");
+        }
+        let repos: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM repos WHERE project_id = 'p1'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(repos, 1, "links stay until a purge");
+        assert!(list_projects_inner(&db).await.unwrap().is_empty());
+        // Idempotent: a second trash keeps the first stamp.
+        let first = deleted_at(&db, "projects", "p1").await;
+        trash_project_inner(&db, &registry, "p1").await.unwrap();
+        assert_eq!(deleted_at(&db, "projects", "p1").await, first);
+        assert!(trash_project_inner(&db, &registry, "nope").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_project_with_a_running_session_is_not_trashed() {
+        let db = db_with(SHOP).await;
+        sqlx::query("UPDATE runs SET status = 'running' WHERE id = 'r2'").execute(&db).await.unwrap();
+        let err = trash_project_inner(&db, &crate::runs::new_registry(), "p1").await.unwrap_err();
+        assert!(err.contains("still running"), "{err}");
+        assert_eq!(deleted_at(&db, "projects", "p1").await, None);
+    }
+
+    #[tokio::test]
+    async fn adding_the_path_again_restores_the_same_project_with_its_sessions() {
+        let db = db_with(SHOP).await;
+        trash_project_inner(&db, &crate::runs::new_registry(), "p1").await.unwrap();
+        // A session trashed on its own stays in the Trash after the project comes back.
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r3'").execute(&db).await.unwrap();
+
+        assert_eq!(restore_trashed_path(&db, "/w/other").await.unwrap(), None);
+        assert_eq!(restore_trashed_path(&db, "/w/shop").await.unwrap().as_deref(), Some("p1"));
+        let project = project_by_id(&db, "p1").await.unwrap();
+        assert_eq!((project.id.as_str(), project.path.as_str(), project.run_count), ("p1", "/w/shop", 2));
+        let listed: Vec<String> = list_projects_inner(&db).await.unwrap().into_iter().map(|p| p.id).collect();
+        assert_eq!(listed, ["p1"]);
+        // A live path is not "restored" (add_project then fails on UNIQUE as before).
+        assert_eq!(restore_trashed_path(&db, "/w/shop").await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn restore_project_brings_back_sessions_not_trashed_on_their_own() {
+        let db = db_with(SHOP).await;
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'").execute(&db).await.unwrap();
+        trash_project_inner(&db, &crate::runs::new_registry(), "p1").await.unwrap();
+        restore_project_inner(&db, "p1").await.unwrap();
+        assert_eq!(deleted_at(&db, "projects", "p1").await, None);
+        assert!(deleted_at(&db, "runs", "r1").await.is_some());
+        assert_eq!(project_by_id(&db, "p1").await.unwrap().run_count, 2);
+        assert!(restore_project_inner(&db, "nope").await.is_err());
     }
 }

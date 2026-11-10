@@ -84,9 +84,9 @@ use commands::notifications::{
 use commands::projects::{
     add_project, add_repo, apply_skill, apply_skill_to_all_projects, detect_project_info,
     get_applied_skills, list_projects, list_repos, list_sync_conflicts, open_in_chrome,
-    open_in_folder, open_in_terminal, open_in_vscode, remove_project, remove_repo,
+    open_in_folder, open_in_terminal, open_in_vscode, purge_project, remove_repo, restore_project,
     reapply_skills, remove_skill_from_project, reorder_projects,
-    resolve_sync_conflict, update_project, update_repo,
+    resolve_sync_conflict, trash_project, update_project, update_repo,
 };
 use commands::rules::{
     apply_rule, apply_rule_to_all_projects, create_rule, delete_rule, export_rule,
@@ -95,9 +95,9 @@ use commands::rules::{
     update_rule,
 };
 use commands::runs::{
-    cancel_run, create_handoff_run, create_session_run, delete_all_runs, delete_run, end_run_input,
+    cancel_run, create_handoff_run, create_session_run, end_run_input, purge_run, restore_run,
     get_run_log, get_run_log_forward, get_run_log_page, get_run_log_path, get_run_log_revision, get_run_tool_records, get_run_user_records, list_live_runs, list_pending_permissions, read_run_input, rename_run, rerun_run, respond_permission,
-    resume_run, search_run_log, send_user_message, set_run_claude_account, set_run_pinned, set_run_protected, start_run,
+    resume_run, search_run_log, send_user_message, set_run_claude_account, set_run_pinned, set_run_protected, start_run, trash_all_runs, trash_run,
     steer_run,
 };
 use commands::sessions::reconcile_claude_sessions;
@@ -588,7 +588,9 @@ pub fn run() {
             detect_project_info,
             list_projects,
             add_project,
-            remove_project,
+            trash_project,
+            restore_project,
+            purge_project,
             update_project,
             reorder_projects,
             list_github_accounts,
@@ -666,8 +668,10 @@ pub fn run() {
             end_run_input,
             read_run_input,
             resume_run,
-            delete_run,
-            delete_all_runs,
+            trash_run,
+            trash_all_runs,
+            restore_run,
+            purge_run,
             rename_run,
             set_run_claude_account,
             set_run_pinned,

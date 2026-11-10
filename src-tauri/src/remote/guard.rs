@@ -45,7 +45,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
 /// skills installed into HOME, importing from this machine's other AI tools,
 /// switching a schedule on (it starts runs while nobody is at this machine),
-/// installing an app update, plus the plumbing of the CONTROLLING side.
+/// installing an app update, purging the Trash, plus the plumbing of the
+/// CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
 /// sensitive part).
@@ -84,6 +85,10 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "set_schedule_enabled",
     // Auto-update: replaces this machine's app with a downloaded build.
     "install_update",
+    // Purge: deletes a session / project in the Trash for good (logs,
+    // transcripts, links, audit). A Controller may only move to / out of the Trash.
+    "purge_run",
+    "purge_project",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -148,7 +153,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
 /// drop credentials, reach the secret notes vault, or write skill / agent /
 /// command links into a project's folders (agents and commands: their library
 /// files too), merge a Conductor worker's branch into a project, write a
-/// schedule, or start / stop a dev server. `update_setting`
+/// schedule, start / stop a dev server, or move sessions / projects to or out
+/// of the Trash. `update_setting`
 /// is audited too, with its key (see the relay handler).
 const AUDITED_COMMANDS: &[&str] = &[
     // Accounts (tokens, cloud / CLI logins, OAuth clients).
@@ -221,6 +227,12 @@ const AUDITED_COMMANDS: &[&str] = &[
     "devserver_stop",
     // Skill eval: sends prompts to a model, spends quota.
     "run_skill_eval",
+    // Trash: sessions and projects moved to or out of it (a purge is local only).
+    "trash_run",
+    "trash_all_runs",
+    "restore_run",
+    "trash_project",
+    "restore_project",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -713,6 +725,8 @@ mod tests {
             "import_candidates",
             "set_schedule_enabled",
             "install_update",
+            "purge_run",
+            "purge_project",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }
@@ -781,6 +795,11 @@ mod tests {
             "devserver_stop",
             "devserver_logs",
             "run_skill_eval",
+            "trash_run",
+            "trash_all_runs",
+            "restore_run",
+            "trash_project",
+            "restore_project",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -820,6 +839,11 @@ mod tests {
             "devserver_start",
             "devserver_stop",
             "run_skill_eval",
+            "trash_run",
+            "trash_all_runs",
+            "restore_run",
+            "trash_project",
+            "restore_project",
         ] {
             assert!(audited_command(name), "{name}");
         }

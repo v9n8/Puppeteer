@@ -566,7 +566,10 @@ pub async fn conductor_worker_merge(db: State<'_, Db>, worker_id: String) -> Res
 /// of its workers (and its `session_*` tools re-inject with a valid token).
 pub async fn reconnect_running(db: &Db, conductor: &ConductorState) {
     let sessions = match sqlx::query(
-        "SELECT id, project_id, max_workers FROM conductor_sessions WHERE status = 'running'",
+        // A session in the Trash (itself or its project) stays unregistered.
+        "SELECT s.id, s.project_id, s.max_workers FROM conductor_sessions s \
+         JOIN runs r ON r.id = s.id JOIN projects p ON p.id = r.project_id \
+         WHERE s.status = 'running' AND r.deleted_at IS NULL AND p.deleted_at IS NULL",
     )
     .fetch_all(db)
     .await
@@ -800,6 +803,27 @@ mod tests {
         reconnect_running(&db, &cst).await;
         assert!(cst.owns_worker("s", "w1"));
         assert!(!cst.owns_worker("s", "w2"));
+    }
+
+    /// A session in the Trash (itself, or through its project) is not
+    /// registered again on startup: its token stays revoked.
+    #[tokio::test]
+    async fn reconnect_skips_sessions_in_the_trash() {
+        let db = setup().await;
+        for id in ["live", "trashed"] {
+            add_run(&db, id, "session", "done", None, None).await;
+            upgrade_run_to_conductor(&db, id, "p1", None, None).await.unwrap();
+        }
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'trashed'").execute(&db).await.unwrap();
+        let cst = ConductorState::new();
+        reconnect_running(&db, &cst).await;
+        assert!(cst.session("live").is_some());
+        assert!(cst.session("trashed").is_none());
+
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").execute(&db).await.unwrap();
+        let cst = ConductorState::new();
+        reconnect_running(&db, &cst).await;
+        assert!(cst.session("live").is_none(), "a trashed project's sessions stay down too");
     }
 
     /// The column default (6, `0001_init.sql`) must never decide the cap:

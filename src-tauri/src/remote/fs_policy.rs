@@ -77,6 +77,19 @@ pub struct Roots {
     pub read_only: Vec<PathBuf>,
 }
 
+/// Folders of the live projects and of their repos. A project in the Trash is
+/// not a root: a remote desktop reaches its folder only through another root
+/// (HOME, a volume).
+async fn live_project_roots(db: &Db) -> Result<Vec<String>, String> {
+    sqlx::query_scalar(
+        "SELECT path FROM projects WHERE deleted_at IS NULL \
+         UNION SELECT r.path FROM repos r JOIN projects p ON p.id = r.project_id WHERE p.deleted_at IS NULL",
+    )
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())
+}
+
 fn refused(raw: &Path, why: &str) -> String {
     // `permission denied` maps to a 403 in the remote file proxy.
     format!("permission denied: {} ({why} from a remote desktop)", raw.display())
@@ -121,10 +134,7 @@ impl RemoteFs {
             return Ok(None);
         }
         let app = webview.app_handle();
-        let projects: Vec<String> = sqlx::query_scalar("SELECT path FROM projects UNION SELECT path FROM repos")
-            .fetch_all(db)
-            .await
-            .map_err(|e| e.to_string())?;
+        let projects = live_project_roots(db).await?;
         let paths = app.path();
         let home = paths.home_dir().ok();
         let app_data = paths.app_data_dir().ok();
@@ -474,5 +484,26 @@ mod tests {
     fn local_callers_are_untouched() {
         assert_eq!(read(None, Path::new("/etc/hosts")).unwrap(), PathBuf::from("/etc/hosts"));
         assert_eq!(write(None, Path::new("/x/y")).unwrap(), PathBuf::from("/x/y"));
+    }
+
+    #[tokio::test]
+    async fn projects_in_the_trash_are_not_roots() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES \
+             ('p1', 'live', '/w/live', 'c', NULL), ('p2', 'gone', '/w/gone', 'c', 'd')",
+            "INSERT INTO repos (id, project_id, name, path, created_at) VALUES \
+             ('r1', 'p1', 'api', '/w/live/api', 'c'), ('r2', 'p2', 'api', '/w/gone/api', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let mut roots = live_project_roots(&db).await.unwrap();
+        roots.sort();
+        assert_eq!(roots, ["/w/live", "/w/live/api"]);
     }
 }

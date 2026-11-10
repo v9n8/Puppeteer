@@ -603,7 +603,7 @@ const tools = {
 
   projects_create: {
     description:
-      'Register a local folder as a new Puppeteer project. By default the folder itself and its immediate subfolders that are git repos are linked as repos (GitHub/GitLab coordinates read from each origin remote), like the app\'s "Add project" dialog; detect_repos=false links none. Fails if the folder is already a project.',
+      'Register a local folder as a new Puppeteer project. By default the folder itself and its immediate subfolders that are git repos are linked as repos (GitHub/GitLab coordinates read from each origin remote), like the app\'s "Add project" dialog; detect_repos=false links none. Fails if the folder is already a project; a folder whose project is in the Trash brings that project back as it was.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -616,7 +616,8 @@ const tools = {
     handler: (a) => {
       const p = projectsStore.createProject(a);
       const repos = p.repos.length ? `\n${p.repos.map(repoLine).join('\n')}` : ' No repos linked.';
-      return `Created project "${p.name}" (${p.id}) at ${p.path}.${p.repos.length ? ` Linked ${p.repos.length} repo(s):` : ''}${repos}`;
+      const verb = p.restored ? 'Restored project from the Trash' : 'Created project';
+      return `${verb} "${p.name}" (${p.id}) at ${p.path}.${p.repos.length ? ` Linked ${p.repos.length} repo(s):` : ''}${repos}`;
     },
   },
 

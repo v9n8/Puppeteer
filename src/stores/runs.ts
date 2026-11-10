@@ -611,16 +611,22 @@ export const useRunsStore = defineStore('runs', () => {
     })
   }
 
-  /** Returns the engine transcript paths the backend could not remove. */
+  /**
+   * "Delete" moves the run and its workers to the Trash. Files stay until a
+   * purge, so no transcript is ever left over: always resolves to `[]` (the
+   * leftover list of the old hard delete, still read by RunView).
+   */
   async function deleteRun(run_id: string): Promise<string[]> {
-    const leftover = await invoke<string[]>('delete_run', { runId: run_id })
-    runs.value = runs.value.filter(r => r.id !== run_id)
+    const trashed = new Set(await invoke<string[]>('trash_run', { runId: run_id }))
+    runs.value = runs.value.filter(r => r.id !== run_id && !trashed.has(r.id))
     runMeta.delete(run_id)
-    return leftover
+    for (const id of trashed) runMeta.delete(id)
+    return []
   }
 
+  /** "Clear all": moves every run but running / protected ones to the Trash. */
   async function deleteAllRuns(project_id: string): Promise<number> {
-    const count = await invoke<number>('delete_all_runs', { projectId: project_id })
+    const count = await invoke<number>('trash_all_runs', { projectId: project_id })
     // Mirror the backend: keep running runs (never deleted), protected runs, and
     // workers whose conductor is protected (protection cascades to its workers).
     const protectedIds = new Set(

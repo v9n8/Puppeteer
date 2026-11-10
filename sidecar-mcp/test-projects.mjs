@@ -162,6 +162,32 @@ check(out.list.includes('Acme') && !out.list.includes('Gone'), 'projects_list: a
 check(out['by-name'].includes('no project matches "Gone"'), 'project by name: a project in the trash does not match');
 check(out['repos-all'].includes('lone') && !out['repos-all'].includes('trashed-repo'), 'repos_list all: repos of a trashed project are left out');
 
+// projects_create on the folder of a project in the trash brings that project back
+// (same id, sessions and repos) instead of failing on the duplicate path.
+const back = join(tmp, 'back');
+mkdirSync(back);
+const backReal = realpathSync(back);
+db.prepare("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('back-1', 'Back', ?, ?, ?)").run(backReal, T0, T0);
+db.prepare("INSERT INTO repos (id, project_id, name, path, created_at) VALUES ('back-repo', 'back-1', 'back-api', ?, ?)").run(join(backReal, 'api'), T0);
+db.prepare("INSERT INTO runs (id, project_id, type, status, engine, created_at) VALUES ('back-run', 'back-1', 'session', 'done', 'claude', ?)").run(T0);
+db.prepare("INSERT INTO runs (id, project_id, type, status, engine, created_at, deleted_at) VALUES ('back-trashed', 'back-1', 'session', 'done', 'claude', ?, ?)").run(T0, T0);
+out = await drive([
+  ['restore', 'projects_create', { path: back, name: 'Renamed' }],
+  ['again', 'projects_create', { path: back }],
+]);
+const backRows = db.prepare('SELECT id, name, deleted_at FROM projects WHERE path = ?').all(backReal);
+check(
+  backRows.length === 1 && backRows[0].id === 'back-1' && backRows[0].deleted_at === null && backRows[0].name === 'Back',
+  'projects_create: a trashed project at the path is restored with the same id',
+);
+check(out.restore.includes('Restored project from the Trash "Back" (back-1)') && out.restore.includes('back-api'), 'projects_create: restore reports the project and its repos');
+check(
+  db.prepare("SELECT COUNT(*) AS n FROM runs WHERE project_id = 'back-1' AND deleted_at IS NULL").get().n === 1 &&
+    db.prepare("SELECT deleted_at FROM runs WHERE id = 'back-trashed'").get().deleted_at === T0,
+  'projects_create: sessions come back, a session trashed on its own stays in the trash',
+);
+check(out.again.includes('already the project "Back"'), 'projects_create: a restored project is a duplicate again');
+
 db.close();
 rmSync(tmp, { recursive: true, force: true });
 if (failures.length) {

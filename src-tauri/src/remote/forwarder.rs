@@ -63,9 +63,10 @@ pub(crate) fn seal_stream(
     Some(Envelope::data(FrameType::Stream, room_id, cipher, seq))
 }
 
-/// Map a tapped [`RemoteRunEvent`] to the wire [`StreamPayload`].
-fn to_payload(ev: RemoteRunEvent) -> StreamPayload {
-    match ev {
+/// Map a tapped [`RemoteRunEvent`] to the wire [`StreamPayload`]; `None` for
+/// [`RemoteRunEvent::ListsChanged`], which has no frame of its own.
+fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
+    Some(match ev {
         RemoteRunEvent::Event { run_id, event } => StreamPayload::Stream { run_id, event },
         RemoteRunEvent::Output {
             run_id,
@@ -115,7 +116,8 @@ fn to_payload(ev: RemoteRunEvent) -> StreamPayload {
                 remembered: None,
             }
         }
-    }
+        RemoteRunEvent::ListsChanged => return None,
+    })
 }
 
 /// How long output lines may sit in the coalescing buffer before being flushed.
@@ -202,6 +204,12 @@ pub async fn forward_loop(
         };
 
         match received {
+            Ok(RemoteRunEvent::ListsChanged) => {
+                // A run or project went to / came back from the Trash: fresh
+                // snapshots drop (or bring back) it on the Controller.
+                send_run_list(&db, &session, &room_id, &out, &seq, scope.list_filter()).await;
+                send_project_list(&db, &session, &room_id, &out, &seq).await;
+            }
             Ok(ev) => {
                 let run_id = ev.run_id().to_string();
                 let streaming = scope.streams(&run_id).await;
@@ -252,7 +260,7 @@ pub async fn forward_loop(
 
                 let is_done = matches!(ev, RemoteRunEvent::Done { .. });
                 // Live transcript is backfillable; status/permission/meta is not.
-                let payload = to_payload(ev);
+                let Some(payload) = to_payload(ev) else { continue };
                 if let Some(env) = seal_stream(&session, &room_id, &payload, seq.next()) {
                     let sent = if is_transcript {
                         out.send_lossy(env)
@@ -890,7 +898,8 @@ mod tests {
         let payload = to_payload(RemoteRunEvent::PermissionResolved {
             run_id: "r_1".to_string(),
             request_id: "p_1".to_string(),
-        });
+        })
+        .unwrap();
         let StreamPayload::PermissionResolved { run_id, request_id, accepted, reason, .. } = payload
         else {
             panic!("expected permission_resolved");
@@ -1047,5 +1056,57 @@ mod tests {
         let env = rx.try_recv().unwrap();
         assert_eq!(env.t, FrameType::Stream);
         assert!(rx.try_recv().is_err());
+    }
+
+    /// A run or project moved to the Trash reaches the Controller as fresh
+    /// run / project lists without it (no frame type of its own).
+    #[tokio::test]
+    async fn lists_changed_resends_the_lists_without_trashed_rows() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES \
+             ('p1', 'live', '/w/live', 'c', NULL), ('p2', 'gone', '/w/gone', 'c', 'd')",
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, deleted_at) VALUES \
+             ('r_live', 'p1', 'session', 'done', 'claude', 'c', NULL), \
+             ('r_trashed', 'p1', 'session', 'done', 'claude', 'c', 'd'), \
+             ('r_in_gone', 'p2', 'session', 'done', 'claude', 'c', NULL)",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let session = Arc::new(test_session());
+        let bus = RemoteBus::new();
+        let (tx, mut rx) = crate::remote::outbound::channel();
+        let task = tokio::spawn(forward_loop(
+            bus.clone(),
+            session.clone(),
+            "rm_1".to_string(),
+            tx,
+            Arc::new(SeqCounter::default()),
+            db,
+            scope(true, &[]),
+        ));
+        // The loop subscribes once it runs: publish until a frame comes back.
+        let first = loop {
+            bus.publish(RemoteRunEvent::ListsChanged);
+            if let Ok(Some(env)) =
+                tokio::time::timeout(Duration::from_millis(50), rx.recv()).await
+            {
+                break env;
+            }
+        };
+        let second = rx.recv().await.unwrap();
+        task.abort();
+        let open = |env: Envelope| -> StreamPayload {
+            serde_json::from_slice(&session.open(env.cipher.as_deref().unwrap()).unwrap()).unwrap()
+        };
+        let StreamPayload::RunList { runs } = open(first) else { panic!("expected run_list") };
+        assert_eq!(runs.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["r_live"]);
+        let StreamPayload::ProjectList { projects } = open(second) else { panic!("expected project_list") };
+        assert_eq!(projects.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), ["p1"]);
     }
 }

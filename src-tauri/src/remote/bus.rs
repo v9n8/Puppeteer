@@ -47,6 +47,9 @@ pub enum RemoteRunEvent {
     /// A permission request was answered at the desktop (by hand or by a
     /// standing Always choice), so a Controller can drop its copy.
     PermissionResolved { run_id: String, request_id: String },
+    /// Runs or projects went to / came back from the Trash: the browse lists
+    /// changed. Not tied to one run; the forwarder re-sends its list snapshots.
+    ListsChanged,
 }
 
 impl RemoteRunEvent {
@@ -59,6 +62,7 @@ impl RemoteRunEvent {
             | RemoteRunEvent::Done { run_id, .. }
             | RemoteRunEvent::Meta { run_id, .. }
             | RemoteRunEvent::PermissionResolved { run_id, .. } => run_id,
+            RemoteRunEvent::ListsChanged => "",
         }
     }
 }

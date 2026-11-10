@@ -203,8 +203,9 @@ export const useProjectsStore = defineStore('projects', () => {
     return project
   }
 
+  /** Moves the project to the Trash (its sessions with it). */
   async function removeProject(id: string): Promise<void> {
-    await invoke('remove_project', { id })
+    await invoke('trash_project', { id })
     await fetchProjects()
   }
 
