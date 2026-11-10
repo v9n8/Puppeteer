@@ -159,6 +159,8 @@ async fn session_spawn(
         permission_mode_override: Some(permission_mode),
         prompt_override: Some(prompt.clone()),
         model_override: model,
+        // A worker takes the global default effort, like its engine's model.
+        effort_override: None,
         images: Vec::new(),
         override_budget: false,
         append_system_prompt: instruction,
@@ -525,6 +527,7 @@ async fn session_send(
             worker_id.clone(),
             Some(permission_mode),
             None,
+            None,
             Some(false),
             false,
         )
@@ -812,6 +815,7 @@ the human your final summary.";
                 app.state::<RunRegistry>(),
                 conductor_run_id.to_string(),
                 Some(permission_mode),
+                None,
                 None,
                 Some(false),
                 false,

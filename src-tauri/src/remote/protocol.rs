@@ -692,6 +692,10 @@ pub struct CmdPayload {
     /// Optional model hint for `start_run` / `send_chat_message`.
     #[serde(default)]
     pub model: Option<String>,
+    /// Optional reasoning effort for `start_run` (UX-16), honored like `model`.
+    /// Blank/omitted falls back to the `default_effort` setting.
+    #[serde(default)]
+    pub effort: Option<String>,
     /// `start_run` / `set_run_meta`: the permission mode to apply. Honored for
     /// execution (desktop parity); a blank/omitted value falls back to the
     /// settings default. Also mirrored to the desktop composer via the meta store.

@@ -40,6 +40,10 @@ pub struct StartRunPayload {
     /// Per-run model override. When None/empty we fall back to the per-engine
     /// default model setting (claude_model / codex_model); empty means engine default.
     pub model_override: Option<String>,
+    /// Per-run reasoning effort. When None/empty we fall back to the
+    /// `default_effort` setting; empty there means the engine's default.
+    #[serde(default)]
+    pub effort_override: Option<String>,
     /// Images pasted into the composer for the first turn.
     #[serde(default)]
     pub images: Vec<ImageAttachment>,
@@ -224,6 +228,7 @@ pub(crate) async fn start_run_inner(
         "Please review this pull request according to the configured skills.".to_string();
     let mut default_permission_mode = "default".to_string();
     let mut default_engine = "claude".to_string();
+    let mut default_effort = String::new();
 
     for row in &settings_rows {
         let key: String = row.get("key");
@@ -243,6 +248,7 @@ pub(crate) async fn start_run_inner(
             "codex_model" => codex_model = value,
             "extra_args" => extra_args = value,
             "default_permission_mode" => default_permission_mode = value,
+            "default_effort" => default_effort = value,
             _ => {}
         }
     }
@@ -347,6 +353,7 @@ pub(crate) async fn start_run_inner(
         claude_model
     };
     let model = resolve_model_for_engine(&engine, payload.model_override, engine_default_model);
+    let effort = resolve_effort(payload.effort_override, &default_effort);
 
     let custom_prompt = payload
         .prompt_override
@@ -455,6 +462,9 @@ pub(crate) async fn start_run_inner(
         if let Some(m) = &model {
             cmd.env("PUPPETEER_MODEL", m);
         }
+        if let Some(e) = &effort {
+            cmd.env("PUPPETEER_EFFORT", e);
+        }
         // Isolate this run to its resolved Claude account profile (clears inherited
         // auth env overrides). No-op when no managed account applies (legacy global).
         apply_claude_config_dir(&mut cmd, claude_account.as_ref().map(|a| a.config_dir.as_str()));
@@ -496,6 +506,10 @@ pub(crate) async fn start_run_inner(
                 "permissionMode": sdk_permission_mode(&permission_mode),
                 "model": model,
             });
+            // The sidecar drops a level the model cannot take.
+            if let Some(e) = &effort {
+                options["effort"] = serde_json::Value::String(e.clone());
+            }
             // Combine the git-account context with any caller-supplied system
             // prompt (the Conductor's orchestration framing) into one append.
             let mut append_parts: Vec<String> = Vec::new();
@@ -612,6 +626,9 @@ pub(crate) async fn start_run_inner(
     cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
     if let Some(m) = &model {
         cmd.env("PUPPETEER_CODEX_MODEL", m);
+    }
+    if let Some(e) = &effort {
+        cmd.env("PUPPETEER_CODEX_EFFORT", e);
     }
     // Inject the project's enabled MCP servers for Codex (QĐ-2: actual engine).
     // Codex supports stdio + streamable HTTP; legacy SSE servers land in `skipped`.
@@ -790,6 +807,22 @@ fn resolve_model_for_engine(
                 Some(d)
             }
         })
+}
+
+/// Reasoning effort levels a run may ask for: the Claude Agent SDK's
+/// `EffortLevel`. Each sidecar keeps only the levels its engine and model take
+/// (Codex has no `max`), so the engine's default applies to the rest.
+const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+/// Resolve a run's reasoning effort: the per-run pick, else the global
+/// `default_effort` setting, else `None` (the engine decides). An unknown level
+/// counts as unset, like an invalid permission mode.
+fn resolve_effort(override_effort: Option<String>, default_effort: &str) -> Option<String> {
+    let valid = |s: &str| EFFORT_LEVELS.contains(&s);
+    override_effort
+        .map(|s| s.trim().to_string())
+        .filter(|s| valid(s))
+        .or_else(|| Some(default_effort.trim().to_string()).filter(|s| valid(s)))
 }
 
 fn is_valid_permission_mode(mode: &str) -> bool {
@@ -4052,6 +4085,7 @@ pub async fn resume_run(
     run_id: String,
     permission_mode_override: Option<String>,
     model_override: Option<String>,
+    effort_override: Option<String>,
     override_budget: Option<bool>,
 ) -> Result<(), String> {
     resume_run_with(
@@ -4061,6 +4095,7 @@ pub async fn resume_run(
         run_id,
         permission_mode_override,
         model_override,
+        effort_override,
         override_budget,
         true,
     )
@@ -4078,6 +4113,7 @@ pub(crate) async fn resume_run_with(
     run_id: String,
     permission_mode_override: Option<String>,
     model_override: Option<String>,
+    effort_override: Option<String>,
     override_budget: Option<bool>,
     stamp_activity: bool,
 ) -> Result<(), String> {
@@ -4169,6 +4205,7 @@ pub(crate) async fn resume_run_with(
     let mut claude_model = String::new();
     let mut codex_model = String::new();
     let mut default_permission_mode = "default".to_string();
+    let mut default_effort = String::new();
     for row in &settings_rows {
         let key: String = row.get("key");
         let value: String = row.get("value");
@@ -4181,6 +4218,7 @@ pub(crate) async fn resume_run_with(
             "claude_model" => claude_model = value,
             "codex_model" => codex_model = value,
             "default_permission_mode" => default_permission_mode = value,
+            "default_effort" => default_effort = value,
             _ => {}
         }
     }
@@ -4191,6 +4229,7 @@ pub(crate) async fn resume_run_with(
         claude_model
     };
     let model = resolve_model_for_engine(&engine, model_override, engine_default_model);
+    let effort = resolve_effort(effort_override, &default_effort);
 
     let permission_mode = permission_mode_override
         .filter(|v| is_valid_permission_mode(v))
@@ -4339,6 +4378,9 @@ pub(crate) async fn resume_run_with(
         if let Some(m) = &model {
             cmd.env("PUPPETEER_CODEX_MODEL", m);
         }
+        if let Some(e) = &effort {
+            cmd.env("PUPPETEER_CODEX_EFFORT", e);
+        }
         // Re-inject the project's MCP servers on resume: a resumed run spawns a
         // FRESH sidecar/query whose first prompt arrives via send_user_message
         // WITHOUT options, so (unlike start_run) MCP would otherwise be lost.
@@ -4388,6 +4430,9 @@ pub(crate) async fn resume_run_with(
         cmd.env("PUPPETEER_PARTIAL_MESSAGES", "1");
         if let Some(m) = &model {
             cmd.env("PUPPETEER_MODEL", m);
+        }
+        if let Some(e) = &effort {
+            cmd.env("PUPPETEER_EFFORT", e);
         }
         // Re-inject MCP on resume (see the Codex branch above). The sidecar reads
         // PUPPETEER_MCP_SERVERS as a fallback when the first prompt carries no options.
@@ -4615,6 +4660,36 @@ mod model_resolution_tests {
         // Dropped override + no global default => let the engine pick its own.
         let m = resolve_model_for_engine("codex", Some("claude-opus-4-8[1m]".into()), "".into());
         assert_eq!(m, None);
+    }
+}
+
+#[cfg(test)]
+mod effort_resolution_tests {
+    use super::resolve_effort;
+
+    #[test]
+    fn per_run_pick_wins_over_global() {
+        assert_eq!(resolve_effort(Some("max".into()), "low").as_deref(), Some("max"));
+        assert_eq!(resolve_effort(Some(" high ".into()), "").as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn no_pick_uses_global() {
+        assert_eq!(resolve_effort(None, "xhigh").as_deref(), Some("xhigh"));
+        assert_eq!(resolve_effort(Some("".into()), "medium").as_deref(), Some("medium"));
+    }
+
+    #[test]
+    fn nothing_set_lets_the_engine_decide() {
+        assert_eq!(resolve_effort(None, ""), None);
+        assert_eq!(resolve_effort(Some("  ".into()), "  "), None);
+    }
+
+    #[test]
+    fn unknown_levels_count_as_unset() {
+        assert_eq!(resolve_effort(Some("turbo".into()), "low").as_deref(), Some("low"));
+        assert_eq!(resolve_effort(Some("HIGH".into()), "bogus"), None);
+        assert_eq!(resolve_effort(None, "minimal"), None);
     }
 }
 

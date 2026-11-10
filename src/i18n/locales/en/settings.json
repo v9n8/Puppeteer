@@ -273,7 +273,17 @@
     "permPlan": "Plan only (read-only)",
     "permAuto": "Auto (classifier)",
     "permBypass": "Bypass all permissions",
-    "permissionHint": "How tool calls are gated (Claude & Codex). \"Ask via UI\" surfaces each request in a modal; \"Bypass all\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen."
+    "permissionHint": "How tool calls are gated (Claude & Codex). \"Ask via UI\" surfaces each request in a modal; \"Bypass all\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen.",
+    "defaultEffort": "Default effort",
+    "effortEngineDefault": "Default (engine decides)",
+    "effort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Max"
+    },
+    "effortHint": "How much reasoning the model puts into each answer. Higher effort gives deeper answers but uses more tokens. Applied only when the model supports the level (Codex has no Max); otherwise the model's own default is used."
   },
   "translate": {
     "title": "Translation",

@@ -88,6 +88,11 @@ const RESUME_THREAD = process.env.PUPPETEER_RESUME_SESSION || null
 const ROLLBACK_TURNS = RESUME_THREAD ? Math.max(0, Number.parseInt(process.env.PUPPETEER_ROLLBACK_TURNS, 10) || 0) : 0
 const PERMISSION_MODE = process.env.PUPPETEER_PERMISSION_MODE || 'default'
 const MODEL = process.env.PUPPETEER_CODEX_MODEL || null
+// Reasoning effort (UX-16), sent on every turn/start (app-server v2: "for this
+// turn and subsequent turns"). The app's levels are Claude's; Codex has no
+// `max`, so that one is left out and the model's default applies.
+const CODEX_EFFORTS = ['low', 'medium', 'high', 'xhigh']
+const EFFORT = CODEX_EFFORTS.includes(process.env.PUPPETEER_CODEX_EFFORT) ? process.env.PUPPETEER_CODEX_EFFORT : null
 // Tool-less session (translation engine): the prompt carries UNTRUSTED text
 // (Slack messages, GitHub comments), so a prompt injection must not be able to
 // run anything. Forces a read-only sandbox, turns off codex's exec/app/plugin
@@ -1137,6 +1142,7 @@ async function startTurn(text, images) {
     input: userInput(text, images),
     approvalPolicy,
     sandboxPolicy: sandboxPolicyObject(sandbox),
+    ...(EFFORT ? { effort: EFFORT } : {}),
   })
   currentTurn = starting.then((r) => r?.result?.turn?.id ?? null)
   const res = await starting

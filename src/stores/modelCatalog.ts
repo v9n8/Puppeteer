@@ -26,6 +26,8 @@ export interface FetchedModel {
   value: string
   label: string
   description?: string
+  /** Reasoning effort levels the model takes (`codex debug models`). */
+  effort_levels?: string[]
 }
 
 export interface ModelCacheEntry {

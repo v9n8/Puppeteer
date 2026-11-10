@@ -273,7 +273,17 @@
     "permPlan": "Chỉ lập kế hoạch (chỉ đọc)",
     "permAuto": "Tự động (bộ phân loại)",
     "permBypass": "Bỏ qua mọi quyền",
-    "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Hỏi qua UI\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua tất cả\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run."
+    "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Hỏi qua UI\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua tất cả\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run.",
+    "defaultEffort": "Effort mặc định",
+    "effortEngineDefault": "Mặc định (engine tự chọn)",
+    "effort": {
+      "low": "Thấp",
+      "medium": "Vừa",
+      "high": "Cao",
+      "xhigh": "Rất cao",
+      "max": "Tối đa"
+    },
+    "effortHint": "Mức suy luận model dùng cho mỗi câu trả lời. Effort cao cho câu trả lời kỹ hơn nhưng tốn nhiều token hơn. Chỉ áp dụng khi model hỗ trợ mức đó (Codex không có Tối đa); nếu không, model dùng mặc định của nó."
   },
   "translate": {
     "title": "Dịch",

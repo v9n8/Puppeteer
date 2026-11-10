@@ -146,6 +146,8 @@ export interface FetchedModel {
   value: string
   label: string
   description?: string
+  /** Reasoning effort levels the model takes, when its catalog says (Codex). */
+  effort_levels?: string[]
 }
 
 /**
@@ -175,4 +177,53 @@ export function effectiveModelOptions(
   if (engine === 'codex') return codexOptions(base, discovered.codex)
   // Claude is the fallback engine, so anything unknown gets its table too.
   return base
+}
+
+/** Reasoning effort levels, lowest first (the Claude Agent SDK's `EffortLevel`).
+ * Stored as `default_effort` and sent as a run's `effort_override`; '' = engine decides. */
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+export type EffortLevel = (typeof EFFORT_LEVELS)[number]
+
+// Claude models without effort / without `xhigh` / without `max`, copied from
+// the checks of the CLI bundled with claude-agent-sdk 0.3.319. Any other model,
+// a family alias or the engine default takes all five. Same table as
+// `claudeEffortLevels` in sidecar/index.mjs, which applies it to the run.
+const CLAUDE_NO_EFFORT = ['claude-opus-4-0', 'claude-opus-4-1', 'claude-sonnet-4-0', 'claude-sonnet-4-5', 'claude-haiku-4-5']
+const CLAUDE_NO_XHIGH = ['claude-opus-4-5', 'claude-opus-4-6', 'claude-sonnet-4-6']
+const CLAUDE_NO_MAX = ['claude-opus-4-5']
+// Codex (app-server `turn/start` effort) has no `max`.
+const CODEX_EFFORT_LEVELS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh']
+
+/** `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, `claude-opus-4-6[1m]` → the bare name. */
+function canonicalClaudeModel(model: string): string {
+  let m = model.trim().toLowerCase()
+  const at = m.indexOf('claude-')
+  if (at > 0) m = m.slice(at)
+  return m.replace(/\[.*\]$/, '').replace(/[@:].*$/, '').replace(/-v\d+$/, '').replace(/-\d{8}$/, '')
+}
+
+export function claudeEffortLevels(model: string | null | undefined): EffortLevel[] {
+  const m = canonicalClaudeModel(model ?? '')
+  if (m.startsWith('claude-3-') || CLAUDE_NO_EFFORT.includes(m)) return []
+  return EFFORT_LEVELS.filter(
+    (l) => !(l === 'xhigh' && CLAUDE_NO_XHIGH.includes(m)) && !(l === 'max' && CLAUDE_NO_MAX.includes(m)),
+  )
+}
+
+/**
+ * Effort levels a run on `engine` + `model` can use — what the composer's
+ * effort chip offers. Empty = the engine/model takes no effort: hide the chip.
+ * Codex uses the discovered catalog's levels for the model when it lists them.
+ */
+export function effortLevelsFor(
+  engine: string,
+  model: string | null | undefined,
+  discovered: { codex: FetchedModel[] } = { codex: [] },
+): EffortLevel[] {
+  if (engine === 'codex') {
+    const listed = discovered.codex.find((m) => m.value === model)?.effort_levels
+    if (!listed?.length) return CODEX_EFFORT_LEVELS
+    return CODEX_EFFORT_LEVELS.filter((l) => listed.includes(l))
+  }
+  return claudeEffortLevels(model)
 }

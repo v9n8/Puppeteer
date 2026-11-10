@@ -35,6 +35,11 @@ pub struct ModelOption {
     pub value: String,
     pub label: String,
     pub description: Option<String>,
+    /// Reasoning effort levels the model takes (Codex: `supported_reasoning_levels`
+    /// of `codex debug models`). Empty when the catalog does not say; caches
+    /// written before this field read back empty too.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effort_levels: Vec<String>,
 }
 
 /// One persisted cache entry, keyed by account/profile. Stored as JSON inside
@@ -446,6 +451,17 @@ fn parse_codex_models(stdout: &str) -> Result<Vec<ModelOption>, String> {
             .filter(|s| !s.trim().is_empty())
             .map(|s| s.trim().to_string());
         let priority = m.get("priority").and_then(|x| x.as_i64()).unwrap_or(i64::MAX);
+        let effort_levels = m
+            .get("supported_reasoning_levels")
+            .and_then(|x| x.as_array())
+            .map(|levels| {
+                levels
+                    .iter()
+                    .filter_map(|l| l.get("effort").and_then(|e| e.as_str()))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
         scored.push((
             priority,
             idx,
@@ -453,6 +469,7 @@ fn parse_codex_models(stdout: &str) -> Result<Vec<ModelOption>, String> {
                 value: slug.to_string(),
                 label,
                 description,
+                effort_levels,
             },
         ));
     }
@@ -631,3 +648,22 @@ pub async fn get_model_caches(db: State<'_, Db>) -> Result<ModelCaches, String> 
     })
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::parse_codex_models;
+
+    #[test]
+    fn codex_models_carry_their_effort_levels() {
+        let out = r#"{"models":[
+            {"slug":"gpt-5.5","display_name":"GPT-5.5","visibility":"list","priority":1,
+             "supported_reasoning_levels":[{"effort":"low"},{"effort":"medium"},{"effort":"high"},{"effort":"xhigh"}]},
+            {"slug":"older","visibility":"list","priority":2}
+        ]}"#;
+        let models = parse_codex_models(out).unwrap();
+        assert_eq!(models[0].effort_levels, ["low", "medium", "high", "xhigh"]);
+        // No levels in the catalog: none here, and none on the wire.
+        assert!(models[1].effort_levels.is_empty());
+        assert!(serde_json::to_value(&models[1]).unwrap().get("effort_levels").is_none());
+    }
+}

@@ -254,6 +254,38 @@ const tests = {
     assert.equal(f.resumeSessionAt, undefined)
   },
 
+  // Effort (UX-16): reaches the SDK only when the model takes that level; a
+  // resume (first prompt without options) gets it from the broker's env.
+  async 'effort reaches the SDK only when the model supports it'() {
+    const initOptions = async (options, env = {}) => {
+      const { messages } = await runSidecar('permission', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', ...(options ? { options } : {}) })
+        if (msg.type === '_puppeteer_permission_request') {
+          ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+          ctl.closeInput()
+        }
+      }, 10_000, env)
+      return messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    }
+    const base = { permissionMode: 'default' }
+    assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5', effort: 'high' })).effort, 'high')
+    // Engine default model: the CLI decides, so the level goes through.
+    assert.equal((await initOptions({ ...base, effort: 'max' })).effort, 'max')
+    // No effort on this model at all (dated / Bedrock spellings included).
+    assert.equal((await initOptions({ ...base, model: 'claude-haiku-4-5-20251001', effort: 'low' })).effort, undefined)
+    assert.equal((await initOptions({ ...base, model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', effort: 'low' })).effort, undefined)
+    // The model takes effort but not this level.
+    assert.equal((await initOptions({ ...base, model: 'claude-sonnet-4-6[1m]', effort: 'xhigh' })).effort, undefined)
+    assert.equal((await initOptions({ ...base, model: 'claude-sonnet-4-6[1m]', effort: 'max' })).effort, 'max')
+    assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5', effort: 'turbo' })).effort, undefined)
+    assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5' })).effort, undefined)
+    // Resume: no options on the prompt, model + effort from env.
+    const resumed = await initOptions(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_MODEL: 'claude-opus-4-8', PUPPETEER_EFFORT: 'xhigh' })
+    assert.equal(resumed.effort, 'xhigh')
+    const resumedHaiku = await initOptions(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_MODEL: 'claude-haiku-4-5', PUPPETEER_EFFORT: 'xhigh' })
+    assert.equal(resumedHaiku.effort, undefined)
+  },
+
   // Steer (D4-06): a steer reaches the SDK as a user message with priority
   // `next` (folded into the running turn); a plain follow-up goes with `later`
   // (D4-15: a turn of its own, after the one in flight). Before any turn there

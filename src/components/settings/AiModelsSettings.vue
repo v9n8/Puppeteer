@@ -1,14 +1,20 @@
 <script setup lang="ts">
-// Settings → "Run defaults": default engine and permission mode. The default
+// Settings → "Run defaults": default engine, permission mode and effort. The default
 // model of each engine sits on its card in "Engines & accounts"; translation has
 // its own section (TranslateSettings).
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ShieldAlert, Sparkles } from 'lucide-vue-next'
 import { AppSelect, Card } from '@/components/ui'
+import { EFFORT_LEVELS } from '@/lib/engineOptions'
 import { useSettingsForm } from './useSettingsForm'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
+const effortOptions = computed(() => [
+  { value: '', label: t('settings.ai.effortEngineDefault') },
+  ...EFFORT_LEVELS.map((l) => ({ value: l, label: t(`settings.ai.effort.${l}`) })),
+])
 </script>
 
 <template>
@@ -45,6 +51,13 @@ const { settings } = useSettingsForm()
         />
         <p class="text-2xs text-muted-foreground leading-relaxed">
           {{ t('settings.ai.permissionHint') }}
+        </p>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEffort') }}</label>
+        <AppSelect size="sm" v-model="settings.default_effort" :options="effortOptions" />
+        <p class="text-2xs text-muted-foreground leading-relaxed">
+          {{ t('settings.ai.effortHint') }}
         </p>
       </div>
   </Card>

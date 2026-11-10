@@ -26,6 +26,9 @@ pub struct AppSettings {
     /// backend only round-trips the string.
     pub saved_prompts: String,
     pub default_permission_mode: String,
+    /// Default reasoning effort for new runs: "low" | "medium" | "high" | "xhigh" |
+    /// "max", or "" to let the engine decide. A run's own pick wins (`runs::resolve_effort`).
+    pub default_effort: String,
     /// Terminal app to open a project folder with, one of this OS's (`projects::terminal_apps`):
     /// "terminal" (Terminal.app) or "iterm" on macOS.
     pub terminal_app: String,
@@ -96,6 +99,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "animated_background",
     "saved_prompts",
     "default_permission_mode",
+    "default_effort",
     "terminal_app",
     "context_warn_percent",
     "context_limit_override",
@@ -156,6 +160,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         animated_background: "true".to_string(),
         saved_prompts: "[]".to_string(),
         default_permission_mode: "default".to_string(),
+        default_effort: String::new(),
         terminal_app: String::new(),
         context_warn_percent: "80".to_string(),
         context_limit_override: "".to_string(),
@@ -192,6 +197,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "animated_background" => settings.animated_background = value,
             "saved_prompts" => settings.saved_prompts = value,
             "default_permission_mode" => settings.default_permission_mode = value,
+            "default_effort" => settings.default_effort = value,
             "terminal_app" => settings.terminal_app = value,
             "context_warn_percent" => settings.context_warn_percent = value,
             "context_limit_override" => settings.context_limit_override = value,

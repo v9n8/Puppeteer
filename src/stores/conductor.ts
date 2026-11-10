@@ -82,6 +82,7 @@ export const useConductorStore = defineStore('conductor', () => {
       maxWorkers?: number
       engineOverride?: string
       modelOverride?: string
+      effortOverride?: string
       images?: ImageAttachment[]
       overrideBudget?: boolean
     },
@@ -92,6 +93,7 @@ export const useConductorStore = defineStore('conductor', () => {
       maxWorkers: opts.maxWorkers ?? null,
       engineOverride: opts.engineOverride ?? null,
       modelOverride: opts.modelOverride ?? null,
+      effortOverride: opts.effortOverride ?? null,
       permissionModeOverride: opts.permissionModeOverride,
       images: opts.images?.length ? opts.images : null,
       overrideBudget: opts.overrideBudget ?? false,

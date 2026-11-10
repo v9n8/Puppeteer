@@ -6,7 +6,7 @@
 // run (one persistent, multi-turn session).
 //
 // Protocol — IN (stdin, one JSON object per line):
-//   { "type": "prompt", "text": "...", "options": { model?, cwd?, resume?,
+//   { "type": "prompt", "text": "...", "options": { model?, effort?, cwd?, resume?,
 //        permissionMode?, allowedTools?, includePartialMessages?, noTools? } }
 //     noTools: true starts a session with NO tools at all (see applyNoTools).
 //     First prompt starts the session; later prompts are follow-up user turns.
@@ -324,6 +324,32 @@ function claudeMdOnly(options) {
   }
 }
 
+// Reasoning effort (UX-16). The options are fixed before the CLI starts, so the
+// SDK's per-model info (`supportedModels()`) is not there yet to check against.
+// This table copies the CLI's own checks instead (claude-agent-sdk 0.3.319): the
+// models below take no effort / no `xhigh` / no `max`; every other model —
+// newer ids, family aliases, the engine default — takes all five, and the CLI
+// still lowers a level its model cannot run. Same table as `claudeEffortLevels`
+// in src/lib/engineOptions.ts.
+const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max']
+const NO_EFFORT_MODELS = ['claude-opus-4-0', 'claude-opus-4-1', 'claude-sonnet-4-0', 'claude-sonnet-4-5', 'claude-haiku-4-5']
+const NO_XHIGH_MODELS = ['claude-opus-4-5', 'claude-opus-4-6', 'claude-sonnet-4-6']
+const NO_MAX_MODELS = ['claude-opus-4-5']
+// `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, `claude-opus-4-6[1m]`,
+// `claude-sonnet-4-5@20250929` → the bare model name.
+function canonicalClaudeModel(model) {
+  let m = String(model || '').trim().toLowerCase()
+  const at = m.indexOf('claude-')
+  if (at > 0) m = m.slice(at)
+  return m.replace(/\[.*\]$/, '').replace(/[@:].*$/, '').replace(/-v\d+$/, '').replace(/-\d{8}$/, '')
+}
+function claudeEffortLevels(model) {
+  const m = canonicalClaudeModel(model)
+  if (m.startsWith('claude-3-') || NO_EFFORT_MODELS.includes(m)) return []
+  return EFFORT_LEVELS.filter((l) =>
+    !(l === 'xhigh' && NO_XHIGH_MODELS.includes(m)) && !(l === 'max' && NO_MAX_MODELS.includes(m)))
+}
+
 let currentQuery = null
 let started = false
 let usageCaptureInFlight = false
@@ -420,6 +446,10 @@ function startQuery(firstText, opts = {}, firstImages) {
   // Model: explicit per-turn option wins, else the broker-provided env default.
   if (opts.model) options.model = opts.model
   else if (process.env.PUPPETEER_MODEL) options.model = process.env.PUPPETEER_MODEL
+  // Effort: same fallback as the model (a resumed first prompt has no options).
+  // A level the model cannot take is left out: the model's default applies.
+  const effort = opts.effort || process.env.PUPPETEER_EFFORT
+  if (effort && claudeEffortLevels(options.model).includes(effort)) options.effort = effort
   if (opts.cwd) options.cwd = opts.cwd
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).

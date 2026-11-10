@@ -22,6 +22,8 @@ export interface AppSettings {
   /** Reusable prompt library as a JSON array string; parse with `parseSavedPrompts`. */
   saved_prompts: string
   default_permission_mode: string
+  /** Default reasoning effort for new runs ('' = engine decides); see lib/engineOptions.ts EFFORT_LEVELS. */
+  default_effort: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string
