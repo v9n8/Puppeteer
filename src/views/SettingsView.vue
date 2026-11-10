@@ -23,6 +23,7 @@ import AwsAccountsSettings from '@/components/settings/AwsAccountsSettings.vue'
 import ClaudeAccountsSettings from '@/components/settings/ClaudeAccountsSettings.vue'
 import EnginePathsSettings from '@/components/settings/EnginePathsSettings.vue'
 import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
+import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import UsageBudgetSettings from '@/components/settings/UsageBudgetSettings.vue'
 import PromptTemplatesSettings from '@/components/settings/PromptTemplatesSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
@@ -32,8 +33,7 @@ import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useFeaturesStore } from '@/stores/features'
-import { allowsFeature } from '@/lib/featureGate'
-import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/lib/settingsSections'
+import { SETTINGS_SECTIONS, settingsNav, type SettingsSectionId } from '@/lib/settingsSections'
 import { useBudgetStore } from '@/stores/budget'
 
 const { t } = useI18n()
@@ -105,12 +105,12 @@ onUnmounted(() => {
   if (unlistenBudgetStatus) unlistenBudgetStatus()
 })
 
-// A section whose feature is off (AWS, Azure, Google) is hidden; when it is the open
-// one (switched off meanwhile, or a deep link), fall back to General.
+// A section whose feature is off (AWS, Azure, Google) is hidden, and a group left
+// empty loses its heading; when the open section is hidden (switched off meanwhile,
+// or a deep link), fall back to General.
 const features = useFeaturesStore()
-const visibleSections = computed(() =>
-  SECTIONS.filter((s) => allowsFeature(features.tree, 'feature' in s ? s.feature : undefined)),
-)
+const nav = computed(() => settingsNav(SECTIONS, features.tree))
+const visibleSections = computed(() => nav.value.flatMap((g) => g.sections))
 watch([visibleSections, activeSection, () => features.loaded], ([list, active, loaded]) => {
   if (loaded && !list.some((s) => s.id === active)) activeSection.value = 'general'
 }, { immediate: true })
@@ -125,34 +125,39 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
     <div class="flex-1 flex min-h-0">
       <!-- Section nav -->
       <nav class="w-48 shrink-0 border-r border-border/60 p-3 overflow-auto">
-        <button
-          v-for="s in visibleSections"
-          :key="s.id"
-          class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
-          :class="activeSection === s.id
-            ? 'bg-accent text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
-          @click="activeSection = s.id"
-        >
-          <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          <span class="truncate">{{ t(s.labelKey) }}</span>
-          <span
-            v-if="s.id === 'github' && ghCount"
-            class="ml-auto text-2xs tabular-nums text-muted-foreground"
-          >{{ ghCount }}</span>
-          <span
-            v-if="s.id === 'gitlab' && glCount"
-            class="ml-auto text-2xs tabular-nums text-muted-foreground"
-          >{{ glCount }}</span>
-          <span
-            v-if="s.id === 'aws' && awsCount"
-            class="ml-auto text-2xs tabular-nums text-muted-foreground"
-          >{{ awsCount }}</span>
-          <span
-            v-if="s.id === 'azure' && azureCount"
-            class="ml-auto text-2xs tabular-nums text-muted-foreground"
-          >{{ azureCount }}</span>
-        </button>
+        <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
+          <div class="px-2.5 pb-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            {{ t(g.labelKey) }}
+          </div>
+          <button
+            v-for="s in g.sections"
+            :key="s.id"
+            class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
+            :class="activeSection === s.id
+              ? 'bg-accent text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
+            @click="activeSection = s.id"
+          >
+            <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+            <span class="truncate">{{ t(s.labelKey) }}</span>
+            <span
+              v-if="s.id === 'github' && ghCount"
+              class="ml-auto text-2xs tabular-nums text-muted-foreground"
+            >{{ ghCount }}</span>
+            <span
+              v-if="s.id === 'gitlab' && glCount"
+              class="ml-auto text-2xs tabular-nums text-muted-foreground"
+            >{{ glCount }}</span>
+            <span
+              v-if="s.id === 'aws' && awsCount"
+              class="ml-auto text-2xs tabular-nums text-muted-foreground"
+            >{{ awsCount }}</span>
+            <span
+              v-if="s.id === 'azure' && azureCount"
+              class="ml-auto text-2xs tabular-nums text-muted-foreground"
+            >{{ azureCount }}</span>
+          </button>
+        </div>
       </nav>
 
       <!-- Active section panel -->
@@ -173,6 +178,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <ClaudeAccountsSettings v-show="activeSection === 'claude'" />
         <EnginePathsSettings v-show="activeSection === 'engine'" />
         <AiModelsSettings v-show="activeSection === 'ai'" />
+        <TranslateSettings v-show="activeSection === 'translate'" />
         <UsageBudgetSettings v-show="activeSection === 'usage'" />
         <PromptTemplatesSettings v-show="activeSection === 'prompts'" />
 

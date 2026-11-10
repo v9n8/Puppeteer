@@ -9,6 +9,7 @@
     "claude": "Tài khoản Claude",
     "engine": "Đường dẫn Engine",
     "ai": "AI & Model",
+    "translate": "Dịch",
     "google": "Tài khoản Google",
     "usage": "Sử dụng & Ngân sách",
     "devices": "Thiết bị",
@@ -19,6 +20,12 @@
     "features": "Tính năng",
     "palette": "Bảng lệnh nhanh",
     "keymap": "Phím tắt"
+  },
+  "groups": {
+    "general": "Chung",
+    "ai": "AI",
+    "connections": "Kết nối",
+    "system": "Hệ thống"
   },
   "devicesTabs": {
     "remote": "Điều khiển từ xa",
@@ -268,14 +275,16 @@
     "permPlan": "Chỉ lập kế hoạch (chỉ đọc)",
     "permAuto": "Tự động (bộ phân loại)",
     "permBypass": "Bỏ qua mọi quyền",
-    "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Hỏi qua UI\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua tất cả\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run.",
-    "translation": "Dịch thuật",
-    "translationHint": "Dùng cho tính năng dịch đoạn văn bản bôi đen trong màn Run AI.",
-    "translateEngine": "Engine dịch",
-    "translateModel": "Model dịch",
-    "translateModelHint": "\"Default\" → chọn model nhanh (Claude dùng Haiku) để dịch nhanh hơn.",
+    "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Hỏi qua UI\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua tất cả\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run."
+  },
+  "translate": {
+    "title": "Dịch",
+    "hint": "Dùng cho tính năng dịch đoạn văn bản bôi đen trong màn Run AI.",
+    "engine": "Engine dịch",
+    "model": "Model dịch",
+    "modelHint": "\"Default\" → chọn model nhanh (Claude dùng Haiku) để dịch nhanh hơn.",
     "targetLanguage": "Ngôn ngữ đích",
-    "translationStyle": "Phong cách dịch",
+    "style": "Phong cách dịch",
     "styleNatural": "Natural — thoát ý, tự nhiên",
     "styleLiteral": "Literal — sát nghĩa",
     "styleTechnical": "Technical — giữ thuật ngữ/code",

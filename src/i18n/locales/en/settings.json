@@ -9,6 +9,7 @@
     "claude": "Claude Accounts",
     "engine": "Engine Paths",
     "ai": "AI & Models",
+    "translate": "Translation",
     "google": "Google Account",
     "usage": "Usage & Budget",
     "devices": "Devices",
@@ -19,6 +20,12 @@
     "features": "Features",
     "palette": "Command Palette",
     "keymap": "Keyboard Shortcuts"
+  },
+  "groups": {
+    "general": "General",
+    "ai": "AI",
+    "connections": "Connections",
+    "system": "System"
   },
   "devicesTabs": {
     "remote": "Remote Control",
@@ -268,14 +275,16 @@
     "permPlan": "Plan only (read-only)",
     "permAuto": "Auto (classifier)",
     "permBypass": "Bypass all permissions",
-    "permissionHint": "How tool calls are gated (Claude & Codex). \"Ask via UI\" surfaces each request in a modal; \"Bypass all\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen.",
-    "translation": "Translation",
-    "translationHint": "Used for translating highlighted text in the Run AI screen.",
-    "translateEngine": "Translate engine",
-    "translateModel": "Translate model",
-    "translateModelHint": "\"Default\" → picks a fast model (Claude uses Haiku) for faster translation.",
+    "permissionHint": "How tool calls are gated (Claude & Codex). \"Ask via UI\" surfaces each request in a modal; \"Bypass all\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen."
+  },
+  "translate": {
+    "title": "Translation",
+    "hint": "Used for translating highlighted text in the Run AI screen.",
+    "engine": "Translate engine",
+    "model": "Translate model",
+    "modelHint": "\"Default\" → picks a fast model (Claude uses Haiku) for faster translation.",
     "targetLanguage": "Target language",
-    "translationStyle": "Translation style",
+    "style": "Translation style",
     "styleNatural": "Natural — fluent, natural phrasing",
     "styleLiteral": "Literal — close to the source",
     "styleTechnical": "Technical — keep terms/code",

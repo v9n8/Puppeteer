@@ -1,35 +1,17 @@
 <script setup lang="ts">
-// Settings → "AI & Models": run defaults (engine, models, permission mode) and
-// translation of highlighted text, grouped together.
-import { computed, onMounted, watch } from 'vue'
+// Settings → "AI & Models": run defaults (engine, models, permission mode).
+// Translation has its own section (TranslateSettings).
 import { useI18n } from 'vue-i18n'
 import { BadgeCheck, Cpu, Loader2, RefreshCw, ShieldAlert, Sparkles } from 'lucide-vue-next'
 import { AppSelect, Card } from '@/components/ui'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
 import { useSettingsForm } from './useSettingsForm'
+import { useModelOptions } from './useModelOptions'
 
 const { t } = useI18n()
 const modelCatalog = useModelCatalogStore()
 const { settings } = useSettingsForm()
-
-// Claude model choices = the pinned table, annotated with the last validation
-// sweep, plus whatever is already saved (so an id dropped from the table — or a
-// family alias from an older build — is never silently rewritten).
-const claudeModelOptions = computed(() =>
-  modelCatalog.withValidation(
-    withCurrentModel(CLAUDE_MODEL_OPTIONS, settings.value.claude_model),
-  ),
-)
-// Codex model choices = curated fallback, replaced by the CLI-refreshed cache
-// (`codex debug models`) once the user refreshes in Settings.
-const codexModelOptions = computed(() => modelCatalog.codexOptions(CODEX_MODEL_OPTIONS))
-
-// Translation model choices follow the chosen translation engine, reusing the
-// same option tables (with cached models merged in) as the selectors.
-const translateModelOptions = computed(() =>
-  settings.value.translate_engine === 'codex' ? codexModelOptions.value : claudeModelOptions.value,
-)
+const { claudeModelOptions, codexModelOptions } = useModelOptions()
 
 /** Format a cache timestamp for the "last refreshed" hint. */
 function fmtRefreshed(iso: string | null | undefined): string {
@@ -37,49 +19,6 @@ function fmtRefreshed(iso: string | null | undefined): string {
   const d = new Date(iso)
   return isNaN(d.getTime()) ? '' : d.toLocaleString()
 }
-// Reset the translation model when switching to an engine that doesn't offer it.
-watch(
-  () => settings.value.translate_engine,
-  () => {
-    if (!translateModelOptions.value.some((o) => o.value === settings.value.translate_model)) {
-      settings.value.translate_model = ''
-    }
-  },
-)
-
-const TRANSLATE_TARGET_OPTIONS = [
-  { value: 'vi', label: 'Tiếng Việt' },
-  { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語 (Japanese)' },
-  { value: 'zh', label: '中文 (Chinese)' },
-  { value: 'ko', label: '한국어 (Korean)' },
-]
-const TRANSLATE_STYLE_OPTIONS = computed(() => [
-  { value: 'natural', label: t('settings.ai.styleNatural') },
-  { value: 'literal', label: t('settings.ai.styleLiteral') },
-  { value: 'technical', label: t('settings.ai.styleTechnical') },
-  { value: 'formal', label: t('settings.ai.styleFormal') },
-  { value: 'casual', label: t('settings.ai.styleCasual') },
-])
-
-// The pinned Claude table, shared with the composer and the remote controller.
-// Only the leading "Default" placeholder is translated; the rest are model ids.
-const CLAUDE_MODEL_OPTIONS = MODEL_OPTIONS.claude.map((o) =>
-  o.value === '' ? { ...o, label: t('settings.ai.modelDefault') } : o,
-)
-const CODEX_MODEL_OPTIONS = [
-  { value: '', label: t('settings.ai.modelDefault') },
-  { value: 'gpt-5.5', label: 'gpt-5.5' },
-  { value: 'gpt-5.4', label: 'gpt-5.4' },
-  { value: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
-  { value: 'gpt-5.2-codex', label: 'gpt-5.2-codex' },
-  { value: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
-]
-
-onMounted(() => {
-  // Hydrate the persisted model caches (no discovery — refresh is manual).
-  modelCatalog.ensureLoaded().catch(() => {})
-})
 </script>
 
 <template>
@@ -89,7 +28,7 @@ onMounted(() => {
       <span class="text-xs font-semibold">{{ t('settings.ai.title') }}</span>
     </template>
 
-      <!-- Group 1: run defaults -->
+      <!-- Run defaults -->
       <div class="space-y-4">
         <div class="flex items-center gap-1.5 text-muted-foreground">
           <Cpu class="h-3 w-3" :stroke-width="1.75" />
@@ -162,43 +101,6 @@ onMounted(() => {
           <p class="text-2xs text-muted-foreground leading-relaxed">
             {{ t('settings.ai.permissionHint') }}
           </p>
-        </div>
-      </div>
-
-      <div class="h-px bg-border" />
-
-      <!-- Group 2: translation of highlighted text -->
-      <div class="space-y-4">
-        <div class="flex items-center gap-1.5 text-muted-foreground">
-          <Sparkles class="h-3 w-3" :stroke-width="1.75" />
-          <span class="text-2xs font-semibold uppercase tracking-wider">{{ t('settings.ai.translation') }}</span>
-        </div>
-        <p class="text-2xs text-muted-foreground leading-relaxed">
-          {{ t('settings.ai.translationHint') }}
-        </p>
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateEngine') }}</label>
-          <AppSelect
-            size="sm"
-            v-model="settings.translate_engine"
-            :options="[
-              { value: 'claude', label: 'claude' },
-              { value: 'codex', label: 'codex' },
-            ]"
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translateModel') }}</label>
-          <AppSelect size="sm" v-model="settings.translate_model" :options="translateModelOptions" />
-          <p class="text-2xs text-muted-foreground">{{ t('settings.ai.translateModelHint') }}</p>
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.targetLanguage') }}</label>
-          <AppSelect size="sm" v-model="settings.translate_target_lang" :options="TRANSLATE_TARGET_OPTIONS" />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.translationStyle') }}</label>
-          <AppSelect size="sm" v-model="settings.translate_style" :options="TRANSLATE_STYLE_OPTIONS" />
         </div>
       </div>
   </Card>

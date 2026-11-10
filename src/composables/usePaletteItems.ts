@@ -12,7 +12,7 @@ import {
 import { NAV_ROUTES } from '@/lib/navigation'
 import { MENU_ACTION_FEATURES } from '@/lib/featureGate'
 import { isMenuActionBound, runMenuAction } from '@/lib/appMenu'
-import { SETTINGS_SECTIONS } from '@/lib/settingsSections'
+import { SETTINGS_SECTIONS, groupLabelKey } from '@/lib/settingsSections'
 import { parseSavedPrompts, promptLabel } from '@/lib/savedPrompts'
 import { focusSessionWindow } from '@/lib/sessionWindow'
 import type { PaletteItem } from '@/lib/commandPalette'
@@ -124,7 +124,7 @@ export function usePaletteItems() {
       id: `settings.${s.id}`,
       group: 'settings',
       label: t(s.labelKey),
-      detail: t('nav.settings'),
+      detail: `${t('nav.settings')} · ${t(groupLabelKey(s.group))}`,
       icon: s.icon,
       feature: 'feature' in s ? s.feature : undefined,
       run: () => router.push({ path: '/settings', query: { section: s.id } }).catch(() => {}),
