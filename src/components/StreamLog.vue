@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, type Component } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ChevronRight, Wrench, Sparkles, CheckCircle2, XCircle, Cpu, Brain, AlertTriangle, Info,
@@ -15,10 +15,12 @@ import IdeContextChip from './IdeContextChip.vue'
 import DiffView from './DiffView.vue'
 import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
 import MessageFullscreen from './sessions/MessageFullscreen.vue'
+import TurnActivityHeader from './sessions/TurnActivityHeader.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
 import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFooter } from '@/lib/turnActions'
+import { activityMatches, activityOpen, turnActivity, type TurnActivity, type TurnActivityMap } from '@/lib/turnActivity'
 
 const { t } = useI18n()
 
@@ -31,6 +33,13 @@ const props = defineProps<{
   fileMatcher?: (raw: string) => string | null
   /** No row of buttons under each turn (the whole-turn fullscreen nests a log). */
   noTurnActions?: boolean
+  /** Fold each turn's tool calls, thinking and commentary under one header. */
+  groupSteps?: boolean
+  /** The viewer's "expand all": every block starts open, not only the running turn's. */
+  stepsExpanded?: boolean
+  /** The ⌘F query while the bar is open, so a folded block holding a match opens. */
+  findQuery?: string
+  findCaseSensitive?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -794,6 +803,89 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
   return false
 }
 
+// ── Folded turn work (tool calls · thinking · commentary) ─────────────────────
+// lib/turnActivity decides which entries fold; the header sits above a block's
+// first entry and folded entries are simply not rendered, so every other entry
+// (prompts with their `data-user-turn` landmark, answers, the rows of buttons)
+// keeps its place in this flat list. Like the rows, it reads no growing text,
+// so a streamed chunk does not recompute it.
+const NO_ACTIVITY: TurnActivityMap = { blocks: [], memberOf: new Map(), headerAt: new Map() }
+const activity = computed(() =>
+  props.groupSteps ? turnActivity(props.entries, !!props.running) : NO_ACTIVITY,
+)
+
+// The reader's open / closed choice per block, keyed by the block's turn prompt
+// (by identity, not index: older history prepended shifts every index).
+const blockIds = new WeakMap<object, number>()
+let nextBlockId = 0
+function blockId(b: TurnActivity): number {
+  const key = toRaw(props.entries[b.keyAt]) as object
+  let id = blockIds.get(key)
+  if (id === undefined) {
+    id = nextBlockId++
+    blockIds.set(key, id)
+  }
+  return id
+}
+const blockChoice = ref<Record<number, boolean>>({})
+// Flipping "expand all" is a fresh start: it overrides every per-block choice.
+watch(() => props.stepsExpanded, () => { blockChoice.value = {} })
+
+// Blocks whose visible text holds the ⌘F query: they open so the in-page
+// highlight (which searches the DOM) can reach the match.
+const findHits = computed(() => {
+  const hits = new Set<number>()
+  const q = props.findQuery
+  if (!q) return hits
+  activity.value.blocks.forEach((b, bi) => {
+    if (activityMatches(props.entries, b, q, !!props.findCaseSensitive)) hits.add(bi)
+  })
+  return hits
+})
+// A search beats an earlier "close": drop the choice on blocks it hits, so the
+// reader can still close one again while the bar is open.
+watch(findHits, (hits) => {
+  const next = { ...blockChoice.value }
+  let changed = false
+  for (const bi of hits) {
+    const id = blockId(activity.value.blocks[bi])
+    if (id in next) {
+      delete next[id]
+      changed = true
+    }
+  }
+  if (changed) blockChoice.value = next
+})
+
+const blockOpen = computed(() =>
+  activity.value.blocks.map((b, bi) =>
+    activityOpen(b, {
+      choice: blockChoice.value[blockId(b)],
+      findHit: findHits.value.has(bi),
+      expandAll: props.stepsExpanded,
+    }),
+  ),
+)
+
+function toggleBlock(bi: number) {
+  const b = activity.value.blocks[bi]
+  if (b) blockChoice.value = { ...blockChoice.value, [blockId(b)]: !blockOpen.value[bi] }
+}
+
+function isFolded(i: number): boolean {
+  const bi = activity.value.memberOf.get(i)
+  return bi !== undefined && !blockOpen.value[bi]
+}
+
+// How a shown entry sits in its block: on the rail, or on its last stretch
+// (no rail tail below it). '' = not in a block. Also a v-memo dependency.
+function stepClass(i: number): '' | 'turn-step' | 'turn-step turn-step-last' {
+  const bi = activity.value.memberOf.get(i)
+  if (bi === undefined) return ''
+  const m = activity.value.blocks[bi].members
+  return m[m.length - 1] === i ? 'turn-step turn-step-last' : 'turn-step'
+}
+
 // A tool result attaches to its entry AFTER the tool call is first rendered
 // (same object, mutated in place). v-memo compares by reference, so we surface
 // it as an explicit memo dependency — this is the one in-place mutation an
@@ -822,15 +914,30 @@ function toolResult(e: StreamEntry): unknown {
            skipping is a loss there, and that stutter is what the reader feels.
            The last entry is excluded while streaming: it's always in view and
            its height changes every chunk, which makes the placeholder thrash. -->
+      <!-- Header of the turn's folded work, above its first step. Open, it
+           hugs the rail the steps hang from. -->
+      <div
+        v-if="activity.headerAt.has(i)"
+        :class="{ 'turn-activity-open': blockOpen[activity.headerAt.get(i)!] }"
+      >
+        <TurnActivityHeader
+          :block="activity.blocks[activity.headerAt.get(i)!]"
+          :open="blockOpen[activity.headerAt.get(i)!]"
+          @toggle="toggleBlock(activity.headerAt.get(i)!)"
+        />
+      </div>
       <!-- `data-user-turn` marks the reader's landmarks: the turn navigator in
            RunView walks these to jump between the user's own messages. On the
-           wrapper, not the bubble, so the jump lands on the top of the turn. -->
+           wrapper, not the bubble, so the jump lands on the top of the turn.
+           Prompts never fold, so the landmarks are always there. -->
+      <template v-if="!isFolded(i)">
       <div
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
-        :class="{ 'stream-entry': running && i !== entries.length - 1 }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i)]"
+        :class="{ 'stream-entry': running && i !== entries.length - 1, 'turn-step-wrap': stepClass(i) === 'turn-step' }"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i)]"
       >
+      <div :class="stepClass(i)">
       <!-- System init banner -->
       <div
         v-if="entry.kind === 'system'"
@@ -1443,6 +1550,7 @@ function toolResult(e: StreamEntry): unknown {
         <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
         <span class="whitespace-pre-wrap">{{ entry.text }}</span>
       </div>
+      </div><!-- /block rail -->
 
       <!-- Row of buttons ending a turn: under the question bubble (aligned with
            it, past the avatar), after the answer's last entry. The row reads its
@@ -1461,6 +1569,19 @@ function toolResult(e: StreamEntry): unknown {
         />
       </div>
       </div><!-- /v-memo per-entry wrapper -->
+      </template>
+      <!-- A turn ending on a tool call ends inside its block: keep its row of
+           buttons in view while the block is folded. -->
+      <div v-else-if="footers.has(i)" class="mt-1">
+        <MsgActions
+          :side="footers.get(i)!.side"
+          :has-text="footers.get(i)!.hasText"
+          :rewind-turn="footers.get(i)!.rewindTurn"
+          :prompt-at="turnPromptAt(footers.get(i)!)"
+          :state="msgActionsState"
+          :run="(action) => runTurnAction(i, action)"
+        />
+      </div>
     </template>
 
     <!-- Running indicator -->
@@ -1513,6 +1634,24 @@ function toolResult(e: StreamEntry): unknown {
 </template>
 
 <style scoped>
+/* A turn's folded work hangs from a rail under its header. The log spaces its
+   entries with `space-y-3` (a bottom margin); on the rail that gap becomes
+   padding instead, so the line runs unbroken from one step to the next. */
+.turn-activity-open {
+  margin-block-end: 0.125rem;
+}
+.turn-step-wrap {
+  margin-block-end: 0;
+}
+.turn-step {
+  margin-left: 0.6rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid hsl(var(--border));
+}
+.turn-step:not(.turn-step-last) {
+  padding-block-end: 0.75rem;
+}
+
 /* Icon: gentle breathing glow + subtle rotation to feel "alive". */
 .thinking-icon {
   animation: thinking-icon-pulse 1.8s ease-in-out infinite;

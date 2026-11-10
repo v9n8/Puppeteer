@@ -74,6 +74,21 @@ function loadTimelineHeight(): number {
   return TIMELINE_DEFAULT_HEIGHT
 }
 
+/**
+ * Session log: show the steps (tool calls, thinking, commentary) of every turn
+ * instead of folding finished turns under a one-line summary (StreamLog
+ * `stepsExpanded`). A lasting reading preference, persisted like `listDensity`.
+ */
+const STEPS_EXPANDED_KEY = 'puppeteer.turnStepsExpanded'
+
+function loadStepsExpanded(): boolean {
+  try {
+    return localStorage.getItem(STEPS_EXPANDED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function loadSidebarHidden(): boolean {
   try {
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
@@ -138,6 +153,18 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     }
   }
 
+  const stepsExpanded = ref(loadStepsExpanded())
+
+  function setStepsExpanded(expanded: boolean) {
+    stepsExpanded.value = expanded
+    try {
+      if (expanded) localStorage.setItem(STEPS_EXPANDED_KEY, '1')
+      else localStorage.removeItem(STEPS_EXPANDED_KEY)
+    } catch {
+      /* storage unavailable — the in-memory flag still works for this session */
+    }
+  }
+
   return {
     focusMode,
     toggleFocus,
@@ -150,5 +177,7 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     setTimelineOpen,
     timelineHeight,
     setTimelineHeight,
+    stepsExpanded,
+    setStepsExpanded,
   }
 })

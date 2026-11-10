@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus, Bookmark,
+  ChevronsDownUp, ChevronsUpDown,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
@@ -16,6 +17,7 @@ import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
 import { useRunSession } from './useRunSession'
+import { useUILayoutStore } from '@/stores/uiLayout'
 
 const { t } = useI18n()
 const {
@@ -32,6 +34,7 @@ const {
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile,
 } = useRunSession()
+const uiLayout = useUILayoutStore()
 
 // Directive for RunView's own markdown containers (issue/PR Content, legacy
 // HTML). Marks inline `<code>` that names a project file as a clickable link.
@@ -262,6 +265,19 @@ function onOpenUrl(url: string) {
                 </DropdownItem>
               </div>
             </DropdownMenu>
+            <!-- Show the steps of every turn, or fold finished turns (the
+                 default). Remembered for this viewer. -->
+            <button
+              v-if="isViewingHistory ? historyHasStream : liveHasStream"
+              type="button"
+              class="flex items-center h-6 rounded border border-border px-1 text-foreground/60 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+              :class="{ 'bg-primary/15 text-primary border-primary/30': uiLayout.stepsExpanded }"
+              :title="uiLayout.stepsExpanded ? t('streamLog.activity.collapseAll') : t('streamLog.activity.expandAll')"
+              :aria-pressed="uiLayout.stepsExpanded"
+              @click="uiLayout.setStepsExpanded(!uiLayout.stepsExpanded)"
+            >
+              <component :is="uiLayout.stepsExpanded ? ChevronsDownUp : ChevronsUpDown" class="h-3.5 w-3.5" :stroke-width="1.75" />
+            </button>
             <!-- Issue / PR runs only: opens the fetched Content as a left
                  split column. Sessions have no Content to show. -->
             <button
@@ -345,6 +361,10 @@ function onOpenUrl(url: string) {
             :running="false"
             :render-text="renderText"
             :file-matcher="fileMatcher"
+            group-steps
+            :steps-expanded="uiLayout.stepsExpanded"
+            :find-query="findOpen ? runFind.query.value : ''"
+            :find-case-sensitive="runFind.caseSensitive.value"
             @open-file="openFile"
             @open-url="onOpenUrl"
           />
@@ -386,6 +406,10 @@ function onOpenUrl(url: string) {
           :running="currentStatus === 'running'"
           :render-text="renderText"
           :file-matcher="fileMatcher"
+          group-steps
+          :steps-expanded="uiLayout.stepsExpanded"
+          :find-query="findOpen ? runFind.query.value : ''"
+          :find-case-sensitive="runFind.caseSensitive.value"
           @open-file="openFile"
           @open-url="onOpenUrl"
         />

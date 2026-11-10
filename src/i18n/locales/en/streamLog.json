@@ -70,5 +70,15 @@
     "questionTitle": "Question",
     "answerTitle": "Answer",
     "turnTitle": "Whole turn"
+  },
+  "activity": {
+    "steps": "{count} step | {count} steps",
+    "filesEdited": "{count} file edited | {count} files edited",
+    "errors": "{count} error | {count} errors",
+    "working": "working…",
+    "expand": "Show this turn's steps",
+    "collapse": "Hide this turn's steps",
+    "expandAll": "Show the steps of every turn",
+    "collapseAll": "Fold the steps of finished turns"
   }
 }

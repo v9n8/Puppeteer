@@ -70,5 +70,15 @@
     "questionTitle": "Câu hỏi",
     "answerTitle": "Câu trả lời",
     "turnTitle": "Cả lượt"
+  },
+  "activity": {
+    "steps": "{count} bước | {count} bước",
+    "filesEdited": "sửa {count} file | sửa {count} file",
+    "errors": "{count} lỗi | {count} lỗi",
+    "working": "đang làm…",
+    "expand": "Hiện các bước của lượt này",
+    "collapse": "Ẩn các bước của lượt này",
+    "expandAll": "Hiện các bước của mọi lượt",
+    "collapseAll": "Thu gọn các bước của lượt đã xong"
   }
 }
