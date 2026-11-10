@@ -21,10 +21,6 @@ pub struct AppSettings {
     /// Enable the animated decorative background for scenic themes (e.g. the
     /// Full Moon night scene). "true" (default) | "false".
     pub animated_background: String,
-    /// User's reusable prompt library, stored as a JSON array of
-    /// `{ id, title, body }`. Defaults to `"[]"`. The UI owns the shape; the
-    /// backend only round-trips the string.
-    pub saved_prompts: String,
     pub default_permission_mode: String,
     /// Default reasoning effort for new runs: "low" | "medium" | "high" | "xhigh" |
     /// "max", or "" to let the engine decide. A run's own pick wins (`runs::resolve_effort`).
@@ -97,6 +93,9 @@ pub struct AppSettings {
 /// they are machine-specific binary paths. Internal bookkeeping keys (usage snapshots, balancer
 /// state, Inbox API token, the `feature._seeded` flag…) are never exported. The feature switches
 /// travel too, but come from the registry: see [`is_portable_setting`].
+///
+/// `saved_prompts` (the removed Prompt Templates) is gone from this list: an older backup may
+/// still carry it, and the import skips it like any key not listed here. Its row stays in the DB.
 pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "default_engine",
     "claude_model",
@@ -106,7 +105,6 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "language",
     "color_theme",
     "animated_background",
-    "saved_prompts",
     "default_permission_mode",
     "default_effort",
     "default_style",
@@ -170,7 +168,6 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         language: "en".to_string(),
         color_theme: "default".to_string(),
         animated_background: "true".to_string(),
-        saved_prompts: "[]".to_string(),
         default_permission_mode: "default".to_string(),
         default_effort: String::new(),
         default_style: String::new(),
@@ -210,7 +207,6 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "language" => settings.language = value,
             "color_theme" => settings.color_theme = value,
             "animated_background" => settings.animated_background = value,
-            "saved_prompts" => settings.saved_prompts = value,
             "default_permission_mode" => settings.default_permission_mode = value,
             "default_effort" => settings.default_effort = value,
             "default_style" => settings.default_style = value,

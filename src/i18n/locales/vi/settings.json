@@ -9,7 +9,6 @@
     "translate": "Dịch",
     "sessions": "Session",
     "devices": "Thiết bị",
-    "prompts": "Mẫu Prompt",
     "inbox": "Inbox API",
     "focus": "Focus",
     "features": "Tính năng",
@@ -323,19 +322,6 @@
     "stopRunningNoBlock": "Hãy đặt mức chặn trước: tuỳ chọn này dựa vào mức chặn cửa sổ 5h hoặc cửa sổ tuần.",
     "emptyOff": "để trống = tắt"
   },
-  "prompts": {
-    "title": "Mẫu Prompt",
-    "library": "Prompt hay dùng",
-    "libraryHint": "Chọn lại từ dropdown trong khung chat để khỏi gõ lại.",
-    "libraryEmpty": "Chưa có prompt nào được lưu.",
-    "addPrompt": "Thêm prompt",
-    "dragToReorder": "Kéo để sắp xếp",
-    "deleteTitle": "Xóa prompt này?",
-    "deleteMessage": "Prompt sẽ bị xóa khỏi thư viện và không thể khôi phục.",
-    "untitled": "Prompt {n} (chưa đặt tên)",
-    "titlePlaceholder": "Tên prompt {n}",
-    "bodyPlaceholder": "Nội dung prompt sẽ chèn vào khung chat…"
-  },
   "toast": {
     "saved": "Đã lưu"
   },
@@ -396,7 +382,7 @@
   },
   "backup": {
     "title": "Sao lưu ra file",
-    "help": "Xuất toàn bộ cấu hình Puppeteer ra một file và nhập trên máy khác: cài đặt, prompt đã lưu, thư viện Skills / Rules kèm nhóm, MCP server, VPS server, tài khoản (GitHub, GitLab, AWS, Azure, Google, Claude), ghi chú / todo và Slack thread (kèm bản dịch; file đính kèm được tải lại) và Project (repo, Skills / Rules / nhóm, MCP và VPS server đã bật, tài khoản gắn kèm). Lịch sử Session vẫn ở máy này.",
+    "help": "Xuất toàn bộ cấu hình Puppeteer ra một file và nhập trên máy khác: cài đặt, thư viện Skills / Rules kèm nhóm, MCP server, VPS server, tài khoản (GitHub, GitLab, AWS, Azure, Google, Claude), ghi chú / todo và Slack thread (kèm bản dịch; file đính kèm được tải lại) và Project (repo, Skills / Rules / nhóm, MCP và VPS server đã bật, tài khoản gắn kèm). Lịch sử Session vẫn ở máy này.",
     "export": {
       "title": "Xuất",
       "includeSecrets": "Kèm secret (mã hoá)",

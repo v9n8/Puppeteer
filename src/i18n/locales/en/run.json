@@ -137,8 +137,6 @@
   "dropFileToAttach": "Drop files to attach to the conversation",
   "attachFile": "Attach files or images (images go inline; other files by path — or drag & drop / paste)",
   "imageAttachedByPath": "Couldn't inline the image, attached it by path instead: {error}",
-  "savedPrompts": "Insert a saved prompt",
-  "savedPromptsSearch": "Search prompts…",
   "checklist": {
     "title": "Agent checklist — edit it and add it to your message",
     "heading": "Agent checklist",

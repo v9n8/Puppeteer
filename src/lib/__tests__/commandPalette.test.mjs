@@ -41,7 +41,6 @@ const items = [
   { id: 'go./search', group: 'nav', label: 'Search', feature: 'sessions.cross_session_search' },
   { id: 'session:r1', group: 'session', label: 'Sửa lỗi đăng nhập', detail: 'Puppeteer' },
   { id: 'project:p1', group: 'project', label: 'Puppeteer', detail: '/Users/me/Puppeteer' },
-  { id: 'prompt:a', group: 'prompt', label: 'Review code', detail: 'Review the diff' },
   { id: 'settings.general', group: 'settings', label: 'Cài đặt chung' },
 ]
 
@@ -59,25 +58,53 @@ test('parsePaletteConfig: missing or malformed values give the defaults', () => 
 test('parsePaletteConfig: keeps a stored order, drops unknown groups, appends new ones', () => {
   const config = parsePaletteConfig(JSON.stringify({
     groups: [
-      { id: 'prompt', enabled: false },
+      { id: 'project', enabled: false },
       { id: 'nope', enabled: true },
       { id: 'nav' },
-      { id: 'prompt', enabled: true },
+      { id: 'project', enabled: true },
       'session',
     ],
     pinned: ['go./skills', 'go./skills', '', 7, 'project:p1'],
     hidden: ['project:p1', 'session:x'],
   }))
   assert.deepEqual(config.groups, [
-    { id: 'prompt', enabled: false },
+    { id: 'project', enabled: false },
     { id: 'nav', enabled: true },
     { id: 'session', enabled: true },
-    { id: 'project', enabled: true },
     { id: 'settings', enabled: true },
   ])
   // Deduplicated, and a hidden item is never pinned.
   assert.deepEqual(config.pinned, ['go./skills'])
   assert.deepEqual(config.hidden, ['project:p1', 'session:x'])
+})
+
+// The saved prompts group (Settings → Prompt Templates) was removed: a layout
+// stored before still names it and its items.
+test('parsePaletteConfig: a layout from before the prompt group was removed still works', () => {
+  const config = parsePaletteConfig(JSON.stringify({
+    groups: [
+      { id: 'prompt', enabled: true },
+      { id: 'settings', enabled: false },
+      { id: 'nav', enabled: true },
+      { id: 'session', enabled: true },
+      { id: 'project', enabled: true },
+    ],
+    pinned: ['prompt:a', 'project:p1'],
+    hidden: ['prompt:b', 'settings.prompts'],
+  }))
+  assert.deepEqual(config.groups.map((g) => g.id), ['settings', 'nav', 'session', 'project'])
+  assert.equal(config.groups[0].enabled, false)
+  // Stale ids are kept, so Settings → Command palette can still unpin / show them,
+  // but the palette lists nothing for them.
+  assert.deepEqual(config.pinned, ['prompt:a', 'project:p1'])
+  assert.deepEqual(config.hidden, ['prompt:b', 'settings.prompts'])
+  assert.deepEqual(ids(paletteSections(items, config, tree, '')), [
+    ['pinned', ['project:p1']],
+    ['nav', ['go./projects', 'go./search']],
+    ['session', ['session:r1']],
+  ])
+  assert.deepEqual(togglePinned(config, 'prompt:a').pinned, ['project:p1'])
+  assert.deepEqual(unhideItem(config, 'prompt:b').hidden, ['settings.prompts'])
 })
 
 test('serializePaletteConfig round-trips', () => {
@@ -91,11 +118,11 @@ test('serializePaletteConfig round-trips', () => {
 
 test('moveGroup reorders and clamps; setGroupEnabled flips one group', () => {
   const start = defaultPaletteConfig()
-  assert.deepEqual(moveGroup(start, 'project', -1).groups.map((g) => g.id), ['nav', 'project', 'session', 'prompt', 'settings'])
-  assert.deepEqual(moveGroup(start, 'nav', 99).groups.map((g) => g.id), ['session', 'project', 'prompt', 'settings', 'nav'])
+  assert.deepEqual(moveGroup(start, 'project', -1).groups.map((g) => g.id), ['nav', 'project', 'session', 'settings'])
+  assert.deepEqual(moveGroup(start, 'nav', 99).groups.map((g) => g.id), ['session', 'project', 'settings', 'nav'])
   assert.deepEqual(moveGroup(start, 'nav', -1).groups.map((g) => g.id), [...PALETTE_GROUPS])
-  const off = setGroupEnabled(start, 'prompt', false)
-  assert.deepEqual(off.groups.filter((g) => !g.enabled).map((g) => g.id), ['prompt'])
+  const off = setGroupEnabled(start, 'project', false)
+  assert.deepEqual(off.groups.filter((g) => !g.enabled).map((g) => g.id), ['project'])
   assert.ok(start.groups.every((g) => g.enabled), 'not mutated')
 })
 
@@ -140,7 +167,7 @@ test('visibleItems: an item whose prop is off is gone, even pinned', () => {
   config = togglePinned(config, 'go./search')
   assert.deepEqual(
     visibleItems(items, config, tree).map((i) => i.id),
-    ['go./projects', 'go./search', 'session:r1', 'project:p1', 'prompt:a', 'settings.general'],
+    ['go./projects', 'go./search', 'session:r1', 'project:p1', 'settings.general'],
   )
   assert.deepEqual(ids(paletteSections(items, config, tree, '')).slice(0, 2), [
     ['pinned', ['go./search']],
@@ -154,13 +181,13 @@ test('paletteSections: pinned first, then the groups in their order; off groups 
   let config = defaultPaletteConfig()
   config = moveGroup(config, 'settings', -4)
   config = setGroupEnabled(config, 'session', false)
-  config = hideItem(config, 'prompt:a')
+  config = hideItem(config, 'go./search')
   config = togglePinned(config, 'project:p1')
   config = togglePinned(config, 'settings.general')
   config = togglePinned(config, 'session:r1') // its group is off: not listed even pinned
   assert.deepEqual(ids(paletteSections(items, config, tree, '')), [
     ['pinned', ['project:p1', 'settings.general']],
-    ['nav', ['go./projects', 'go./search']],
+    ['nav', ['go./projects']],
   ])
 })
 

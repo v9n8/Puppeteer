@@ -3,7 +3,7 @@
 // newest list as editable rows — click the icon to change a status, edit the
 // text, add or remove items. "Add to message" puts the edited list into the
 // draft (lib/todoChecklist) so the agent gets it with the next message; nothing
-// is sent from here, the same contract as SavedPromptPicker.
+// is sent from here, the same contract as CapturePicker.
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckCircle2, Circle, CircleDot, ListTodo, Plus, X } from 'lucide-vue-next'

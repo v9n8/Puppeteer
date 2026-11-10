@@ -1,19 +1,16 @@
 {
-  "placeholder": "Type a command, screen, session, project or prompt…",
+  "placeholder": "Type a command, screen, session or project…",
   "noResults": "Nothing matches",
   "hint": "↑ ↓ to move · Enter to run · Esc to close",
   "pin": "Pin to the top",
   "unpin": "Unpin",
   "hide": "Hide from the palette",
   "untitledSession": "Untitled session",
-  "untitledPrompt": "Untitled prompt",
-  "promptCopied": "No session open: prompt copied to the clipboard",
   "group": {
     "pinned": "Pinned",
     "nav": "Navigation",
     "session": "Sessions",
     "project": "Projects",
-    "prompt": "Saved prompts",
     "settings": "Settings"
   },
   "settings": {

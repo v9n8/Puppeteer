@@ -48,7 +48,7 @@ function show() {
   open.value = true
   query.value = ''
   active.value = 0
-  // The prompts and the layout may have changed in another window since.
+  // The layout may have changed in another window since.
   appSettings.refresh().catch(() => {})
   nextTick(() => inputEl.value?.focus())
 }

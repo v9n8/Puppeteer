@@ -1,6 +1,6 @@
 // The composer and everything that sends from it: run settings (model, Claude
 // account, permission), the per-session draft with attachments, quotes, slash
-// commands, @-mentions, saved prompts, and start / follow-up / steer / queue /
+// commands, @-mentions, and start / follow-up / steer / queue /
 // cancel / engine handoff. Part of the RunView split (see useRunSession.ts).
 import { ref, computed, onBeforeUnmount, onUnmounted, watch, nextTick } from 'vue'
 import type { RunRecord, ProjectEntry } from '@/stores/runs'
@@ -9,7 +9,6 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Cpu, Terminal } from 'lucide-vue-next'
-import { type SavedPrompt, parseSavedPrompts } from '@/lib/savedPrompts'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { appendQuote, type QuoteSource } from '@/lib/quote'
@@ -1028,32 +1027,24 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     })
   }
 
-  // ── Saved prompt library (edited in Settings → Prompt Templates) ──────────
-  const savedPrompts = computed(() => parseSavedPrompts(appSettings.settings?.saved_prompts))
-
-  // Insert a saved prompt at the caret, appending when the composer isn't
-  // focused — same contract as `mentionFileInComposer`. Deliberately does NOT
-  // send: the user reviews/edits first.
-  function insertSavedPrompt(p: SavedPrompt) {
+  // A reference from CapturePicker (Slack / web / note / todo) goes in at the
+  // caret, appending when the composer isn't focused — same contract as
+  // `mentionFileInComposer`. Deliberately does NOT send: the user reviews/edits first.
+  function insertCaptureRef(text: string) {
     const el = composerEl.value
     const cur = followUpInput.value
     const focused = el && document.activeElement === el
     const caret = focused ? (el!.selectionStart ?? cur.length) : cur.length
     const before = cur.slice(0, caret)
     const after = cur.slice(caret)
-    // Keep an existing draft readable by dropping the prompt onto its own line.
+    // Keep an existing draft readable by dropping the reference onto its own line.
     const sep = before.length && !/\n$/.test(before) ? '\n' : ''
-    const insert = `${sep}${p.body}`
+    const insert = `${sep}${text}`
     followUpInput.value = before + insert + after
     nextTick(() => {
       const pos = (before + insert).length
       if (el) { el.focus(); el.setSelectionRange(pos, pos) }
     })
-  }
-
-  // A reference from CapturePicker (Slack / web / note / todo) goes in like a saved prompt.
-  function insertCaptureRef(text: string) {
-    insertSavedPrompt({ id: '', title: '', body: text })
   }
 
   // The agent's checklist, editable from the composer: the list already in the
@@ -1401,7 +1392,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
     toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, openFile, mentionItems,
-    selectMention, savedPrompts, insertSavedPrompt, insertCaptureRef, composerChecklist,
+    selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
     handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
     removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,

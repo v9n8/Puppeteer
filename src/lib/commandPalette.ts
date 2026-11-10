@@ -16,8 +16,11 @@ export const PALETTE_FEATURE = 'app.command_palette'
  */
 export const PALETTE_SETTING_KEY = 'palette.config'
 
-/** The groups, in their default order. */
-export const PALETTE_GROUPS = ['nav', 'session', 'project', 'prompt', 'settings'] as const
+/**
+ * The groups, in their default order. A stored layout may still name the
+ * removed `prompt` group: parsePaletteConfig drops it like any unknown group.
+ */
+export const PALETTE_GROUPS = ['nav', 'session', 'project', 'settings'] as const
 export type PaletteGroupId = (typeof PALETTE_GROUPS)[number]
 
 export interface PaletteGroupConfig {

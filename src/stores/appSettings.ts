@@ -19,8 +19,6 @@ export interface AppSettings {
   language: string
   color_theme: string
   animated_background: string
-  /** Reusable prompt library as a JSON array string; parse with `parseSavedPrompts`. */
-  saved_prompts: string
   default_permission_mode: string
   /** Default reasoning effort for new runs ('' = engine decides); see lib/engineOptions.ts EFFORT_LEVELS. */
   default_effort: string

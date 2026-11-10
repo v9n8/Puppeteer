@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { invoke } from '@/lib/tauri'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import {
@@ -9,13 +9,10 @@ import {
   type PaletteConfig,
 } from '@/lib/commandPalette'
 
-type ComposerInsert = (text: string) => void
-
 /**
  * The command palette's layout (the `palette.config` row, read through
- * `get_settings`) and the link to the composer on screen, which runs a saved
- * prompt picked from the palette. Shared by the palette and Settings → Command
- * palette, so a change in one shows in the other at once.
+ * `get_settings`). Shared by the palette and Settings → Command palette, so a
+ * change in one shows in the other at once.
  */
 export const useCommandPaletteStore = defineStore('commandPalette', () => {
   const appSettings = useAppSettingsStore()
@@ -34,23 +31,5 @@ export const useCommandPaletteStore = defineStore('commandPalette', () => {
     }
   }
 
-  // The composer of the session on screen (RunView), if any.
-  const composer = ref<ComposerInsert | null>(null)
-
-  /** Called by the screen holding a composer; returns the unbind function. */
-  function bindComposer(insert: ComposerInsert): () => void {
-    composer.value = insert
-    return () => {
-      if (composer.value === insert) composer.value = null
-    }
-  }
-
-  /** Put `text` in the composer on screen; false when there is none. */
-  function insertIntoComposer(text: string): boolean {
-    if (!composer.value) return false
-    composer.value(text)
-    return true
-  }
-
-  return { config, save, bindComposer, insertIntoComposer }
+  return { config, save }
 })

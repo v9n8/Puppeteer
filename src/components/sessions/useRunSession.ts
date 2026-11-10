@@ -54,11 +54,11 @@ export function useRunSession(): RunSession {
 function useRunViewLifecycle(s: RunSession) {
   const {
     route, projectStore, runsStore, live, conductorStore, ghStore, glStore, awsStore, azureStore,
-    claudeStore, appSettings, commandPalette, modelCatalog, toast, projectId, activeRunId,
+    claudeStore, appSettings, modelCatalog, toast, projectId, activeRunId,
     currentRunId, loadMarkdown, scrollMemory, onTurnNavKey, onWindowPointerUp, openRouteSearchHit,
     loadRunLog, loadProjectServers, repos, onRunSettingsPointerDown, handleNewSession,
     isDraggingFile, addDroppedPaths, composerVisible, autoResizeComposer, ensureProjectFiles,
-    insertSavedPrompt, setupMentionBridge,
+    setupMentionBridge,
   } = s
 
   onMounted(async () => {
@@ -70,12 +70,10 @@ function useRunViewLifecycle(s: RunSession) {
     unbindNewSessionMenu = registerMenuAction('file.newSession', () => {
       void handleNewSession()
     })
-    // A saved prompt picked in the command palette lands here, like one from the picker.
-    unbindPaletteComposer = commandPalette.bindComposer((body) => insertSavedPrompt({ id: '', title: '', body }))
     // Hydrate the persisted model caches so the composer's picker shows the last
     // refreshed lists (no discovery here — refresh is manual in Settings).
     modelCatalog.ensureLoaded().catch(() => {})
-    // Needed for the composer's saved-prompt dropdown (and the engine default).
+    // Needed for the composer's engine default.
     appSettings.ensureLoaded().catch(() => {})
     if (projectStore.projects.length === 0) {
       await projectStore.fetchProjects()
@@ -181,7 +179,6 @@ function useRunViewLifecycle(s: RunSession) {
 
   // Unbound on unmount so the menu item stops firing into a dead screen.
   let unbindNewSessionMenu: (() => void) | null = null
-  let unbindPaletteComposer: (() => void) | null = null
 
   // `force` = the on-disk transcript actually changed (the sessions:changed file
   // watcher fired), so we must re-read even a run we hold live in memory. A plain
@@ -216,8 +213,6 @@ function useRunViewLifecycle(s: RunSession) {
     // while the user is on another screen.
     unbindNewSessionMenu?.()
     unbindNewSessionMenu = null
-    unbindPaletteComposer?.()
-    unbindPaletteComposer = null
     conductorStore.stopPolling()
     window.removeEventListener('focus', onAppFocus)
     document.removeEventListener('mousedown', onRunSettingsPointerDown)

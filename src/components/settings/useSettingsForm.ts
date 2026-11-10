@@ -24,7 +24,6 @@ export interface AppSettings {
   language: string
   color_theme: string
   animated_background: string
-  saved_prompts: string
   default_permission_mode: string
   default_effort: string
   terminal_app: string
@@ -72,7 +71,6 @@ export function createSettingsForm(): SettingsForm {
     language: 'en',
     color_theme: 'default',
     animated_background: 'true',
-    saved_prompts: '[]',
     default_permission_mode: 'default',
     default_effort: '',
     terminal_app: TERMINAL_APPS[desktopOs(navigator.userAgent)][0].value,

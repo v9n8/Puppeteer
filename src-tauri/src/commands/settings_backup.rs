@@ -4966,6 +4966,32 @@ mod tests {
         assert!(import_aws(&db, &entry).await.is_err(), "an update is checked too");
     }
 
+    /// A backup from before Prompt Templates was removed still carries `saved_prompts`: the
+    /// import skips it without a warning, and leaves the row this machine may still have.
+    #[tokio::test]
+    async fn an_old_backup_with_saved_prompts_imports_without_it() {
+        use crate::commands::settings::set_setting;
+        let key = "saved_prompts";
+        assert!(!is_portable_setting(key));
+
+        let db = test_db().await;
+        set_setting(&db, key, r#"[{"id":"a","title":"Mine","body":"Keep"}]"#).await.unwrap();
+        let bundle = settings_bundle(
+            [(key, r#"[{"id":"b","title":"Old","body":"Review the diff"}]"#), ("theme", "dark")]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
+        let mut report = ImportReport::default();
+        import_settings(&db, &bundle, false, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(setting(&db, "theme").await.as_deref(), Some("dark"));
+        assert_eq!(setting(&db, key).await.as_deref(), Some(r#"[{"id":"a","title":"Mine","body":"Keep"}]"#));
+
+        // Nor does a new backup carry it.
+        assert!(!collect_settings(&db).await.unwrap().contains_key(key));
+    }
+
     /// Settings that let a run execute more than the user chose stay this machine's own.
     #[tokio::test]
     async fn extra_args_and_bypass_permissions_are_not_imported() {

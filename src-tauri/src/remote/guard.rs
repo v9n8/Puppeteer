@@ -987,7 +987,7 @@ mod tests {
             "quota_warn_percent",
             "focus.work_start",
             "featured",
-            // Command palette layout: a UI preference, like `saved_prompts`.
+            // Command palette layout: a UI preference, like the theme.
             "palette.config",
             // Menu shortcuts: a UI preference too; a system key written there never
             // reaches the menu (`src/lib/keymap.ts` drops it).

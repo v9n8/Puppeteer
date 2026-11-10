@@ -1,13 +1,12 @@
 <script setup lang="ts">
-// "Insert Slack thread / note / todo" picker for the chat composer — the
-// sibling of the saved-prompt dropdown (RunView, BookMarked icon), built on the
-// same DropdownMenu. Picking an item does NOT paste its content: it emits a
+// "Insert Slack thread / note / todo" picker for the chat composer, built on
+// DropdownMenu. Picking an item does NOT paste its content: it emits a
 // one-line reference — `[Slack] <title> (id: …)`, `[Note] <title> (id: …)`, or
 // `[Todo] (id: …)` — and the AI resolves the id through the puppeteer MCP tools when
 // it needs more.
 //
-// The host inserts the emitted text at the caret (same contract as a saved
-// prompt: own line, focus, never sends). The picked item is also reported
+// The host inserts the emitted text at the caret (own line, focus, never
+// sends). The picked item is also reported
 // (`picked`) so the host can link it to its session.
 //
 // A segmented All | Slack | Note | Todo filter (remembered in

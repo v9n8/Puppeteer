@@ -20,7 +20,6 @@ import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import SessionsSettings from '@/components/settings/SessionsSettings.vue'
-import PromptTemplatesSettings from '@/components/settings/PromptTemplatesSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
@@ -167,7 +166,6 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <SessionsSettings v-show="activeSection === 'sessions'" />
-        <PromptTemplatesSettings v-show="activeSection === 'prompts'" />
 
         </div>
 

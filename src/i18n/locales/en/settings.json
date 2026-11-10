@@ -9,7 +9,6 @@
     "translate": "Translation",
     "sessions": "Sessions",
     "devices": "Devices",
-    "prompts": "Prompt Templates",
     "inbox": "Inbox API",
     "focus": "Focus",
     "features": "Features",
@@ -323,19 +322,6 @@
     "stopRunningNoBlock": "Set a block threshold first: this acts on the 5h or weekly block threshold.",
     "emptyOff": "empty = off"
   },
-  "prompts": {
-    "title": "Prompt Templates",
-    "library": "Saved prompts",
-    "libraryHint": "Pick these from the dropdown in the chat box to reuse them without retyping.",
-    "libraryEmpty": "No saved prompts yet.",
-    "addPrompt": "Add prompt",
-    "dragToReorder": "Drag to reorder",
-    "deleteTitle": "Delete this prompt?",
-    "deleteMessage": "The prompt will be removed from your library and cannot be recovered.",
-    "untitled": "Prompt {n} (untitled)",
-    "titlePlaceholder": "Prompt {n} title",
-    "bodyPlaceholder": "The prompt text to insert into the chat box…"
-  },
   "toast": {
     "saved": "Saved"
   },
@@ -396,7 +382,7 @@
   },
   "backup": {
     "title": "File backup",
-    "help": "Export your whole Puppeteer setup to one file and import it on another machine: app settings, saved prompts, the Skills / Rules library with groups, MCP servers, VPS servers, accounts (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (with translations; attachments are downloaded again) and projects (repos, enabled Skills / Rules / groups, MCP and VPS servers, linked accounts). Session history stays on this machine.",
+    "help": "Export your whole Puppeteer setup to one file and import it on another machine: app settings, the Skills / Rules library with groups, MCP servers, VPS servers, accounts (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (with translations; attachments are downloaded again) and projects (repos, enabled Skills / Rules / groups, MCP and VPS servers, linked accounts). Session history stays on this machine.",
     "export": {
       "title": "Export",
       "includeSecrets": "Include secrets (encrypted)",

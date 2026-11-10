@@ -1,5 +1,5 @@
 import {
-  Cpu, Palette, FileText, Sparkles, Plug, Gauge, Radio,
+  Cpu, Palette, Sparkles, Plug, Gauge, Radio,
   Inbox, Target, ToggleRight, Command, Keyboard, Languages,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
@@ -32,7 +32,6 @@ export const SETTINGS_SECTIONS = [
   { id: 'styles', group: 'ai', labelKey: 'settings.sections.styles', icon: MessageSquareText },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
   { id: 'sessions', group: 'ai', labelKey: 'settings.sections.sessions', icon: Gauge },
-  { id: 'prompts', group: 'ai', labelKey: 'settings.sections.prompts', icon: FileText },
   // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
   // is gated inside the screen, and `?section=github` etc. open it filtered.
   { id: 'connections', group: 'connections', labelKey: 'settings.sections.connections', icon: Plug },

@@ -9,7 +9,6 @@ import {
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
-import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
@@ -26,8 +25,8 @@ const {
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
   composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
-  slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, savedPrompts,
-  insertSavedPrompt, insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
+  slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention,
+  insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit,
@@ -219,12 +218,6 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           >
             <Paperclip class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>
-          <SavedPromptPicker
-            v-if="savedPrompts.length"
-            :prompts="savedPrompts"
-            :disabled="sendingFollowUp"
-            @insert="insertSavedPrompt"
-          />
           <CapturePicker
             :project-id="projectId"
             :disabled="sendingFollowUp"
