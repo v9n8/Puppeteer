@@ -1915,6 +1915,35 @@ async fn run_links_hide_missing_runs_and_are_cleaned_up() {
 }
 
 #[tokio::test]
+async fn run_links_hide_runs_in_the_trash() {
+    let db = memory_db().await;
+    let app_data = temp_dir("links-trash");
+    let state = offline_state(&db, &app_data, &Tokens::default());
+    let id = offline_thread(&state, LINK, Some("p1")).await;
+    insert_run(&db, "r1", "p1", None, "2026-02-01T00:00:00Z").await;
+    insert_run(&db, "r2", "p1", None, "2026-02-02T00:00:00Z").await;
+    for r in ["r1", "r2"] {
+        run_links::link(&db, &id, r, "manual").await.unwrap();
+    }
+    sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'")
+        .execute(&db)
+        .await
+        .unwrap();
+    let links = run_links::runs_of_thread(&db, &id).await.unwrap();
+    assert_eq!(links.iter().map(|l| l.run_id.as_str()).collect::<Vec<_>>(), ["r2"]);
+    assert_eq!(
+        store::get_summary(&db, &id).await.unwrap().linked_run_count,
+        1
+    );
+    // The link itself is kept for a restore.
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM slack_thread_runs")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(rows, 2);
+}
+
+#[tokio::test]
 async fn merged_thread_hands_its_links_over() {
     let db = memory_db().await;
     let app_data = temp_dir("links-merge");

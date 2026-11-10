@@ -790,6 +790,11 @@ fn split_ids(csv: Option<String>) -> Vec<String> {
 
 #[tauri::command]
 pub async fn list_projects(db: State<'_, Db>) -> Result<Vec<Project>, String> {
+    list_projects_inner(db.inner()).await
+}
+
+/// Live projects only; `run_count` / `last_used_at` count only runs outside the trash.
+pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String> {
     use sqlx::Row;
     // Manual order first (drag-and-drop), then usage frequency / recency / name
     // as a stable tiebreaker for any projects sharing a position.
@@ -802,11 +807,12 @@ pub async fn list_projects(db: State<'_, Db>) -> Result<Vec<Project>, String> {
                 p.github_project_board_url, p.github_project_field_mappings, p.position, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p \
-         LEFT JOIN runs r ON r.project_id = p.id \
+         LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL \
+         WHERE p.deleted_at IS NULL \
          GROUP BY p.id \
          ORDER BY p.position ASC, run_count DESC, last_used_at DESC, p.name COLLATE NOCASE ASC"
     )
-    .fetch_all(db.inner())
+    .fetch_all(db)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -994,7 +1000,7 @@ pub async fn update_project(
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
-         FROM projects p LEFT JOIN runs r ON r.project_id = p.id WHERE p.id = ? GROUP BY p.id"
+         FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )
         .bind(&id)
         .fetch_one(db.inner())
@@ -1297,7 +1303,7 @@ pub async fn apply_skill_to_all_projects(
     skill_id: String,
 ) -> Result<ApplyAllOutcome, String> {
     use sqlx::Row;
-    let rows = sqlx::query("SELECT id, name FROM projects ORDER BY name")
+    let rows = sqlx::query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name")
         .fetch_all(db.inner())
         .await
         .map_err(|e| e.to_string())?;
@@ -1580,7 +1586,7 @@ pub async fn list_sync_conflicts(db: State<'_, Db>) -> Result<Vec<SyncConflict>,
          FROM sync_conflicts sc
          JOIN skills s ON s.id = sc.skill_id
          JOIN projects p ON p.id = sc.project_id
-         WHERE sc.resolved = 0
+         WHERE sc.resolved = 0 AND p.deleted_at IS NULL
          ORDER BY sc.detected_at DESC",
     )
     .fetch_all(db.inner())
@@ -1789,5 +1795,56 @@ mod tests {
         assert_eq!(windows_chrome_launch(r"C:\My Site\%TEMP%.html"), ("chrome", r#""C:\My Site\%TEMP%.html""#.to_string()));
         // `C:\"` would read as an escaped quote, not the closing one.
         assert_eq!(windows_chrome_launch(r"C:\"), ("chrome", r#""C:\\""#.to_string()));
+    }
+
+    /// Two projects with three runs each in `sqlite::memory:`; `r2` and project `p2` in the trash.
+    async fn db_with_trash() -> crate::db::Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at) VALUES \
+             ('r1', 'p1', 'session', '2026-01-01'), ('r2', 'p1', 'session', '2026-01-02'), \
+             ('r3', 'p1', 'session', '2026-01-03'), ('r4', 'p2', 'session', '2026-01-04')",
+            "UPDATE runs SET deleted_at = 'd' WHERE id = 'r2'",
+            "UPDATE projects SET deleted_at = 'd' WHERE id = 'p2'",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        db
+    }
+
+    #[tokio::test]
+    async fn lists_leave_out_the_trash() {
+        let db = db_with_trash().await;
+        // Projects (sidebar, palette): the trashed project is gone, its count skips trashed runs.
+        let projects = super::list_projects_inner(&db).await.unwrap();
+        let got: Vec<(&str, i64, Option<&str>)> =
+            projects.iter().map(|p| (p.id.as_str(), p.run_count, p.last_used_at.as_deref())).collect();
+        assert_eq!(got, [("p1", 2, Some("2026-01-03"))]);
+        // History (and the palette's sessions): the trashed run is gone.
+        let runs = crate::commands::github::list_runs_inner(&db, "p1").await.unwrap();
+        assert_eq!(runs.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["r3", "r1"]);
+        // A lookup by id still reaches a trashed row (open, restore, purge).
+        let path: String = sqlx::query_scalar("SELECT p.path FROM runs r JOIN projects p ON p.id = r.project_id WHERE r.id = 'r4'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(path, "/b");
+    }
+
+    #[tokio::test]
+    async fn remote_lists_leave_out_the_trash() {
+        let db = db_with_trash().await;
+        let runs = crate::remote::forwarder::build_run_list(&db, None).await;
+        assert_eq!(runs.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["r3", "r1"]);
+        let projects = crate::remote::forwarder::build_project_list(&db).await;
+        assert_eq!(projects.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), ["p1"]);
+        // The newest run is r4, but its project is in the trash.
+        assert_eq!(crate::remote::agent::latest_run_id(&db).await.as_deref(), Some("r3"));
     }
 }

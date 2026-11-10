@@ -386,7 +386,9 @@ pub async fn build_run_list(db: &Db, only_run_id: Option<&str>) -> Vec<RunInfo> 
             .bind(run_id)
             .fetch_all(db)
             .await,
-        None => sqlx::query(&format!("{COLUMNS} ORDER BY updated_at DESC LIMIT ?"))
+        None => sqlx::query(&format!(
+            "{COLUMNS} WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?"
+        ))
             .bind(RUN_LIST_MAX)
             .fetch_all(db)
             .await,
@@ -758,7 +760,7 @@ fn list_project_files(root: &str) -> Vec<String> {
 
 /// Build the project list the Controller can create a new run in (Phase 2).
 pub async fn build_project_list(db: &Db) -> Vec<ProjectInfo> {
-    let rows = sqlx::query("SELECT id, name, path FROM projects ORDER BY name")
+    let rows = sqlx::query("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY name")
         .fetch_all(db)
         .await
         .unwrap_or_default();

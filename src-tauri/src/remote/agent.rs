@@ -614,7 +614,9 @@ async fn ensure_grantable_session(deps: &AgentDeps) -> Option<StreamPayload> {
 /// picked for it.
 pub(crate) async fn latest_run_id(db: &Db) -> Option<String> {
     sqlx::query_scalar::<_, String>(
-        "SELECT id FROM runs ORDER BY COALESCE(last_activity_at, finished_at, started_at, created_at) DESC LIMIT 1",
+        "SELECT r.id FROM runs r JOIN projects p ON p.id = r.project_id \
+         WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL \
+         ORDER BY COALESCE(r.last_activity_at, r.finished_at, r.started_at, r.created_at) DESC LIMIT 1",
     )
     .fetch_optional(db)
     .await

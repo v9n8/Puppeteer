@@ -129,6 +129,11 @@ check(count() === MAX_PENDING_PROPOSALS && capped?.result?.isError === true && /
 db.prepare('UPDATE schedules SET proposed = 0 WHERE id = ?').run(r.id);
 out = await drive([['after-review', 'schedule_propose', { name: 'n', prompt: 'p', every_minutes: 60 }]]);
 check(!out['after-review']?.result?.isError && count() === MAX_PENDING_PROPOSALS + 1, 'cap: reviewing one frees a slot');
+// A proposal of a project in the trash is hidden in Schedules, so it frees its slot too.
+db.prepare("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('gone', 'gone', '/tmp/gone', ?, ?)").run(T0, T0);
+db.prepare("UPDATE schedules SET project_id = 'gone' WHERE id = (SELECT id FROM schedules WHERE proposed = 1 LIMIT 1)").run();
+out = await drive([['after-trash', 'schedule_propose', { name: 'n', prompt: 'p', every_minutes: 60 }]]);
+check(!out['after-trash']?.result?.isError && count() === MAX_PENDING_PROPOSALS + 2, 'cap: a proposal in the trash frees a slot');
 
 db.close();
 rmSync(appData, { recursive: true, force: true });

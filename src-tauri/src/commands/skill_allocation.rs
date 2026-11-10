@@ -119,7 +119,7 @@ pub async fn skill_allocation(db: &Db, home: Option<PathBuf>, with_global: bool)
         .map(|r| SkillRef { id: r.get("id"), name: r.get("name"), source_path: r.get("source_path") })
         .collect();
     let projects: Vec<ProjectRef> =
-        sqlx::query("SELECT id, name, path FROM projects ORDER BY position, name COLLATE NOCASE")
+        sqlx::query("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY position, name COLLATE NOCASE")
             .fetch_all(db)
             .await
             .map_err(err)?

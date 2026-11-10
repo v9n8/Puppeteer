@@ -7,7 +7,8 @@
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links. Sessions and
 //! usage history stay on the machine; the bookmarks on them travel, and land on the same session
-//! when the importing machine has it.
+//! when the importing machine has it. The trash is local too: a project or session in it is not
+//! exported (nor the bookmarks on such a session).
 //!
 //! Secrets (PATs, MCP env/header VALUEs, Google OAuth client + refresh tokens, SSH passphrases and
 //! Puppeteer-managed private key files) are only exported when the user gives a password: they are
@@ -1181,7 +1182,8 @@ async fn collect(
     let projects = collect_projects(db).await?;
     let bookmarks = sqlx::query(
         "SELECT b.run_id, r.session_id, b.log_offset, b.side, b.label, b.created_at \
-         FROM run_bookmarks b JOIN runs r ON r.id = b.run_id ORDER BY b.run_id, b.log_offset",
+         FROM run_bookmarks b JOIN runs r ON r.id = b.run_id JOIN projects p ON p.id = r.project_id \
+         WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL ORDER BY b.run_id, b.log_offset",
     )
     .fetch_all(db)
     .await
@@ -1274,6 +1276,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
          LEFT JOIN aws_accounts aws ON aws.id = p.aws_account_id \
          LEFT JOIN azure_accounts az ON az.id = p.azure_account_id \
          LEFT JOIN claude_accounts cl ON cl.id = p.claude_account_id \
+         WHERE p.deleted_at IS NULL \
          ORDER BY p.position, p.name",
     )
     .fetch_all(db)
@@ -3857,6 +3860,20 @@ mod tests {
         assert_eq!(remap_home("/Users/ab/x", a, b), "/Users/ab/x");
         assert_eq!(remap_home("/opt/x", a, b), "/opt/x");
         assert_eq!(remap_home("/Users/a/x", a, None), "/Users/a/x");
+    }
+
+    #[tokio::test]
+    async fn projects_in_the_trash_are_not_exported() {
+        let db = test_db().await;
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at, deleted_at) \
+             VALUES ('p1', 'shop', '/a/shop', 'c', NULL), ('p2', 'old', '/a/old', 'c', 'd')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let names: Vec<String> = collect_projects(&db).await.unwrap().into_iter().map(|p| p.name).collect();
+        assert_eq!(names, ["shop"]);
     }
 
     #[tokio::test]

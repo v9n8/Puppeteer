@@ -241,7 +241,7 @@ pub async fn plan_bulk(db: &Db, req: &SkillBulkRequest) -> Result<SkillBulkPlan,
         .filter(|(id, _, _)| skill_ids.contains(id))
         .collect();
     let projects: Vec<(String, String, String)> =
-        sqlx::query("SELECT id, name, path FROM projects ORDER BY position, name COLLATE NOCASE")
+        sqlx::query("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY position, name COLLATE NOCASE")
             .fetch_all(db)
             .await
             .map_err(err)?

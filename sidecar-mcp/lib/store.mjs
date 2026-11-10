@@ -117,8 +117,11 @@ export function findProject(key) {
   const d = db();
   const byId = d.prepare('SELECT id, name FROM projects WHERE id = ?').get(k);
   if (byId) return byId;
-  let rows = d.prepare('SELECT id, name FROM projects WHERE name = ?').all(k);
-  if (!rows.length) rows = d.prepare('SELECT id, name FROM projects WHERE name = ? COLLATE NOCASE').all(k);
+  // By name: only live projects, a trashed one is reached by id alone (migration 0009).
+  let rows = d.prepare('SELECT id, name FROM projects WHERE name = ? AND deleted_at IS NULL').all(k);
+  if (!rows.length) {
+    rows = d.prepare('SELECT id, name FROM projects WHERE name = ? COLLATE NOCASE AND deleted_at IS NULL').all(k);
+  }
   if (rows.length === 1) return rows[0];
   if (!rows.length) throw new Error(`no project matches "${k}" (see projects_list)`);
   throw new Error(`"${k}" matches ${rows.length} projects — pass the project id instead (see projects_list)`);
@@ -173,7 +176,8 @@ function reorderRows(table, ids, orderBy, { where = '', params = [], label = tab
  */
 function linkedRunsCol(links, col, alias) {
   return `(SELECT group_concat(run_id, ', ') FROM (SELECT l.run_id FROM ${links} l
-    JOIN runs r ON r.id = l.run_id WHERE l.${col} = ${alias}.id ORDER BY l.linked_at, l.run_id)) AS linked_runs`;
+    JOIN runs r ON r.id = l.run_id WHERE l.${col} = ${alias}.id AND r.deleted_at IS NULL
+    ORDER BY l.linked_at, l.run_id)) AS linked_runs`;
 }
 const NOTE_LINKS = linkedRunsCol('note_runs', 'note_id', 'n');
 const TODO_LINKS = linkedRunsCol('todo_runs', 'todo_id', 't');
@@ -365,7 +369,7 @@ export function recentRuns({ scope = 'project', limit, from, to } = {}) {
   const hi = to ? localDayStartIso(to, 1) : '9999-12-31T00:00:00Z';
   const inRange = (col) => `julianday(${col}) >= julianday(?) AND julianday(${col}) < julianday(?)`;
 
-  const where = [];
+  const where = ['r.deleted_at IS NULL', 'p.deleted_at IS NULL'];
   const params = [];
   if (ranged) params.push(lo, hi); // usage subquery
   if (scope === 'project' && projectId) {
@@ -388,7 +392,7 @@ export function recentRuns({ scope = 'project', limit, from, to } = {}) {
                  FROM run_usage WHERE run_id IS NOT NULL ${ranged ? `AND ${inRange('created_at')}` : ''}
                  GROUP BY run_id
                ) u ON u.run_id = r.id
-               ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+               WHERE ${where.join(' AND ')}
                ORDER BY r.created_at DESC
                LIMIT ?`;
   return db().prepare(sql).all(...params, lim);
@@ -657,7 +661,7 @@ export function listProjects() {
     .prepare(
       `SELECT p.id, p.name, p.path, p.github_owner, p.github_repo, p.default_engine,
               (SELECT COUNT(*) FROM repos r WHERE r.project_id = p.id) AS repo_count
-       FROM projects p ORDER BY p.name`,
+       FROM projects p WHERE p.deleted_at IS NULL ORDER BY p.name`,
     )
     .all();
 }
@@ -686,7 +690,9 @@ export function listRepos({ scope = 'project', project = null } = {}) {
 
   if (project != null && String(project).trim()) {
     const key = String(project).trim();
-    const proj = db().prepare('SELECT id, name FROM projects WHERE id = ? OR name = ? LIMIT 1').get(key, key);
+    const proj = db()
+      .prepare('SELECT id, name FROM projects WHERE id = ? OR (name = ? AND deleted_at IS NULL) LIMIT 1')
+      .get(key, key);
     return forProject(proj || null);
   }
 
@@ -694,7 +700,10 @@ export function listRepos({ scope = 'project', project = null } = {}) {
     return {
       project: null,
       rows: db()
-        .prepare(`SELECT ${cols} FROM repos r JOIN projects p ON p.id = r.project_id ORDER BY p.name, r.name`)
+        .prepare(
+          `SELECT ${cols} FROM repos r JOIN projects p ON p.id = r.project_id
+           WHERE p.deleted_at IS NULL ORDER BY p.name, r.name`,
+        )
         .all(),
     };
   }

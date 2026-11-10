@@ -182,7 +182,13 @@ fn from_row(r: &sqlx::sqlite::SqliteRow) -> Schedule {
 }
 
 pub async fn list(db: &Db) -> Result<Vec<Schedule>, String> {
-    let rows = sqlx::query(&format!("SELECT {COLUMNS} FROM schedules ORDER BY created_at, id"))
+    // A project in the trash keeps its schedules for a restore, but they neither
+    // show nor fire meanwhile.
+    let rows = sqlx::query(&format!(
+        "SELECT {COLUMNS} FROM schedules \
+         WHERE project_id IN (SELECT id FROM projects WHERE deleted_at IS NULL) \
+         ORDER BY created_at, id"
+    ))
         .fetch_all(db)
         .await
         .map_err(|e| e.to_string())?;
@@ -529,6 +535,19 @@ pub(crate) mod tests {
 
         let s = save(&db, input(Some(&id), daily("10:00")), true, &now).await.unwrap();
         assert!(!s.enabled && s.next_run_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn schedules_of_a_project_in_the_trash_are_hidden() {
+        let db = db().await;
+        let now = at("2026-11-08T08:00:00+07:00");
+        let s = save(&db, input(None, daily("08:30")), false, &now).await.unwrap();
+        set_enabled(&db, &s.id, true, &now).await.unwrap();
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert!(list(&db).await.unwrap().is_empty());
+        // Kept for a restore.
+        sqlx::query("UPDATE projects SET deleted_at = NULL WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert_eq!(list(&db).await.unwrap().len(), 1);
     }
 
     #[tokio::test]

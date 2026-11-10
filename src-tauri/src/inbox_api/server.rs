@@ -497,7 +497,7 @@ async fn list_projects(State(state): State<HttpState>, headers: HeaderMap) -> Re
     if let Some(r) = check_auth(&state, &headers) {
         return r;
     }
-    match sqlx::query("SELECT id, name FROM projects ORDER BY position ASC, name ASC")
+    match sqlx::query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY position ASC, name ASC")
         .fetch_all(&state.db)
         .await
     {

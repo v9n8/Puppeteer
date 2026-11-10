@@ -407,7 +407,7 @@ pub async fn reset_translations(db: &Db, id: &str) -> Result<u64, sqlx::Error> {
 const SUMMARY_SQL: &str = "SELECT t.*, \
      (SELECT COUNT(*) FROM slack_files f WHERE f.thread_id = t.id) AS file_count, \
      (SELECT COUNT(*) FROM slack_thread_runs l JOIN runs r ON r.id = l.run_id \
-        WHERE l.thread_id = t.id) AS linked_run_count, \
+        WHERE l.thread_id = t.id AND r.deleted_at IS NULL) AS linked_run_count, \
      (SELECT COUNT(*) FROM slack_messages m WHERE m.thread_id = t.id \
         AND t.last_seen_ts IS NOT NULL AND m.ts > t.last_seen_ts) AS new_count, \
      (SELECT COALESCE(m.text_vi, m.text_raw) FROM slack_messages m \

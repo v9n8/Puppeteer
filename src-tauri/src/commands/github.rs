@@ -887,6 +887,11 @@ pub async fn list_runs(
     db: State<'_, Db>,
     project_id: String,
 ) -> Result<Vec<RunRecord>, String> {
+    list_runs_inner(db.inner(), &project_id).await
+}
+
+/// The History list of a project: runs in the trash are left out.
+pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<RunRecord>, String> {
     use sqlx::Row;
     // Ordered by last activity, not creation: a session resumed today belongs at
     // the top even if its row is months old. The COALESCE is also what the row
@@ -895,12 +900,12 @@ pub async fn list_runs(
     let rows = sqlx::query(
         "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
-         FROM runs WHERE project_id = ?
+         FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC
          LIMIT 500"
     )
-    .bind(&project_id)
-    .fetch_all(db.inner())
+    .bind(project_id)
+    .fetch_all(db)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -1275,6 +1280,7 @@ pub async fn list_review_requested_prs(db: State<'_, Db>) -> Result<PrInboxResul
                 "SELECT r.id AS repo_id, r.project_id AS project_id, p.name AS project_name
                  FROM repos r JOIN projects p ON p.id = r.project_id
                  WHERE lower(r.github_owner) = lower(?) AND lower(r.github_repo) = lower(?)
+                   AND p.deleted_at IS NULL
                  LIMIT 1",
             )
             .bind(&owner)
@@ -1300,6 +1306,7 @@ pub async fn list_review_requested_prs(db: State<'_, Db>) -> Result<PrInboxResul
                     let run_row = sqlx::query(
                         "SELECT id, status FROM runs
                          WHERE project_id = ? AND type = 'review_pr' AND ref_number = ?
+                           AND deleted_at IS NULL
                          ORDER BY created_at DESC LIMIT 1",
                     )
                     .bind(pid)

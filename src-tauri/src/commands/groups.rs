@@ -768,7 +768,7 @@ pub async fn apply_group_to_all_projects(
     let kind = GroupKind::parse(&kind)?;
     let db = db.inner();
 
-    let rows = sqlx::query("SELECT id, name FROM projects ORDER BY name")
+    let rows = sqlx::query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name")
         .fetch_all(db)
         .await
         .map_err(|e| e.to_string())?;

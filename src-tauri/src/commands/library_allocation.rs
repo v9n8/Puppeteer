@@ -129,7 +129,7 @@ pub async fn item_allocation(db: &Db, kind: AllocationKind) -> Result<ItemAlloca
     let err = |e: sqlx::Error| e.to_string();
 
     let projects: Vec<ProjectRef> =
-        sqlx::query("SELECT id, name, path FROM projects ORDER BY position, name COLLATE NOCASE")
+        sqlx::query("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY position, name COLLATE NOCASE")
             .fetch_all(db)
             .await
             .map_err(err)?

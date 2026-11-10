@@ -21,7 +21,8 @@ const THREAD_COLS = `t.id, t.title, t.title_custom, t.project_id, t.position, t.
   t.warnings, t.legacy, t.legacy_content,
   (SELECT COUNT(*) FROM slack_files f WHERE f.thread_id = t.id) AS file_count,
   (SELECT group_concat(run_id, ', ') FROM (SELECT l.run_id FROM slack_thread_runs l
-    JOIN runs r ON r.id = l.run_id WHERE l.thread_id = t.id ORDER BY l.linked_at, l.run_id)) AS linked_runs`;
+    JOIN runs r ON r.id = l.run_id WHERE l.thread_id = t.id AND r.deleted_at IS NULL
+    ORDER BY l.linked_at, l.run_id)) AS linked_runs`;
 const ORDER = 'ORDER BY t.position ASC, t.updated_at DESC';
 const MESSAGE_COLS = `ts, seq, user_id, bot_id, author_name, author_icon_url, subtype, text_raw, text_vi,
   translate_status, translate_error, edited_ts, reactions, file_ids`;

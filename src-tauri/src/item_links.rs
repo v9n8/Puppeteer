@@ -73,7 +73,7 @@ impl ItemKind {
 pub fn linked_count_sql(kind: ItemKind, alias: &str) -> String {
     format!(
         "(SELECT COUNT(*) FROM {links} l JOIN runs r ON r.id = l.run_id \
-         WHERE l.{col} = {alias}.id) AS linked_run_count",
+         WHERE l.{col} = {alias}.id AND r.deleted_at IS NULL) AS linked_run_count",
         links = kind.links(),
         col = kind.col(),
     )
@@ -245,7 +245,7 @@ pub async fn runs_of_item(
          r.type, r.ref_number, r.status, r.engine, \
          COALESCE(r.last_activity_at, r.finished_at, r.started_at, r.created_at) AS activity \
          FROM {links} l JOIN runs r ON r.id = l.run_id \
-         WHERE l.{col} = ? \
+         WHERE l.{col} = ? AND r.deleted_at IS NULL \
          ORDER BY activity DESC, l.linked_at DESC",
         col = kind.col(),
         links = kind.links(),
@@ -508,6 +508,32 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(e.code, "not_found");
+    }
+
+    #[tokio::test]
+    async fn runs_in_the_trash_are_hidden_but_keep_their_links() {
+        let db = memory_db().await;
+        insert_run(&db, "r1", "p1", "2026-02-01T00:00:00Z").await;
+        insert_run(&db, "r2", "p1", "2026-02-02T00:00:00Z").await;
+        insert_note(&db, "n1", Some("p1")).await;
+        for r in ["r1", "r2"] {
+            link(&db, ItemKind::Note, "n1", r, "manual").await.unwrap();
+        }
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'")
+            .execute(&db)
+            .await
+            .unwrap();
+        let links = runs_of_item(&db, ItemKind::Note, "n1").await.unwrap();
+        assert_eq!(links.iter().map(|l| l.run_id.as_str()).collect::<Vec<_>>(), ["r2"]);
+        let n: i64 = sqlx::query_scalar(&format!(
+            "SELECT {} FROM notes n WHERE n.id = 'n1'",
+            linked_count_sql(ItemKind::Note, "n")
+        ))
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(count(&db, "note_runs").await, 2);
     }
 
     #[tokio::test]

@@ -47,7 +47,7 @@ pub fn detect_sources(home: Option<&Path>, projects: &[(String, String, String)]
 }
 
 async fn projects(db: &Db) -> Result<Vec<(String, String, String)>, String> {
-    sqlx::query_as("SELECT id, name, path FROM projects ORDER BY name").fetch_all(db).await.map_err(|e| e.to_string())
+    sqlx::query_as("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY name").fetch_all(db).await.map_err(|e| e.to_string())
 }
 
 async fn root_of(app: &AppHandle, db: &Db, source: &SourceRef) -> Result<PathBuf, String> {

@@ -51,7 +51,12 @@ export function proposeSchedule(args = {}) {
   if (!prompt || prompt.length > 20000) throw new Error('`prompt` is required (at most 20000 characters).');
   const timing = timingOf(args);
   const d = db();
-  const pending = d.prepare('SELECT COUNT(*) AS n FROM schedules WHERE proposed = 1').get().n;
+  // Proposals of a project in the trash are hidden in Schedules, so they do not hold a slot.
+  const pending = d
+    .prepare(
+      'SELECT COUNT(*) AS n FROM schedules WHERE proposed = 1 AND project_id IN (SELECT id FROM projects WHERE deleted_at IS NULL)',
+    )
+    .get().n;
   if (pending >= MAX_PENDING_PROPOSALS) {
     throw new Error(`${pending} proposed schedules are already waiting for review; ask the user to review or delete them first.`);
   }

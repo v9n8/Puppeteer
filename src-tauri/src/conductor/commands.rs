@@ -136,7 +136,7 @@ pub(crate) async fn ensure_conductor_launch(
         }
         None => {
             let worker_ids: Vec<String> =
-                sqlx::query_scalar("SELECT id FROM runs WHERE conductor_run_id = ?")
+                sqlx::query_scalar("SELECT id FROM runs WHERE conductor_run_id = ? AND deleted_at IS NULL")
                     .bind(run_id)
                     .fetch_all(db)
                     .await
@@ -441,7 +441,7 @@ pub async fn get_conductor_detail(
 ) -> Result<ConductorDetail, String> {
     let srow = sqlx::query(
         "SELECT s.id, s.project_id, s.goal, s.status, s.max_workers, s.created_at, s.finished_at,
-                (SELECT COUNT(*) FROM runs w WHERE w.conductor_run_id = s.id) AS worker_count
+                (SELECT COUNT(*) FROM runs w WHERE w.conductor_run_id = s.id AND w.deleted_at IS NULL) AS worker_count
          FROM conductor_sessions s WHERE s.id = ?",
     )
     .bind(&conductor_run_id)
@@ -463,7 +463,8 @@ pub async fn get_conductor_detail(
     // Newest activity first, mirroring the History list's sort (list_runs) so the
     // most recently active worker sits at the top instead of forcing a scroll down.
     let wrows = sqlx::query(
-        "SELECT id, title, status, engine, model, claude_account_id FROM runs WHERE conductor_run_id = ?
+        "SELECT id, title, status, engine, model, claude_account_id FROM runs
+         WHERE conductor_run_id = ? AND deleted_at IS NULL
          ORDER BY COALESCE(last_activity_at, finished_at, started_at, created_at) DESC",
     )
     .bind(&conductor_run_id)
@@ -578,7 +579,7 @@ pub async fn reconnect_running(db: &Db, conductor: &ConductorState) {
     let mut workers_by_conductor: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
     if let Ok(rows) = sqlx::query(
-        "SELECT id, conductor_run_id FROM runs WHERE conductor_run_id IS NOT NULL",
+        "SELECT id, conductor_run_id FROM runs WHERE conductor_run_id IS NOT NULL AND deleted_at IS NULL",
     )
     .fetch_all(db)
     .await
@@ -779,6 +780,26 @@ mod tests {
         assert_eq!(again.token, first.token);
         assert_eq!(again.max_workers, 3);
         assert_eq!(cst.session("s").unwrap().max_workers, 3);
+    }
+
+    #[tokio::test]
+    async fn a_worker_in_the_trash_is_not_owned_again() {
+        let db = setup().await;
+        add_run(&db, "s", "session", "done", None, None).await;
+        add_run(&db, "w1", "session", "done", Some("worker"), Some("s")).await;
+        add_run(&db, "w2", "session", "done", Some("worker"), Some("s")).await;
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'w2'").execute(&db).await.unwrap();
+        // On a launch.
+        let cst = ConductorState::new();
+        ensure_conductor_launch(&db, &cst, "s").await.unwrap().unwrap();
+        assert!(cst.owns_worker("s", "w1"));
+        assert!(!cst.owns_worker("s", "w2"), "session_send must not resume a trashed worker");
+        // After a restart, for a conductor that was running.
+        sqlx::query("UPDATE conductor_sessions SET status = 'running' WHERE id = 's'").execute(&db).await.unwrap();
+        let cst = ConductorState::new();
+        reconnect_running(&db, &cst).await;
+        assert!(cst.owns_worker("s", "w1"));
+        assert!(!cst.owns_worker("s", "w2"));
     }
 
     /// The column default (6, `0001_init.sql`) must never decide the cap:

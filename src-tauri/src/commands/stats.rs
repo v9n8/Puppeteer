@@ -645,7 +645,7 @@ pub async fn refresh_plan_usage(
         }
     }
 
-    let cwd: String = sqlx::query_scalar("SELECT path FROM projects ORDER BY created_at DESC LIMIT 1")
+    let cwd: String = sqlx::query_scalar("SELECT path FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")
         .fetch_optional(db.inner())
         .await
         .ok()
@@ -792,7 +792,7 @@ pub async fn refresh_codex_plan_usage(
         }
     }
 
-    let cwd: String = sqlx::query_scalar("SELECT path FROM projects ORDER BY created_at DESC LIMIT 1")
+    let cwd: String = sqlx::query_scalar("SELECT path FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")
         .fetch_optional(db.inner())
         .await
         .ok()
@@ -1404,6 +1404,19 @@ mod account_stats_tests {
             .await
             .unwrap();
         assert_eq!(none.summary.total_tokens, 7);
+    }
+
+    /// The trash hides sessions, not the tokens they spent: the ledger keeps counting
+    /// them, as it does for a session deleted for good (`run_usage.deleted_run`).
+    #[tokio::test]
+    async fn usage_of_a_session_in_the_trash_still_counts() {
+        let db = db().await;
+        usage(&db, "u1", "r1", "claude", 100).await;
+        usage(&db, "u2", "r2", "claude", 30).await;
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p'").execute(&db).await.unwrap();
+        let all = usage_stats(&db, &StatsFilter::default()).await.unwrap();
+        assert_eq!((all.summary.total_tokens, all.summary.total_runs), (130, 2));
     }
 
     #[tokio::test]

@@ -42,6 +42,8 @@ const insRun = db.prepare(
 );
 insRun.run('r-a', PROJECT, T0);
 insRun.run('r-b', PROJECT, T0);
+insRun.run('r-trash', PROJECT, T0);
+db.prepare("UPDATE runs SET deleted_at = ? WHERE id = 'r-trash'").run(T0); // in the trash: hidden
 db.prepare(
   "INSERT INTO notes (id, title, content, project_id, position, created_at, updated_at) VALUES ('n-1', 'Spec', 'body', ?, 0, ?, ?)",
 ).run(PROJECT, T0, T0);
@@ -54,6 +56,7 @@ const noteLink = db.prepare(
 noteLink.run('r-b', PROJECT, '2026-01-02T00:00:00Z');
 noteLink.run('r-a', PROJECT, '2026-01-03T00:00:00Z');
 noteLink.run('r-gone', PROJECT, '2026-01-04T00:00:00Z'); // run row missing: hidden
+noteLink.run('r-trash', PROJECT, '2026-01-05T00:00:00Z');
 db.prepare(
   "INSERT INTO todo_runs (todo_id, run_id, project_id, source, linked_at) VALUES ('t-1', 'r-a', ?, 'captured', ?)",
 ).run(PROJECT, T0);
@@ -89,6 +92,7 @@ function drive(frames) {
 const calls = [
   ['notes-list', 'notes_list', {}],
   ['notes-read', 'notes_read', { id: 'n-1' }],
+  ['recent', 'sessions_recent', { scope: 'all' }],
   ['todos-due-bad', 'todos_set_due', { id: 't-1', due: '2026-02-30' }],
   ['todos-due', 'todos_set_due', { id: 't-1', due: '2026-11-05' }],
   ['todos-list', 'todos_list', {}],
@@ -101,7 +105,8 @@ const byId = await drive(
 const out = Object.fromEntries(calls.map(([label], i) => [label, byId.get(i + 1)?.result?.content?.[0]?.text ?? '']));
 
 check(out['notes-list'].includes('[n-1] Spec') && out['notes-list'].endsWith('· sessions: r-b, r-a'),
-  'notes_list: linked session ids in link order, missing runs hidden');
+  'notes_list: linked session ids in link order, missing and trashed runs hidden');
+check(out.recent.includes('[r-a]') && !out.recent.includes('r-trash'), 'sessions_recent: a session in the trash is left out');
 check(out['notes-read'].includes('- linked_sessions: r-b, r-a\n'), 'notes_read: linked session ids');
 check(out['todos-due'] === 'Todo t-1 is due 2026-11-05.', 'todos_set_due: deadline set');
 check(out['todos-due-bad'].includes('invalid due date'), 'todos_set_due: impossible date rejected');

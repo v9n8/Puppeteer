@@ -131,7 +131,7 @@ pub async fn runs_of_thread(
          r.ref_number, r.status, r.engine, \
          COALESCE(r.last_activity_at, r.finished_at, r.started_at, r.created_at) AS activity \
          FROM slack_thread_runs l JOIN runs r ON r.id = l.run_id \
-         WHERE l.thread_id = ? \
+         WHERE l.thread_id = ? AND r.deleted_at IS NULL \
          ORDER BY activity DESC, l.linked_at DESC",
     )
     .bind(thread_id)

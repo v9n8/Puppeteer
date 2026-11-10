@@ -640,7 +640,7 @@ pub async fn apply_rule_to_all_projects(
     rule_id: String,
 ) -> Result<ApplyAllOutcome, String> {
     use sqlx::Row;
-    let rows = sqlx::query("SELECT id, name FROM projects ORDER BY name")
+    let rows = sqlx::query("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name")
         .fetch_all(db.inner())
         .await
         .map_err(|e| e.to_string())?;
@@ -1027,7 +1027,7 @@ pub async fn list_rule_sync_conflicts(db: State<'_, Db>) -> Result<Vec<RuleSyncC
          FROM rule_sync_conflicts rc
          JOIN rules r ON r.id = rc.rule_id
          JOIN projects p ON p.id = rc.project_id
-         WHERE rc.resolved = 0
+         WHERE rc.resolved = 0 AND p.deleted_at IS NULL
          ORDER BY rc.detected_at DESC"
     )
     .fetch_all(db.inner())

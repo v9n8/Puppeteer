@@ -302,7 +302,8 @@ async fn default_permission_mode(db: &Db) -> String {
 async fn session_list(state: &HttpState, conductor_run_id: &str) -> Result<Value, String> {
     let db = db(state);
     let rows = sqlx::query(
-        "SELECT id, title, status, engine, role FROM runs WHERE conductor_run_id = ? ORDER BY created_at",
+        "SELECT id, title, status, engine, role FROM runs
+         WHERE conductor_run_id = ? AND deleted_at IS NULL ORDER BY created_at",
     )
     .bind(conductor_run_id)
     .fetch_all(&db)

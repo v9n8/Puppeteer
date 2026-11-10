@@ -150,6 +150,18 @@ check(db.prepare("SELECT repo_id FROM runs WHERE id = 'run-1'").get().repo_id ==
 check(execFileSync('git', ['-C', join(ws, 'api'), 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim() === 'git@github.com:acme/api.git', 'repos_remove: folder on disk untouched');
 check(out['rm-again'].includes('repo not found'), 'repos_remove: already removed');
 
+// A project in the trash (migration 0009) is not listed and no longer matches by name.
+db.prepare("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('gone-1', 'Gone', '/tmp/gone', ?, ?)").run(T0, T0);
+db.prepare("INSERT INTO repos (id, project_id, name, path, created_at) VALUES ('gone-repo', 'gone-1', 'trashed-repo', '/tmp/gone/r', ?)").run(T0);
+out = await drive([
+  ['list', 'projects_list', {}],
+  ['by-name', 'repos_add', { path: lone, project: 'Gone' }],
+  ['repos-all', 'repos_list', { scope: 'all' }],
+]);
+check(out.list.includes('Acme') && !out.list.includes('Gone'), 'projects_list: a project in the trash is left out');
+check(out['by-name'].includes('no project matches "Gone"'), 'project by name: a project in the trash does not match');
+check(out['repos-all'].includes('lone') && !out['repos-all'].includes('trashed-repo'), 'repos_list all: repos of a trashed project are left out');
+
 db.close();
 rmSync(tmp, { recursive: true, force: true });
 if (failures.length) {

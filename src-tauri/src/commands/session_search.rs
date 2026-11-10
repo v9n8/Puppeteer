@@ -100,6 +100,7 @@ async fn search(
          JOIN runs r ON r.id = s.run_id
          JOIN projects p ON p.id = r.project_id
          WHERE {cond} AND (?2 IS NULL OR r.project_id = ?2)
+           AND r.deleted_at IS NULL AND p.deleted_at IS NULL
          ORDER BY activity_at DESC, s.run_id, s.log_offset
          LIMIT ?3"
     );
@@ -500,6 +501,30 @@ mod tests {
         assert_eq!(count(&db, "SELECT COUNT(*) FROM session_search_records").await, 0);
         assert_eq!(count(&db, "SELECT COUNT(*) FROM session_search_runs").await, 0);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn runs_in_the_trash_are_not_found_but_stay_indexed() {
+        let db = db().await;
+        let one = project(&db, "p1", &[("r1", "2026-01-01"), ("r2", "2026-01-02")]).await;
+        let two = project(&db, "p2", &[("r3", "2026-01-03")]).await;
+        for (dir, run) in [(&one, "r1"), (&one, "r2"), (&two, "r3")] {
+            write_log(dir, run, &user(&format!("needle in {run}")));
+        }
+        catch_up(&db).await;
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p2'").execute(&db).await.unwrap();
+        // Both paths: the trigram index and the short-query scan.
+        for query in ["needle", "ne"] {
+            assert_eq!(find(&db, query).await.iter().map(|h| h.0.as_str()).collect::<Vec<_>>(), ["r2"], "{query}");
+        }
+        // The index is kept, so a restore finds them again without a rebuild.
+        assert_eq!(count(&db, "SELECT COUNT(*) FROM session_search_runs").await, 3);
+        sqlx::query("UPDATE runs SET deleted_at = NULL").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET deleted_at = NULL").execute(&db).await.unwrap();
+        assert_eq!(find(&db, "needle").await.len(), 3);
+        let _ = fs::remove_dir_all(&one);
+        let _ = fs::remove_dir_all(&two);
     }
 
     #[tokio::test]

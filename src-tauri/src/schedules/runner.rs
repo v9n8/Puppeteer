@@ -350,6 +350,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_project_in_the_trash_fires_nothing() {
+        let db = db().await;
+        switch(&db, true).await;
+        let id = due_schedule(&db, "2020-01-01T00:00:00Z").await;
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").execute(&db).await.unwrap();
+        let (seen, fire) = recorder();
+        assert!(tick(&db, now(), fire).await.unwrap().is_empty());
+        assert!(seen.lock().unwrap().is_empty());
+        assert_eq!(get(&db, &id).await.unwrap().next_run_at.as_deref(), Some("2020-01-01T00:00:00Z"));
+    }
+
+    #[tokio::test]
     async fn a_due_schedule_fires_once_and_moves_its_slot_on() {
         let db = db().await;
         switch(&db, true).await;

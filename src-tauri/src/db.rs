@@ -181,6 +181,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn existing_projects_and_runs_are_not_in_the_trash() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at) VALUES ('r1', 'p1', 'session', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let (project, run): (Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT p.deleted_at, r.deleted_at FROM runs r JOIN projects p ON p.id = r.project_id WHERE r.id = 'r1'",
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!((project, run), (None, None));
+        // `path` stays unique, trashed or not: re-adding a path restores the old row (UX-06).
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert!(sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'a', '/a', 'c')")
+            .execute(&db)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
     async fn run_snapshots_start_empty_and_go_with_their_run() {
         let db = db_at_0001().await;
         for sql in [
