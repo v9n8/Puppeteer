@@ -11,6 +11,7 @@ import type { ItemContext } from '@/lib/itemWindow'
 import type { SelectionAllow } from '@/lib/selectionSurface'
 import type { TurnSide } from '@/lib/turnActions'
 import type { QuoteAnchor } from '@/lib/quoteAnchor'
+import type { SentMessage } from '@/lib/editResend'
 
 /** Where a quote goes; `label` names it on the button. */
 export interface QuoteTarget {
@@ -25,6 +26,14 @@ export interface TurnRewind {
   available: (turn: number) => boolean
   /** Ask (confirm first) to rewind to just before `turn`. */
   start: (turn: number) => void
+}
+
+/** Editing and resending a message of the session shown on a surface (UX-30). */
+export interface TurnEditResend {
+  /** The message sent as turn `turn` can be edited now (Send rewinds to it). */
+  available: (turn: number) => boolean
+  /** Put the message (entry `promptAt` of the shown log) into the composer to edit. */
+  start: (turn: number, promptAt: number, sent: SentMessage) => void
 }
 
 /** Forking the session shown on a surface after one of its turns (UX-28). */
@@ -61,6 +70,8 @@ export interface SelectionSurface {
   capture?: () => SelectionCapture
   /** "Rewind to here" in the turn rows of a log shown here; null = not now. */
   rewind?: () => TurnRewind | null
+  /** "Edit and resend" in the turn rows of a log shown here; null = not now. */
+  editResend?: () => TurnEditResend | null
   /** "Fork from here" in the turn rows of a log shown here; null = not now. */
   fork?: () => TurnFork | null
   /** Bookmark in the turn rows of a log shown here; null = not now. */

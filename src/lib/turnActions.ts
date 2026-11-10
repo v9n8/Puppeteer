@@ -5,13 +5,15 @@
 
 export type TurnSide = 'question' | 'answer'
 
-export type TurnAction = 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'fork' | 'rewind'
+export type TurnAction =
+  | 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'fork' | 'editResend' | 'rewind'
 
 /** Features a gated button needs on; the others are always offered. */
 export const TURN_ACTION_FEATURES = {
   quote: 'text_tools.selection.quote',
   saveNote: 'productivity.notes',
   rewind: 'sessions.rewind',
+  editResend: 'sessions.rewind',
 } as const
 
 /** A row, keyed in `turnFooters` by the entry it is rendered under. */
@@ -116,6 +118,8 @@ export interface TurnActionContext {
   canRewind?: boolean
   /** The surface can fork its session now (a stopped Claude / Codex session). */
   canFork?: boolean
+  /** The surface can edit and resend this question now: it rewinds like Rewind (UX-30). */
+  canEditResend?: boolean
   /** This side of the turn is bookmarked; null / absent = it cannot be bookmarked here. */
   bookmarked?: boolean | null
 }
@@ -124,7 +128,9 @@ export interface TurnActionContext {
  * Buttons of a row: the frequent ones inline, the rare ones behind `⋯`. An
  * empty `overflow` means no `⋯` button. Rewind cuts the session, so it comes
  * last, below a divider. Bookmark sits inline on both sides, as in AWOG. Fork
- * is on the answer only: the fork keeps the whole turn.
+ * is on the answer only: the fork keeps the whole turn. Edit and resend sits
+ * inline on the question: clicking only fills the composer, the rewind waits
+ * for its Send.
  */
 export function turnActions(
   side: TurnSide,
@@ -134,7 +140,9 @@ export function turnActions(
   const rewind: TurnAction[] = ctx.canRewind && isOn(TURN_ACTION_FEATURES.rewind) ? ['rewind'] : []
   const bookmark: TurnAction[] = typeof ctx.bookmarked === 'boolean' ? ['bookmark'] : []
   if (side === 'question') {
-    const primary: TurnAction[] = ctx.hasText ? ['copy', 'fullscreen'] : []
+    const primary: TurnAction[] = ctx.hasText ? ['copy'] : []
+    if (ctx.canEditResend && isOn(TURN_ACTION_FEATURES.editResend)) primary.push('editResend')
+    if (ctx.hasText) primary.push('fullscreen')
     return { primary: [...primary, ...bookmark], overflow: rewind }
   }
   const primary: TurnAction[] = []

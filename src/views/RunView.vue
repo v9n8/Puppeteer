@@ -13,7 +13,7 @@ import RunStatusBar from '@/components/sessions/RunStatusBar.vue'
 import { createRunSession } from '@/components/sessions/useRunSession'
 
 const {
-  uiLayout, isSessionWindow, composerVisible, showWorkerPanel, rewindTarget, onRewound,
+  uiLayout, isSessionWindow, composerVisible, showWorkerPanel, rewindTarget, onRewound, closeRewind,
 } = createRunSession()
 </script>
 
@@ -50,8 +50,9 @@ const {
     <RewindDialog
       :run-id="rewindTarget?.runId ?? null"
       :turn="rewindTarget?.turn ?? null"
-      @close="rewindTarget = null"
-      @done="onRewound"
+      :edit-resend="!!rewindTarget?.editResend"
+      @close="closeRewind"
+      @done="(outcome) => onRewound(outcome)"
     />
 
     <!-- Engine-switch dialog: new session vs. continue (carry context) -->

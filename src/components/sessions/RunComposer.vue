@@ -31,6 +31,7 @@ const {
   onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
+  editingMessage, rewindingEdit, cancelEditResend,
 } = useRunSession()
 
 function quoteFileLabel(q: { path: string; lines?: { start: number; end: number } }): string {
@@ -147,6 +148,33 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             </template>
           </div>
         </div>
+      </div>
+
+      <!-- Editing a sent message (UX-30): Send rewinds to just before it, Cancel brings the old draft back -->
+      <div
+        v-if="editingMessage"
+        class="mb-2 flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning"
+        role="status"
+      >
+        <Pencil class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+        <span class="min-w-0 flex-1">
+          {{
+            editingMessage.rewound
+              ? t('run.editResend.bannerRewound')
+              : editingMessage.number
+                ? t('run.editResend.banner', { n: editingMessage.number })
+                : t('run.editResend.bannerNoNumber')
+          }}
+        </span>
+        <Button
+          variant="ghost"
+          size="xs"
+          class="shrink-0"
+          :disabled="sendingFollowUp || rewindingEdit"
+          @click="cancelEditResend"
+        >
+          {{ t('common.cancel') }}
+        </Button>
       </div>
 
       <!-- Quote cards (UX-29): sent ahead of the message as blockquotes, each with an optional note -->
@@ -387,7 +415,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                  follow-up typed. Then the split action: Steer puts it into the
                  turn now (both engines take input mid-turn, D4-06 spike), Queue
                  (Enter) sends it once the turn ends. -->
-            <div v-if="currentStatus === 'running' && !primaryDisabled" class="inline-flex shrink-0">
+            <div v-if="currentStatus === 'running' && !primaryDisabled && !editingMessage" class="inline-flex shrink-0">
               <Button
                 v-if="features.isOn('sessions.steer')"
                 variant="outline"

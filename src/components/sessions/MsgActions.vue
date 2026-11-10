@@ -6,7 +6,9 @@
 // opens upward first because the row ends its turn.
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bookmark, BookmarkCheck, Check, Copy, GitFork, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
+import {
+  Bookmark, BookmarkCheck, Check, Copy, GitFork, History, Layers, Maximize2, MoreHorizontal, Pencil, Quote, StickyNote,
+} from 'lucide-vue-next'
 import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { turnActions, type TurnAction, type TurnSide } from '@/lib/turnActions'
 
@@ -24,6 +26,8 @@ export interface MsgActionsState {
   canRewind: (turn: number) => boolean
   /** The session can be forked now (reads its state reactively). */
   canFork: () => boolean
+  /** The message sent as `turn` can be edited and resent now (reads its state reactively). */
+  canEditResend: (turn: number) => boolean
   /**
    * Whether one side of the turn starting at entry `promptAt` is bookmarked;
    * null = it cannot be bookmarked here (reads its state reactively).
@@ -54,6 +58,7 @@ const buttons = computed(() =>
     canSaveNote: props.state.canSaveNote.value,
     canRewind: props.rewindTurn !== null && props.state.canRewind(props.rewindTurn),
     canFork: props.state.canFork(),
+    canEditResend: props.side === 'question' && props.rewindTurn !== null && props.state.canEditResend(props.rewindTurn),
     bookmarked: bookmarked.value,
   }),
 )
@@ -72,7 +77,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 
 const ICONS = {
   copy: Copy, quote: Quote, bookmark: Bookmark, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, fork: GitFork,
-  rewind: History,
+  editResend: Pencil, rewind: History,
 } as const
 
 function icon(action: TurnAction) {

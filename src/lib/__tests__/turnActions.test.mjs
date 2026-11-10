@@ -220,6 +220,18 @@ test('turnActions: Rewind sits last behind ⋯ on both sides, only when the surf
   assert.equal(TURN_ACTION_FEATURES.rewind, 'sessions.rewind')
 })
 
+test('turnActions: Edit and resend sits inline on the question only, with Rewind on', () => {
+  const can = { ...ctx, canEditResend: true, canRewind: true }
+  assert.deepEqual(turnActions('question', allOn, can), { primary: ['copy', 'editResend', 'fullscreen'], overflow: ['rewind'] })
+  assert.deepEqual(turnActions('question', allOn, { ...can, hasText: false }).primary, ['editResend'])
+  assert.deepEqual(turnActions('question', allOn, { ...can, bookmarked: false }).primary, ['copy', 'editResend', 'fullscreen', 'bookmark'])
+  assert.ok(!turnActions('answer', allOn, can).primary.includes('editResend'))
+  assert.ok(!turnActions('answer', allOn, can).overflow.includes('editResend'))
+  const rewindOff = (f) => f !== TURN_ACTION_FEATURES.rewind
+  assert.deepEqual(turnActions('question', rewindOff, can), { primary: ['copy', 'fullscreen'], overflow: [] })
+  assert.equal(TURN_ACTION_FEATURES.editResend, 'sessions.rewind')
+})
+
 test('turnActions: Fork from here is behind ⋯ on the answer only, above Rewind', () => {
   const can = { ...ctx, canFork: true }
   assert.deepEqual(turnActions('answer', allOn, can).overflow, ['saveNote', 'fork'])

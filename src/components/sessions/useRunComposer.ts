@@ -25,6 +25,10 @@ import {
 import { mergeContextModel } from '@/lib/contextLimits'
 import type { TurnSide } from '@/lib/turnActions'
 import { canForkRun } from '@/lib/runFork'
+import {
+  beginEdit, canEditResend, editDraftOf, endEdit, rewindErrorKey, rewindStep, type EditSession, type SentMessage,
+} from '@/lib/editResend'
+import type { ChatDraft } from '@/stores/chatDrafts'
 import { matchProjectFile } from '@/lib/fileLinks'
 import { openFileWindow } from '@/lib/fileWindow'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
@@ -73,7 +77,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     outputEl, historyEl, viewingLogRunId, viewingLog, historyEntries, historyHasStream,
     historyContextTokens, historyModel, isViewingHistory, sourceText, stickToBottom,
     scrollOutputToBottom, scrollMemory, bookmarkState, toggleBookmark, snapshotTurns, rewindTarget,
-    clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes, forkRun,
+    clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes, forkRun, onRewound, promptNumber,
   } = log
   const {
     captureContext,
@@ -398,6 +402,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Quote cards above the composer (UX-29): part of the draft, sent ahead of the text.
   const draftQuotes = ref<DraftQuote[]>([])
   const sendingFollowUp = ref(false)
+  // "Edit and resend" (UX-30): the sent message the composer holds, and the
+  // draft set aside for it. `rewindingEdit`: its Send is rewinding (or the
+  // Rewind dialog is open for it).
+  const editing = ref<EditSession<ChatDraft> | null>(null)
+  const editingMessage = computed(() => (editing.value && editing.value.runId === currentRunId.value ? editing.value : null))
+  const rewindingEdit = ref(false)
   const savingClaudeAccount = ref(false)
 
   const defaultClaudeAccount = computed(() =>
@@ -495,36 +505,45 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // `restoringDraft` guards the persist watcher while we swap a session's draft in.
   let restoringDraft = false
 
-  function restoreDraftFor(runId: string | null) {
+  /** Put `draft` into the composer without saving it as the session's draft. */
+  function applyComposerDraft(draft: ChatDraft | null) {
     restoringDraft = true
     pendingImages.value = []
     pendingFiles.value = []
-    followUpInput.value = ''
-    draftQuotes.value = []
-    if (runId) {
-      const draft = draftsStore.get(runId)
-      followUpInput.value = draft.text
-      draftQuotes.value = draft.quotes ?? []
-      for (const img of draft.images) pushPendingImage(img.media_type, img.data)
-      for (const f of draft.files) addPendingFile(f.path)
-    }
+    followUpInput.value = draft?.text ?? ''
+    draftQuotes.value = draft?.quotes ?? []
+    for (const img of draft?.images ?? []) pushPendingImage(img.media_type, img.data)
+    for (const f of draft?.files ?? []) addPendingFile(f.path)
     nextTick(() => { restoringDraft = false })
+  }
+
+  function composerDraft(): ChatDraft {
+    return {
+      text: followUpInput.value,
+      images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
+      files: pendingFiles.value.map(({ name, path }) => ({ name, path })),
+      quotes: draftQuotes.value,
+    }
+  }
+
+  function restoreDraftFor(runId: string | null) {
+    // An edit in progress (UX-30) ends with its session; that session's draft
+    // never left the store.
+    editing.value = null
+    applyComposerDraft(runId ? draftsStore.get(runId) : null)
   }
 
   // Load the focused session's draft whenever it changes (initial open, session
   // switch, new session). The persist watcher below then tracks edits for it.
   watch(currentRunId, (id) => restoreDraftFor(id), { immediate: true })
 
+  // While an edit is in the composer the stored draft is the one set aside for
+  // it, so a reload in the middle still finds that draft.
   watch(
     [followUpInput, pendingImages, pendingFiles, draftQuotes],
     () => {
-      if (restoringDraft || !currentRunId.value) return
-      draftsStore.set(currentRunId.value, {
-        text: followUpInput.value,
-        images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
-        files: pendingFiles.value.map(({ name, path }) => ({ name, path })),
-        quotes: draftQuotes.value,
-      })
+      if (restoringDraft || !currentRunId.value || editingMessage.value) return
+      draftsStore.set(currentRunId.value, composerDraft())
     },
     { deep: true },
   )
@@ -572,6 +591,17 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         start: (turn: number) => {
           rewindTarget.value = { runId: run.id, turn }
         },
+      }
+    },
+    // "Edit and resend" under a question: where Rewind takes the conversation
+    // back (lib/editResend), to a message whose snapshot is still kept.
+    editResend: () => {
+      const run = currentRun.value
+      const busy = { running: currentStatus.value === 'running', sending: sendingFollowUp.value || rewindingEdit.value }
+      if (!run || !canEditResend(run, busy)) return null
+      return {
+        available: (turn: number) => snapshotTurns.value.has(turn),
+        start: (turn: number, promptAt: number, sent: SentMessage) => startEditResend(run.id, turn, promptAt, sent),
       }
     },
     // "Fork from here" under an answer: a stopped session the engine can fork
@@ -764,6 +794,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   const chatSendLabel = computed(() => {
     if (sendingFollowUp.value) return t('run.sendLabelSending')
+    if (editingMessage.value) return t(editingMessage.value.rewound ? 'run.editResend.sendRewound' : 'run.editResend.send')
     if (currentStatus.value === 'fetched') return t('run.sendLabelRun')
     if (!chatEligible.value) return t('run.sendLabelRun')
     return t('run.sendLabelResume')
@@ -777,7 +808,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // "Run" (fetched record, or a finished run we can't resume) needs no input;
   // sending a follow-up / resuming does.
   const primaryDisabled = computed(() => {
-    if (sendingFollowUp.value) return true
+    if (sendingFollowUp.value || rewindingEdit.value) return true
+    if (editingMessage.value) return !hasComposerInput()
     // A fresh session launches as a conductor, which needs a goal to start.
     if (currentStatus.value === 'fetched' && currentRun.value?.run_type === 'session') {
       return !hasComposerInput()
@@ -795,6 +827,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // separate button, so here we either queue / send a typed message / resume, or
   // kick off the default-prompt run when nothing was typed.
   function handlePrimaryAction() {
+    if (editingMessage.value) { void handleSendFollowUp(); return }
     if (currentStatus.value === 'running') { handleQueue(); return }
     if (!hasComposerInput() && (currentStatus.value === 'fetched' || !chatEligible.value)) {
       handleStartRun()
@@ -1161,7 +1194,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     // Enter (no Shift) sends, or queues while a turn runs; Shift+Enter inserts a newline.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (currentStatus.value === 'running') handleQueue()
+      if (currentStatus.value === 'running' && !editingMessage.value) handleQueue()
       else handleSendFollowUp()
     }
   }
@@ -1169,6 +1202,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // `steer`: add the message to the turn in flight (sessions.steer) instead of
   // sending a follow-up. A turn that ended meanwhile gets a plain follow-up.
   async function handleSendFollowUp(steer = false) {
+    if (editingMessage.value) {
+      await sendEditResend(editingMessage.value)
+      return
+    }
     mentionOpen.value = false
     const text = followUpInput.value.trim()
     if (!hasComposerInput() || !currentRunId.value || sendingFollowUp.value) return
@@ -1183,6 +1220,89 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       // Quotes added while it was sending stay for the next message.
       const sentIds = new Set(quotes.map((q) => q.id))
       draftQuotes.value = draftQuotes.value.filter((q) => !sentIds.has(q.id))
+    }
+  }
+
+  // ── Edit and resend (UX-30) ───────────────────────────────────────────────
+  // The message's text, quotes (as cards again) and images go into the
+  // composer; the draft that was there waits in the store. Send rewinds to just
+  // before the message, as "Rewind to here" does (asking first when files would
+  // be restored), then sends the edit as a follow-up. A failed or declined
+  // rewind sends nothing and keeps the edit; Cancel puts the old draft back.
+  function startEditResend(runId: string, turn: number, promptAt: number, sent: SentMessage) {
+    if (currentRunId.value !== runId || sendingFollowUp.value || rewindingEdit.value) return
+    if (!editingMessage.value) draftsStore.set(runId, composerDraft())
+    editing.value = beginEdit(editing.value, { runId, turn, number: promptNumber(promptAt) }, composerDraft())
+    const edit = editDraftOf(sent, () => crypto.randomUUID())
+    applyComposerDraft({ text: edit.text, images: edit.images, files: [], quotes: edit.quotes })
+    mentionOpen.value = false
+    slashOpen.value = false
+    focusComposer()
+  }
+
+  function cancelEditResend() {
+    const edit = editingMessage.value
+    if (!edit || sendingFollowUp.value || rewindingEdit.value) return
+    editing.value = null
+    applyComposerDraft(endEdit(edit))
+  }
+
+  function rewindErrorText(e: unknown): string {
+    const key = rewindErrorKey(e)
+    return key ? t(key) : String(e)
+  }
+
+  // True once the conversation went back to just before the message.
+  async function rewindForEdit(runId: string, turn: number): Promise<boolean> {
+    try {
+      const preview = await runsStore.previewRewind(runId, turn)
+      const step = rewindStep(preview)
+      if (step === 'refuse') {
+        const reason = t(`run.rewind.reason.${preview.conversation_reason ?? 'engine'}`)
+        toast.error(t('run.editResend.cannotRewind', { reason }))
+        return false
+      }
+      if (step === 'confirm') {
+        return await new Promise<boolean>((settle) => {
+          rewindTarget.value = { runId, turn, editResend: true, settle }
+        })
+      }
+      const outcome = await runsStore.rewindRun(runId, turn, preview.fingerprint)
+      let rewound = false
+      await onRewound(outcome, { runId, turn, editResend: true, settle: (ok) => { rewound = ok } })
+      return rewound
+    } catch (e) {
+      toast.error(rewindErrorText(e))
+      return false
+    }
+  }
+
+  async function sendEditResend(edit: EditSession<ChatDraft>) {
+    mentionOpen.value = false
+    if (!hasComposerInput() || sendingFollowUp.value || rewindingEdit.value) return
+    const runId = edit.runId
+    if (!edit.rewound) {
+      rewindingEdit.value = true
+      let rewound = false
+      try {
+        rewound = await rewindForEdit(runId, edit.turn)
+      } finally {
+        rewindingEdit.value = false
+      }
+      if (!rewound || editing.value !== edit) return
+      // Not rewound again if the send below fails or is declined.
+      edit.rewound = true
+    }
+    if (currentRunId.value !== runId) return
+    const text = followUpInput.value.trim()
+    const quotes = draftQuotes.value
+    const result = await sendMessage(
+      runId,
+      () => ({ text, images: takePendingImages(), filePaths: takePendingFilePaths(), quotes }),
+    )
+    if (result === 'sent' && editing.value === edit) {
+      editing.value = null
+      applyComposerDraft(endEdit(edit))
     }
   }
 
@@ -1308,7 +1428,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     mentionOpen.value = false
     slashOpen.value = false
     const id = currentRunId.value
-    if (!id || sendingFollowUp.value) return
+    // An edit is sent by rewinding first, never queued behind a running turn.
+    if (!id || sendingFollowUp.value || editingMessage.value) return
     const draft = {
       text: followUpInput.value,
       images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
@@ -1455,7 +1576,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
     handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
     removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
-    cancelQueuedEdit,
+    cancelQueuedEdit, editingMessage, rewindingEdit, cancelEditResend,
     ...chips,
   }
 }

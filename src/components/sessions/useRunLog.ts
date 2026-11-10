@@ -33,6 +33,16 @@ export interface RunLogLate {
   carryPicks: (fromRunId: string, toRunId: string) => void
 }
 
+/** Where the Rewind dialog goes back to, and for whom. */
+export interface RewindTarget {
+  runId: string
+  turn: number
+  /** The rewind of an edited message's Send (UX-30): the dialog says it sends next. */
+  editResend?: boolean
+  /** Told how it ended: true = the conversation went back and the log reloaded; false = closed, or files only. */
+  settle?: (rewound: boolean) => void
+}
+
 type ScrollAnchor = { bottom: true } | { el: Element; offset: number } | null
 type SessionTurn = { label: string; offset: number }
 
@@ -572,6 +582,11 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   function loadedTurnIndexOf(entryIndex: number): number {
     return promptTurns.value.findIndex((t) => t.entryIndex === entryIndex)
   }
+  /** 1-based place in the session of the prompt at loaded entry `entryIndex`; null when unknown. */
+  function promptNumber(entryIndex: number): number | null {
+    const li = loadedTurnIndexOf(entryIndex)
+    return li < 0 ? null : loadedTurnOffset.value + li + 1
+  }
   // Full-list index of the turn currently at the top, or -1 when above the first
   // loaded one.
   function activeSessionSeq(): number {
@@ -884,10 +899,17 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     }
   }
 
-  /** A prompt just sent with quotes: show its cards now, then read them back. */
+  /**
+   * A prompt just sent with quotes: show its cards now, then read them back. A
+   * resent edit (UX-30) can carry quotes of messages its rewind cut: those are
+   * not on screen, so their cards say so at once.
+   */
   function noteSentQuotes(runId: string, quoteSet: string, quotes: readonly DraftQuote[]) {
     if (currentRunId.value === runId && quotes.length) {
-      runQuotes.value = [...runQuotes.value, ...pendingRunQuotes(runId, quoteSet, quotes)]
+      const sent = pendingRunQuotes(runId, quoteSet, quotes).map((q) =>
+        q.pending && !(q.source_entry_id && shownHasMessage(q.source_entry_id)) ? { ...q, pending: false } : q,
+      )
+      runQuotes.value = [...runQuotes.value, ...sent]
     }
   }
 
@@ -955,7 +977,9 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   // ── Rewind (sessions.rewind) ─────────────────────────────────────────────────
   // Turns of the shown run whose workspace snapshot can still be restored.
   const snapshotTurns = shallowRef<Set<number>>(new Set())
-  const rewindTarget = ref<{ runId: string; turn: number } | null>(null)
+  // `editResend`: the rewind of an edited message's Send (UX-30), told how it
+  // ended through `settle` (true = rewound, the log on screen reloaded).
+  const rewindTarget = ref<RewindTarget | null>(null)
 
   async function loadSnapshots(runId: string | null) {
     if (!runId || !features.isOn('sessions.rewind')) {
@@ -978,10 +1002,28 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     { immediate: true },
   )
 
-  async function onRewound(outcome: RewindOutcome) {
+  /** The Rewind dialog closed without rewinding. */
+  function closeRewind() {
     const target = rewindTarget.value
     rewindTarget.value = null
+    target?.settle?.(false)
+  }
+
+  /** A rewind is done: from the dialog (`rewindTarget`), or straight from an edit's Send (`direct`). */
+  async function onRewound(outcome: RewindOutcome, direct?: RewindTarget) {
+    const target = direct ?? rewindTarget.value
+    if (!direct) rewindTarget.value = null
     if (!target) return
+    let applied = false
+    try {
+      await applyRewound(target, outcome)
+      applied = true
+    } finally {
+      target.settle?.(applied && outcome.conversation)
+    }
+  }
+
+  async function applyRewound(target: RewindTarget, outcome: RewindOutcome) {
     const { restored, deleted, failed } = outcome.files
     toast.success(t(outcome.conversation ? 'run.rewind.done' : 'run.rewind.doneFilesOnly', { restored, deleted }))
     if (failed.length) toast.error(t('run.rewind.failed', { files: failed.join(', ') }))
@@ -992,8 +1034,9 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
       await loadRunLog(target.runId, { force: true })
       void loadSessionTurns(target.runId)
       // The cut dropped the bookmarks after it, and the messages some quotes point at.
+      // Quotes are awaited: an edit's resend adds its own right after.
       void loadBookmarks(target.runId)
-      void loadQuotes(target.runId)
+      await loadQuotes(target.runId)
     }
     void loadSnapshots(target.runId)
   }
@@ -1415,7 +1458,8 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn, onTurnNavKey,
     onOutputPointerDown, onWindowPointerUp, historyAwayFromBottom, scrollHistoryToLatest,
     onHistoryScroll, bookmarks, placedBookmarks, bookmarkState, toggleBookmark, snapshotTurns,
-    rewindTarget, onRewound, forking, forkRun, runFind, findOpen, logHits, logHitsTruncated, logSearching,
+    rewindTarget, onRewound, closeRewind, promptNumber, forking, forkRun, runFind, findOpen, logHits,
+    logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
     loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes,
   }

@@ -3,17 +3,21 @@
 // user has seen what the files and the conversation go back to, and every file
 // the restore overwrites or deletes — those edited after the session stopped
 // first and flagged, since their edits are lost. The rewind is refused if the
-// files change after this list was made.
+// files change after this list was made. An edited message's Send (UX-30)
+// confirms here too, before the edit goes out.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle } from 'lucide-vue-next'
 import { Button, Modal } from '@/components/ui'
 import { useRunsStore, type RewindOutcome, type RewindPreview } from '@/stores/runs'
+import { rewindErrorKey } from '@/lib/editResend'
 
 const props = defineProps<{
   runId: string | null
   /** The snapshot turn to go back to; null = closed. */
   turn: number | null
+  /** The rewind of an edited message's Send: the edit is sent once it is done. */
+  editResend?: boolean
 }>()
 const emit = defineEmits<{ close: []; done: [outcome: RewindOutcome] }>()
 
@@ -24,22 +28,9 @@ const preview = ref<RewindPreview | null>(null)
 const error = ref<string | null>(null)
 const busy = ref(false)
 
-const KNOWN_ERRORS = [
-  'run_active',
-  'folder_busy',
-  'files_changed',
-  'snapshot_damaged',
-  'snapshot_missing',
-  'snapshot_unavailable',
-  'snapshot_not_found',
-  'workspace_missing',
-  'too_many_files',
-]
-
 function errorText(e: unknown): string {
-  const raw = String(e)
-  const code = raw.split(':')[0]
-  return KNOWN_ERRORS.includes(code) ? t(`run.rewind.errors.${code}`) : raw
+  const key = rewindErrorKey(e)
+  return key ? t(key) : String(e)
 }
 
 async function load() {
@@ -91,8 +82,15 @@ async function confirm() {
 </script>
 
 <template>
-  <Modal :open="!!runId && turn !== null" :title="t('run.rewind.title')" size="md" scroll-body @close="busy || emit('close')">
+  <Modal
+    :open="!!runId && turn !== null"
+    :title="t(editResend ? 'run.editResend.confirmTitle' : 'run.rewind.title')"
+    size="md"
+    scroll-body
+    @close="busy || emit('close')"
+  >
     <div class="space-y-3 px-4 py-4 text-sm">
+      <p v-if="editResend">{{ t('run.editResend.confirmNote') }}</p>
       <p v-if="!preview && !error" class="text-muted-foreground">{{ t('run.rewind.loading') }}</p>
       <template v-if="preview">
         <p>{{ t('run.rewind.filesAt', { when }) }}</p>
@@ -126,7 +124,7 @@ async function confirm() {
     </div>
     <template #footer>
       <Button variant="outline" :disabled="busy" @click="emit('close')">{{ t('common.cancel') }}</Button>
-      <Button variant="destructive" :disabled="!preview || busy" @click="confirm">{{ t('run.rewind.confirm') }}</Button>
+      <Button variant="destructive" :disabled="!preview || busy" @click="confirm">{{ t(editResend ? 'run.editResend.confirm' : 'run.rewind.confirm') }}</Button>
     </template>
   </Modal>
 </template>

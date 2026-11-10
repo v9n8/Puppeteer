@@ -187,6 +187,17 @@
       "too_many_files": "The folder has too many files to compare."
     }
   },
+  "editResend": {
+    "banner": "Editing message {n}. Send rewinds the session to just before it, then sends your edit.",
+    "bannerNoNumber": "Editing a sent message. Send rewinds the session to just before it, then sends your edit.",
+    "bannerRewound": "Rewound to just before the message. Send sends your edit.",
+    "send": "Rewind & send",
+    "sendRewound": "Send",
+    "confirmTitle": "Rewind and send the edited message",
+    "confirmNote": "The session goes back to just before the message you edited, then your edit is sent in its place.",
+    "confirm": "Rewind & send",
+    "cannotRewind": "Cannot edit and resend: the conversation cannot go back to this message. {reason} Nothing was sent."
+  },
   "collapseComposer": "Collapse the composer",
   "expandComposer": "Expand the composer (easier to read/edit long text)",
   "runSettingsTitle": "Run options — using {engine}",

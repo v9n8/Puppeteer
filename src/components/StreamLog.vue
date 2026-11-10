@@ -783,6 +783,7 @@ const msgActionsState: MsgActionsState = {
   canSaveNote: computed(() => !!owner.value?.allow.saveNote && !!owner.value.capture),
   canRewind: (turn) => owner.value?.rewind?.()?.available(turn) ?? false,
   canFork: () => !!owner.value?.fork?.(),
+  canEditResend: (turn) => owner.value?.editResend?.()?.available(turn) ?? false,
   bookmarked: (promptAt, side) => owner.value?.bookmarks?.()?.marked(promptAt, side) ?? null,
 }
 
@@ -838,6 +839,17 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
       break
     case 'fork':
       owner.value?.fork?.()?.start(turnPromptAt(f))
+      break
+    case 'editResend':
+      // The prompt as sent (quotes as blockquotes first) and its saved quotes:
+      // the composer splits them back into text and cards.
+      if (f.rewindTurn !== null && e.kind === 'user') {
+        owner.value?.editResend?.()?.start(f.rewindTurn, i, {
+          text: e.text,
+          quotes: quoteSetOf(e)?.cards.map((c) => c.quote) ?? [],
+          images: e.images,
+        })
+      }
       break
     case 'bookmark':
       owner.value?.bookmarks?.()?.toggle(turnPromptAt(f), f.side)

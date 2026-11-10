@@ -198,6 +198,81 @@ pub async fn of_run(db: &Db, run_id: &str) -> Result<Vec<RunQuote>, String> {
     .map_err(|e| e.to_string())
 }
 
+/// The quote set a log record names: a prompt that carried quotes.
+pub(crate) fn set_of(v: &serde_json::Value) -> Option<&str> {
+    if v.get("type").and_then(|t| t.as_str()) != Some("user") {
+        return None;
+    }
+    v.get("quote_set").and_then(|s| s.as_str()).filter(|s| !s.is_empty())
+}
+
+/// Drop the quotes of prompts a Rewind cut out of the log (`sets`, read from
+/// the cut part): nothing names them any more.
+pub async fn drop_sets(db: &Db, run_id: &str, sets: &[String]) -> Result<u64, String> {
+    let mut dropped = 0;
+    for set in sets {
+        dropped += sqlx::query("DELETE FROM run_quotes WHERE run_id = ? AND quote_set = ?")
+            .bind(run_id)
+            .bind(set)
+            .execute(db)
+            .await
+            .map_err(|e| e.to_string())?
+            .rows_affected();
+    }
+    Ok(dropped)
+}
+
+/// Copy the quotes of `sets` (the prompts a fork keeps) from run `from` to
+/// run `to`. The fork's log is a byte copy, so its prompt records name the
+/// same sets and its messages keep their ids: a quote of the source's own
+/// messages now points at the fork's copy of them.
+pub async fn copy_sets(
+    conn: &mut sqlx::SqliteConnection,
+    from: &str,
+    to: &str,
+    sets: &[String],
+) -> Result<u64, String> {
+    if sets.is_empty() {
+        return Ok(0);
+    }
+    let rows: Vec<RunQuote> = sqlx::query_as(&format!("SELECT {COLUMNS} FROM run_quotes WHERE run_id = ?"))
+        .bind(from)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut copied = 0;
+    for q in rows.into_iter().filter(|q| sets.contains(&q.quote_set)) {
+        let source_run_id = match q.source_run_id.as_deref() {
+            Some(s) if s == from => Some(to.to_string()),
+            _ => q.source_run_id,
+        };
+        copied += sqlx::query(&format!(
+            "INSERT INTO run_quotes ({COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ))
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind(to)
+        .bind(&q.quote_set)
+        .bind(q.position)
+        .bind(&q.kind)
+        .bind(source_run_id)
+        .bind(&q.source_entry_id)
+        .bind(q.block_index)
+        .bind(q.start_offset)
+        .bind(q.end_offset)
+        .bind(&q.path)
+        .bind(q.line_start)
+        .bind(q.line_end)
+        .bind(&q.excerpt)
+        .bind(&q.note)
+        .bind(&q.created_at)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+    }
+    Ok(copied)
+}
+
 /// Where each of `ids` (assistant message ids) first appears in the log at
 /// `path`: the byte offset its record starts at, counted like the log search,
 /// so each one is a valid forward-read cursor. Ids not found are absent.

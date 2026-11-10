@@ -187,6 +187,17 @@
       "too_many_files": "Thư mục có quá nhiều file để so sánh."
     }
   },
+  "editResend": {
+    "banner": "Đang sửa tin nhắn {n}. Gửi sẽ Rewind Session về ngay trước tin đó, rồi gửi bản đã sửa.",
+    "bannerNoNumber": "Đang sửa một tin đã gửi. Gửi sẽ Rewind Session về ngay trước tin đó, rồi gửi bản đã sửa.",
+    "bannerRewound": "Đã Rewind về ngay trước tin nhắn. Bấm Gửi để gửi bản đã sửa.",
+    "send": "Rewind và gửi",
+    "sendRewound": "Gửi",
+    "confirmTitle": "Rewind và gửi tin đã sửa",
+    "confirmNote": "Session quay về ngay trước tin nhắn bạn sửa, rồi bản đã sửa được gửi thay cho tin đó.",
+    "confirm": "Rewind và gửi",
+    "cannotRewind": "Không sửa và gửi lại được: hội thoại không quay về tin nhắn này được. {reason} Chưa gửi gì."
+  },
   "collapseComposer": "Thu gọn ô soạn thảo",
   "expandComposer": "Mở rộng ô soạn thảo (dễ đọc/sửa văn bản dài)",
   "runSettingsTitle": "Tùy chọn run — đang dùng {engine}",

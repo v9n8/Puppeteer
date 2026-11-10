@@ -61,6 +61,8 @@ struct ForkCut {
     /// Highest snapshot turn among the kept prompts.
     last_turn: Option<i64>,
     start: ForkStart,
+    /// Quote sets (`runs::quotes`) of the kept prompts.
+    quote_sets: Vec<String>,
 }
 
 /// Where to cut `log` to keep everything up to the end of the turn whose
@@ -75,6 +77,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, through: Opti
     let mut last_entry: Option<(String, Option<String>)> = None;
     let mut prompts = 0u32;
     let mut last_turn: Option<i64> = None;
+    let mut quote_sets: Vec<String> = Vec::new();
 
     for line in log.split(b'\n') {
         let line = line?;
@@ -99,6 +102,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, through: Opti
             if let Some(t) = v.get("turn").and_then(Value::as_i64) {
                 last_turn = Some(last_turn.map_or(t, |l| l.max(t)));
             }
+            quote_sets.extend(super::quotes::set_of(&v).map(str::to_string));
         } else if let Some(s) = init_session(&v) {
             if s.as_deref() != session {
                 other_session = true;
@@ -122,7 +126,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, through: Opti
         "codex" if same && !other_session => carried(ForkStart { keep_turns: Some(prompts), ..Default::default() }),
         _ => ForkStart::default(),
     };
-    Ok(Some(ForkCut { len: cut, last_turn, start }))
+    Ok(Some(ForkCut { len: cut, last_turn, start, quote_sets }))
 }
 
 /// The fork a resume must apply: the last `_puppeteer_fork` record when no
@@ -309,7 +313,9 @@ pub(crate) async fn fork(db: &Db, registry: &RunRegistry, run_id: &str, at_offse
     };
     let title = src.title.as_deref().map(|t| format!("{t} (fork)"));
     let saved = match written {
-        Ok(()) => save(db, &src, run_id, &new_id, &now, title.as_deref(), cut.len, cut.last_turn).await,
+        Ok(()) => {
+            save(db, &src, run_id, &new_id, &now, title.as_deref(), cut.len, cut.last_turn, &cut.quote_sets).await
+        }
         Err(e) => Err(e),
     };
     if let Err(e) = saved {
@@ -348,9 +354,9 @@ pub(crate) async fn fork(db: &Db, registry: &RunRegistry, run_id: &str, at_offse
     })
 }
 
-/// The fork's row, its MCP overrides, and the snapshots and bookmarks of the
-/// kept turns (the log is copied byte for byte, so offsets and turns still
-/// match; the fork's next turn is numbered after the kept ones).
+/// The fork's row, its MCP overrides, and the snapshots, bookmarks and quotes
+/// of the kept turns (the log is copied byte for byte, so offsets, turns and
+/// quote sets still match; the fork's next turn is numbered after the kept ones).
 #[allow(clippy::too_many_arguments)]
 async fn save(
     db: &Db,
@@ -361,6 +367,7 @@ async fn save(
     title: Option<&str>,
     len: Option<u64>,
     last_turn: Option<i64>,
+    quote_sets: &[String],
 ) -> Result<(), String> {
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
     sqlx::query(
@@ -447,6 +454,7 @@ async fn save(
             .await
             .map_err(|e| e.to_string())?;
     }
+    super::quotes::copy_sets(&mut *tx, from, id, quote_sets).await?;
     tx.commit().await.map_err(|e| e.to_string())
 }
 
@@ -755,6 +763,54 @@ mod tests {
         // Deleting the source only drops the link.
         sqlx::query("DELETE FROM runs WHERE id = 'src'").execute(&f.db).await.unwrap();
         assert_eq!(row(&f.db, &id).await.2, None);
+    }
+
+    #[tokio::test]
+    async fn a_fork_copies_the_quotes_of_the_kept_prompts_pointing_at_its_own_copy() {
+        let quoted = |text: &str, turn: i64, set: &str| {
+            let mut v = prompt(text, Some(turn));
+            v["quote_set"] = json!(set);
+            v
+        };
+        let two = quoted("two", 2, "set-2");
+        let text = log(&[
+            prompt("one", Some(1)),
+            init("s1"),
+            assistant("a1", "s1"),
+            two.clone(),
+            assistant("a2", "s1"),
+            quoted("three", 3, "set-3"),
+            assistant("a3", "s1"),
+        ]);
+        let f = fixture(&text).await;
+        let entry = |id: &str| crate::runs::quotes::QuoteInput {
+            kind: "entry".into(),
+            source_run_id: Some("src".into()),
+            source_entry_id: Some(id.into()),
+            start_offset: Some(0),
+            end_offset: Some(2),
+            excerpt: "ok".into(),
+            ..Default::default()
+        };
+        let other_run = crate::runs::quotes::QuoteInput { source_run_id: Some("elsewhere".into()), ..entry("m9") };
+        crate::runs::quotes::save(&f.db, "src", "set-2", vec![entry("a1"), other_run]).await.unwrap();
+        crate::runs::quotes::save(&f.db, "src", "set-3", vec![entry("a2")]).await.unwrap();
+
+        let out = fork(&f.db, &f.registry, "src", Some(offset_of(&text, &two))).await.unwrap();
+        let copied = crate::runs::quotes::of_run(&f.db, &out.run.id).await.unwrap();
+        let shape: Vec<_> = copied
+            .iter()
+            .map(|q| (q.quote_set.as_str(), q.position, q.source_run_id.as_deref(), q.source_entry_id.as_deref()))
+            .collect();
+        // Turn 3 is not in the fork; a quote of the source's own message now
+        // points at the fork, which holds a copy of it.
+        assert_eq!(shape, [
+            ("set-2", 0, Some(out.run.id.as_str()), Some("a1")),
+            ("set-2", 1, Some("elsewhere"), Some("m9")),
+        ]);
+        assert!(copied.iter().all(|q| q.run_id == out.run.id));
+        // The source keeps its own.
+        assert_eq!(crate::runs::quotes::of_run(&f.db, "src").await.unwrap().len(), 3);
     }
 
     #[tokio::test]

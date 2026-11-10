@@ -54,6 +54,8 @@ struct LogCut {
     /// Byte offset of the turn's prompt line: the log is cut there.
     offset: u64,
     conversation: Result<EngineCut, &'static str>,
+    /// Quote sets (`runs::quotes`) of the prompts the cut drops.
+    quote_sets: Vec<String>,
 }
 
 pub(super) fn kind(v: &Value) -> Option<&str> {
@@ -106,6 +108,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, turn: i64) ->
     // A cut still pending at the end of the log (no engine start since): the
     // turns it drops are still in the engine and go with this cut too.
     let mut pending: Option<(u32, EngineCut)> = None;
+    let mut quote_sets: Vec<String> = Vec::new();
 
     for line in log.split(b'\n') {
         let line = line?;
@@ -121,6 +124,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, turn: i64) ->
             if is_prompt(&v) && v.get("turn").and_then(Value::as_i64) == Some(turn) {
                 cut = Some(at);
                 prompts_after = 1;
+                quote_sets.extend(super::quotes::set_of(&v).map(str::to_string));
             } else if let Some(s) = init_session(&v) {
                 init_before = Some(s);
             } else if let Some((uuid, sid)) = chain_entry(&v) {
@@ -128,6 +132,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, turn: i64) ->
             }
             continue;
         }
+        quote_sets.extend(super::quotes::set_of(&v).map(str::to_string));
         if let Some(s) = init_session(&v) {
             pending = None;
             if s.as_deref() != session {
@@ -169,7 +174,7 @@ fn analyze(log: impl BufRead, engine: &str, session: Option<&str>, turn: i64) ->
             }
         }
     };
-    Ok(Some(LogCut { offset, conversation }))
+    Ok(Some(LogCut { offset, conversation, quote_sets }))
 }
 
 /// The cut a resume must apply: the last `_puppeteer_rewind` record when no
@@ -361,7 +366,7 @@ pub async fn rewind_run(
         return Err("files_changed".into());
     }
     let files = snapshots::restore(db, &run_id, turn, facts.stopped, &files_now.fingerprint).await?;
-    if let Some(LogCut { offset, conversation: Ok(engine_cut) }) = &cut {
+    if let Some(LogCut { offset, conversation: Ok(engine_cut), quote_sets }) = &cut {
         let (path, offset, engine_cut) = (facts.log.clone(), *offset, engine_cut.clone());
         tokio::task::spawn_blocking(move || cut_log(&path, offset, &engine_cut, turn))
             .await
@@ -370,6 +375,10 @@ pub async fn rewind_run(
         // The cut is done: a failure here only leaves bookmarks the viewer no longer finds.
         if let Err(e) = super::bookmarks::drop_from(db, &run_id, offset).await {
             tracing::warn!(event = "run_bookmarks_drop_failed", run_id = %run_id, error = %e);
+        }
+        // Likewise the quotes of the prompts cut away (an edited resend sends its own).
+        if let Err(e) = super::quotes::drop_sets(db, &run_id, quote_sets).await {
+            tracing::warn!(event = "run_quotes_drop_failed", run_id = %run_id, error = %e);
         }
     }
     tracing::info!(event = "run_rewound", run_id = %run_id, turn, conversation, restored = files.restored, deleted = files.deleted);
@@ -530,6 +539,46 @@ mod tests {
         // Once the engine started after it, the marker is spent.
         let applied = log(&[init("th"), prompt("one", Some(1)), prompt("two", Some(2)), marker, init("th"), prompt("x", Some(5))]);
         assert_eq!(engine(&cut(&applied, "codex", Some("th"), 2)).unwrap().drop_turns, 2);
+    }
+
+    #[tokio::test]
+    async fn the_quotes_of_the_cut_prompts_are_dropped_and_the_kept_ones_stay() {
+        let quoted = |text: &str, turn: i64, set: &str| {
+            let mut v = prompt(text, Some(turn));
+            v["quote_set"] = json!(set);
+            v
+        };
+        let text = log(&[
+            quoted("one", 1, "set-1"),
+            init("s1"),
+            assistant("a1", "s1"),
+            quoted("two", 2, "set-2"),
+            assistant("a2", "s1"),
+            // A quote set only counts on a user record.
+            json!({ "type": "assistant", "quote_set": "set-x", "uuid": "a3", "session_id": "s1" }),
+            quoted("three", 3, "set-3"),
+        ]);
+        let c = cut(&text, "claude", Some("s1"), 2).unwrap();
+        assert_eq!(c.quote_sets, ["set-2", "set-3"]);
+        assert_eq!(cut(&text, "claude", Some("s1"), 3).unwrap().quote_sets, ["set-3"]);
+
+        let db = crate::runs::bookmarks::tests::db_with_run("r1").await;
+        let q = |excerpt: &str| crate::runs::quotes::QuoteInput {
+            kind: "text".into(),
+            excerpt: excerpt.into(),
+            ..Default::default()
+        };
+        for set in ["set-1", "set-2", "set-3"] {
+            crate::runs::quotes::save(&db, "r1", set, vec![q("a"), q("b")]).await.unwrap();
+        }
+        assert_eq!(crate::runs::quotes::drop_sets(&db, "r1", &c.quote_sets).await.unwrap(), 4);
+        let left: Vec<String> = crate::runs::quotes::of_run(&db, "r1")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|q| q.quote_set)
+            .collect();
+        assert_eq!(left, ["set-1", "set-1"]);
     }
 
     #[test]
