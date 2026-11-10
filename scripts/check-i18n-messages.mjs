@@ -16,12 +16,17 @@
  * Note that `baseCompile` reports problems through an `onError` callback and
  * does NOT throw, so a naive try/catch around it silently passes everything.
  *
+ * It also checks the vi messages against the glossary (i18n-glossary.json):
+ * terms such as Session and Project stay in English, so "phiên" or "dự án"
+ * is reported with the term to use instead.
+ *
  * Usage: pnpm check:i18n
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { findBannedTerms } from './i18n-glossary.mjs'
 
 // `@intlify/message-compiler` is vue-i18n's own dependency, not ours, and pnpm's
 // strict layout hides it from this script. Resolve it the way vue-i18n would, so
@@ -40,6 +45,12 @@ const CODE_NAMES = Object.fromEntries(
 // gives a real filesystem path on every OS.
 const LOCALES_DIR = fileURLToPath(new URL('../src/i18n/locales/', import.meta.url))
 
+const GLOSSARY = JSON.parse(readFileSync(new URL('./i18n-glossary.json', import.meta.url), 'utf8'))
+
+// Warn only until UX-02 has brought the vi locale in line with the glossary;
+// then set this to true so a banned translation fails the build.
+const GLOSSARY_FAILS_BUILD = false
+
 /** Walk a message tree, yielding `[dottedKey, message]` for every string leaf. */
 function* leaves(node, prefix = '') {
   for (const [key, value] of Object.entries(node)) {
@@ -50,6 +61,7 @@ function* leaves(node, prefix = '') {
 }
 
 const failures = []
+const glossaryHits = []
 let checked = 0
 
 for (const locale of readdirSync(LOCALES_DIR)) {
@@ -68,13 +80,29 @@ for (const locale of readdirSync(LOCALES_DIR)) {
           message,
         })
       }
+      if (locale === 'vi') {
+        for (const hit of findBannedTerms(message, GLOSSARY, `${namespace}.${key}`)) {
+          glossaryHits.push({ where: `${locale}/${namespace}.${key}`, ...hit })
+        }
+      }
     }
   }
 }
 
+if (glossaryHits.length > 0) {
+  const report = GLOSSARY_FAILS_BUILD ? console.error : console.warn
+  const level = GLOSSARY_FAILS_BUILD ? 'error' : 'warning'
+  report(`i18n glossary (${level}): ${glossaryHits.length} banned translations in vi — keep these terms in English (scripts/i18n-glossary.json)\n`)
+  for (const h of glossaryHits) report(`  ${h.where}: "${h.word}" → ${h.term}`)
+  const byTerm = {}
+  for (const h of glossaryHits) byTerm[h.term] = (byTerm[h.term] ?? 0) + 1
+  report(`\n  by term: ${Object.entries(byTerm).map(([term, n]) => `${term} ${n}`).join(', ')}\n`)
+}
+const glossaryFails = GLOSSARY_FAILS_BUILD && glossaryHits.length > 0
+
 if (failures.length === 0) {
   console.log(`i18n: ${checked} messages compile cleanly`)
-  process.exit(0)
+  process.exit(glossaryFails ? 1 : 0)
 }
 
 console.error(`i18n: ${failures.length} of ${checked} messages fail to compile\n`)

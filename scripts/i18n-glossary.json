@@ -1,0 +1,31 @@
+{
+  "about": "Terms the Vietnamese UI keeps in English. scripts/check-i18n-messages.mjs reports every vi message that uses a banned translation. Matching ignores case and only hits whole words. 'ignore' lists longer phrases that contain a banned word but mean something else (phiên bản = version); they never count. 'allow' exempts one phrase in one message on purpose: { key: '<namespace>.<dotted.key>', phrase, reason }, where phrase is the banned word itself or a longer phrase around it. Only list a banned word here when it is clearly a translation of the term: generic words such as 'lệnh', 'công cụ', 'vấn đề', 'điều hướng' or 'trích' are left out on purpose.",
+  "terms": [
+    { "term": "Session", "banned": ["phiên"], "ignore": ["phiên bản", "phiên dịch", "phiên âm"] },
+    { "term": "Project", "banned": ["dự án"] },
+    { "term": "Skill", "banned": ["kỹ năng", "kĩ năng"] },
+    { "term": "Rule", "banned": ["quy tắc", "qui tắc"] },
+    { "term": "Command", "banned": ["lệnh slash"], "note": "'lệnh' alone is generic (shell command, command palette), so only 'lệnh slash' is banned." },
+    { "term": "Agent", "banned": ["tác tử"] },
+    { "term": "Hook", "banned": ["móc"] },
+    { "term": "MCP", "banned": [] },
+    { "term": "Prompt", "banned": ["lời nhắc", "câu nhắc"] },
+    { "term": "Token", "banned": ["mã thông báo"] },
+    { "term": "Context", "banned": ["ngữ cảnh"] },
+    { "term": "Model", "banned": ["mô hình"] },
+    { "term": "Engine", "banned": ["động cơ"] },
+    { "term": "Effort", "banned": ["nỗ lực"] },
+    { "term": "Quote", "banned": ["trích dẫn"] },
+    { "term": "Fork", "banned": ["phân nhánh", "rẽ nhánh", "tách nhánh"] },
+    { "term": "Rewind", "banned": ["tua lại", "quay lui"] },
+    { "term": "Steer", "banned": ["lái hướng"] },
+    { "term": "Queue", "banned": ["hàng đợi", "hàng chờ"] },
+    { "term": "Worktree", "banned": ["cây làm việc"] },
+    { "term": "Branch", "banned": ["nhánh"] },
+    { "term": "Commit", "banned": ["cam kết"] },
+    { "term": "PR", "banned": ["yêu cầu kéo", "yêu cầu hợp nhất", "yêu cầu gộp"] },
+    { "term": "Issue", "banned": [], "note": "'vấn đề' is too generic to ban." },
+    { "term": "Conductor", "banned": ["nhạc trưởng", "người điều phối", "bộ điều phối"] }
+  ],
+  "allow": []
+}
