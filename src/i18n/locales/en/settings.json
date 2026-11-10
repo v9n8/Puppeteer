@@ -317,6 +317,10 @@
     "blockHint": "Checked before each new session and follow-up: Puppeteer blocks it (you can override per turn) when its engine reaches any window set here. Codex usually exposes only the weekly window, so set Weekly to cover it.",
     "orderHint": "Keep the warning below the block thresholds, e.g. warn at 70 and block at 90, so you are warned before you are blocked.",
     "warnNotBelowBlock": "The warning is at or above a block threshold, so that window blocks without warning first. Lower the warning.",
+    "stopRunning": "Stop running sessions at the block threshold",
+    "stopRunningHint": "When an engine or Claude account reaches a block threshold above, Puppeteer also stops its sessions that are still running, with the reason in each session's log. Sessions on other accounts keep running. When off, only new sessions and follow-ups are blocked.",
+    "stopRunningWarning": "A session stopped mid-turn can leave a file half-edited. Check its changes before you continue.",
+    "stopRunningNoBlock": "Set a block threshold first: this acts on the 5h or weekly block threshold.",
     "emptyOff": "empty = off"
   },
   "prompts": {

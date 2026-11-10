@@ -142,13 +142,16 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// relay URL, enabled, device id / alias, Web Push recipients and events) and
 /// every feature switch: `feature.*` (the seed flag included) and the legacy
 /// keys the registry reads (`inbox_api_enabled`, …), plus the `google` MCP
-/// switch, which gates that MCP together with `integrations.google`.
+/// switch, which gates that MCP together with `integrations.google`, and the
+/// switch that stops running sessions at the quota block tier (it kills
+/// sessions on this machine mid-turn).
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
         && !key.starts_with(crate::features::PREFIX)
         && crate::features::owner(key).is_none()
         && key != "mcp_builtin_google_enabled"
+        && key != crate::runs::quota_stop::SETTING
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
@@ -1008,6 +1011,8 @@ mod tests {
             "mcp_builtin_puppeteer_enabled",
             "mcp_builtin_google_enabled",
             "animated_background",
+            // Stopping running sessions at the quota block tier: local-only.
+            "quota_stop_running",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

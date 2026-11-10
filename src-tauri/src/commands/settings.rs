@@ -48,6 +48,9 @@ pub struct AppSettings {
     /// Quota warning tier: warn (toast + badge colour) once a plan window reaches
     /// this percent ("" = off). Never blocks; see `stats::quota_warn_windows`.
     pub quota_warn_percent: String,
+    /// Stop the running sessions of an engine / account once it reaches a block
+    /// threshold above. "false" (default) | "true"; see `runs::quota_stop`.
+    pub quota_stop_running: String,
     /// Auto-balance the default Claude account across managed accounts, so plan
     /// usage spreads instead of hammering one login. "true" (default) | "false".
     /// When on, new runs that aren't pinned to a project/account follow whichever
@@ -113,6 +116,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "budget_5h_percent",
     "budget_week_percent",
     "quota_warn_percent",
+    "quota_stop_running",
     "claude_auto_balance",
     "claude_auto_balance_min_swap_minutes",
     "claude_auto_balance_swap_threshold_pct",
@@ -176,6 +180,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         budget_5h_percent: "".to_string(),
         budget_week_percent: "".to_string(),
         quota_warn_percent: "".to_string(),
+        quota_stop_running: "false".to_string(),
         claude_auto_balance: "true".to_string(),
         claude_auto_balance_min_swap_minutes: "10".to_string(),
         claude_auto_balance_swap_threshold_pct: "10".to_string(),
@@ -215,6 +220,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "budget_5h_percent" => settings.budget_5h_percent = value,
             "budget_week_percent" => settings.budget_week_percent = value,
             "quota_warn_percent" => settings.quota_warn_percent = value,
+            "quota_stop_running" => settings.quota_stop_running = value,
             "claude_auto_balance" => settings.claude_auto_balance = value,
             "claude_auto_balance_min_swap_minutes" => {
                 settings.claude_auto_balance_min_swap_minutes = value

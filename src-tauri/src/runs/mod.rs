@@ -4,6 +4,7 @@ pub mod liveness;
 pub mod model_usage;
 pub mod permission;
 pub mod pricing;
+pub mod quota_stop;
 pub mod rewind;
 pub mod session_watcher;
 pub mod sidecar;

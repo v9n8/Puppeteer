@@ -2,25 +2,31 @@
 // Settings → AI › "Sessions": the context meter (warning / limit override) and
 // the usage quota tiers — a warning (`quota_warn_percent`, toast + badge colour)
 // and the blocks on new sessions / follow-ups (`budget_5h_percent`,
-// `budget_week_percent`, enforced by `stats::enforce_budget`).
+// `budget_week_percent`, enforced by `stats::enforce_budget`), plus the opt-in
+// stop of running sessions at those thresholds (`quota_stop_running`,
+// `runs::quota_stop`).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
-import { Card, Input } from '@/components/ui'
+import { Card, Input, ToggleSwitch } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
 
+const pct = (v: string | number | undefined) => Number(String(v ?? '').trim()) || 0
+const blocks = computed(() => [settings.value.budget_5h_percent, settings.value.budget_week_percent].map(pct))
+
 // A warning at or above a set block threshold never shows before that block.
 const warnNotBelowBlock = computed(() => {
-  const pct = (v: string | number | undefined) => Number(String(v ?? '').trim()) || 0
   const warn = pct(settings.value.quota_warn_percent)
   if (warn <= 0) return false
-  return [settings.value.budget_5h_percent, settings.value.budget_week_percent]
-    .map(pct)
-    .some((block) => block > 0 && warn >= block)
+  return blocks.value.some((block) => block > 0 && warn >= block)
 })
+
+// Stopping acts on the block thresholds, so it needs one of them set.
+const hasBlock = computed(() => blocks.value.some((block) => block > 0))
+const stopRunning = computed(() => settings.value.quota_stop_running === 'true')
 </script>
 
 <template>
@@ -86,6 +92,21 @@ const warnNotBelowBlock = computed(() => {
         <p class="text-2xs leading-relaxed" :class="warnNotBelowBlock ? 'text-warning' : 'text-muted-foreground'">
           {{ warnNotBelowBlock ? t('settings.sessions.warnNotBelowBlock') : t('settings.sessions.orderHint') }}
         </p>
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.sessions.stopRunning') }}</div>
+            <p class="text-2xs text-muted-foreground leading-relaxed mt-0.5">{{ t('settings.sessions.stopRunningHint') }}</p>
+            <p class="text-2xs leading-relaxed mt-0.5" :class="stopRunning ? 'text-warning' : 'text-muted-foreground'">{{ t('settings.sessions.stopRunningWarning') }}</p>
+            <p v-if="!hasBlock" class="text-2xs text-muted-foreground leading-relaxed mt-0.5">{{ t('settings.sessions.stopRunningNoBlock') }}</p>
+          </div>
+          <ToggleSwitch
+            size="md"
+            :checked="stopRunning"
+            :disabled="!hasBlock && !stopRunning"
+            :label="t('settings.sessions.stopRunning')"
+            @toggle="settings.quota_stop_running = stopRunning ? 'false' : 'true'"
+          />
+        </div>
       </div>
   </Card>
 </template>

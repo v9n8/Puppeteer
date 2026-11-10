@@ -33,6 +33,8 @@ export interface AppSettings {
   budget_week_percent: string
   /** Quota warning tier in % ('' = off): toast + badge colour, never blocks. */
   quota_warn_percent: string
+  /** 'true' = stop running sessions when a block threshold is reached (default 'false'). */
+  quota_stop_running: string
   claude_auto_balance: string
   claude_auto_balance_min_swap_minutes: string
   claude_auto_balance_swap_threshold_pct: string

@@ -622,6 +622,22 @@ pub async fn drain_sidecar(
         );
     }
 
+    // UX-14: show a session stopped at the quota block tier its reason live
+    // (`quota_stop` already wrote it into that session's log).
+    fn quota_stop_notice(app: &AppHandle, bus: &Option<crate::remote::RemoteBus>, run_id: &str, msg: &str) {
+        if let Some(bus) = bus {
+            bus.publish(crate::remote::RemoteRunEvent::Output {
+                run_id: run_id.to_string(),
+                line: msg.to_string(),
+                is_stderr: false,
+            });
+        }
+        let _ = app.emit(
+            &format!("run:output:{}", run_id),
+            serde_json::json!({ "run_id": run_id, "line": msg, "is_stderr": false, "level": "warn" }),
+        );
+    }
+
     // A turn just ended: start the next follow-up waiting for it, if any
     // (`TurnGate`). True when one started.
     async fn start_queued_turn(
@@ -926,6 +942,12 @@ pub async fn drain_sidecar(
                                         if !is_codex {
                                             crate::commands::claude_accounts::request_balance_eval(&app);
                                         }
+                                        let quota_engine = if is_codex { "codex" } else { engine.as_str() };
+                                        crate::runs::quota_stop::on_plan_snapshot(
+                                            &registry, &db_pool, quota_engine, claude_account_id.as_deref(),
+                                            |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
+                                        )
+                                        .await;
                                     }
                                 }
                             }
@@ -1002,6 +1024,11 @@ pub async fn drain_sidecar(
                                             serde_json::json!({ "run_id": run_id }),
                                         );
                                         crate::commands::claude_accounts::request_balance_eval(&app);
+                                        crate::runs::quota_stop::on_plan_snapshot(
+                                            &registry, &db_pool, &engine, claude_account_id.as_deref(),
+                                            |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
+                                        )
+                                        .await;
                                     }
                                 }
                                 if v.get("type").and_then(|x| x.as_str()) == Some("rate_limit_event")
@@ -1012,6 +1039,11 @@ pub async fn drain_sidecar(
                                         serde_json::json!({ "run_id": run_id }),
                                     );
                                     crate::commands::claude_accounts::request_balance_eval(&app);
+                                    crate::runs::quota_stop::on_plan_snapshot(
+                                        &registry, &db_pool, &engine, claude_account_id.as_deref(),
+                                        |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
+                                    )
+                                    .await;
                                 }
                                 // Keep the live background-task count current: its
                                 // `tasks` array is the full set the CLI still has
@@ -1113,7 +1145,8 @@ pub async fn drain_sidecar(
                                     // still running.
                                     let next_turn = user_turn_ended_once
                                         && start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
-                                    if !next_turn && result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once) {
+                                    let closing = !next_turn && result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once);
+                                    if closing {
                                         let mut reg = registry.lock().await;
                                         if let Some(handles) = reg.get_mut(&run_id) {
                                             handles.stdin.take();
@@ -1146,6 +1179,15 @@ pub async fn drain_sidecar(
                                                 }),
                                             );
                                         }
+                                        // Opt-in: also stop the sessions still running on
+                                        // this quota. This one is spared when its session
+                                        // is closing anyway: its turn has just ended.
+                                        crate::runs::quota_stop::on_guard_status(
+                                            &registry, &db_pool, &engine, claude_account_id.as_deref(), &status,
+                                            closing.then_some(run_id.as_str()),
+                                            |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
+                                        )
+                                        .await;
                                     }
                                 }
                                 if let Some(bus) = remote_bus.as_ref().filter(|_| !is_delta) {

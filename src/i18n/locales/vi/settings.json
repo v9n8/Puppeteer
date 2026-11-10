@@ -317,6 +317,10 @@
     "blockHint": "Kiểm trước mỗi Session mới và mỗi lượt gửi tiếp: Puppeteer chặn lại (có thể bỏ qua cho từng lượt) khi engine của nó chạm bất kỳ cửa sổ nào đã đặt ở đây. Codex thường chỉ có cửa sổ tuần, nên hãy đặt ô tuần để bao quát.",
     "orderHint": "Đặt mức cảnh báo thấp hơn mức chặn, ví dụ cảnh báo ở 70 và chặn ở 90, để được báo trước khi bị chặn.",
     "warnNotBelowBlock": "Mức cảnh báo đang bằng hoặc cao hơn một mức chặn, nên cửa sổ đó sẽ chặn mà không cảnh báo trước. Hãy hạ mức cảnh báo.",
+    "stopRunning": "Dừng Session đang chạy khi chạm mức chặn",
+    "stopRunningHint": "Khi một engine hoặc tài khoản Claude chạm mức chặn ở trên, Puppeteer dừng luôn các Session của nó đang chạy, kèm lý do trong log của từng Session. Session của tài khoản khác vẫn chạy tiếp. Khi tắt, chỉ Session mới và lượt gửi tiếp bị chặn.",
+    "stopRunningWarning": "Session bị dừng giữa lượt có thể để một file đang sửa dở. Hãy kiểm tra thay đổi của nó trước khi làm tiếp.",
+    "stopRunningNoBlock": "Hãy đặt mức chặn trước: tuỳ chọn này dựa vào mức chặn cửa sổ 5h hoặc cửa sổ tuần.",
     "emptyOff": "để trống = tắt"
   },
   "prompts": {
