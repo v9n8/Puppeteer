@@ -35,5 +35,11 @@
     "descriptionTooLong": "The description is too long (300 characters at most).",
     "bodyRequired": "Enter the text of the style.",
     "bodyTooLong": "The text is too long (8000 characters at most)."
-  }
+  },
+  "projectTitle": "Response styles of this project",
+  "projectHint": "Styles only this project's sessions can pick, next to the built-in styles and My styles. A session picks its style; a resumed session keeps it.",
+  "projectStylesTitle": "This project's styles",
+  "projectStylesHint": "Usable only in this project.",
+  "projectEmpty": "This project has no styles of its own yet.",
+  "projectBadge": "Project"
 }

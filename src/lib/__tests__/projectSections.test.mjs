@@ -19,14 +19,19 @@ test('every section belongs to a known group, ids are unique', () => {
   assert.equal(new Set(PROJECT_SECTIONS.map((s) => s.id)).size, PROJECT_SECTIONS.length)
 })
 
+// UX-19: the Claude account tab became part of `session`; `styles` is new.
+const MOVED = { claude: 'session' }
+
 test('no old tab is lost', () => {
-  assert.deepEqual(PROJECT_SECTIONS.map((s) => s.id).sort(), [...OLD_TABS].sort())
+  const now = PROJECT_SECTIONS.map((s) => s.id)
+  for (const id of OLD_TABS) assert.ok(now.includes(MOVED[id] ?? id), id)
+  assert.deepEqual(now.filter((id) => !OLD_TABS.includes(id)).sort(), ['session', 'styles'])
 })
 
 test('projectNav: five groups in order, conflicts under Library when present', () => {
   assert.deepEqual(shape(projectNav(PROJECT_SECTIONS, true)), [
     ['overview', ['overview', 'board']],
-    ['defaults', ['claude']],
+    ['defaults', ['session', 'styles']],
     ['connections', ['github', 'gitlab', 'aws', 'azure']],
     ['library', ['skills', 'rules', 'mcp', 'conflicts']],
     ['servers', ['deploy', 'tools']],
@@ -49,7 +54,9 @@ test('projectNav: an empty group gets no heading, groups follow PROJECT_GROUPS o
 })
 
 test('sectionFromQuery: every old tab id opens its section, anything else is ignored', () => {
-  for (const id of OLD_TABS) assert.equal(sectionFromQuery(id), id)
+  for (const id of OLD_TABS) assert.equal(sectionFromQuery(id), MOVED[id] ?? id)
+  for (const id of ['session', 'styles']) assert.equal(sectionFromQuery(id), id)
+  for (const inherited of ['toString', 'constructor', '__proto__']) assert.equal(sectionFromQuery(inherited), null)
   for (const bad of [undefined, null, '', 'library', 'defaults', ['board'], 42]) {
     assert.equal(sectionFromQuery(bad), null, String(bad))
   }

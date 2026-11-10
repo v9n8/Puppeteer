@@ -1286,7 +1286,7 @@ async fn create_session_run_for_remote(
 ) -> Result<String, String> {
     let engine = match engine_hint.filter(|s| !s.trim().is_empty()) {
         Some(e) => e,
-        None => crate::commands::settings::resolve_default_engine(db).await,
+        None => crate::commands::session_defaults::default_engine(db, project_id).await,
     };
     let new_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();

@@ -124,7 +124,11 @@ async fn session_spawn(
     let db = db(state);
     let engine = match arg_str(&args, "engine") {
         Some(e) => e,
-        None => crate::commands::settings::resolve_default_engine(&db).await,
+        // The project's default engine, else the global one (UX-19).
+        None => match state.conductor.session(conductor_run_id) {
+            Some(session) => crate::commands::session_defaults::default_engine(&db, &session.project_id).await,
+            None => crate::commands::settings::resolve_default_engine(&db).await,
+        },
     };
 
     // Held until the worker is running, so parallel spawns see each other.
@@ -159,7 +163,7 @@ async fn session_spawn(
         permission_mode_override: Some(permission_mode),
         prompt_override: Some(prompt.clone()),
         model_override: model,
-        // A worker takes the global default effort, like its engine's model.
+        // A worker takes the default effort (project, else global), like its engine's model.
         effort_override: None,
         // …and the run's own / default response style.
         style_override: None,
@@ -249,11 +253,12 @@ async fn worker_permission_mode(
         .ok_or_else(|| {
             "this session's permission mode is unknown; resume it before spawning workers".to_string()
         })?;
-    let own_engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
-        .bind(conductor_run_id)
-        .fetch_one(db)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (own_engine, project_id) =
+        sqlx::query_as::<_, (String, String)>("SELECT engine, project_id FROM runs WHERE id = ?")
+            .bind(conductor_run_id)
+            .fetch_one(db)
+            .await
+            .map_err(|e| e.to_string())?;
     let ceiling = permission_rank(&own, &own_engine).unwrap_or(0);
 
     if let Some(mode) = requested {
@@ -266,10 +271,15 @@ async fn worker_permission_mode(
         }
         return Ok(mode.to_string());
     }
-    // An unknown setting starts as `default`, as in `start_run_inner`.
-    let setting = Some(default_permission_mode(db).await)
-        .filter(|m| permission_rank(m, worker_engine).is_some())
-        .unwrap_or_else(|| "default".to_string());
+    // The project's default, else the global one; an unknown value starts as
+    // `default`, as in `start_run_inner`.
+    let project = crate::commands::session_defaults::load(db, &project_id).await;
+    let setting = Some(crate::commands::session_defaults::fallback_permission_mode(
+        project.permission_mode.as_deref(),
+        &default_permission_mode(db).await,
+    ))
+    .filter(|m| permission_rank(m, worker_engine).is_some())
+    .unwrap_or_else(|| "default".to_string());
     let mode = [setting.as_str(), "acceptEdits", "default", "plan"]
         .into_iter()
         .find(|m| permission_rank(m, worker_engine).is_some_and(|r| r <= ceiling))

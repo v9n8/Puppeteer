@@ -249,6 +249,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "delete_response_style",
     // MCP per session: which servers (and their credentials) the session gets.
     "set_run_mcp_override",
+    // A project's defaults for new sessions: permission mode, style text, engine.
+    "set_project_session_defaults",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -865,6 +867,7 @@ mod tests {
             "update_response_style",
             "delete_response_style",
             "set_run_mcp_override",
+            "set_project_session_defaults",
         ] {
             assert!(audited_command(name), "{name}");
         }

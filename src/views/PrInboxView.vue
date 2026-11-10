@@ -11,7 +11,8 @@ import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useConductorStore } from '@/stores/conductor'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
-import { resolvePermissionMode } from '@/lib/engineOptions'
+import { composerDefaults } from '@/lib/composerChips'
+import { useProjectsStore } from '@/stores/projects'
 import {
   Button, Skeleton, Input, ContextMenu, DropdownItem, DropdownSeparator, PageHeader, Banner,
 } from '@/components/ui'
@@ -74,6 +75,7 @@ const runsStore = useRunsStore()
 const live = useLiveRunsStore()
 const conductorStore = useConductorStore()
 const appSettings = useAppSettingsStore()
+const projectsStore = useProjectsStore()
 const githubAccounts = useGithubAccountsStore()
 const { toast } = useToast()
 const { confirm } = useConfirm()
@@ -316,9 +318,16 @@ async function startReview(item: PrInboxItem): Promise<boolean> {
     )
     // Every session is a conductor: launch it like RunView's Issue/PR Run button
     // — empty goal (default review prompt, labelled "PR #N"), default worker cap,
-    // and the effective permission mode (this screen has no per-run pick).
+    // and the effective permission mode (this screen has no per-run pick): the
+    // project's default, else the global one (UX-19).
+    // This window may not have loaded the projects yet.
+    if (!projectsStore.projects.some((p) => p.id === item.project_id)) await projectsStore.fetchProjects().catch(() => {})
+    const project = projectsStore.projects.find((p) => p.id === item.project_id)
     await conductorStore.start(run.id, '', {
-      permissionModeOverride: resolvePermissionMode(null, appSettings.settings?.default_permission_mode),
+      permissionModeOverride: composerDefaults({
+        settings: appSettings.settings,
+        project: project?.session_defaults,
+      }).permissionMode,
     })
     // Link immediately so a second click resumes instead of duplicating. The run
     // streams in the background (liveRuns / ActiveRunsDock) — stay on this screen.

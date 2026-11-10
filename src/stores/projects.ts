@@ -3,6 +3,7 @@ import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
 import type { GroupApplyOutcome, GroupDisableOutcome, GroupKind, ProjectGroupState } from '@/stores/groups'
 import type { ProjectColor, ProjectIcon } from '@/lib/projectAppearance'
+import type { ProjectSessionDefaults } from '@/lib/composerChips'
 
 export interface Project {
   id: string
@@ -37,6 +38,8 @@ export interface Project {
   icon: ProjectIcon | null
   /** Off the Projects grid, tab bar and palette; sessions and tools still use it. */
   hidden: boolean
+  /** Defaults for new sessions of the project (UX-19); each null follows the global setting. */
+  session_defaults: ProjectSessionDefaults
 }
 
 /** A change to how a project shows. Left out = unchanged; null = back to the default. */
@@ -362,6 +365,13 @@ export const useProjectsStore = defineStore('projects', () => {
     await fetchProjects()
   }
 
+  /** Replace the project's defaults for new sessions ('' / null = follow the global setting). */
+  async function setSessionDefaults(project_id: string, defaults: ProjectSessionDefaults): Promise<Project> {
+    const project = await invoke<Project>('set_project_session_defaults', { projectId: project_id, defaults })
+    await fetchProjects()
+    return project
+  }
+
   async function setProjectClaudeAccount(project_id: string, account_id: string | null): Promise<void> {
     await invoke('set_project_claude_account', { projectId: project_id, accountId: account_id })
     await fetchProjects()
@@ -432,7 +442,7 @@ export const useProjectsStore = defineStore('projects', () => {
     fetchProjects, reorder, detectProjectInfo, addProject, removeProject, updateProject, updateAppearance,
     resolveProjectBoard, listRepos, addRepo, updateRepo, removeRepo,
     getAppliedSkills, applySkill, removeSkillFromProject,
-    setProjectAccount, setProjectGitAccountEnabled, setProjectGitlabAccount, setProjectAwsAccount, setProjectAzureAccount, setProjectCloudAccountEnabled, setProjectClaudeAccount, fetchConflicts, resolveConflict,
+    setProjectAccount, setProjectGitAccountEnabled, setProjectGitlabAccount, setProjectAwsAccount, setProjectAzureAccount, setProjectCloudAccountEnabled, setProjectClaudeAccount, setSessionDefaults, fetchConflicts, resolveConflict,
     openInVscode, openInFolder, openInTerminal,
     getAppliedRules, applyRule, removeRuleFromProject,
     fetchRuleConflicts, resolveRuleConflict, getInstructionWarnings,

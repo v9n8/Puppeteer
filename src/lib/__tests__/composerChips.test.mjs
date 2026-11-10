@@ -4,20 +4,64 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  composerDefaults, effortForLaunch, effectiveEffort, inheritedStyle, composerStyleChoices,
+  composerDefaults, effortForLaunch, effectiveEffort, inheritedEffort, inheritedModel, inheritedStyle, composerStyleChoices,
 } from '../composerChips.ts'
 import { effortLevelsFor } from '../engineOptions.ts'
 
+const none = { engine: 'claude', models: { claude: '', codex: '' }, permissionMode: 'default', effort: '', style: '', styles: [] }
+
 test('defaults: global settings, with unset or invalid values normalised', () => {
-  assert.deepEqual(composerDefaults({ settings: null }), { permissionMode: 'default', effort: '', style: '' })
+  assert.deepEqual(composerDefaults({ settings: null }), none)
   assert.deepEqual(
     composerDefaults({ settings: { default_permission_mode: 'plan', default_effort: ' high ', default_style: 'concise' } }),
-    { permissionMode: 'plan', effort: 'high', style: 'concise' },
+    { ...none, permissionMode: 'plan', effort: 'high', style: 'concise', styles: ['concise'] },
   )
   assert.deepEqual(
-    composerDefaults({ settings: { default_permission_mode: 'nonsense', default_effort: 'turbo', default_style: '  ' } }),
-    { permissionMode: 'default', effort: '', style: '' },
+    composerDefaults({ settings: { default_permission_mode: 'nonsense', default_effort: 'turbo', default_style: '  ', default_engine: 'gemini' } }),
+    none,
   )
+})
+
+const global = {
+  default_engine: 'claude', claude_model: 'claude-opus-4-8', codex_model: 'gpt-5.4',
+  default_permission_mode: 'acceptEdits', default_effort: 'low', default_style: 'concise',
+}
+
+test('defaults (UX-19): the project\'s value, else the global one, field by field', () => {
+  assert.deepEqual(composerDefaults({ settings: global, project: null }), {
+    engine: 'claude', models: { claude: 'claude-opus-4-8', codex: 'gpt-5.4' },
+    permissionMode: 'acceptEdits', effort: 'low', style: 'concise', styles: ['concise'],
+  })
+  assert.deepEqual(
+    composerDefaults({
+      settings: global,
+      project: { engine: 'codex', model_codex: 'gpt-5.5', permission_mode: 'plan', effort: 'high', style: 'my-style' },
+    }),
+    {
+      engine: 'codex', models: { claude: 'claude-opus-4-8', codex: 'gpt-5.5' },
+      permissionMode: 'plan', effort: 'high', style: 'my-style', styles: ['my-style', 'concise'],
+    },
+  )
+  // Blank or invalid project values follow the global setting.
+  assert.deepEqual(
+    composerDefaults({
+      settings: global,
+      project: { engine: 'gemini', model_claude: ' ', model_codex: null, permission_mode: 'yolo', effort: 'turbo', style: '' },
+    }),
+    composerDefaults({ settings: global }),
+  )
+})
+
+test('defaults (UX-19): a session keeps the effort and model it ran with', () => {
+  const d = composerDefaults({ settings: global, project: { model_codex: 'gpt-5.5', effort: 'high' } })
+  assert.equal(inheritedEffort('max', d.effort), 'max')
+  assert.equal(inheritedEffort(null, d.effort), 'high')
+  assert.equal(inheritedEffort('turbo', d.effort), 'high')
+  assert.equal(inheritedModel({ engine: 'codex', model: 'gpt-5.3-codex' }, 'codex', d), 'gpt-5.3-codex')
+  assert.equal(inheritedModel({ engine: 'codex', model: null }, 'codex', d), 'gpt-5.5')
+  // The run is on the other engine (a handoff): that engine's default.
+  assert.equal(inheritedModel({ engine: 'claude', model: 'claude-x' }, 'codex', d), 'gpt-5.5')
+  assert.equal(inheritedModel(null, 'claude', d), 'claude-opus-4-8')
 })
 
 test('effort: a pick is sent only when the next model takes it', () => {
@@ -55,6 +99,14 @@ test('style: references that no longer resolve are skipped, like the backend', (
   assert.equal(inheritedStyle('explain_junior', 'my-1', known), 'explain_junior')
   // Before the list loads, every reference counts.
   assert.equal(inheritedStyle('gone', 'my-1', null), 'gone')
+})
+
+test('style (UX-19): a deleted project default falls through to the global one', () => {
+  const known = (id) => id === 'my-1'
+  assert.equal(inheritedStyle(null, ['project-gone', 'my-1'], known), 'my-1')
+  assert.equal(inheritedStyle(null, ['my-1', 'concise'], known), 'my-1')
+  assert.equal(inheritedStyle('concise', ['my-1'], known), 'concise')
+  assert.equal(inheritedStyle(null, [], known), 'default')
 })
 
 const styles = [

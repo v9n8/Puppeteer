@@ -32,16 +32,19 @@ pub struct ImageAttachment {
 pub struct StartRunPayload {
     pub run_id: String,
     pub engine_override: Option<String>,
-    /// Per-run override of permission mode. When None we fall back to settings.default_permission_mode.
+    /// Per-run override of permission mode. When None we fall back to the
+    /// project's default, else settings.default_permission_mode.
     pub permission_mode_override: Option<String>,
     /// Custom user prompt to use instead of the default analyze/review template.
     /// The file reference is still appended automatically.
     pub prompt_override: Option<String>,
-    /// Per-run model override. When None/empty we fall back to the per-engine
-    /// default model setting (claude_model / codex_model); empty means engine default.
+    /// Per-run model override. When None/empty we fall back to the run's own
+    /// model, else the project's, else the per-engine default model setting
+    /// (claude_model / codex_model); empty means engine default.
     pub model_override: Option<String>,
-    /// Per-run reasoning effort. When None/empty we fall back to the
-    /// `default_effort` setting; empty there means the engine's default.
+    /// Per-run reasoning effort. When None/empty we fall back to the run's own,
+    /// else the project's, else the `default_effort` setting; empty there means
+    /// the engine's default.
     #[serde(default)]
     pub effort_override: Option<String>,
     /// Per-run response style (UX-17): a built-in key or a style id. When
@@ -162,7 +165,7 @@ pub(crate) async fn start_run_inner(
     // Load run + project info
     let run_row = sqlx::query(
         "SELECT r.id, r.project_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                r.system_instruction, r.worktree_path, r.style, p.path as project_path
+                r.system_instruction, r.worktree_path, r.style, r.model, r.effort, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -181,6 +184,8 @@ pub(crate) async fn start_run_inner(
     let existing_claude_account_id: Option<String> = run_row.get("claude_account_id");
     let stored_instruction: Option<String> = run_row.get("system_instruction");
     let existing_style: Option<String> = run_row.get("style");
+    let existing_model: Option<String> = run_row.get("model");
+    let existing_effort: Option<String> = run_row.get("effort");
     // Where the agent works: a Conductor worker's own worktree, else the
     // project. Logs stay under the project either way.
     let cwd = crate::conductor::worktree::run_dir(
@@ -258,18 +263,24 @@ pub(crate) async fn start_run_inner(
         }
     }
 
+    // The project's defaults for new sessions (UX-19): each sits between what the
+    // run already has and the global setting.
+    let project_defaults = crate::commands::session_defaults::load(db, &project_id).await;
+
     // Resolve the engine: an explicit per-run override wins, else the run's OWN
-    // persisted engine, else the global default. Falling back to the run's engine
-    // (not the global default) is critical: a follow-up/restart that omits the
-    // engine — e.g. a remote `start_run` from the controller, whose selector may
-    // be empty — must NOT silently switch engines. Clobbering the engine here
-    // resets a Codex session to the default engine and loses its conversation.
+    // persisted engine, else the project's default, else the global default.
+    // Falling back to the run's engine (not a default) is critical: a
+    // follow-up/restart that omits the engine — e.g. a remote `start_run` from
+    // the controller, whose selector may be empty — must NOT silently switch
+    // engines. Clobbering the engine here resets a Codex session to the default
+    // engine and loses its conversation.
     let existing_engine: Option<String> = run_row.get("engine");
-    let engine = payload
-        .engine_override
-        .filter(|s| !s.trim().is_empty())
-        .or_else(|| existing_engine.filter(|s| !s.trim().is_empty()))
-        .unwrap_or(default_engine);
+    let engine = resolve_engine(
+        payload.engine_override.as_deref(),
+        existing_engine.as_deref(),
+        project_defaults.engine.as_deref(),
+        default_engine,
+    );
 
     // Resolve the Claude account. A run-level selection wins, else project-linked
     // → default → global. Snapshot the resolved id on the run so resume uses the
@@ -303,16 +314,11 @@ pub(crate) async fn start_run_inner(
     )
     .await?;
 
-    let permission_mode = payload
-        .permission_mode_override
-        .filter(|v| is_valid_permission_mode(v))
-        .unwrap_or_else(|| {
-            if is_valid_permission_mode(&default_permission_mode) {
-                default_permission_mode
-            } else {
-                "default".to_string()
-            }
-        });
+    let permission_mode = resolve_permission_mode(
+        payload.permission_mode_override.as_deref(),
+        project_defaults.permission_mode.as_deref(),
+        &default_permission_mode,
+    );
 
     // Every top-level run launches as a conductor (any engine, any run type);
     // workers get `None`. Resolved here — not only by `start_conductor` — so
@@ -350,15 +356,28 @@ pub(crate) async fn start_run_inner(
     let auto_allow_conductor_tools =
         conductor_token.is_some() && permission_mode != "bypassPermissions";
 
-    // Resolve the model: per-run override wins, else the per-engine default
-    // setting. An empty result means "let the engine pick its default".
+    // Resolve the model: per-run override wins, else the run's own, else the
+    // project's, else the per-engine default setting. An empty result means "let
+    // the engine pick its default".
     let engine_default_model = if engine == "codex" {
         codex_model
     } else {
         claude_model
     };
-    let model = resolve_model_for_engine(&engine, payload.model_override, engine_default_model);
-    let effort = resolve_effort(payload.effort_override, &default_effort);
+    let model = resolve_model_for_engine(
+        &engine,
+        payload.model_override,
+        fallback_model(
+            &engine,
+            existing_model.as_deref(),
+            project_defaults.model_for(&engine),
+            engine_default_model,
+        ),
+    );
+    let effort = resolve_effort(
+        payload.effort_override,
+        fallback_effort(existing_effort.as_deref(), project_defaults.effort.as_deref(), &default_effort),
+    );
     // Response style: per-run pick > the run's own > defaults (response_styles).
     let style = crate::commands::response_styles::resolve_run_style(
         db,
@@ -418,10 +437,11 @@ pub(crate) async fn start_run_inner(
     sqlx::query(
         // A fresh start is a fresh Codex thread, re-seeded by its own thread/start
         // developer instructions (the sidecar reports `_puppeteer_framing_seeded`).
-        "UPDATE runs SET status = 'running', engine = ?, model = ?, style = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
+        "UPDATE runs SET status = 'running', engine = ?, model = ?, effort = ?, style = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
     )
     .bind(&engine)
     .bind(&model)
+    .bind(&effort)
     .bind(style.as_ref().map(|s| s.key.as_str()))
     .bind(&started_at)
     .bind(&started_at)
@@ -781,7 +801,7 @@ pub(crate) async fn start_run_inner(
 /// Returns `None` for ids we don't recognize (a custom or newly-pinned alias)
 /// so callers do NOT drop them — only a KNOWN cross-engine mismatch (a Claude id
 /// handed to a Codex run, or vice versa) should be rejected.
-fn engine_of_model(model: &str) -> Option<&'static str> {
+pub(crate) fn engine_of_model(model: &str) -> Option<&'static str> {
     let m = model.trim().to_ascii_lowercase();
     if m.starts_with("claude-") || m.starts_with("claude[") || m == "claude" {
         Some("claude")
@@ -825,10 +845,48 @@ fn resolve_model_for_engine(
         })
 }
 
+/// The model a run falls back to without a pick: its own stored model (so a
+/// resume keeps it), else the project's default for `engine`, else the global
+/// one. A value known to belong to the other engine is skipped, like an override.
+fn fallback_model(engine: &str, run_model: Option<&str>, project_model: Option<&str>, global: String) -> String {
+    [run_model, project_model]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|m| !m.is_empty() && engine_of_model(m).is_none_or(|e| e == engine))
+        .map(str::to_string)
+        .unwrap_or(global)
+}
+
+/// Resolve a run's engine: the per-run pick, else the run's own, else the
+/// project's default (one of `session_defaults::ENGINES`), else `global`.
+fn resolve_engine(override_engine: Option<&str>, run_engine: Option<&str>, project: Option<&str>, global: String) -> String {
+    [override_engine, run_engine]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|s| !s.is_empty())
+        .or_else(|| project.map(str::trim).filter(|e| crate::commands::session_defaults::ENGINES.contains(e)))
+        .map(str::to_string)
+        .unwrap_or(global)
+}
+
 /// Reasoning effort levels a run may ask for: the Claude Agent SDK's
 /// `EffortLevel`. Each sidecar keeps only the levels its engine and model take
 /// (Codex has no `max`), so the engine's default applies to the rest.
-const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+pub(crate) const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+/// The effort a run falls back to without a pick: its own stored level (so a
+/// resume keeps it), else the project's default, else the global setting.
+/// Unknown levels count as unset.
+fn fallback_effort<'a>(run_effort: Option<&'a str>, project: Option<&'a str>, global: &'a str) -> &'a str {
+    [run_effort, project]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|e| EFFORT_LEVELS.contains(e))
+        .unwrap_or(global)
+}
 
 /// Resolve a run's reasoning effort: the per-run pick, else the global
 /// `default_effort` setting, else `None` (the engine decides). An unknown level
@@ -841,7 +899,16 @@ fn resolve_effort(override_effort: Option<String>, default_effort: &str) -> Opti
         .or_else(|| Some(default_effort.trim().to_string()).filter(|s| valid(s)))
 }
 
-fn is_valid_permission_mode(mode: &str) -> bool {
+/// Resolve a run's permission mode: the per-run pick, else the project's
+/// default, else the global setting, else `default`. Runs store no mode of their
+/// own. Unknown modes count as unset.
+fn resolve_permission_mode(pick: Option<&str>, project: Option<&str>, global: &str) -> String {
+    pick.filter(|m| is_valid_permission_mode(m))
+        .map(str::to_string)
+        .unwrap_or_else(|| crate::commands::session_defaults::fallback_permission_mode(project, global))
+}
+
+pub(crate) fn is_valid_permission_mode(mode: &str) -> bool {
     matches!(
         mode,
         "default" | "acceptEdits" | "bypassPermissions" | "plan" | "auto" | "dontAsk"
@@ -3035,6 +3102,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         role: None,
         conductor_run_id: None,
         style: None,
+        effort: None,
     })
 }
 
@@ -3125,6 +3193,7 @@ pub async fn create_handoff_run(
             role: None,
             conductor_run_id: None,
             style: None,
+            effort: None,
         },
         context_path,
     })
@@ -3139,10 +3208,10 @@ pub async fn create_session_run(
     project_id: String,
     engine_override: Option<String>,
 ) -> Result<RunRecord, String> {
-    let default_engine = crate::commands::settings::resolve_default_engine(db.inner()).await;
-    let engine = engine_override
-        .filter(|e| !e.trim().is_empty())
-        .unwrap_or(default_engine);
+    let engine = match engine_override.filter(|e| !e.trim().is_empty()) {
+        Some(e) => e,
+        None => crate::commands::session_defaults::default_engine(db.inner(), &project_id).await,
+    };
 
     let new_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -3182,6 +3251,7 @@ pub async fn create_session_run(
         role: None,
         conductor_run_id: None,
         style: None,
+        effort: None,
     })
 }
 
@@ -4149,7 +4219,7 @@ pub(crate) async fn resume_run_with(
 
     let row = sqlx::query(
         "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.worktree_path,
-                r.style, p.path as project_path
+                r.style, r.model, r.effort, p.path as project_path
          FROM runs r JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
     )
@@ -4167,6 +4237,8 @@ pub(crate) async fn resume_run_with(
     let project_path: String = row.get("project_path");
     let worktree_path: Option<String> = row.get("worktree_path");
     let previous_style: Option<String> = row.get("style");
+    let previous_model: Option<String> = row.get("model");
+    let previous_effort: Option<String> = row.get("effort");
 
     // Resume uses the run-level account, else (NULL = "Default" in the UI) the
     // project → default account — the same profile a fresh start would pick and
@@ -4252,13 +4324,28 @@ pub(crate) async fn resume_run_with(
         }
     }
 
+    // A resume keeps the run's own model and effort unless it picks others; the
+    // project's defaults (UX-19), then the global ones, only fill what it lacks.
+    let project_defaults = crate::commands::session_defaults::load(db.inner(), &project_id).await;
     let engine_default_model = if engine == "codex" {
         codex_model
     } else {
         claude_model
     };
-    let model = resolve_model_for_engine(&engine, model_override, engine_default_model);
-    let effort = resolve_effort(effort_override, &default_effort);
+    let model = resolve_model_for_engine(
+        &engine,
+        model_override,
+        fallback_model(
+            &engine,
+            previous_model.as_deref(),
+            project_defaults.model_for(&engine),
+            engine_default_model,
+        ),
+    );
+    let effort = resolve_effort(
+        effort_override,
+        fallback_effort(previous_effort.as_deref(), project_defaults.effort.as_deref(), &default_effort),
+    );
     // The run keeps its style unless the resume picks another (response_styles).
     let style = crate::commands::response_styles::resolve_run_style(
         db.inner(),
@@ -4269,15 +4356,11 @@ pub(crate) async fn resume_run_with(
     .await;
     let style_block = crate::commands::response_styles::resolved_block(style.as_ref());
 
-    let permission_mode = permission_mode_override
-        .filter(|v| is_valid_permission_mode(v))
-        .unwrap_or_else(|| {
-            if is_valid_permission_mode(&default_permission_mode) {
-                default_permission_mode
-            } else {
-                "default".to_string()
-            }
-        });
+    let permission_mode = resolve_permission_mode(
+        permission_mode_override.as_deref(),
+        project_defaults.permission_mode.as_deref(),
+        &default_permission_mode,
+    );
     if let (Some(cst), Some(_)) = (&cst, &conductor_launch) {
         cst.set_permission_mode(&run_id, &permission_mode);
     }
@@ -4356,16 +4439,17 @@ pub(crate) async fn resume_run_with(
     };
     let mark_running = if resume_session {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
+            "UPDATE runs SET status = 'running', model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
         )
     } else {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
+            "UPDATE runs SET status = 'running', model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
              transcript_path = NULL, transcript_synced_size = NULL, framing_seeded = 0 WHERE id = ?"
         )
     };
     sqlx::query(&mark_running)
         .bind(&model)
+        .bind(&effort)
         .bind(style.as_ref().map(|s| s.key.as_str()))
         .bind(&started_at)
         .bind(&started_at)
@@ -4712,6 +4796,75 @@ mod model_resolution_tests {
         // Dropped override + no global default => let the engine pick its own.
         let m = resolve_model_for_engine("codex", Some("claude-opus-4-8[1m]".into()), "".into());
         assert_eq!(m, None);
+    }
+}
+
+/// UX-19: each session setting resolves as per-run pick > the run's own stored
+/// value (a resume keeps it) > the project's default > the global setting.
+#[cfg(test)]
+mod session_default_tiers_tests {
+    use super::{
+        fallback_effort, fallback_model, resolve_effort, resolve_engine, resolve_model_for_engine,
+        resolve_permission_mode as mode,
+    };
+
+    #[test]
+    fn engine_table() {
+        let g = || "claude".to_string();
+        // (pick, run's own, project, global) → engine
+        let cases: &[(Option<&str>, Option<&str>, Option<&str>, &str)] = &[
+            (Some("codex"), Some("claude"), Some("claude"), "codex"),
+            (None, Some("claude"), Some("codex"), "claude"),
+            (None, None, Some("codex"), "codex"),
+            (None, None, None, "claude"),
+            (Some(" "), Some(""), Some("gemini"), "claude"),
+        ];
+        for (pick, run, project, want) in cases {
+            assert_eq!(resolve_engine(*pick, *run, *project, g()), *want, "{pick:?} {run:?} {project:?}");
+        }
+        // A Codex session resumed or restarted without a pick stays on Codex, even
+        // when the project (and the global setting) now say Claude.
+        assert_eq!(resolve_engine(None, Some("codex"), Some("claude"), g()), "codex");
+    }
+
+    #[test]
+    fn model_table() {
+        let model = |engine: &str, pick: Option<&str>, run: Option<&str>, project: Option<&str>, global: &str| {
+            resolve_model_for_engine(engine, pick.map(str::to_string), fallback_model(engine, run, project, global.to_string()))
+        };
+        // The pick wins; then the run's own; then the project's; then the global one.
+        assert_eq!(model("claude", Some("claude-a"), Some("claude-b"), Some("claude-c"), "claude-d").as_deref(), Some("claude-a"));
+        assert_eq!(model("claude", None, Some("claude-b"), Some("claude-c"), "claude-d").as_deref(), Some("claude-b"));
+        assert_eq!(model("claude", None, None, Some("claude-c"), "claude-d").as_deref(), Some("claude-c"));
+        assert_eq!(model("claude", None, None, None, "claude-d").as_deref(), Some("claude-d"));
+        assert_eq!(model("codex", None, None, None, ""), None);
+        // A value of the other engine is skipped at every tier.
+        assert_eq!(model("codex", None, Some("claude-b"), Some("gpt-5.5"), "gpt-5.4").as_deref(), Some("gpt-5.5"));
+        assert_eq!(model("codex", Some("claude-a"), None, Some(" "), "gpt-5.4").as_deref(), Some("gpt-5.4"));
+    }
+
+    #[test]
+    fn effort_table() {
+        let effort = |pick: Option<&str>, run: Option<&str>, project: Option<&str>, global: &str| {
+            resolve_effort(pick.map(str::to_string), fallback_effort(run, project, global))
+        };
+        assert_eq!(effort(Some("max"), Some("low"), Some("medium"), "high").as_deref(), Some("max"));
+        // A resume keeps the level the run ran with.
+        assert_eq!(effort(None, Some("low"), Some("medium"), "high").as_deref(), Some("low"));
+        assert_eq!(effort(None, None, Some("medium"), "high").as_deref(), Some("medium"));
+        assert_eq!(effort(None, None, None, "high").as_deref(), Some("high"));
+        // Unknown levels count as unset; nothing anywhere lets the engine decide.
+        assert_eq!(effort(None, Some("turbo"), Some("bogus"), "xhigh").as_deref(), Some("xhigh"));
+        assert_eq!(effort(None, None, None, ""), None);
+    }
+
+    #[test]
+    fn permission_mode_table() {
+        // Runs store no mode of their own: the pick, else project, else global.
+        assert_eq!(mode(Some("plan"), Some("acceptEdits"), "bypassPermissions"), "plan");
+        assert_eq!(mode(None, Some("acceptEdits"), "bypassPermissions"), "acceptEdits");
+        assert_eq!(mode(Some("nope"), None, "bypassPermissions"), "bypassPermissions");
+        assert_eq!(mode(None, None, "garbage"), "default");
     }
 }
 

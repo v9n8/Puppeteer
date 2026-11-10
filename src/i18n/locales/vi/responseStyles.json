@@ -35,5 +35,11 @@
     "descriptionTooLong": "Mô tả quá dài (tối đa 300 ký tự).",
     "bodyRequired": "Hãy nhập nội dung phong cách.",
     "bodyTooLong": "Nội dung quá dài (tối đa 8000 ký tự)."
-  }
+  },
+  "projectTitle": "Phong cách trả lời của Project này",
+  "projectHint": "Phong cách chỉ session của Project này chọn được, cùng với phong cách có sẵn và Phong cách của tôi. Mỗi session chọn một phong cách; session được tiếp tục vẫn giữ phong cách đó.",
+  "projectStylesTitle": "Phong cách của Project này",
+  "projectStylesHint": "Chỉ dùng được trong Project này.",
+  "projectEmpty": "Project này chưa có phong cách riêng.",
+  "projectBadge": "Project"
 }

@@ -651,7 +651,11 @@ export function currentProject() {
   const id = process.env.PUPPETEER_PROJECT_ID || null;
   if (!id) return null;
   return db()
-    .prepare('SELECT id, name, path, github_owner, github_repo, default_engine FROM projects WHERE id = ?')
+    // The project's own default engine (UX-19); NULL = it follows the global setting. The
+    // legacy `default_engine` column is 'claude' everywhere and never read.
+    .prepare(
+      'SELECT id, name, path, github_owner, github_repo, default_engine_override AS default_engine FROM projects WHERE id = ?',
+    )
     .get(id);
 }
 
@@ -659,7 +663,7 @@ export function currentProject() {
 export function listProjects() {
   return db()
     .prepare(
-      `SELECT p.id, p.name, p.path, p.github_owner, p.github_repo, p.default_engine,
+      `SELECT p.id, p.name, p.path, p.github_owner, p.github_repo, p.default_engine_override AS default_engine,
               (SELECT COUNT(*) FROM repos r WHERE r.project_id = p.id) AS repo_count
        FROM projects p WHERE p.deleted_at IS NULL ORDER BY p.name`,
     )

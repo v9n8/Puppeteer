@@ -248,10 +248,21 @@ async fn lookup(db: &Db, project_id: &str, key: &str) -> Option<ResolvedStyle> {
     Some(ResolvedStyle { key: key.to_string(), body: Some(body).filter(|b| !b.trim().is_empty()) })
 }
 
-/// The project's default style. Seam for UX-19 (per-project session defaults):
-/// no project-level setting exists yet, so this is always `None`.
-async fn project_default_style(_db: &Db, _project_id: &str) -> Option<String> {
-    None
+/// Whether style `key` can be used in `project_id`: a built-in, a global style,
+/// or one of that project's own.
+pub async fn usable(db: &Db, project_id: &str, key: &str) -> bool {
+    lookup(db, project_id, key).await.is_some()
+}
+
+/// The project's default style (`projects.default_style`, UX-19).
+async fn project_default_style(db: &Db, project_id: &str) -> Option<String> {
+    sqlx::query_scalar::<_, Option<String>>("SELECT default_style FROM projects WHERE id = ?")
+        .bind(project_id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
 }
 
 async fn global_default_style(db: &Db) -> Option<String> {
@@ -460,6 +471,26 @@ pub(crate) mod tests {
         assert_eq!(resolved_block(Some(&def)), None);
         let own = resolve_run_style(&db, "p1", Some(&mine.id), None).await.unwrap();
         assert!(resolved_block(Some(&own)).unwrap().contains("MY TEXT"));
+    }
+
+    #[tokio::test]
+    async fn project_default_sits_between_the_run_and_the_global_default() {
+        let db = test_db().await;
+        let team = create(&db, Some("p1"), "Team", "", "TEAM TEXT").await.unwrap();
+        let key = |r: Option<ResolvedStyle>| r.map(|s| s.key);
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('default_style', 'concise')").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET default_style = ? WHERE id = 'p1'").bind(&team.id).execute(&db).await.unwrap();
+
+        // The project's default beats the global one, only in that project.
+        assert_eq!(key(resolve_run_style(&db, "p1", None, None).await), Some(team.id.clone()));
+        assert_eq!(key(resolve_run_style(&db, "p2", None, None).await).as_deref(), Some("concise"));
+        // A session that already ran keeps its style; a pick beats everything.
+        assert_eq!(key(resolve_run_style(&db, "p1", None, Some("code_review")).await).as_deref(), Some("code_review"));
+        assert_eq!(key(resolve_run_style(&db, "p1", Some("default"), Some("code_review")).await).as_deref(), Some("default"));
+        assert!(usable(&db, "p1", &team.id).await && !usable(&db, "p2", &team.id).await);
+        // Its style deleted: the global default again.
+        delete(&db, &team.id).await.unwrap();
+        assert_eq!(key(resolve_run_style(&db, "p1", None, None).await).as_deref(), Some("concise"));
     }
 
     #[test]

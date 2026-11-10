@@ -1,12 +1,12 @@
 import {
-  Settings, KanbanSquare, UserCircle, Github, Gitlab, Cloud, CloudCog,
+  Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, Github, Gitlab, Cloud, CloudCog,
   Puzzle, ScrollText, Server, GitMerge, Rocket, ShieldCheck,
 } from 'lucide-vue-next'
 
 /** Headings of the project settings nav, in display order. */
 export const PROJECT_GROUPS = [
   { id: 'overview', labelKey: 'projectDetail.groups.overview' },
-  // Per-project defaults for new sessions; UX-19 adds engine, model, permission mode…
+  // Per-project defaults for new sessions (UX-19) and the project's own response styles.
   { id: 'defaults', labelKey: 'projectDetail.groups.defaults' },
   { id: 'connections', labelKey: 'projectDetail.groups.connections' },
   { id: 'library', labelKey: 'projectDetail.groups.library' },
@@ -18,13 +18,15 @@ export type ProjectGroupId = (typeof PROJECT_GROUPS)[number]['id']
 /**
  * Sections of the project settings screen, in nav order within their `group`.
  * The ids are the old flat tab ids, so `/projects/<id>/settings?section=<id>`
- * opens the same panel as before the grouping. `conflicts` (skill and rule sync
+ * opens the same panel as before the grouping (`claude`, the Claude account, now
+ * lives in `session`: see LEGACY_SECTIONS). `conflicts` (skill and rule sync
  * conflicts) only shows while the project has some.
  */
 export const PROJECT_SECTIONS = [
   { id: 'overview', group: 'overview', icon: Settings },
   { id: 'board', group: 'overview', icon: KanbanSquare },
-  { id: 'claude', group: 'defaults', icon: UserCircle },
+  { id: 'session', group: 'defaults', icon: SlidersHorizontal },
+  { id: 'styles', group: 'defaults', icon: MessageSquareText },
   { id: 'github', group: 'connections', icon: Github },
   { id: 'gitlab', group: 'connections', icon: Gitlab },
   { id: 'aws', group: 'connections', icon: Cloud },
@@ -53,7 +55,13 @@ export function projectNav<S extends { id: string; group: ProjectGroupId }>(
     .filter((g) => g.sections.length > 0)
 }
 
+/** Old section ids still accepted by `?section=`, and the section they open now. */
+const LEGACY_SECTIONS = new Map<unknown, ProjectSectionId>([
+  // The Claude account select moved into the session defaults form (UX-19).
+  ['claude', 'session'],
+])
+
 /** The section a `?section=` query names, or null when it names none. */
 export function sectionFromQuery(value: unknown): ProjectSectionId | null {
-  return PROJECT_SECTIONS.find((s) => s.id === value)?.id ?? null
+  return LEGACY_SECTIONS.get(value) ?? PROJECT_SECTIONS.find((s) => s.id === value)?.id ?? null
 }

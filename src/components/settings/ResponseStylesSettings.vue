@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // Settings → AI → "Response styles" (UX-17): the built-in styles (read-only,
 // copyable) and the user's global styles. A session picks one; its text is added
-// to the session's system prompt. Per-project styles (the table supports them)
-// are managed on the project's page later (UX-19).
-import { computed, onMounted, reactive, ref } from 'vue'
+// to the session's system prompt. With `projectId` (the project page, UX-19) it
+// manages that project's own styles instead, without the built-ins.
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, Copy, MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { Badge, Button, Card, Input, Textarea } from '@/components/ui'
@@ -18,12 +18,15 @@ const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const store = useResponseStylesStore()
+const props = defineProps<{ projectId?: string | null }>()
+const scope = computed(() => props.projectId ?? null)
 
-const globalStyles = computed(() => store.styles.filter((s) => s.project_id === null))
+// The styles this screen edits: the global ones, or the project's own.
+const ownStyles = computed(() => store.styles.filter((s) => s.project_id === scope.value))
 
-onMounted(() => {
-  store.load(null).catch((e) => toast.error(String(e)))
-})
+watch(scope, (id) => {
+  store.load(id).catch((e) => toast.error(String(e)))
+}, { immediate: true })
 
 // Built-ins: one preview open at a time.
 const openBuiltin = ref<string | null>(null)
@@ -50,7 +53,7 @@ async function save() {
   try {
     const input = { name: draft.name, description: draft.description, body: draft.body }
     if (draft.id) await store.update(draft.id, input)
-    else await store.create({ projectId: null, ...input })
+    else await store.create({ projectId: scope.value, ...input })
     toast.success(t('responseStyles.saved'))
     closeEditor()
   } catch (e) {
@@ -64,7 +67,7 @@ async function copyBuiltin(b: BuiltinStyle) {
   try {
     const style = await store.create({
       projectId: null,
-      name: uniqueStyleName(t(builtinStyleLabelKey(b.key)), globalStyles.value.map((s) => s.name)),
+      name: uniqueStyleName(t(builtinStyleLabelKey(b.key)), ownStyles.value.map((s) => s.name)),
       description: t(`responseStyles.builtin.${b.key}.description`),
       body: b.body,
     })
@@ -94,13 +97,13 @@ async function removeStyle(id: string) {
   <Card body-class="p-4 space-y-6">
     <template #header>
       <MessageSquareText class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-      <span class="text-xs font-semibold">{{ t('responseStyles.title') }}</span>
+      <span class="text-xs font-semibold">{{ t(scope ? 'responseStyles.projectTitle' : 'responseStyles.title') }}</span>
     </template>
 
-    <p class="text-2xs text-muted-foreground">{{ t('responseStyles.hint') }}</p>
+    <p class="text-2xs text-muted-foreground">{{ t(scope ? 'responseStyles.projectHint' : 'responseStyles.hint') }}</p>
 
     <!-- Built-in styles: read-only, copy one to edit it -->
-    <section class="space-y-3">
+    <section v-if="!scope" class="space-y-3">
       <div class="space-y-0.5">
         <h3 class="text-xs font-semibold text-foreground">{{ t('responseStyles.builtinTitle') }}</h3>
         <p class="text-2xs text-muted-foreground">{{ t('responseStyles.builtinHint') }}</p>
@@ -148,12 +151,12 @@ async function removeStyle(id: string) {
       </div>
     </section>
 
-    <!-- My styles (global) -->
+    <!-- My styles (global), or the project's own -->
     <section class="space-y-3">
       <div class="flex items-center justify-between gap-2">
         <div class="space-y-0.5">
-          <h3 class="text-xs font-semibold text-foreground">{{ t('responseStyles.mineTitle') }}</h3>
-          <p class="text-2xs text-muted-foreground">{{ t('responseStyles.mineHint') }}</p>
+          <h3 class="text-xs font-semibold text-foreground">{{ t(scope ? 'responseStyles.projectStylesTitle' : 'responseStyles.mineTitle') }}</h3>
+          <p class="text-2xs text-muted-foreground">{{ t(scope ? 'responseStyles.projectStylesHint' : 'responseStyles.mineHint') }}</p>
         </div>
         <Button variant="outline" size="sm" class="shrink-0" @click="openEditor()">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
@@ -162,15 +165,15 @@ async function removeStyle(id: string) {
       </div>
 
       <p
-        v-if="store.loaded && !globalStyles.length && !(draft.open && !draft.id)"
+        v-if="store.loaded && !ownStyles.length && !(draft.open && !draft.id)"
         class="rounded-md border border-dashed border-border/70 px-3 py-4 text-center text-xs text-muted-foreground"
       >
-        {{ t('responseStyles.empty') }}
+        {{ t(scope ? 'responseStyles.projectEmpty' : 'responseStyles.empty') }}
       </p>
 
       <div class="space-y-1.5">
         <div
-          v-for="s in globalStyles"
+          v-for="s in ownStyles"
           :key="s.id"
           class="overflow-hidden rounded-md border bg-muted/20"
           :class="draft.open && draft.id === s.id ? 'border-primary/50' : 'border-border/70'"
@@ -180,7 +183,7 @@ async function removeStyle(id: string) {
               <span class="block truncate text-xs text-foreground">{{ s.name }}</span>
               <span v-if="s.description" class="block truncate text-2xs text-muted-foreground">{{ s.description }}</span>
             </span>
-            <Badge size="xs">{{ t('responseStyles.global') }}</Badge>
+            <Badge size="xs">{{ t(scope ? 'responseStyles.projectBadge' : 'responseStyles.global') }}</Badge>
             <Button variant="ghost" size="icon-sm" :title="t('common.edit')" :aria-label="t('common.edit')" @click="openEditor(s)">
               <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
             </Button>

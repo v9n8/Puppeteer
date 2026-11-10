@@ -345,4 +345,32 @@ mod tests {
         let look: (Option<String>, Option<String>, bool) = (row.get("color"), row.get("icon"), row.get("hidden"));
         assert_eq!(look, (None, None, false));
     }
+
+    /// UX-19: old projects follow the global defaults; the legacy `default_engine` is untouched.
+    #[tokio::test]
+    async fn existing_projects_get_no_session_defaults() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at, model) VALUES ('r1', 'p1', 'session', 'c', 'claude-x')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        assert_eq!(
+            crate::commands::session_defaults::load(&db, "p1").await,
+            crate::commands::session_defaults::ProjectSessionDefaults::default()
+        );
+        let legacy: String = sqlx::query_scalar("SELECT default_engine FROM projects WHERE id = 'p1'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(legacy, "claude");
+        let (model, effort): (Option<String>, Option<String>) =
+            sqlx::query_as("SELECT model, effort FROM runs WHERE id = 'r1'").fetch_one(&db).await.unwrap();
+        assert_eq!((model.as_deref(), effort), (Some("claude-x"), None));
+        // A project added after the migration (no engine given) follows the global default too.
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'b', '/b', 'c')").execute(&db).await.unwrap();
+        assert_eq!(crate::commands::session_defaults::load(&db, "p2").await.engine, None);
+    }
 }

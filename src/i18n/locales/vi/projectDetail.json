@@ -15,7 +15,8 @@
     "board": "GitHub Project",
     "gitlab": "GitLab",
     "aws": "AWS",
-    "claude": "Tài khoản Claude",
+    "session": "Session mới",
+    "styles": "Phong cách trả lời",
     "tools": "Quyền tool",
     "azure": "Azure",
     "conflicts": "Xung đột"
@@ -166,5 +167,12 @@
     "wrench": "Công cụ",
     "package": "Gói",
     "shield": "Bảo mật"
+  },
+  "sessionDefaults": {
+    "title": "Mặc định cho session mới",
+    "hint": "Giá trị một session mới của Project này dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng. \"Theo cấu hình chung\" dùng giá trị trong",
+    "follow": "Theo cấu hình chung ({value})",
+    "saved": "Đã lưu mặc định session",
+    "noAccount": "Không có (~/.claude chung)"
   }
 }

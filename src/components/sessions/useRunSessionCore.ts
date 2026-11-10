@@ -29,6 +29,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import { IS_SESSION_WINDOW } from '@/lib/windowMode'
+import { composerDefaults } from '@/lib/composerChips'
 
 export function useRunSessionCore() {
   const { t } = useI18n()
@@ -73,8 +74,12 @@ export function useRunSessionCore() {
   // temporarily hold a not-yet-started override, so keep the persisted run engine
   // explicit for labels, resume, and handoff decisions.
   const loadedRunEngine = ref<string>('')
+  // The project's defaults for new sessions over the global ones (UX-19).
+  const sessionDefaults = computed(() =>
+    composerDefaults({ settings: appSettings.settings, project: project.value?.session_defaults }),
+  )
   function resolveEngineChoice(value: string | null | undefined): string {
-    return value || appSettings.settings?.default_engine || 'claude'
+    return value || sessionDefaults.value.engine
   }
   function syncLoadedRunEngine(engine: string) {
     engineOverride.value = engine
@@ -84,12 +89,12 @@ export function useRunSessionCore() {
   const effectiveEngine = computed(() => resolveEngineChoice(engineOverride.value))
   const permissionMode = ref('')
 
-  // ── Run selectors: two levels only — global default, or per-session ────────
-  // Engine, model and permission have exactly two tiers: an empty selector value
-  // means "follow the global setting" (reactive), and any explicit pick applies
-  // to THIS run only. Per-run choices are persisted in the run's own meta
-  // (`set_run_meta` / the `run:meta:<id>` listener below), never project-wide, so
-  // one run's override never leaks into another session.
+  // ── Run selectors: the defaults, or a per-session pick ──────────────────────
+  // An empty selector value means "follow the defaults" (the project's, else the
+  // global setting; reactive), and any explicit pick applies to THIS run only.
+  // Per-run choices are persisted in the run's own meta (`set_run_meta` / the
+  // `run:meta:<id>` listener below), never project-wide, so one run's override
+  // never leaks into another session.
 
   const currentRunId = ref<string | null>(null)
 
@@ -189,7 +194,7 @@ export function useRunSessionCore() {
     t, route, router, projectStore, runsStore, live, conductorStore, tabsStore, draftsStore, ghStore,
     glStore, serversStore, awsStore, azureStore, claudeStore, appSettings, features,
     modelCatalog, uiLayout, confirm, prompt, toast, projectId, project, isSessionWindow, activeRunId,
-    engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine,
+    engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine, sessionDefaults,
     permissionMode, currentRunId, currentRun, currentIsSession, session, liveEntries,
     liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
   }

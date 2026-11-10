@@ -12,34 +12,33 @@ import {
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { builtinStyleLabelKey } from '@/lib/responseStyles'
 import {
-  composerDefaults, composerStyleChoices, effectiveEffort, effortForLaunch, inheritedStyle,
+  composerStyleChoices, effectiveEffort, effortForLaunch, inheritedEffort, inheritedModel, inheritedStyle,
 } from '@/lib/composerChips'
 import { useResponseStylesStore } from '@/stores/responseStyles'
 import type { RunSessionCore } from './useRunSessionCore'
 
 export function useComposerChips(core: RunSessionCore) {
   const {
-    t, appSettings, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
-    effectiveEngine, modelOverride, permissionMode,
+    t, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
+    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode,
   } = core
   const stylesStore = useResponseStylesStore()
 
-  const defaults = computed(() => composerDefaults({ settings: appSettings.settings }))
   // A session that has run continues on its own engine (as sendMessage does).
   const chipEngine = computed(() =>
     (currentStatus.value !== 'fetched' && (loadedRunEngine.value || currentRun.value?.engine)) || effectiveEngine.value,
   )
-  // Levels the next turn's model takes: the model pick, else the engine's default
-  // model, which is what a start or resume falls back to.
+  // Levels the next turn's model takes: the model pick, else the model the run
+  // last ran with, else the default model (project, then global) — what a start
+  // or resume falls back to.
   function effortLevels(engine: string) {
-    const model = modelOverride.value
-      || (engine === 'codex' ? appSettings.settings?.codex_model : appSettings.settings?.claude_model)
-      || ''
+    const model = modelOverride.value || inheritedModel(currentRun.value, engine, defaults.value)
     return effortLevelsFor(engine, model, { codex: modelCatalog.codexModels })
   }
 
-  // Picks per session ('' = none: the default applies). Runs don't store effort
-  // yet (UX-19), so a pick lasts as long as this view.
+  // Picks per session ('' = none: the default applies). A pick is sent with the
+  // next launch, which stores the effort on the run; the pick itself lasts as
+  // long as this view.
   const effortPicks = ref<Record<string, string>>({})
   const stylePicks = ref<Record<string, string>>({})
   function currentPick(picks: typeof effortPicks) {
@@ -83,13 +82,15 @@ export function useComposerChips(core: RunSessionCore) {
 
   // ── Effort ──
   const effortLevelsNow = computed(() => effortLevels(chipEngine.value))
-  const effortValue = computed(() => effectiveEffort(effortPick.value, effortLevelsNow.value, defaults.value.effort))
+  // No pick: the level the run last ran with (a resume keeps it), else the default.
+  const effortDefault = computed(() => inheritedEffort(currentRun.value?.effort, defaults.value.effort))
+  const effortValue = computed(() => effectiveEffort(effortPick.value, effortLevelsNow.value, effortDefault.value))
   const effortLabel = (level: string) =>
     (EFFORT_LEVELS as readonly string[]).includes(level) ? t(`settings.ai.effort.${level}`) : level
   const effortOptions = computed<SelectOption[]>(() =>
     defaultEffortChoices(effortLevelsNow.value, effortPick.value).map((c) => {
       if (!c.value) {
-        const d = effectiveEffort('', effortLevelsNow.value, defaults.value.effort)
+        const d = effectiveEffort('', effortLevelsNow.value, effortDefault.value)
         return { value: '', label: d ? t('run.chipEffortDefaultWith', { level: effortLabel(d) }) : t('settings.ai.effortEngineDefault') }
       }
       const label = effortLabel(c.value)
@@ -110,9 +111,9 @@ export function useComposerChips(core: RunSessionCore) {
       ? (id: string) => stylesStore.styles.some((s) => s.id === id && (s.project_id === null || s.project_id === projectId.value))
       : null,
   )
-  // No pick: the run's stored style (a resume keeps it), else the default.
+  // No pick: the run's stored style (a resume keeps it), else the defaults.
   const styleValue = computed(() =>
-    stylePick.value || inheritedStyle(currentRun.value?.style, defaults.value.style, knownStyle.value),
+    stylePick.value || inheritedStyle(currentRun.value?.style, defaults.value.styles, knownStyle.value),
   )
   // Built-ins, My styles and this project's styles under their own headings.
   const styleOptions = computed(() => {

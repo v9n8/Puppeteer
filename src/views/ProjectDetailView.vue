@@ -24,16 +24,19 @@ import {
 import {
   AlertTriangle, Puzzle, ScrollText, Server, Github, Gitlab,
   GitMerge, CheckCircle2, XCircle, Trash2, Plus, GitBranch, Settings,
-  Rocket, ShieldCheck, Loader2, KanbanSquare, ExternalLink, UserCircle
+  Rocket, ShieldCheck, Loader2, KanbanSquare, ExternalLink
 } from 'lucide-vue-next'
 import { Button, Input, Card, Badge, AppSelect, ToggleSwitch, PageHeader, Banner } from '@/components/ui'
 import BackToRunButton from '@/components/BackToRunButton.vue'
 import ProjectGroupToggles from '@/components/ProjectGroupToggles.vue'
 import ProjectAccountsList, { type AccountRow } from '@/components/ProjectAccountsList.vue'
+import ProjectSessionDefaults from '@/components/ProjectSessionDefaults.vue'
+import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { parseRepoUrl, repoKey, repoWebUrl } from '@/lib/repoUrl'
 import { PROJECT_SECTIONS, projectNav, sectionFromQuery, type ProjectSectionId } from '@/lib/projectSections'
+import { composerDefaults } from '@/lib/composerChips'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 const { t } = useI18n()
@@ -163,8 +166,10 @@ const loadingMcp = ref(false)
 const savingMcp = ref(false)
 const togglingMcpId = ref<string | null>(null)
 // Warn (not block) when a legacy SSE server is enabled but the default engine is
-// Codex, which supports stdio + streamable HTTP MCP.
-const defaultIsCodex = computed(() => appSettings.settings?.default_engine === 'codex')
+// Codex, which supports stdio + streamable HTTP MCP. The project's default first (UX-19).
+const defaultIsCodex = computed(
+  () => composerDefaults({ settings: appSettings.settings, project: project.value?.session_defaults }).engine === 'codex',
+)
 
 // Built-in servers (puppeteer, google): on by default, switched off per project.
 const builtinMcp = ref<ProjectBuiltinMcp[]>([])
@@ -555,33 +560,6 @@ async function handleMakeDefaultCloudAccount(provider: 'aws' | 'azure', account:
     toast.error(String(e))
   } finally {
     busyCloudAccountId.value = null
-  }
-}
-
-// --- Claude account linking (one account per project; falls back to default) ---
-const linkedClaudeAccountId = computed(() => project.value?.claude_account_id ?? null)
-const linkedClaudeAccount = computed(
-  () => claudeStore.accounts.find(a => a.id === linkedClaudeAccountId.value) ?? null,
-)
-const defaultClaudeAccount = computed(
-  () => claudeStore.accounts.find(a => a.is_default) ?? null,
-)
-const claudeAccountOptions = computed(() => [
-  {
-    value: '',
-    label: defaultClaudeAccount.value
-      ? t('projectDetail.claudeDefaultOption', { label: defaultClaudeAccount.value.label })
-      : 'None',
-  },
-  ...claudeStore.accounts.map(a => ({ value: a.id, label: a.label })),
-])
-
-async function handleSelectClaudeAccount(accountId: string) {
-  try {
-    await projectStore.setProjectClaudeAccount(projectId.value, accountId || null)
-    toast.success(t('projectDetail.toastClaudeLinked'))
-  } catch (e) {
-    toast.error(String(e))
   }
 }
 
@@ -1559,37 +1537,12 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
           />
         </div>
 
-        <!-- Claude account tab -->
-        <div v-if="activeTab === 'claude'" class="max-w-lg space-y-4">
-          <Card body-class="p-4 space-y-4">
-            <template #header>
-              <UserCircle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-              <span class="text-xs font-semibold">{{ t('projectDetail.linkedClaudeAccount') }}</span>
-            </template>
-            <p class="text-2xs text-muted-foreground leading-relaxed">
-              {{ t('projectDetail.claudeAccountHint') }}
-              <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.settings') }}</RouterLink>.
-            </p>
+        <!-- Session defaults (UX-19): engine, models, mode, effort, style, Claude account -->
+        <ProjectSessionDefaults v-if="activeTab === 'session'" :project="project" />
 
-            <div v-if="claudeStore.accounts.length === 0" class="text-2xs text-muted-foreground">
-              {{ t('projectDetail.noClaudeAccounts') }}
-              <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.addInSettings') }}</RouterLink>
-              {{ t('projectDetail.toLinkHere') }}
-            </div>
-            <AppSelect
-              size="sm"
-              v-else
-              :model-value="linkedClaudeAccountId ?? ''"
-              :options="claudeAccountOptions"
-              :placeholder="t('projectDetail.selectAccountPlaceholder')"
-              @update:model-value="handleSelectClaudeAccount"
-            />
-
-            <div v-if="linkedClaudeAccount" class="text-2xs text-muted-foreground">
-              {{ t('settings.claude.status.' + linkedClaudeAccount.status) }}
-              <span v-if="linkedClaudeAccount.email"> · {{ linkedClaudeAccount.email }}</span>
-            </div>
-          </Card>
+        <!-- This project's own response styles -->
+        <div v-if="activeTab === 'styles'" class="max-w-lg">
+          <ResponseStylesSettings :project-id="project.id" />
         </div>
 
         <!-- Tool Permissions tab -->

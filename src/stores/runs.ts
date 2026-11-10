@@ -150,6 +150,11 @@ export interface RunRecord {
    * resume keeps. Only `list_runs` fills it.
    */
   style?: string | null
+  /**
+   * Reasoning effort the run last ran with, which a resume keeps (UX-19). Only
+   * `list_runs` fills it; null = the engine's default, or an older run.
+   */
+  effort?: string | null
 }
 
 /**

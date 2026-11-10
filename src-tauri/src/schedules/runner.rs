@@ -242,7 +242,7 @@ async fn fire(app: &AppHandle, db: &Db, f: Firing) -> Result<String, String> {
         .clone();
     let engine = match f.engine {
         Some(e) => e,
-        None => crate::commands::settings::resolve_default_engine(db).await,
+        None => crate::commands::session_defaults::default_engine(db, &f.project_id).await,
     };
     let run_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(

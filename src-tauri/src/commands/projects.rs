@@ -1,4 +1,5 @@
 use crate::commands::rules::{ApplyAllOutcome, ApplyFailure};
+use crate::commands::session_defaults::ProjectSessionDefaults;
 use crate::commands::skills::{
     claude_skill_dir, legacy_codex_skill_dir, remove_skill_artifacts, write_skill_artifacts,
     SkillEngines,
@@ -72,6 +73,9 @@ pub struct Project {
     /// Left out of the Projects grid, the tab bar and the palette; still works everywhere else.
     #[serde(default)]
     pub hidden: bool,
+    /// Defaults for new sessions of the project (UX-19); each `None` follows the global setting.
+    #[serde(default)]
+    pub session_defaults: crate::commands::session_defaults::ProjectSessionDefaults,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -814,6 +818,8 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
+                p.default_engine_override, p.default_model_claude, p.default_model_codex, \
+                p.default_permission_mode, p.default_effort, p.default_style, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p \
          LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL \
@@ -851,6 +857,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
             color: row.get("color"),
             icon: row.get("icon"),
             hidden: row.get("hidden"),
+            session_defaults: ProjectSessionDefaults::from_row(row),
         })
         .collect();
 
@@ -960,6 +967,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         color: None,
         icon: None,
         hidden: false,
+        session_defaults: ProjectSessionDefaults::default(),
     })
 }
 
@@ -1207,6 +1215,8 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
+                p.default_engine_override, p.default_model_claude, p.default_model_codex, \
+                p.default_permission_mode, p.default_effort, p.default_style, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )
@@ -1239,6 +1249,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
         color: row.get("color"),
         icon: row.get("icon"),
         hidden: row.get("hidden"),
+        session_defaults: ProjectSessionDefaults::from_row(&row),
     })
 }
 

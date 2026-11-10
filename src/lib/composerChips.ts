@@ -6,34 +6,94 @@ import { EFFORT_LEVELS, resolvePermissionMode, type EffortLevel } from './engine
 import { BUILTIN_STYLE_KEYS, isBuiltinStyle, type BuiltinStyleKey } from './responseStyles.ts'
 
 export interface ComposerDefaults {
+  /** The engine of a new session: 'claude' or 'codex'. */
+  engine: string
+  /** The default model of each engine; '' = the engine decides. */
+  models: { claude: string; codex: string }
   /** Always a concrete mode ('default' = ask via UI). */
   permissionMode: string
   /** '' = the engine decides. */
   effort: string
   /** A style reference; '' = none. */
   style: string
+  /**
+   * The style references to try, project's first: a deleted one is skipped
+   * and the next applies, as in the backend's `resolve_run_style`.
+   */
+  styles: string[]
 }
 
 interface DefaultSettings {
+  default_engine?: string | null
+  claude_model?: string | null
+  codex_model?: string | null
   default_permission_mode?: string | null
   default_effort?: string | null
   default_style?: string | null
 }
 
+/** A project's defaults for new sessions (UX-19); null / '' = follow the global setting. */
+export interface ProjectSessionDefaults {
+  engine?: string | null
+  model_claude?: string | null
+  model_codex?: string | null
+  permission_mode?: string | null
+  effort?: string | null
+  style?: string | null
+}
+
+const ENGINES = ['claude', 'codex']
+const trimmed = (v: string | null | undefined) => v?.trim() ?? ''
+const isEffort = (v: string) => (EFFORT_LEVELS as readonly string[]).includes(v)
+
 /**
- * The values the chips show while the session has no pick of its own: the
- * global defaults (Settings › Defaults for new sessions). The one place the
- * composer reads defaults, so UX-19 adds the project tier here only, in the
- * backend's order (run pick > project > global).
+ * The values the composer shows while the session has no pick of its own: the
+ * project's defaults, else the global ones (Settings › Defaults for new
+ * sessions), field by field. The one place the composer reads defaults, in the
+ * backend's order (run pick > the run's own > project > global).
  */
-export function composerDefaults(src: { settings?: DefaultSettings | null }): ComposerDefaults {
+export function composerDefaults(src: {
+  settings?: DefaultSettings | null
+  project?: ProjectSessionDefaults | null
+}): ComposerDefaults {
   const s = src.settings
-  const effort = s?.default_effort?.trim() ?? ''
+  const p = src.project
+  const pick = (project: string, global: string, ok: (v: string) => boolean = Boolean) =>
+    ok(project) ? project : ok(global) ? global : ''
+  const styles = [trimmed(p?.style), trimmed(s?.default_style)].filter(Boolean)
   return {
-    permissionMode: resolvePermissionMode('', s?.default_permission_mode),
-    effort: (EFFORT_LEVELS as readonly string[]).includes(effort) ? effort : '',
-    style: s?.default_style?.trim() ?? '',
+    engine: pick(trimmed(p?.engine), trimmed(s?.default_engine), (v) => ENGINES.includes(v)) || 'claude',
+    models: {
+      claude: pick(trimmed(p?.model_claude), trimmed(s?.claude_model)),
+      codex: pick(trimmed(p?.model_codex), trimmed(s?.codex_model)),
+    },
+    permissionMode: resolvePermissionMode(trimmed(p?.permission_mode), s?.default_permission_mode),
+    effort: pick(trimmed(p?.effort), trimmed(s?.default_effort), isEffort),
+    style: styles[0] ?? '',
+    styles,
   }
+}
+
+/**
+ * The effort a session without a pick asks for, before its model's levels
+ * apply: the level it last ran with (a resume keeps it), else the default.
+ */
+export function inheritedEffort(runEffort: string | null | undefined, defaultEffort: string): string {
+  const own = trimmed(runEffort)
+  return isEffort(own) ? own : defaultEffort
+}
+
+/**
+ * The model a session without a pick runs on: the one it last ran with (a
+ * resume keeps it) when that run is on `engine`, else the default of `engine`.
+ */
+export function inheritedModel(
+  run: { engine?: string | null; model?: string | null } | null | undefined,
+  engine: string,
+  defaults: Pick<ComposerDefaults, 'models'>,
+): string {
+  const own = run?.engine === engine ? trimmed(run?.model) : ''
+  return own || (engine === 'codex' ? defaults.models.codex : defaults.models.claude)
 }
 
 /**
@@ -53,17 +113,18 @@ export function effectiveEffort(pick: string, levels: readonly EffortLevel[], de
 /**
  * The style a session without a pick runs its next turn with, mirroring the
  * backend's `resolve_run_style`: the run's stored style (a resume keeps it),
- * else the default; references that no longer resolve are skipped. `known`
+ * else the defaults in order (project's, then global); references that no
+ * longer resolve are skipped. `known`
  * tells whether a style id still exists (null while the list is not loaded:
  * every reference counts). 'default' (the built-in that adds no text) when
  * nothing resolves.
  */
 export function inheritedStyle(
   runStyle: string | null | undefined,
-  defaultStyle: string,
+  defaultStyle: string | readonly string[],
   known: ((id: string) => boolean) | null,
 ): string {
-  for (const candidate of [runStyle, defaultStyle]) {
+  for (const candidate of [runStyle, ...(typeof defaultStyle === 'string' ? [defaultStyle] : defaultStyle)]) {
     const key = candidate?.trim()
     if (key && (isBuiltinStyle(key) || !known || known(key))) return key
   }

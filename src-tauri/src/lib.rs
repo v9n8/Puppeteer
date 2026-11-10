@@ -866,6 +866,7 @@ pub fn run() {
             commands::response_styles::create_response_style,
             commands::response_styles::update_response_style,
             commands::response_styles::delete_response_style,
+            commands::session_defaults::set_project_session_defaults,
             commands::run_mcp::get_run_mcp,
             commands::run_mcp::set_run_mcp_override,
             runs::transcript::export_run_transcript,

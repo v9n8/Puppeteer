@@ -26,8 +26,9 @@ import { openFileWindow } from '@/lib/fileWindow'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
 import type { ImageAttachment } from '@/lib/streamEvents'
 import {
-  MODEL_OPTIONS, resolvePermissionMode, withCurrentModel, combinedModelOptions, engineForModel,
+  MODEL_OPTIONS, withCurrentModel, combinedModelOptions, engineForModel,
 } from '@/lib/engineOptions'
+import { inheritedModel } from '@/lib/composerChips'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -54,9 +55,9 @@ interface OutgoingMessage {
 
 export function useRunComposer(core: RunSessionCore, conductor: RunConductor, log: RunLog, header: RunHeaderInfo) {
   const {
-    t, runsStore, live, conductorStore, draftsStore, claudeStore, appSettings, modelCatalog, confirm,
+    t, runsStore, live, conductorStore, draftsStore, claudeStore, modelCatalog, confirm,
     toast, projectId, project, engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine,
-    effectiveEngine, permissionMode, currentRunId, currentRun, currentIsSession, session,
+    effectiveEngine, sessionDefaults, permissionMode, currentRunId, currentRun, currentIsSession, session,
     liveEntries, liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
   } = core
   const {
@@ -102,13 +103,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Claude's is curated + annotated with the last validation sweep; Codex's is
   // whatever `codex debug models` last reported.
   //
-  // The model that an empty (Default) pick resolves to, read reactively from the
-  // global settings so changing the default in Settings is reflected here at once.
-  const globalDefaultModel = computed(() =>
-    (effectiveEngine.value === 'codex'
-      ? appSettings.settings?.codex_model
-      : appSettings.settings?.claude_model) || '',
-  )
+  // The model that an empty (Default) pick resolves to: the one the run last ran
+  // with (a resume keeps it), else the project's default, else the global one —
+  // read reactively, so changing a default is reflected here at once.
+  const defaultModel = computed(() => inheritedModel(currentRun.value, effectiveEngine.value, sessionDefaults.value))
   const modelOptions = computed(() => {
     let claude = modelCatalog.withValidation(MODEL_OPTIONS.claude)
     let codex = modelCatalog.codexOptions(MODEL_OPTIONS.codex)
@@ -120,7 +118,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       if (eng === 'codex') codex = withCurrentModel(codex, cur)
       else claude = withCurrentModel(claude, cur)
     }
-    const def = globalDefaultModel.value
+    const def = defaultModel.value
     return combinedModelOptions({
       claude,
       codex,
@@ -135,7 +133,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   function onModelSelect(value: string) {
     const nextEngine = engineForModel(value, modelOptions.value) // '' = Default → global
     const currentEngine = loadedRunEngine.value || currentRun.value?.engine || effectiveEngine.value
-    const resolvedNext = nextEngine || appSettings.settings?.default_engine || 'claude'
+    const resolvedNext = nextEngine || sessionDefaults.value.engine
     const hasConversation =
       !!currentRunId.value &&
       currentStatus.value !== 'fetched' &&
@@ -163,13 +161,13 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   )
   // Model shown on the composer's run-settings badge: the live session's actual
   // model when available, else the run's persisted model, else the pending pick
-  // or the resolved global default. Empty only when nothing is known yet.
+  // or the resolved default. Empty only when nothing is known yet.
   const composerModelLabel = computed(() =>
     session.value?.model
     || historyModel.value
     || modelOverride.value
     || currentRun.value?.model
-    || globalDefaultModel.value
+    || defaultModel.value
     || '',
   )
   const contextRateLimit = computed(() => session.value?.rateLimit ?? null)
@@ -312,10 +310,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         modelOverride: modelOverride.value || undefined,
         effortOverride: effort,
         styleOverride: style,
-        permissionModeOverride: resolvePermissionMode(
-          permissionMode.value,
-          appSettings.settings?.default_permission_mode,
-        ),
+        permissionModeOverride: chips.modeValue.value,
         images,
         overrideBudget,
       })

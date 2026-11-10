@@ -66,6 +66,10 @@ pub struct RunRecord {
     /// shows it, since a resume keeps it.
     #[serde(default)]
     pub style: Option<String>,
+    /// Reasoning effort the run last ran with (`runs.effort`, UX-19): a resume
+    /// keeps it. Only `list_runs` fills it, for the composer's effort chip.
+    #[serde(default)]
+    pub effort: Option<String>,
 }
 
 /// Repo identity loaded from the `repos` row, used to branch fetch by provider
@@ -313,8 +317,8 @@ pub async fn fetch_issue(
     }
     fs::write(&file_path, &md).map_err(|e| e.to_string())?;
 
-    // Use the global default engine (per-project engine has been removed).
-    let engine = crate::commands::settings::resolve_default_engine(db.inner()).await;
+    // The project's default engine, else the global one (UX-19).
+    let engine = crate::commands::session_defaults::default_engine(db.inner(), &project_id).await;
 
     // Insert run record
     let run_id = Uuid::new_v4().to_string();
@@ -358,6 +362,7 @@ pub async fn fetch_issue(
         role: None,
         conductor_run_id: None,
         style: None,
+        effort: None,
     })
 }
 
@@ -687,7 +692,7 @@ pub async fn fetch_pr(
     }
     fs::write(&file_path, &md).map_err(|e| e.to_string())?;
 
-    let engine = crate::commands::settings::resolve_default_engine(db.inner()).await;
+    let engine = crate::commands::session_defaults::default_engine(db.inner(), &project_id).await;
 
     let run_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -732,6 +737,7 @@ pub async fn fetch_pr(
         role: None,
         conductor_run_id: None,
         style: None,
+        effort: None,
     })
 }
 
@@ -878,6 +884,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
         role: None,
         conductor_run_id: None,
         style: None,
+        effort: None,
     })
 }
 
@@ -906,7 +913,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // reports as `last_activity_at`, so the list and the timestamp the UI prints
     // can never disagree.
     let rows = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style,
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC
@@ -940,6 +947,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
         role: row.get("role"),
         conductor_run_id: row.get("conductor_run_id"),
         style: row.get("style"),
+        effort: row.get("effort"),
     }).collect())
 }
 
@@ -2360,7 +2368,7 @@ mod tests {
         assert_eq!(parse_review_requests_page(&failed, &own).unwrap_err(), "rate limited");
     }
 
-    /// The composer's style chip (UX-26) reads the style a run last ran with from History.
+    /// The composer's style / effort chips (UX-26, UX-19) read what a run last ran with from History.
     #[tokio::test]
     async fn list_runs_reports_each_run_style() {
         let db = sqlx::sqlite::SqlitePoolOptions::new()
@@ -2371,13 +2379,14 @@ mod tests {
         sqlx::migrate!("./migrations").run(&db).await.unwrap();
         for sql in [
             "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
-            "INSERT INTO runs (id, project_id, type, created_at, style) VALUES \
-             ('r1', 'p1', 'session', '2026-01-01', 'concise'), ('r2', 'p1', 'session', '2026-01-02', NULL)",
+            "INSERT INTO runs (id, project_id, type, created_at, style, effort) VALUES \
+             ('r1', 'p1', 'session', '2026-01-01', 'concise', 'high'), ('r2', 'p1', 'session', '2026-01-02', NULL, NULL)",
         ] {
             sqlx::query(sql).execute(&db).await.unwrap();
         }
         let runs = super::list_runs_inner(&db, "p1").await.unwrap();
-        let got: Vec<(&str, Option<&str>)> = runs.iter().map(|r| (r.id.as_str(), r.style.as_deref())).collect();
-        assert_eq!(got, [("r2", None), ("r1", Some("concise"))]);
+        let got: Vec<(&str, Option<&str>, Option<&str>)> =
+            runs.iter().map(|r| (r.id.as_str(), r.style.as_deref(), r.effort.as_deref())).collect();
+        assert_eq!(got, [("r2", None, None), ("r1", Some("concise"), Some("high"))]);
     }
 }

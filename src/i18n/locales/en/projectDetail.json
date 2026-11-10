@@ -15,7 +15,8 @@
     "board": "GitHub Project",
     "gitlab": "GitLab",
     "aws": "AWS",
-    "claude": "Claude account",
+    "session": "New sessions",
+    "styles": "Response styles",
     "tools": "Tool Permissions",
     "azure": "Azure",
     "conflicts": "Conflicts"
@@ -166,5 +167,12 @@
     "wrench": "Tools",
     "package": "Package",
     "shield": "Security"
+  },
+  "sessionDefaults": {
+    "title": "Defaults for new sessions",
+    "hint": "What a new session of this project starts with, unless it picks its own. \"Follow global\" uses the value in",
+    "follow": "Follow global ({value})",
+    "saved": "Session defaults saved",
+    "noAccount": "None (global ~/.claude)"
   }
 }
