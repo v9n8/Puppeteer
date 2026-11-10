@@ -120,6 +120,7 @@ use commands::stats::{
     refresh_codex_plan_usage, refresh_plan_usage, reset_usage_stats,
 };
 use commands::storage::get_storage_stats;
+use commands::trash::list_trash;
 use commands::instruction_checks::get_instruction_warnings;
 use commands::inbox_api::{get_inbox_api_info, regenerate_inbox_api_token, set_inbox_api_enabled};
 use commands::slack_threads::{
@@ -672,6 +673,7 @@ pub fn run() {
             trash_all_runs,
             restore_run,
             purge_run,
+            list_trash,
             rename_run,
             set_run_claude_account,
             set_run_pinned,

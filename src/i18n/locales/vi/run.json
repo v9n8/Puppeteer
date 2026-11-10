@@ -33,7 +33,6 @@
   "deleteRunTitle": "Xóa run",
   "deleteRunMessage": "Chuyển {label} vào Thùng rác? Các Session worker đi theo. Chưa có gì bị xóa khỏi ổ đĩa cho tới khi xóa vĩnh viễn trong Thùng rác.",
   "runDeleted": "Đã chuyển run vào Thùng rác",
-  "runDeletedWithLeftovers": "Đã xóa run, nhưng không xóa được {count} file transcript:\n{paths}",
   "deleteAllRunsTitle": "Xóa tất cả run",
   "deleteAllRunsMessage": "Chuyển tất cả run của Project này vào Thùng rác? Các run đang chạy và run được bảo vệ sẽ được bỏ qua. Chưa có gì bị xóa khỏi ổ đĩa cho tới khi xóa vĩnh viễn trong Thùng rác.",
   "deleteAll": "Xóa tất cả",

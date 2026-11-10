@@ -866,7 +866,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
     // sessions, links and settings; the payload's name and repos are not
     // applied) instead of failing on UNIQUE(path).
     if let Some(id) = restore_trashed_path(db.inner(), &payload.path).await? {
-        crate::commands::runs::notify_remote_lists(webview.app_handle());
+        crate::commands::runs::notify_trash_changed(webview.app_handle());
         return project_by_id(db.inner(), &id).await;
     }
 
@@ -962,7 +962,7 @@ pub async fn trash_project(
             conductor.unregister_session(run_id);
         }
     }
-    crate::commands::runs::notify_remote_lists(&app);
+    crate::commands::runs::notify_trash_changed(&app);
     Ok(())
 }
 
@@ -1010,7 +1010,7 @@ pub(crate) async fn trash_project_inner(
 #[tauri::command]
 pub async fn restore_project(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
     restore_project_inner(db.inner(), &id).await?;
-    crate::commands::runs::notify_remote_lists(&app);
+    crate::commands::runs::notify_trash_changed(&app);
     Ok(())
 }
 
@@ -1082,6 +1082,7 @@ pub async fn purge_project(
     if let Ok(app_data_dir) = app.path().app_data_dir() {
         crate::aws_sandbox::remove_project_aws_config(&app_data_dir, &id);
     }
+    crate::commands::trash::emit_changed(&app);
     Ok(())
 }
 

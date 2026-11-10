@@ -13,6 +13,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { remotePathsForDrop } from '@/lib/remoteUpload'
 import { hitFromRouteQuery } from '@/lib/sessionSearch'
+import { EVT_TRASH_CHANGED } from '@/lib/trash'
 import { nativeDropPoint, treeDropTargetAt } from '@/lib/fileTreeDnd'
 import { useRunSessionCore, type RunSessionCore } from './useRunSessionCore'
 import { useRunConductor, type RunConductor } from './useRunConductor'
@@ -163,6 +164,11 @@ function useRunViewLifecycle(s: RunSession) {
         }
       },
     )
+    // Sessions moved to / out of the Trash elsewhere (another window, the Trash
+    // screen, a remote desktop): History follows.
+    trashChangedUnlisten = await listen(EVT_TRASH_CHANGED, () => {
+      runsStore.fetchRuns(projectId.value)
+    })
   })
 
   // When the window regains focus, the run on screen may have been continued
@@ -170,6 +176,7 @@ function useRunViewLifecycle(s: RunSession) {
   // transcript). Re-read its on-disk log so those external turns show up.
   // Skip live sessions — those stream their own updates in real time.
   let sessionsChangedUnlisten: UnlistenFn | null = null
+  let trashChangedUnlisten: UnlistenFn | null = null
   let dragDropUnlisten: UnlistenFn | null = null
 
   // Unbound on unmount so the menu item stops firing into a dead screen.
@@ -218,6 +225,8 @@ function useRunViewLifecycle(s: RunSession) {
     window.removeEventListener('keydown', onTurnNavKey)
     sessionsChangedUnlisten?.()
     sessionsChangedUnlisten = null
+    trashChangedUnlisten?.()
+    trashChangedUnlisten = null
     dragDropUnlisten?.()
     dragDropUnlisten = null
   })

@@ -1,0 +1,47 @@
+{
+  "title": "Trash",
+  "hint": "Deleted sessions and projects stay here until you delete them permanently. Nothing is removed from disk before that.",
+  "remote": "Deleting permanently is only possible on the machine itself. From a remote desktop you can restore.",
+  "sortBy": "Sort sessions by",
+  "sort": {
+    "deleted": "Time deleted",
+    "created": "Time created"
+  },
+  "refresh": "Refresh",
+  "emptyTrash": "Empty trash",
+  "empty": {
+    "title": "The Trash is empty",
+    "hint": "Sessions and projects you delete land here, and can be restored until you delete them permanently."
+  },
+  "projectDeleted": "Deleted project",
+  "noSessions": "This project has no sessions.",
+  "sessionCount": "{count} session | {count} sessions",
+  "projectCount": "{count} project | {count} projects",
+  "workers": "+{count} worker | +{count} workers",
+  "deletedAt": "Deleted {at}",
+  "createdAt": "Created {at}",
+  "restore": "Restore",
+  "purge": "Delete permanently",
+  "restoreProject": "Restore project",
+  "purgeProject": "Delete project permanently",
+  "restoreAll": "Restore all",
+  "purgeAll": "Delete all permanently",
+  "confirm": {
+    "purgeTitle": "Delete permanently",
+    "purgeSessionMessage": "Delete \"{label}\" permanently? {count} session will be lost, with its log and transcript. This cannot be undone. | Delete \"{label}\" permanently? {count} sessions (it and its workers) will be lost, with their logs and transcripts. This cannot be undone.",
+    "purgeProjectMessage": "Delete project \"{name}\" permanently? {count} session will be lost. This cannot be undone. | Delete project \"{name}\" permanently? {count} sessions will be lost. This cannot be undone.",
+    "purgeGroupMessage": "Delete the sessions of \"{name}\" in the Trash permanently? {count} session will be lost, with its log and transcript. This cannot be undone. | Delete the sessions of \"{name}\" in the Trash permanently? {count} sessions will be lost, with their logs and transcripts. This cannot be undone.",
+    "emptyMessage": "Delete everything in the Trash permanently? {sessions} and {projects} will be lost. This cannot be undone.",
+    "restoreWithProjectTitle": "Restore project too",
+    "restoreWithProjectMessage": "Project \"{name}\" is in the Trash too. Restoring this session restores the project as well, with its sessions that were not deleted on their own."
+  },
+  "toast": {
+    "restored": "Session restored",
+    "restoredWithProject": "Session restored, with project \"{name}\"",
+    "projectRestored": "Project \"{name}\" restored",
+    "groupRestored": "{count} session restored | {count} sessions restored",
+    "purged": "Deleted permanently",
+    "purgedWithLeftovers": "Deleted permanently, but {count} transcript file(s) could not be removed:\n{paths}",
+    "emptied": "Trash emptied"
+  }
+}

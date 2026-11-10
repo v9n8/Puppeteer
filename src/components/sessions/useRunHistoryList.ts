@@ -537,7 +537,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     }))) return
     deletingRunId.value = runId
     try {
-      const leftover = await runsStore.deleteRun(runId)
+      await runsStore.deleteRun(runId)
       if (currentRunId.value === runId || viewingLogRunId.value === runId) {
         clearActiveRunState()
       } else {
@@ -550,11 +550,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       if (activeRunId.value === runId) {
         router.replace(`/projects/${projectId.value}`)
       }
-      if (leftover.length) {
-        toast.error(t('run.runDeletedWithLeftovers', { count: leftover.length, paths: leftover.join('\n') }))
-      } else {
-        toast.success(t('run.runDeleted'))
-      }
+      toast.success(t('run.runDeleted'))
     } catch (err) {
       toast.error(String(err))
     } finally {

@@ -7,7 +7,7 @@ import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
-  BookMarked, FolderOpen, ListTodo, LockKeyhole, MessageSquare, Plus, Slack, StickyNote,
+  BookMarked, FolderOpen, ListTodo, LockKeyhole, MessageSquare, Plus, Slack, StickyNote, Trash2,
 } from 'lucide-vue-next'
 import { NAV_ROUTES } from '@/lib/navigation'
 import { MENU_ACTION_FEATURES } from '@/lib/featureGate'
@@ -83,6 +83,8 @@ export function usePaletteItems() {
         feature: MENU_ACTION_FEATURES[w.id],
         run: () => runMenuAction(w.id),
       })),
+      // The Trash sits in the sidebar footer, not in NAV_ROUTES (nor the Go menu).
+      { id: 'go./trash', group: 'nav', label: t('nav.trash'), icon: Trash2, run: () => router.push('/trash').catch(() => {}) },
     ]
 
     // Only a project screen can start a session (it needs the project).

@@ -800,6 +800,7 @@ mod tests {
             "restore_run",
             "trash_project",
             "restore_project",
+            "list_trash",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -872,6 +873,7 @@ mod tests {
             "delete_run_bookmark",
             "devserver_list",
             "devserver_logs",
+            "list_trash",
         ] {
             assert!(!audited_command(name), "{name}");
         }

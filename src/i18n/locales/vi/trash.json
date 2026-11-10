@@ -1,0 +1,47 @@
+{
+  "title": "Thùng rác",
+  "hint": "Session và Project đã xóa nằm ở đây cho tới khi bạn xóa vĩnh viễn. Trước lúc đó, chưa có gì bị xóa khỏi ổ đĩa.",
+  "remote": "Chỉ xóa vĩnh viễn được ngay trên máy đó. Từ remote desktop, bạn chỉ khôi phục được.",
+  "sortBy": "Sắp xếp Session theo",
+  "sort": {
+    "deleted": "Thời điểm xóa",
+    "created": "Thời điểm tạo"
+  },
+  "refresh": "Làm mới",
+  "emptyTrash": "Dọn sạch thùng rác",
+  "empty": {
+    "title": "Thùng rác trống",
+    "hint": "Session và Project bạn xóa sẽ nằm ở đây, và khôi phục được cho tới khi bạn xóa vĩnh viễn."
+  },
+  "projectDeleted": "Project đã xóa",
+  "noSessions": "Project này không có Session nào.",
+  "sessionCount": "{count} Session | {count} Session",
+  "projectCount": "{count} Project | {count} Project",
+  "workers": "+{count} worker | +{count} worker",
+  "deletedAt": "Xóa lúc {at}",
+  "createdAt": "Tạo lúc {at}",
+  "restore": "Khôi phục",
+  "purge": "Xóa vĩnh viễn",
+  "restoreProject": "Khôi phục Project",
+  "purgeProject": "Xóa vĩnh viễn Project",
+  "restoreAll": "Khôi phục tất cả",
+  "purgeAll": "Xóa vĩnh viễn tất cả",
+  "confirm": {
+    "purgeTitle": "Xóa vĩnh viễn",
+    "purgeSessionMessage": "Xóa vĩnh viễn \"{label}\"? Sẽ mất {count} Session, cùng log và transcript. Không hoàn tác được. | Xóa vĩnh viễn \"{label}\"? Sẽ mất {count} Session (nó và các worker), cùng log và transcript. Không hoàn tác được.",
+    "purgeProjectMessage": "Xóa vĩnh viễn Project \"{name}\"? Sẽ mất {count} Session. Không hoàn tác được. | Xóa vĩnh viễn Project \"{name}\"? Sẽ mất {count} Session. Không hoàn tác được.",
+    "purgeGroupMessage": "Xóa vĩnh viễn các Session của \"{name}\" trong Thùng rác? Sẽ mất {count} Session, cùng log và transcript. Không hoàn tác được. | Xóa vĩnh viễn các Session của \"{name}\" trong Thùng rác? Sẽ mất {count} Session, cùng log và transcript. Không hoàn tác được.",
+    "emptyMessage": "Xóa vĩnh viễn mọi thứ trong Thùng rác? Sẽ mất {sessions} và {projects}. Không hoàn tác được.",
+    "restoreWithProjectTitle": "Khôi phục luôn Project",
+    "restoreWithProjectMessage": "Project \"{name}\" cũng đang trong Thùng rác. Khôi phục Session này sẽ khôi phục luôn Project, kèm các Session của nó chưa bị xóa riêng."
+  },
+  "toast": {
+    "restored": "Đã khôi phục Session",
+    "restoredWithProject": "Đã khôi phục Session, kèm Project \"{name}\"",
+    "projectRestored": "Đã khôi phục Project \"{name}\"",
+    "groupRestored": "Đã khôi phục {count} Session | Đã khôi phục {count} Session",
+    "purged": "Đã xóa vĩnh viễn",
+    "purgedWithLeftovers": "Đã xóa vĩnh viễn, nhưng không xóa được {count} file transcript:\n{paths}",
+    "emptied": "Đã dọn sạch thùng rác"
+  }
+}

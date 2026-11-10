@@ -33,7 +33,6 @@
   "deleteRunTitle": "Delete run",
   "deleteRunMessage": "Move {label} to the Trash? Its worker sessions go with it. Nothing is removed from disk until it is deleted permanently from the Trash.",
   "runDeleted": "Run moved to Trash",
-  "runDeletedWithLeftovers": "Run deleted, but {count} transcript file(s) could not be removed:\n{paths}",
   "deleteAllRunsTitle": "Delete all runs",
   "deleteAllRunsMessage": "Move all runs of this project to the Trash? Running and protected runs are skipped. Nothing is removed from disk until they are deleted permanently from the Trash.",
   "deleteAll": "Delete all",

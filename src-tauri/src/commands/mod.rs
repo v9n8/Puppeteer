@@ -48,6 +48,7 @@ pub mod stats;
 pub mod storage;
 pub mod secret_vault;
 pub mod todos;
+pub mod trash;
 pub mod translate;
 pub mod tray;
 pub mod updates;

@@ -13,7 +13,8 @@ import { useUILayoutStore } from '@/stores/uiLayout'
 import { useFeaturesStore } from '@/stores/features'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
-import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, StickyNote } from 'lucide-vue-next'
+import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
+import { EVT_TRASH_CHANGED } from '@/lib/trash'
 import PermissionNotifier from '@/components/PermissionNotifier.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
@@ -389,6 +390,9 @@ let unlistenCalendarRoute: UnlistenFn | null = null
 // starting a new one (lib/sessionLinks).
 let unlistenWindowRun: UnlistenFn | null = null
 let unlistenWindowNewSession: UnlistenFn | null = null
+// Projects moved to / out of the Trash (any window, a remote desktop): the
+// project list (Projects grid, tabs, palette) follows.
+let unlistenTrashChanged: UnlistenFn | null = null
 
 // True when the event target is a text-entry surface where Backspace/navigation
 // keys are legitimately used to edit text.
@@ -544,6 +548,8 @@ onBeforeUnmount(() => {
   unlistenWindowRun = null
   unlistenWindowNewSession?.()
   unlistenWindowNewSession = null
+  unlistenTrashChanged?.()
+  unlistenTrashChanged = null
   unbindMenuActions?.()
   unbindMenuActions = null
   unlistenMenu?.()
@@ -809,6 +815,12 @@ onMounted(async () => {
     // Ignore (e.g. running outside the Tauri shell during dev in a browser).
   }
 
+  try {
+    unlistenTrashChanged = await listen(EVT_TRASH_CHANGED, () => void projectsStore.fetchProjects())
+  } catch {
+    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
+  }
+
   // Load projects up front so app-wide UI (e.g. permission notifications) can
   // resolve project names without waiting for the Projects view to open.
   projectsStore.fetchProjects()
@@ -1065,6 +1077,25 @@ onMounted(async () => {
 
           <!-- Warning row while processes outlive their session -->
           <BackgroundProcessesDock />
+
+          <!-- Trash: reached from the footer and the command palette, not a
+               nav destination of its own. -->
+          <div class="px-2 pb-1.5">
+            <RouterLink
+              to="/trash"
+              class="relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer select-none"
+              :class="route.path.startsWith('/trash')
+                ? 'is-active bg-accent text-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"
+            >
+              <span
+                v-if="route.path.startsWith('/trash')"
+                class="app-nav-indicator absolute left-0 inset-y-[6px] w-[2px] rounded-r-full bg-primary"
+              />
+              <Trash2 class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
+              <span class="flex-1 truncate">{{ t('nav.trash') }}</span>
+            </RouterLink>
+          </div>
 
           <!-- Version footer -->
           <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border/50">

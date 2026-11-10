@@ -613,15 +613,13 @@ export const useRunsStore = defineStore('runs', () => {
 
   /**
    * "Delete" moves the run and its workers to the Trash. Files stay until a
-   * purge, so no transcript is ever left over: always resolves to `[]` (the
-   * leftover list of the old hard delete, still read by RunView).
+   * purge from the Trash screen, which reports any transcript left over.
    */
-  async function deleteRun(run_id: string): Promise<string[]> {
+  async function deleteRun(run_id: string): Promise<void> {
     const trashed = new Set(await invoke<string[]>('trash_run', { runId: run_id }))
     runs.value = runs.value.filter(r => r.id !== run_id && !trashed.has(r.id))
     runMeta.delete(run_id)
     for (const id of trashed) runMeta.delete(id)
-    return []
   }
 
   /** "Clear all": moves every run but running / protected ones to the Trash. */

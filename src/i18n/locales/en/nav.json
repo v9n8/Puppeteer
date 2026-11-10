@@ -18,5 +18,6 @@
   "settings": "Settings",
   "about": "About",
   "opensInWindow": "opens in a separate window",
-  "processes": "Processes"
+  "processes": "Processes",
+  "trash": "Trash"
 }

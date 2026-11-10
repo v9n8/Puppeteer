@@ -3316,9 +3316,11 @@ pub(crate) async fn run_in_trash(db: &sqlx::SqlitePool, run_id: &str) -> Result<
     .ok_or_else(|| "run not found".to_string())
 }
 
-/// Runs or projects went to / came back from the Trash: a paired Controller
-/// gets fresh run and project lists. No-op with Remote Control off.
-pub(crate) fn notify_remote_lists(app: &AppHandle) {
+/// Runs or projects went to / came back from the Trash: every window refetches
+/// its lists, and a paired Controller gets fresh run and project lists (no-op
+/// with Remote Control off).
+pub(crate) fn notify_trash_changed(app: &AppHandle) {
+    crate::commands::trash::emit_changed(app);
     if let Some(bus) = app.try_state::<crate::remote::RemoteBus>() {
         bus.publish(crate::remote::RemoteRunEvent::ListsChanged);
     }
@@ -3571,7 +3573,7 @@ pub async fn trash_run(
     )
     .await?;
     if !ids.is_empty() {
-        notify_remote_lists(&app);
+        notify_trash_changed(&app);
     }
     Ok(ids)
 }
@@ -3580,7 +3582,7 @@ pub async fn trash_run(
 #[tauri::command]
 pub async fn restore_run(app: AppHandle, db: State<'_, Db>, run_id: String) -> Result<RestoreOutcome, String> {
     let outcome = restore_run_inner(db.inner(), &run_id).await?;
-    notify_remote_lists(&app);
+    notify_trash_changed(&app);
     Ok(outcome)
 }
 
@@ -3611,6 +3613,7 @@ pub async fn purge_run(
     prune_run_audit(&webview, db.inner(), &outcome.deleted_ids).await;
     crate::slack_threads::emit_all_changed(&app);
     crate::item_links::emit_changed(&app, None);
+    crate::commands::trash::emit_changed(&app);
     Ok(outcome.leftover_files)
 }
 
@@ -3900,7 +3903,7 @@ pub async fn trash_all_runs(
     )
     .await?;
     if trashed > 0 {
-        notify_remote_lists(&app);
+        notify_trash_changed(&app);
     }
     Ok(trashed)
 }
