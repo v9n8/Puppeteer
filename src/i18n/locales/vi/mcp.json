@@ -5,7 +5,7 @@
     "builtin": {
       "active": "Tích hợp sẵn · hoạt động",
       "disabled": "Tích hợp sẵn · đã tắt",
-      "description": "Tự động chèn vào mọi run. Cung cấp cho AI ghi chú của bạn, khả năng nhớ xuyên phiên, ngữ cảnh dự án (cây thư mục & git) và VPS được quản lý — dưới dạng các tool {tools}.",
+      "description": "Tự động chèn vào mọi run. Cung cấp cho AI ghi chú của bạn, khả năng nhớ xuyên Session, Context của Project (cây thư mục & git) và VPS được quản lý — dưới dạng các tool {tools}.",
       "settings": "Cài đặt Google",
       "needsClient": "Tích hợp sẵn · cần OAuth client",
       "noAccount": "Tích hợp sẵn · chưa có tài khoản",
@@ -13,7 +13,7 @@
     },
     "empty": {
       "title": "Chưa có MCP server nào",
-      "hint": "Định nghĩa một MCP server một lần, sau đó bật cho từng dự án"
+      "hint": "Định nghĩa một MCP server một lần, sau đó bật cho từng Project"
     },
     "claudeOnly": "Chỉ Claude",
     "claudeOnlyTitle": "Transport SSE chỉ được Claude hỗ trợ. Các run Codex sẽ bỏ qua server này.",
@@ -100,13 +100,13 @@
     "about": "Giới thiệu",
     "tools": "Tools",
     "builtinHint": "Được chèn khi khởi chạy run, không lưu như một server — có thể tắt nhưng không xoá được.",
-    "perProject": "Theo project",
-    "perProjectHint": "Tắt riêng cho từng project trong tab MCP của project đó. Khi tắt ở đây thì mọi project đều tắt. Có hiệu lực từ run kế tiếp.",
+    "perProject": "Theo Project",
+    "perProjectHint": "Tắt riêng cho từng Project trong tab MCP của Project đó. Khi tắt ở đây thì mọi Project đều tắt. Có hiệu lực từ run kế tiếp.",
     "command": "Lệnh",
     "secretsToFill": "Secret cần điền",
     "noSecrets": "Không cần secret",
     "addHint": "Thêm với giá trị secret rỗng; hoàn tất thiết lập tại đây.",
-    "generalHint": "Định nghĩa một MCP server một lần, sau đó bật cho từng dự án ở trang của dự án.",
+    "generalHint": "Định nghĩa một MCP server một lần, sau đó bật cho từng Project ở trang của Project đó.",
     "secretsHint": "Giá trị được lưu trong OS Keychain và không bao giờ hiển thị; để trống giá trị đã lưu để giữ nguyên.",
     "confirmDiscard": {
       "title": "Bỏ thay đổi?",

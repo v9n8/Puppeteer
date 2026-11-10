@@ -4,8 +4,8 @@
   "previousMatch": "Kết quả trước",
   "nextMatch": "Kết quả tiếp theo",
   "close": "Đóng tìm kiếm",
-  "searchingSession": "Đang tìm trong cả session…",
-  "noSessionMatches": "Không có kết quả trong cả session",
-  "sessionMatches": "{count} tin nhắn trong cả session",
-  "sessionMatchesFirst": "{count} tin nhắn đầu tiên trong cả session"
+  "searchingSession": "Đang tìm trong cả Session…",
+  "noSessionMatches": "Không có kết quả trong cả Session",
+  "sessionMatches": "{count} tin nhắn trong cả Session",
+  "sessionMatchesFirst": "{count} tin nhắn đầu tiên trong cả Session"
 }

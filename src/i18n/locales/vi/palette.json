@@ -1,5 +1,5 @@
 {
-  "placeholder": "Gõ lệnh, màn hình, session, project hoặc prompt…",
+  "placeholder": "Gõ lệnh, màn hình, Session, Project hoặc prompt…",
   "noResults": "Không có kết quả",
   "hint": "↑ ↓ để chọn · Enter để chạy · Esc để đóng",
   "pin": "Ghim lên đầu",
@@ -7,7 +7,7 @@
   "hide": "Ẩn khỏi bảng lệnh",
   "untitledSession": "Session chưa đặt tên",
   "untitledPrompt": "Prompt chưa đặt tên",
-  "promptCopied": "Chưa mở session nào: đã chép prompt vào clipboard",
+  "promptCopied": "Chưa mở Session nào: đã chép prompt vào clipboard",
   "group": {
     "pinned": "Đã ghim",
     "nav": "Điều hướng",

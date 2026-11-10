@@ -10,7 +10,7 @@
   "retry": "Thử lại",
   "empty": {
     "title": "Chưa có việc nào",
-    "hint": "Tạo todo tại đây, hoặc bấm “+ Todo” ở Slack thread, issue, PR hay session. Puppeteer xếp thứ tự theo hạn, estimate và ưu tiên.",
+    "hint": "Tạo todo tại đây, hoặc bấm “+ Todo” ở Slack thread, issue, PR hay Session. Puppeteer xếp thứ tự theo hạn, estimate và ưu tiên.",
     "filtered": "Không có todo nào khớp bộ lọc."
   },
   "buckets": {
@@ -28,12 +28,12 @@
   "views": {
     "label": "Xem",
     "time": "Theo thời gian",
-    "project": "Theo dự án",
+    "project": "Theo Project",
     "week": "Tuần"
   },
   "filters": {
-    "allProjects": "Mọi dự án",
-    "noProject": "Không có dự án",
+    "allProjects": "Mọi Project",
+    "noProject": "Không có Project",
     "allSources": "Mọi nguồn",
     "noSource": "Không có nguồn"
   },
@@ -116,7 +116,7 @@
     "edit": "Sửa",
     "delete": "Xoá",
     "openSource": "Mở nguồn",
-    "sessions": "{n} session liên kết"
+    "sessions": "{n} Session liên kết"
   },
   "snooze": {
     "hour": "1 giờ",
@@ -149,7 +149,7 @@
   },
   "drawer": {
     "text": "Tiêu đề",
-    "project": "Dự án",
+    "project": "Project",
     "due": "Hạn",
     "dueTime": "Giờ (tuỳ chọn)",
     "clearDue": "Xoá hạn",
@@ -175,7 +175,7 @@
   "capture": {
     "title": "Todo mới",
     "textPlaceholder": "Cần làm gì?",
-    "project": "Dự án",
+    "project": "Project",
     "due": "Hạn",
     "dueTime": "Giờ",
     "priority": "Ưu tiên",
@@ -187,7 +187,7 @@
     "suggest": "Gợi ý"
   },
   "columns": {
-    "noProject": "Không có dự án",
+    "noProject": "Không có Project",
     "overdue": "{n} quá hạn"
   },
   "week": {
@@ -264,16 +264,16 @@
     "editPlan": "Sửa kế hoạch",
     "noPlan": "Chưa có kế hoạch AI — Phân tích sẽ chia todo thành các bước, rủi ro và estimate.",
     "analyzed": "Đã phân tích xong — mở todo để xem",
-    "started": "Đã mở session",
+    "started": "Đã mở Session",
     "suggested": "Đã điền gợi ý",
     "suggestedWhy": "Đã điền gợi ý: {reason}",
     "suggesting": "Đang gợi ý…",
     "suggestHint": "Để AI đọc nguồn và điền tiêu đề, hạn, ưu tiên, estimate",
-    "pickProjectTitle": "Chọn dự án",
-    "pickProjectHint": "Session chạy trong thư mục của dự án. Todo sẽ được gắn vào dự án bạn chọn.",
+    "pickProjectTitle": "Chọn Project",
+    "pickProjectHint": "Session chạy trong thư mục của Project. Todo sẽ được gắn vào Project bạn chọn.",
     "errors": {
       "busy": "Đang có một yêu cầu AI cho mục này.",
-      "project_required": "Hãy chọn dự án cho todo này trước.",
+      "project_required": "Hãy chọn Project cho todo này trước.",
       "no_free_time": "Hôm nay không còn giờ làm việc trống.",
       "nothing_to_plan": "Không có todo nào đang mở để lên kế hoạch.",
       "no_google_account": "Kết nối tài khoản Google (Cài đặt → Google) để tạo block trên Calendar.",

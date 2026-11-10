@@ -43,7 +43,7 @@
     "refreshUsageTitle": "Làm mới mức dùng plan {label} ngay"
   },
   "tabs": {
-    "project": "Dự án",
+    "project": "Project",
     "closeTab": "Đóng tab",
     "dragToReorder": "Kéo để sắp xếp lại"
   },
@@ -58,7 +58,7 @@
   "mentionedFiles": {
     "edit": "sửa",
     "write": "tạo",
-    "countTitle": "{count} file bị thay đổi trong phiên này",
+    "countTitle": "{count} file bị thay đổi trong Session này",
     "filesInSession": "File đã thay đổi ({count})"
   },
   "context": {
@@ -72,14 +72,14 @@
     "failed": "Thất bại",
     "done": "Xong",
     "run": "Run",
-    "project": "Dự án"
+    "project": "Project"
   },
   "activeRemote": {
     "heading": "Remote đang hoạt động",
     "live": "Trực tiếp",
     "pairing": "Đang ghép nối",
     "run": "Run",
-    "project": "Dự án"
+    "project": "Project"
   },
   "remoteDesktopHost": {
     "hint": "Một Puppeteer khác đang điều khiển ứng dụng này qua Remote Control. Ngắt kết nối sẽ cắt ngay và đăng xuất thiết bị đó: nó phải đăng nhập lại bằng mật khẩu chính hoặc mã ghép nối. Để chặn hẳn, hãy đổi mật khẩu chính.",

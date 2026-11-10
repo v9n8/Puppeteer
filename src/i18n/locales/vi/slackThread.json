@@ -9,8 +9,8 @@
     "search": "Tìm thread…",
     "add": "Thêm thread",
     "other": "Khác",
-    "allProjects": "Tất cả project",
-    "noProject": "Không project",
+    "allProjects": "Tất cả Project",
+    "noProject": "Không có Project",
     "empty": "Chưa có thread Slack nào.",
     "emptyHint": "Dán link thread Slack bằng nút “Thêm thread”, hoặc gửi từ Chrome extension.",
     "noResults": "Không có thread nào khớp.",
@@ -18,7 +18,7 @@
     "warning": "Có cảnh báo — mở thread để xem",
     "collapse": "Thu gọn",
     "expand": "Mở rộng",
-    "linkFilter": "Lọc theo phiên đã liên kết",
+    "linkFilter": "Lọc theo Session đã liên kết",
     "linkAll": "Tất cả",
     "linked": "Đã liên kết",
     "unlinked": "Chưa liên kết"
@@ -31,7 +31,7 @@
     "error": "Lỗi"
   },
   "phase": {
-    "queued": "Đang chờ trong hàng đợi",
+    "queued": "Đang chờ tới lượt",
     "auth": "Đang kiểm tra token Slack",
     "messages": "Đang lấy tin nhắn",
     "users": "Đang lấy thông tin người dùng",
@@ -89,9 +89,9 @@
     "notFetched": "Chưa lấy từ Slack"
   },
   "links": {
-    "newSession": "Tạo phiên mới từ thread này",
-    "newSessionHint": "Mở một phiên mới trong dự án của thread, ô soạn tin đã chèn sẵn tham chiếu tới thread",
-    "needProject": "Hãy chọn dự án cho thread này trước"
+    "newSession": "Tạo Session mới từ thread này",
+    "newSessionHint": "Mở một Session mới trong Project của thread, ô soạn tin đã chèn sẵn tham chiếu tới thread",
+    "needProject": "Hãy chọn Project cho thread này trước"
   },
   "banner": {
     "retry": "Thử lại",

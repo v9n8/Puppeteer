@@ -1,6 +1,6 @@
 {
-  "quote": "Trích dẫn → {target}",
-  "quoteTitle": "Trích đoạn đã chọn vào {target}",
+  "quote": "Quote → {target}",
+  "quoteTitle": "Quote đoạn đã chọn vào {target}",
   "translate": "Dịch",
   "translateTitle": "Dịch đoạn đã chọn",
   "copyMd": "Copy MD",

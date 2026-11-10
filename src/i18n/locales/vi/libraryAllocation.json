@@ -4,15 +4,15 @@
   "item": {
     "rule": "Rule",
     "agent": "Agent",
-    "command": "Lệnh"
+    "command": "Command"
   },
   "searchPlaceholder": "Tìm",
   "refresh": "Làm mới",
-  "noProjects": "Chưa có project nào. Thêm project để bật cho nó.",
+  "noProjects": "Chưa có Project nào. Thêm Project để bật cho nó.",
   "noItems": "Thư viện đang trống.",
   "noMatch": "Không có mục nào khớp với từ tìm.",
-  "ruleNote": "Rule đi tới các engine trong target của nó: bấm chip là bật/tắt cả rule trong project đó.",
-  "held": "Một group đang bật trong project giữ rule này. Tắt group ở trang của project.",
+  "ruleNote": "Rule đi tới các engine trong target của nó: bấm chip là bật/tắt cả Rule trong Project đó.",
+  "held": "Một group đang bật trong Project giữ Rule này. Tắt group ở trang của Project.",
   "state": {
     "installed": "Đã cài",
     "drifted": "Lệch",
@@ -22,9 +22,9 @@
   },
   "hint": {
     "installed": "Project có đúng bản của thư viện. Bấm để tắt.",
-    "drifted": "Đang bật, nhưng project khác thư viện (bản copy hoặc khối AGENTS.md đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
+    "drifted": "Đang bật, nhưng Project khác thư viện (bản copy hoặc khối AGENTS.md đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
     "git_managed": "Repo tự commit file cùng tên. Puppeteer chỉ đọc.",
-    "not_installed": "Bấm để bật trong project này.",
-    "off_target": "Target của rule không gồm engine này. Đổi target trong trình sửa rule."
+    "not_installed": "Bấm để bật trong Project này.",
+    "off_target": "Target của Rule không gồm engine này. Đổi target trong trình sửa Rule."
   }
 }

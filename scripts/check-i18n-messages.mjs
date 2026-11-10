@@ -47,9 +47,9 @@ const LOCALES_DIR = fileURLToPath(new URL('../src/i18n/locales/', import.meta.ur
 
 const GLOSSARY = JSON.parse(readFileSync(new URL('./i18n-glossary.json', import.meta.url), 'utf8'))
 
-// Warn only until UX-02 has brought the vi locale in line with the glossary;
-// then set this to true so a banned translation fails the build.
-const GLOSSARY_FAILS_BUILD = false
+// A banned translation fails the build, so the vi locale cannot drift from the
+// glossary again.
+const GLOSSARY_FAILS_BUILD = true
 
 /** Walk a message tree, yielding `[dottedKey, message]` for every string leaf. */
 function* leaves(node, prefix = '') {

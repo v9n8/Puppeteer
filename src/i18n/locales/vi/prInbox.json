@@ -17,7 +17,7 @@
   "groupByLabel": "Nhóm theo",
   "groupBy": {
     "none": "Không nhóm",
-    "project": "Dự án",
+    "project": "Project",
     "repo": "Repository",
     "author": "Tác giả",
     "reviewer_account": "Tài khoản review"
@@ -34,7 +34,7 @@
   "visibleOfTotal": "Đang hiện {visible}/{total} PR",
   "searchPlaceholder": "Tìm theo tiêu đề, #số, repo, tác giả…",
   "filters": {
-    "project": "Dự án",
+    "project": "Project",
     "author": "Tác giả",
     "account": "Tài khoản",
     "status": "Trạng thái review",

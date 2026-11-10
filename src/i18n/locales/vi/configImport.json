@@ -1,9 +1,9 @@
 {
   "title": "Nhập cấu hình từ công cụ AI khác",
   "refresh": "Làm mới",
-  "hint": "Chép MCP server, quy tắc, kỹ năng, agent và lệnh slash từ cấu hình của công cụ AI khác vào thư viện của Puppeteer. Chọn công cụ và nơi đọc, rồi tick những mục muốn nhập.",
+  "hint": "Chép MCP server, Rule, Skill, agent và Command từ cấu hình của công cụ AI khác vào thư viện của Puppeteer. Chọn công cụ và nơi đọc, rồi tick những mục muốn nhập.",
   "remote": "Nhập cấu hình đọc file cấu hình AI trên máy đang chạy Puppeteer, nên chỉ dùng được trong app trên máy đó, không dùng được từ remote desktop.",
-  "noSources": "Không thấy cấu hình công cụ AI nào có thứ để nhập trong thư mục home hay trong project nào.",
+  "noSources": "Không thấy cấu hình công cụ AI nào có thứ để nhập trong thư mục home hay trong Project nào.",
   "tool": "Công cụ",
   "from": "Đọc từ",
   "scopeHome": "Thư mục home (global)",
@@ -18,10 +18,10 @@
   "copyOnly": "Chỉ chép file; cấu hình của công cụ kia không bị đổi.",
   "kind": {
     "mcp": "MCP server",
-    "rule": "Quy tắc",
-    "skill": "Kỹ năng",
+    "rule": "Rule",
+    "skill": "Skill",
     "agent": "Agent",
-    "command": "Lệnh slash"
+    "command": "Command"
   },
   "target": {
     "claude": "Claude",

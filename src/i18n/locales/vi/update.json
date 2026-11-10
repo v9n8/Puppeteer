@@ -4,7 +4,7 @@
   "installing": "Đang cập nhật…",
   "later": "Để sau",
   "confirmTitle": "Cập nhật lên Puppeteer {version}?",
-  "confirmMessage": "Bản cập nhật sẽ được tải và cài ngay bây giờ. Bản mới chạy từ lần mở Puppeteer tiếp theo; các phiên đang chạy vẫn tiếp tục cho tới lúc đó.",
+  "confirmMessage": "Bản cập nhật sẽ được tải và cài ngay bây giờ. Bản mới chạy từ lần mở Puppeteer tiếp theo; các Session đang chạy vẫn tiếp tục cho tới lúc đó.",
   "installed": "Đã cài Puppeteer {version}. Thoát và mở lại Puppeteer để dùng bản mới.",
   "failed": "Không cập nhật được: {error}"
 }

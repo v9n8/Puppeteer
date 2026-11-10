@@ -63,7 +63,7 @@
   },
   "link": {
     "title": "Puppeteer Remote",
-    "subtitle": "Mở remote link từ Puppeteer (quét QR hoặc dán bên dưới) để điều khiển phiên này một cách an toàn.",
+    "subtitle": "Mở remote link từ Puppeteer (quét QR hoặc dán bên dưới) để điều khiển Session này một cách an toàn.",
     "connectingFromScan": "Đang kết nối từ link đã quét…",
     "controllerLink": "Controller link",
     "linkPlaceholder": "Dán controller link (https://…/controller.html#…) vào đây",
@@ -96,13 +96,13 @@
     "ungrouped": "Khác",
     "untitled": "Run {id}",
     "newSession": "Session mới",
-    "projectsTitle": "Dự án",
-    "backToProjects": "Tất cả dự án",
+    "projectsTitle": "Project",
+    "backToProjects": "Tất cả Project",
     "search": "Tìm run",
     "searchPlaceholder": "Tìm run…",
     "clearSearch": "Xoá tìm kiếm",
     "noResults": "Không có run nào khớp.",
-    "noRuns": "Dự án này chưa có run nào.",
+    "noRuns": "Project này chưa có run nào.",
     "runCount": "{count} run",
     "pendingInInbox": "Run đang chờ quyền nằm ở tab Cần xử lý."
   },
@@ -128,8 +128,8 @@
     "onceOnly": "Yêu cầu này chỉ trả lời được một lần (không có \"Luôn\")."
   },
   "data": {
-    "allProjects": "Tất cả project",
-    "noProject": "Không có project",
+    "allProjects": "Tất cả Project",
+    "noProject": "Không có Project",
     "project": "Project",
     "back": "Quay lại",
     "loading": "Đang tải…",
@@ -215,14 +215,14 @@
   },
   "projectToggles": {
     "title": "Setting",
-    "selectProject": "Chọn project",
-    "noProjects": "Host chưa có project nào.",
+    "selectProject": "Chọn Project",
+    "noProjects": "Host chưa có Project nào.",
     "mcp": "MCP server",
     "skills": "Skill",
     "rules": "Rule",
     "builtin": "puppeteer (built-in)",
     "builtinHint": "Notes, todos, sessions…",
-    "builtinGlobal": "Áp dụng cho mọi project",
+    "builtinGlobal": "Áp dụng cho mọi Project",
     "none": "Chưa cài mục nào.",
     "footer": "Env, token và thông tin đăng nhập chỉ sửa trên máy tính.",
     "enable": "Bật {name}",
@@ -240,7 +240,7 @@
   "push": {
     "title": "Thông báo",
     "state": {
-      "on": "Đang bật — điện thoại sẽ báo khi có việc cần duyệt hoặc phiên chạy xong.",
+      "on": "Đang bật — điện thoại sẽ báo khi có việc cần duyệt hoặc run chạy xong.",
       "off": "Đang tắt — bật để nhận thông báo cả khi khoá máy.",
       "loading": "Đang kiểm tra…",
       "denied": "Thông báo của Puppeteer đang bị chặn. Cho phép lại trong cài đặt trình duyệt hoặc hệ thống rồi quay lại đây.",
@@ -254,11 +254,11 @@
     },
     "kinds": {
       "pending": "việc cần duyệt",
-      "done": "phiên đã xong",
-      "failed": "phiên bị lỗi"
+      "done": "run đã xong",
+      "failed": "run bị lỗi"
     },
     "sends": "Máy tính đang gửi: {kinds}",
-    "privacy": "Thông báo chỉ chứa số lượng — không có lệnh, tên tool hay project.",
+    "privacy": "Thông báo chỉ chứa số lượng — không có lệnh, tên tool hay Project.",
     "enable": "Bật thông báo",
     "disable": "Tắt",
     "sendTest": "Gửi thử",

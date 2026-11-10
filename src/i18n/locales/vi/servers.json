@@ -2,7 +2,7 @@
   "list": {
     "empty": {
       "title": "Chưa có server nào",
-      "hint": "Thêm một VPS một lần, sau đó kiểm tra kết nối và tái sử dụng cho nhiều dự án"
+      "hint": "Thêm một VPS một lần, sau đó kiểm tra kết nối và tái sử dụng cho nhiều Project"
     },
     "status": {
       "online": "Trực tuyến",
@@ -80,7 +80,7 @@
     "tagsPlaceholder": "Thêm thẻ (Enter hoặc dấu phẩy)",
     "testHint": "Kiểm tra SSH với cấu hình đã lưu.",
     "lastTest": "Kết quả kiểm tra gần nhất",
-    "notTested": "Chưa kiểm tra trong phiên này.",
+    "notTested": "Chưa kiểm tra từ lúc mở ứng dụng.",
     "discardTitle": "Bỏ thay đổi?",
     "discardMessage": "Server này có thay đổi chưa lưu. Bỏ các thay đổi đó?",
     "discard": "Bỏ thay đổi",

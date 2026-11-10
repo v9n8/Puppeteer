@@ -14,7 +14,7 @@
     "all": "Tất cả engine"
   },
   "project": {
-    "all": "Tất cả dự án"
+    "all": "Tất cả Project"
   },
   "account": {
     "all": "Tất cả tài khoản Claude",
@@ -33,9 +33,9 @@
     "codexDescEnd": "), cập nhật sau mỗi lần chạy Codex.",
     "real": "thực tế",
     "label": "Gói:",
-    "empty": "Chưa ghi nhận mức sử dụng gói — chạy một tác vụ Claude thì dữ liệu sẽ hiện ở đây. (Không có với phiên dùng API key / không phải thuê bao.)",
+    "empty": "Chưa ghi nhận mức sử dụng gói — chạy một tác vụ Claude thì dữ liệu sẽ hiện ở đây. (Không có với Session dùng API key / không phải thuê bao.)",
     "emptyCodex": "Chưa ghi nhận mức sử dụng gói Codex — chạy một tác vụ Codex thì dữ liệu sẽ hiện ở đây.",
-    "windowFiveHour": "Phiên hiện tại (5h)",
+    "windowFiveHour": "Cửa sổ 5h hiện tại",
     "windowSevenDay": "Tuần này (tất cả model)",
     "windowSevenDayOpus": "Tuần này (Opus)",
     "windowSevenDaySonnet": "Tuần này (Sonnet)",
@@ -66,10 +66,10 @@
     "tokens": "Token",
     "cost": "Chi phí (USD)",
     "byEngine": "Theo engine",
-    "byProject": "Theo dự án"
+    "byProject": "Theo Project"
   },
   "table": {
-    "project": "Dự án",
+    "project": "Project",
     "tokens": "Token",
     "cost": "Chi phí",
     "percent": "%",
@@ -97,7 +97,7 @@
     "files": "File",
     "size": "Kích thước",
     "percent": "%",
-    "note": "Chỉ để xem. Muốn giải phóng dung lượng, hãy xóa session trong History — thao tác đó xóa cùng lúc log Puppeteer, file issue/PR đã fetch và transcript Claude/Codex CLI của session. Thống kê token vẫn được giữ."
+    "note": "Chỉ để xem. Muốn giải phóng dung lượng, hãy xóa Session trong History — thao tác đó xóa cùng lúc log Puppeteer, file issue/PR đã fetch và transcript Claude/Codex CLI của Session. Thống kê token vẫn được giữ."
   },
   "resetModal": {
     "title": "Đặt lại thống kê sử dụng",

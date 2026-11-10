@@ -1,6 +1,6 @@
 {
   "title": "Doctor",
-  "hint": "Kiểm tra SKILL.md đã lưu và thư mục của skill. Không gửi gì cho model.",
+  "hint": "Kiểm tra SKILL.md đã lưu và thư mục của Skill. Không gửi gì cho model.",
   "run": "Kiểm tra lại",
   "checking": "Đang kiểm tra…",
   "noIssues": "Không thấy lỗi nào.",
@@ -11,24 +11,24 @@
     "warn": "{count} cảnh báo",
     "info": "{count} ghi chú"
   },
-  "badgeTitle": "Doctor: {summary}. Bấm để mở skill.",
+  "badgeTitle": "Doctor: {summary}. Bấm để mở Skill.",
   "rule": {
     "unreadable": "Không có SKILL.md, không đọc được, hoặc file quá lớn để đọc.",
     "missing-name": "Frontmatter thiếu `name`.",
-    "missing-description": "Frontmatter thiếu `description`, nên model không biết khi nào cần nạp skill này.",
-    "invalid-id": "Tên thư mục \"{id}\" không hợp lệ làm id skill: chỉ dùng chữ thường, số và dấu gạch ngang.",
+    "missing-description": "Frontmatter thiếu `description`, nên model không biết khi nào cần nạp Skill này.",
+    "invalid-id": "Tên thư mục \"{id}\" không hợp lệ làm id Skill: chỉ dùng chữ thường, số và dấu gạch ngang.",
     "name-id-mismatch": "Tên \"{name}\" không khớp tên thư mục \"{id}\" (engine dùng tên thư mục làm id).",
     "unknown-frontmatter-key": "Key frontmatter lạ \"{key}\": engine có thể bỏ qua key này.",
     "description-too-short": "Mô tả dài {chars} ký tự; dưới {min} thì model có quá ít thông tin để quyết định.",
-    "description-too-long": "Mô tả dài {chars} ký tự; trên {max} thì chiếm chỗ trong danh sách skill ở mọi lượt.",
-    "description-no-trigger": "Mô tả nói skill làm gì nhưng không nói khi nào dùng (ví dụ \"Dùng khi…\").",
-    "shadowed-id": "Skill cá nhân \"{id}\" trong thư mục HOME của {engine} được dùng thay cho skill này.",
+    "description-too-long": "Mô tả dài {chars} ký tự; trên {max} thì chiếm chỗ trong danh sách Skill ở mọi lượt.",
+    "description-no-trigger": "Mô tả nói Skill làm gì nhưng không nói khi nào dùng (ví dụ \"Dùng khi…\").",
+    "shadowed-id": "Skill cá nhân \"{id}\" trong thư mục HOME của {engine} được dùng thay cho Skill này.",
     "duplicate-name": "Skill \"{other_id}\" trùng tên \"{name}\".",
     "body-empty": "SKILL.md không có nội dung hướng dẫn sau frontmatter.",
     "body-thin": "Phần hướng dẫn chỉ có {chars} ký tự (dưới {min}).",
-    "body-too-large": "SKILL.md nặng {kb} KB (trên {max_kb} KB): chiếm nhiều context mỗi lần nạp skill.",
-    "broken-link": "Có link tới \"{target}\" nhưng thư mục skill không có file này.",
-    "link-outside-folder": "Link tới \"{target}\" trỏ ra ngoài thư mục skill, phần này không được copy theo skill.",
-    "oversized-asset": "\"{path}\" nặng {kb} KB: file lớn làm skill chậm khi copy và chia sẻ."
+    "body-too-large": "SKILL.md nặng {kb} KB (trên {max_kb} KB): chiếm nhiều context mỗi lần nạp Skill.",
+    "broken-link": "Có link tới \"{target}\" nhưng thư mục Skill không có file này.",
+    "link-outside-folder": "Link tới \"{target}\" trỏ ra ngoài thư mục Skill, phần này không được copy theo Skill.",
+    "oversized-asset": "\"{path}\" nặng {kb} KB: file lớn làm Skill chậm khi copy và chia sẻ."
   }
 }

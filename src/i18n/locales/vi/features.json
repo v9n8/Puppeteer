@@ -27,13 +27,13 @@
   },
   "confirmOn": {
     "skills_global": {
-      "title": "Bật skill global?",
-      "message": "Tab Phân bổ của Skills sẽ có thêm cột Global. Skill bật ở cột này được link vào ~/.claude/skills (Claude) hoặc ~/.agents/skills (Codex), nên mọi project đều thấy, kể cả Claude Code và Codex chạy ngoài Puppeteer.\nSkill bạn tự đặt ở đó không bao giờ bị thay hay xoá; tên đã có người dùng thì app chỉ báo lại.",
+      "title": "Bật Skill global?",
+      "message": "Tab Phân bổ của Skills sẽ có thêm cột Global. Skill bật ở cột này được link vào ~/.claude/skills (Claude) hoặc ~/.agents/skills (Codex), nên mọi Project đều thấy, kể cả Claude Code và Codex chạy ngoài Puppeteer.\nSkill bạn tự đặt ở đó không bao giờ bị thay hay xoá; tên đã có người dùng thì app chỉ báo lại.",
       "confirm": "Bật"
     }
   },
   "module": {
-    "sessions": "Phiên & chat",
+    "sessions": "Session & chat",
     "text_tools": "Công cụ văn bản",
     "library": "Thư viện agent",
     "orchestration": "Điều phối agent",
@@ -49,17 +49,17 @@
   "prop": {
     "sessions": {
       "core": "Chat, stream, huỷ / tiếp tục, quyền",
-      "handoff": "Chuyển phiên giữa Claude và Codex",
-      "mirror_claude": "Mirror session của Claude CLI",
-      "mirror_codex": "Mirror session của Codex CLI",
-      "cross_session_search": "Tìm xuyên các session",
-      "rewind": "Tua lại: chụp file trước mỗi lượt",
-      "steer": "Lái hướng: chen chỉ dẫn vào lượt đang chạy"
+      "handoff": "Chuyển Session giữa Claude và Codex",
+      "mirror_claude": "Mirror Session của Claude CLI",
+      "mirror_codex": "Mirror Session của Codex CLI",
+      "cross_session_search": "Tìm xuyên các Session",
+      "rewind": "Rewind: chụp file trước mỗi lượt",
+      "steer": "Steer: chen chỉ dẫn vào lượt đang chạy"
     },
     "text_tools": {
       "find_in_page": "Tìm trong trang",
       "selection": {
-        "quote": "Trích đoạn đã chọn vào ô chat",
+        "quote": "Quote đoạn đã chọn vào ô chat",
         "translate": "Dịch đoạn đã chọn",
         "copy_md": "Copy đoạn chọn dạng Markdown",
         "save_note": "Lưu đoạn chọn thành ghi chú",
@@ -67,16 +67,16 @@
       }
     },
     "library": {
-      "skills": "Kỹ năng",
-      "rules": "Quy tắc",
+      "skills": "Skill",
+      "rules": "Rule",
       "mcp": "MCP server",
-      "groups": "Nhóm kỹ năng / quy tắc",
+      "groups": "Nhóm Skill / Rule",
       "instruction_checks": "Kiểm tra chỉ dẫn",
       "agents": "Agent (subagent)",
-      "commands": "Lệnh slash",
+      "commands": "Command",
       "builtin_mcp_puppeteer": "MCP Puppeteer có sẵn",
       "skills_global": "Skill global (thư mục HOME)",
-      "skill_doctor": "Skill Doctor (kiểm tra skill)",
+      "skill_doctor": "Skill Doctor (kiểm tra Skill)",
       "skill_eval": "Skill eval (gửi prompt mẫu cho model, tốn hạn mức)",
       "import_external": "Nhập cấu hình từ công cụ AI khác",
       "code_index": "Chỉ mục mã nguồn cho agent (nơi khai báo, nơi dùng một symbol, và file bị ảnh hưởng khi sửa)"
@@ -85,7 +85,7 @@
       "conductor": "Conductor",
       "conductor_worktree": "Mỗi worker của Conductor có git worktree riêng",
       "schedules": "Lịch chạy prompt tự động (chạy khi bạn vắng mặt)",
-      "dev_servers": "Dev server của dự án (.puppeteer/dev-servers.json): tool cho agent, và khởi động / dừng ở màn Tiến trình nền"
+      "dev_servers": "Dev server của Project (.puppeteer/dev-servers.json): tool cho agent, và khởi động / dừng ở màn Tiến trình nền"
     },
     "code_hosting": {
       "issue_pr_runs": "Chạy từ issue và PR",

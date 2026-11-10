@@ -9,31 +9,31 @@
     "namePlaceholder": "code-reviewer",
     "descriptionPlaceholder": "Khi nào Claude nên giao việc cho agent này",
     "detailsHint": "Lưu trong frontmatter của file (Claude đọc ở đó); tên file theo tên agent.",
-    "projectsHint": "Mỗi project được bật sẽ có một link trong .claude/agents (chỉ Claude). File cùng tên mà project đã có sẵn thì không bao giờ bị thay.",
+    "projectsHint": "Mỗi Project được bật sẽ có một link trong .claude/agents (chỉ Claude). File cùng tên mà Project đã có sẵn thì không bao giờ bị thay.",
     "toastSaved": "Đã lưu agent",
     "toastDeleted": "Đã xoá agent",
     "confirmDeleteTitle": "Xoá agent?",
-    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi project."
+    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi Project."
   },
   "command": {
-    "title": "Lệnh slash",
-    "searchPlaceholder": "Tìm lệnh",
-    "emptyTitle": "Chưa có lệnh",
-    "emptyHint": "Lệnh là slash command của Claude Code: một prompt lưu sẵn, chạy bằng /tên.",
-    "noSelection": "Chọn một lệnh, hoặc tạo lệnh mới",
-    "untitled": "Lệnh mới",
+    "title": "Command",
+    "searchPlaceholder": "Tìm Command",
+    "emptyTitle": "Chưa có Command",
+    "emptyHint": "Command là slash command của Claude Code: một prompt lưu sẵn, chạy bằng /tên.",
+    "noSelection": "Chọn một Command, hoặc tạo Command mới",
+    "untitled": "Command mới",
     "namePlaceholder": "review-pr",
-    "descriptionPlaceholder": "Lệnh này làm gì",
+    "descriptionPlaceholder": "Command này làm gì",
     "detailsHint": "Tên là tên file: Claude chạy nó bằng /tên. Mô tả lưu trong frontmatter.",
-    "projectsHint": "Mỗi project được bật sẽ có một link trong .claude/commands (chỉ Claude). File cùng tên mà project đã có sẵn thì không bao giờ bị thay.",
-    "toastSaved": "Đã lưu lệnh",
-    "toastDeleted": "Đã xoá lệnh",
-    "confirmDeleteTitle": "Xoá lệnh?",
-    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi project."
+    "projectsHint": "Mỗi Project được bật sẽ có một link trong .claude/commands (chỉ Claude). File cùng tên mà Project đã có sẵn thì không bao giờ bị thay.",
+    "toastSaved": "Đã lưu Command",
+    "toastDeleted": "Đã xoá Command",
+    "confirmDeleteTitle": "Xoá Command?",
+    "confirmDeleteMessage": "Xoá \"{name}\"? Link của nó sẽ bị gỡ khỏi mọi Project."
   },
   "list": {
-    "projectsTitle": "Đã link vào {count} project",
-    "projectsDrifted": "Đã link vào {count} project; {drifted} project đang có thứ khác ở đường dẫn đó"
+    "projectsTitle": "Đã link vào {count} Project",
+    "projectsDrifted": "Đã link vào {count} Project; {drifted} Project đang có thứ khác ở đường dẫn đó"
   },
   "detail": {
     "metaDraft": "Chưa lưu",
@@ -53,7 +53,7 @@
     "split": "Song song",
     "preview": "Xem trước",
     "projects": "Project ({count})",
-    "noProjects": "Chưa có project nào.",
+    "noProjects": "Chưa có Project nào.",
     "toastLinked": "Đã link vào {project}",
     "toastUnlinked": "Đã gỡ khỏi {project}",
     "state": {

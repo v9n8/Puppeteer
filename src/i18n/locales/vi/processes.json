@@ -1,21 +1,21 @@
 {
   "title": "Tiến trình nền",
-  "subtitle": "Mọi thứ Puppeteer đã khởi chạy và vẫn đang chạy: phiên làm việc, dịch vụ của ứng dụng và các tiến trình còn sót lại.",
+  "subtitle": "Mọi thứ Puppeteer đã khởi chạy và vẫn đang chạy: Session, dịch vụ của ứng dụng và các tiến trình còn sót lại.",
   "refresh": "Làm mới",
   "stopAllLeftovers": "Dừng mọi tiến trình sót",
   "stopAll": "Dừng tất cả",
   "processCount": "{n} tiến trình | {n} tiến trình",
   "sections": {
-    "orphan": "Sót lại từ phiên trước",
+    "orphan": "Sót lại từ Session trước",
     "orphanHint": "Do Puppeteer khởi chạy trước lần thoát gần nhất. Hiện không còn ai quản lý.",
     "leftover": "Còn sót lại",
-    "leftoverHint": "Phiên đã kết thúc nhưng các tiến trình nó khởi chạy vẫn còn sống.",
-    "sessions": "Phiên làm việc",
+    "leftoverHint": "Session đã kết thúc nhưng các tiến trình nó khởi chạy vẫn còn sống.",
+    "sessions": "Session",
     "services": "Dịch vụ ứng dụng",
     "servicesHint": "Các tiến trình hỗ trợ của Puppeteer (dịch, kiểm tra model, kiểm tra MCP, ssh-agent)."
   },
   "kind": {
-    "run": "Phiên",
+    "run": "Session",
     "translate": "Dịch",
     "slack_translate": "Dịch Slack",
     "focus_ai": "AI Focus",
@@ -32,14 +32,14 @@
     "ram": "RAM",
     "age": "Thời gian"
   },
-  "noProject": "Không thuộc dự án",
+  "noProject": "Không thuộc Project nào",
   "rootProcess": "gốc",
   "actions": {
     "stop": "Dừng",
     "stopTitle": "Dừng nhẹ nhàng (SIGTERM, sau 3 giây thì SIGKILL)",
     "forceKill": "Buộc dừng",
     "forceKillTitle": "Dừng ngay lập tức (SIGKILL)",
-    "openSession": "Mở phiên",
+    "openSession": "Mở Session",
     "stopProcess": "Dừng tiến trình này",
     "expand": "Xem các tiến trình",
     "collapse": "Ẩn các tiến trình"
@@ -48,11 +48,11 @@
     "stopLeftoversTitle": "Dừng mọi tiến trình sót?",
     "stopLeftoversMessage": "{n} tiến trình còn sót sẽ bị dừng. | {n} tiến trình còn sót sẽ bị dừng.",
     "stopAllTitle": "Dừng tất cả?",
-    "stopAllMessage": "Thao tác này dừng mọi tiến trình đang theo dõi ({n}), kể cả các phiên đang chạy và dịch vụ của Puppeteer. Các phiên đang chạy sẽ bị huỷ.",
+    "stopAllMessage": "Thao tác này dừng mọi tiến trình đang theo dõi ({n}), kể cả các Session đang chạy và dịch vụ của Puppeteer. Các Session đang chạy sẽ bị huỷ.",
     "forceTitle": "Buộc dừng?",
     "forceMessage": "\"{label}\" sẽ bị dừng ngay, không có cơ hội dọn dẹp.",
-    "stopSessionTitle": "Dừng phiên này?",
-    "stopSessionMessage": "\"{label}\" vẫn đang chạy. Dừng nó cũng sẽ huỷ phiên."
+    "stopSessionTitle": "Dừng Session này?",
+    "stopSessionMessage": "\"{label}\" vẫn đang chạy. Dừng nó cũng sẽ huỷ Session."
   },
   "toast": {
     "stopped": "Đã dừng {n} tiến trình | Đã dừng {n} tiến trình",
@@ -61,14 +61,14 @@
   },
   "empty": {
     "title": "Không có gì chạy nền",
-    "hint": "Phiên làm việc, dev server và tiến trình hỗ trợ do Puppeteer khởi chạy sẽ hiện ở đây khi đang chạy."
+    "hint": "Session, dev server và tiến trình hỗ trợ do Puppeteer khởi chạy sẽ hiện ở đây khi đang chạy."
   },
   "dock": {
     "label": "{n} tiến trình nền | {n} tiến trình nền",
-    "title": "Tiến trình vẫn chạy sau khi phiên đã kết thúc. Bấm để xem."
+    "title": "Tiến trình vẫn chạy sau khi Session đã kết thúc. Bấm để xem."
   },
   "orphanPrompt": {
-    "title": "{n} tiến trình từ phiên trước vẫn đang chạy | {n} tiến trình từ phiên trước vẫn đang chạy",
+    "title": "{n} tiến trình từ Session trước vẫn đang chạy | {n} tiến trình từ Session trước vẫn đang chạy",
     "message": "Puppeteer đã thoát khi chúng còn chạy. Chúng vẫn chiếm CPU và bộ nhớ cho tới khi bị dừng.",
     "stopAll": "Dừng tất cả",
     "viewDetails": "Xem chi tiết",
@@ -76,7 +76,7 @@
   },
   "quit": {
     "title": "Thoát Puppeteer?",
-    "sessions": "Phiên đang chạy (sẽ bị dừng)",
+    "sessions": "Session đang chạy (sẽ bị dừng)",
     "stray": "Tiến trình nền",
     "strayHint": "Tiến trình còn sót có thể tiếp tục chạy sau khi Puppeteer thoát; lần mở sau chúng sẽ hiện là tiến trình sót.",
     "stopAllQuit": "Dừng tất cả & thoát",
@@ -86,10 +86,10 @@
   },
   "devServers": {
     "title": "Dev server",
-    "hint": "Do dự án khai báo trong .puppeteer/dev-servers.json. Chạy mà không có token của bạn trong biến môi trường.",
-    "noProjects": "Thêm một dự án để dùng dev server của nó.",
-    "missing": "Dự án này chưa khai báo dev server nào. Tạo {path} để khởi động chúng theo tên, ở đây hoặc từ agent:",
-    "rules": "command là một chương trình, args là mảng giá trị thuần, cwd tương đối với dự án; không hỗ trợ env.",
+    "hint": "Do Project khai báo trong .puppeteer/dev-servers.json. Chạy mà không có token của bạn trong biến môi trường.",
+    "noProjects": "Thêm một Project để dùng dev server của nó.",
+    "missing": "Project này chưa khai báo dev server nào. Tạo {path} để khởi động chúng theo tên, ở đây hoặc từ agent:",
+    "rules": "command là một chương trình, args là mảng giá trị thuần, cwd tương đối với thư mục Project; không hỗ trợ env.",
     "empty": "Không có server dùng được nào được khai báo trong {path}.",
     "problems": "Các mục bị bỏ qua trong {path}:",
     "status": {
@@ -102,7 +102,7 @@
     "portBusy": "Cổng {port} đang bị một tiến trình không do Puppeteer khởi chạy giữ; tiến trình đó được để nguyên.",
     "start": "Khởi động",
     "confirmStartTitle": "Khởi động \"{name}\"?",
-    "confirmStartMessage": "Puppeteer sẽ chạy đúng nguyên văn lệnh này, do repository của dự án khai báo:\n\n{command}\n\nBiến môi trường của nó không có token hay credential cloud; gh, git, aws và az đi qua broker của Puppeteer.",
+    "confirmStartMessage": "Puppeteer sẽ chạy đúng nguyên văn lệnh này, do repository của Project khai báo:\n\n{command}\n\nBiến môi trường của nó không có token hay credential cloud; gh, git, aws và az đi qua broker của Puppeteer.",
     "started": "Đã khởi động \"{name}\"",
     "failed": "Dev server: {error}",
     "log": "Xem log",

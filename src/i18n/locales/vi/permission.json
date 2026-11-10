@@ -20,9 +20,9 @@
   "approve": "Phê duyệt",
   "deny": "Từ chối",
   "denyAlways": "Luôn từ chối",
-  "denyAlwaysTitle": "Từ chối ngay và tự động từ chối công cụ này cho dự án này",
+  "denyAlwaysTitle": "Từ chối ngay và tự động từ chối công cụ này cho Project này",
   "always": "Luôn cho phép",
-  "allowAlwaysTitle": "Cho phép ngay và tự động cho phép công cụ này cho dự án này",
+  "allowAlwaysTitle": "Cho phép ngay và tự động cho phép công cụ này cho Project này",
   "allow": "Cho phép",
   "broadScopeWarning": "\"Luôn cho phép\" ở đây áp dụng cho toàn bộ server Google — Drive, Gmail và Calendar, gồm cả gửi mail và xóa file vĩnh viễn — chứ không riêng thao tác này.",
   "window": {
@@ -42,9 +42,9 @@
     "questionTitle": "Claude có một câu hỏi",
     "requestTitle": "Yêu cầu quyền",
     "questionHint": "Chọn câu trả lời bên dưới rồi gửi.",
-    "requestHint": "Cho phép hoặc từ chối lệnh gọi công cụ này. \"Luôn\" ghi nhớ lựa chọn cho công cụ này trong project, giống trên máy tính.",
+    "requestHint": "Cho phép hoặc từ chối lệnh gọi công cụ này. \"Luôn\" ghi nhớ lựa chọn cho công cụ này trong Project, giống trên máy tính.",
     "cancel": "Hủy",
     "allowAlways": "Luôn cho phép",
-    "allowAlwaysFor": "Luôn cho phép {tool} cho project này"
+    "allowAlwaysFor": "Luôn cho phép {tool} cho Project này"
   }
 }

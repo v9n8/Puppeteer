@@ -66,7 +66,7 @@
     "quitPolicyAsk": "Hỏi",
     "quitPolicyStopAll": "Dừng tất cả",
     "quitPolicyKeep": "Giữ tiến trình nền",
-    "quitPolicyHint": "Áp dụng khi còn phiên đang chạy hoặc tiến trình còn sót. \"Giữ\" vẫn dừng các phiên và tiến trình hỗ trợ của Puppeteer.",
+    "quitPolicyHint": "Áp dụng khi còn Session đang chạy hoặc tiến trình còn sót. \"Giữ\" vẫn dừng các Session và tiến trình hỗ trợ của Puppeteer.",
     "launchAtLogin": "Khởi động khi đăng nhập",
     "launchAtLoginOff": "Tắt",
     "launchAtLoginOn": "Mở cửa sổ",
@@ -84,7 +84,7 @@
     "validate": "Xác thực",
     "valid": "Hợp lệ",
     "login": "Đăng nhập",
-    "loginExpired": "Phiên đăng nhập Google đã hết hạn hoặc bị thu hồi. Bấm \"Đăng nhập\" để cấp quyền lại.",
+    "loginExpired": "Đăng nhập Google đã hết hạn hoặc bị thu hồi. Bấm \"Đăng nhập\" để cấp quyền lại.",
     "missingScopes": "Tài khoản này thiếu quyền ({scopes}) — do được kết nối trước khi các quyền đó được thêm, nên một số API (ví dụ Lịch) trả về 401. Bấm \"Đăng nhập\" để cấp quyền lại.",
     "loggingIn": "Đang mở trình duyệt để đăng nhập lại…",
     "addAnother": "Thêm tài khoản khác",
@@ -111,8 +111,8 @@
   },
   "github": {
     "title": "Tài khoản GitHub",
-    "intro": "Thêm tài khoản GitHub một lần và liên kết với dự án. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Scope bắt buộc: repo (riêng tư) hoặc public_repo (công khai).",
-    "isolationWarning": "Giữ máy này đăng xuất khỏi gh ở cấp toàn cục: không chạy gh auth login hoặc đặt GH_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng dự án khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
+    "intro": "Thêm tài khoản GitHub một lần và liên kết với Project. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Scope bắt buộc: repo (riêng tư) hoặc public_repo (công khai).",
+    "isolationWarning": "Giữ máy này đăng xuất khỏi gh ở cấp toàn cục: không chạy gh auth login hoặc đặt GH_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng Project khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
     "notValidated": "chưa xác thực",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
@@ -126,12 +126,12 @@
     "accountUpdated": "Đã cập nhật tài khoản",
     "accountDeleted": "Đã xóa tài khoản",
     "deleteTitle": "Xóa tài khoản GitHub",
-    "deleteMessage": "Xóa tài khoản GitHub này? Các dự án liên kết với nó sẽ bị hủy liên kết."
+    "deleteMessage": "Xóa tài khoản GitHub này? Các Project liên kết với nó sẽ bị hủy liên kết."
   },
   "gitlab": {
     "title": "Tài khoản GitLab",
-    "intro": "Thêm tài khoản GitLab một lần và liên kết với dự án. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Đặt host tùy chỉnh cho GitLab tự host, và email commit tùy chọn. Scope bắt buộc: api (hoặc read_api + write_repository) — token chỉ có quyền repository sẽ bị endpoint xác thực từ chối.",
-    "isolationWarning": "Giữ máy này đăng xuất khỏi glab ở cấp toàn cục: không chạy glab auth login hoặc đặt GITLAB_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng dự án khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
+    "intro": "Thêm tài khoản GitLab một lần và liên kết với Project. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Đặt host tùy chỉnh cho GitLab tự host, và email commit tùy chọn. Scope bắt buộc: api (hoặc read_api + write_repository) — token chỉ có quyền repository sẽ bị endpoint xác thực từ chối.",
+    "isolationWarning": "Giữ máy này đăng xuất khỏi glab ở cấp toàn cục: không chạy glab auth login hoặc đặt GITLAB_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng Project khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
     "notValidated": "chưa xác thực",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
@@ -142,13 +142,13 @@
     "labelPlaceholder": "Nhãn (ví dụ: Work, Personal)",
     "adding": "Đang thêm…",
     "deleteTitle": "Xóa tài khoản GitLab",
-    "deleteMessage": "Xóa tài khoản GitLab này? Các dự án liên kết với nó sẽ bị hủy liên kết."
+    "deleteMessage": "Xóa tài khoản GitLab này? Các Project liên kết với nó sẽ bị hủy liên kết."
   },
   "aws": {
     "title": "Tài khoản AWS",
     "authKeys": "Access key",
     "authProfile": "Named profile / SSO",
-    "intro": "Thêm tài khoản AWS một lần và liên kết một tài khoản cho mỗi dự án. Secret Access Key và Session Token được lưu an toàn trong OS Keychain. Puppeteer tự cấu hình tài khoản dự án đã chọn cho các lần chạy Claude và Codex qua broker.",
+    "intro": "Thêm tài khoản AWS một lần và liên kết một tài khoản cho mỗi Project. Secret Access Key và Session Token được lưu an toàn trong OS Keychain. Puppeteer tự cấu hình tài khoản Project đã chọn cho các lần chạy Claude và Codex qua broker.",
     "isolationWarning": "Tránh đặt credential AWS toàn cục cho công việc của agent. Puppeteer kiểm soát các lệnh gọi aws qua broker; việc thay đổi credential/config như aws configure bị chặn.",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
@@ -189,11 +189,11 @@
     "addLabelPlaceholder": "Nhãn (ví dụ: Work AWS, Production)",
     "adding": "Đang thêm…",
     "deleteTitle": "Xóa tài khoản AWS",
-    "deleteMessage": "Xóa tài khoản AWS này? Các dự án liên kết với nó sẽ bị hủy liên kết."
+    "deleteMessage": "Xóa tài khoản AWS này? Các Project liên kết với nó sẽ bị hủy liên kết."
   },
   "claude": {
     "title": "Tài khoản Claude",
-    "intro": "Quản lý nhiều tài khoản Claude Code subscription. Mỗi tài khoản được tách riêng bằng profile (CLAUDE_CONFIG_DIR), nên bạn có thể chạy song song nhiều tài khoản và gán tài khoản cụ thể cho từng project.",
+    "intro": "Quản lý nhiều tài khoản Claude Code subscription. Mỗi tài khoản được tách riêng bằng profile (CLAUDE_CONFIG_DIR), nên bạn có thể chạy song song nhiều tài khoản và gán tài khoản cụ thể cho từng Project.",
     "securityNote": "Puppeteer không lưu mật khẩu hay OAuth token Claude — Claude Code tự quản lý thông tin đăng nhập. Thêm hoặc xóa tài khoản ở đây không ảnh hưởng tới login ~/.claude toàn cục.",
     "login": "Đăng nhập",
     "validate": "Xác thực",
@@ -213,7 +213,7 @@
     "validReady": "Hợp lệ",
     "validNeedsLogin": "Chưa đăng nhập — bấm Đăng nhập để xác thực",
     "deleteTitle": "Xóa tài khoản Claude",
-    "deleteMessage": "Thao tác này gỡ tài khoản khỏi Puppeteer và bỏ liên kết khỏi mọi project. Login ~/.claude toàn cục không bị ảnh hưởng.",
+    "deleteMessage": "Thao tác này gỡ tài khoản khỏi Puppeteer và bỏ liên kết khỏi mọi Project. Login ~/.claude toàn cục không bị ảnh hưởng.",
     "status": {
       "unknown": "Chưa rõ",
       "ready": "Sẵn sàng",
@@ -227,7 +227,7 @@
     },
     "balance": {
       "title": "Tự cân bằng mặc định",
-      "hint": "Tự động trỏ tài khoản mặc định sang tài khoản đang dùng ít hơn để san đều mức sử dụng. Run mới (không gán cứng cho dự án) sẽ theo mặc định này; run đang chạy/tiếp tục vẫn giữ tài khoản cũ.",
+      "hint": "Tự động trỏ tài khoản mặc định sang tài khoản đang dùng ít hơn để san đều mức sử dụng. Run mới (không gán cứng cho Project) sẽ theo mặc định này; run đang chạy/tiếp tục vẫn giữ tài khoản cũ.",
       "cooldown": "Số phút tối thiểu giữa 2 lần đổi",
       "threshold": "Ngưỡng đổi (% chênh lệch)",
       "suggest": "Gợi ý: nên chuyển mặc định sang {account} để cân bằng mức dùng."
@@ -284,14 +284,14 @@
   },
   "usage": {
     "title": "Sử dụng & Ngân sách",
-    "contextMeter": "Thước đo cửa sổ ngữ cảnh",
-    "contextMeterHint": "Hiển thị cửa sổ ngữ cảnh của lần chạy hiện tại đã đầy đến đâu. Thanh chuyển sang màu hổ phách khi vượt ngưỡng cảnh báo và cung cấp nút /compact chỉ một cú nhấp.",
+    "contextMeter": "Thước đo cửa sổ Context",
+    "contextMeterHint": "Hiển thị cửa sổ Context của lần chạy hiện tại đã đầy đến đâu. Thanh chuyển sang màu hổ phách khi vượt ngưỡng cảnh báo và cung cấp nút /compact chỉ một cú nhấp.",
     "warnAt": "Cảnh báo tại (%)",
     "limitOverride": "Ghi đè giới hạn (token)",
     "limitOverridePlaceholder": "tự động theo model",
     "limitOverrideHint": "Để trống ô ghi đè để tự động lấy từ model (Claude 200k / 1M, Codex 272k).",
     "budgetTitle": "Ngân sách sử dụng (chặn lần chạy mới)",
-    "budgetHint": "Kiểm tra trước mỗi lần chạy & follow-up: Puppeteer chặn lần chạy mới (có thể ghi đè theo lượt) khi engine của lần chạy đạt giới hạn dưới đây. Ngưỡng ánh xạ tới các cửa sổ gói đăng ký thực của engine đó (từ /usage) — một cửa sổ 5h trượt và một cửa sổ theo tuần (reset theo tài khoản). Lần chạy bị chặn nếu bất kỳ cửa sổ nào đã đặt bị đạt tới. Codex thường chỉ hiển thị cửa sổ theo tuần, nên hãy đặt Weekly để bao quát. Để trống một ô để bỏ qua cửa sổ đó; khi không có dữ liệu gói (ví dụ phiên dùng API key), guardrail sẽ không hoạt động.",
+    "budgetHint": "Kiểm tra trước mỗi lần chạy & follow-up: Puppeteer chặn lần chạy mới (có thể ghi đè theo lượt) khi engine của lần chạy đạt giới hạn dưới đây. Ngưỡng ánh xạ tới các cửa sổ gói đăng ký thực của engine đó (từ /usage) — một cửa sổ 5h trượt và một cửa sổ theo tuần (reset theo tài khoản). Lần chạy bị chặn nếu bất kỳ cửa sổ nào đã đặt bị đạt tới. Codex thường chỉ hiển thị cửa sổ theo tuần, nên hãy đặt Weekly để bao quát. Để trống một ô để bỏ qua cửa sổ đó; khi không có dữ liệu gói (ví dụ Session dùng API key), guardrail sẽ không hoạt động.",
     "block5h": "Cửa sổ 5h — chặn tại (%)",
     "blockWeekly": "Cửa sổ tuần — chặn tại (%)",
     "emptyOff": "để trống = tắt"
@@ -339,12 +339,12 @@
   },
   "azure": {
     "title": "Tài khoản Azure",
-    "intro": "Thêm tài khoản Azure và liên kết một tài khoản cho mỗi dự án. Mỗi tài khoản là một phiên az login riêng do Puppeteer quản lý và tách biệt, nên nhiều tenant và danh tính có thể dùng song song. Lệnh az và terraform trong các run của dự án được liên kết sẽ dùng tài khoản đó.",
-    "isolationWarning": "Tránh phụ thuộc vào az login toàn cục khi để agent làm việc. Puppeteer lưu phiên Azure CLI của từng tài khoản trong thư mục riêng và trỏ các run tới tài khoản được liên kết.",
+    "intro": "Thêm tài khoản Azure và liên kết một tài khoản cho mỗi Project. Mỗi tài khoản là một lần đăng nhập az login riêng do Puppeteer quản lý và tách biệt, nên nhiều tenant và danh tính có thể dùng song song. Lệnh az và terraform trong các run của Project được liên kết sẽ dùng tài khoản đó.",
+    "isolationWarning": "Tránh phụ thuộc vào az login toàn cục khi để agent làm việc. Puppeteer lưu thông tin đăng nhập Azure CLI của từng tài khoản trong thư mục riêng và trỏ các run tới tài khoản được liên kết.",
     "validate": "Kiểm tra",
     "valid": "Hợp lệ",
     "login": "Đăng nhập",
-    "loginExpired": "Chưa đăng nhập, phiên Azure đã hết hạn, hoặc phiên chưa qua MFA (Azure chặn mọi thao tác ghi). Bấm \"Đăng nhập\" để đăng nhập lại và hoàn tất MFA.",
+    "loginExpired": "Chưa đăng nhập, lần đăng nhập Azure đã hết hạn, hoặc đăng nhập chưa qua MFA (Azure chặn mọi thao tác ghi). Bấm \"Đăng nhập\" để đăng nhập lại và hoàn tất MFA.",
     "loggingIn": "Hãy hoàn tất đăng nhập trên trình duyệt…",
     "lastValidated": "Đã kiểm tra lúc {time}",
     "neverValidated": "Chưa kiểm tra lần nào",
@@ -365,11 +365,11 @@
     "addLoginFailed": "Đăng nhập Azure chưa hoàn tất. Nếu tài khoản đã xuất hiện trong danh sách, hãy bấm \"Đăng nhập\" ở tài khoản đó; nếu chưa, hãy thêm lại.",
     "accountAdded": "Đã thêm tài khoản Azure",
     "deleteTitle": "Xoá tài khoản Azure",
-    "deleteMessage": "Xoá tài khoản Azure này cùng phiên đăng nhập của nó? Các dự án đang liên kết sẽ bị gỡ liên kết."
+    "deleteMessage": "Xoá tài khoản Azure này cùng thông tin đăng nhập của nó? Các Project đang liên kết sẽ bị gỡ liên kết."
   },
   "backup": {
     "title": "Sao lưu ra file",
-    "help": "Xuất toàn bộ cấu hình Puppeteer ra một file và nhập trên máy khác: cài đặt, prompt đã lưu, thư viện Skills / Rules kèm nhóm, MCP server, VPS server, tài khoản (GitHub, GitLab, AWS, Azure, Google, Claude), ghi chú / todo và Slack thread (kèm bản dịch; file đính kèm được tải lại) và project (repo, Skills / Rules / nhóm, MCP và VPS server đã bật, tài khoản gắn kèm). Lịch sử session vẫn ở máy này.",
+    "help": "Xuất toàn bộ cấu hình Puppeteer ra một file và nhập trên máy khác: cài đặt, prompt đã lưu, thư viện Skills / Rules kèm nhóm, MCP server, VPS server, tài khoản (GitHub, GitLab, AWS, Azure, Google, Claude), ghi chú / todo và Slack thread (kèm bản dịch; file đính kèm được tải lại) và Project (repo, Skills / Rules / nhóm, MCP và VPS server đã bật, tài khoản gắn kèm). Lịch sử Session vẫn ở máy này.",
     "export": {
       "title": "Xuất",
       "includeSecrets": "Kèm secret (mã hoá)",
@@ -391,8 +391,8 @@
       "password": "Mật khẩu file sao lưu",
       "passwordHint": "Để trống để nhập mà không kèm secret.",
       "noSecrets": "File này không chứa secret.",
-      "createMissingDirs": "Tự tạo thư mục project còn thiếu",
-      "createMissingDirsHint": "Đường dẫn nằm trong thư mục home cũ được đổi sang home của máy này trước. Project nào vẫn chưa có thư mục sẽ được tạo thư mục rỗng; tắt tuỳ chọn này thì project đó bị bỏ qua.",
+      "createMissingDirs": "Tự tạo thư mục Project còn thiếu",
+      "createMissingDirsHint": "Đường dẫn nằm trong thư mục home cũ được đổi sang home của máy này trước. Project nào vẫn chưa có thư mục sẽ được tạo thư mục rỗng; tắt tuỳ chọn này thì Project đó bị bỏ qua.",
       "button": "Nhập",
       "cancel": "Huỷ",
       "done": "Đã nhập cấu hình"
@@ -404,17 +404,17 @@
       "unchanged": "Giữ nguyên",
       "secretsImported": "Secret đã được khôi phục vào Keychain.",
       "secretsNotImported": "Không nhập secret nào.",
-      "reloginHint": "Phiên đăng nhập Claude và Azure không được mang theo: hãy đăng nhập lại các tài khoản đó và validate lại AWS profile trên máy này.",
+      "reloginHint": "Thông tin đăng nhập Claude và Azure không được mang theo: hãy đăng nhập lại các tài khoản đó và validate lại AWS profile trên máy này.",
       "reload": "Tải lại Puppeteer để áp dụng"
     },
     "sections": {
       "settings": "Cài đặt",
       "skills": "Skills",
       "rules": "Rules",
-      "skillGroups": "Nhóm skill",
-      "ruleGroups": "Nhóm rule",
+      "skillGroups": "Nhóm Skill",
+      "ruleGroups": "Nhóm Rule",
       "agents": "Agent",
-      "commands": "Lệnh slash",
+      "commands": "Command",
       "mcpServers": "MCP server",
       "vpsServers": "VPS server",
       "githubAccounts": "Tài khoản GitHub",
@@ -426,7 +426,7 @@
       "notes": "Ghi chú",
       "secretNotes": "Note bí mật",
       "todos": "Todo",
-      "bookmarks": "Đánh dấu trong session",
+      "bookmarks": "Đánh dấu trong Session",
       "slackThreads": "Slack thread",
       "projects": "Project"
     }

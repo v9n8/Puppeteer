@@ -29,7 +29,7 @@
     "masterPasswordHint": "Nhập mật khẩu này trên điện thoại hoặc Puppeteer khác thay cho mã OTP. Lưu trong keychain của hệ điều hành. Cố định — chỉ dùng nếu bạn là người dùng duy nhất. Đổi hoặc xoá mật khẩu sẽ đăng xuất mọi thiết bị đã đăng nhập.",
     "saveSettings": "Lưu cài đặt",
     "hostLabel": "host: {id}",
-    "perRunHint": "Phiên điều khiển từ xa giờ được tạo theo từng run: mở một run và nhấn nút {remote} trên thanh công cụ để tạo link. Nhập {masterPassword} (nếu đã đặt) hoặc mã OTP trên điện thoại để kết nối.",
+    "perRunHint": "Kết nối điều khiển từ xa giờ được tạo theo từng run: mở một run và nhấn nút {remote} trên thanh công cụ để tạo link. Nhập {masterPassword} (nếu đã đặt) hoặc mã OTP trên điện thoại để kết nối.",
     "remote": "Remote",
     "masterPasswordInline": "mật khẩu chính",
     "controlOther": "Điều khiển Puppeteer khác",
@@ -85,12 +85,12 @@
     "enterMasterToFinish": "Nhập mật khẩu chính trên điện thoại để hoàn tất.",
     "connectedLive": "Đang kết nối — điều khiển trực tiếp",
     "phoneControlling": "Điện thoại đã ghép và điều khiển được mọi run. Đóng cửa sổ này không ngắt kết nối.",
-    "idleExpiry": "Phiên hết hạn nếu không thao tác trong ~{time}",
+    "idleExpiry": "Kết nối hết hạn nếu không thao tác trong ~{time}",
     "stopControl": "Dừng điều khiển",
     "authFailed": "Xác thực thất bại",
     "attemptsLeft": "Còn {count} lần thử",
     "createNewLink": "Tạo link mới",
-    "expired": "Phiên đã hết hạn",
+    "expired": "Kết nối đã hết hạn",
     "errorOccurred": "Đã xảy ra lỗi",
     "copyFailed": "Không thể copy vào clipboard",
     "disabledTitle": "Remote Control đang tắt",
@@ -145,12 +145,12 @@
     "intro": "Điện thoại đã ghép cặp và bật thông báo (nút chuông ở tab Cần xử lý) sẽ được báo khi Remote Control đang bật và điện thoại không mở app. Thông báo chỉ chứa số lượng.",
     "kinds": {
       "pending": "Cần duyệt",
-      "done": "Phiên chạy xong",
-      "failed": "Phiên bị lỗi"
+      "done": "Run đã xong",
+      "failed": "Run bị lỗi"
     },
     "kindHints": {
       "pending": "Có permission, câu hỏi hoặc yêu cầu dùng credential đang chờ.",
-      "done": "Một run đã xong, hoặc session đã xong lượt và đang chờ bạn.",
+      "done": "Một run đã xong, hoặc Session đã xong lượt và đang chờ bạn.",
       "failed": "Một run kết thúc với lỗi."
     },
     "devices": "Thiết bị",

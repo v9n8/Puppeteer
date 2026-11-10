@@ -2,35 +2,35 @@
   "list": {
     "importing": "Đang nhập…",
     "import": "Nhập",
-    "emptyTitle": "Chưa có skill nào",
-    "emptyHint": "Tạo skill đầu tiên hoặc nhập từ tệp ZIP",
-    "applyToAll": "Áp dụng cho tất cả dự án",
+    "emptyTitle": "Chưa có Skill nào",
+    "emptyHint": "Tạo Skill đầu tiên hoặc nhập từ tệp ZIP",
+    "applyToAll": "Áp dụng cho tất cả Project",
     "exportZip": "Xuất ZIP",
-    "confirmApplyTitle": "Áp dụng cho tất cả dự án",
-    "confirmApplyMessage": "Áp dụng skill \"{name}\" cho tất cả {count} {project}? Các tệp hiện có sẽ bị ghi đè.",
+    "confirmApplyTitle": "Áp dụng cho tất cả Project",
+    "confirmApplyMessage": "Áp dụng Skill \"{name}\" cho tất cả {count} {project}? Các tệp hiện có sẽ bị ghi đè.",
     "confirmApplyConfirm": "Áp dụng",
-    "toastNoProjects": "Chưa có dự án nào. Hãy thêm một dự án trước.",
+    "toastNoProjects": "Chưa có Project nào. Hãy thêm một Project trước.",
     "toastApplied": "Đã áp dụng \"{name}\" cho {count} {project}.",
     "toastAppliedPartial": "Đã áp dụng cho {applied} {project}.\n\nThất bại với {failed}:\n{details}",
-    "confirmDeleteTitle": "Xóa skill",
-    "confirmDeleteMessage": "Xóa skill \"{name}\"? Không thể hoàn tác.",
+    "confirmDeleteTitle": "Xóa Skill",
+    "confirmDeleteMessage": "Xóa Skill \"{name}\"? Không thể hoàn tác.",
     "toastDeleted": "Đã xóa",
     "toastImported": "Đã nhập",
     "toastExported": "Đã xuất",
-    "project": "dự án",
-    "projects": "dự án",
-    "reapply": "Áp dụng lại cho các dự án đang dùng",
+    "project": "Project",
+    "projects": "Project",
+    "reapply": "Áp dụng lại cho các Project đang dùng",
     "reapplyAll": "Áp dụng lại tất cả",
-    "reapplyAllHint": "Ghi lại mọi skill vào các dự án đang áp dụng",
+    "reapplyAllHint": "Ghi lại mọi Skill vào các Project đang áp dụng",
     "reapplying": "Đang áp dụng lại…",
-    "confirmReapplyTitle": "Áp dụng lại skill",
-    "confirmReapplyMessage": "Áp dụng lại skill \"{name}\" cho mọi dự án đang dùng? Các chỉnh sửa cục bộ của nó trong những dự án đó sẽ bị ghi đè.",
+    "confirmReapplyTitle": "Áp dụng lại Skill",
+    "confirmReapplyMessage": "Áp dụng lại Skill \"{name}\" cho mọi Project đang dùng? Các chỉnh sửa cục bộ của nó trong những Project đó sẽ bị ghi đè.",
     "confirmReapplyAllTitle": "Áp dụng lại tất cả skills",
-    "confirmReapplyAllMessage": "Áp dụng lại mọi skill cho các dự án đang dùng? Các chỉnh sửa cục bộ trong những dự án đó sẽ bị ghi đè.",
+    "confirmReapplyAllMessage": "Áp dụng lại mọi Skill cho các Project đang dùng? Các chỉnh sửa cục bộ trong những Project đó sẽ bị ghi đè.",
     "confirmReapplyConfirm": "Áp dụng lại",
-    "toastNothingToReapply": "Chưa được áp dụng cho dự án nào.",
-    "toastReapplied": "Đã áp dụng lại {count} lượt dự án.",
-    "toastReappliedPartial": "Đã áp dụng lại {applied} lượt dự án.\n\nThất bại {failed}:\n{details}"
+    "toastNothingToReapply": "Chưa được áp dụng cho Project nào.",
+    "toastReapplied": "Đã áp dụng lại {count} lượt Project.",
+    "toastReappliedPartial": "Đã áp dụng lại {applied} lượt Project.\n\nThất bại {failed}:\n{details}"
   },
   "editor": {
     "target": "Đích",
@@ -52,9 +52,9 @@
     "errTargetInvalid": "target phải là một trong: claude, codex, both"
   },
   "detail": {
-    "searchPlaceholder": "Tìm skill",
-    "importHint": "Nhập skill từ tệp ZIP / .skill",
-    "noSelection": "Chọn một skill để xem hoặc sửa",
+    "searchPlaceholder": "Tìm Skill",
+    "importHint": "Nhập Skill từ tệp ZIP / .skill",
+    "noSelection": "Chọn một Skill để xem hoặc sửa",
     "untitled": "Skill chưa đặt tên",
     "newDraft": "Skill mới — chưa lưu",
     "updated": "Cập nhật {date}",
@@ -66,12 +66,12 @@
     "descriptionPlaceholder": "Skill này làm gì và khi nào dùng",
     "split": "Song song",
     "readOnly": "Chỉ đọc",
-    "readOnlyHint": "Các tệp phụ được sửa trong thư mục skill.",
+    "readOnlyHint": "Các tệp phụ được sửa trong thư mục Skill.",
     "fileTooLarge": "Tệp quá lớn để xem trước.",
     "fileBinary": "Tệp nhị phân — không xem trước được.",
     "fileUnreadable": "Không đọc được tệp này.",
     "discardTitle": "Bỏ thay đổi",
-    "discardMessage": "Rời skill này và bỏ các thay đổi chưa lưu?",
+    "discardMessage": "Rời Skill này và bỏ các thay đổi chưa lưu?",
     "discard": "Bỏ"
   },
   "allocation": {
@@ -79,14 +79,14 @@
     "tabLibrary": "Thư viện",
     "skill": "Skill",
     "refresh": "Làm mới",
-    "noProjects": "Chưa có project nào. Thêm project để bật skill cho nó.",
-    "noMatch": "Không có skill nào khớp với từ tìm.",
+    "noProjects": "Chưa có Project nào. Thêm Project để bật Skill cho nó.",
+    "noMatch": "Không có Skill nào khớp với từ tìm.",
     "global": "Global",
-    "globalTitle": "Thư mục HOME (~/.claude/skills, ~/.agents/skills): mọi project đều dùng, kể cả CLI chạy ngoài Puppeteer.",
+    "globalTitle": "Thư mục HOME (~/.claude/skills, ~/.agents/skills): mọi Project đều dùng, kể cả CLI chạy ngoài Puppeteer.",
     "globalRemote": "Chỉ bật/tắt được tại máy host, không làm được từ remote desktop.",
     "globalHint": {
       "installed": "Đã link từ thư mục HOME về thư viện. Bấm để gỡ link.",
-      "not_installed": "Bấm để link vào thư mục HOME, dùng cho mọi project."
+      "not_installed": "Bấm để link vào thư mục HOME, dùng cho mọi Project."
     },
     "state": {
       "installed": "Đã cài",
@@ -98,21 +98,21 @@
     },
     "hint": {
       "installed": "Đã link về thư viện. Bấm để tắt.",
-      "drifted": "Đang bật, nhưng thư mục trong project khác thư viện (bản copy đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
-      "git_managed": "Repo tự commit skill cùng tên. Puppeteer chỉ đọc.",
-      "shadowed": "Đã cài, nhưng agent dùng skill cùng tên trong thư mục HOME.",
-      "not_installed": "Bấm để bật cho engine này trong project này.",
-      "taken": "Thư mục HOME đã có thứ khác mang tên này (skill của bạn hoặc link khác), hoặc thư mục là symlink. Puppeteer không đụng vào: đổi tên hay xoá nó, hoặc đổi tên skill."
+      "drifted": "Đang bật, nhưng thư mục trong Project khác thư viện (bản copy đã sửa, link khác, hoặc không có gì). Bấm để tắt.",
+      "git_managed": "Repo tự commit Skill cùng tên. Puppeteer chỉ đọc.",
+      "shadowed": "Đã cài, nhưng agent dùng Skill cùng tên trong thư mục HOME.",
+      "not_installed": "Bấm để bật cho engine này trong Project này.",
+      "taken": "Thư mục HOME đã có thứ khác mang tên này (Skill của bạn hoặc link khác), hoặc thư mục là symlink. Puppeteer không đụng vào: đổi tên hay xoá nó, hoặc đổi tên Skill."
     }
   },
   "bulk": {
     "open": "Hàng loạt…",
-    "hint": "Bật hoặc tắt nhiều skill ở nhiều project cùng lúc, sau khi xem trước danh sách file.",
+    "hint": "Bật hoặc tắt nhiều Skill ở nhiều Project cùng lúc, sau khi xem trước danh sách file.",
     "title": "Bật/tắt hàng loạt",
     "skills": "Skill",
-    "pickSkills": "Chọn skill",
+    "pickSkills": "Chọn Skill",
     "pickGroup": "Theo nhóm",
-    "groupPlaceholder": "Chọn nhóm skill…",
+    "groupPlaceholder": "Chọn nhóm Skill…",
     "projects": "Project",
     "engines": "Engine",
     "all": "Tất cả",
@@ -121,7 +121,7 @@
     "switchOff": "Tắt",
     "preview": "Xem trước",
     "apply": "Áp {count} thay đổi",
-    "previewHint": "Chọn skill, project và engine, rồi bấm Xem trước để thấy mọi file sẽ được tạo hoặc xoá. Chưa bấm Áp thì chưa có gì thay đổi.",
+    "previewHint": "Chọn Skill, Project và engine, rồi bấm Xem trước để thấy mọi file sẽ được tạo hoặc xoá. Chưa bấm Áp thì chưa có gì thay đổi.",
     "summary": "{changes} thay đổi · {create} file tạo · {remove} file xoá · {skipped} bỏ qua · {unchanged} đã đúng sẵn",
     "nothing": "Không có gì để đổi: mọi lựa chọn đã đúng sẵn.",
     "switchOnly": "chỉ đổi công tắc, không đụng file",
@@ -130,10 +130,10 @@
       "remove": "Xoá (thư mục từ thời bản copy được chuyển vào backup nếu đã bị sửa)"
     },
     "skip": {
-      "git_managed": "bỏ qua: repo tự commit skill cùng tên",
+      "git_managed": "bỏ qua: repo tự commit Skill cùng tên",
       "occupied": "bỏ qua: chỗ đó đã có thứ khác không phải link của Puppeteer (bấm chip từng ô nếu muốn thay)",
-      "project_missing": "bỏ qua: không thấy thư mục project",
-      "source_missing": "bỏ qua: thiếu thư mục skill trong thư viện"
+      "project_missing": "bỏ qua: không thấy thư mục Project",
+      "source_missing": "bỏ qua: thiếu thư mục Skill trong thư viện"
     },
     "toastApplied": "Đã áp {count} thay đổi.",
     "toastPartial": "Đã áp {applied} thay đổi.\n\nLỗi {failed}:\n{details}"
@@ -141,10 +141,10 @@
   "effective": {
     "tab": "Agent thấy gì",
     "project": "Project",
-    "summary": "{engine} nạp {loaded} skill trong project này ({shadowed} bị che).",
-    "homeWins": "Skill global che skill cùng tên trong project.",
+    "summary": "{engine} nạp {loaded} Skill trong Project này ({shadowed} bị che).",
+    "homeWins": "Skill global che Skill cùng tên trong Project.",
     "bothLoad": "Skill cùng tên ở cả hai thư mục đều được nạp.",
-    "empty": "Thư mục này không có skill nào.",
+    "empty": "Thư mục này không có Skill nào.",
     "scope": {
       "global": "Global",
       "project": "Project"
@@ -155,10 +155,10 @@
       "unmanaged": "Ngoài thư viện"
     },
     "originHint": {
-      "library": "Link của Puppeteer về skill trong thư viện. Bật/tắt ở tab Phân bổ.",
-      "git_managed": "Repo tự commit skill này. Puppeteer chỉ đọc.",
+      "library": "Link của Puppeteer về Skill trong thư viện. Bật/tắt ở tab Phân bổ.",
+      "git_managed": "Repo tự commit Skill này. Puppeteer chỉ đọc.",
       "unmanaged": "Skill Puppeteer không quản lý: thư mục của bạn, bản copy, hoặc link trỏ chỗ khác."
     },
-    "shadowedHint": "Skill global cùng tên thắng: agent không bao giờ nạp skill này."
+    "shadowedHint": "Skill global cùng tên thắng: agent không bao giờ nạp Skill này."
   }
 }

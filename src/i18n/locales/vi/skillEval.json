@@ -1,10 +1,10 @@
 {
   "section": "Eval",
-  "sectionHint": "Model có nạp skill này cho đúng yêu cầu không? Gửi prompt mẫu cho model.",
+  "sectionHint": "Model có nạp Skill này cho đúng yêu cầu không? Gửi prompt mẫu cho model.",
   "open": "Chạy eval…",
   "lastRun": "Lần chạy gần nhất: đạt {passed} / {scored}",
   "title": "Skill eval: {name}",
-  "intro": "Mỗi ca là một yêu cầu. Model (engine và model của mục Dịch trong Cài đặt) thấy tên và mô tả của mọi skill trong thư viện rồi nói nó sẽ nạp skill nào. Ca đạt khi model nạp skill này đúng như kỳ vọng, hoặc không nạp khi không nên nạp. Mỗi ca là một lượt gọi model và tốn hạn mức.",
+  "intro": "Mỗi ca là một yêu cầu. Model (engine và model của mục Dịch trong Cài đặt) thấy tên và mô tả của mọi Skill trong thư viện rồi nói nó sẽ nạp Skill nào. Ca đạt khi model nạp Skill này đúng như kỳ vọng, hoặc không nạp khi không nên nạp. Mỗi ca là một lượt gọi model và tốn hạn mức.",
   "cases": "Ca kiểm ({count} / {max})",
   "addCase": "Thêm ca",
   "removeCase": "Xoá ca",
@@ -38,7 +38,7 @@
     "error": "Lỗi"
   },
   "chosen": "chọn: {skill}",
-  "none": "không skill nào",
+  "none": "không Skill nào",
   "problem": {
     "noCases": "Thêm ít nhất một ca.",
     "tooMany": "Tối đa {max} ca.",
