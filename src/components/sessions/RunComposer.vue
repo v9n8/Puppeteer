@@ -5,7 +5,7 @@
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, ShieldQuestion, UserCircle, Navigation,
+  Paperclip, ShieldQuestion, UserCircle, Navigation, Clock, Pencil,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
@@ -28,8 +28,13 @@ const {
   composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, savedPrompts,
   insertSavedPrompt, insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
-  onComposerKeydown, handleSendFollowUp, handleCancel,
+  onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
+  sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
+  cancelQueuedEdit,
 } = useRunSession()
+
+// The queued-message editor takes focus as it opens.
+const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
 </script>
 
 <template>
@@ -78,6 +83,64 @@ const {
             <span class="truncate">{{ item.path }}{{ item.is_dir ? '/' : '' }}</span>
           </li>
         </ul>
+      </div>
+
+      <!-- Messages queued while a turn runs (UX-25): sent one per turn end -->
+      <div v-if="queuedMessages.length" class="mb-2 space-y-1.5">
+        <p v-if="queueNotice" class="text-2xs text-muted-foreground">{{ queueNotice }}</p>
+        <div class="flex flex-wrap gap-1.5">
+          <div
+            v-for="msg in queuedMessages"
+            :key="msg.id"
+            class="group flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 text-xs text-primary"
+            :class="editingQueuedId === msg.id ? 'w-full items-start p-1.5' : 'h-7 max-w-72 pl-2 pr-1'"
+            :title="editingQueuedId === msg.id ? undefined : msg.text"
+          >
+            <Clock class="h-3.5 w-3.5 shrink-0 opacity-70" :stroke-width="2" />
+            <textarea
+              v-if="editingQueuedId === msg.id"
+              v-focus
+              v-model="queuedEditText"
+              rows="3"
+              class="min-w-0 flex-1 resize-y bg-transparent font-mono text-xs text-foreground focus:outline-none"
+              :aria-label="t('run.queuedEdit')"
+              @keydown.enter.exact.prevent="saveQueuedEdit"
+              @keydown.esc.prevent.stop="cancelQueuedEdit"
+              @blur="saveQueuedEdit"
+            />
+            <template v-else>
+              <span class="truncate">{{ msg.label || t('run.queuedAttachmentsOnly') }}</span>
+              <span v-if="msg.attachments" class="flex shrink-0 items-center gap-0.5 opacity-70">
+                <Paperclip class="h-3 w-3" :stroke-width="2" />{{ msg.attachments }}
+              </span>
+              <button
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer"
+                :title="t('run.queuedEdit')"
+                :aria-label="t('run.queuedEdit')"
+                @click="startQueuedEdit(msg.id)"
+              >
+                <Pencil class="h-3 w-3" :stroke-width="2" />
+              </button>
+              <button
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                :disabled="sendingFollowUp"
+                :title="t('run.queuedSendNow')"
+                :aria-label="t('run.queuedSendNow')"
+                @click="sendQueuedNow(msg.id)"
+              >
+                <Send class="h-3 w-3" :stroke-width="2" />
+              </button>
+              <button
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer"
+                :title="t('run.queuedRemove')"
+                :aria-label="t('run.queuedRemove')"
+                @click="removeQueuedMessage(msg.id)"
+              >
+                <X class="h-3 w-3" :stroke-width="2.5" />
+              </button>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- Pasted/attached image thumbnails -->
@@ -297,31 +360,40 @@ const {
               <Square class="h-3.5 w-3.5" :stroke-width="2" fill="currentColor" />
               {{ t('run.cancel') }}
             </Button>
-            <!-- Steer: both engines take input mid-turn (D4-06 spike). -->
-            <Button
-              v-if="currentStatus === 'running' && !primaryDisabled && features.isOn('sessions.steer')"
-              variant="outline"
-              class="shrink-0"
-              :title="t('run.steerTitle')"
-              @click="handleSendFollowUp(true)"
-            >
-              <Navigation class="h-3.5 w-3.5" :stroke-width="2" />
-              {{ t('run.steer') }}
-            </Button>
             <!-- While running, Cancel is the only action unless there is a
-                 follow-up typed — a disabled Send next to it is just noise. -->
+                 follow-up typed. Then the split action: Steer puts it into the
+                 turn now (both engines take input mid-turn, D4-06 spike), Queue
+                 (Enter) sends it once the turn ends. -->
+            <div v-if="currentStatus === 'running' && !primaryDisabled" class="inline-flex shrink-0">
+              <Button
+                v-if="features.isOn('sessions.steer')"
+                variant="outline"
+                class="rounded-r-none border-r-0"
+                :title="t('run.steerTitle')"
+                @click="handleSendFollowUp(true)"
+              >
+                <Navigation class="h-3.5 w-3.5" :stroke-width="2" />
+                {{ t('run.steer') }}
+              </Button>
+              <Button
+                :class="{ 'rounded-l-none': features.isOn('sessions.steer') }"
+                :title="t('run.queueTitle')"
+                @click="handleQueue"
+              >
+                <Clock class="h-3.5 w-3.5" :stroke-width="2" />
+                {{ t('run.queue') }}
+              </Button>
+            </div>
             <Button
-              v-if="currentStatus !== 'running' || !primaryDisabled"
+              v-if="currentStatus !== 'running'"
               class="shrink-0"
               :disabled="primaryDisabled"
               @click="handlePrimaryAction"
-              :title="currentStatus === 'running'
-                ? t('run.sendMessageEnter')
-                : currentStatus === 'fetched'
-                  ? t('run.startRunEnter')
-                  : chatEligible
-                    ? t('run.resumeAndSend')
-                    : t('run.rerunWithDefault')"
+              :title="currentStatus === 'fetched'
+                ? t('run.startRunEnter')
+                : chatEligible
+                  ? t('run.resumeAndSend')
+                  : t('run.rerunWithDefault')"
             >
               <component :is="chatSendLabel === t('run.sendLabelRun') ? Play : Send" class="h-3.5 w-3.5" :stroke-width="2" />
               {{ chatSendLabel }}

@@ -50,9 +50,17 @@ export function appendQuoteToDraft(runId: string, text: string, source?: QuoteSo
   drafts.set(runId, { ...draft, text: appendQuote(draft.text, text, source) })
 }
 
-export async function sendQuote(runId: string, text: string, source: QuoteSource): Promise<void> {
+/**
+ * The one window that writes a run's composer state: its session pop-out when
+ * open, else the main window. The message queue (UX-25) sends from it too.
+ */
+export async function composerWindowLabel(runId: string): Promise<string> {
   const session = sessionWindowLabel(runId)
-  const writer = (await WebviewWindow.getByLabel(session)) ? session : popoutLabel('main')
+  return (await WebviewWindow.getByLabel(session)) ? session : popoutLabel('main')
+}
+
+export async function sendQuote(runId: string, text: string, source: QuoteSource): Promise<void> {
+  const writer = await composerWindowLabel(runId)
   await emit(QUOTE_APPEND, { runId, text, source, writer } satisfies QuoteAppend)
 }
 

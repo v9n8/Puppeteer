@@ -1,18 +1,21 @@
 // The composer and everything that sends from it: run settings (model, Claude
 // account, permission), the per-session draft with attachments, quotes, slash
-// commands, @-mentions, saved prompts, and start / follow-up / steer / cancel /
-// engine handoff. Part of the RunView split (see useRunSession.ts).
+// commands, @-mentions, saved prompts, and start / follow-up / steer / queue /
+// cancel / engine handoff. Part of the RunView split (see useRunSession.ts).
 import { ref, computed, onBeforeUnmount, onUnmounted, watch, nextTick } from 'vue'
 import type { RunRecord, ProjectEntry } from '@/stores/runs'
 import { invoke } from '@/lib/tauri'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Cpu, Terminal } from 'lucide-vue-next'
 import { type SavedPrompt, parseSavedPrompts } from '@/lib/savedPrompts'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
 import { appendQuote, type QuoteSource } from '@/lib/quote'
-import { appendQuoteToDraft, registerQuoteComposer } from '@/lib/quoteAppend'
+import { appendQuoteToDraft, composerWindowLabel, registerQuoteComposer } from '@/lib/quoteAppend'
+import { emptyQueue, queuedPreview, type QueuedMessage } from '@/lib/messageQueue'
+import { useMessageQueueStore } from '@/stores/messageQueue'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import {
   latestChecklist, mergeChecklistIntoDraft, parseChecklistBlock, type TodoItem,
@@ -40,6 +43,13 @@ interface PendingFile {
   id: string
   name: string
   path: string
+}
+
+/** One message on its way out, whether typed in the composer or taken from the queue. */
+interface OutgoingMessage {
+  text: string
+  images: ImageAttachment[]
+  filePaths: string[]
 }
 
 export function useRunComposer(core: RunSessionCore, conductor: RunConductor, log: RunLog, header: RunHeaderInfo) {
@@ -170,24 +180,27 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     }
   }
 
-  // Preflight the run-blocking guardrail for `engine` BEFORE the UI echoes the
-  // user's message or flips a run into "running". Returns the override flag to
-  // pass to the backend (false = under budget, true = user chose to proceed
-  // anyway), or `null` when the user declines — in which case the caller must
-  // abort without touching the timeline.
-  async function preflightBudget(engine: string): Promise<boolean | null> {
-    let isOver = false
+  // Whether the run-blocking guardrail for `engine` refuses a new turn right now.
+  async function budgetIsOver(engine: string): Promise<boolean> {
     try {
       const status = await invoke<{ is_over: boolean }>('get_run_budget', {
         engine,
         runId: currentRunId.value,
         projectId: projectId.value,
       })
-      isOver = status.is_over
+      return status.is_over
     } catch {
       return false // can't determine the verdict → don't block the user
     }
-    if (!isOver) return false
+  }
+
+  // Preflight the run-blocking guardrail for `engine` BEFORE the UI echoes the
+  // user's message or flips a run into "running". Returns the override flag to
+  // pass to the backend (false = under budget, true = user chose to proceed
+  // anyway), or `null` when the user declines — in which case the caller must
+  // abort without touching the timeline.
+  async function preflightBudget(engine: string): Promise<boolean | null> {
+    if (!(await budgetIsOver(engine))) return false
     const proceed = await confirm({
       title: t('run.budgetExceededTitle'),
       message: t('run.budgetConfirmMessage'),
@@ -717,7 +730,6 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   const chatSendLabel = computed(() => {
     if (sendingFollowUp.value) return t('run.sendLabelSending')
-    if (currentStatus.value === 'running') return t('run.sendLabelSend')
     if (currentStatus.value === 'fetched') return t('run.sendLabelRun')
     if (!chatEligible.value) return t('run.sendLabelRun')
     return t('run.sendLabelResume')
@@ -741,10 +753,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   })
 
   // One entry point for the footer's primary button: cancel while running is a
-  // separate button, so here we either send a typed message/resume, or kick off
-  // the default-prompt run when nothing was typed.
+  // separate button, so here we either queue / send a typed message / resume, or
+  // kick off the default-prompt run when nothing was typed.
   function handlePrimaryAction() {
-    if (currentStatus.value === 'running') { handleSendFollowUp(); return }
+    if (currentStatus.value === 'running') { handleQueue(); return }
     const hasInput = followUpInput.value.trim().length > 0 || pendingImages.value.length > 0 || pendingFiles.value.length > 0
     if (!hasInput && (currentStatus.value === 'fetched' || !chatEligible.value)) {
       handleStartRun()
@@ -1116,10 +1128,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         return
       }
     }
-    // Enter (no Shift) sends; Shift+Enter inserts a newline.
+    // Enter (no Shift) sends, or queues while a turn runs; Shift+Enter inserts a newline.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSendFollowUp()
+      if (currentStatus.value === 'running') handleQueue()
+      else handleSendFollowUp()
     }
   }
 
@@ -1131,7 +1144,23 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const hasImages = pendingImages.value.length > 0
     const hasFiles = pendingFiles.value.length > 0
     if ((!text && !hasImages && !hasFiles) || !currentRunId.value || sendingFollowUp.value) return
-    const id = currentRunId.value
+    const result = await sendMessage(
+      currentRunId.value,
+      () => ({ text, images: takePendingImages(), filePaths: takePendingFilePaths() }),
+      steer,
+    )
+    if (result === 'sent') followUpInput.value = ''
+  }
+
+  // Send one message to the run on screen: the first message of a fetched run,
+  // a follow-up (resuming a finished run), or a steer. `take` hands over the
+  // message only once the budget is confirmed, so on a decline it stays where
+  // it was. 'failed' means it may already be echoed in the timeline.
+  async function sendMessage(
+    id: string,
+    take: () => OutgoingMessage,
+    steer = false,
+  ): Promise<'sent' | 'declined' | 'failed'> {
     const isFetched = currentStatus.value === 'fetched'
     const wasRunning = currentStatus.value === 'running'
     const runEngine =
@@ -1141,17 +1170,16 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       // Always confirm the budget BEFORE echoing anything into the timeline. On
       // decline nothing is pushed and no "thinking" indicator appears.
       const override = await preflightBudget(runEngine)
-      if (override === null) return
+      if (override === null) return 'declined'
 
-      const images = takePendingImages()
-      const prompt = composePrompt(text, takePendingFilePaths())
+      const { text, images, filePaths } = take()
+      const prompt = composePrompt(text, filePaths)
 
       if (isFetched) {
         // First message of a fetched run (fresh session or issue/PR): it becomes
         // the conductor goal.
         await launchConductor(id, prompt, images, override)
-        followUpInput.value = ''
-        return
+        return 'sent'
       }
 
       // This run becomes the live conversation. If we were viewing its on-disk
@@ -1189,13 +1217,136 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         // The snapshot turn it was logged under: "Rewind to here" finds it by this.
         if (turn !== null && sent.kind === 'user') sent.turn = turn
       }
-      followUpInput.value = ''
+      return 'sent'
     } catch (e) {
       live.appendOutput(id, t('run.sendFailed', { error: String(e) }))
+      return 'failed'
     } finally {
       sendingFollowUp.value = false
     }
   }
+
+  // ── Message queue (UX-25) ─────────────────────────────────────────────────
+  // While a turn runs, Queue (and Enter) parks the whole draft as a chip above
+  // the composer instead of sending it. When the turn ends well, the first chip
+  // goes out as a normal follow-up, one per turn end; a failed or cancelled
+  // turn, or a blocked budget, keeps them all. Rules: lib/messageQueue; storage:
+  // stores/messageQueue.
+  //
+  // Only the window that takes this run's quotes sends from its queue (the
+  // session pop-out when open, else the main window), and only while it shows
+  // the run, because the send uses this composer's model / permission picks. A
+  // turn that ends while the run is not on screen there leaves the chips for
+  // the user to send. A remote controller doesn't see or drain this queue.
+  const queueStore = useMessageQueueStore()
+  const runQueue = computed(() => (currentRunId.value ? queueStore.get(currentRunId.value) : emptyQueue()))
+  const queuedMessages = computed(() =>
+    runQueue.value.items.map((item) => ({
+      id: item.id,
+      text: item.draft.text,
+      label: queuedPreview(item),
+      attachments: item.draft.images.length + item.draft.files.length,
+    })),
+  )
+  // Why the chips are still waiting, shown above them once no turn is running.
+  const queueNotice = computed(() => {
+    if (!runQueue.value.items.length || currentStatus.value === 'running' || sendingFollowUp.value) return ''
+    const hold = runQueue.value.hold
+    if (hold === 'failed') return t('run.queueHeldFailed')
+    if (hold === 'cancelled') return t('run.queueHeldCancelled')
+    if (hold === 'budget') return t('run.queueHeldBudget')
+    return t('run.queueWaiting')
+  })
+
+  function handleQueue() {
+    mentionOpen.value = false
+    slashOpen.value = false
+    const id = currentRunId.value
+    if (!id || sendingFollowUp.value) return
+    const draft = {
+      text: followUpInput.value,
+      images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
+      files: pendingFiles.value.map(({ name, path }) => ({ name, path })),
+    }
+    if (!draft.text.trim() && !draft.images.length && !draft.files.length) return
+    queueStore.enqueue(id, draft)
+    followUpInput.value = ''
+    pendingImages.value = []
+    pendingFiles.value = []
+  }
+
+  function outgoingOf(item: QueuedMessage): OutgoingMessage {
+    return {
+      text: item.draft.text.trim(),
+      images: item.draft.images,
+      filePaths: item.draft.files.map((f) => f.path),
+    }
+  }
+
+  async function ownsQueue(runId: string): Promise<boolean> {
+    try {
+      return getCurrentWebviewWindow().label === (await composerWindowLabel(runId))
+    } catch {
+      return true // outside the Tauri shell: this is the only window
+    }
+  }
+
+  async function drainQueue(runId: string, status: string) {
+    if (!queueStore.get(runId).items.length || !(await ownsQueue(runId))) return
+    const engine = loadedRunEngine.value || currentRun.value?.engine || effectiveEngine.value
+    const overBudget = status === 'done' && (await budgetIsOver(engine))
+    if (currentRunId.value !== runId) return // switched away meanwhile: the chips wait
+    if (editingQueuedId.value) saveQueuedEdit() // send what the chip shows, not the old text
+    const item = queueStore.turnEnded(runId, { status, overBudget })
+    if (!item) return
+    // Another send (typed, remote, a conductor wake) already started the next
+    // turn: this one waits for that turn to end.
+    if (sendingFollowUp.value || currentStatus.value === 'running') {
+      queueStore.requeue(runId, item, null)
+      return
+    }
+    const result = await sendMessage(runId, () => outgoingOf(item))
+    if (result === 'declined') queueStore.requeue(runId, item, 'budget')
+    else if (result === 'failed') queueStore.requeue(runId, item, 'failed')
+  }
+  onUnmounted(live.onAnyDone((runId, _projectId, status) => {
+    if (runId === currentRunId.value) void drainQueue(runId, status)
+  }))
+
+  // A chip's Send: now, as a follow-up. While a turn runs the engine starts it
+  // right after that turn, as a typed Send used to.
+  async function sendQueuedNow(itemId: string) {
+    const runId = currentRunId.value
+    if (!runId || sendingFollowUp.value) return
+    const item = queueStore.take(runId, itemId)
+    if (!item) return
+    const result = await sendMessage(runId, () => outgoingOf(item))
+    if (result === 'declined') queueStore.requeue(runId, item, 'budget')
+    else if (result === 'failed') queueStore.requeue(runId, item, 'failed')
+  }
+
+  function removeQueuedMessage(itemId: string) {
+    if (currentRunId.value) queueStore.remove(currentRunId.value, itemId)
+  }
+
+  // Inline edit of one chip's text (its attachments stay).
+  const editingQueuedId = ref<string | null>(null)
+  const queuedEditText = ref('')
+  function startQueuedEdit(itemId: string) {
+    const msg = queuedMessages.value.find((m) => m.id === itemId)
+    if (!msg) return
+    editingQueuedId.value = itemId
+    queuedEditText.value = msg.text
+  }
+  function saveQueuedEdit() {
+    const itemId = editingQueuedId.value
+    editingQueuedId.value = null
+    if (itemId && currentRunId.value) queueStore.edit(currentRunId.value, itemId, queuedEditText.value)
+  }
+  function cancelQueuedEdit() {
+    editingQueuedId.value = null
+  }
+  watch(currentRunId, () => { editingQueuedId.value = null })
 
   // Permission / question prompts no longer live in this view at all: the global
   // PermissionWindowManager opens one standalone window per run that is asking (this
@@ -1252,7 +1403,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, openFile, mentionItems,
     selectMention, savedPrompts, insertSavedPrompt, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
-    handleCancel, selectionSurface,
+    handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
+    removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
+    cancelQueuedEdit,
   }
 }
 
