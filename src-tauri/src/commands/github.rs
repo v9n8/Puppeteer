@@ -61,6 +61,11 @@ pub struct RunRecord {
     /// History list nest workers under their conductor without a per-row lookup.
     #[serde(default)]
     pub conductor_run_id: Option<String>,
+    /// Response style the run last ran with (`runs.style`, UX-17): a built-in
+    /// key or a style id. Only `list_runs` fills it; the composer's style chip
+    /// shows it, since a resume keeps it.
+    #[serde(default)]
+    pub style: Option<String>,
 }
 
 /// Repo identity loaded from the `repos` row, used to branch fetch by provider
@@ -352,6 +357,7 @@ pub async fn fetch_issue(
         protected: false,
         role: None,
         conductor_run_id: None,
+        style: None,
     })
 }
 
@@ -725,6 +731,7 @@ pub async fn fetch_pr(
         protected: false,
         role: None,
         conductor_run_id: None,
+        style: None,
     })
 }
 
@@ -870,6 +877,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
         protected: row.get::<i64, _>("protected") != 0,
         role: None,
         conductor_run_id: None,
+        style: None,
     })
 }
 
@@ -898,7 +906,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // reports as `last_activity_at`, so the list and the timestamp the UI prints
     // can never disagree.
     let rows = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id,
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC
@@ -931,6 +939,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
         protected: row.get::<i64, _>("protected") != 0,
         role: row.get("role"),
         conductor_run_id: row.get("conductor_run_id"),
+        style: row.get("style"),
     }).collect())
 }
 
@@ -2349,5 +2358,26 @@ mod tests {
 
         let failed = serde_json::json!({ "data": null, "errors": [{ "message": "rate limited" }] });
         assert_eq!(parse_review_requests_page(&failed, &own).unwrap_err(), "rate limited");
+    }
+
+    /// The composer's style chip (UX-26) reads the style a run last ran with from History.
+    #[tokio::test]
+    async fn list_runs_reports_each_run_style() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at, style) VALUES \
+             ('r1', 'p1', 'session', '2026-01-01', 'concise'), ('r2', 'p1', 'session', '2026-01-02', NULL)",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let runs = super::list_runs_inner(&db, "p1").await.unwrap();
+        let got: Vec<(&str, Option<&str>)> = runs.iter().map(|r| (r.id.as_str(), r.style.as_deref())).collect();
+        assert_eq!(got, [("r2", None), ("r1", Some("concise"))]);
     }
 }

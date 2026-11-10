@@ -145,6 +145,11 @@ export interface RunRecord {
    * the History list nest workers under their conductor.
    */
   conductor_run_id?: string | null
+  /**
+   * Response style the run last ran with (a built-in key or a style id), which a
+   * resume keeps. Only `list_runs` fills it.
+   */
+  style?: string | null
 }
 
 /**

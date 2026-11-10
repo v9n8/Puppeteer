@@ -5,20 +5,20 @@
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, ShieldQuestion, UserCircle, Navigation, Clock, Pencil,
+  Paperclip, UserCircle, Navigation, Clock, Pencil,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
-import { PERMISSION_MODE_OPTIONS } from '@/lib/engineOptions'
+import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
 import RunMcpSection from './RunMcpSection.vue'
 
 const { t } = useI18n()
 const {
-  features, projectId, modelOverride, permissionMode, session, currentStatus, runSettingsOpen,
+  features, projectId, modelOverride, session, currentStatus, runSettingsOpen,
   runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle, toggleRunSettingsMenu,
   closeRunSettingsMenu, modelOptions, onModelSelect, composerModelLabel, followUpInput,
   sendingFollowUp, selectedClaudeAccountId, claudeAccountOptions, showClaudeAccountSelect, claudeAccountSelectDisabled,
@@ -320,24 +320,6 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                       </template>
                     </AppSelect>
                   </div>
-                  <div class="space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
-                      <ShieldQuestion class="h-3 w-3 shrink-0" :stroke-width="1.5" />
-                      <span>{{ t('run.permissionSetting') }}</span>
-                    </div>
-                    <AppSelect
-                      v-model="permissionMode"
-                      size="sm"
-                      :options="PERMISSION_MODE_OPTIONS"
-                      :disabled="currentStatus === 'running'"
-                      class="w-full"
-                      :title="t('run.permissionModeTitle')"
-                    >
-                      <template #leading>
-                        <span class="text-2xs font-mono text-muted-foreground shrink-0">{{ t('run.perm') }}</span>
-                      </template>
-                    </AppSelect>
-                  </div>
                   <RunMcpSection
                     v-if="currentRunId"
                     :run-id="currentRunId"
@@ -347,6 +329,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               </div>
             </transition>
           </div>
+          <RunComposerChips />
 
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
             <Button

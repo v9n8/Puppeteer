@@ -25,6 +25,11 @@ const props = withDefaults(defineProps<{
   // of chips (the detail windows' project chip): bordered, raised, clearly a control.
   variant?: 'default' | 'ghost' | 'outline'
   disabled?: boolean
+  // A compact chip (the composer's) names its value shortly on the closed
+  // trigger, while the menu keeps the full option labels.
+  triggerLabel?: string
+  // Accessible name of the trigger when its text alone is too terse.
+  ariaLabel?: string
 }>(), {
   placeholder: 'Select…',
   size: 'sm',
@@ -207,7 +212,7 @@ watch(isOpen, (val) => {
       :disabled="disabled"
       :aria-haspopup="'listbox'"
       :aria-expanded="isOpen"
-      :aria-label="displayLabel"
+      :aria-label="ariaLabel ?? displayLabel"
       class="flex w-full items-center gap-2 rounded-md border transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
       :class="[
         controlSize[size],
@@ -229,7 +234,7 @@ watch(isOpen, (val) => {
         <span
           class="truncate min-w-0"
           :class="selectedOption ? 'text-foreground' : 'text-muted-foreground'"
-        >{{ displayLabel }}</span>
+        >{{ triggerLabel ?? displayLabel }}</span>
       </span>
       <ChevronDown
         class="shrink-0 text-muted-foreground transition-transform duration-200"

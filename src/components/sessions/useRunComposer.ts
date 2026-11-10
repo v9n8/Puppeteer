@@ -32,6 +32,7 @@ import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
 import type { RunHeaderInfo } from './useRunHeaderInfo'
+import { useComposerChips } from './useComposerChips'
 
 interface PendingImage extends ImageAttachment {
   id: string
@@ -70,6 +71,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   const {
     captureContext,
   } = header
+  // Permission mode / effort / style chips (UX-26); their picks join every launch below.
+  const chips = useComposerChips(core)
 
   const runSettingsOpen = ref(false)
   const runSettingsRoot = ref<HTMLElement | null>(null)
@@ -232,6 +235,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     await live.startListening(id, projectId.value)
 
     try {
+      const { effort, style } = chips.chipOverrides(engine)
       await runsStore.startRun(
         id,
         engine,
@@ -240,6 +244,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         modelOverride.value || undefined,
         undefined,
         override,
+        effort,
+        style,
       )
     } catch (e) {
       live.setStatus(id, 'failed')
@@ -286,6 +292,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     engineChoice?: string,
   ) {
     const engine = engineChoice || effectiveEngine.value
+    // Before the switch below: a handoff launches a new run with this session's picks.
+    const { effort, style } = chips.chipOverrides(engine)
+    if (currentRunId.value) chips.carryPicks(currentRunId.value, runId)
     scrollMemory.flush()
     currentRunId.value = runId
     clearHistoryView()
@@ -301,6 +310,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         maxWorkers: conductorMaxWorkers.value,
         engineOverride: engine,
         modelOverride: modelOverride.value || undefined,
+        effortOverride: effort,
+        styleOverride: style,
         permissionModeOverride: resolvePermissionMode(
           permissionMode.value,
           appSettings.settings?.default_permission_mode,
@@ -1197,7 +1208,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         live.setStatus(id, 'running')
         setLocalRunStatus(id, 'running')
         await live.startListening(id, projectId.value)
-        await runsStore.resumeRun(id, permissionMode.value || undefined, modelOverride.value || undefined, override)
+        const { effort, style } = chips.chipOverrides(runEngine)
+        await runsStore.resumeRun(id, permissionMode.value || undefined, modelOverride.value || undefined, override, effort, style)
       }
 
       if (steer && wasRunning) {
@@ -1397,6 +1409,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
     removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
     cancelQueuedEdit,
+    ...chips,
   }
 }
 
