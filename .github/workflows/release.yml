@@ -120,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: puppeteer-${{ matrix.target }}
-          path: src-tauri/target/${{ matrix.target }}/release/puppeteer
+          path: src-tauri/target/${{ matrix.target }}/release/Puppeteer
           if-no-files-found: error
           retention-days: 1
 
@@ -194,11 +194,11 @@ jobs:
           set -euo pipefail
           out=src-tauri/target/universal-apple-darwin/release
           mkdir -p "$out"
-          lipo -create -output "$out/puppeteer" \
-            binaries/puppeteer-aarch64-apple-darwin/puppeteer \
-            binaries/puppeteer-x86_64-apple-darwin/puppeteer
-          chmod +x "$out/puppeteer"
-          lipo -info "$out/puppeteer"
+          lipo -create -output "$out/Puppeteer" \
+            binaries/puppeteer-aarch64-apple-darwin/Puppeteer \
+            binaries/puppeteer-x86_64-apple-darwin/Puppeteer
+          chmod +x "$out/Puppeteer"
+          lipo -info "$out/Puppeteer"
 
       # No secrets keeps releases working before the Apple account is set up;
       # a partial set is a misconfiguration and fails rather than silently

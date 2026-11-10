@@ -1,6 +1,6 @@
 [package]
 name = "puppeteer"
-version = "0.13.0"
+version = "0.0.0"
 description = "AI coding agent for developers"
 authors = ["thainph"]
 edition = "2021"
@@ -8,6 +8,12 @@ edition = "2021"
 [lib]
 name = "puppeteer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Capitalised because `pnpm dev` runs the bare binary, and without a bundle the
+# macOS Dock names the app after the file.
+[[bin]]
+name = "Puppeteer"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
