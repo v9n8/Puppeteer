@@ -1,27 +1,32 @@
 <script setup lang="ts">
-// Settings → "Claude Accounts" (multi-account via CLAUDE_CONFIG_DIR): browser
-// login, validate, default account and the auto-balancer that moves the default.
-// SettingsView fetches the account store before showing the sections; the
-// auto-balance fields are keys of the shared settings form.
+// Settings → "Engines & accounts" → Claude card: CLI path, default model, and the
+// accounts (multi-account via CLAUDE_CONFIG_DIR): browser login, validate, default
+// account and the auto-balancer that moves the default. SettingsView fetches the
+// account store before showing the sections; the path, model and auto-balance
+// fields are keys of the shared settings form.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowRightLeft, LogIn, Pencil, Plus, ShieldAlert, Star, Trash2, UserCircle,
+  ArrowRightLeft, BadgeCheck, Cpu, Loader2, LogIn, Pencil, Plus, ShieldAlert, Star, Trash2, UserCircle,
 } from 'lucide-vue-next'
-import { Banner, Button, Card, Input, ToggleSwitch } from '@/components/ui'
+import { AppSelect, Banner, Button, Card, Input, ToggleSwitch } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useBudgetStore } from '@/stores/budget'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useSettingsForm } from './useSettingsForm'
+import { fmtRefreshed, useModelOptions } from './useModelOptions'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const budget = useBudgetStore()
 const { settings, loading } = useSettingsForm()
+const modelCatalog = useModelCatalogStore()
+const { claudeModelOptions } = useModelOptions()
 
 let unlistenDefaultChanged: UnlistenFn | null = null
 
@@ -217,9 +222,44 @@ onUnmounted(() => {
 <template>
   <Card body-class="p-4 space-y-4">
     <template #header>
-      <UserCircle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-      <span class="text-xs font-semibold">{{ t('settings.claude.title') }}</span>
+      <Cpu class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
+      <span class="text-xs font-semibold">{{ t('settings.engines.claude') }}</span>
     </template>
+      <div class="space-y-1.5">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engine.claudePath') }}</label>
+        <Input
+          v-model="settings.claude_path"
+          size="sm"
+          placeholder="/usr/local/bin/claude"
+          class="font-mono"
+        />
+      </div>
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
+          <button
+            class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+            :disabled="modelCatalog.validating"
+            :title="t('settings.ai.validateModelsTitle')"
+            @click="modelCatalog.validateClaude()"
+          >
+            <component :is="modelCatalog.validating ? Loader2 : BadgeCheck" class="h-3 w-3" :class="{ 'animate-spin': modelCatalog.validating }" :stroke-width="1.75" />
+            {{ modelCatalog.validating ? t('settings.ai.validating') : t('settings.ai.validate') }}
+          </button>
+        </div>
+        <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
+        <p v-if="modelCatalog.validationError" class="text-2xs text-warning">{{ t('settings.ai.validateError') }}</p>
+        <p v-else-if="modelCatalog.validating" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateRunning') }}</p>
+        <p v-else-if="modelCatalog.unsupportedModels.length" class="text-2xs text-warning">{{ t('settings.ai.validateSomeFailed', { models: modelCatalog.unsupportedModels.join(', '), when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
+        <p v-else-if="modelCatalog.validationCheckedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateAllOk', { when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
+        <p v-else class="text-2xs text-muted-foreground">{{ t('settings.ai.validateHint') }}</p>
+      </div>
+
+      <!-- Accounts -->
+      <div class="flex items-center gap-1.5 text-muted-foreground border-t border-border/60 pt-3">
+        <UserCircle class="h-3 w-3" :stroke-width="1.75" />
+        <span class="text-2xs font-semibold uppercase tracking-wider">{{ t('settings.engines.accounts') }}</span>
+      </div>
       <p class="text-2xs text-muted-foreground leading-relaxed">
         {{ t('settings.claude.intro') }}
       </p>

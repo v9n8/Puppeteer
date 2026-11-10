@@ -6,9 +6,8 @@
     "github": "Tài khoản GitHub",
     "gitlab": "Tài khoản GitLab",
     "aws": "Tài khoản AWS",
-    "claude": "Tài khoản Claude",
-    "engine": "Đường dẫn Engine",
-    "ai": "AI & Model",
+    "engines": "Engine & tài khoản",
+    "ai": "Mặc định khi chạy",
     "translate": "Dịch",
     "google": "Tài khoản Google",
     "usage": "Sử dụng & Ngân sách",
@@ -199,7 +198,6 @@
     "deleteMessage": "Xóa tài khoản AWS này? Các Project liên kết với nó sẽ bị hủy liên kết."
   },
   "claude": {
-    "title": "Tài khoản Claude",
     "intro": "Quản lý nhiều tài khoản Claude Code subscription. Mỗi tài khoản được tách riêng bằng profile (CLAUDE_CONFIG_DIR), nên bạn có thể chạy song song nhiều tài khoản và gán tài khoản cụ thể cho từng Project.",
     "securityNote": "Puppeteer không lưu mật khẩu hay OAuth token Claude — Claude Code tự quản lý thông tin đăng nhập. Thêm hoặc xóa tài khoản ở đây không ảnh hưởng tới login ~/.claude toàn cục.",
     "login": "Đăng nhập",
@@ -240,15 +238,19 @@
       "suggest": "Gợi ý: nên chuyển mặc định sang {account} để cân bằng mức dùng."
     }
   },
+  "engines": {
+    "claude": "Claude",
+    "codex": "Codex",
+    "accounts": "Tài khoản",
+    "advanced": "Nâng cao"
+  },
   "engine": {
-    "title": "Đường dẫn Engine",
     "claudePath": "Đường dẫn binary Claude",
     "codexPath": "Đường dẫn binary Codex",
     "extraArgs": "Tham số bổ sung",
     "extraArgsHint": "(áp dụng cho mọi lần chạy)"
   },
   "ai": {
-    "title": "AI & Model",
     "runDefaults": "Mặc định khi chạy",
     "modelDefault": "Mặc định (engine tự chọn)",
     "defaultEngine": "Engine mặc định",

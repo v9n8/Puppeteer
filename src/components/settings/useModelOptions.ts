@@ -1,6 +1,6 @@
-// Claude / Codex model choices shared by Settings → "AI & Models" (the default
-// models) and Settings → "Translation" (the translate model), so both selects
-// offer the same list.
+// Claude / Codex model choices shared by Settings → "Engines & accounts" (the
+// default model of each engine card) and Settings → "Translation" (the translate
+// model), so both selects offer the same list.
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -44,4 +44,11 @@ export function useModelOptions() {
   })
 
   return { claudeModelOptions, codexModelOptions }
+}
+
+/** Format a model-cache timestamp for the "last refreshed" hint. */
+export function fmtRefreshed(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '' : d.toLocaleString()
 }

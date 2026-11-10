@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, FileText, Sparkles, Github, Gitlab, Cloud, CloudCog, Gauge, Radio,
-  HardDrive, UserCircle, Inbox, Target, ToggleRight, Command, Keyboard, Languages,
+  HardDrive, Inbox, Target, ToggleRight, Command, Keyboard, Languages,
 } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
 
@@ -26,8 +26,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'focus', group: 'general', labelKey: 'settings.sections.focus', icon: Target, feature: 'productivity.focus' },
   { id: 'palette', group: 'general', labelKey: 'settings.sections.palette', icon: Command, feature: 'app.command_palette' },
   { id: 'keymap', group: 'general', labelKey: 'settings.sections.keymap', icon: Keyboard, feature: 'app.command_palette' },
-  { id: 'claude', group: 'ai', labelKey: 'settings.sections.claude', icon: UserCircle },
-  { id: 'engine', group: 'ai', labelKey: 'settings.sections.engine', icon: Cpu },
+  { id: 'engines', group: 'ai', labelKey: 'settings.sections.engines', icon: Cpu },
   { id: 'ai', group: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
   { id: 'usage', group: 'ai', labelKey: 'settings.sections.usage', icon: Gauge },

@@ -20,8 +20,7 @@ import GoogleAccountsSettings from '@/components/settings/GoogleAccountsSettings
 import GithubAccountsSettings from '@/components/settings/GithubAccountsSettings.vue'
 import GitlabAccountsSettings from '@/components/settings/GitlabAccountsSettings.vue'
 import AwsAccountsSettings from '@/components/settings/AwsAccountsSettings.vue'
-import ClaudeAccountsSettings from '@/components/settings/ClaudeAccountsSettings.vue'
-import EnginePathsSettings from '@/components/settings/EnginePathsSettings.vue'
+import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import UsageBudgetSettings from '@/components/settings/UsageBudgetSettings.vue'
@@ -56,8 +55,11 @@ const route = useRoute()
 const devicesTab = ref<DevicesTab>('remote')
 // Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
 const DEVICES_TAB_OF: Record<string, DevicesTab> = { remote: 'remote', sync: 'backup', backup: 'backup' }
+// Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
+const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines' }
 function applySectionFromRoute() {
   let target = route.query.section
+  if (typeof target === 'string' && MERGED_INTO[target]) target = MERGED_INTO[target]
   if (typeof target === 'string' && DEVICES_TAB_OF[target]) {
     devicesTab.value = DEVICES_TAB_OF[target]
     target = 'devices'
@@ -175,8 +177,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <GitlabAccountsSettings v-show="activeSection === 'gitlab'" />
         <AwsAccountsSettings v-show="activeSection === 'aws'" />
         <AzureAccountsSettings v-show="activeSection === 'azure'" />
-        <ClaudeAccountsSettings v-show="activeSection === 'claude'" />
-        <EnginePathsSettings v-show="activeSection === 'engine'" />
+        <EnginesSettings v-show="activeSection === 'engines'" />
         <AiModelsSettings v-show="activeSection === 'ai'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <UsageBudgetSettings v-show="activeSection === 'usage'" />

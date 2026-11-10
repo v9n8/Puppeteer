@@ -6,9 +6,8 @@
     "github": "GitHub Accounts",
     "gitlab": "GitLab Accounts",
     "aws": "AWS Accounts",
-    "claude": "Claude Accounts",
-    "engine": "Engine Paths",
-    "ai": "AI & Models",
+    "engines": "Engines & accounts",
+    "ai": "Run defaults",
     "translate": "Translation",
     "google": "Google Account",
     "usage": "Usage & Budget",
@@ -199,7 +198,6 @@
     "deleteMessage": "Delete this AWS account? Projects linked to it will be unlinked."
   },
   "claude": {
-    "title": "Claude Accounts",
     "intro": "Manage multiple Claude Code subscription logins. Each account is isolated in its own profile (CLAUDE_CONFIG_DIR), so you can run in parallel with different accounts and link a specific account per project.",
     "securityNote": "Puppeteer never stores your Claude password or OAuth token — Claude Code owns the credential. Adding or removing an account here never touches your global ~/.claude login.",
     "login": "Login",
@@ -240,15 +238,19 @@
       "suggest": "Suggestion: switch the default to {account} to balance usage."
     }
   },
+  "engines": {
+    "claude": "Claude",
+    "codex": "Codex",
+    "accounts": "Accounts",
+    "advanced": "Advanced"
+  },
   "engine": {
-    "title": "Engine Paths",
     "claudePath": "Claude binary path",
     "codexPath": "Codex binary path",
     "extraArgs": "Extra args",
     "extraArgsHint": "(applied to all runs)"
   },
   "ai": {
-    "title": "AI & Models",
     "runDefaults": "Run defaults",
     "modelDefault": "Default (engine decides)",
     "defaultEngine": "Default Engine",
