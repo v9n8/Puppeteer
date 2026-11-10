@@ -31,6 +31,7 @@ pub mod notifications;
 pub mod project_git_accounts;
 pub mod project_links;
 pub mod projects;
+pub mod response_styles;
 pub mod rules;
 pub mod runs;
 pub mod session_search;

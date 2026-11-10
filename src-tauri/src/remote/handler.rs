@@ -828,6 +828,7 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
     let engine = cmd.engine.clone().filter(|s| !s.trim().is_empty());
     let model = cmd.model.clone().filter(|s| !s.trim().is_empty());
     let effort = cmd.effort.clone().filter(|s| !s.trim().is_empty());
+    let style = cmd.style.clone().filter(|s| !s.trim().is_empty());
     publish_run_meta(ctx, &run_id, engine.clone(), model.clone(), permission_mode.clone());
 
     // Continue-vs-fresh decision — mirrors the desktop `submitFollowUp`: an
@@ -888,6 +889,7 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
                 permission_mode.clone(),
                 model.clone(),
                 effort.clone(),
+                style.clone(),
                 Some(false),
             )
             .await
@@ -925,6 +927,7 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
         prompt_override: inline_mentions(cmd.text.as_deref(), &cmd.mentions),
         model_override: model,
         effort_override: effort,
+        style_override: style,
         images: convert_attachments(&cmd.attachments),
         override_budget: false,
         append_system_prompt: None,

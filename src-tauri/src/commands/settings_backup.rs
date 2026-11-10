@@ -7,7 +7,8 @@
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links. Sessions and
 //! usage history stay on the machine; the bookmarks on them travel, and land on the same session
-//! when the importing machine has it. The trash is local too: a project or session in it is not
+//! when the importing machine has it. The user's response styles travel too (a project's own ones
+//! with their project). The trash is local too: a project or session in it is not
 //! exported (nor the bookmarks on such a session).
 //!
 //! Secrets (PATs, MCP env/header VALUEs, Google OAuth client + refresh tokens, SSH passphrases and
@@ -120,6 +121,8 @@ struct Bundle {
     projects: Vec<ProjectEntry>,
     #[serde(default)]
     bookmarks: Vec<BookmarkEntry>,
+    #[serde(default)]
+    response_styles: Vec<ResponseStyleEntry>,
     /// `$HOME` of the exporting machine: project paths under it are moved under this machine's.
     #[serde(default)]
     home_dir: Option<String>,
@@ -421,6 +424,24 @@ struct BookmarkEntry {
     created_at: String,
 }
 
+/// A response style the user wrote (`commands::response_styles`). Matched by id (sessions and the
+/// `default_style` setting refer to it), else by name in the same scope. `project: None` is a
+/// global style; a project style whose project is not on this machine is skipped.
+#[derive(Serialize, Deserialize)]
+struct ResponseStyleEntry {
+    id: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+    body: String,
+    #[serde(default)]
+    position: i64,
+    created_at: String,
+    updated_at: String,
+    #[serde(default)]
+    project: Option<ProjectRef>,
+}
+
 /// Focus columns of `todos` (migration 0067) carried by a backup.
 const TODO_FOCUS_COLS: [&str; 16] = [
     "due_time",
@@ -703,6 +724,7 @@ impl Bundle {
             ("slackThreads", self.slack_threads.len()),
             ("projects", self.projects.len()),
             ("bookmarks", self.bookmarks.len()),
+            ("responseStyles", self.response_styles.len()),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
@@ -1208,6 +1230,8 @@ async fn collect(
     })
     .collect();
 
+    let response_styles = collect_response_styles(db).await?;
+
     let bundle = Bundle {
         format: FORMAT.to_string(),
         version: VERSION,
@@ -1235,10 +1259,44 @@ async fn collect(
         slack_channels,
         projects,
         bookmarks,
+        response_styles,
         home_dir: std::env::var("HOME").ok().filter(|h| !h.is_empty()),
         secrets: None,
     };
     Ok((bundle, secret))
+}
+
+/// The user's response styles, global first; a style of a project in the Trash stays local.
+async fn collect_response_styles(db: &Db) -> Result<Vec<ResponseStyleEntry>, String> {
+    let rows = sqlx::query(
+        "SELECT s.id, s.name, s.description, s.body, s.position, s.created_at, s.updated_at, \
+                p.name AS project_name, p.path AS project_path \
+         FROM response_styles s LEFT JOIN projects p ON p.id = s.project_id \
+         WHERE s.project_id IS NULL OR p.deleted_at IS NULL \
+         ORDER BY s.project_id IS NOT NULL, s.position",
+    )
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows
+        .iter()
+        .map(|row| ResponseStyleEntry {
+            id: row.get("id"),
+            name: row.get("name"),
+            description: row.get("description"),
+            body: row.get("body"),
+            position: row.get("position"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            project: project_name_path(row),
+        })
+        .collect())
+}
+
+fn project_name_path(row: &sqlx::sqlite::SqliteRow) -> Option<ProjectRef> {
+    let name: Option<String> = row.get("project_name");
+    let path: Option<String> = row.get("project_path");
+    Some(ProjectRef { name: name?, path: path? })
 }
 
 async fn collect_library_items(db: &Db, kind: LibraryKind) -> Result<Vec<LibraryItemEntry>, String> {
@@ -1872,6 +1930,10 @@ async fn apply_bundle(
             .warnings
             .push(format!("bookmarks: {orphan_bookmarks} skipped, their session is not on this machine"));
     }
+    for entry in &bundle.response_styles {
+        let result = import_response_style(db, entry).await;
+        report.record("responseStyles", &entry.name, result);
+    }
 
     if !bundle.slack_threads.is_empty() {
         import_slack_caches(db, &bundle, &mut report).await;
@@ -1938,6 +2000,7 @@ fn remap_bundle_paths(bundle: &mut Bundle, local_home: Option<&str>) {
         .iter_mut()
         .filter_map(|n| n.project.as_mut())
         .chain(bundle.todos.iter_mut().filter_map(|t| t.project.as_mut()))
+        .chain(bundle.response_styles.iter_mut().filter_map(|s| s.project.as_mut()))
         .chain(
             bundle
                 .slack_threads
@@ -2712,6 +2775,77 @@ async fn import_note(db: &Db, entry: &NoteEntry) -> Result<Upsert, String> {
     .bind(&entry.title)
     .bind(&entry.content)
     .bind(&project_id)
+    .bind(entry.position)
+    .bind(&entry.created_at)
+    .bind(&entry.updated_at)
+    .execute(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(Upsert::Created)
+}
+
+/// Merge a response style: the one with the same id, else the one with the same name in the same
+/// scope (global / its project), else a new one keeping the exported id.
+async fn import_response_style(db: &Db, entry: &ResponseStyleEntry) -> Result<Upsert, String> {
+    let name = entry.name.trim();
+    let body = entry.body.trim();
+    if name.is_empty() || body.is_empty() || body.chars().count() > crate::commands::response_styles::BODY_MAX_CHARS {
+        return Err("invalid response style".into());
+    }
+    let project_id = match &entry.project {
+        None => None,
+        Some(_) => Some(
+            resolve_project(db, &entry.project)
+                .await
+                .ok_or("its project is not on this machine")?,
+        ),
+    };
+    let by_id: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT id, project_id FROM response_styles WHERE id = ?")
+            .bind(&entry.id)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?;
+    let by_name: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM response_styles WHERE IFNULL(project_id, '') = IFNULL(?, '') AND name = ? COLLATE NOCASE",
+    )
+    .bind(&project_id)
+    .bind(name)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    // The same id in another scope stays where it is (the scope is part of what the user set up).
+    let target = by_id.map(|(id, _)| id).or(by_name);
+    if let Some(id) = target {
+        // A rename onto another local style's name fails on the unique index: reported, not merged.
+        let changed = sqlx::query(
+            "UPDATE response_styles SET name = ?, description = ?, body = ?, updated_at = ? \
+             WHERE id = ? AND (name IS NOT ? OR description IS NOT ? OR body IS NOT ?)",
+        )
+        .bind(name)
+        .bind(&entry.description)
+        .bind(body)
+        .bind(&entry.updated_at)
+        .bind(&id)
+        .bind(name)
+        .bind(&entry.description)
+        .bind(body)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected()
+            > 0;
+        return Ok(if changed { Upsert::Updated } else { Upsert::Unchanged });
+    }
+    sqlx::query(
+        "INSERT INTO response_styles (id, project_id, name, description, body, position, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&entry.id)
+    .bind(&project_id)
+    .bind(name)
+    .bind(&entry.description)
+    .bind(body)
     .bind(entry.position)
     .bind(&entry.created_at)
     .bind(&entry.updated_at)
@@ -3616,6 +3750,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn response_styles_round_trip_with_their_project() {
+        let source = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'web', '/src/web', 'c')")
+            .execute(&source)
+            .await
+            .unwrap();
+        let global = crate::commands::response_styles::create(&source, None, "Short", "d", "Be short.").await.unwrap();
+        crate::commands::response_styles::create(&source, Some("p1"), "Team", "", "Team text").await.unwrap();
+        let mut entries = collect_response_styles(&source).await.unwrap();
+        assert_eq!(entries.iter().map(|e| (e.name.as_str(), e.project.as_ref().map(|p| p.path.as_str()))).collect::<Vec<_>>(), [
+            ("Short", None),
+            ("Team", Some("/src/web")),
+        ]);
+
+        // Another machine: the project is found by name, the global style keeps its id.
+        let target = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p-here', 'web', '/other/web', 'c')")
+            .execute(&target)
+            .await
+            .unwrap();
+        for e in &entries {
+            assert_eq!(import_response_style(&target, e).await.unwrap(), Upsert::Created);
+        }
+        for e in &entries {
+            assert_eq!(import_response_style(&target, e).await.unwrap(), Upsert::Unchanged);
+        }
+        let rows: Vec<(String, Option<String>, String)> =
+            sqlx::query_as("SELECT id, project_id, body FROM response_styles ORDER BY name").fetch_all(&target).await.unwrap();
+        assert_eq!(rows[0], (global.id.clone(), None, "Be short.".to_string()));
+        assert_eq!((rows[1].1.as_deref(), rows[1].2.as_str()), (Some("p-here"), "Team text"));
+
+        // Edited text: updated in place. A same-name local style with another id: merged into it.
+        entries[0].body = "Be very short.".into();
+        assert_eq!(import_response_style(&target, &entries[0]).await.unwrap(), Upsert::Updated);
+        entries[0].id = "other-id".into();
+        entries[0].body = "Shorter.".into();
+        assert_eq!(import_response_style(&target, &entries[0]).await.unwrap(), Upsert::Updated);
+        let body: String = sqlx::query_scalar("SELECT body FROM response_styles WHERE id = ?")
+            .bind(&global.id)
+            .fetch_one(&target)
+            .await
+            .unwrap();
+        assert_eq!(body, "Shorter.");
+
+        // A project style whose project is not here is skipped; a broken entry is refused.
+        entries[1].project = Some(ProjectRef { name: "gone".into(), path: "/gone".into() });
+        assert!(import_response_style(&target, &entries[1]).await.is_err());
+        entries[0].body = " ".into();
+        assert!(import_response_style(&target, &entries[0]).await.is_err());
+    }
+
+    #[tokio::test]
     async fn bookmarks_land_on_the_same_session_or_are_skipped() {
         let db = test_db().await;
         for sql in [
@@ -3858,6 +4044,7 @@ mod tests {
             slack_channels: channels,
             projects: vec![],
             bookmarks: vec![],
+            response_styles: vec![],
             home_dir: None,
             secrets: None,
         };

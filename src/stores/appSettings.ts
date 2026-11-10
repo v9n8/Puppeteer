@@ -24,6 +24,8 @@ export interface AppSettings {
   default_permission_mode: string
   /** Default reasoning effort for new runs ('' = engine decides); see lib/engineOptions.ts EFFORT_LEVELS. */
   default_effort: string
+  /** Default response style of new sessions ('' = none): a built-in key or a style id (lib/responseStyles). UI in UX-18. */
+  default_style: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string

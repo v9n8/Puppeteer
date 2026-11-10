@@ -873,6 +873,7 @@ pub async fn focus_start_with_ai(
             prompt_override: Some(prompt),
             model_override: None,
             effort_override: None,
+            style_override: None,
             images: Vec::new(),
             override_budget: false,
             append_system_prompt: None,

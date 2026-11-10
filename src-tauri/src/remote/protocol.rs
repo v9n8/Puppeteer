@@ -696,6 +696,11 @@ pub struct CmdPayload {
     /// Blank/omitted falls back to the `default_effort` setting.
     #[serde(default)]
     pub effort: Option<String>,
+    /// Optional response style for `start_run` (UX-17): a built-in key or a
+    /// style id, honored like `effort`. Blank/omitted keeps the run's own style,
+    /// else the default style.
+    #[serde(default)]
+    pub style: Option<String>,
     /// `start_run` / `set_run_meta`: the permission mode to apply. Honored for
     /// execution (desktop parity); a blank/omitted value falls back to the
     /// settings default. Also mirrored to the desktop composer via the meta store.

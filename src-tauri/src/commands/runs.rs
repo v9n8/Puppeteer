@@ -44,6 +44,10 @@ pub struct StartRunPayload {
     /// `default_effort` setting; empty there means the engine's default.
     #[serde(default)]
     pub effort_override: Option<String>,
+    /// Per-run response style (UX-17): a built-in key or a style id. When
+    /// None/empty the run keeps its own stored style, else the default style.
+    #[serde(default)]
+    pub style_override: Option<String>,
     /// Images pasted into the composer for the first turn.
     #[serde(default)]
     pub images: Vec<ImageAttachment>,
@@ -158,7 +162,7 @@ pub(crate) async fn start_run_inner(
     // Load run + project info
     let run_row = sqlx::query(
         "SELECT r.id, r.project_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                r.system_instruction, r.worktree_path, p.path as project_path
+                r.system_instruction, r.worktree_path, r.style, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -176,6 +180,7 @@ pub(crate) async fn start_run_inner(
     let project_path: String = run_row.get("project_path");
     let existing_claude_account_id: Option<String> = run_row.get("claude_account_id");
     let stored_instruction: Option<String> = run_row.get("system_instruction");
+    let existing_style: Option<String> = run_row.get("style");
     // Where the agent works: a Conductor worker's own worktree, else the
     // project. Logs stay under the project either way.
     let cwd = crate::conductor::worktree::run_dir(
@@ -354,6 +359,15 @@ pub(crate) async fn start_run_inner(
     };
     let model = resolve_model_for_engine(&engine, payload.model_override, engine_default_model);
     let effort = resolve_effort(payload.effort_override, &default_effort);
+    // Response style: per-run pick > the run's own > defaults (response_styles).
+    let style = crate::commands::response_styles::resolve_run_style(
+        db,
+        &project_id,
+        payload.style_override.as_deref(),
+        existing_style.as_deref(),
+    )
+    .await;
+    let style_block = crate::commands::response_styles::resolved_block(style.as_ref());
 
     let custom_prompt = payload
         .prompt_override
@@ -404,10 +418,11 @@ pub(crate) async fn start_run_inner(
     sqlx::query(
         // A fresh start is a fresh Codex thread, re-seeded by its own thread/start
         // developer instructions (the sidecar reports `_puppeteer_framing_seeded`).
-        "UPDATE runs SET status = 'running', engine = ?, model = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
+        "UPDATE runs SET status = 'running', engine = ?, model = ?, style = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
     )
     .bind(&engine)
     .bind(&model)
+    .bind(style.as_ref().map(|s| s.key.as_str()))
     .bind(&started_at)
     .bind(&started_at)
     .bind(&payload.run_id)
@@ -510,18 +525,15 @@ pub(crate) async fn start_run_inner(
             if let Some(e) = &effort {
                 options["effort"] = serde_json::Value::String(e.clone());
             }
-            // Combine the git-account context with any caller-supplied system
-            // prompt (the Conductor's orchestration framing) into one append.
-            let mut append_parts: Vec<String> = Vec::new();
-            if let Some(ctx) = &account_context {
-                append_parts.push(ctx.clone());
-            }
-            if let Some(extra) = &extra_system_prompt {
-                append_parts.push(extra.clone());
-            }
-            if !append_parts.is_empty() {
-                options["appendSystemPrompt"] =
-                    serde_json::Value::String(append_parts.join("\n\n"));
+            // Combine the git-account context, any caller-supplied system prompt
+            // (the Conductor's orchestration framing) and the response style
+            // into one append.
+            if let Some(append) = crate::commands::response_styles::compose_append(&[
+                account_context.as_deref(),
+                extra_system_prompt.as_deref(),
+                style_block.as_deref(),
+            ]) {
+                options["appendSystemPrompt"] = serde_json::Value::String(append);
             }
             if auto_allow_conductor_tools {
                 options["allowedTools"] =
@@ -650,6 +662,10 @@ pub(crate) async fn start_run_inner(
     // Conductor framing / worker instruction → Codex developer instructions.
     if let Some(extra) = &extra_system_prompt {
         cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", extra);
+    }
+    // Response style → after the framing in the new thread's developer instructions.
+    if let Some(block) = &style_block {
+        cmd.env("PUPPETEER_CODEX_STYLE_INSTRUCTIONS", block);
     }
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -4086,6 +4102,7 @@ pub async fn resume_run(
     permission_mode_override: Option<String>,
     model_override: Option<String>,
     effort_override: Option<String>,
+    style_override: Option<String>,
     override_budget: Option<bool>,
 ) -> Result<(), String> {
     resume_run_with(
@@ -4096,6 +4113,7 @@ pub async fn resume_run(
         permission_mode_override,
         model_override,
         effort_override,
+        style_override,
         override_budget,
         true,
     )
@@ -4114,6 +4132,7 @@ pub(crate) async fn resume_run_with(
     permission_mode_override: Option<String>,
     model_override: Option<String>,
     effort_override: Option<String>,
+    style_override: Option<String>,
     override_budget: Option<bool>,
     stamp_activity: bool,
 ) -> Result<(), String> {
@@ -4121,7 +4140,7 @@ pub(crate) async fn resume_run_with(
 
     let row = sqlx::query(
         "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.worktree_path,
-                p.path as project_path
+                r.style, p.path as project_path
          FROM runs r JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
     )
@@ -4138,6 +4157,7 @@ pub(crate) async fn resume_run_with(
     let claude_account_id: Option<String> = row.get("claude_account_id");
     let project_path: String = row.get("project_path");
     let worktree_path: Option<String> = row.get("worktree_path");
+    let previous_style: Option<String> = row.get("style");
 
     // Resume uses the run-level account, else (NULL = "Default" in the UI) the
     // project → default account — the same profile a fresh start would pick and
@@ -4230,6 +4250,15 @@ pub(crate) async fn resume_run_with(
     };
     let model = resolve_model_for_engine(&engine, model_override, engine_default_model);
     let effort = resolve_effort(effort_override, &default_effort);
+    // The run keeps its style unless the resume picks another (response_styles).
+    let style = crate::commands::response_styles::resolve_run_style(
+        db.inner(),
+        &project_id,
+        style_override.as_deref(),
+        previous_style.as_deref(),
+    )
+    .await;
+    let style_block = crate::commands::response_styles::resolved_block(style.as_ref());
 
     let permission_mode = permission_mode_override
         .filter(|v| is_valid_permission_mode(v))
@@ -4318,16 +4347,17 @@ pub(crate) async fn resume_run_with(
     };
     let mark_running = if resume_session {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
+            "UPDATE runs SET status = 'running', model = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
         )
     } else {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
+            "UPDATE runs SET status = 'running', model = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
              transcript_path = NULL, transcript_synced_size = NULL, framing_seeded = 0 WHERE id = ?"
         )
     };
     sqlx::query(&mark_running)
         .bind(&model)
+        .bind(style.as_ref().map(|s| s.key.as_str()))
         .bind(&started_at)
         .bind(&started_at)
         .bind(&run_id)
@@ -4405,14 +4435,25 @@ pub(crate) async fn resume_run_with(
         // The sidecar reports `_puppeteer_framing_seeded`, which sets
         // runs.framing_seeded so later resumes don't repeat it.
         if !resume_session {
-            // Fresh thread: the framing goes in as developer instructions, as on start.
+            // Fresh thread: the framing and the style go in as developer
+            // instructions, as on start.
             if let Some(framing) = &framing {
                 cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", framing);
             }
-        } else if let Some(seed) =
-            crate::conductor::codex_resume_seed(framing.as_deref(), framing_seeded)
-        {
-            cmd.env("PUPPETEER_CODEX_SEED_FRAMING", seed);
+            if let Some(block) = &style_block {
+                cmd.env("PUPPETEER_CODEX_STYLE_INSTRUCTIONS", block);
+            }
+        } else {
+            if let Some(seed) = crate::conductor::codex_resume_seed(framing.as_deref(), framing_seeded) {
+                cmd.env("PUPPETEER_CODEX_SEED_FRAMING", seed);
+            }
+            // The thread keeps the style of its developer instructions; only a
+            // changed style is seeded, the same way (prepended to the next turn).
+            if let Some(seed) =
+                crate::commands::response_styles::codex_style_seed(previous_style.as_deref(), style.as_ref())
+            {
+                cmd.env("PUPPETEER_CODEX_SEED_STYLE", seed);
+            }
         }
     } else {
         cmd.env(
@@ -4455,10 +4496,12 @@ pub(crate) async fn resume_run_with(
         }
         // Sidecar fallbacks for a resumed first prompt that carries no options:
         // the Claude SDK does not persist an appended system prompt, so the
-        // framing (session framing and/or a worker's instruction) is re-sent on
-        // every resume.
-        if let Some(framing) = &framing {
-            cmd.env("PUPPETEER_APPEND_SYSTEM_PROMPT", framing);
+        // framing (session framing and/or a worker's instruction) and the
+        // response style are re-sent on every resume.
+        if let Some(append) =
+            crate::commands::response_styles::compose_append(&[None, framing.as_deref(), style_block.as_deref()])
+        {
+            cmd.env("PUPPETEER_APPEND_SYSTEM_PROMPT", append);
         }
         if conductor_launch.is_some() && sdk_permission_mode(&permission_mode) != "bypassPermissions" {
             cmd.env(

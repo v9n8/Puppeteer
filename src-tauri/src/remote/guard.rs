@@ -236,6 +236,10 @@ const AUDITED_COMMANDS: &[&str] = &[
     "restore_run",
     "trash_project",
     "restore_project",
+    // Response styles: their text goes into every session's system prompt.
+    "create_response_style",
+    "update_response_style",
+    "delete_response_style",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -848,6 +852,9 @@ mod tests {
             "restore_run",
             "trash_project",
             "restore_project",
+            "create_response_style",
+            "update_response_style",
+            "delete_response_style",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -877,6 +884,7 @@ mod tests {
             "devserver_list",
             "devserver_logs",
             "list_trash",
+            "list_response_styles",
         ] {
             assert!(!audited_command(name), "{name}");
         }

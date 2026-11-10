@@ -161,6 +161,8 @@ async fn session_spawn(
         model_override: model,
         // A worker takes the global default effort, like its engine's model.
         effort_override: None,
+        // …and the run's own / default response style.
+        style_override: None,
         images: Vec::new(),
         override_budget: false,
         append_system_prompt: instruction,
@@ -528,6 +530,7 @@ async fn session_send(
             Some(permission_mode),
             None,
             None,
+            None,
             Some(false),
             false,
         )
@@ -815,6 +818,7 @@ the human your final summary.";
                 app.state::<RunRegistry>(),
                 conductor_run_id.to_string(),
                 Some(permission_mode),
+                None,
                 None,
                 None,
                 Some(false),

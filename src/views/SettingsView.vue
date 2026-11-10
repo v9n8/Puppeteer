@@ -21,6 +21,7 @@ import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import UsageBudgetSettings from '@/components/settings/UsageBudgetSettings.vue'
 import PromptTemplatesSettings from '@/components/settings/PromptTemplatesSettings.vue'
+import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -162,6 +163,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />
         <EnginesSettings v-show="activeSection === 'engines'" />
         <AiModelsSettings v-show="activeSection === 'ai'" />
+        <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <UsageBudgetSettings v-show="activeSection === 'usage'" />
         <PromptTemplatesSettings v-show="activeSection === 'prompts'" />

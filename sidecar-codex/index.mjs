@@ -106,6 +106,12 @@ const DEVELOPER_INSTRUCTIONS = process.env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTION
 // ignores developerInstructions on thread/resume, so the broker hands us a
 // ready-made <session-framing> block to prepend to this sidecar's first turn.
 let SEED_FRAMING = process.env.PUPPETEER_CODEX_SEED_FRAMING || null
+// Response style (UX-17), kept apart from the framing so that only the framing
+// is reported as `_puppeteer_framing_seeded`. A NEW thread gets it after the
+// framing in `developerInstructions`; a RESUMED thread whose style changed gets
+// the broker's ready-made block prepended to its first turn, like SEED_FRAMING.
+const STYLE_INSTRUCTIONS = process.env.PUPPETEER_CODEX_STYLE_INSTRUCTIONS || null
+let SEED_STYLE = process.env.PUPPETEER_CODEX_SEED_STYLE || null
 // Session runs: stay up after a turn until the broker closes stdin (it does once
 // the turn's `result` leaves nothing queued), so a follow-up it hands over then
 // still finds the session. Without it (translation), a turn's end ends the session.
@@ -270,6 +276,8 @@ function buildMcpConfig() {
   delete env.PUPPETEER_CODEX_MCP
   delete env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS
   delete env.PUPPETEER_CODEX_SEED_FRAMING
+  delete env.PUPPETEER_CODEX_STYLE_INSTRUCTIONS
+  delete env.PUPPETEER_CODEX_SEED_STYLE
   if (!raw) return { args: [], env }
   let servers
   try {
@@ -374,6 +382,8 @@ function noToolsEnv() {
   delete env.PUPPETEER_CODEX_MCP
   delete env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS
   delete env.PUPPETEER_CODEX_SEED_FRAMING
+  delete env.PUPPETEER_CODEX_STYLE_INSTRUCTIONS
+  delete env.PUPPETEER_CODEX_SEED_STYLE
   return env
 }
 
@@ -1035,7 +1045,8 @@ async function bringUp() {
   } else {
     const startParams = { cwd: CWD, approvalPolicy, sandbox }
     if (MODEL) startParams.model = MODEL
-    if (DEVELOPER_INSTRUCTIONS) startParams.developerInstructions = DEVELOPER_INSTRUCTIONS
+    const developerInstructions = [DEVELOPER_INSTRUCTIONS, STYLE_INSTRUCTIONS].filter(Boolean).join('\n\n')
+    if (developerInstructions) startParams.developerInstructions = developerInstructions
     const result = rpcResult(await request('thread/start', startParams), 'thread/start')
     threadId = result?.thread?.id || null
     modelName = result?.model || null
@@ -1127,8 +1138,11 @@ async function startTurn(text, images) {
   // Prepend the one-time framing seed to the first turn of a resumed thread.
   // Claimed up front so a second turn queued meanwhile can't seed it twice.
   const seed = SEED_FRAMING
+  const styleSeed = SEED_STYLE
   SEED_FRAMING = null
-  if (seed) text = text ? `${seed}\n\n${text}` : seed
+  SEED_STYLE = null
+  const prefix = [seed, styleSeed].filter(Boolean).join('\n\n')
+  if (prefix) text = text ? `${prefix}\n\n${text}` : prefix
   // Re-apply the permission policy on EVERY turn (it overrides "for this turn
   // and subsequent turns"). This is essential for RESUMED threads: `thread/resume`
   // does NOT accept a policy, so a resumed session would otherwise keep whatever
@@ -1151,6 +1165,7 @@ async function startTurn(text, images) {
     ctrl('_puppeteer_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })
     ctrl('_puppeteer_turn_failed')
     if (seed) SEED_FRAMING = seed // not delivered — retry on the next turn
+    if (styleSeed) SEED_STYLE = styleSeed
     if (waitingPrompts.length) startNextWaiting()
     else if (inputClosed) shutdown(1)
   } else if (seed) {

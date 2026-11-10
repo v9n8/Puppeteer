@@ -162,19 +162,23 @@ pub fn codex_resume_seed(framing: Option<&str>, already_seeded: bool) -> Option<
     ))
 }
 
-/// Remove a leading framing seed (see [`codex_resume_seed`]) from a user
-/// message read back from a Codex rollout, so a reloaded transcript shows only
-/// what the user typed. Text without a leading seed is returned unchanged.
+/// Remove the leading framing seeds (see [`codex_resume_seed`]; a changed
+/// response style comes as a second block, `response_styles::codex_style_seed`)
+/// from a user message read back from a Codex rollout, so a reloaded transcript
+/// shows only what the user typed. Text without a leading seed is returned unchanged.
 pub fn strip_session_framing(text: &str) -> &str {
     const OPEN: &str = "<session-framing>";
     const CLOSE: &str = "</session-framing>";
-    let t = text.trim_start();
-    if !t.starts_with(OPEN) {
-        return text;
-    }
-    match t.find(CLOSE) {
-        Some(end) => t[end + CLOSE.len()..].trim_start(),
-        None => text,
+    let mut out = text;
+    loop {
+        let t = out.trim_start();
+        if !t.starts_with(OPEN) {
+            return out;
+        }
+        match t.find(CLOSE) {
+            Some(end) => out = t[end + CLOSE.len()..].trim_start(),
+            None => return out,
+        }
     }
 }
 
@@ -728,6 +732,8 @@ mod tests {
         assert_eq!(strip_session_framing(&format!("{seed}\n\nhello")), "hello");
         assert_eq!(strip_session_framing(&seed), "");
         assert_eq!(strip_session_framing("plain text"), "plain text");
+        // A changed response style comes as a second block (response_styles::codex_style_seed).
+        assert_eq!(strip_session_framing(&format!("{seed}\n\n{seed}\n\nhello")), "hello");
         // Not leading → user content, kept verbatim.
         let mid = format!("see this: {seed}");
         assert_eq!(strip_session_framing(&mid), mid);

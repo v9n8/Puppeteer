@@ -320,6 +320,7 @@ export const useRunsStore = defineStore('runs', () => {
     images?: ImageAttachment[],
     override_budget?: boolean,
     effort_override?: string,
+    style_override?: string,
   ): Promise<void> {
     await invoke('start_run', {
       payload: {
@@ -329,6 +330,7 @@ export const useRunsStore = defineStore('runs', () => {
         prompt_override: prompt_override ?? null,
         model_override: model_override ?? null,
         effort_override: effort_override ?? null,
+        style_override: style_override ?? null,
         images: images ?? [],
         override_budget: override_budget ?? false,
       },
@@ -531,12 +533,14 @@ export const useRunsStore = defineStore('runs', () => {
     model_override?: string,
     override_budget?: boolean,
     effort_override?: string,
+    style_override?: string,
   ): Promise<void> {
     await invoke('resume_run', {
       runId: run_id,
       permissionModeOverride: permission_mode_override ?? null,
       modelOverride: model_override ?? null,
       effortOverride: effort_override ?? null,
+      styleOverride: style_override ?? null,
       overrideBudget: override_budget ?? false,
     })
     touchRun(run_id)

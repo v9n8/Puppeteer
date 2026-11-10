@@ -264,6 +264,7 @@ async fn fire(app: &AppHandle, db: &Db, f: Firing) -> Result<String, String> {
         prompt_override: Some(f.prompt),
         model_override: None,
         effort_override: None,
+        style_override: None,
         images: Vec::new(),
         // A scheduled run never goes past the budget guard: nobody is there to confirm.
         override_budget: false,

@@ -286,6 +286,29 @@ const tests = {
     assert.equal(resumedHaiku.effort, undefined)
   },
 
+  // Response style (UX-17): the broker composes one append (account context,
+  // framing, style). It reaches the SDK on the preset prompt, and on a resume
+  // (first prompt without options) from PUPPETEER_APPEND_SYSTEM_PROMPT.
+  async 'response style reaches the appended system prompt, also on resume'() {
+    const style = '<response-style>\nBe short.\n</response-style>'
+    const initOptions = async (options, env = {}) => {
+      const { messages } = await runSidecar('permission', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', ...(options ? { options } : {}) })
+        if (msg.type === '_puppeteer_permission_request') {
+          ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+          ctl.closeInput()
+        }
+      }, 10_000, env)
+      return messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    }
+    const started = await initOptions({ permissionMode: 'default', appendSystemPrompt: `ACCOUNT\n\nFRAMING\n\n${style}` })
+    assert.deepEqual(started.systemPrompt, { type: 'preset', preset: 'claude_code', append: `ACCOUNT\n\nFRAMING\n\n${style}` })
+    const resumed = await initOptions(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_APPEND_SYSTEM_PROMPT: `FRAMING\n\n${style}` })
+    assert.equal(resumed.resume, 'sess-1')
+    assert.ok(resumed.systemPrompt.append.endsWith(style))
+    assert.equal(resumed.systemPrompt.preset, 'claude_code')
+  },
+
   // Steer (D4-06): a steer reaches the SDK as a user message with priority
   // `next` (folded into the running turn); a plain follow-up goes with `later`
   // (D4-15: a turn of its own, after the one in flight). Before any turn there

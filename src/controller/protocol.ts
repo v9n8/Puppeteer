@@ -996,6 +996,8 @@ export interface CmdPayload {
   model?: string
   /** Reasoning effort for `start_run`; honored by the Host like `model`. */
   effort?: string
+  /** Response style for `start_run` (built-in key or style id); honored like `effort`. */
+  style?: string
   permission_mode?: string
   slash_command?: string
   /** `@`-mentioned file paths (backticked into the prompt by the Host). */
@@ -1237,6 +1239,7 @@ export interface TurnInput {
   engine?: string
   model?: string
   effort?: string
+  style?: string
   permissionMode?: string
   slashCommand?: string
   mentions?: string[]
@@ -1270,6 +1273,7 @@ function withTurn(cmd: CmdPayload, input: TurnInput): CmdPayload {
   if (input.engine) cmd.engine = input.engine
   if (input.model) cmd.model = input.model
   if (input.effort) cmd.effort = input.effort
+  if (input.style) cmd.style = input.style
   if (input.permissionMode) cmd.permission_mode = input.permissionMode
   if (input.slashCommand) cmd.slash_command = input.slashCommand
   if (input.mentions && input.mentions.length) cmd.mentions = input.mentions

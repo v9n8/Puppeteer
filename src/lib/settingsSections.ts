@@ -2,6 +2,7 @@ import {
   Cpu, Palette, FileText, Sparkles, Plug, Gauge, Radio,
   Inbox, Target, ToggleRight, Command, Keyboard, Languages,
 } from 'lucide-vue-next'
+import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
 
 /** Headings of the Settings nav, in display order. */
@@ -28,6 +29,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'keymap', group: 'general', labelKey: 'settings.sections.keymap', icon: Keyboard, feature: 'app.command_palette' },
   { id: 'engines', group: 'ai', labelKey: 'settings.sections.engines', icon: Cpu },
   { id: 'ai', group: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
+  { id: 'styles', group: 'ai', labelKey: 'settings.sections.styles', icon: MessageSquareText },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
   { id: 'usage', group: 'ai', labelKey: 'settings.sections.usage', icon: Gauge },
   { id: 'prompts', group: 'ai', labelKey: 'settings.sections.prompts', icon: FileText },
