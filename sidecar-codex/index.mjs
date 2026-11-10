@@ -86,6 +86,13 @@ const CODEX_BIN = process.env.PUPPETEER_CODEX_PATH || 'codex'
 const RESUME_THREAD = process.env.PUPPETEER_RESUME_SESSION || null
 // Turns to roll back from the end of the resumed thread (a Rewind), else 0.
 const ROLLBACK_TURNS = RESUME_THREAD ? Math.max(0, Number.parseInt(process.env.PUPPETEER_ROLLBACK_TURNS, 10) || 0) : 0
+// Fork (UX-28): the resumed thread is copied (thread/fork) and this run goes on
+// in the copy, rolled back to the turns it keeps (counted from the start, so
+// turns the source added since the fork are dropped too).
+const FORK = !!RESUME_THREAD && process.env.PUPPETEER_FORK_SESSION === '1'
+const FORK_KEEP_TURNS = FORK && /^\d+$/.test(process.env.PUPPETEER_FORK_KEEP_TURNS || '')
+  ? Number(process.env.PUPPETEER_FORK_KEEP_TURNS)
+  : null
 const PERMISSION_MODE = process.env.PUPPETEER_PERMISSION_MODE || 'default'
 const MODEL = process.env.PUPPETEER_CODEX_MODEL || null
 // Reasoning effort (UX-16), sent on every turn/start (app-server v2: "for this
@@ -787,7 +794,7 @@ function emitMcpElicitation(rpcReqId, params) {
 }
 
 // ── translate codex item → Claude-shaped stream-json ──────────────────────
-let threadId = RESUME_THREAD
+let threadId = FORK ? null : RESUME_THREAD
 let modelName = null
 // Latest TokenUsageBreakdown for the current turn. The codex app-server reports
 // usage in a separate `thread/tokenUsage/updated` notification (not on
@@ -1030,18 +1037,20 @@ async function bringUp() {
   if (RESUME_THREAD) {
     // No developerInstructions here: Codex ignores them on resume (framing for a
     // resumed thread arrives via SEED_FRAMING instead).
-    const result = rpcResult(
-      await request('thread/resume', { threadId: RESUME_THREAD }),
-      'thread/resume',
-    )
-    threadId = result?.thread?.id || RESUME_THREAD
+    const method = FORK ? 'thread/fork' : 'thread/resume'
+    const result = rpcResult(await request(method, { threadId: RESUME_THREAD }), method)
+    threadId = result?.thread?.id || (FORK ? null : RESUME_THREAD)
+    // A fork must never go on in the source thread.
+    if (FORK && threadId === RESUME_THREAD) throw new Error('Codex returned the source thread for thread/fork')
     modelName = result?.model || null
     // Rewind: drop the turns after the rewind point before any new turn. Done
     // before system.init, which tells the broker the cut is applied; a failure
     // stops here, so no turn runs on the un-rewound thread.
     // Never more than the thread holds: an over-count must not fail every resume.
     const held = result?.thread?.turns?.length
-    const numTurns = Number.isInteger(held) ? Math.min(ROLLBACK_TURNS, held) : ROLLBACK_TURNS
+    const numTurns = FORK_KEEP_TURNS !== null
+      ? (Number.isInteger(held) ? Math.max(0, held - FORK_KEEP_TURNS) : 0)
+      : Number.isInteger(held) ? Math.min(ROLLBACK_TURNS, held) : ROLLBACK_TURNS
     if (numTurns > 0) {
       rpcResult(await request('thread/rollback', { threadId, numTurns }), 'thread/rollback')
     }

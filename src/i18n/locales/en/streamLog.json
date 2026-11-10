@@ -75,7 +75,8 @@
     "more": "More",
     "questionTitle": "Question",
     "answerTitle": "Answer",
-    "turnTitle": "Whole turn"
+    "turnTitle": "Whole turn",
+    "fork": "Fork from here"
   },
   "activity": {
     "steps": "{count} step | {count} steps",

@@ -161,7 +161,7 @@ jobs:
           if [[ "$RUNNER_OS" == Windows ]]; then
             echo "::notice::sidecar-codex tests skipped on Windows"
           else
-            for t in always-allow deny effort exit-signal framing-seed keychain-rules mcp-permission-key \
+            for t in always-allow deny effort exit-signal fork framing-seed keychain-rules mcp-permission-key \
                      no-tools-fail-closed no-tools queue rewind steer stdin-eof-midturn style; do
               run sidecar-codex "test-$t.mjs"
             done

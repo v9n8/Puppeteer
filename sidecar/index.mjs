@@ -43,7 +43,8 @@
 //
 // Resume: if options.resume is absent but PUPPETEER_RESUME_SESSION is set in env,
 // the first prompt resumes that session — from PUPPETEER_RESUME_AT (a transcript
-// entry uuid) when set, after a Rewind.
+// entry uuid) when set, after a Rewind; as a copy (a new session id) when
+// PUPPETEER_FORK_SESSION=1, for a Fork.
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { randomUUID } from 'node:crypto'
@@ -470,6 +471,9 @@ function startQuery(firstText, opts = {}, firstImages) {
   // Rewind: go on from this earlier entry of the session; what came after it
   // leaves the conversation (later resumes follow the new branch).
   if (resume && !opts.resume && process.env.PUPPETEER_RESUME_AT) options.resumeSessionAt = process.env.PUPPETEER_RESUME_AT
+  // Fork (UX-28): the resumed session is copied to a new session id, which this
+  // run goes on in; the source session is left as it is.
+  if (resume && !opts.resume && process.env.PUPPETEER_FORK_SESSION === '1') options.forkSession = true
   // Bare names are handled by canUseTool (see isAutoAllowed); only scoped rules
   // reach the SDK. An explicit empty list is kept as-is.
   if (allowedTools && (scopedAllowRules.length || !allowedTools.length)) {

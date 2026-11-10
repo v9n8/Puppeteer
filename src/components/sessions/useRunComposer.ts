@@ -24,6 +24,7 @@ import {
 } from '@/lib/todoChecklist'
 import { mergeContextModel } from '@/lib/contextLimits'
 import type { TurnSide } from '@/lib/turnActions'
+import { canForkRun } from '@/lib/runFork'
 import { matchProjectFile } from '@/lib/fileLinks'
 import { openFileWindow } from '@/lib/fileWindow'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
@@ -72,7 +73,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     outputEl, historyEl, viewingLogRunId, viewingLog, historyEntries, historyHasStream,
     historyContextTokens, historyModel, isViewingHistory, sourceText, stickToBottom,
     scrollOutputToBottom, scrollMemory, bookmarkState, toggleBookmark, snapshotTurns, rewindTarget,
-    clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes,
+    clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes, forkRun,
   } = log
   const {
     captureContext,
@@ -572,6 +573,13 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
           rewindTarget.value = { runId: run.id, turn }
         },
       }
+    },
+    // "Fork from here" under an answer: a stopped session the engine can fork
+    // (lib/runFork). The confirm says files are not touched.
+    fork: () => {
+      const run = currentRun.value
+      if (!run || currentStatus.value === 'running' || sendingFollowUp.value || !canForkRun(run)) return null
+      return { start: (promptAt: number) => void forkRun(run, promptAt) }
     },
     bookmarks: () => {
       const run = currentRun.value

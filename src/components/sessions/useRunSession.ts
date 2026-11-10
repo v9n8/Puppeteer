@@ -36,6 +36,7 @@ export function createRunSession(): RunSession {
   const composer = useRunComposer(core, conductor, log, header)
   late.closeRunSettingsMenu = composer.closeRunSettingsMenu
   late.dismissSelection = composer.selectionSurface.dismiss
+  late.carryPicks = composer.carryPicks
   const session: RunSession = { ...core, ...conductor, ...log, ...header, ...historyList, ...composer }
   useRunViewLifecycle(session)
   provide(RUN_SESSION, session)

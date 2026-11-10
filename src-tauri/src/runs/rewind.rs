@@ -56,11 +56,11 @@ struct LogCut {
     conversation: Result<EngineCut, &'static str>,
 }
 
-fn kind(v: &Value) -> Option<&str> {
+pub(super) fn kind(v: &Value) -> Option<&str> {
     v.get("type").and_then(Value::as_str)
 }
 
-fn init_session(v: &Value) -> Option<Option<String>> {
+pub(super) fn init_session(v: &Value) -> Option<Option<String>> {
     (kind(v) == Some("system") && v.get("subtype").and_then(Value::as_str) == Some("init"))
         .then(|| v.get("session_id").and_then(Value::as_str).map(str::to_string))
 }
@@ -68,7 +68,7 @@ fn init_session(v: &Value) -> Option<Option<String>> {
 /// A prompt Puppeteer handed the engine: a `user` record it wrote (no `uuid`,
 /// unlike the engine's own records) that is neither a tool result nor one of
 /// its own notes, nor a steer (added to a running turn, so no turn of its own).
-fn is_prompt(v: &Value) -> bool {
+pub(super) fn is_prompt(v: &Value) -> bool {
     if kind(v) != Some("user") || v.get("uuid").is_some() || v.get("note").is_some() || v.get("steer").is_some() {
         return false;
     }
@@ -83,7 +83,7 @@ fn is_prompt(v: &Value) -> bool {
 
 /// A transcript entry of the main conversation (not a subagent's), which a
 /// Claude resume can be cut after.
-fn chain_entry(v: &Value) -> Option<(&str, Option<&str>)> {
+pub(super) fn chain_entry(v: &Value) -> Option<(&str, Option<&str>)> {
     if !matches!(kind(v), Some("assistant") | Some("user")) {
         return None;
     }
@@ -191,7 +191,7 @@ pub fn pending(records: &[String]) -> Option<EngineCut> {
 
 /// Open the run log, never through a link: it lies in the project, where the
 /// agent writes, so a link there could point the rewind at any file.
-fn open_log(path: &Path, options: &mut std::fs::OpenOptions) -> std::io::Result<std::fs::File> {
+pub(super) fn open_log(path: &Path, options: &mut std::fs::OpenOptions) -> std::io::Result<std::fs::File> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;

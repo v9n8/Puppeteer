@@ -156,6 +156,11 @@ export interface RunRecord {
    * `list_runs` fills it; null = the engine's default, or an older run.
    */
   effort?: string | null
+  /**
+   * The session this one was forked from (UX-28); null when it was not, or that
+   * session was deleted since. `list_runs` and `fork_run` fill it.
+   */
+  forked_from_run_id?: string | null
 }
 
 /**
@@ -203,6 +208,12 @@ export interface DirEntry {
 export interface HandoffResult {
   run: RunRecord
   context_path: string
+}
+
+/** `fork_run`: the new session, and whether the engine conversation goes with it. */
+export interface ForkOutcome {
+  run: RunRecord
+  conversation: boolean
 }
 
 
@@ -641,6 +652,14 @@ export const useRunsStore = defineStore('runs', () => {
   }
 
   /**
+   * Fork a stopped session into a new one (UX-28): its whole conversation, or up
+   * to the end of the turn whose prompt record starts at byte `atOffset` of its log.
+   */
+  async function forkRun(run_id: string, atOffset?: number): Promise<ForkOutcome> {
+    return invoke<ForkOutcome>('fork_run', { runId: run_id, atOffset: atOffset ?? null })
+  }
+
+  /**
    * "Delete" moves the run and its workers to the Trash. Files stay until a
    * purge from the Trash screen, which reports any transcript left over.
    */
@@ -735,7 +754,7 @@ export const useRunsStore = defineStore('runs', () => {
     listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, listRunQuotes, exportTranscript,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
-    createHandoffRun, createSessionRun,
+    createHandoffRun, createSessionRun, forkRun,
     reconcileClaudeSessions, reconcileCodexSessions,
     deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunPinned, setRunProtected, touchRun,
   }

@@ -859,6 +859,7 @@ pub fn run() {
             runs::rewind::list_snapshots,
             runs::rewind::preview_rewind,
             runs::rewind::rewind_run,
+            runs::fork::fork_run,
             runs::bookmarks::list_run_bookmarks,
             runs::bookmarks::add_run_bookmark,
             runs::bookmarks::delete_run_bookmark,

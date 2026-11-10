@@ -75,7 +75,8 @@
     "more": "Thêm",
     "questionTitle": "Câu hỏi",
     "answerTitle": "Câu trả lời",
-    "turnTitle": "Cả lượt"
+    "turnTitle": "Cả lượt",
+    "fork": "Fork từ đây"
   },
   "activity": {
     "steps": "{count} bước | {count} bước",

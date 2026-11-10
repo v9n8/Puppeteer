@@ -296,5 +296,28 @@
     "compact": "Compact context",
     "projectTitle": "Project — mở cài đặt Project",
     "accountModelTitle": "Tài khoản · model — bấm để đổi tùy chọn run"
+  },
+  "fork": {
+    "action": "Fork Session",
+    "confirmTitle": "Fork Session này?",
+    "confirmTitleHere": "Fork từ đây?",
+    "confirmMessage": "Tạo một Session mới có toàn bộ hội thoại và cấu hình của Session này (Engine, Model, Phong cách trả lời, MCP). Session này giữ nguyên.\n\nFile không được sao chép hay khôi phục: Session mới làm việc trên file của Project như hiện tại.",
+    "confirmMessageHere": "Tạo một Session mới có hội thoại tới hết câu trả lời này và cấu hình của Session này (Engine, Model, Phong cách trả lời, MCP). Session này giữ nguyên.\n\nFile không được sao chép hay khôi phục: Session mới làm việc trên file của Project như hiện tại, không phải như lúc ở lượt này. Muốn đưa file về lúc đó thì dùng Rewind.",
+    "confirm": "Fork",
+    "done": "Đã Fork sang Session mới.",
+    "doneWithoutConversation": "Đã Fork, nhưng agent không tiếp tục được hội thoại này (Session của Engine không còn): Session mới vẫn hiện lịch sử nhưng bắt đầu lại từ đầu.",
+    "from": "Fork từ {title}",
+    "fromTitle": "Mở Session gốc của Session này",
+    "fromGone": "Fork từ một Session không còn trong danh sách",
+    "fromGoneTitle": "Session đó đang ở Thùng rác hoặc đã bị xoá.",
+    "errors": {
+      "run_active": "Dừng Session trước khi Fork.",
+      "run_trashed": "Session này đang ở Thùng rác.",
+      "engine": "Chỉ Fork được Session của Claude và Codex.",
+      "fork_worker": "Không Fork được worker của Conductor: nó chạy trong Worktree của Conductor.",
+      "not_started": "Session này chưa chạy: chưa có gì để Fork.",
+      "no_log": "Session này không có log để Fork.",
+      "fork_point_unknown": "Không tìm thấy lượt này trong log của Session. Hãy Fork cả Session."
+    }
   }
 }

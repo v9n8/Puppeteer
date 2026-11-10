@@ -6,7 +6,7 @@
 // opens upward first because the row ends its turn.
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bookmark, BookmarkCheck, Check, Copy, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
+import { Bookmark, BookmarkCheck, Check, Copy, GitFork, History, Layers, Maximize2, MoreHorizontal, Quote, StickyNote } from 'lucide-vue-next'
 import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { turnActions, type TurnAction, type TurnSide } from '@/lib/turnActions'
 
@@ -22,6 +22,8 @@ export interface MsgActionsState {
   canSaveNote: Readonly<Ref<boolean>>
   /** The session can be rewound to `turn` now (reads its state reactively). */
   canRewind: (turn: number) => boolean
+  /** The session can be forked now (reads its state reactively). */
+  canFork: () => boolean
   /**
    * Whether one side of the turn starting at entry `promptAt` is bookmarked;
    * null = it cannot be bookmarked here (reads its state reactively).
@@ -51,6 +53,7 @@ const buttons = computed(() =>
     hasQuoteTarget: props.state.quoteLabel.value !== null,
     canSaveNote: props.state.canSaveNote.value,
     canRewind: props.rewindTurn !== null && props.state.canRewind(props.rewindTurn),
+    canFork: props.state.canFork(),
     bookmarked: bookmarked.value,
   }),
 )
@@ -68,7 +71,8 @@ async function click(action: TurnAction) {
 onBeforeUnmount(() => clearTimeout(copiedTimer))
 
 const ICONS = {
-  copy: Copy, quote: Quote, bookmark: Bookmark, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, rewind: History,
+  copy: Copy, quote: Quote, bookmark: Bookmark, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, fork: GitFork,
+  rewind: History,
 } as const
 
 function icon(action: TurnAction) {

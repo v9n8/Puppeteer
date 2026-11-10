@@ -27,6 +27,12 @@ export interface TurnRewind {
   start: (turn: number) => void
 }
 
+/** Forking the session shown on a surface after one of its turns (UX-28). */
+export interface TurnFork {
+  /** Ask (confirm first) to fork after the turn starting at entry `promptAt` (-1 = before the loaded window). */
+  start: (promptAt: number) => void
+}
+
 /** Bookmarks on the turns of the session shown on a surface. */
 export interface TurnBookmarks {
   /**
@@ -55,6 +61,8 @@ export interface SelectionSurface {
   capture?: () => SelectionCapture
   /** "Rewind to here" in the turn rows of a log shown here; null = not now. */
   rewind?: () => TurnRewind | null
+  /** "Fork from here" in the turn rows of a log shown here; null = not now. */
+  fork?: () => TurnFork | null
   /** Bookmark in the turn rows of a log shown here; null = not now. */
   bookmarks?: () => TurnBookmarks | null
 }

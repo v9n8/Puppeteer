@@ -782,6 +782,7 @@ const msgActionsState: MsgActionsState = {
   quoteLabel: computed(() => quoteTarget.value?.label ?? null),
   canSaveNote: computed(() => !!owner.value?.allow.saveNote && !!owner.value.capture),
   canRewind: (turn) => owner.value?.rewind?.()?.available(turn) ?? false,
+  canFork: () => !!owner.value?.fork?.(),
   bookmarked: (promptAt, side) => owner.value?.bookmarks?.()?.marked(promptAt, side) ?? null,
 }
 
@@ -834,6 +835,9 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
       break
     case 'rewind':
       if (f.rewindTurn !== null) owner.value?.rewind?.()?.start(f.rewindTurn)
+      break
+    case 'fork':
+      owner.value?.fork?.()?.start(turnPromptAt(f))
       break
     case 'bookmark':
       owner.value?.bookmarks?.()?.toggle(turnPromptAt(f), f.side)

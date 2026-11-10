@@ -1,11 +1,12 @@
 // The AI result pane: the persisted-log window (paging, jumps, reload on focus),
 // the live output's bottom pin and scroll anchoring, the prompt navigator and
-// scroll memory, bookmarks, rewind and ⌘F over the whole log. Part of the
+// scroll memory, bookmarks, rewind, fork and ⌘F over the whole log. Part of the
 // RunView split (see useRunSession.ts).
 import { ref, shallowRef, computed, onUnmounted, watch, nextTick } from 'vue'
 import {
-  sameRunLogRevision, type RunLogRevision, type RunLogHit, type RewindOutcome,
+  sameRunLogRevision, type RunLogRevision, type RunLogHit, type RewindOutcome, type RunRecord,
 } from '@/stores/runs'
+import { forkErrorKey } from '@/lib/runFork'
 import { usePageFind } from '@/composables/usePageFind'
 import type { RouteHit } from '@/lib/sessionSearch'
 import { useTurnNavigator, turnLabel } from '@/composables/useTurnNavigator'
@@ -28,6 +29,8 @@ import type { RunSessionCore } from './useRunSessionCore'
 export interface RunLogLate {
   closeRunSettingsMenu: () => void
   dismissSelection: () => void
+  /** A launch on another run takes this run's effort / style picks along. */
+  carryPicks: (fromRunId: string, toRunId: string) => void
 }
 
 type ScrollAnchor = { bottom: true } | { el: Element; offset: number } | null
@@ -35,9 +38,9 @@ type SessionTurn = { label: string; offset: number }
 
 export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   const {
-    t, route, router, runsStore, live, features, uiLayout, toast, projectId, activeRunId,
+    t, route, router, runsStore, live, features, uiLayout, toast, confirm, projectId, activeRunId,
     syncLoadedRunEngine, currentRunId, currentIsSession, liveEntries, liveOutputLines, liveHasStream,
-    currentStatus,
+    currentStatus, isSessionWindow,
   } = core
 
   // Open a worker session (from the conductor sidebar) IN-PLACE, replacing the main
@@ -995,6 +998,51 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     void loadSnapshots(target.runId)
   }
 
+  // ── Fork (UX-28) ─────────────────────────────────────────────────────────────
+  // A new session with this one's conversation — all of it, or up to the end of
+  // the turn starting at loaded entry `promptAt` (anchored like a bookmark, by
+  // its prompt record's byte offset) — and its settings. Files are not touched.
+  const forking = ref(false)
+
+  async function forkRun(run: RunRecord, promptAt?: number) {
+    if (forking.value) return
+    let atOffset: number | undefined
+    if (promptAt !== undefined) {
+      let anchor = turnAnchor(promptAt)
+      if (!anchor) {
+        await loadSessionTurns(run.id)
+        anchor = turnAnchor(promptAt)
+      }
+      if (!anchor) {
+        toast.error(t('run.fork.errors.fork_point_unknown'))
+        return
+      }
+      atOffset = anchor.turn.offset
+    }
+    const ok = await confirm({
+      title: t(atOffset === undefined ? 'run.fork.confirmTitle' : 'run.fork.confirmTitleHere'),
+      message: t(atOffset === undefined ? 'run.fork.confirmMessage' : 'run.fork.confirmMessageHere'),
+      confirmLabel: t('run.fork.confirm'),
+      cancelLabel: t('common.cancel'),
+      variant: 'primary',
+    })
+    if (!ok) return
+    forking.value = true
+    try {
+      const outcome = await runsStore.forkRun(run.id, atOffset)
+      late.carryPicks(run.id, outcome.run.id)
+      await runsStore.fetchRuns(projectId.value)
+      toast.success(t(outcome.conversation ? 'run.fork.done' : 'run.fork.doneWithoutConversation'))
+      // A session pop-out stays on its one session; the fork is in History.
+      if (!isSessionWindow) await loadRunLog(outcome.run.id)
+    } catch (e) {
+      const key = forkErrorKey(e)
+      toast.error(key ? t(key) : String(e))
+    } finally {
+      forking.value = false
+    }
+  }
+
   // ── Find (⌘F) ────────────────────────────────────────────────────────────────
   // The bar highlights matches in what is on screen. The history pane holds only
   // a window of the log, so it also lists hits from the WHOLE log; picking one
@@ -1367,7 +1415,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn, onTurnNavKey,
     onOutputPointerDown, onWindowPointerUp, historyAwayFromBottom, scrollHistoryToLatest,
     onHistoryScroll, bookmarks, placedBookmarks, bookmarkState, toggleBookmark, snapshotTurns,
-    rewindTarget, onRewound, runFind, findOpen, logHits, logHitsTruncated, logSearching,
+    rewindTarget, onRewound, forking, forkRun, runFind, findOpen, logHits, logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
     loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes,
   }

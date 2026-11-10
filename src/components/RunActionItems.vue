@@ -6,7 +6,7 @@
 //
 //   section 'actions'  Pop out · Open on GitHub · Refetch · Copy log path ·
 //                      Copy session ID · View log file · Export transcript |
-//                      Rename · Pin · Protect
+//                      Fork · Rename · Pin · Protect
 //   section 'delete'   | Delete (hidden while the run is running)
 import { useI18n } from 'vue-i18n'
 import {
@@ -14,6 +14,7 @@ import {
   ClipboardCopy,
   ExternalLink,
   FileDown,
+  GitFork,
   Hash,
   Pencil,
   Pin,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-vue-next'
 import { DropdownItem, DropdownSeparator } from '@/components/ui'
 import type { RunRecord } from '@/stores/runs'
+import { canForkRun } from '@/lib/runFork'
 
 defineProps<{
   run: RunRecord
@@ -35,7 +37,7 @@ defineProps<{
   /** The run's issue / PR on GitHub, when any. */
   githubUrl: string | null
   /** An action for this run is in flight (its item is disabled meanwhile). */
-  busy: { refetching: boolean; pinning: boolean; protecting: boolean; deleting: boolean }
+  busy: { refetching: boolean; pinning: boolean; protecting: boolean; deleting: boolean; forking: boolean }
 }>()
 
 const emit = defineEmits<{
@@ -46,6 +48,7 @@ const emit = defineEmits<{
   copyId: []
   viewLog: []
   exportTranscript: []
+  fork: []
   rename: []
   togglePin: []
   toggleProtect: []
@@ -92,6 +95,11 @@ const { t } = useI18n()
       {{ t('run.exportTranscript') }}
     </DropdownItem>
     <DropdownSeparator />
+    <!-- A new session with this one's conversation and settings (UX-28). -->
+    <DropdownItem v-if="canForkRun(run)" :disabled="busy.forking" @click="emit('fork')">
+      <GitFork class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+      {{ t('run.fork.action') }}
+    </DropdownItem>
     <DropdownItem @click="emit('rename')">
       <Pencil class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.rename') }}

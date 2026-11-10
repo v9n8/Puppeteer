@@ -75,7 +75,9 @@ fn read_session_meta(file: &Path) -> Option<Value> {
 /// Every rollout belonging to a thread under `root`: its own rollout plus the
 /// subagent/fork rollouts spawned from it, transitively (a subagent can spawn
 /// its own). Used when a session is deleted so no child rollout is left behind.
-pub(crate) fn codex_thread_files(root: &Path, session_id: &str) -> Vec<PathBuf> {
+/// A child in `keep` (the thread of another session, e.g. a fork of this one)
+/// is left out, with its own children.
+pub(crate) fn codex_thread_files(root: &Path, session_id: &str, keep: &std::collections::HashSet<String>) -> Vec<PathBuf> {
     let suffix = format!("-{}.jsonl", session_id);
     let mut owned = Vec::new();
     // (file, own id, parent id) for every child rollout.
@@ -98,7 +100,9 @@ pub(crate) fn codex_thread_files(root: &Path, session_id: &str) -> Vec<PathBuf> 
             .and_then(|x| x.as_str());
         let id = p.get("id").and_then(|x| x.as_str());
         if let (Some(parent), Some(id)) = (parent, id) {
-            children.push((file, id.to_string(), parent.to_string()));
+            if !keep.contains(id) {
+                children.push((file, id.to_string(), parent.to_string()));
+            }
         }
     }
 
@@ -717,12 +721,23 @@ mod tests {
             r#"{"type":"session_meta","payload":{"cwd":"/proj","id":"thread-9"}}"#,
         );
 
-        let mut got = codex_thread_files(&root, "thread-1");
+        let mut got = codex_thread_files(&root, "thread-1", &Default::default());
         got.sort();
-        let mut want = vec![main, sub, nested, fork];
+        let mut want = vec![main.clone(), sub.clone(), nested.clone(), fork];
         want.sort();
         assert_eq!(got, want);
         assert!(!got.contains(&other));
+        // A fork that is a session of its own (UX-28) stays, with its children.
+        let fork_sub = write(
+            "rollout-6-thread-6.jsonl",
+            r#"{"type":"session_meta","payload":{"cwd":"/proj","id":"thread-6","parent_thread_id":"thread-4"}}"#,
+        );
+        let mut got = codex_thread_files(&root, "thread-1", &["thread-4".to_string()].into_iter().collect());
+        got.sort();
+        let mut want = vec![main, sub, nested];
+        want.sort();
+        assert_eq!(got, want);
+        assert!(!got.contains(&fork_sub));
         let _ = fs::remove_dir_all(&root);
     }
 

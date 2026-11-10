@@ -296,5 +296,28 @@
     "compact": "Compact context",
     "projectTitle": "Project — open project settings",
     "accountModelTitle": "Account · model — click to change run options"
+  },
+  "fork": {
+    "action": "Fork session",
+    "confirmTitle": "Fork this session?",
+    "confirmTitleHere": "Fork from here?",
+    "confirmMessage": "A new session starts with this session's whole conversation and its settings (engine, model, response style, MCP servers). This session stays as it is.\n\nFiles are not copied or restored: the new session works on the project's files as they are now.",
+    "confirmMessageHere": "A new session starts with this session's conversation up to the end of this answer, and its settings (engine, model, response style, MCP servers). This session stays as it is.\n\nFiles are not copied or restored: the new session works on the project's files as they are now, not as they were at this turn. To take the files back, use Rewind.",
+    "confirm": "Fork",
+    "done": "Forked into a new session.",
+    "doneWithoutConversation": "Forked, but the agent cannot carry on this conversation (its engine session is gone): the new session shows the history and starts afresh.",
+    "from": "Forked from {title}",
+    "fromTitle": "Open the session this one was forked from",
+    "fromGone": "Forked from a session no longer listed",
+    "fromGoneTitle": "That session is in the Trash or was deleted.",
+    "errors": {
+      "run_active": "Stop the session before forking it.",
+      "run_trashed": "This session is in the Trash.",
+      "engine": "Only Claude and Codex sessions can be forked.",
+      "fork_worker": "A Conductor worker cannot be forked: it runs in its conductor's worktree.",
+      "not_started": "This session has not run yet: there is nothing to fork.",
+      "no_log": "This session has no log to fork.",
+      "fork_point_unknown": "This turn was not found in the session log. Fork the whole session instead."
+    }
   }
 }

@@ -254,6 +254,29 @@ const tests = {
     assert.equal(f.resumeSessionAt, undefined)
   },
 
+  // Fork (UX-28): the resume copies the session (forkSession) up to the kept
+  // entry; nothing forks without a session to resume.
+  async 'a fork resumes a copy of the session up to the kept entry'() {
+    const run = (env) => runSidecar('permission', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'again' })
+      if (msg.type === '_puppeteer_permission_request') {
+        ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+        ctl.closeInput()
+      }
+    }, 10_000, env)
+    const initOf = ({ messages }) => messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    const forked = initOf(await run({ PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_RESUME_AT: 'entry-7', PUPPETEER_FORK_SESSION: '1' }))
+    assert.equal(forked.resume, 'sess-1')
+    assert.equal(forked.resumeSessionAt, 'entry-7')
+    assert.equal(forked.forkSession, true)
+    // A plain resume goes on in the session itself.
+    const plain = initOf(await run({ PUPPETEER_RESUME_SESSION: 'sess-1' }))
+    assert.equal(plain.forkSession, undefined)
+    const fresh = initOf(await run({ PUPPETEER_FORK_SESSION: '1' }))
+    assert.equal(fresh.resume, undefined)
+    assert.equal(fresh.forkSession, undefined)
+  },
+
   // Effort (UX-16): reaches the SDK only when the model takes that level; a
   // resume (first prompt without options) gets it from the broker's env.
   async 'effort reaches the SDK only when the model supports it'() {

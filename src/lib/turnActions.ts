@@ -5,7 +5,7 @@
 
 export type TurnSide = 'question' | 'answer'
 
-export type TurnAction = 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'rewind'
+export type TurnAction = 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'fork' | 'rewind'
 
 /** Features a gated button needs on; the others are always offered. */
 export const TURN_ACTION_FEATURES = {
@@ -114,6 +114,8 @@ export interface TurnActionContext {
   canSaveNote: boolean
   /** The surface can rewind to this row's turn now (a snapshot, session stopped). */
   canRewind?: boolean
+  /** The surface can fork its session now (a stopped Claude / Codex session). */
+  canFork?: boolean
   /** This side of the turn is bookmarked; null / absent = it cannot be bookmarked here. */
   bookmarked?: boolean | null
 }
@@ -121,7 +123,8 @@ export interface TurnActionContext {
 /**
  * Buttons of a row: the frequent ones inline, the rare ones behind `⋯`. An
  * empty `overflow` means no `⋯` button. Rewind cuts the session, so it comes
- * last, below a divider. Bookmark sits inline on both sides, as in AWOG.
+ * last, below a divider. Bookmark sits inline on both sides, as in AWOG. Fork
+ * is on the answer only: the fork keeps the whole turn.
  */
 export function turnActions(
   side: TurnSide,
@@ -144,5 +147,6 @@ export function turnActions(
   primary.push('fullscreenTurn')
   const overflow: TurnAction[] =
     ctx.hasText && ctx.canSaveNote && isOn(TURN_ACTION_FEATURES.saveNote) ? ['saveNote'] : []
+  if (ctx.canFork) overflow.push('fork')
   return { primary, overflow: [...overflow, ...rewind] }
 }

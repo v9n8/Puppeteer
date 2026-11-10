@@ -38,7 +38,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   } = conductor
   const {
     popoutSession, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
-    loadInputContent, clearHistoryView,
+    loadInputContent, clearHistoryView, forking, forkRun,
   } = log
 
   const repos = ref<Repo[]>([])
@@ -468,6 +468,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
         pinning: pinningRunId.value === run.id,
         protecting: protectingRunId.value === run.id,
         deleting: deletingRunId.value === run.id,
+        forking: forking.value,
       },
     }
   }
@@ -482,6 +483,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       copyId: () => copySessionId(run),
       viewLog: () => viewLogFile(run),
       exportTranscript: () => exportTranscript(run),
+      fork: () => forkRun(run),
       rename: () => rename(run),
       togglePin: () => handleTogglePin(run),
       toggleProtect: () => handleToggleProtect(run),

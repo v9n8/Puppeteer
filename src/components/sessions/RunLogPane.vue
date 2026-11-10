@@ -2,17 +2,19 @@
 // The run screen's main pane: the issue/PR Content column and the AI result
 // (title row with the prompt navigator and bookmarks, ⌘F bar, history log or
 // live output, jump buttons). State lives in useRunSession.
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus, Bookmark,
-  ChevronsDownUp, ChevronsUpDown,
+  ChevronsDownUp, ChevronsUpDown, GitFork,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
 import { Button, DropdownMenu, DropdownItem } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
+import { forkSource } from '@/lib/runFork'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
@@ -33,8 +35,19 @@ const {
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile, quoteSets, quoteReveal,
-  jumpToQuote,
+  jumpToQuote, runsStore, loadRunLog, isSessionWindow,
 } = useRunSession()
+// A fork names the session it came from, and opens it (not from a pop-out,
+// which stays on its one session).
+const forkedFrom = computed(() => forkSource(currentRun.value, runsStore.runs))
+const forkSourceRun = computed(() => (forkedFrom.value && forkedFrom.value !== 'gone' ? forkedFrom.value : null))
+const forkLinkable = computed(() => !!forkSourceRun.value && !isSessionWindow)
+const forkedFromLabel = computed(() =>
+  forkSourceRun.value ? t('run.fork.from', { title: runLabel(forkSourceRun.value) }) : t('run.fork.fromGone'),
+)
+function openForkSource() {
+  if (forkLinkable.value && forkSourceRun.value) void loadRunLog(forkSourceRun.value.id)
+}
 const uiLayout = useUILayoutStore()
 
 // Directive for RunView's own markdown containers (issue/PR Content, legacy
@@ -172,6 +185,18 @@ function onOpenUrl(url: string) {
           <span class="text-xs font-medium text-foreground/90 truncate">
             {{ currentRun ? runLabel(currentRun) : t('run.noRunSelected') }}
           </span>
+          <component
+            :is="forkLinkable ? 'button' : 'span'"
+            v-if="forkedFrom"
+            :type="forkLinkable ? 'button' : undefined"
+            class="flex min-w-0 items-center gap-1 text-2xs text-muted-foreground"
+            :class="{ 'cursor-pointer hover:text-foreground hover:underline': forkLinkable }"
+            :title="forkSourceRun ? t('run.fork.fromTitle') : t('run.fork.fromGoneTitle')"
+            @click="openForkSource"
+          >
+            <GitFork class="h-3 w-3 shrink-0" :stroke-width="1.75" />
+            <span class="truncate">{{ forkedFromLabel }}</span>
+          </component>
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
             <!-- Prompt navigator: step between the user's own messages or
                  pick one from the list. Lives in the toolbar (not floating

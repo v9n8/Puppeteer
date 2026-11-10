@@ -1,5 +1,6 @@
 pub mod bookmarks;
 pub mod broker;
+pub mod fork;
 pub mod liveness;
 pub mod model_usage;
 pub mod permission;

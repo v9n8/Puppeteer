@@ -251,6 +251,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "set_run_mcp_override",
     // A project's defaults for new sessions: permission mode, style text, engine.
     "set_project_session_defaults",
+    // Fork: creates a session from another one's conversation and settings.
+    "fork_run",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -869,6 +871,7 @@ mod tests {
             "delete_response_style",
             "set_run_mcp_override",
             "set_project_session_defaults",
+            "fork_run",
         ] {
             assert!(audited_command(name), "{name}");
         }

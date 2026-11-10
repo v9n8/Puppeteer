@@ -3142,6 +3142,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         conductor_run_id: None,
         style: None,
         effort: None,
+        forked_from_run_id: None,
     })
 }
 
@@ -3233,6 +3234,7 @@ pub async fn create_handoff_run(
             conductor_run_id: None,
             style: None,
             effort: None,
+            forked_from_run_id: None,
         },
         context_path,
     })
@@ -3291,6 +3293,7 @@ pub async fn create_session_run(
         conductor_run_id: None,
         style: None,
         effort: None,
+        forked_from_run_id: None,
     })
 }
 
@@ -3651,6 +3654,15 @@ async fn delete_single_run(
     let session_id: Option<String> = row.get("session_id");
     let engine: String = row.get("engine");
     let transcript_path: Option<String> = row.get("transcript_path");
+    // A fork not started yet copies this session at its first resume
+    // (runs::fork): the transcript stays for it.
+    let fork_waiting: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM runs WHERE forked_from_run_id = ? AND session_id IS NULL)",
+    )
+    .bind(run_id)
+    .fetch_one(db)
+    .await
+    .map_err(|e| e.to_string())?;
 
     sqlx::query("DELETE FROM runs WHERE id = ?")
         .bind(run_id)
@@ -3703,19 +3715,31 @@ async fn delete_single_run(
     // the CLI/VS Code resume list too. The tombstone above still guards the
     // window in case a file can't be removed; those are reported to the caller.
     let mut leftover = Vec::new();
-    if let Some(sid) = session_id.as_deref() {
+    if let Some(sid) = session_id.as_deref().filter(|_| !fork_waiting) {
         let claude_dirs = if engine == "claude" {
             crate::commands::sessions::claude_sessions_dirs(db, &project_path).await
         } else {
             Vec::new()
         };
         let codex_root = crate::commands::codex_sessions::codex_sessions_root();
+        // Threads forked from this one that are sessions of their own stay.
+        let other_threads: std::collections::HashSet<String> = if engine == "codex" {
+            sqlx::query_scalar("SELECT session_id FROM runs WHERE engine = 'codex' AND session_id IS NOT NULL")
+                .fetch_all(db)
+                .await
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .collect()
+        } else {
+            Default::default()
+        };
         let targets = engine_transcript_targets(
             &engine,
             sid,
             transcript_path.as_deref(),
             &claude_dirs,
             codex_root.as_deref(),
+            &other_threads,
         );
         leftover = remove_paths(&targets);
     }
@@ -3752,13 +3776,15 @@ fn is_plain_session_id(sid: &str) -> bool {
 /// Everything on disk holding a session's engine transcript. Claude: the cached
 /// `transcript_path`, plus `<sid>.jsonl` and the `<sid>/` folder (subagent
 /// transcripts, tool results) in every account store in `claude_dirs`. Codex:
-/// the cached path plus the thread's rollout and its subagent/fork rollouts.
+/// the cached path plus the thread's rollout and its subagent/fork rollouts,
+/// but not those of `other_threads` (a fork that is a session of its own).
 fn engine_transcript_targets(
     engine: &str,
     session_id: &str,
     transcript_path: Option<&str>,
     claude_dirs: &[PathBuf],
     codex_root: Option<&Path>,
+    other_threads: &std::collections::HashSet<String>,
 ) -> Vec<PathBuf> {
     let mut targets: Vec<PathBuf> = transcript_path.map(PathBuf::from).into_iter().collect();
     if !is_plain_session_id(session_id) {
@@ -3774,7 +3800,9 @@ fn engine_transcript_targets(
         "codex" => {
             if let Some(root) = codex_root {
                 targets.extend(crate::commands::codex_sessions::codex_thread_files(
-                    root, session_id,
+                    root,
+                    session_id,
+                    other_threads,
                 ));
             }
         }
@@ -4309,8 +4337,22 @@ pub(crate) async fn resume_run_with(
     if status == "running" {
         return Err("Run is already active".to_string());
     }
-    let session_id = session_id
-        .ok_or_else(|| "This run has no captured session id — cannot resume".to_string())?;
+    // A fork (runs::fork) has no session of its own before its first resume:
+    // this resume copies its source's, named by the log's pending fork record.
+    let last_records = read_records_backwards(
+        &Path::new(&project_path).join(".puppeteer").join("runs").join(format!("{}.log", run_id)),
+        u64::MAX,
+        200,
+        4 << 20,
+    )
+    .map(|(records, _)| records)
+    .unwrap_or_default();
+    let fork = crate::runs::fork::pending(&last_records);
+    let session_id = session_id.or_else(|| fork.as_ref().and_then(|f| f.session_id.clone()));
+    if session_id.is_none() && fork.is_none() {
+        return Err("This run has no captured session id — cannot resume".to_string());
+    }
+    let transcript_path = transcript_path.or_else(|| fork.as_ref().and_then(|f| f.transcript_path.clone()));
 
     // Refuse if a handle for this run is still in the registry (shouldn't happen).
     {
@@ -4415,25 +4457,27 @@ pub(crate) async fn resume_run_with(
     // storage cleanup wiped ~/.claude/projects or ~/.codex/sessions). Resuming a
     // missing session hard-fails in the CLI ("No conversation found"), so start a
     // fresh session in the same run instead; the earlier context is lost.
-    let (transcript_available, mirrored_transcript) = if engine == "codex" {
-        (crate::commands::codex_sessions::codex_session_file(&session_id).is_some(), None)
-    } else {
-        let mirrored = mirror_claude_transcript_for_account(
-            db.inner(),
-            &cwd,
-            &session_id,
-            transcript_path.as_deref(),
-            claude_account.as_ref().map(|a| a.config_dir.as_str()),
-        )
-        .await?;
-        (mirrored.is_some(), mirrored)
+    let (transcript_available, mirrored_transcript) = match session_id.as_deref() {
+        None => (false, None),
+        Some(sid) if engine == "codex" => (crate::commands::codex_sessions::codex_session_file(sid).is_some(), None),
+        Some(sid) => {
+            let mirrored = mirror_claude_transcript_for_account(
+                db.inner(),
+                &cwd,
+                sid,
+                transcript_path.as_deref(),
+                claude_account.as_ref().map(|a| a.config_dir.as_str()),
+            )
+            .await?;
+            (mirrored.is_some(), mirrored)
+        }
     };
     // A Rewind (runs::rewind) left the engine a cut to apply at this resume: go
-    // on from an earlier point of the session, or start a new one.
-    let mut rewind = read_records_backwards(&log_path, u64::MAX, 200, 4 << 20)
-        .ok()
-        .and_then(|(records, _)| crate::runs::rewind::pending(&records))
-        .filter(|cut| cut.fresh || cut.session_id.as_deref() == Some(session_id.as_str()));
+    // on from an earlier point of the session, or start a new one. A fork's
+    // record already accounts for any cut in the part it copied.
+    let mut rewind = crate::runs::rewind::pending(&last_records)
+        .filter(|_| fork.is_none())
+        .filter(|cut| cut.fresh || (cut.session_id.is_some() && cut.session_id == session_id));
     // Claude cannot go on from an entry its transcript no longer has: start a
     // new session rather than fail every resume.
     if let Some(cut) = rewind.as_mut().filter(|cut| engine == "claude" && !cut.fresh) {
@@ -4445,11 +4489,21 @@ pub(crate) async fn resume_run_with(
         cut.fresh = !found;
     }
     let rewound_to_start = rewind.as_ref().is_some_and(|cut| cut.fresh);
-    let resume_session = transcript_available && !rewound_to_start;
+    // A fork copies the source session up to its last kept entry (Claude) or
+    // turn count (Codex); without one the fork starts a new session, the source
+    // is never resumed in place.
+    let fork_env = fork.as_ref().filter(|_| transcript_available).and_then(|f| {
+        let transcript = mirrored_transcript.as_ref().and_then(|p| fs::read(p).ok());
+        crate::runs::fork::resume_env(&engine, f, transcript.as_deref())
+    });
+    let forking = fork_env.is_some();
+    let resume_session = transcript_available && !rewound_to_start && (fork.is_none() || forking);
     // The resumed CLI appends to the copy inside the resolved profile; point the
-    // run at it so transcript readers follow the live file, not the old one.
+    // run at it so transcript readers follow the live file, not the old one. A
+    // fork goes on in a new file, which the engine names at its start.
     if let Some(path) = mirrored_transcript
         .as_ref()
+        .filter(|_| fork.is_none())
         .map(|p| p.to_string_lossy().into_owned())
         .filter(|p| transcript_path.as_deref() != Some(p.as_str()))
     {
@@ -4504,9 +4558,13 @@ pub(crate) async fn resume_run_with(
     };
     let mut cmd = Command::new(&node_bin);
     cmd.current_dir(&cwd).arg(&sidecar_script);
-    if resume_session {
+    if let (true, Some(session_id)) = (resume_session, session_id.as_deref()) {
         // The sidecar resumes this session/thread on its first prompt.
-        cmd.env("PUPPETEER_RESUME_SESSION", &session_id);
+        cmd.env("PUPPETEER_RESUME_SESSION", session_id);
+        // A fork: the session is copied and the fork goes on in the copy.
+        for (key, value) in fork_env.iter().flatten() {
+            cmd.env(key, value);
+        }
         match rewind.as_ref() {
             Some(cut) if engine == "codex" && cut.drop_turns > 0 => {
                 cmd.env("PUPPETEER_ROLLBACK_TURNS", cut.drop_turns.to_string());
@@ -4661,7 +4719,8 @@ pub(crate) async fn resume_run_with(
     // the writer); nothing writes the pipe here.
     let stdin_handle = child.stdin.take();
 
-    let session_id_state = Arc::new(TokioMutex::new(Some(session_id.clone())));
+    // A fork's session id is new: the engine's init names it.
+    let session_id_state = Arc::new(TokioMutex::new(session_id.clone().filter(|_| !forking)));
     let log_buf = Arc::new(TokioMutex::new(String::new()));
 
     // Seed the buffer with a resume marker so the persisted log notes the resume
@@ -4669,10 +4728,21 @@ pub(crate) async fn resume_run_with(
     // follow-up text arrives via send_user_message, which kicks off the turn.
     {
         let mut buf = log_buf.lock().await;
-        if resume_session {
+        let session_id = session_id.as_deref().unwrap_or_default();
+        if forking {
+            buf.push_str(&format!(
+                "[stderr] --- forked session {} into a new session at {} ---\n",
+                session_id, started_at
+            ));
+        } else if resume_session {
             buf.push_str(&format!(
                 "[stderr] --- resumed session {} at {} ---\n",
                 session_id, started_at
+            ));
+        } else if fork.is_some() {
+            buf.push_str(&format!(
+                "[stderr] --- the forked conversation cannot be continued; started a new session at {} (earlier context is not available to the agent) ---\n",
+                started_at
             ));
         } else if rewound_to_start {
             buf.push_str(&format!(
@@ -4754,6 +4824,7 @@ mod transcript_purge_tests {
             None,
             &[global.clone(), account.clone()],
             None,
+            &Default::default(),
         );
         assert!(remove_paths(&targets).is_empty());
         for dir in [&global, &account] {
@@ -4769,9 +4840,9 @@ mod transcript_purge_tests {
     fn unsafe_session_id_only_targets_cached_path() {
         let dirs = [PathBuf::from("/tmp/x")];
         let targets =
-            engine_transcript_targets("claude", "../..", Some("/tmp/x/t.jsonl"), &dirs, None);
+            engine_transcript_targets("claude", "../..", Some("/tmp/x/t.jsonl"), &dirs, None, &Default::default());
         assert_eq!(targets, vec![PathBuf::from("/tmp/x/t.jsonl")]);
-        assert!(engine_transcript_targets("claude", "", None, &dirs, None).is_empty());
+        assert!(engine_transcript_targets("claude", "", None, &dirs, None, &Default::default()).is_empty());
     }
 }
 

@@ -220,6 +220,16 @@ test('turnActions: Rewind sits last behind ⋯ on both sides, only when the surf
   assert.equal(TURN_ACTION_FEATURES.rewind, 'sessions.rewind')
 })
 
+test('turnActions: Fork from here is behind ⋯ on the answer only, above Rewind', () => {
+  const can = { ...ctx, canFork: true }
+  assert.deepEqual(turnActions('answer', allOn, can).overflow, ['saveNote', 'fork'])
+  assert.deepEqual(turnActions('answer', allOn, { ...can, hasText: false }).overflow, ['fork'])
+  assert.deepEqual(turnActions('answer', allOn, { ...can, canRewind: true }).overflow, ['saveNote', 'fork', 'rewind'])
+  // The fork keeps the whole turn: none on the question.
+  assert.deepEqual(turnActions('question', allOn, can).overflow, [])
+  assert.deepEqual(turnActions('answer', allOn, ctx).overflow, ['saveNote'])
+})
+
 test('turnActions: Bookmark sits inline on both sides, only where the surface can bookmark', () => {
   for (const bookmarked of [false, true]) {
     const can = { ...ctx, bookmarked }
