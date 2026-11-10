@@ -6,7 +6,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Folder, FoldVertical } from 'lucide-vue-next'
 import ContextMeter from '@/components/ContextMeter.vue'
-import BudgetBadge from '@/components/BudgetBadge.vue'
+import UsageRings from '@/components/UsageRings.vue'
 import { DropdownMenu, DropdownItem } from '@/components/ui'
 import { runMenuAction } from '@/lib/appMenu'
 import { useRunSession } from './useRunSession'
@@ -42,10 +42,10 @@ const accountModelLabel = computed(() =>
     class="flex h-7 shrink-0 items-center gap-1 border-t border-border bg-card/40 px-2 min-w-0"
     :aria-label="t('run.statusBar.label')"
   >
-    <!-- Usage slot: account plan usage (UX-23 swaps it for per-account usage
-         rings). Unmounting BudgetBadge also stops its 60 s refresh timer. -->
+    <!-- Usage slot: one plan usage ring per account (UX-23). Unmounting the
+         rings also stops their 60 s refresh timer and the quota toast. -->
     <div class="flex min-w-0 flex-1 items-center">
-      <BudgetBadge v-if="features.isOn('usage.context_meter')" />
+      <UsageRings v-if="features.isOn('usage.context_meter')" />
     </div>
 
     <!-- Context: this run's context window; the menu holds /compact. Hidden
