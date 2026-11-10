@@ -16,8 +16,8 @@
 //!   [`CONDUCTOR_SERVER`] for the loopback conductor's bearer token.
 //!
 //! Fail-closed like the rest of the broker: no live run, a request naming a
-//! project other than the run's own, a server that is not enabled for the
-//! project, an unknown account or any resolve error → deny.
+//! project other than the run's own, a server that is not in the run's set
+//! (`run_mcp`), an unknown account or any resolve error → deny.
 //! Every request is audited without the secret.
 
 use std::collections::HashMap;
@@ -86,8 +86,12 @@ async fn google_token(req: &BrokerRequest, db: &Db) -> Result<BrokerResponse, St
     // Checked per request: a run launched with the server keeps it after the
     // switch goes off.
     crate::features::require(db, crate::commands::google::FEATURE).await?;
-    if !crate::commands::mcp::builtin_mcp_enabled(db, "google", &req.project_id).await {
-        return Err("the Google MCP server is switched off for this project".into());
+    let run_id = req.run_id.as_deref().unwrap_or_default();
+    let on = crate::commands::run_mcp::run_uses_builtin(db, &req.project_id, run_id, "google")
+        .await
+        .map_err(|_| "Google MCP lookup failed".to_string())?;
+    if !on {
+        return Err("the Google MCP server is switched off for this session".into());
     }
     let rows = sqlx::query(
         "SELECT id, label, email, is_default FROM google_accounts ORDER BY is_default DESC, label",
@@ -116,20 +120,15 @@ async fn google_token(req: &BrokerRequest, db: &Db) -> Result<BrokerResponse, St
     Ok(BrokerResponse::allow_token(token, "googleapis.com".into()))
 }
 
-/// Env + headers of a user MCP server that is enabled and assigned to the
-/// requesting project.
+/// Env + headers of a user MCP server that is enabled and in the requesting
+/// run's set (its project's, with the session's own switches).
 async fn user_server(req: &BrokerRequest, db: &Db, id: &str) -> Result<BrokerResponse, String> {
-    let row = sqlx::query(
-        "SELECT 1 FROM mcp_servers WHERE id = ? AND enabled = 1 AND id IN \
-         (SELECT server_id FROM project_mcp_servers WHERE project_id = ?)",
-    )
-    .bind(id)
-    .bind(&req.project_id)
-    .fetch_optional(db)
-    .await
-    .map_err(|_| "MCP server lookup failed".to_string())?;
-    if row.is_none() {
-        return Err("MCP server is not enabled for this project".into());
+    let run_id = req.run_id.as_deref().unwrap_or_default();
+    let on = crate::commands::run_mcp::run_uses_server(db, &req.project_id, run_id, id)
+        .await
+        .map_err(|_| "MCP server lookup failed".to_string())?;
+    if !on {
+        return Err("MCP server is not enabled for this session".into());
     }
     let secret = secrets::get_mcp_secrets(id);
     Ok(BrokerResponse::allow_mcp(secret.env, secret.headers))
@@ -184,11 +183,12 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         for sql in [
-            "CREATE TABLE mcp_servers (id TEXT PRIMARY KEY, enabled INTEGER)",
-            "CREATE TABLE project_mcp_servers (project_id TEXT, server_id TEXT)",
-            "INSERT INTO mcp_servers VALUES ('on', 1), ('off', 0)",
-            "INSERT INTO project_mcp_servers VALUES ('p1', 'on'), ('p1', 'off')",
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')",
+            "INSERT INTO mcp_servers (id, name, transport, enabled, created_at) VALUES
+                ('on', 'on', 'http', 1, 'c'), ('off', 'off', 'http', 0, 'c'), ('spare', 'spare', 'http', 1, 'c')",
+            "INSERT INTO project_mcp_servers (project_id, server_id, enabled_at) VALUES ('p1', 'on', 'c'), ('p1', 'off', 'c')",
         ] {
             sqlx::query(sql).execute(&pool).await.unwrap();
         }
@@ -225,15 +225,38 @@ mod tests {
             // Unknown / missing server.
             r#"{"project_id":"p1","run_id":"r1","tool":"mcp","argv":[],"server":"nope"}"#,
             r#"{"project_id":"p1","run_id":"r1","tool":"mcp","argv":[]}"#,
+            // On app-wide, but not in the project's set.
+            r#"{"project_id":"p1","run_id":"r1","tool":"mcp","argv":[],"server":"spare"}"#,
         ] {
             assert_denied(&process(&req(json), &db, &Live, None).await);
         }
     }
 
+    /// The session's own switches (UX-27) decide over the project's.
+    #[tokio::test]
+    async fn a_server_the_session_switched_off_is_denied() {
+        let db = db().await;
+        sqlx::query("INSERT INTO runs (id, project_id, type, created_at) VALUES ('r1', 'p1', 'session', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        crate::commands::settings::set_setting(&db, "feature.integrations.google", "true").await.unwrap();
+        crate::commands::run_mcp::set_override(&db, "r1", "server:on", Some(false)).await.unwrap();
+        crate::commands::run_mcp::set_override(&db, "r1", "builtin:google", Some(false)).await.unwrap();
+        let on = req(r#"{"project_id":"p1","run_id":"r1","tool":"mcp","argv":[],"server":"on"}"#);
+        let resp = process(&on, &db, &Live, None).await;
+        assert_denied(&resp);
+        assert_eq!(resp.reason.as_deref(), Some("MCP server is not enabled for this session"));
+        let google = req(r#"{"project_id":"p1","run_id":"r1","tool":"google","argv":[]}"#);
+        let resp = process(&google, &db, &Live, None).await;
+        assert_denied(&resp);
+        assert_eq!(resp.reason.as_deref(), Some("the Google MCP server is switched off for this session"));
+    }
+
     #[tokio::test]
     async fn a_run_cannot_claim_another_project() {
         let db = db().await;
-        sqlx::query("INSERT INTO project_mcp_servers VALUES ('p2', 'on')")
+        sqlx::query("INSERT INTO project_mcp_servers (project_id, server_id, enabled_at) VALUES ('p2', 'on', 'c')")
             .execute(&db)
             .await
             .unwrap();

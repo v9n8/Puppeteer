@@ -900,9 +900,10 @@ fn prepend_shim_path(cmd: &mut Command, shim_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The MCP map for a run on `engine` ("claude" | "codex"): the project's
-/// enabled servers plus the built-ins — `puppeteer` and `google` unless switched off,
-/// and the loopback `conductor` server for a conductor run. Feature switches
+/// The MCP map for a run on `engine` ("claude" | "codex"): the servers of the
+/// run's set — the project's, with the session's own switches (`run_mcp`) — plus
+/// the built-ins in that set unless switched off, and the loopback `conductor`
+/// server for a conductor run. Feature switches
 /// (`mcp::builtin_gates`) are read here, so a change applies from the next start
 /// or resume; a live run keeps its servers. `permission_mode` hides the
 /// `puppeteer` tools plan mode does not allow. `orchestration.conductor` is applied
@@ -940,10 +941,16 @@ async fn assemble_run_mcp(
         Vec::new()
     });
     let gates = mcp::builtin_gates(&tree, permission_mode);
-    let (map, skipped) = mcp::resolve_project_mcp_servers(db, project_id, engine, &launch).await;
-    let map = if gates.puppeteer
-        && !mcp::builtin_mcp_disabled_for_project(db, "puppeteer", project_id).await
-    {
+    // The project's set with this session's own switches (UX-27). Unreadable:
+    // no server, like an unreadable project set before.
+    let selection = crate::commands::run_mcp::run_mcp_selection(db, project_id, run_id)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!(event = "run_mcp_selection_failed", run_id = %run_id, error = %e);
+            Default::default()
+        });
+    let (map, skipped) = mcp::resolve_run_mcp_servers(db, &selection.servers, engine, &launch).await;
+    let map = if gates.puppeteer && selection.builtins.contains("puppeteer") {
         mcp::with_builtin_puppeteer(
             map,
             node_bin,
@@ -956,13 +963,12 @@ async fn assemble_run_mcp(
     } else {
         map
     };
-    let map = if gates.google {
+    let map = if gates.google && selection.builtins.contains("google") {
         mcp::with_builtin_google(
             db,
             map,
             &launch,
             &crate::runs::sidecar::resolve_mcp_script(app, "google.mjs"),
-            project_id,
             project_path,
         )
         .await

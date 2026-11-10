@@ -14,6 +14,7 @@ import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
 import { PERMISSION_MODE_OPTIONS } from '@/lib/engineOptions'
 import { useRunSession } from './useRunSession'
+import RunMcpSection from './RunMcpSection.vue'
 
 const { t } = useI18n()
 const {
@@ -29,7 +30,7 @@ const {
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
-  cancelQueuedEdit,
+  cancelQueuedEdit, currentRunId,
 } = useRunSession()
 
 // The queued-message editor takes focus as it opens.
@@ -337,6 +338,11 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                       </template>
                     </AppSelect>
                   </div>
+                  <RunMcpSection
+                    v-if="currentRunId"
+                    :run-id="currentRunId"
+                    :running="currentStatus === 'running'"
+                  />
                 </div>
               </div>
             </transition>

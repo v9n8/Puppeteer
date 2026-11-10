@@ -31,6 +31,22 @@ export interface ProjectBuiltinMcp {
   enabled_for_project: boolean
 }
 
+/** One server in a session's MCP menu — mirrors the Rust `RunMcpEntry` (UX-27). */
+export interface RunMcpEntry {
+  /** `server:<id>` or `builtin:<name>`: what `setRunOverride` takes. */
+  key: string
+  name: string
+  builtin: boolean
+  transport: McpTransport | null
+  description: string
+  /** On app-wide; off, the server is not injected whatever the session says. */
+  available: boolean
+  enabled_for_project: boolean
+  /** What the session is set to: its override, else the project. */
+  enabled: boolean
+  source: 'project' | 'override'
+}
+
 /** One env/header secret row sent to the backend (`SecretEntry`). */
 export interface SecretEntry {
   key: string
@@ -124,6 +140,15 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     await invoke('set_project_builtin_mcp_enabled', { projectId, name, enabled })
   }
 
+  async function listForRun(runId: string): Promise<RunMcpEntry[]> {
+    return invoke<RunMcpEntry[]>('get_run_mcp', { runId })
+  }
+
+  /** Switch a server on/off for one session; `null` follows the project again. */
+  async function setRunOverride(runId: string, key: string, enabled: boolean | null): Promise<RunMcpEntry[]> {
+    return invoke<RunMcpEntry[]>('set_run_mcp_override', { runId, key, enabled })
+  }
+
   /** Switch a built-in server on/off app-wide (`mcp_builtin_<name>_enabled`). */
   async function setBuiltinEnabled(name: string, enabled: boolean): Promise<void> {
     await invoke('set_builtin_mcp_enabled', { name, enabled })
@@ -158,6 +183,8 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     listBuiltinForProject,
     setBuiltinForProject,
     setBuiltinEnabled,
+    listForRun,
+    setRunOverride,
     testConnection,
     exportServer,
     importServer,

@@ -1251,21 +1251,20 @@ pub(crate) fn sh_quote(s: &str) -> String {
 ///   server applies.
 /// - `skipped` lists server names dropped for the engine (Codex + unsupported transports).
 ///
-/// Only servers with `enabled = 1` that are assigned to the project count.
+/// Only servers with `enabled = 1` that are in `server_ids` (the run's set,
+/// `run_mcp::run_mcp_selection`) count.
 /// Secret values never enter the config: a server that has env or header
 /// secrets is wired to fetch them from the broker at start (see [`McpLaunch`]).
-pub async fn resolve_project_mcp_servers(
+pub async fn resolve_run_mcp_servers(
     db: &Db,
-    project_id: &str,
+    server_ids: &std::collections::HashSet<String>,
     engine: &str,
     launch: &McpLaunch,
 ) -> (serde_json::Value, Vec<String>) {
     let rows = match sqlx::query(&format!(
-        "SELECT {} FROM mcp_servers WHERE enabled = 1 AND id IN \
-         (SELECT server_id FROM project_mcp_servers WHERE project_id = ?) ORDER BY name",
+        "SELECT {} FROM mcp_servers WHERE enabled = 1 ORDER BY name",
         SELECT_COLS
     ))
-    .bind(project_id)
     .fetch_all(db)
     .await
     {
@@ -1278,6 +1277,9 @@ pub async fn resolve_project_mcp_servers(
 
     for row in &rows {
         let server = row_to_server(row);
+        if !server_ids.contains(&server.id) {
+            continue;
+        }
         let secret = secrets::get_mcp_secrets(&server.id);
 
         match server.transport.as_str() {
@@ -1571,20 +1573,19 @@ pub fn with_builtin_puppeteer(
 /// nothing. Tools stay distinguishable via the `drive_` / `mail_` / `cal_`
 /// prefixes applied in `sidecar-mcp/google.mjs`.
 ///
-/// No-ops (returns `mcp` unchanged) when it is switched off app-wide or for
-/// `project_id`, when no client creds or no accounts exist, when the script is
-/// missing, or when the map already carries a user server named `google` (user
-/// servers take precedence).
+/// No-ops (returns `mcp` unchanged) when it is switched off app-wide, when no
+/// client creds or no accounts exist, when the script is missing, or when the
+/// map already carries a user server named `google` (user servers take
+/// precedence). Whether the run's set has it is the caller's check.
 pub async fn with_builtin_google(
     db: &Db,
     mcp: serde_json::Value,
     launch: &McpLaunch,
     google_script: &std::path::Path,
-    project_id: &str,
     project_path: &str,
 ) -> serde_json::Value {
     use sqlx::Row;
-    if !builtin_mcp_enabled(db, "google", project_id).await {
+    if !builtin_mcp_globally_enabled(db, "google").await {
         return mcp;
     }
     if secrets::get_google_client().is_none() {

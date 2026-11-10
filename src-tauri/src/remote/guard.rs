@@ -243,6 +243,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "create_response_style",
     "update_response_style",
     "delete_response_style",
+    // MCP per session: which servers (and their credentials) the session gets.
+    "set_run_mcp_override",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -858,6 +860,7 @@ mod tests {
             "create_response_style",
             "update_response_style",
             "delete_response_style",
+            "set_run_mcp_override",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -888,6 +891,7 @@ mod tests {
             "devserver_logs",
             "list_trash",
             "list_response_styles",
+            "get_run_mcp",
         ] {
             assert!(!audited_command(name), "{name}");
         }
