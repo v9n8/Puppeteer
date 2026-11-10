@@ -3140,9 +3140,70 @@ pub(crate) async fn delete_run_tree(
     run_id: &str,
 ) -> Result<DeleteOutcome, String> {
     let worker_ids = ensure_tree_idle(db, registry, run_id).await?;
+    delete_runs(db, registry, conductor, &worker_ids, run_id).await
+}
 
+/// Purge a run in the Trash: [`delete_run_tree`], but only with the workers in
+/// the Trash too. A worker restored on its own is live, so it is not deleted
+/// (nor checked for being idle): it is detached and stays as a plain session.
+pub(crate) async fn purge_run_tree(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    run_id: &str,
+) -> Result<DeleteOutcome, String> {
+    let worker_ids = ensure_idle(db, registry, run_id, TRASHED_WORKERS).await?;
+    let outcome = delete_runs(db, registry, conductor, &worker_ids, run_id).await?;
+    detach_workers(db, run_id).await?;
+    Ok(outcome)
+}
+
+/// Purge every run of a project in the Trash, each like [`purge_run_tree`]
+/// does (log, transcripts, input file, links, tombstone, conductor row). All
+/// or nothing up front: refused while one of them is active. A worker of
+/// another project spawned by one of them is detached.
+pub(crate) async fn purge_project_runs(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    project_id: &str,
+) -> Result<DeleteOutcome, String> {
+    let runs: Vec<(String, String)> =
+        sqlx::query_as("SELECT id, status FROM runs WHERE project_id = ? ORDER BY id")
+            .bind(project_id)
+            .fetch_all(db)
+            .await
+            .map_err(|e| e.to_string())?;
+    let active = {
+        let reg = registry.lock().await;
+        runs.iter().any(|(id, status)| status == "running" || reg.contains_key(id))
+    };
+    if active {
+        return Err("A session of this project is still running — stop it before deleting".to_string());
+    }
     let mut outcome = DeleteOutcome::default();
-    for worker_id in &worker_ids {
+    for (id, _) in &runs {
+        outcome.leftover_files.extend(delete_single_run(db, registry, id).await?);
+        if let Some(c) = conductor {
+            c.unregister_session(id);
+        }
+        detach_workers(db, id).await?;
+        outcome.deleted_ids.push(id.clone());
+    }
+    outcome.deleted = outcome.deleted_ids.len() as u32;
+    Ok(outcome)
+}
+
+/// Delete `worker_ids`, then `run_id`, each with [`delete_single_run`].
+async fn delete_runs(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    worker_ids: &[String],
+    run_id: &str,
+) -> Result<DeleteOutcome, String> {
+    let mut outcome = DeleteOutcome::default();
+    for worker_id in worker_ids {
         outcome.leftover_files.extend(delete_single_run(db, registry, worker_id).await?);
         if let Some(c) = conductor {
             c.unregister_session(worker_id);
@@ -3158,6 +3219,29 @@ pub(crate) async fn delete_run_tree(
     Ok(outcome)
 }
 
+/// The workers left pointing at a deleted session become plain sessions: a run
+/// with a `conductor_run_id` is hidden from History and its finished turns try
+/// to wake that conductor.
+async fn detach_workers(db: &sqlx::SqlitePool, run_id: &str) -> Result<(), String> {
+    sqlx::query("UPDATE runs SET conductor_run_id = NULL WHERE conductor_run_id = ?")
+        .bind(run_id)
+        .execute(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Every worker of the session `?1` (a conductor's own row may point at itself:
+/// not a worker).
+const ALL_WORKERS: &str =
+    "SELECT id, status FROM runs WHERE conductor_run_id = ?1 AND id != ?1 ORDER BY id";
+
+/// The workers of the session `?1` that are in the Trash: trashed themselves,
+/// or with their project.
+const TRASHED_WORKERS: &str = "SELECT w.id, w.status FROM runs w JOIN projects p ON p.id = w.project_id \
+     WHERE w.conductor_run_id = ?1 AND w.id != ?1 AND (w.deleted_at IS NOT NULL OR p.deleted_at IS NOT NULL) \
+     ORDER BY w.id";
+
 /// Refuse to delete a run (to the Trash or for good) while it or any worker it
 /// spawned is still active. All-or-nothing: the whole tree is checked before
 /// anything is touched, so a refusal never leaves it half deleted. Returns the
@@ -3167,13 +3251,22 @@ async fn ensure_tree_idle(
     registry: &RunRegistry,
     run_id: &str,
 ) -> Result<Vec<String>, String> {
-    let worker_ids: Vec<String> =
-        sqlx::query_scalar("SELECT id FROM runs WHERE conductor_run_id = ? AND id != ?")
-            .bind(run_id)
-            .bind(run_id)
-            .fetch_all(db)
-            .await
-            .map_err(|e| e.to_string())?;
+    ensure_idle(db, registry, run_id, ALL_WORKERS).await
+}
+
+/// [`ensure_tree_idle`] over the workers `workers` selects (`id, status`, bound
+/// to the session as `?1`).
+async fn ensure_idle(
+    db: &sqlx::SqlitePool,
+    registry: &RunRegistry,
+    run_id: &str,
+    workers: &str,
+) -> Result<Vec<String>, String> {
+    let workers: Vec<(String, String)> = sqlx::query_as(workers)
+        .bind(run_id)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // All-or-nothing: validate the session AND every worker (live handle or a
     // DB status still 'running', e.g. left stuck by a crash) before deleting
@@ -3188,7 +3281,7 @@ async fn ensure_tree_idle(
         let reg = registry.lock().await;
         (
             reg.contains_key(run_id),
-            worker_ids.iter().any(|w| reg.contains_key(w)),
+            workers.iter().any(|(w, _)| reg.contains_key(w)),
         )
     };
     if parent_live {
@@ -3197,20 +3290,12 @@ async fn ensure_tree_idle(
     if parent_status == "running" {
         return Err("Run is still running — cancel it before deleting".to_string());
     }
-    let workers_running: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM runs WHERE conductor_run_id = ? AND id != ? AND status = 'running'",
-    )
-    .bind(run_id)
-    .bind(run_id)
-    .fetch_one(db)
-    .await
-    .map_err(|e| e.to_string())?;
-    if worker_live || workers_running > 0 {
+    if worker_live || workers.iter().any(|(_, status)| status == "running") {
         return Err(
             "A worker of this session is still running — cancel it before deleting".to_string(),
         );
     }
-    Ok(worker_ids)
+    Ok(workers.into_iter().map(|(id, _)| id).collect())
 }
 
 /// Move a run to the Trash together with every worker it spawned, all under
@@ -3603,7 +3688,7 @@ pub async fn purge_run(
         return Err("Run is not in the Trash — move it there first".to_string());
     }
     let conductor = app.try_state::<crate::conductor::ConductorState>();
-    let outcome = delete_run_tree(
+    let outcome = purge_run_tree(
         db.inner(),
         registry.inner(),
         conductor.as_ref().map(|c| c.inner()),
@@ -5561,6 +5646,43 @@ mod trash_tests {
         assert_eq!(fx.count("SELECT COUNT(*) FROM runs").await, 1);
         assert_eq!(fx.count("SELECT COUNT(*) FROM note_runs").await, 0);
         assert_eq!(fx.count("SELECT COUNT(*) FROM conductor_sessions").await, 0);
+    }
+
+    /// A worker restored on its own is live: purging its conductor deletes
+    /// only what is in the Trash and leaves that worker as a plain session.
+    #[tokio::test]
+    async fn purging_a_conductor_keeps_and_detaches_a_worker_restored_on_its_own() {
+        let fx = fx().await;
+        trash_run_tree(&fx.db, &fx.registry, None, "s", NOW).await.unwrap();
+        restore_run_inner(&fx.db, "w2").await.unwrap();
+        // A live worker does not block the purge, even while it runs: it is not deleted.
+        fx.exec("UPDATE runs SET status = 'running' WHERE id = 'w2'").await;
+
+        let outcome = purge_run_tree(&fx.db, &fx.registry, None, "s").await.unwrap();
+        assert_eq!(outcome.deleted, 2);
+        assert_eq!(outcome.deleted_ids, ["w1", "s"]);
+        assert!(!fx.log("s").exists() && !fx.log("w1").exists());
+        assert!(fx.log("w2").exists(), "the live worker keeps its log");
+        let left: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT id, conductor_run_id FROM runs ORDER BY id")
+                .fetch_all(&fx.db)
+                .await
+                .unwrap();
+        assert_eq!(
+            left,
+            [("other".to_string(), None), ("w2".to_string(), None)],
+            "w2 stays, detached from the purged conductor"
+        );
+
+        // A worker running inside the Trash still blocks, as before.
+        fx.exec("UPDATE runs SET deleted_at = 'd' WHERE id = 'other'").await;
+        fx.exec(
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, role, conductor_run_id, deleted_at) \
+             VALUES ('w3', 'p1', 'session', 'running', 'codex', 'c', 'worker', 'other', 'd')",
+        )
+        .await;
+        assert!(purge_run_tree(&fx.db, &fx.registry, None, "other").await.is_err());
+        assert_eq!(fx.count("SELECT COUNT(*) FROM runs WHERE id IN ('other', 'w3')").await, 2);
     }
 
     #[tokio::test]

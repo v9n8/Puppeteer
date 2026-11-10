@@ -45,7 +45,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
 /// skills installed into HOME, importing from this machine's other AI tools,
 /// switching a schedule on (it starts runs while nobody is at this machine),
-/// installing an app update, purging the Trash, plus the plumbing of the
+/// installing an app update, purging the Trash, resetting the usage stats
+/// (it deletes every run), plus the plumbing of the
 /// CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
@@ -89,6 +90,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // transcripts, links, audit). A Controller may only move to / out of the Trash.
     "purge_run",
     "purge_project",
+    // Usage reset: hard-deletes every run (the Trash included) and the usage ledger.
+    "reset_usage_stats",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -890,6 +893,14 @@ mod tests {
                 "{name} is not in generate_handler!"
             );
         }
+    }
+
+    #[test]
+    fn reset_usage_stats_is_local_only() {
+        // It hard-deletes every run, the Trash included, and the whole usage ledger.
+        assert!(is_local_only_command("reset_usage_stats"));
+        assert!(refuses_invoke(BRIDGE_LABEL, "reset_usage_stats"));
+        assert!(!audited_command("reset_usage_stats"), "local only, not an audited remote command");
     }
 
     #[test]

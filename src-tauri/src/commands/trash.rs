@@ -46,8 +46,8 @@ pub struct TrashRun {
     /// The run's own stamp; `None` when it is in the Trash only through its project.
     pub deleted_at: Option<String>,
     pub conductor_run_id: Option<String>,
-    /// Workers a purge of this run deletes with it: every run it spawned,
-    /// in the Trash or not (`delete_run_tree`).
+    /// Workers a purge of this run deletes with it: the ones it spawned that
+    /// are in the Trash too (`purge_run_tree`; a live worker is detached).
     pub worker_count: i64,
 }
 
@@ -88,7 +88,9 @@ pub(crate) async fn list_trash_inner(db: &Db) -> Result<TrashListing, String> {
     let runs = sqlx::query(
         "SELECT r.id, r.project_id, r.title, r.type, r.ref_number, r.status, r.engine, r.model, \
                 r.created_at, r.deleted_at, r.conductor_run_id, \
-                (SELECT COUNT(*) FROM runs w WHERE w.conductor_run_id = r.id AND w.id != r.id) AS worker_count \
+                (SELECT COUNT(*) FROM runs w JOIN projects wp ON wp.id = w.project_id \
+                 WHERE w.conductor_run_id = r.id AND w.id != r.id \
+                   AND (w.deleted_at IS NOT NULL OR wp.deleted_at IS NOT NULL)) AS worker_count \
          FROM runs r JOIN projects p ON p.id = r.project_id \
          WHERE r.deleted_at IS NOT NULL OR p.deleted_at IS NOT NULL \
          ORDER BY r.id",
@@ -193,8 +195,8 @@ mod tests {
         let listing = list_trash_inner(&db).await.unwrap();
         let count = |id: &str| listing.runs.iter().find(|r| r.id == id).unwrap().worker_count;
         // c1 points at itself (a conductor's own row): not one of its workers.
-        // w2 is live again but `delete_run_tree` still takes it with c1.
-        assert_eq!(count("c1"), 2);
+        // w2 is live again: a purge of c1 detaches it instead of deleting it.
+        assert_eq!(count("c1"), 1);
         assert_eq!(count("w1"), 0);
         assert_eq!(count("r2"), 0);
         assert_eq!(listing.runs.iter().find(|r| r.id == "w1").unwrap().conductor_run_id.as_deref(), Some("c1"));

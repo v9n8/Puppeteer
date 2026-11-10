@@ -1041,18 +1041,44 @@ pub(crate) async fn restore_project_inner(db: &Db, id: &str) -> Result<(), Strin
     Ok(())
 }
 
-/// Delete a project in the Trash for good: its row, runs (cascade), session
-/// links and AWS config. A project outside the Trash is refused. Local only:
-/// a remote desktop may not purge.
+/// Delete a project in the Trash for good ([`purge_project_inner`]), and its
+/// AWS config. Returns the transcript paths that could not be removed, so the
+/// UI can warn about them. Local only: a remote desktop may not purge.
 #[tauri::command]
 pub async fn purge_project(
     app: AppHandle,
+    webview: tauri::Webview,
     db: State<'_, Db>,
+    registry: State<'_, crate::runs::RunRegistry>,
     id: String,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
+    let conductor = app.try_state::<crate::conductor::ConductorState>();
+    let outcome =
+        purge_project_inner(db.inner(), registry.inner(), conductor.as_ref().map(|c| c.inner()), &id).await?;
+    crate::commands::runs::prune_run_audit(&webview, db.inner(), &outcome.deleted_ids).await;
+    crate::slack_threads::emit_all_changed(&app);
+    crate::item_links::emit_changed(&app, None);
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        crate::aws_sandbox::remove_project_aws_config(&app_data_dir, &id);
+    }
+    crate::commands::trash::emit_changed(&app);
+    Ok(outcome.leftover_files)
+}
+
+/// Delete a project in the Trash for good: each of its runs like a purged
+/// session ([`crate::commands::runs::purge_project_runs`]: log, transcripts,
+/// input files, links, tombstone, conductor row), then the project's own
+/// session links and its row. A project outside the Trash, or with a running
+/// session, is refused. Returns the purged runs and leftover transcripts.
+pub(crate) async fn purge_project_inner(
+    db: &Db,
+    registry: &crate::runs::RunRegistry,
+    conductor: Option<&crate::conductor::ConductorState>,
+    id: &str,
+) -> Result<crate::commands::runs::DeleteOutcome, String> {
     let in_trash: Option<bool> = sqlx::query_scalar("SELECT deleted_at IS NOT NULL FROM projects WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(db.inner())
+        .bind(id)
+        .fetch_optional(db)
         .await
         .map_err(|e| e.to_string())?;
     match in_trash {
@@ -1060,30 +1086,21 @@ pub async fn purge_project(
         Some(false) => return Err("Project is not in the Trash — move it there first".to_string()),
         Some(true) => {}
     }
-    // Session links of Slack threads / notes / todos: the project's runs cascade
-    // away below and the link tables have no FK to runs.
-    let unlinked = crate::slack_threads::run_links::delete_for_project(db.inner(), &id)
+    let outcome = crate::commands::runs::purge_project_runs(db, registry, conductor, id).await?;
+    // Links of Slack threads / notes / todos keyed by the project only (the
+    // link tables have no FK to runs).
+    crate::slack_threads::run_links::delete_for_project(db, id)
         .await
         .map_err(|e| e.to_string())?;
-    let items_unlinked = crate::item_links::delete_for_project(db.inner(), &id)
+    crate::item_links::delete_for_project(db, id)
         .await
         .map_err(|e| e.to_string())?;
     sqlx::query("DELETE FROM projects WHERE id = ?")
-        .bind(&id)
-        .execute(db.inner())
+        .bind(id)
+        .execute(db)
         .await
         .map_err(|e| e.to_string())?;
-    if unlinked > 0 {
-        crate::slack_threads::emit_all_changed(&app);
-    }
-    if items_unlinked > 0 {
-        crate::item_links::emit_changed(&app, None);
-    }
-    if let Ok(app_data_dir) = app.path().app_data_dir() {
-        crate::aws_sandbox::remove_project_aws_config(&app_data_dir, &id);
-    }
-    crate::commands::trash::emit_changed(&app);
-    Ok(())
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -2061,5 +2078,104 @@ mod trash_tests {
         assert!(deleted_at(&db, "runs", "r1").await.is_some());
         assert_eq!(project_by_id(&db, "p1").await.unwrap().run_count, 2);
         assert!(restore_project_inner(&db, "nope").await.is_err());
+    }
+
+    /// A purged project cleans up each of its runs like a purged session: log,
+    /// task folder, transcript, input file (unless another run still uses it),
+    /// conductor row, tombstone and usage flag. A worker of another project
+    /// spawned by one of its sessions is detached and stays.
+    #[tokio::test]
+    async fn purging_a_project_cleans_up_every_run_like_a_purged_session() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-purge-project-{}", Uuid::new_v4()));
+        let runs_dir = dir.join(".puppeteer").join("runs");
+        std::fs::create_dir_all(runs_dir.join("c")).unwrap();
+        let input = dir.join("tasks").join("t1").join("input.md");
+        let shared = dir.join("tasks").join("t2").join("input.md");
+        std::fs::create_dir_all(input.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        let transcript = dir.join("transcript.jsonl");
+        for f in [&input, &shared, &transcript] {
+            std::fs::write(f, "x").unwrap();
+        }
+        let sid = Uuid::new_v4().to_string();
+        let path = dir.to_string_lossy().into_owned();
+        let db = db_with(&[
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'other', '/w/other', 'c')",
+        ])
+        .await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('p1', 'shop', ?, 'c', 'd')")
+            .bind(&path)
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, role, conductor_run_id, session_id, transcript_path, input_path) VALUES \
+             ('c', 'p1', 'session', 'done', 'claude', 'c', 'conductor', NULL, ?1, ?2, ?3), \
+             ('w', 'p1', 'session', 'done', 'claude', 'c', 'worker', 'c', NULL, NULL, NULL), \
+             ('r', 'p1', 'analyze_issue', 'done', 'claude', 'c', NULL, NULL, NULL, NULL, ?4), \
+             ('x', 'p2', 'analyze_issue', 'done', 'claude', 'c', NULL, NULL, NULL, NULL, ?4), \
+             ('lw', 'p2', 'session', 'done', 'claude', 'c', 'worker', 'c', NULL, NULL, NULL)",
+        )
+        .bind(&sid)
+        .bind(transcript.to_string_lossy().into_owned())
+        .bind(input.to_string_lossy().into_owned())
+        .bind(shared.to_string_lossy().into_owned())
+        .execute(&db)
+        .await
+        .unwrap();
+        for sql in [
+            "INSERT INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at) VALUES ('c', 'p1', '', 'done', 3, 'c')",
+            "INSERT INTO run_usage (id, run_id, project_id, engine, created_at) VALUES ('u1', 'c', 'p1', 'claude', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        for id in ["c", "w", "r"] {
+            std::fs::write(runs_dir.join(format!("{id}.log")), "x").unwrap();
+        }
+        let registry = crate::runs::new_registry();
+        let cst = crate::conductor::ConductorState::new();
+        let token = cst.register_session("c", "p1", 3);
+
+        // Not in the Trash: refused.
+        assert!(purge_project_inner(&db, &registry, None, "p2").await.is_err());
+
+        let outcome = purge_project_inner(&db, &registry, Some(&cst), "p1").await.unwrap();
+        let mut ids = outcome.deleted_ids.clone();
+        ids.sort();
+        assert_eq!(ids, ["c", "r", "w"]);
+        assert!(outcome.leftover_files.is_empty(), "{:?}", outcome.leftover_files);
+        for id in ["c", "w", "r"] {
+            assert!(!runs_dir.join(format!("{id}.log")).exists(), "{id} log left behind");
+        }
+        assert!(!runs_dir.join("c").exists(), "task folder left behind");
+        assert!(!transcript.exists(), "transcript left behind");
+        assert!(!input.exists(), "input file used by no other run left behind");
+        assert!(shared.exists(), "input file still used by run x of another project");
+        let count = |sql: &'static str| {
+            let db = db.clone();
+            async move { sqlx::query_scalar::<_, i64>(sql).fetch_one(&db).await.unwrap() }
+        };
+        assert_eq!(count("SELECT COUNT(*) FROM projects WHERE id = 'p1'").await, 0);
+        assert_eq!(count("SELECT COUNT(*) FROM conductor_sessions").await, 0);
+        assert_eq!(count("SELECT COUNT(*) FROM deleted_sessions WHERE project_id = 'p1'").await, 1);
+        assert_eq!(count("SELECT deleted_run FROM run_usage WHERE id = 'u1'").await, 1);
+        assert!(cst.resolve_token(&token).is_none(), "conductor token must be revoked");
+        let detached: Option<String> = sqlx::query_scalar("SELECT conductor_run_id FROM runs WHERE id = 'lw'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(detached, None, "a live worker of another project is detached, not deleted");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_project_with_a_running_session_is_not_purged() {
+        let db = db_with(SHOP).await;
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p1'").execute(&db).await.unwrap();
+        sqlx::query("UPDATE runs SET status = 'running' WHERE id = 'r2'").execute(&db).await.unwrap();
+        let err = purge_project_inner(&db, &crate::runs::new_registry(), None, "p1").await.unwrap_err();
+        assert!(err.contains("still running"), "{err}");
+        let runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM runs").fetch_one(&db).await.unwrap();
+        assert_eq!(runs, 3, "nothing is deleted");
     }
 }

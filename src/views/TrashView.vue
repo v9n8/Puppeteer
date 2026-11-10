@@ -181,12 +181,10 @@ function purgeGroup(group: TrashGroup) {
         : t('trash.confirm.purgeGroupMessage', { name: group.project.name, count }, count),
       confirmLabel: t('trash.purge'),
     }))) return
-    if (group.projectTrashed) {
-      await invoke('purge_project', { id: group.project.id })
-      toast.success(t('trash.toast.purged'))
-    } else {
-      toastPurged(await purgeRuns(group.sessions.map((s) => s.run.id)), t('trash.toast.purged'))
-    }
+    const leftover = group.projectTrashed
+      ? await invoke<string[]>('purge_project', { id: group.project.id })
+      : await purgeRuns(group.sessions.map((s) => s.run.id))
+    toastPurged(leftover, t('trash.toast.purged'))
   })
 }
 
@@ -203,7 +201,7 @@ function emptyTrash() {
     }))) return
     const leftover: string[] = []
     for (const group of groups.value) {
-      if (group.projectTrashed) await invoke('purge_project', { id: group.project.id })
+      if (group.projectTrashed) leftover.push(...(await invoke<string[]>('purge_project', { id: group.project.id })))
       else leftover.push(...(await purgeRuns(group.sessions.map((s) => s.run.id))))
     }
     toastPurged(leftover, t('trash.toast.emptied'))

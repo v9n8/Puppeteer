@@ -1812,6 +1812,7 @@ async fn apply_bundle(
     }
     // Projects before notes / todos / threads so those can re-link to them.
     let app_data = app.path().app_data_dir().ok();
+    let trashed_before = trashed_project_count(db).await;
     let mut project_ids: Vec<(usize, String)> = Vec::new();
     for (index, entry) in bundle.projects.iter().enumerate() {
         match import_project(db, entry, create_missing_dirs, policy).await {
@@ -1831,6 +1832,10 @@ async fn apply_bundle(
                 .warnings
                 .push(format!("projects '{}': {e}", entry.name)),
         }
+    }
+    // A project matched in the Trash came back: the Trash screen and the lists refetch.
+    if trashed_project_count(db).await != trashed_before {
+        crate::commands::runs::notify_trash_changed(app);
     }
 
     for entry in &bundle.notes {
@@ -3080,6 +3085,14 @@ async fn import_slack_thread(
     Ok((Upsert::Created, id))
 }
 
+/// Projects in the Trash. An import that matches one brings it back ([`import_project`]).
+async fn trashed_project_count(db: &Db) -> i64 {
+    sqlx::query_scalar("SELECT COUNT(*) FROM projects WHERE deleted_at IS NOT NULL")
+        .fetch_one(db)
+        .await
+        .unwrap_or(0)
+}
+
 /// Id of the row of `table` whose `label` matches; `None` for no label or no match.
 async fn id_by_label(
     db: &Db,
@@ -3982,6 +3995,43 @@ mod tests {
             .unwrap();
         assert_eq!(deleted_at, None);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `apply_bundle` tells every window and a paired Controller (`trash:changed`) when the
+    /// count of projects in the Trash moved during the project import.
+    #[tokio::test]
+    async fn an_import_out_of_the_trash_moves_the_trashed_project_count() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-backup-trash-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().into_owned();
+        let source = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'shop', ?, 'c')")
+            .bind(&path)
+            .execute(&source)
+            .await
+            .unwrap();
+        let projects = collect_projects(&source).await.unwrap();
+        let target = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, deleted_at) VALUES ('local', 'shop', ?, 'c', 'd')")
+            .bind(&path)
+            .execute(&target)
+            .await
+            .unwrap();
+
+        assert_eq!(trashed_project_count(&target).await, 1);
+        import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!(trashed_project_count(&target).await, 0);
+        // A second import of the now live project leaves the Trash alone.
+        import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!(trashed_project_count(&target).await, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // The event itself needs an AppHandle (no mock runtime here): check it is sent.
+        let src = include_str!("settings_backup.rs");
+        let apply = &src[src.find("async fn apply_bundle(").unwrap()..];
+        let apply = &apply[..apply.find("\n}\n").unwrap()];
+        assert!(apply.contains("trashed_project_count(db).await != trashed_before"));
+        assert!(apply.contains("notify_trash_changed(app)"));
     }
 
     /// A project / repo path becomes a writable root of the remote desktop, so a remote import

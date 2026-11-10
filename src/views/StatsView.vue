@@ -25,6 +25,7 @@ import {
 import { Button, Input, Card, AppSelect, PageHeader } from '@/components/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { errorText } from '@/lib/featureGate'
 import {
   getUsageStats, backfillUsage, resetUsageStats,
   getStorageStats, NO_ACCOUNT,
@@ -366,7 +367,8 @@ async function doReset() {
     showReset.value = false
     await load()
   } catch (e) {
-    actionMsg.value = t('stats.action.resetFailed', { error: String(e) })
+    // Local-only: a remote desktop gets `remote_denied_local_only`.
+    actionMsg.value = t('stats.action.resetFailed', { error: errorText(e, t) })
   } finally {
     resetting.value = false
   }
