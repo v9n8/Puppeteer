@@ -7,7 +7,9 @@ import { allowsFeature, filterByFeature, menuActionFeature, startsGroup } from '
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { PALETTE_FEATURE } from '@/lib/commandPalette'
-import { PALETTE_ACTION, parseKeymap, resolveKeymap, type Keymap } from '@/lib/keymap'
+import {
+  NEW_SESSION_ACTION, PALETTE_ACTION, PREVIOUS_PROJECT_ACTION, parseKeymap, resolveKeymap, type Keymap,
+} from '@/lib/keymap'
 
 /**
  * Native menu bar (File / Edit / View / Go / Window / Help).
@@ -136,12 +138,15 @@ function buildSpec(state: MenuState): MenuSpec {
     items: [
       {
         kind: 'item',
-        id: 'file.newSession',
+        id: NEW_SESSION_ACTION,
         label: t('menu.newSession'),
-        // Only the project screen can start a session (it needs the project);
-        // greyed out elsewhere instead of silently doing nothing.
-        enabled: isMenuActionBound('file.newSession'),
+        // Bound app-wide (App.vue, the current or last-used project) and by the
+        // project screen on top; greyed out only before that, never a dead item.
+        enabled: isMenuActionBound(NEW_SESSION_ACTION),
       },
+      { kind: 'item', id: 'file.openProject', label: t('menu.openProject') },
+      { kind: 'item', id: PREVIOUS_PROJECT_ACTION, label: t('menu.previousProject') },
+      SEPARATOR,
       ...gated([
         { kind: 'item', id: 'file.newTodo', label: t('menu.newTodo') },
         { kind: 'item', id: 'file.newNote', label: t('menu.newNote') },
@@ -314,16 +319,36 @@ type MenuHandler = () => void
 // Reactive so the menu can grey out an item whose screen isn't mounted (see
 // `isMenuActionBound`).
 const handlers = shallowReactive(new Map<string, MenuHandler>())
+// Handlers a later registration of the same id sits on top of, oldest first.
+const shadowed = new Map<string, MenuHandler[]>()
 
 /**
  * Bind an action id to a handler for as long as a component is alive. Returns
- * the unbind function. Used for actions only one screen can perform — e.g. only
- * RunView can start a new session.
+ * the unbind function. The latest binding wins and unbinding it brings back the
+ * one beneath; a `fallback` goes beneath every other binding, whenever it is
+ * made. RunView's New Session (which keeps the composer's engine choice) covers
+ * the app-wide fallback while that screen is open — even though the screen
+ * mounts before App.vue binds its actions.
  */
-export function registerMenuAction(id: string, handler: MenuHandler): () => void {
-  handlers.set(id, handler)
+export function registerMenuAction(id: string, handler: MenuHandler, opts: { fallback?: boolean } = {}): () => void {
+  const current = handlers.get(id)
+  if (current && opts.fallback) shadowed.set(id, [handler, ...(shadowed.get(id) ?? [])])
+  else {
+    if (current) shadowed.set(id, [...(shadowed.get(id) ?? []), current])
+    handlers.set(id, handler)
+  }
   return () => {
-    if (handlers.get(id) === handler) handlers.delete(id)
+    const stack = shadowed.get(id) ?? []
+    if (handlers.get(id) === handler) {
+      const restored = stack.pop()
+      if (restored) handlers.set(id, restored)
+      else handlers.delete(id)
+    } else {
+      // A later binding is still on top (a screen remounting): drop this one from beneath it.
+      const i = stack.lastIndexOf(handler)
+      if (i >= 0) stack.splice(i, 1)
+    }
+    if (stack.length === 0) shadowed.delete(id)
   }
 }
 

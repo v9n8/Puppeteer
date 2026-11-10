@@ -8,11 +8,12 @@ import { Folder, FoldVertical } from 'lucide-vue-next'
 import ContextMeter from '@/components/ContextMeter.vue'
 import BudgetBadge from '@/components/BudgetBadge.vue'
 import { DropdownMenu, DropdownItem } from '@/components/ui'
+import { runMenuAction } from '@/lib/appMenu'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const {
-  router, features, projectId, project, isSessionWindow, contextTokens, contextModel,
+  features, project, isSessionWindow, contextTokens, contextModel,
   contextRateLimit, sendSlashCommand, sendingFollowUp, runSettingsOpen, toggleRunSettingsMenu,
   engineBadgeLabel, engineBadgeIcon, composerModelLabel, activeClaudeAccountLabel,
 } = useRunSession()
@@ -22,11 +23,11 @@ const CHIP =
   + 'transition-colors cursor-pointer hover:bg-muted hover:text-foreground '
   + 'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
 
-// UX-09 turns this chip into the project switcher popover. Until then it opens
-// the project's settings, like the header's ⋯ menu. A session pop-out is locked
-// to its one run, so there the chip only shows the name.
+// Opens the titlebar project switcher through its menu action, which also leaves
+// focus mode when the titlebar is hidden. A session pop-out is locked to its one
+// run, so there the chip only shows the name.
 function openProject() {
-  void router.push(`/projects/${projectId.value}/settings`)
+  runMenuAction('file.openProject')
 }
 
 const accountModelLabel = computed(() =>

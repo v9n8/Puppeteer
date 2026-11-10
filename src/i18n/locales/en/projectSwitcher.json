@@ -1,0 +1,16 @@
+{
+  "button": "Open project",
+  "searchPlaceholder": "Search projects by name or path",
+  "recent": "Recent",
+  "allProjects": "Projects",
+  "noProjects": "No projects yet — add a folder below",
+  "noMatch": "No project matches",
+  "open": "Open",
+  "newSession": "New session",
+  "hiddenBadge": "Hidden",
+  "addProject": "Add project…",
+  "namePlaceholder": "Project name",
+  "add": "Add",
+  "alreadyAdded": "\"{name}\" is already a project — opened it",
+  "restored": "Restored \"{name}\" from the Trash, with its sessions"
+}

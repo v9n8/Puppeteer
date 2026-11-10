@@ -4,7 +4,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   DEFAULT_KEYMAP,
+  NEW_SESSION_ACTION,
   PALETTE_ACTION,
+  PREVIOUS_PROJECT_ACTION,
   acceleratorFromEvent,
   acceleratorProblem,
   formatAccelerator,
@@ -145,6 +147,18 @@ test('resolveKeymap: one set of keys, one action — a change beats a default, t
   const keymap = { 'go./skills': 'CmdOrCtrl+J', 'go./projects': 'CmdOrCtrl+Ctrl+J' }
   assert.equal(resolveKeymap(ACTIONS, keymap, true).size, 4)
   assert.equal(resolveKeymap(ACTIONS, keymap, false).has('go./projects'), false)
+})
+
+test('defaults: every one usable on both platforms, no two on the same keys (UX-09 ⌘T, ⌥⌘`)', () => {
+  const ids = Object.keys(DEFAULT_KEYMAP)
+  for (const isMac of [true, false]) {
+    for (const id of ids) assert.equal(acceleratorProblem(DEFAULT_KEYMAP[id], isMac), null, `${id} on ${isMac ? 'mac' : 'other'}`)
+    assert.equal(resolveKeymap(ids, {}, isMac).size, ids.length, 'none dropped as a duplicate')
+  }
+  assert.equal(DEFAULT_KEYMAP[NEW_SESSION_ACTION], 'CmdOrCtrl+T')
+  assert.equal(DEFAULT_KEYMAP[PREVIOUS_PROJECT_ACTION], 'CmdOrCtrl+Alt+`')
+  // AWOG's ⌘` stays the macOS window cycler, so it can't be the default there.
+  assert.equal(acceleratorProblem('CmdOrCtrl+`', true), 'reserved')
 })
 
 test('keymapConflict: names the action already on those keys', () => {

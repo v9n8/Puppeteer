@@ -20,10 +20,20 @@ export const KEYMAP_SETTING_KEY = 'keymap.config'
 /** Menu action opening the command palette. */
 export const PALETTE_ACTION = 'view.commandPalette'
 
+/** Menu action starting a session in the current project, from any screen. */
+export const NEW_SESSION_ACTION = 'file.newSession'
+
+/** Menu action going back to the project used before this one. */
+export const PREVIOUS_PROJECT_ACTION = 'file.previousProject'
+
 /** Shortcuts before any change. Every other action starts with none. */
 export const DEFAULT_KEYMAP: Readonly<Record<string, string>> = {
   'go./settings': 'CmdOrCtrl+,',
   [PALETTE_ACTION]: 'CmdOrCtrl+K',
+  [NEW_SESSION_ACTION]: 'CmdOrCtrl+T',
+  // Not ⌘` (AWOG's key): macOS uses it to cycle an app's windows, and the
+  // pop-outs need that, so it is reserved below; ⌥ is added instead.
+  [PREVIOUS_PROJECT_ACTION]: 'CmdOrCtrl+Alt+`',
 }
 
 /** Action id → accelerator (`""`: no shortcut), only where it differs from the default. */

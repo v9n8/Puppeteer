@@ -87,7 +87,7 @@ export function usePaletteItems() {
       { id: 'go./trash', group: 'nav', label: t('nav.trash'), icon: Trash2, run: () => router.push('/trash').catch(() => {}) },
     ]
 
-    // Only a project screen can start a session (it needs the project).
+    // Bound app-wide once the main window is up (the current or last-used project).
     const newSession: PaletteCommand[] = isMenuActionBound('file.newSession')
       ? [{ id: 'file.newSession', group: 'session', label: t('menu.newSession'), icon: Plus, run: () => runMenuAction('file.newSession') }]
       : []

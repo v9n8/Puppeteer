@@ -6,6 +6,8 @@
   "window": "Window",
   "help": "Help",
   "newSession": "New Session",
+  "openProject": "Open Project…",
+  "previousProject": "Previous Project",
   "newTodo": "New Todo…",
   "newNote": "New Note…",
   "settings": "Settings…",

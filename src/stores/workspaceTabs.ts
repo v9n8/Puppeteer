@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import { touchMru } from '@/lib/projectSwitcher'
 
 /**
  * A project pinned as a tab in the workspace. Tabs exist purely to switch
@@ -13,6 +14,10 @@ export interface WorkspaceTab {
 }
 
 const STORAGE_KEY = 'puppeteer.workspaceTabs'
+// Recently used projects, most recent first: the switcher's "Recent" list and
+// the project ⌘` goes back to (UX-09). Kept apart from the tabs, which are
+// ordered by hand.
+const MRU_STORAGE_KEY = 'puppeteer.recentProjects'
 
 function load(): WorkspaceTab[] {
   try {
@@ -28,8 +33,19 @@ function load(): WorkspaceTab[] {
   }
 }
 
+function loadMru(): string[] {
+  try {
+    const raw = localStorage.getItem(MRU_STORAGE_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.filter((id): id is string => typeof id === 'string' && !!id) : []
+  } catch {
+    return []
+  }
+}
+
 export const useWorkspaceTabsStore = defineStore('workspaceTabs', () => {
   const tabs = reactive<WorkspaceTab[]>(load())
+  const recent = ref<string[]>(loadMru())
 
   function persist() {
     try {
@@ -99,5 +115,16 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', () => {
     if (changed) persist()
   }
 
-  return { tabs, open, close, has, move, forgetRun }
+  /** Record `projectId` as the project in use now (front of the recent list). */
+  function touch(projectId: string) {
+    if (!projectId || recent.value[0] === projectId) return
+    recent.value = touchMru(recent.value, projectId)
+    try {
+      localStorage.setItem(MRU_STORAGE_KEY, JSON.stringify(recent.value))
+    } catch {
+      /* storage unavailable — the in-memory list still works this session */
+    }
+  }
+
+  return { tabs, recent, open, close, has, move, forgetRun, touch }
 })

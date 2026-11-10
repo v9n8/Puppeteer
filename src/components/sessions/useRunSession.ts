@@ -65,8 +65,8 @@ function useRunViewLifecycle(s: RunSession) {
     loadMarkdown()
     nextTick(autoResizeComposer)
     document.addEventListener('mousedown', onRunSettingsPointerDown)
-    // File → New Session. Only this screen can serve it: starting a session
-    // needs the project the user is currently in.
+    // File → New Session (⌘T). Bound on top of the app-wide one (App.vue) while
+    // this screen is open, so the new session keeps the composer's engine choice.
     unbindNewSessionMenu = registerMenuAction('file.newSession', () => {
       void handleNewSession()
     })

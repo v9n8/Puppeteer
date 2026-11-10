@@ -1,0 +1,16 @@
+{
+  "button": "Mở Project",
+  "searchPlaceholder": "Tìm Project theo tên hoặc đường dẫn",
+  "recent": "Gần đây",
+  "allProjects": "Project",
+  "noProjects": "Chưa có Project nào — thêm một thư mục ở dưới",
+  "noMatch": "Không có Project nào khớp",
+  "open": "Mở",
+  "newSession": "Session mới",
+  "hiddenBadge": "Đã ẩn",
+  "addProject": "Thêm Project…",
+  "namePlaceholder": "Tên Project",
+  "add": "Thêm",
+  "alreadyAdded": "\"{name}\" đã là Project — đã mở nó",
+  "restored": "Đã khôi phục \"{name}\" từ Thùng rác, kèm các Session của nó"
+}

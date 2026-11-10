@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useProjectsStore } from '@/stores/projects'
@@ -22,6 +22,8 @@ import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WhatsNewModal from '@/components/WhatsNewModal.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
+import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
 import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
@@ -67,7 +69,11 @@ import { applySystemAccent } from '@/lib/systemAccent'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
-import { applyAppMenu, isMenuActionBound, listenMenuActions, registerMenuAction } from '@/lib/appMenu'
+import {
+  IS_MAC, applyAppMenu, hasNativeMenu, isMenuActionBound, listenMenuActions, menuAccelerator,
+  registerMenuAction, runMenuAction,
+} from '@/lib/appMenu'
+import { NEW_SESSION_ACTION, PREVIOUS_PROJECT_ACTION, matchesAccelerator } from '@/lib/keymap'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -349,12 +355,14 @@ const CACHED_VIEWS = [
 ]
 
 // Pin every project the user opens as a workspace tab; remember the run being
-// viewed so re-selecting the tab returns to it.
+// viewed so re-selecting the tab returns to it. Any project screen (settings
+// too) makes it the most recently used one, for the switcher and ⌥⌘`.
 watch(
   () => [route.name, route.params.projectId, route.params.runId] as const,
   ([name, projectId, runId]) => {
     // A session pop-out is locked to one run; it must not pin workspace tabs.
     if (isSessionWindow) return
+    if (typeof projectId === 'string') tabsStore.touch(projectId)
     if ((name === 'project-run' || name === 'project-run-detail') && typeof projectId === 'string') {
       tabsStore.open(projectId, typeof runId === 'string' ? runId : null)
     }
@@ -415,6 +423,20 @@ function onGlobalNavKeyGuard(e: KeyboardEvent) {
   }
 }
 
+// Without the native menu (browser dev) its accelerators never fire, so the
+// switcher's shortcuts are matched here instead — as CommandPalette does for ⌘K.
+const SWITCHER_ACTIONS = [NEW_SESSION_ACTION, PREVIOUS_PROJECT_ACTION, 'file.openProject']
+function onSwitcherShortcut(e: KeyboardEvent) {
+  if (hasNativeMenu() || e.defaultPrevented || e.isComposing) return
+  const id = SWITCHER_ACTIONS.find((a) => {
+    const accel = menuAccelerator(a)
+    return !!accel && matchesAccelerator(e, accel, IS_MAC)
+  })
+  if (!id) return
+  e.preventDefault()
+  runMenuAction(id)
+}
+
 // ⌘F opens the find bar of the area being read, in every window but the vault.
 // Not in the keymap: a menu accelerator only reaches the main window, so ⌘F is
 // one of the keys lib/keymap.ts refuses to give an action.
@@ -428,10 +450,25 @@ const sidebarVisible = computed(
 
 // ── Native menu bar ─────────────────────────────────────────────────────────
 // Every menu action that isn't screen-specific is bound here, at the app root,
-// so it works from any route. RunView binds `file.newSession` itself — starting
-// a session needs a project, which only that screen has.
+// so it works from any route. New Session is bound here too, for the project on
+// screen or the last one used; RunView binds it again on top while open, so
+// there it keeps the composer's engine choice.
+const switcher = useProjectSwitcher()
+
+/** Open the titlebar switcher, bringing the titlebar back first in focus mode. */
+async function openSwitcher() {
+  if (uiLayout.focusMode && isRunRoute.value) {
+    uiLayout.toggleFocus()
+    await nextTick()
+  }
+  switcher.open.value = true
+}
+
 function bindGlobalMenuActions() {
   const unbinds = [
+    registerMenuAction(NEW_SESSION_ACTION, () => switcher.newSessionAnywhere(), { fallback: true }),
+    registerMenuAction('file.openProject', () => void openSwitcher()),
+    registerMenuAction(PREVIOUS_PROJECT_ACTION, () => switcher.goToPreviousProject()),
     // A NEW todo / note is ALWAYS captured in the standalone capture window, from
     // every entry point — menu, shortcut, run screen (existing ones are
     // read and edited in the Notes / Todos windows).
@@ -555,6 +592,7 @@ onBeforeUnmount(() => {
   unlistenMenu?.()
   unlistenMenu = null
   window.removeEventListener('keydown', onGlobalNavKeyGuard, true)
+  window.removeEventListener('keydown', onSwitcherShortcut)
 })
 
 // App version shown in the sidebar footer; read from Tauri so it always matches
@@ -562,6 +600,7 @@ onBeforeUnmount(() => {
 const appVersion = ref('')
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalNavKeyGuard, true)
+  window.addEventListener('keydown', onSwitcherShortcut)
   try {
     appVersion.value = await getVersion()
   } catch {
@@ -935,9 +974,11 @@ onMounted(async () => {
     >
       <img src="/logo.png" alt="Puppeteer" class="h-[18px] w-[18px] rounded shrink-0" />
       <p class="text-sm font-semibold leading-none tracking-tight shrink-0">Puppeteer</p>
-      <div v-if="tabsStore.tabs.length > 0" class="h-4 w-px bg-border shrink-0 mx-1" aria-hidden="true" />
+      <div class="h-4 w-px bg-border shrink-0 mx-1" aria-hidden="true" />
 
       <WorkspaceTabs />
+      <!-- Right after the last tab: it adds projects to the strip (UX-09). -->
+      <ProjectSwitcher />
 
       <!-- Sits here rather than inside the sidebar: a "hide" button that
            disappears along with the thing it hides can't bring it back. -->

@@ -115,11 +115,13 @@ function onTabClick(projectId: string) {
 
 <template>
   <!-- Lives inside the app title bar (see App.vue), which owns the row's height,
-       background and bottom border — hence none of those here. -->
+       background and bottom border — hence none of those here. Not flex-1: the
+       project switcher's button follows the last tab; the strip still shrinks
+       and scrolls once the tabs outgrow the row. -->
   <div
     v-if="tabsStore.tabs.length > 0"
     ref="stripRef"
-    class="flex items-center gap-1 min-w-0 flex-1 h-full overflow-x-auto overflow-y-hidden"
+    class="flex items-center gap-1 min-w-0 h-full overflow-x-auto overflow-y-hidden"
   >
     <button
       v-for="(tab, index) in tabsStore.tabs"
