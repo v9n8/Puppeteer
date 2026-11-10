@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// Settings → "Engines & accounts" → Claude card: CLI path, default model, and the
+// Settings → "Engines & accounts" → Claude card: CLI path, the model list's
+// validation (the default model is set in "Defaults for new sessions"), and the
 // accounts (multi-account via CLAUDE_CONFIG_DIR): browser login, validate, default
 // account and the auto-balancer that moves the default. SettingsView fetches the
-// account store before showing the sections; the path, model and auto-balance
-// fields are keys of the shared settings form.
+// account store before showing the sections; the path and auto-balance fields are
+// keys of the shared settings form.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -11,14 +12,14 @@ import { useI18n } from 'vue-i18n'
 import {
   ArrowRightLeft, BadgeCheck, Cpu, Loader2, LogIn, Pencil, Plus, ShieldAlert, Star, Trash2, UserCircle,
 } from 'lucide-vue-next'
-import { AppSelect, Banner, Button, Card, Input, ToggleSwitch } from '@/components/ui'
+import { Banner, Button, Card, Input, ToggleSwitch } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useClaudeAccountsStore, type ClaudeValidation } from '@/stores/claudeAccounts'
 import { useBudgetStore } from '@/stores/budget'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useSettingsForm } from './useSettingsForm'
-import { fmtRefreshed, useModelOptions } from './useModelOptions'
+import { fmtRefreshed } from './useModelOptions'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
@@ -26,7 +27,7 @@ const { toast } = useToast()
 const budget = useBudgetStore()
 const { settings, loading } = useSettingsForm()
 const modelCatalog = useModelCatalogStore()
-const { claudeModelOptions } = useModelOptions()
+const emit = defineEmits<{ openDefaults: [] }>()
 
 let unlistenDefaultChanged: UnlistenFn | null = null
 
@@ -236,7 +237,7 @@ onUnmounted(() => {
       </div>
       <div class="space-y-1.5">
         <div class="flex items-center justify-between">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
+          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engines.models') }}</label>
           <button
             class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
             :disabled="modelCatalog.validating"
@@ -247,12 +248,15 @@ onUnmounted(() => {
             {{ modelCatalog.validating ? t('settings.ai.validating') : t('settings.ai.validate') }}
           </button>
         </div>
-        <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
         <p v-if="modelCatalog.validationError" class="text-2xs text-warning">{{ t('settings.ai.validateError') }}</p>
         <p v-else-if="modelCatalog.validating" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateRunning') }}</p>
         <p v-else-if="modelCatalog.unsupportedModels.length" class="text-2xs text-warning">{{ t('settings.ai.validateSomeFailed', { models: modelCatalog.unsupportedModels.join(', '), when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
         <p v-else-if="modelCatalog.validationCheckedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.validateAllOk', { when: fmtRefreshed(modelCatalog.validationCheckedAt) }) }}</p>
         <p v-else class="text-2xs text-muted-foreground">{{ t('settings.ai.validateHint') }}</p>
+        <p class="text-2xs text-muted-foreground">
+          {{ t('settings.engines.newSessionsUse', { model: settings.claude_model || t('settings.ai.modelDefault') }) }}
+          <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openDefaults')">{{ t('settings.engines.change') }}</button>
+        </p>
       </div>
 
       <!-- Accounts -->

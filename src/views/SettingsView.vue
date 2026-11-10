@@ -17,7 +17,7 @@ import KeymapSettings from '@/components/KeymapSettings.vue'
 import GeneralSettings from '@/components/settings/GeneralSettings.vue'
 import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
-import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
+import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import SessionsSettings from '@/components/settings/SessionsSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
@@ -161,8 +161,8 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
 
         <GeneralSettings v-show="activeSection === 'general'" />
         <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />
-        <EnginesSettings v-show="activeSection === 'engines'" />
-        <AiModelsSettings v-show="activeSection === 'ai'" />
+        <EnginesSettings v-show="activeSection === 'engines'" @open-section="activeSection = $event" />
+        <SessionDefaultsSettings v-show="activeSection === 'ai'" @open-section="activeSection = $event" />
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <SessionsSettings v-show="activeSection === 'sessions'" />

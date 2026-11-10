@@ -1,19 +1,27 @@
 <script setup lang="ts">
-// Settings → "Engines & accounts": one card per engine (CLI path, default model,
-// Claude's accounts) and the extra CLI args under "Advanced".
-import { ref } from 'vue'
+// Settings → "Engines & accounts": one card per engine (CLI path, model list,
+// Claude's accounts) and the extra CLI args under "Advanced". The default model of
+// each engine is set in "Defaults for new sessions"; the cards link there.
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, Cpu, Loader2, RefreshCw } from 'lucide-vue-next'
-import { AppSelect, Card, Input } from '@/components/ui'
+import { Card, Input } from '@/components/ui'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useSettingsForm } from './useSettingsForm'
-import { fmtRefreshed, useModelOptions } from './useModelOptions'
+import { fmtRefreshed } from './useModelOptions'
+import type { SettingsSectionId } from '@/lib/settingsSections'
 import ClaudeEngineCard from './ClaudeEngineCard.vue'
+
+const emit = defineEmits<{ openSection: [id: SettingsSectionId] }>()
 
 const { t } = useI18n()
 const modelCatalog = useModelCatalogStore()
 const { settings } = useSettingsForm()
-const { codexModelOptions } = useModelOptions()
+
+// The cached Codex list and the Claude validation report shown on the cards.
+onMounted(() => {
+  modelCatalog.ensureLoaded().catch(() => {})
+})
 
 // Collapsed by default, but open when extra args are set: they apply to every
 // run, so they should not sit out of sight.
@@ -22,7 +30,7 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
 
 <template>
   <div class="space-y-4">
-    <ClaudeEngineCard />
+    <ClaudeEngineCard @open-defaults="emit('openSection', 'ai')" />
 
     <Card body-class="p-4 space-y-4">
       <template #header>
@@ -40,7 +48,7 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
       </div>
       <div class="space-y-1.5">
         <div class="flex items-center justify-between">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
+          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.engines.models') }}</label>
           <button
             class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
             :disabled="modelCatalog.codexLoading"
@@ -51,10 +59,13 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
             {{ modelCatalog.codexLoading ? t('settings.ai.loading') : t('settings.ai.reload') }}
           </button>
         </div>
-        <AppSelect size="sm" v-model="settings.codex_model" :options="codexModelOptions" />
         <p v-if="modelCatalog.codexError" class="text-2xs text-warning">{{ t('settings.ai.modelsRefreshError') }}</p>
         <p v-else-if="modelCatalog.codexRefreshedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.modelsCached', { count: modelCatalog.codexModels.length, when: fmtRefreshed(modelCatalog.codexRefreshedAt) }) }}</p>
         <p v-else class="text-2xs text-muted-foreground">{{ t('settings.ai.codexRefreshHint') }}</p>
+        <p class="text-2xs text-muted-foreground">
+          {{ t('settings.engines.newSessionsUse', { model: settings.codex_model || t('settings.ai.modelDefault') }) }}
+          <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openSection', 'ai')">{{ t('settings.engines.change') }}</button>
+        </p>
       </div>
     </Card>
 

@@ -1,5 +1,5 @@
-// Claude / Codex model choices shared by Settings → "Engines & accounts" (the
-// default model of each engine card) and Settings → "Translation" (the translate
+// Claude / Codex model choices shared by Settings → "Defaults for new sessions"
+// (the default model of each engine) and Settings → "Translation" (the translate
 // model), so both selects offer the same list.
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -4,7 +4,7 @@
   "sections": {
     "general": "General",
     "engines": "Engines & accounts",
-    "ai": "Run defaults",
+    "ai": "Defaults for new sessions",
     "styles": "Response styles",
     "translate": "Translation",
     "sessions": "Sessions",
@@ -238,7 +238,10 @@
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Accounts",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "models": "Models",
+    "newSessionsUse": "New sessions use: {model}.",
+    "change": "Change"
   },
   "engine": {
     "claudePath": "Claude binary path",
@@ -247,10 +250,11 @@
     "extraArgsHint": "(applied to all runs)"
   },
   "ai": {
-    "runDefaults": "Run defaults",
+    "sessionDefaults": "Defaults for new sessions",
+    "sessionDefaultsHint": "What a new session starts with, unless it picks its own.",
     "modelDefault": "Default (engine decides)",
-    "defaultEngine": "Default Engine",
-    "defaultClaudeModel": "Default Claude model",
+    "defaultEngine": "Engine",
+    "defaultClaudeModel": "Claude model",
     "reloadCodexModelsTitle": "Refresh the model list from the Codex CLI (codex debug models)",
     "loading": "Loading…",
     "reload": "Refresh",
@@ -265,17 +269,20 @@
     "modelsRefreshError": "Refresh failed — keeping the last cached list.",
     "modelsCached": "{count} models · updated {when}",
     "codexRefreshHint": "Not refreshed yet — using the built-in list. Click Refresh to load models from the Codex CLI.",
-    "defaultCodexModel": "Default Codex model",
+    "defaultCodexModel": "Codex model",
+    "modelListsHint": "Validate the Claude list or refresh the Codex list in",
     "codexStaticHint": "Codex does not support dynamic model listing — this list is fixed.",
-    "defaultPermissionMode": "Default permission mode",
+    "defaultPermissionMode": "Permission mode",
     "permAskUi": "Ask via UI (default)",
     "permAcceptEdits": "Auto-accept edits",
     "permPlan": "Plan only (read-only)",
     "permAuto": "Auto (classifier)",
     "permBypass": "Bypass all permissions",
     "permissionHint": "How tool calls are gated (Claude & Codex). \"Ask via UI\" surfaces each request in a modal; \"Bypass all\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen.",
-    "defaultEffort": "Default effort",
+    "defaultEffort": "Effort",
     "effortEngineDefault": "Default (engine decides)",
+    "effortUnsupported": "Not taken by this model — the engine default is used",
+    "effortNotTaken": "The default model takes no effort setting, so the engine decides.",
     "effort": {
       "low": "Low",
       "medium": "Medium",
@@ -283,7 +290,12 @@
       "xhigh": "Extra high",
       "max": "Max"
     },
-    "effortHint": "How much reasoning the model puts into each answer. Higher effort gives deeper answers but uses more tokens. Applied only when the model supports the level (Codex has no Max); otherwise the model's own default is used."
+    "effortHint": "How much reasoning the model puts into each answer. Higher effort gives deeper answers but uses more tokens. Applied only when the model supports the level (Codex has no Max); otherwise the model's own default is used.",
+    "defaultStyle": "Response style",
+    "styleNone": "None",
+    "styleNoneHint": "No extra text: the engine answers its own way.",
+    "styleMissing": "Deleted style (none is used)",
+    "styleHint": "Added to the system prompt of new sessions. Write your own styles in"
   },
   "translate": {
     "title": "Translation",

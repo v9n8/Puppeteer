@@ -4,7 +4,7 @@
   "sections": {
     "general": "Chung",
     "engines": "Engine & tài khoản",
-    "ai": "Mặc định khi chạy",
+    "ai": "Mặc định session mới",
     "styles": "Phong cách trả lời",
     "translate": "Dịch",
     "sessions": "Session",
@@ -238,7 +238,10 @@
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Tài khoản",
-    "advanced": "Nâng cao"
+    "advanced": "Nâng cao",
+    "models": "Model",
+    "newSessionsUse": "Session mới dùng: {model}.",
+    "change": "Đổi"
   },
   "engine": {
     "claudePath": "Đường dẫn binary Claude",
@@ -247,10 +250,11 @@
     "extraArgsHint": "(áp dụng cho mọi lần chạy)"
   },
   "ai": {
-    "runDefaults": "Mặc định khi chạy",
+    "sessionDefaults": "Mặc định session mới",
+    "sessionDefaultsHint": "Giá trị session mới dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng.",
     "modelDefault": "Mặc định (engine tự chọn)",
-    "defaultEngine": "Engine mặc định",
-    "defaultClaudeModel": "Model Claude mặc định",
+    "defaultEngine": "Engine",
+    "defaultClaudeModel": "Model Claude",
     "reloadCodexModelsTitle": "Làm mới danh sách model từ Codex CLI (codex debug models)",
     "loading": "Đang tải…",
     "reload": "Làm mới",
@@ -265,17 +269,20 @@
     "modelsRefreshError": "Làm mới thất bại — giữ lại danh sách đã lưu trước đó.",
     "modelsCached": "{count} model · cập nhật {when}",
     "codexRefreshHint": "Chưa làm mới — đang dùng danh sách mặc định. Bấm Làm mới để lấy model từ Codex CLI.",
-    "defaultCodexModel": "Model Codex mặc định",
+    "defaultCodexModel": "Model Codex",
+    "modelListsHint": "Xác thực danh sách Claude hoặc làm mới danh sách Codex ở",
     "codexStaticHint": "Codex không hỗ trợ liệt kê model động — danh sách này cố định.",
-    "defaultPermissionMode": "Chế độ quyền mặc định",
+    "defaultPermissionMode": "Chế độ quyền",
     "permAskUi": "Hỏi qua UI (mặc định)",
     "permAcceptEdits": "Tự động chấp nhận chỉnh sửa",
     "permPlan": "Chỉ lập kế hoạch (chỉ đọc)",
     "permAuto": "Tự động (bộ phân loại)",
     "permBypass": "Bỏ qua mọi quyền",
     "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Hỏi qua UI\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua tất cả\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run.",
-    "defaultEffort": "Effort mặc định",
+    "defaultEffort": "Effort",
     "effortEngineDefault": "Mặc định (engine tự chọn)",
+    "effortUnsupported": "Model này không nhận mức này — dùng mặc định của engine",
+    "effortNotTaken": "Model mặc định không nhận cài đặt effort, nên engine tự chọn.",
     "effort": {
       "low": "Thấp",
       "medium": "Vừa",
@@ -283,7 +290,12 @@
       "xhigh": "Rất cao",
       "max": "Tối đa"
     },
-    "effortHint": "Mức suy luận model dùng cho mỗi câu trả lời. Effort cao cho câu trả lời kỹ hơn nhưng tốn nhiều token hơn. Chỉ áp dụng khi model hỗ trợ mức đó (Codex không có Tối đa); nếu không, model dùng mặc định của nó."
+    "effortHint": "Mức suy luận model dùng cho mỗi câu trả lời. Effort cao cho câu trả lời kỹ hơn nhưng tốn nhiều token hơn. Chỉ áp dụng khi model hỗ trợ mức đó (Codex không có Tối đa); nếu không, model dùng mặc định của nó.",
+    "defaultStyle": "Phong cách trả lời",
+    "styleNone": "Không dùng",
+    "styleNoneHint": "Không thêm chữ: engine trả lời theo cách của nó.",
+    "styleMissing": "Style đã bị xoá (không dùng style nào)",
+    "styleHint": "Được thêm vào system prompt của session mới. Tự viết style riêng ở"
   },
   "translate": {
     "title": "Dịch",

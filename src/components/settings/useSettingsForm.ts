@@ -26,6 +26,7 @@ export interface AppSettings {
   animated_background: string
   default_permission_mode: string
   default_effort: string
+  default_style: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string
@@ -73,6 +74,7 @@ export function createSettingsForm(): SettingsForm {
     animated_background: 'true',
     default_permission_mode: 'default',
     default_effort: '',
+    default_style: '',
     terminal_app: TERMINAL_APPS[desktopOs(navigator.userAgent)][0].value,
     context_warn_percent: '80',
     context_limit_override: '',
