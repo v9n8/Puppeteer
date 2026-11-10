@@ -47,7 +47,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// and write), importing from this machine's other AI tools, switching a
 /// schedule on (it starts runs while nobody is at this machine),
 /// installing an app update, purging the Trash, resetting the usage stats
-/// (it deletes every run), plus the plumbing of the
+/// (it deletes every run), copying this machine's webview storage of tool
+/// permissions into the DB, plus the plumbing of the
 /// CONTROLLING side.
 /// Everything else — credentials included — is the paired device's to manage,
 /// like the person at the keyboard ([`audited_command`] keeps a trace of the
@@ -96,6 +97,9 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "purge_project",
     // Usage reset: hard-deletes every run (the Trash included) and the usage ledger.
     "reset_usage_stats",
+    // Tool permissions: the one-time copy of this machine's webview storage into the
+    // DB. A remote window's storage is the controlling machine's, never this one's.
+    "import_project_tool_permissions",
     // Plumbing of the CONTROLLING side of a remote desktop: a remote window
     // calls these on its own machine (real invoke), never over the bridge. Run
     // here they would read / write arbitrary files of this machine.
@@ -253,6 +257,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     "set_project_session_defaults",
     // Fork: creates a session from another one's conversation and settings.
     "fork_run",
+    // Standing tool permissions: "Always allow" lets a tool run without asking in every
+    // session of the project (audited with its decision, like a phone's `allow_always`).
+    "set_project_tool_permission",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -872,6 +879,7 @@ mod tests {
             "set_run_mcp_override",
             "set_project_session_defaults",
             "fork_run",
+            "set_project_tool_permission",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -904,6 +912,7 @@ mod tests {
             "list_trash",
             "list_response_styles",
             "get_run_mcp",
+            "list_project_tool_permissions",
         ] {
             assert!(!audited_command(name), "{name}");
         }
@@ -928,6 +937,17 @@ mod tests {
         assert!(is_local_only_command("reset_usage_stats"));
         assert!(refuses_invoke(BRIDGE_LABEL, "reset_usage_stats"));
         assert!(!audited_command("reset_usage_stats"), "local only, not an audited remote command");
+    }
+
+    #[test]
+    fn standing_tool_permissions_modes() {
+        // Read and set from a remote desktop (set audited, like a phone's Always);
+        // the localStorage import is this machine's own.
+        assert!(!refuses_invoke(BRIDGE_LABEL, "list_project_tool_permissions"));
+        assert!(!refuses_invoke(BRIDGE_LABEL, "set_project_tool_permission"));
+        assert!(audited_command("set_project_tool_permission"));
+        assert!(refuses_invoke(BRIDGE_LABEL, "import_project_tool_permissions"));
+        assert!(!refuses_invoke("main", "import_project_tool_permissions"));
     }
 
     #[test]

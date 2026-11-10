@@ -561,6 +561,17 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       }
       if (seen.has(req.request_id)) return
       seen.add(req.request_id)
+      const perms = useToolPermissionsStore()
+      if (!perms.loaded) {
+        // The standing choices are still loading from the DB (app start): decide
+        // once they are in, so a tool allowed for good is not asked again.
+        void perms.init().then(() => applyStandingOrQueue(req))
+        return
+      }
+      applyStandingOrQueue(req)
+    }
+
+    const applyStandingOrQueue = (req: PermissionRequest) => {
       // Standing allow/deny choices apply even while a paired phone watches
       // this run: the phone sets them with the same Always buttons, and the
       // Host tells it to drop a prompt answered here (`permission_resolved`),
@@ -779,6 +790,13 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       }
     })
   }
+
+  // The standing choices were (re)loaded from the DB: the first load at start,
+  // or a change made in another window. Re-seed the open sessions they cover.
+  useToolPermissionsStore().onChange((projectId) => {
+    const projects = projectId ? [projectId] : [...new Set([...sessions.values()].map((s) => s.projectId))]
+    projects.filter(Boolean).forEach(syncToolPermissions)
+  })
 
   function shiftPermission(runId: string) {
     sessions.get(runId)?.permissionQueue.shift()

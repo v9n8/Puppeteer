@@ -6,7 +6,7 @@
 //! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links, defaults for new
-//! sessions. Sessions and usage history stay on the machine; the bookmarks on them travel, and
+//! sessions, standing tool permissions. Sessions and usage history stay on the machine; the bookmarks on them travel, and
 //! land on the same session when the importing machine has it. The user's response styles travel too (a project's own ones
 //! with their project). The trash is local too: a project or session in it is not
 //! exported (nor the bookmarks on such a session).
@@ -204,6 +204,18 @@ struct ProjectEntry {
     /// Defaults for new sessions (UX-19). Older backups have none: a matched project keeps its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     session_defaults: Option<SessionDefaultsEntry>,
+    /// Standing "Always allow / deny" tool decisions (UX-31). Older backups have none: a matched
+    /// project keeps its own.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    tool_permissions: Vec<ToolPermissionEntry>,
+}
+
+/// One standing tool decision of a project (`commands::tool_permissions`).
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct ToolPermissionEntry {
+    tool: String,
+    /// `allow` or `deny`.
+    decision: String,
 }
 
 /// A project's defaults for new sessions (`commands::session_defaults`); unset follows the global
@@ -1528,6 +1540,11 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
         })
         .collect();
         let session_defaults = collect_session_defaults(db, &id).await?;
+        let tool_permissions = crate::commands::tool_permissions::list(db, Some(&id))
+            .await?
+            .into_iter()
+            .map(|p| ToolPermissionEntry { tool: p.tool_name, decision: p.decision })
+            .collect();
         out.push(ProjectEntry {
             id,
             name: row.get("name"),
@@ -1562,6 +1579,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             mcp_servers,
             servers,
             session_defaults,
+            tool_permissions,
         });
     }
     Ok(out)
@@ -1967,6 +1985,9 @@ async fn apply_bundle(
                 .warnings
                 .push(format!("projects '{}': {e}", entry.name)),
         }
+    }
+    if !project_ids.is_empty() {
+        crate::commands::tool_permissions::emit_changed(app, None);
     }
     // A project matched in the Trash came back: the Trash screen and the lists refetch.
     if trashed_project_count(db).await != trashed_before {
@@ -3752,6 +3773,7 @@ async fn import_project(
     if let Some(defaults) = &entry.session_defaults {
         touched |= import_session_defaults(db, &id, defaults, &mut warnings).await?;
     }
+    touched |= import_tool_permissions(db, &id, &entry.tool_permissions, &mut warnings).await?;
 
     if touched && outcome == Upsert::Unchanged {
         outcome = Upsert::Updated;
@@ -3809,6 +3831,43 @@ async fn import_session_defaults(
     }
     defaults::write(db, project_id, &merged).await?;
     Ok(true)
+}
+
+/// Merge a project's imported standing tool permissions. A deny always lands (it replaces a local
+/// allow); an allow only where the project has no decision for that tool: like the defaults above,
+/// an import never widens what a run may do over a local choice. Nothing local is removed. True
+/// when something changed.
+async fn import_tool_permissions(
+    db: &Db,
+    project_id: &str,
+    entries: &[ToolPermissionEntry],
+    warnings: &mut Vec<String>,
+) -> Result<bool, String> {
+    use crate::commands::tool_permissions as perms;
+    if entries.is_empty() {
+        return Ok(false);
+    }
+    let local: std::collections::HashMap<String, String> = perms::list(db, Some(project_id))
+        .await?
+        .into_iter()
+        .map(|p| (p.tool_name, p.decision))
+        .collect();
+    let mut changed = false;
+    for e in entries {
+        match local.get(&e.tool).map(String::as_str) {
+            Some(d) if d == e.decision => continue,
+            Some(_) if e.decision == perms::ALLOW => {
+                warnings.push(format!("tool '{}' stays denied: an import never turns a deny into an allow", e.tool));
+                continue;
+            }
+            _ => {}
+        }
+        match perms::set(db, project_id, &e.tool, Some(&e.decision)).await {
+            Ok(()) => changed = true,
+            Err(err) => warnings.push(format!("tool permission left out: {err}")),
+        }
+    }
+    Ok(changed)
 }
 
 /// Set a project's imported default style: a built-in, else the style with the exported id in the
@@ -4006,6 +4065,58 @@ mod tests {
         let gone = StyleRefEntry { key: "gone".into(), name: o("Gone"), project: false };
         assert!(import_project_style(&target, "a", &gone).await.is_err());
         assert_eq!(defaults::load(&target, "a").await.style.as_deref(), Some("concise"));
+    }
+
+    /// UX-31: standing tool permissions travel with their project (matched by path); a deny lands,
+    /// an allow never replaces a local deny, nothing local is removed.
+    #[tokio::test]
+    async fn project_tool_permissions_round_trip() {
+        use crate::commands::tool_permissions::{self as perms, ALLOW, DENY};
+        let source = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'web', '/src/web', 'c')")
+            .execute(&source)
+            .await
+            .unwrap();
+        for (tool, decision) in [("Bash", ALLOW), ("mcp__github__create_issue", ALLOW), ("Write", DENY), ("Edit", DENY)] {
+            perms::set(&source, "p1", tool, Some(decision)).await.unwrap();
+        }
+        let projects: Vec<ProjectEntry> = serde_json::from_value(
+            serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap(),
+        )
+        .unwrap();
+        let entry = &projects[0];
+        assert_eq!(entry.tool_permissions.len(), 4);
+
+        // Another machine: the same folder under another id and name, with choices of its own.
+        let target = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('w', 'other-name', '/src/web', 'c')")
+            .execute(&target)
+            .await
+            .unwrap();
+        perms::set(&target, "w", "Bash", Some(DENY)).await.unwrap(); // stays denied
+        perms::set(&target, "w", "Edit", Some(ALLOW)).await.unwrap(); // the imported deny wins
+        perms::set(&target, "w", "Read", Some(ALLOW)).await.unwrap(); // local only: kept
+
+        let (outcome, id, warnings) = import_project(&target, entry, false, None).await.unwrap();
+        assert_eq!((outcome, id.as_str()), (Upsert::Updated, "w"));
+        assert!(warnings.iter().any(|w| w.contains("'Bash' stays denied")), "{warnings:?}");
+        let mut got: Vec<(String, String)> =
+            perms::list(&target, Some("w")).await.unwrap().into_iter().map(|p| (p.tool_name, p.decision)).collect();
+        got.sort();
+        let want = [("Bash", DENY), ("Edit", DENY), ("Read", ALLOW), ("Write", DENY), ("mcp__github__create_issue", ALLOW)];
+        assert_eq!(got, want.map(|(t, d)| (t.to_string(), d.to_string())));
+        // Again: nothing changes.
+        assert!(!import_tool_permissions(&target, "w", &entry.tool_permissions, &mut Vec::new()).await.unwrap());
+
+        // A backup from before UX-31 has none and leaves the project's own.
+        let old: ProjectEntry = serde_json::from_value(serde_json::json!({
+            "id": "x", "name": "web", "path": "/src/web", "default_engine": "claude", "created_at": "c",
+        }))
+        .unwrap();
+        assert!(old.tool_permissions.is_empty());
+        assert!(!serde_json::to_value(&old).unwrap().as_object().unwrap().contains_key("tool_permissions"));
+        import_project(&target, &old, false, None).await.unwrap();
+        assert_eq!(perms::list(&target, Some("w")).await.unwrap().len(), 5);
     }
 
     #[tokio::test]

@@ -373,4 +373,29 @@ mod tests {
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'b', '/b', 'c')").execute(&db).await.unwrap();
         assert_eq!(crate::commands::session_defaults::load(&db, "p2").await.engine, None);
     }
+
+    /// UX-31: the table starts empty on an old database (the app copies the
+    /// localStorage decisions in itself) and its rows go with their project.
+    #[tokio::test]
+    async fn tool_permissions_start_empty_and_go_with_their_project() {
+        use crate::commands::tool_permissions as perms;
+        let db = db_at_0001().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        assert!(perms::list(&db, None).await.unwrap().is_empty());
+
+        perms::set(&db, "p1", "Bash", Some(perms::ALLOW)).await.unwrap();
+        // The decision column takes only allow / deny.
+        assert!(sqlx::query(
+            "INSERT INTO project_tool_permissions (project_id, tool_name, decision, created_at) VALUES ('p1', 'Read', 'ask', 'c')",
+        )
+        .execute(&db)
+        .await
+        .is_err());
+        sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert!(perms::list(&db, None).await.unwrap().is_empty());
+    }
 }

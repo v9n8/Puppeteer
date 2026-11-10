@@ -558,6 +558,16 @@ fn ipc_audit(cmd: &CmdPayload) -> Option<(String, &'static str, Option<&'static 
         }
         return Some((action, audit::RESULT_ACCEPTED, None));
     }
+    if name == crate::commands::tool_permissions::SET_COMMAND {
+        // The decision, as a fixed word: a standing allow must be told apart from a deny.
+        let decision = match cmd.args.as_ref().and_then(|a| a.get("decision")) {
+            None | Some(serde_json::Value::Null) => "remove",
+            Some(d) if d == crate::commands::tool_permissions::ALLOW => "allow",
+            Some(d) if d == crate::commands::tool_permissions::DENY => "deny",
+            Some(_) => "invalid",
+        };
+        return Some((format!("ipc:{name}:{decision}"), audit::RESULT_ACCEPTED, None));
+    }
     Some((format!("ipc:{name}"), audit::RESULT_ACCEPTED, None))
 }
 
@@ -1368,6 +1378,23 @@ mod tests {
         assert_eq!((action.as_str(), result, reason), ("ipc:set_inbox_api_enabled", audit::RESULT_REJECTED, Some("local_only")));
         let (action, result, _) = audit_of("update_setting", serde_json::json!({ "key": "inbox_api_enabled", "value": "true" })).unwrap();
         assert_eq!((action.as_str(), result), ("ipc:update_setting:inbox_api_enabled", audit::RESULT_REJECTED));
+        // Standing tool permissions: the decision is named, the tool is not.
+        for (decision, shown) in [
+            (serde_json::json!("allow"), "allow"),
+            (serde_json::json!("deny"), "deny"),
+            (serde_json::Value::Null, "remove"),
+            (serde_json::json!("x"), "invalid"),
+        ] {
+            let args = serde_json::json!({ "projectId": "p", "toolName": "Bash", "decision": decision });
+            let (action, result, _) = audit_of("set_project_tool_permission", args).unwrap();
+            assert_eq!((action, result), (format!("ipc:set_project_tool_permission:{shown}"), audit::RESULT_ACCEPTED));
+        }
+        let (action, result, reason) = audit_of("import_project_tool_permissions", serde_json::json!({ "entries": [] })).unwrap();
+        assert_eq!(
+            (action.as_str(), result, reason),
+            ("ipc:import_project_tool_permissions", audit::RESULT_REJECTED, Some("local_only"))
+        );
+        assert!(audit_of("list_project_tool_permissions", serde_json::json!({})).is_none());
         // Everyday work and chatty vault polls are not audited.
         for name in ["list_runs", "start_run", "secret_vault_touch", "secret_vault_status", "secret_notes_list"] {
             assert!(audit_of(name, serde_json::json!({})).is_none(), "{name}");
