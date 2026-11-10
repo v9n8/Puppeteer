@@ -140,5 +140,31 @@
   "warnCodexReadsClaudeMd": "{config} lists CLAUDE.md in project_doc_fallback_filenames, so Codex may read Claude's instructions.",
   "warnLinksNotIgnored": "{dir} holds Puppeteer symlinks that git does not ignore. Committed, they point to a path on this machine and break for everyone else — add it to .gitignore or .git/info/exclude.",
   "warnLegacyCopiesBackedUp": "Old skill/rule copies that may hold local edits were moved to {dir} ({count} batch(es)) when switching to symlinks. Check them, keep what you need, then delete that folder to clear this notice.",
-  "warnTrackedByGit": "The repo commits its own files at {paths}. Puppeteer leaves them alone and does not install there, so the repo's version is what Claude/Codex load."
+  "warnTrackedByGit": "The repo commits its own files at {paths}. Puppeteer leaves them alone and does not install there, so the repo's version is what Claude/Codex load.",
+  "colorLabel": "Color",
+  "colorHint": "Shown on the Projects grid and the tab bar. Click again to clear.",
+  "iconLabel": "Icon",
+  "colors": {
+    "primary": "Indigo",
+    "info": "Blue",
+    "success": "Green",
+    "warning": "Amber",
+    "destructive": "Red",
+    "neutral": "Gray"
+  },
+  "icons": {
+    "default": "Folder (default)",
+    "code": "Code",
+    "globe": "Web",
+    "server": "Server",
+    "database": "Database",
+    "smartphone": "Mobile",
+    "bot": "Bot",
+    "rocket": "Rocket",
+    "book-open": "Docs",
+    "flask-conical": "Lab",
+    "wrench": "Tools",
+    "package": "Package",
+    "shield": "Security"
+  }
 }

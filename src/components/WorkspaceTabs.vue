@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { X, FolderOpen } from 'lucide-vue-next'
+import { X } from 'lucide-vue-next'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
 import { useDragSort } from '@/composables/useDragSort'
+import { projectIcon, projectTextClass } from '@/lib/projectAppearance'
 
 /**
  * Horizontal tab bar for fast switching between PROJECTS. One tab per open
@@ -29,6 +30,20 @@ const activeProjectId = computed(() =>
 function projectName(projectId: string): string {
   return projectsStore.projects.find((p) => p.id === projectId)?.name ?? t('misc.tabs.project')
 }
+
+/**
+ * Each open project's icon, tinted with its colour (UX-08); the plain folder by
+ * default. A computed for the same reason as `states` below: a drag re-renders
+ * the strip on every pointer frame.
+ */
+const tabIcons = computed(() => {
+  const map: Record<string, { icon: Component; tint: string }> = {}
+  for (const tab of tabsStore.tabs) {
+    const p = projectsStore.projects.find((p) => p.id === tab.projectId)
+    map[tab.projectId] = { icon: projectIcon(p?.icon), tint: projectTextClass(p?.color) }
+  }
+  return map
+})
 
 interface ProjectState {
   running: boolean
@@ -140,7 +155,12 @@ function onTabClick(projectId: string) {
         />
       </span>
 
-      <FolderOpen class="h-[13px] w-[13px] shrink-0 opacity-70" :stroke-width="1.75" />
+      <component
+        :is="tabIcons[tab.projectId].icon"
+        class="h-[13px] w-[13px] shrink-0"
+        :class="tabIcons[tab.projectId].tint || 'opacity-70'"
+        :stroke-width="1.75"
+      />
       <span class="truncate">{{ projectName(tab.projectId) }}</span>
 
       <!-- pending-permission badge (summed across the project's runs) -->

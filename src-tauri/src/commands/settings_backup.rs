@@ -25,6 +25,7 @@
 use crate::commands::groups::{set_group_members_inner, GroupKind};
 use crate::commands::library_items::{self, LibraryKind};
 use crate::commands::mcp::McpServer;
+use crate::commands::projects::{check_appearance, PROJECT_COLORS, PROJECT_ICONS};
 use crate::commands::settings::is_portable_setting;
 use crate::commands::{mcp, rules, skills, vps_servers};
 use crate::db::Db;
@@ -145,6 +146,14 @@ struct ProjectEntry {
     github_project_board_url: Option<String>,
     #[serde(default)]
     github_project_field_mappings: Option<String>,
+    /// Display tone / lucide icon name / hidden flag (UX-08). Older backups have none of
+    /// them: the colour and icon stay unset, and `hidden: None` leaves a matched project as is.
+    #[serde(default)]
+    color: Option<String>,
+    #[serde(default)]
+    icon: Option<String>,
+    #[serde(default)]
+    hidden: Option<bool>,
     /// Default GitHub account (label).
     #[serde(default)]
     github_account: Option<String>,
@@ -1268,6 +1277,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
     for row in sqlx::query(
         "SELECT p.id, p.name, p.path, p.github_owner, p.github_repo, p.default_engine, p.created_at, \
                 p.position, p.github_project_board_url, p.github_project_field_mappings, \
+                p.color, p.icon, p.hidden, \
                 gh.label AS github_account, gl.label AS gitlab_account, aws.label AS aws_account, az.label AS azure_account, \
                 cl.label AS claude_account \
          FROM projects p \
@@ -1408,6 +1418,9 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             position: row.get("position"),
             github_project_board_url: row.get("github_project_board_url"),
             github_project_field_mappings: row.get("github_project_field_mappings"),
+            color: row.get("color"),
+            icon: row.get("icon"),
+            hidden: Some(row.get("hidden")),
             github_account: row.get("github_account"),
             github_reviewer_account: None,
             gitlab_account: row.get("gitlab_account"),
@@ -3153,6 +3166,19 @@ async fn import_project(
     let aws = id_by_label(db, "aws_accounts", &entry.aws_account).await?;
     let azure = id_by_label(db, "azure_accounts", &entry.azure_account).await?;
     let claude = id_by_label(db, "claude_accounts", &entry.claude_account).await?;
+    // A colour / icon this version does not know (hand-edited, newer app) is left out.
+    let mut appearance = |field: &str, value: &Option<String>, allowed: &[&str]| -> Option<String> {
+        let value = value.clone().filter(|v| !v.is_empty())?;
+        match check_appearance(field, Some(&value), allowed) {
+            Ok(()) => Some(value),
+            Err(e) => {
+                warnings.push(e);
+                None
+            }
+        }
+    };
+    let color = appearance("color", &entry.color, PROJECT_COLORS);
+    let icon = appearance("icon", &entry.icon, PROJECT_ICONS);
 
     // Importing onto a project in the Trash brings it back.
     let restored = match &local {
@@ -3179,7 +3205,9 @@ async fn import_project(
                  gitlab_account_id = COALESCE(?, gitlab_account_id), \
                  aws_account_id = COALESCE(?, aws_account_id), \
                  azure_account_id = COALESCE(?, azure_account_id), \
-                 claude_account_id = COALESCE(?, claude_account_id) \
+                 claude_account_id = COALESCE(?, claude_account_id), \
+                 color = COALESCE(?, color), icon = COALESCE(?, icon), \
+                 hidden = COALESCE(?, hidden) \
                  WHERE id = ? AND (default_engine IS NOT ? \
                  OR (? IS NOT NULL AND github_owner IS NOT ?) OR (? IS NOT NULL AND github_repo IS NOT ?) \
                  OR (? IS NOT NULL AND github_project_board_url IS NOT ?) \
@@ -3188,7 +3216,9 @@ async fn import_project(
                  OR (? IS NOT NULL AND gitlab_account_id IS NOT ?) \
                  OR (? IS NOT NULL AND aws_account_id IS NOT ?) \
                  OR (? IS NOT NULL AND azure_account_id IS NOT ?) \
-                 OR (? IS NOT NULL AND claude_account_id IS NOT ?))",
+                 OR (? IS NOT NULL AND claude_account_id IS NOT ?) \
+                 OR (? IS NOT NULL AND color IS NOT ?) OR (? IS NOT NULL AND icon IS NOT ?) \
+                 OR (? IS NOT NULL AND hidden IS NOT ?))",
             );
             let values = [
                 &entry.github_owner,
@@ -3200,15 +3230,18 @@ async fn import_project(
                 &aws,
                 &azure,
                 &claude,
+                &color,
+                &icon,
             ];
             let mut q = changed.bind(&entry.default_engine);
             for v in values {
                 q = q.bind(v);
             }
-            q = q.bind(&id).bind(&entry.default_engine);
+            q = q.bind(entry.hidden).bind(&id).bind(&entry.default_engine);
             for v in values {
                 q = q.bind(v).bind(v);
             }
+            q = q.bind(entry.hidden).bind(entry.hidden);
             let changed = q.execute(db).await.map_err(err)?.rows_affected() > 0;
             (
                 id,
@@ -3230,8 +3263,8 @@ async fn import_project(
                 "INSERT INTO projects (id, name, path, github_owner, github_repo, default_engine, \
                  created_at, position, github_project_board_url, github_project_field_mappings, \
                  github_account_id, gitlab_account_id, aws_account_id, \
-                 azure_account_id, claude_account_id) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 azure_account_id, claude_account_id, color, icon, hidden) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&id)
             .bind(&entry.name)
@@ -3248,6 +3281,9 @@ async fn import_project(
             .bind(&aws)
             .bind(&azure)
             .bind(&claude)
+            .bind(&color)
+            .bind(&icon)
+            .bind(entry.hidden.unwrap_or(false))
             .execute(db)
             .await
             .map_err(err)?;
@@ -3966,6 +4002,72 @@ mod tests {
         let (outcome, again, _) = import_project(&target, entry, false, None).await.unwrap();
         assert_eq!((outcome, again), (Upsert::Unchanged, id));
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[tokio::test]
+    async fn project_colour_icon_and_hidden_survive_a_backup() {
+        let dir = std::env::temp_dir().join(format!("puppeteer-backup-look-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.to_string_lossy().into_owned();
+        let source = test_db().await;
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at, color, icon, hidden) \
+             VALUES ('p1', 'shop', ?, 'c', 'warning', 'rocket', 1)",
+        )
+        .bind(&path)
+        .execute(&source)
+        .await
+        .unwrap();
+        let projects = collect_projects(&source).await.unwrap();
+        let json = serde_json::to_value(&projects[0]).unwrap();
+        assert_eq!((&json["color"], &json["icon"], &json["hidden"]), (&serde_json::json!("warning"), &serde_json::json!("rocket"), &serde_json::json!(true)));
+        let look = |db: Db, id: String| async move {
+            sqlx::query_as::<_, (Option<String>, Option<String>, bool)>("SELECT color, icon, hidden FROM projects WHERE id = ?")
+                .bind(id)
+                .fetch_one(&db)
+                .await
+                .unwrap()
+        };
+        let expected = (Some("warning".to_string()), Some("rocket".to_string()), true);
+
+        // New project on the target: created with the same look.
+        let target = test_db().await;
+        let (outcome, id, _) = import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Created);
+        assert_eq!(look(target.clone(), id.clone()).await, expected);
+        let (outcome, _, _) = import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Unchanged);
+
+        // A project already there with another look: the backup's wins.
+        let target = test_db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, color) VALUES ('local', 'shop', ?, 'c', 'info')")
+            .bind(&path)
+            .execute(&target)
+            .await
+            .unwrap();
+        let (outcome, _, _) = import_project(&target, &projects[0], false, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Updated);
+        assert_eq!(look(target.clone(), "local".into()).await, expected);
+
+        // An older backup (no look fields) leaves the local look alone.
+        let mut old = serde_json::to_value(&projects[0]).unwrap();
+        for k in ["color", "icon", "hidden"] {
+            old.as_object_mut().unwrap().remove(k);
+        }
+        let old: ProjectEntry = serde_json::from_value(old).unwrap();
+        let (outcome, _, _) = import_project(&target, &old, false, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Unchanged);
+        assert_eq!(look(target.clone(), "local".into()).await, expected);
+
+        // A colour / icon off the allow-lists is left out with a warning, never stored.
+        let mut odd: ProjectEntry = serde_json::from_value(serde_json::to_value(&projects[0]).unwrap()).unwrap();
+        odd.color = Some("#ff0000".into());
+        odd.icon = Some("skull".into());
+        let target = test_db().await;
+        let (_, id, warnings) = import_project(&target, &odd, false, None).await.unwrap();
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
+        assert_eq!(look(target.clone(), id).await, (None, None, true));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

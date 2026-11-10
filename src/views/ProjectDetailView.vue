@@ -18,6 +18,10 @@ import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useToolPermissionsStore } from '@/stores/toolPermissions'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import {
+  PROJECT_COLORS, PROJECT_ICONS, projectColor, projectIcon, swatchClass,
+  type ProjectColor, type ProjectIcon,
+} from '@/lib/projectAppearance'
+import {
   AlertTriangle, Puzzle, ScrollText, Server, Github, Gitlab,
   GitMerge, CheckCircle2, XCircle, Trash2, Plus, GitBranch, Settings,
   Rocket, ShieldCheck, Loader2, KanbanSquare, ExternalLink, UserCircle
@@ -740,6 +744,27 @@ async function autoSaveProject() {
   }
 }
 
+// Colour and icon save on click (no draft): picking the current one again
+// returns to the default look.
+async function setAppearance(patch: { color?: ProjectColor | null; icon?: ProjectIcon | null }) {
+  if (!project.value) return
+  try {
+    await projectStore.updateAppearance(project.value, patch)
+    toast.success(t('projectDetail.toastSaved'))
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
+function pickColor(color: ProjectColor) {
+  setAppearance({ color: projectColor(project.value?.color) === color ? null : color })
+}
+
+function pickIcon(icon: ProjectIcon | null) {
+  if ((project.value?.icon ?? null) === icon) return
+  setAppearance({ icon })
+}
+
 function scheduleSave() {
   if (!overviewReady.value) return
   if (saveTimer) clearTimeout(saveTimer)
@@ -907,6 +932,46 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
             <div class="space-y-1.5">
               <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.projectNameLabel') }}</label>
               <Input v-model="editName" size="sm" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.colorLabel') }}</label>
+              <div class="flex items-center gap-1.5">
+                <button
+                  v-for="color in PROJECT_COLORS"
+                  :key="color"
+                  type="button"
+                  class="h-5 w-5 rounded-full border-2 transition-transform cursor-pointer"
+                  :class="[
+                    projectColor(project.color) === color ? 'border-foreground scale-110' : 'border-transparent',
+                    swatchClass(color),
+                  ]"
+                  :title="t(`projectDetail.colors.${color}`)"
+                  :aria-label="t(`projectDetail.colors.${color}`)"
+                  :aria-pressed="projectColor(project.color) === color"
+                  @click="pickColor(color)"
+                />
+                <span class="text-2xs text-muted-foreground ml-1">{{ t('projectDetail.colorHint') }}</span>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.iconLabel') }}</label>
+              <div class="flex flex-wrap items-center gap-1">
+                <button
+                  v-for="icon in [null, ...PROJECT_ICONS]"
+                  :key="icon ?? 'default'"
+                  type="button"
+                  class="flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer"
+                  :class="(project.icon ?? null) === icon
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'"
+                  :title="t(`projectDetail.icons.${icon ?? 'default'}`)"
+                  :aria-label="t(`projectDetail.icons.${icon ?? 'default'}`)"
+                  :aria-pressed="(project.icon ?? null) === icon"
+                  @click="pickIcon(icon)"
+                >
+                  <component :is="projectIcon(icon)" class="h-3.5 w-3.5" :stroke-width="1.75" />
+                </button>
+              </div>
             </div>
             <div class="space-y-1.5">
               <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.pathLabel') }}</label>

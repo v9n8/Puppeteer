@@ -31,5 +31,12 @@
   "alreadyAdded": "Already added",
   "removeRepo": "Remove repository",
   "noReposHint": "No repositories — paste a repo link above to add one",
-  "azureChipTitle": "Azure: {label} · subscription {subscription}"
+  "azureChipTitle": "Azure: {label} · subscription {subscription}",
+  "showHidden": "Show hidden projects ({count})",
+  "allHiddenTitle": "All projects are hidden",
+  "hiddenBadge": "Hidden",
+  "hideProject": "Hide project (sessions keep working)",
+  "unhideProject": "Show project again",
+  "toastHidden": "\"{name}\" hidden",
+  "toastShown": "\"{name}\" shown again"
 }

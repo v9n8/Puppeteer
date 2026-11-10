@@ -104,7 +104,8 @@ export function usePaletteItems() {
         run: () => openSession(r.id, r.project_id),
       }))
 
-    const projectItems: PaletteCommand[] = projects.projects.map((p) => ({
+    // Hidden projects stay out (UX-08); their sessions above still show.
+    const projectItems: PaletteCommand[] = projects.projects.filter((p) => !p.hidden).map((p) => ({
       id: `project:${p.id}`,
       group: 'project',
       label: p.name,

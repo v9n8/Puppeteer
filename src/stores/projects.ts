@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
 import type { GroupApplyOutcome, GroupDisableOutcome, GroupKind, ProjectGroupState } from '@/stores/groups'
+import type { ProjectColor, ProjectIcon } from '@/lib/projectAppearance'
 
 export interface Project {
   id: string
@@ -30,6 +31,19 @@ export interface Project {
   run_count: number
   last_used_at: string | null
   position: number
+  /** Display tone (see projectAppearance.ts); null = default. */
+  color: ProjectColor | null
+  /** Lucide icon name; null = the folder. */
+  icon: ProjectIcon | null
+  /** Off the Projects grid, tab bar and palette; sessions and tools still use it. */
+  hidden: boolean
+}
+
+/** A change to how a project shows. Left out = unchanged; null = back to the default. */
+export interface ProjectAppearancePatch {
+  color?: ProjectColor | null
+  icon?: ProjectIcon | null
+  hidden?: boolean
 }
 
 export interface BoardField {
@@ -214,15 +228,30 @@ export const useProjectsStore = defineStore('projects', () => {
     name: string
     github_project_board_url?: string | null
     github_project_field_mappings?: string | null
-  }): Promise<Project> {
+  } & ProjectAppearancePatch): Promise<Project> {
     const project = await invoke<Project>('update_project', {
       id: payload.id,
       name: payload.name,
       githubProjectBoardUrl: payload.github_project_board_url ?? null,
       githubProjectFieldMappings: payload.github_project_field_mappings ?? null,
+      // The backend keeps a field it does not get and clears one sent as ''.
+      color: payload.color === undefined ? undefined : (payload.color ?? ''),
+      icon: payload.icon === undefined ? undefined : (payload.icon ?? ''),
+      hidden: payload.hidden,
     })
     await fetchProjects()
     return project
+  }
+
+  /** Change only the colour / icon / hidden flag, keeping the name and board link. */
+  async function updateAppearance(project: Project, patch: ProjectAppearancePatch): Promise<Project> {
+    return updateProject({
+      id: project.id,
+      name: project.name,
+      github_project_board_url: project.github_project_board_url,
+      github_project_field_mappings: project.github_project_field_mappings,
+      ...patch,
+    })
   }
 
   async function resolveProjectBoard(project_id: string, url: string): Promise<BoardInfo> {
@@ -400,7 +429,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   return {
     projects, loading, error, conflicts, ruleConflicts,
-    fetchProjects, reorder, detectProjectInfo, addProject, removeProject, updateProject,
+    fetchProjects, reorder, detectProjectInfo, addProject, removeProject, updateProject, updateAppearance,
     resolveProjectBoard, listRepos, addRepo, updateRepo, removeRepo,
     getAppliedSkills, applySkill, removeSkillFromProject,
     setProjectAccount, setProjectGitAccountEnabled, setProjectGitlabAccount, setProjectAwsAccount, setProjectAzureAccount, setProjectCloudAccountEnabled, setProjectClaudeAccount, fetchConflicts, resolveConflict,

@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { openGanttWindow } from '@/lib/ganttWindow'
-import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
+import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo, type Project } from '@/stores/projects'
+import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
+import { fullListMove, projectIcon, projectTileClass, visibleProjects } from '@/lib/projectAppearance'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useServersStore, type ProjectServer } from '@/stores/servers'
@@ -13,7 +15,7 @@ import { useFeaturesStore } from '@/stores/features'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@/lib/tauri'
 import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
-import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, SquareTerminal, Code2, Settings, HardDrive, Cloud, CloudCog, GanttChartSquare, GripVertical } from 'lucide-vue-next'
+import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, SquareTerminal, Code2, Settings, HardDrive, Cloud, CloudCog, GanttChartSquare, GripVertical, Eye, EyeOff } from 'lucide-vue-next'
 import { Button, Input, Badge, Modal, Card, PageHeader, Banner } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -28,6 +30,7 @@ const serversStore = useServersStore()
 const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
 const features = useFeaturesStore()
+const tabsStore = useWorkspaceTabsStore()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const adding = ref(false)
@@ -101,14 +104,34 @@ const projectChips = computed(() => {
   return map
 })
 
+// --- Hidden projects -----------------------------------------------------------
+// Hidden projects stay off the grid until "Show hidden projects" is on; they are
+// not deleted, so their sessions, links and tools keep working.
+const showHidden = ref(false)
+const shownProjects = computed(() => visibleProjects(store.projects, showHidden.value))
+const hiddenCount = computed(() => store.projects.filter(p => p.hidden).length)
+
+async function toggleHidden(project: Project) {
+  const hidden = !project.hidden
+  try {
+    await store.updateAppearance(project, { hidden })
+    // Its tab goes too; opening the project again brings the tab back.
+    if (hidden) tabsStore.close(project.id)
+    toast.success(t(hidden ? 'projects.toastHidden' : 'projects.toastShown', { name: project.name }))
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
 // --- Drag & drop reorder ------------------------------------------------------
 // Only the grip handle starts a drag — the card itself is a big click target
 // that navigates into the project. The dragged card follows the cursor and the
 // others slide to the slot they'd take once it's gone; see useDragSort.
+// Indexes are in the shown list; the store reorders the full one.
 const gridRef = ref<HTMLElement | null>(null)
 const { dragFrom, start: startDrag, itemStyle: cardStyle, clickWasDrag } = useDragSort({
   container: gridRef,
-  onDrop: (from, to) => store.reorder(from, to),
+  onDrop: (from, to) => store.reorder(...fullListMove(store.projects, shownProjects.value, from, to)),
 })
 
 /** A click landing after a drag is the drop, not a request to open the card. */
@@ -286,9 +309,19 @@ async function handleOpenInFolder(project: { path: string }) {
     <!-- Header -->
     <PageHeader
       :title="t('projects.title')"
-      :count="!store.loading && store.projects.length > 0 ? store.projects.length : null"
+      :count="!store.loading && shownProjects.length > 0 ? shownProjects.length : null"
     >
       <template #actions>
+        <!-- A toggle: pressed (subtle fill) while hidden projects are on the grid. -->
+        <Button
+          v-if="hiddenCount > 0"
+          :variant="showHidden ? 'subtle' : 'ghost'"
+          :aria-pressed="showHidden"
+          @click="showHidden = !showHidden"
+        >
+          <component :is="showHidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ t('projects.showHidden', { count: hiddenCount }) }}
+        </Button>
         <Button
           :disabled="adding || detecting"
           @click="handleAdd"
@@ -324,9 +357,17 @@ async function handleOpenInFolder(project: { path: string }) {
         </Button>
       </div>
 
+      <div v-else-if="shownProjects.length === 0" class="flex flex-col items-center justify-center h-full min-h-80 text-center">
+        <p class="text-sm font-medium">{{ t('projects.allHiddenTitle') }}</p>
+        <Button class="mt-4" variant="outline" @click="showHidden = true">
+          <Eye class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ t('projects.showHidden', { count: hiddenCount }) }}
+        </Button>
+      </div>
+
       <div v-else ref="gridRef" class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
         <Card
-          v-for="(project, index) in store.projects"
+          v-for="(project, index) in shownProjects"
           :key="project.id"
           :data-drag-index="index"
           class="group relative flex flex-col cursor-pointer hover:border-primary/40 hover:shadow-[0_1px_3px_0_rgb(0_0_0/0.08)]"
@@ -351,14 +392,21 @@ async function handleOpenInFolder(project: { path: string }) {
             <GripVertical class="h-4 w-4" :stroke-width="2" />
           </button>
 
-          <!-- Icon + name/path -->
-          <div class="flex items-start gap-3 mb-3">
-            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/15 text-primary transition-colors group-hover:bg-primary/15 group-hover:border-primary/25">
-              <FolderOpen class="h-4.5 w-4.5" :stroke-width="1.75" />
+          <!-- Icon + name/path (the project's own colour and icon, else primary + folder) -->
+          <div class="flex items-start gap-3 mb-3" :class="{ 'opacity-60': project.hidden }">
+            <div
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors"
+              :class="projectTileClass(project.color)"
+            >
+              <component :is="projectIcon(project.icon)" class="h-4.5 w-4.5" :stroke-width="1.75" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5">
                 <p class="text-sm font-semibold truncate leading-tight">{{ project.name }}</p>
+                <Badge v-if="project.hidden" tone="neutral" class="shrink-0">
+                  <EyeOff class="h-2.5 w-2.5" :stroke-width="2" />
+                  {{ t('projects.hiddenBadge') }}
+                </Badge>
               </div>
               <p class="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed font-mono break-all">{{ project.path }}</p>
             </div>
@@ -469,6 +517,14 @@ async function handleOpenInFolder(project: { path: string }) {
                 @click="router.push(`/projects/${project.id}/settings`)"
               >
                 <Settings class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="project.hidden ? t('projects.unhideProject') : t('projects.hideProject')"
+                @click="toggleHidden(project)"
+              >
+                <component :is="project.hidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
               </Button>
               <Button
                 variant="destructive-ghost"

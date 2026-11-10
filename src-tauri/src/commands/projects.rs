@@ -63,6 +63,15 @@ pub struct Project {
     /// Manual display order (ascending). Drag-and-drop reorder rewrites this.
     #[serde(default)]
     pub position: i64,
+    /// Display tone, one of [`PROJECT_COLORS`]; `None` = the default (primary).
+    #[serde(default)]
+    pub color: Option<String>,
+    /// Lucide icon name, one of [`PROJECT_ICONS`]; `None` = the folder icon.
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Left out of the Projects grid, the tab bar and the palette; still works everywhere else.
+    #[serde(default)]
+    pub hidden: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -804,7 +813,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
                 (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
-                p.github_project_board_url, p.github_project_field_mappings, p.position, \
+                p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p \
          LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL \
@@ -839,6 +848,9 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
             run_count: row.get("run_count"),
             last_used_at: row.get("last_used_at"),
             position: row.get("position"),
+            color: row.get("color"),
+            icon: row.get("icon"),
+            hidden: row.get("hidden"),
         })
         .collect();
 
@@ -945,6 +957,9 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         run_count: 0,
         last_used_at: None,
         position,
+        color: None,
+        icon: None,
+        hidden: false,
     })
 }
 
@@ -1103,26 +1118,83 @@ pub(crate) async fn purge_project_inner(
     Ok(outcome)
 }
 
+/// Tones a project can be tinted with: design-system colours, never raw CSS, so they
+/// follow light / dark themes. `src/lib/projectAppearance.ts` mirrors this list.
+pub(crate) const PROJECT_COLORS: &[&str] = &["primary", "info", "success", "warning", "destructive", "neutral"];
+
+/// Lucide icon names a project can show instead of the folder (kebab-case, as lucide
+/// names them). `src/lib/projectAppearance.ts` mirrors this list.
+pub(crate) const PROJECT_ICONS: &[&str] = &[
+    "code", "globe", "server", "database", "smartphone", "bot",
+    "rocket", "book-open", "flask-conical", "wrench", "package", "shield",
+];
+
+/// `None` and `""` pass (keep / clear); anything else must be on `allowed`.
+pub(crate) fn check_appearance(field: &str, value: Option<&str>, allowed: &[&str]) -> Result<(), String> {
+    match value {
+        Some(v) if !v.is_empty() && !allowed.contains(&v) => Err(format!("invalid project {field}: {v}")),
+        _ => Ok(()),
+    }
+}
+
+/// `color` / `icon` / `hidden`: `None` keeps the stored value, so callers that only
+/// rename a project or link a board leave its look alone; `""` clears a colour or icon.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_project(
     db: State<'_, Db>,
     id: String,
     name: String,
     github_project_board_url: Option<String>,
     github_project_field_mappings: Option<String>,
+    color: Option<String>,
+    icon: Option<String>,
+    hidden: Option<bool>,
 ) -> Result<Project, String> {
-    sqlx::query(
-        "UPDATE projects SET name = ?, github_project_board_url = ?, github_project_field_mappings = ? WHERE id = ?"
+    update_project_inner(
+        db.inner(),
+        &id,
+        &name,
+        github_project_board_url,
+        github_project_field_mappings,
+        color,
+        icon,
+        hidden,
     )
-        .bind(&name)
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn update_project_inner(
+    db: &Db,
+    id: &str,
+    name: &str,
+    github_project_board_url: Option<String>,
+    github_project_field_mappings: Option<String>,
+    color: Option<String>,
+    icon: Option<String>,
+    hidden: Option<bool>,
+) -> Result<Project, String> {
+    check_appearance("color", color.as_deref(), PROJECT_COLORS)?;
+    check_appearance("icon", icon.as_deref(), PROJECT_ICONS)?;
+    sqlx::query(
+        "UPDATE projects SET name = ?1, github_project_board_url = ?2, github_project_field_mappings = ?3, \
+         color = CASE WHEN ?4 IS NULL THEN color ELSE NULLIF(?4, '') END, \
+         icon = CASE WHEN ?5 IS NULL THEN icon ELSE NULLIF(?5, '') END, \
+         hidden = COALESCE(?6, hidden) WHERE id = ?7"
+    )
+        .bind(name)
         .bind(&github_project_board_url)
         .bind(&github_project_field_mappings)
-        .bind(&id)
-        .execute(db.inner())
+        .bind(&color)
+        .bind(&icon)
+        .bind(hidden)
+        .bind(id)
+        .execute(db)
         .await
         .map_err(|e| e.to_string())?;
 
-    project_by_id(db.inner(), &id).await
+    project_by_id(db, id).await
 }
 
 /// One project by id, trashed or not, with the same counts as the list.
@@ -1134,7 +1206,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
                 (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
-                p.github_project_board_url, p.github_project_field_mappings, p.position, \
+                p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )
@@ -1164,6 +1236,9 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
         run_count: row.get("run_count"),
         last_used_at: row.get("last_used_at"),
         position: row.get("position"),
+        color: row.get("color"),
+        icon: row.get("icon"),
+        hidden: row.get("hidden"),
     })
 }
 
@@ -2177,5 +2252,84 @@ mod trash_tests {
         assert!(err.contains("still running"), "{err}");
         let runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM runs").fetch_one(&db).await.unwrap();
         assert_eq!(runs, 3, "nothing is deleted");
+    }
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    use super::*;
+
+    async fn db_with_project() -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO projects (id, name, path, created_at, github_project_board_url) \
+             VALUES ('p1', 'shop', '/w/shop', 'c', 'https://board')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        db
+    }
+
+    async fn update(db: &Db, color: Option<&str>, icon: Option<&str>, hidden: Option<bool>) -> Result<Project, String> {
+        update_project_inner(
+            db,
+            "p1",
+            "shop",
+            Some("https://board".into()),
+            None,
+            color.map(str::to_string),
+            icon.map(str::to_string),
+            hidden,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_new_project_has_the_default_look() {
+        let db = db_with_project().await;
+        let p = project_by_id(&db, "p1").await.unwrap();
+        assert_eq!((p.color, p.icon, p.hidden), (None, None, false));
+    }
+
+    #[tokio::test]
+    async fn colour_icon_and_hidden_are_saved_and_listed() {
+        let db = db_with_project().await;
+        let p = update(&db, Some("info"), Some("rocket"), Some(true)).await.unwrap();
+        assert_eq!((p.color.as_deref(), p.icon.as_deref(), p.hidden), (Some("info"), Some("rocket"), true));
+        // Hidden is not deleted: the list still has it, with its look.
+        let listed = list_projects_inner(&db).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!((listed[0].color.as_deref(), listed[0].icon.as_deref(), listed[0].hidden), (Some("info"), Some("rocket"), true));
+    }
+
+    #[tokio::test]
+    async fn leaving_a_field_out_keeps_it_and_an_empty_string_clears_it() {
+        let db = db_with_project().await;
+        update(&db, Some("success"), Some("bot"), Some(true)).await.unwrap();
+        // A rename (no look fields) keeps the look.
+        let p = update(&db, None, None, None).await.unwrap();
+        assert_eq!((p.color.as_deref(), p.icon.as_deref(), p.hidden), (Some("success"), Some("bot"), true));
+        let p = update(&db, Some(""), None, Some(false)).await.unwrap();
+        assert_eq!((p.color.as_deref(), p.icon.as_deref(), p.hidden), (None, Some("bot"), false));
+        let p = update(&db, None, Some(""), None).await.unwrap();
+        assert_eq!(p.icon, None);
+    }
+
+    #[tokio::test]
+    async fn values_off_the_allow_lists_are_refused_and_nothing_is_written() {
+        let db = db_with_project().await;
+        update(&db, Some("info"), Some("rocket"), None).await.unwrap();
+        for (color, icon) in [(Some("#ff0000"), None), (Some("red; background: url(x)"), None), (None, Some("folder-x")), (None, Some("🚀"))] {
+            let err = update(&db, color, icon, Some(true)).await.unwrap_err();
+            assert!(err.starts_with("invalid project"), "{err}");
+        }
+        let p = project_by_id(&db, "p1").await.unwrap();
+        assert_eq!((p.color.as_deref(), p.icon.as_deref(), p.hidden), (Some("info"), Some("rocket"), false));
     }
 }

@@ -31,5 +31,12 @@
   "alreadyAdded": "Đã thêm",
   "removeRepo": "Gỡ repository",
   "noReposHint": "Chưa có repository — dán link repo ở trên để thêm",
-  "azureChipTitle": "Azure: {label} · subscription {subscription}"
+  "azureChipTitle": "Azure: {label} · subscription {subscription}",
+  "showHidden": "Hiện Project đã ẩn ({count})",
+  "allHiddenTitle": "Tất cả Project đang bị ẩn",
+  "hiddenBadge": "Đã ẩn",
+  "hideProject": "Ẩn Project (các Session vẫn chạy bình thường)",
+  "unhideProject": "Hiện lại Project",
+  "toastHidden": "Đã ẩn \"{name}\"",
+  "toastShown": "Đã hiện lại \"{name}\""
 }

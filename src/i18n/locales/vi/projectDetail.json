@@ -140,5 +140,31 @@
   "warnCodexReadsClaudeMd": "{config} có CLAUDE.md trong project_doc_fallback_filenames nên Codex có thể đọc chỉ dẫn của Claude.",
   "warnLinksNotIgnored": "{dir} chứa symlink của Puppeteer nhưng chưa được git ignore. Nếu commit, link trỏ tới đường dẫn trên máy này sẽ hỏng ở máy người khác — thêm vào .gitignore hoặc .git/info/exclude.",
   "warnLegacyCopiesBackedUp": "Khi chuyển sang symlink, các bản copy Skill/Rule cũ có thể chứa chỉnh sửa tại Project đã được chuyển vào {dir} ({count} lượt). Hãy xem lại, giữ phần cần thiết rồi xoá thư mục đó để tắt thông báo này.",
-  "warnTrackedByGit": "Repo đã commit file riêng tại {paths}. Puppeteer không đụng vào và không cài vào đó, nên Claude/Codex sẽ dùng bản trong repo."
+  "warnTrackedByGit": "Repo đã commit file riêng tại {paths}. Puppeteer không đụng vào và không cài vào đó, nên Claude/Codex sẽ dùng bản trong repo.",
+  "colorLabel": "Màu",
+  "colorHint": "Hiện trên lưới Project và thanh tab. Bấm lại để bỏ màu.",
+  "iconLabel": "Biểu tượng",
+  "colors": {
+    "primary": "Chàm",
+    "info": "Xanh dương",
+    "success": "Xanh lá",
+    "warning": "Hổ phách",
+    "destructive": "Đỏ",
+    "neutral": "Xám"
+  },
+  "icons": {
+    "default": "Thư mục (mặc định)",
+    "code": "Code",
+    "globe": "Web",
+    "server": "Máy chủ",
+    "database": "Cơ sở dữ liệu",
+    "smartphone": "Di động",
+    "bot": "Bot",
+    "rocket": "Tên lửa",
+    "book-open": "Tài liệu",
+    "flask-conical": "Thử nghiệm",
+    "wrench": "Công cụ",
+    "package": "Gói",
+    "shield": "Bảo mật"
+  }
 }

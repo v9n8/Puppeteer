@@ -329,4 +329,20 @@ mod tests {
                 .unwrap();
         }
     }
+
+    #[tokio::test]
+    async fn existing_projects_keep_the_default_look_and_stay_visible() {
+        let db = db_at_0001().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let row = sqlx::query("SELECT color, icon, hidden FROM projects WHERE id = 'p1'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let look: (Option<String>, Option<String>, bool) = (row.get("color"), row.get("icon"), row.get("hidden"));
+        assert_eq!(look, (None, None, false));
+    }
 }
