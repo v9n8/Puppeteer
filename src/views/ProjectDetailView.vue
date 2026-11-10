@@ -18,7 +18,7 @@ import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useToolPermissionsStore } from '@/stores/toolPermissions'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import {
-  AlertTriangle, Puzzle, ScrollText, Server, Github, Gitlab, Cloud, CloudCog,
+  AlertTriangle, Puzzle, ScrollText, Server, Github, Gitlab,
   GitMerge, CheckCircle2, XCircle, Trash2, Plus, GitBranch, Settings,
   Rocket, ShieldCheck, Loader2, KanbanSquare, ExternalLink, UserCircle
 } from 'lucide-vue-next'
@@ -29,6 +29,7 @@ import ProjectAccountsList, { type AccountRow } from '@/components/ProjectAccoun
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { parseRepoUrl, repoKey, repoWebUrl } from '@/lib/repoUrl'
+import { PROJECT_SECTIONS, projectNav, sectionFromQuery, type ProjectSectionId } from '@/lib/projectSections'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 const { t } = useI18n()
@@ -54,7 +55,14 @@ const { toast } = useToast()
 const projectId = computed(() => route.params.projectId as string)
 const project = computed(() => projectStore.projects.find(p => p.id === projectId.value))
 
-const activeTab = ref<'overview' | 'skills' | 'rules' | 'mcp' | 'deploy' | 'github' | 'board' | 'gitlab' | 'aws' | 'azure' | 'claude' | 'tools' | 'conflicts'>('overview')
+const activeTab = ref<ProjectSectionId>('overview')
+// Deep link: `/projects/<id>/settings?section=board` opens that section.
+function applySectionFromRoute() {
+  const target = sectionFromQuery(route.query.section)
+  if (target) activeTab.value = target
+}
+applySectionFromRoute()
+watch(() => route.query.section, applySectionFromRoute)
 
 // ── Tool permissions (allow/deny always) for this project ──────────────────
 const allowTools = computed(() => toolPerms.getAllow(projectId.value))
@@ -84,23 +92,10 @@ async function resetAllToolPerms() {
   live.syncToolPermissions(projectId.value)
   toast.success(t('projectDetail.toastToolPermsReset'))
 }
-const SECTIONS = [
-  { id: 'overview', icon: Settings },
-  { id: 'skills', icon: Puzzle },
-  { id: 'rules', icon: ScrollText },
-  { id: 'mcp', icon: Server },
-  { id: 'deploy', icon: Rocket },
-  { id: 'github', icon: Github },
-  { id: 'board', icon: KanbanSquare },
-  { id: 'gitlab', icon: Gitlab },
-  { id: 'aws', icon: Cloud },
-  { id: 'azure', icon: CloudCog },
-  { id: 'claude', icon: UserCircle },
-  { id: 'tools', icon: ShieldCheck },
-] as const
 const projectConflicts = computed(() => projectStore.conflicts.filter(c => c.project_id === projectId.value))
 const projectRuleConflicts = computed(() => projectStore.ruleConflicts.filter(c => c.project_id === projectId.value))
 const totalConflicts = computed(() => projectConflicts.value.length + projectRuleConflicts.value.length)
+const nav = computed(() => projectNav(PROJECT_SECTIONS, totalConflicts.value > 0))
 const appliedSkills = ref<AppliedSkill[]>([])
 const loadingSkills = ref(false)
 
@@ -857,30 +852,24 @@ async function handleToggleSkill(skill: { id: string; manual: boolean }) {
     <div v-else class="flex-1 flex min-h-0">
       <!-- Section nav -->
       <nav class="w-48 shrink-0 border-r border-border/60 p-3 overflow-auto">
-        <button
-          v-for="s in SECTIONS"
-          :key="s.id"
-          class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
-          :class="activeTab === s.id
-            ? 'bg-accent text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
-          @click="activeTab = s.id"
-        >
-          <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          <span class="truncate">{{ t('projectDetail.sections.' + s.id) }}</span>
-        </button>
-        <button
-          v-if="totalConflicts > 0"
-          class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
-          :class="activeTab === 'conflicts'
-            ? 'bg-warning/15 text-warning font-medium'
-            : 'text-warning hover:bg-warning/10'"
-          @click="activeTab = 'conflicts'"
-        >
-          <GitMerge class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          <span class="truncate">{{ t('projectDetail.conflictsNav') }}</span>
-          <span class="ml-auto text-2xs tabular-nums">{{ totalConflicts }}</span>
-        </button>
+        <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
+          <div class="px-2.5 pb-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            {{ t(g.labelKey) }}
+          </div>
+          <button
+            v-for="s in g.sections"
+            :key="s.id"
+            class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
+            :class="s.id === 'conflicts'
+              ? (activeTab === s.id ? 'bg-warning/15 text-warning font-medium' : 'text-warning hover:bg-warning/10')
+              : (activeTab === s.id ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')"
+            @click="activeTab = s.id"
+          >
+            <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+            <span class="truncate">{{ t('projectDetail.sections.' + s.id) }}</span>
+            <span v-if="s.id === 'conflicts'" class="ml-auto text-2xs tabular-nums">{{ totalConflicts }}</span>
+          </button>
+        </div>
       </nav>
 
       <!-- Active section panel -->

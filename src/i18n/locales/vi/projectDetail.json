@@ -15,9 +15,17 @@
     "board": "GitHub Project",
     "gitlab": "GitLab",
     "aws": "AWS",
-    "claude": "Claude",
+    "claude": "Tài khoản Claude",
     "tools": "Quyền tool",
-    "azure": "Azure"
+    "azure": "Azure",
+    "conflicts": "Xung đột"
+  },
+  "groups": {
+    "overview": "Tổng quan",
+    "defaults": "Mặc định Session",
+    "connections": "Kết nối",
+    "library": "Thư viện",
+    "servers": "Máy chủ & quyền"
   },
   "targetBoth": "Cả hai",
   "toastSaved": "Đã lưu",
@@ -35,7 +43,6 @@
   "toastRepoAdded": "Đã thêm repo",
   "projectFallback": "Project",
   "projectNotFound": "Không tìm thấy Project",
-  "conflictsNav": "Xung đột",
   "conflictBannerTitle": "Phát hiện xung đột đồng bộ",
   "conflictBannerBody": "{count} mục có thay đổi cục bộ xung đột với cập nhật từ trung tâm",
   "resolve": "Xử lý",

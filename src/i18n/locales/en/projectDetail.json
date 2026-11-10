@@ -15,9 +15,17 @@
     "board": "GitHub Project",
     "gitlab": "GitLab",
     "aws": "AWS",
-    "claude": "Claude",
+    "claude": "Claude account",
     "tools": "Tool Permissions",
-    "azure": "Azure"
+    "azure": "Azure",
+    "conflicts": "Conflicts"
+  },
+  "groups": {
+    "overview": "Overview",
+    "defaults": "Session defaults",
+    "connections": "Connections",
+    "library": "Library",
+    "servers": "Servers & permissions"
   },
   "targetBoth": "Both",
   "toastSaved": "Saved",
@@ -35,7 +43,6 @@
   "toastRepoAdded": "Repo added",
   "projectFallback": "Project",
   "projectNotFound": "Project not found",
-  "conflictsNav": "Conflicts",
   "conflictBannerTitle": "Sync conflicts detected",
   "conflictBannerBody": "{count} item(s) have local modifications that conflict with central updates",
   "resolve": "Resolve",

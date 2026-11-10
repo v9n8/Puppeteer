@@ -355,7 +355,7 @@ function relativeTime(iso: string | null): string {
         <!-- Banners -->
         <Banner v-if="!store.board.boardLinked" tone="info">
           {{ t('gantt.bannerNoBoardPrefix') }}
-          <RouterLink :to="`/projects/${selectedProjectId}/settings`" class="text-primary hover:underline font-medium">{{ t('gantt.bannerNoBoardLink') }}</RouterLink>.
+          <RouterLink :to="`/projects/${selectedProjectId}/settings?section=board`" class="text-primary hover:underline font-medium">{{ t('gantt.bannerNoBoardLink') }}</RouterLink>.
         </Banner>
         <Banner v-if="store.board.skippedNonGithub" tone="warning">
           {{ t('gantt.bannerSkippedNonGithub') }}
