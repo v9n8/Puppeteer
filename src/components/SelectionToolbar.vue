@@ -11,6 +11,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import TranslatePopover from '@/components/TranslatePopover.vue'
 import { invoke } from '@/lib/tauri'
 import { openItemCreateWindow } from '@/lib/itemWindow'
+import { anchorFromRange } from '@/lib/quoteAnchor'
 import {
   canTranslate,
   copyMdText,
@@ -104,11 +105,16 @@ function onSelectionEnd() {
   const surface = pickSurface(selectionSurfaces, surfaceEls, sel.anchorNode, sel.focusNode)
   if (!surface) return hide()
   let rect: DOMRect | null = null
-  try { rect = sel.getRangeAt(0).getBoundingClientRect() } catch { rect = null }
+  let range: Range | null = null
+  try {
+    range = sel.getRangeAt(0).cloneRange()
+    rect = range.getBoundingClientRect()
+  } catch { rect = null }
   if (!rect || (rect.width === 0 && rect.height === 0)) return hide()
   bar.value = {
     surface,
     text,
+    range,
     rect: { left: rect.left, top: rect.top, bottom: rect.bottom },
     quoteTarget: surface.quoteTarget?.() ?? null,
   }
@@ -133,7 +139,7 @@ async function run(action: SelectionAction) {
   hide()
   switch (action) {
     case 'quote':
-      b.quoteTarget?.append(b.text)
+      b.quoteTarget?.append(b.text, anchorFromRange(b.range))
       break
     case 'translate':
       translation.value = { surface: b.surface, text: b.text, ...at }

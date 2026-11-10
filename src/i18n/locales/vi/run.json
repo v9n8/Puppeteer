@@ -259,6 +259,11 @@
   "queueHeldCancelled": "Lượt vừa rồi đã bị hủy nên tin trong Queue chưa được gửi.",
   "queueHeldBudget": "Đã vượt ngân sách nên tin trong Queue chưa được gửi. Khi bấm gửi, bạn sẽ được hỏi xác nhận.",
   "queueWaiting": "Chưa gửi: lượt đã kết thúc khi Session này không mở ở cửa sổ này. Bấm gửi khi bạn sẵn sàng.",
+  "quotes": {
+    "title": "Các Quote",
+    "notePlaceholder": "Thêm ghi chú cho Quote này (không bắt buộc)",
+    "remove": "Gỡ Quote"
+  },
   "startRunEnter": "Bắt đầu run (Enter — để trống sẽ dùng prompt mặc định)",
   "resumeAndSend": "Tiếp tục Session và gửi (Enter)",
   "rerunWithDefault": "Chạy lại với prompt mặc định",

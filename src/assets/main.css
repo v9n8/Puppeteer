@@ -667,3 +667,18 @@
 .markdown-output code.file-link:hover {
   background: hsl(var(--primary) / 0.12);
 }
+
+/* A quote card's source, jumped to (UX-29, lib/quoteAnchor): the exact quoted
+   range via the Custom Highlight API, or the whole message where there is no
+   range (the Quote under a turn) or no API. Global: ::highlight() is keyed off
+   the document-wide registry. */
+::highlight(quote-source) {
+  background-color: hsl(var(--primary) / 0.28);
+  color: inherit;
+}
+.markdown-output.quote-source-flash {
+  border-radius: 0.375rem;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.45);
+  background: hsl(var(--primary) / 0.08);
+  transition: box-shadow 0.2s, background 0.2s;
+}

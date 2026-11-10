@@ -10,11 +10,13 @@ import { onBeforeUnmount, onDeactivated, shallowRef, type Ref } from 'vue'
 import type { ItemContext } from '@/lib/itemWindow'
 import type { SelectionAllow } from '@/lib/selectionSurface'
 import type { TurnSide } from '@/lib/turnActions'
+import type { QuoteAnchor } from '@/lib/quoteAnchor'
 
 /** Where a quote goes; `label` names it on the button. */
 export interface QuoteTarget {
   label: string
-  append: (text: string) => void
+  /** `anchor`: where in the session's log the text was taken from (UX-29), if known. */
+  append: (text: string, anchor?: QuoteAnchor | null) => void
 }
 
 /** Taking the session shown on a surface back to one of its turns (Rewind). */
@@ -61,6 +63,8 @@ export interface SelectionSurface {
 export interface SelectionBar {
   surface: SelectionSurface
   text: string
+  /** The selection itself, for Quote to anchor on (lib/quoteAnchor). */
+  range: Range | null
   rect: { left: number; top: number; bottom: number }
   quoteTarget: QuoteTarget | null
 }

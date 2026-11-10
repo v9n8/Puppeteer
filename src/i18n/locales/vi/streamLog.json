@@ -56,6 +56,12 @@
   "turns": "{count} lượt",
   "tokensSuffix": "{tokens} tok",
   "estimatedCost": "Ước tính (chạy bằng subscription)",
+  "quotes": {
+    "goToSource": "Đi tới đoạn được Quote",
+    "openFile": "Mở file được Quote",
+    "sourceGone": "Nguồn không còn",
+    "notLoaded": "Tin nhắn được Quote chưa được nạp ở màn này. Mở lịch sử của Session để đi tới nó."
+  },
   "turn": {
     "copy": "Sao chép",
     "copied": "Đã sao chép",

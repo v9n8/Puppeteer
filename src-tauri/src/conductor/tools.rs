@@ -555,6 +555,8 @@ async fn session_send(
             content: text,
             images: Vec::new(),
             override_budget: false,
+            quotes: Vec::new(),
+            quote_set: None,
         },
         false,
     )
@@ -844,6 +846,8 @@ the human your final summary.";
                 content: nudge.to_string(),
                 images: Vec::new(),
                 override_budget: false,
+                quotes: Vec::new(),
+                quote_set: None,
             },
             false,
         )

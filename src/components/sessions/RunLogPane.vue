@@ -32,7 +32,8 @@ const {
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
-  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile,
+  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile, quoteSets, quoteReveal,
+  jumpToQuote,
 } = useRunSession()
 const uiLayout = useUILayoutStore()
 
@@ -365,8 +366,11 @@ function onOpenUrl(url: string) {
             :steps-expanded="uiLayout.stepsExpanded"
             :find-query="findOpen ? runFind.query.value : ''"
             :find-case-sensitive="runFind.caseSensitive.value"
+            :quote-sets="quoteSets"
+            :quote-reveal="quoteReveal"
             @open-file="openFile"
             @open-url="onOpenUrl"
+            @quote-jump="jumpToQuote"
           />
           <!-- Newer records below the loaded window (only after a jump into
                the middle of the log). Scrolling down loads them too. -->
@@ -410,8 +414,11 @@ function onOpenUrl(url: string) {
           :steps-expanded="uiLayout.stepsExpanded"
           :find-query="findOpen ? runFind.query.value : ''"
           :find-case-sensitive="runFind.caseSensitive.value"
+          :quote-sets="quoteSets"
+          :quote-reveal="quoteReveal"
           @open-file="openFile"
           @open-url="onOpenUrl"
+          @quote-jump="jumpToQuote"
         />
         <template v-else>
           <div

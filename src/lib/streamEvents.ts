@@ -67,6 +67,7 @@ function finalizeUserEntry(
   text: string,
   images?: ImageAttachment[],
   turn?: number,
+  quoteSet?: string,
 ): void {
   const { items, rest } = parseIdeContext(text)
   const merged = [...items]
@@ -85,6 +86,7 @@ function finalizeUserEntry(
       ...(images?.length ? { images } : {}),
       ...(merged.length ? { ideContext: merged } : {}),
       ...(turn !== undefined ? { turn } : {}),
+      ...(quoteSet ? { quoteSet } : {}),
     })
   } else if (merged.length) {
     state.entries.push({ kind: 'ide-context', items: merged })
@@ -172,11 +174,27 @@ export type StreamEntry =
       /** `claude_code_version` — decides whether usage totals carry over resumes. */
       cliVersion?: string
     }
-  /** `streaming`: still being assembled from partial deltas (live only). */
-  | { kind: 'text'; text: string; streaming?: boolean }
+  /**
+   * `streaming`: still being assembled from partial deltas (live only).
+   * `mid` / `block`: the engine's id of the message it came from and which of
+   * that message's text blocks it is — what a structured quote is anchored by
+   * (UX-29). Claude's `message.id` survives in transcripts; Codex gets one from
+   * its sidecar. Absent while streaming and in logs written without one.
+   */
+  | { kind: 'text'; text: string; streaming?: boolean; mid?: string; block?: number }
   | { kind: 'thinking'; text: string; streaming?: boolean }
-  /** `turn`: the Rewind snapshot taken before this prompt (Puppeteer's log only). */
-  | { kind: 'user'; text: string; images?: ImageAttachment[]; ideContext?: IdeContextItem[]; turn?: number }
+  /**
+   * `turn`: the Rewind snapshot taken before this prompt (Puppeteer's log only).
+   * `quoteSet`: names the structured quotes the prompt carried (`runs::quotes`).
+   */
+  | {
+      kind: 'user'
+      text: string
+      images?: ImageAttachment[]
+      ideContext?: IdeContextItem[]
+      turn?: number
+      quoteSet?: string
+    }
   | { kind: 'ide-context'; items: IdeContextItem[] }
   | { kind: 'compact'; summary: string }
   | { kind: 'command'; name: string; args?: string; stdout?: string }
@@ -313,6 +331,16 @@ function partialSlot(entries: StreamEntry[], kind: PartialKind): number {
   return streamingIndices(entries).find(i => entries[i].kind === kind) ?? -1
 }
 
+/** How many text blocks of message `mid` are already in (a message's blocks sit together). */
+function priorTextBlocks(entries: StreamEntry[], mid: string): number {
+  let n = 0
+  for (let i = entries.length - 1; i >= Math.max(0, entries.length - PARTIAL_LOOKBACK); i--) {
+    const en = entries[i]
+    if (en.kind === 'text' && en.mid === mid) n++
+  }
+  return n
+}
+
 /** Settle entries left open by a turn that ended without its complete block. */
 export function settlePartials(entries: StreamEntry[]): void {
   for (const i of streamingIndices(entries)) {
@@ -365,12 +393,16 @@ export function applyStreamEvent(
       }
     }
     const mainThread = e.parent_tool_use_id == null
+    // The SDK sends a message one content block per event, all with the same
+    // id: number its text blocks across those events.
+    const mid = typeof message?.id === 'string' && message.id ? message.id : undefined
+    let textBlock = mid ? priorTextBlocks(state.entries, mid) : 0
     for (const block of content) {
       if (!block || typeof block !== 'object') continue
       const b = block as Record<string, unknown>
       if (b.type === 'text' || b.type === 'thinking') {
         const entry: StreamEntry = b.type === 'text'
-          ? { kind: 'text', text: String(b.text ?? '') }
+          ? { kind: 'text', text: String(b.text ?? ''), ...(mid ? { mid, block: textBlock++ } : {}) }
           : { kind: 'thinking', text: String(b.thinking ?? '') }
         // The complete block replaces the entry its deltas built, in place.
         const slot = mainThread ? partialSlot(state.entries, entry.kind) : -1
@@ -398,6 +430,7 @@ export function applyStreamEvent(
     const message = e.message as Record<string, unknown> | undefined
     const rawContent = message?.content
     const turn = typeof e.turn === 'number' ? e.turn : undefined
+    const quoteSet = typeof e.quote_set === 'string' && e.quote_set ? e.quote_set : undefined
     // Compaction summary — when context is compacted, Claude injects the
     // prior-conversation summary as a synthetic user message. Render it as a
     // divider, not a user bubble (it isn't something the user actually typed).
@@ -418,10 +451,10 @@ export function applyStreamEvent(
       }
       const rest = handleCommandMessage(state, text)
       if (rest !== null) {
-        if (rest) finalizeUserEntry(state, rest, undefined, turn)
+        if (rest) finalizeUserEntry(state, rest, undefined, turn, quoteSet)
         return
       }
-      finalizeUserEntry(state, text, undefined, turn)
+      finalizeUserEntry(state, text, undefined, turn, quoteSet)
       return
     }
     const content = (rawContent ?? []) as unknown[]
@@ -462,7 +495,7 @@ export function applyStreamEvent(
       if (rest !== null) userText = rest
     }
     if (userText || userImages.length) {
-      finalizeUserEntry(state, userText, userImages, turn)
+      finalizeUserEntry(state, userText, userImages, turn, quoteSet)
     }
     return
   }

@@ -3,6 +3,7 @@ import { invoke } from '@/lib/tauri'
 import { ref, reactive, computed } from 'vue'
 import type { ImageAttachment } from '@/lib/streamEvents'
 import type { BookmarkSide, RunBookmark } from '@/lib/bookmarks'
+import type { QuoteInput, RunQuote } from '@/lib/quote'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 
 /**
@@ -385,10 +386,15 @@ export const useRunsStore = defineStore('runs', () => {
     content: string,
     images?: ImageAttachment[],
     override_budget?: boolean,
+    quotes?: { set: string; items: QuoteInput[] },
   ): Promise<number | null> {
     // The Rewind snapshot turn the prompt was logged under, if one was taken.
     const turn = await invoke<number | null>('send_user_message', {
-      payload: { run_id, content, images: images ?? [], override_budget: override_budget ?? false },
+      payload: {
+        run_id, content, images: images ?? [], override_budget: override_budget ?? false,
+        // Structured quotes (UX-29): saved with the send, named on the prompt's log record.
+        quotes: quotes?.items ?? [], quote_set: quotes?.set ?? null,
+      },
     })
     touchRun(run_id)
     return turn ?? null
@@ -429,6 +435,11 @@ export const useRunsStore = defineStore('runs', () => {
 
   async function deleteBookmark(id: string): Promise<void> {
     await invoke('delete_run_bookmark', { id })
+  }
+
+  /** The structured quotes of a run's sent prompts, each with where its source sits in the log now. */
+  async function listRunQuotes(run_id: string): Promise<RunQuote[]> {
+    return invoke<RunQuote[]>('list_run_quotes', { runId: run_id })
   }
 
   // Writes the conversation to `<project>/.puppeteer/exports/` (redacted) and
@@ -721,7 +732,7 @@ export const useRunsStore = defineStore('runs', () => {
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, steerRun, endRunInput,
-    listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, exportTranscript,
+    listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, listRunQuotes, exportTranscript,
     listProjectFiles, readProjectFile, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun,

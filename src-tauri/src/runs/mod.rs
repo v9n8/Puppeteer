@@ -5,6 +5,7 @@ pub mod model_usage;
 pub mod permission;
 pub mod pricing;
 pub mod quota_stop;
+pub mod quotes;
 pub mod rewind;
 pub mod session_watcher;
 pub mod sidecar;
@@ -79,6 +80,8 @@ pub struct TurnGate {
 pub struct QueuedPrompt {
     pub text: String,
     pub images: Vec<crate::commands::runs::ImageAttachment>,
+    /// The prompt's structured quotes (`runs::quotes`), named on its log record.
+    pub quote_set: Option<String>,
 }
 
 pub type RunRegistry = Arc<Mutex<HashMap<String, RunHandles>>>;

@@ -11,7 +11,10 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Cpu, Terminal } from 'lucide-vue-next'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { transcriptMarkdownSources } from '@/lib/selectionSurface'
-import { appendQuote, type QuoteSource } from '@/lib/quote'
+import {
+  composeWithQuotes, entryOrTextQuote, fileQuote, quoteInput, type DraftQuote, type QuoteSource,
+} from '@/lib/quote'
+import type { QuoteAnchor } from '@/lib/quoteAnchor'
 import { appendQuoteToDraft, composerWindowLabel, registerQuoteComposer } from '@/lib/quoteAppend'
 import { emptyQueue, queuedPreview, type QueuedMessage } from '@/lib/messageQueue'
 import { useMessageQueueStore } from '@/stores/messageQueue'
@@ -51,6 +54,8 @@ interface OutgoingMessage {
   text: string
   images: ImageAttachment[]
   filePaths: string[]
+  /** Sent ahead of the text as blockquotes, and saved as cards (UX-29). */
+  quotes: DraftQuote[]
 }
 
 export function useRunComposer(core: RunSessionCore, conductor: RunConductor, log: RunLog, header: RunHeaderInfo) {
@@ -67,7 +72,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     outputEl, historyEl, viewingLogRunId, viewingLog, historyEntries, historyHasStream,
     historyContextTokens, historyModel, isViewingHistory, sourceText, stickToBottom,
     scrollOutputToBottom, scrollMemory, bookmarkState, toggleBookmark, snapshotTurns, rewindTarget,
-    clearHistoryView, loadRunLog,
+    clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes,
   } = log
   const {
     captureContext,
@@ -389,6 +394,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
 
   const followUpInput = ref('')
+  // Quote cards above the composer (UX-29): part of the draft, sent ahead of the text.
+  const draftQuotes = ref<DraftQuote[]>([])
   const sendingFollowUp = ref(false)
   const savingClaudeAccount = ref(false)
 
@@ -492,9 +499,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     pendingImages.value = []
     pendingFiles.value = []
     followUpInput.value = ''
+    draftQuotes.value = []
     if (runId) {
       const draft = draftsStore.get(runId)
       followUpInput.value = draft.text
+      draftQuotes.value = draft.quotes ?? []
       for (const img of draft.images) pushPendingImage(img.media_type, img.data)
       for (const f of draft.files) addPendingFile(f.path)
     }
@@ -506,13 +515,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   watch(currentRunId, (id) => restoreDraftFor(id), { immediate: true })
 
   watch(
-    [followUpInput, pendingImages, pendingFiles],
+    [followUpInput, pendingImages, pendingFiles, draftQuotes],
     () => {
       if (restoringDraft || !currentRunId.value) return
       draftsStore.set(currentRunId.value, {
         text: followUpInput.value,
         images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
         files: pendingFiles.value.map(({ name, path }) => ({ name, path })),
+        quotes: draftQuotes.value,
       })
     },
     { deep: true },
@@ -540,8 +550,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       if (!run || sendingFollowUp.value) return null
       return {
         label: runLabel(run),
-        append: (text: string) => {
-          followUpInput.value = appendQuote(followUpInput.value, text)
+        // Anchored to the message it was taken from when the selection was in one.
+        append: (text: string, anchor?: QuoteAnchor | null) => {
+          addDraftQuote(entryOrTextQuote(crypto.randomUUID(), text, run.id, anchor))
           focusComposer()
         },
       }
@@ -577,7 +588,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // focus: the user is still reading in that other window.
   function takeQuote(text: string, source: QuoteSource) {
     if (!sendingFollowUp.value) {
-      followUpInput.value = appendQuote(followUpInput.value, text, source)
+      addDraftQuote(fileQuote(crypto.randomUUID(), text, source))
       return
     }
     // The send clears the composer when it returns: add the quote after that.
@@ -586,9 +597,19 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const stop = watch(sendingFollowUp, (busy) => {
       if (busy) return
       stop()
-      if (currentRunId.value === runId) followUpInput.value = appendQuote(followUpInput.value, text, source)
+      if (currentRunId.value === runId) addDraftQuote(fileQuote(crypto.randomUUID(), text, source))
       else appendQuoteToDraft(runId, text, source)
     })
+  }
+
+  function addDraftQuote(q: DraftQuote) {
+    if (q.excerpt.trim()) draftQuotes.value = [...draftQuotes.value, q]
+  }
+  function removeDraftQuote(id: string) {
+    draftQuotes.value = draftQuotes.value.filter((q) => q.id !== id)
+  }
+  function setDraftQuoteNote(id: string, note: string) {
+    draftQuotes.value = draftQuotes.value.map((q) => (q.id === id ? { ...q, note } : q))
   }
   onBeforeUnmount(registerQuoteComposer({ runId: () => currentRunId.value, append: takeQuote }))
 
@@ -751,19 +772,23 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     if (sendingFollowUp.value) return true
     // A fresh session launches as a conductor, which needs a goal to start.
     if (currentStatus.value === 'fetched' && currentRun.value?.run_type === 'session') {
-      return !followUpInput.value.trim() && !pendingImages.value.length && !pendingFiles.value.length
+      return !hasComposerInput()
     }
     if (currentStatus.value === 'fetched' || !chatEligible.value) return false
-    return !followUpInput.value.trim() && !pendingImages.value.length && !pendingFiles.value.length
+    return !hasComposerInput()
   })
+
+  function hasComposerInput(): boolean {
+    return !!followUpInput.value.trim() || !!pendingImages.value.length || !!pendingFiles.value.length
+      || !!draftQuotes.value.length
+  }
 
   // One entry point for the footer's primary button: cancel while running is a
   // separate button, so here we either queue / send a typed message / resume, or
   // kick off the default-prompt run when nothing was typed.
   function handlePrimaryAction() {
     if (currentStatus.value === 'running') { handleQueue(); return }
-    const hasInput = followUpInput.value.trim().length > 0 || pendingImages.value.length > 0 || pendingFiles.value.length > 0
-    if (!hasInput && (currentStatus.value === 'fetched' || !chatEligible.value)) {
+    if (!hasComposerInput() && (currentStatus.value === 'fetched' || !chatEligible.value)) {
       handleStartRun()
       return
     }
@@ -1138,15 +1163,19 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   async function handleSendFollowUp(steer = false) {
     mentionOpen.value = false
     const text = followUpInput.value.trim()
-    const hasImages = pendingImages.value.length > 0
-    const hasFiles = pendingFiles.value.length > 0
-    if ((!text && !hasImages && !hasFiles) || !currentRunId.value || sendingFollowUp.value) return
+    if (!hasComposerInput() || !currentRunId.value || sendingFollowUp.value) return
+    const quotes = draftQuotes.value
     const result = await sendMessage(
       currentRunId.value,
-      () => ({ text, images: takePendingImages(), filePaths: takePendingFilePaths() }),
+      () => ({ text, images: takePendingImages(), filePaths: takePendingFilePaths(), quotes }),
       steer,
     )
-    if (result === 'sent') followUpInput.value = ''
+    if (result === 'sent') {
+      followUpInput.value = ''
+      // Quotes added while it was sending stay for the next message.
+      const sentIds = new Set(quotes.map((q) => q.id))
+      draftQuotes.value = draftQuotes.value.filter((q) => !sentIds.has(q.id))
+    }
   }
 
   // Send one message to the run on screen: the first message of a fetched run,
@@ -1169,8 +1198,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       const override = await preflightBudget(runEngine)
       if (override === null) return 'declined'
 
-      const { text, images, filePaths } = take()
-      const prompt = composePrompt(text, filePaths)
+      const { text, images, filePaths, quotes } = take()
+      // The quotes go to the model as blockquotes ahead of the text, as they did
+      // when they were `> ` text in the draft.
+      const prompt = composePrompt(composeWithQuotes(quotes, text), filePaths)
 
       if (isFetched) {
         // First message of a fetched run (fresh session or issue/PR): it becomes
@@ -1195,6 +1226,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
       // Show the user message right away in the timeline (running / resume paths).
       const sent = live.pushUser(id, projectId.value, prompt, images)
+      // A steer starts no turn of its own, so its quotes stay plain text.
+      const quoteSet = quotes.length && !(steer && wasRunning) ? crypto.randomUUID() : null
+      if (quoteSet && sent.kind === 'user') {
+        sent.quoteSet = quoteSet
+        noteSentQuotes(id, quoteSet, quotes)
+      }
       stickToBottom.value = true // re-pin: the user just sent a message
       scrollMemory.forget(id)
       scrollOutputToBottom()
@@ -1211,9 +1248,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         // No turn of its own, so no snapshot and no "Rewind to here".
         await runsStore.steerRun(id, prompt, images, override)
       } else {
-        const turn = await runsStore.sendUserMessage(id, prompt, images, override)
+        const turn = await runsStore.sendUserMessage(
+          id, prompt, images, override, quoteSet ? { set: quoteSet, items: quotes.map(quoteInput) } : undefined,
+        )
         // The snapshot turn it was logged under: "Rewind to here" finds it by this.
         if (turn !== null && sent.kind === 'user') sent.turn = turn
+        if (quoteSet) void loadQuotes(id)
       }
       return 'sent'
     } catch (e) {
@@ -1265,12 +1305,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       text: followUpInput.value,
       images: pendingImages.value.map(({ media_type, data }) => ({ media_type, data })),
       files: pendingFiles.value.map(({ name, path }) => ({ name, path })),
+      quotes: draftQuotes.value,
     }
-    if (!draft.text.trim() && !draft.images.length && !draft.files.length) return
+    if (!draft.text.trim() && !draft.images.length && !draft.files.length && !draft.quotes.length) return
     queueStore.enqueue(id, draft)
     followUpInput.value = ''
     pendingImages.value = []
     pendingFiles.value = []
+    draftQuotes.value = []
   }
 
   function outgoingOf(item: QueuedMessage): OutgoingMessage {
@@ -1278,6 +1320,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       text: item.draft.text.trim(),
       images: item.draft.images,
       filePaths: item.draft.files.map((f) => f.path),
+      quotes: item.draft.quotes ?? [],
     }
   }
 
@@ -1392,7 +1435,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     onModelSelect, contextTokens, contextModel, composerModelLabel, contextRateLimit,
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
-    sendingFollowUp, selectedClaudeAccountId, claudeAccountOptions, showClaudeAccountSelect,
+    sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedClaudeAccountId,
+    claudeAccountOptions, showClaudeAccountSelect,
     activeClaudeAccountLabel, claudeAccountSelectDisabled, claudeAccountSelectTitle,
     handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,

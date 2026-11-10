@@ -826,7 +826,10 @@ function emitItem(item) {
   switch (item.type) {
     case 'agentMessage': {
       const text = String(item.text ?? '')
-      if (text.trim()) out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+      // `id`, like Claude's message id: what a structured quote of this message
+      // is anchored by (UX-29). Made here, once, so the live view and the log
+      // (which keeps this line verbatim) agree on it.
+      if (text.trim()) out({ type: 'assistant', message: { id: `codex-${randomUUID()}`, role: 'assistant', content: [{ type: 'text', text }] } })
       break
     }
     case 'reasoning': {

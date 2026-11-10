@@ -12,7 +12,7 @@
 // post one here.
 import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit, listen } from '@tauri-apps/api/event'
-import { appendQuote, type QuoteSource } from '@/lib/quote'
+import { fileQuote, type QuoteSource } from '@/lib/quote'
 import { popoutLabel } from '@/lib/popout'
 import { sessionWindowLabel } from '@/lib/sessionWindow'
 import { useChatDraftsStore } from '@/stores/chatDrafts'
@@ -43,11 +43,12 @@ export function registerQuoteComposer(composer: QuoteComposer): () => void {
   }
 }
 
-/** Append a quote to a run's stored draft (no composer is showing it). */
-export function appendQuoteToDraft(runId: string, text: string, source?: QuoteSource) {
+/** Add a file window's quote to a run's stored draft (no composer is showing it), as a card. */
+export function appendQuoteToDraft(runId: string, text: string, source: QuoteSource) {
+  if (!text.trim()) return
   const drafts = useChatDraftsStore()
   const draft = drafts.get(runId)
-  drafts.set(runId, { ...draft, text: appendQuote(draft.text, text, source) })
+  drafts.set(runId, { ...draft, quotes: [...(draft.quotes ?? []), fileQuote(crypto.randomUUID(), text, source)] })
 }
 
 /**

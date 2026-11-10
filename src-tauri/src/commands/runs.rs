@@ -101,9 +101,19 @@ fn log_user_content(text: &str, images: &[ImageAttachment]) -> serde_json::Value
 /// stream-json user message the history view renders (the engines do not echo
 /// it), with the Rewind snapshot `turn` taken just before it, if any.
 fn prompt_log_line(text: &str, images: &[ImageAttachment], turn: Option<i64>) -> String {
+    quoted_prompt_log_line(text, images, turn, None)
+}
+
+/// [`prompt_log_line`] of a prompt that carried structured quotes: the record
+/// names them (`quote_set`, see `runs::quotes`) so the history view shows them
+/// as cards on the message.
+fn quoted_prompt_log_line(text: &str, images: &[ImageAttachment], turn: Option<i64>, quote_set: Option<&str>) -> String {
     let mut line = serde_json::json!({ "type": "user", "message": { "role": "user", "content": log_user_content(text, images) } });
     if let Some(turn) = turn {
         line["turn"] = serde_json::Value::from(turn);
+    }
+    if let Some(set) = quote_set {
+        line["quote_set"] = serde_json::Value::from(set);
     }
     format!("{line}\n")
 }
@@ -1383,6 +1393,15 @@ pub struct SendUserMessagePayload {
     /// Proceed even when the global budget is exceeded (user confirmed).
     #[serde(default)]
     pub override_budget: bool,
+    /// Structured quotes the prompt carries (UX-29). The text already holds
+    /// them as a blockquote; these only describe them (`runs::quotes`).
+    #[serde(default)]
+    pub quotes: Vec<crate::runs::quotes::QuoteInput>,
+    /// Id naming them on the prompt's log record, chosen by the composer so its
+    /// echo of the message can show them before the log is read back. A new one
+    /// is made when it is missing or not a UUID.
+    #[serde(default)]
+    pub quote_set: Option<String>,
 }
 
 #[tauri::command]
@@ -1429,6 +1448,14 @@ pub(crate) async fn send_user_message_inner(
     if text.is_empty() && payload.images.is_empty() {
         return Err("empty message".to_string());
     }
+    let quote_set = (!payload.quotes.is_empty()).then(|| {
+        payload
+            .quote_set
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+            .unwrap_or_else(uuid::Uuid::new_v4)
+            .to_string()
+    });
     // A turn is running: the message waits for it to end and starts then as a
     // turn of its own (`TurnGate`, `start_queued_prompt`). Not logged yet and
     // no turn number: both come when it starts.
@@ -1442,14 +1469,18 @@ pub(crate) async fn send_user_message_inner(
         }
         let gate = &mut handle.turn_gate;
         if gate.busy {
-            gate.queued.push_back(QueuedPrompt { text: text.to_string(), images: payload.images.clone() });
+            gate.queued.push_back(QueuedPrompt {
+                text: text.to_string(),
+                images: payload.images.clone(),
+                quote_set: quote_set.clone(),
+            });
         }
         std::mem::replace(&mut gate.busy, true)
     };
     let turn = if held {
         None
     } else {
-        let res = send_prompt(db, registry, &payload.run_id, text, &payload.images).await;
+        let res = send_prompt(db, registry, &payload.run_id, text, &payload.images, quote_set.as_deref()).await;
         if res.is_err() {
             if let Some(handle) = registry.lock().await.get_mut(&payload.run_id) {
                 handle.turn_gate.busy = false;
@@ -1457,6 +1488,13 @@ pub(crate) async fn send_user_message_inner(
         }
         res?
     };
+    // The prompt went out (or waits for its turn): describe its quotes. A
+    // failure here costs the cards, not the message.
+    if let Some(set) = &quote_set {
+        if let Err(e) = crate::runs::quotes::save(db, &payload.run_id, set, payload.quotes).await {
+            tracing::warn!(event = "run_quotes_save_failed", run_id = %payload.run_id, error = %e);
+        }
+    }
     // The turn is now the run's newest activity. Stamped here rather than only on
     // `run:done` so the History row moves the moment the user hits send, even for
     // a turn that then runs for minutes.
@@ -1482,6 +1520,7 @@ async fn send_prompt(
     run_id: &str,
     text: &str,
     images: &[ImageAttachment],
+    quote_set: Option<&str>,
 ) -> Result<Option<i64>, String> {
     let send_line = format!(
         "{}\n",
@@ -1495,7 +1534,7 @@ async fn send_prompt(
     let turn = crate::runs::snapshots::before_turn(db, run_id).await;
     // For the persisted log we record the equivalent stream-json user message so
     // the history view renders it (parseStreamLog only understands stream-json).
-    let log_line = prompt_log_line(text, images, turn);
+    let log_line = quoted_prompt_log_line(text, images, turn, quote_set);
     write_run_stdin(registry, run_id, &send_line, FOLLOW_UP_REFUSED).await?;
     log_buf.lock().await.push_str(&log_line);
     Ok(turn)
@@ -1525,7 +1564,7 @@ pub(crate) async fn start_queued_prompt(
         let Some(prompt) = next else {
             return (false, lost);
         };
-        match send_prompt(db, registry, run_id, &prompt.text, &prompt.images).await {
+        match send_prompt(db, registry, run_id, &prompt.text, &prompt.images, prompt.quote_set.as_deref()).await {
             Ok(_) => return (true, lost),
             Err(e) => {
                 tracing::warn!(event = "queued_prompt_failed", run_id = %run_id, error = %e);
@@ -5602,7 +5641,14 @@ mod turn_gate_tests {
     }
 
     fn follow_up(text: &str) -> SendUserMessagePayload {
-        SendUserMessagePayload { run_id: "r1".into(), content: text.into(), images: Vec::new(), override_budget: true }
+        SendUserMessagePayload {
+            run_id: "r1".into(),
+            content: text.into(),
+            images: Vec::new(),
+            override_budget: true,
+            quotes: Vec::new(),
+            quote_set: None,
+        }
     }
 
     async fn next_line(out: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>) -> Option<serde_json::Value> {
@@ -5653,6 +5699,50 @@ mod turn_gate_tests {
         send_user_message_inner(&db, &registry, follow_up("third"), false).await.unwrap();
         assert_eq!(next_line(&mut out).await.unwrap()["text"], "third");
         assert!(registry.lock().await.get("r1").unwrap().turn_gate.busy);
+    }
+
+    // UX-29: the send saves the prompt's quotes and its log record names them,
+    // whether it goes out at once or waits for the running turn.
+    #[tokio::test]
+    async fn a_follow_up_with_quotes_saves_them_and_names_them_on_its_log_record() {
+        let quote = |excerpt: &str| crate::runs::quotes::QuoteInput {
+            kind: "entry".into(),
+            source_entry_id: Some("msg_1".into()),
+            start_offset: Some(0),
+            end_offset: Some(3),
+            excerpt: excerpt.into(),
+            ..Default::default()
+        };
+        let set = "6f1c2a4e-0d3b-4b8e-9a51-2f7d8c9e0a1b";
+        let (db, registry, _out) = running(false).await;
+        let mut now = follow_up("> abc\n\nwhy?");
+        now.quotes = vec![quote("abc")];
+        now.quote_set = Some(set.into());
+        send_user_message_inner(&db, &registry, now, false).await.unwrap();
+        let logged: serde_json::Value = serde_json::from_str(log_of(&registry).await.trim()).unwrap();
+        assert_eq!(logged["quote_set"], set);
+
+        // Queued behind the turn just started; a bad id is replaced.
+        let mut later = follow_up("> def");
+        later.quotes = vec![quote("def")];
+        later.quote_set = Some("not-a-uuid".into());
+        send_user_message_inner(&db, &registry, later, false).await.unwrap();
+        start_queued_prompt(&db, &registry, "r1").await;
+        let log = log_of(&registry).await;
+        let second: serde_json::Value = serde_json::from_str(log.lines().nth(1).unwrap()).unwrap();
+        let second_set = second["quote_set"].as_str().unwrap().to_string();
+        assert!(Uuid::parse_str(&second_set).is_ok());
+
+        let rows = crate::runs::quotes::of_run(&db, "r1").await.unwrap();
+        let sets: Vec<_> = rows.iter().map(|q| (q.quote_set.clone(), q.excerpt.clone())).collect();
+        assert_eq!(sets, [(set.to_string(), "abc".to_string()), (second_set, "def".to_string())]);
+
+        // No quotes: the record stays as it was.
+        send_user_message_inner(&db, &registry, follow_up("plain"), false).await.ok();
+        start_queued_prompt(&db, &registry, "r1").await;
+        let last: serde_json::Value = serde_json::from_str(log_of(&registry).await.lines().last().unwrap()).unwrap();
+        assert_eq!(last["message"]["content"], "plain");
+        assert!(last.get("quote_set").is_none());
     }
 
     #[tokio::test]

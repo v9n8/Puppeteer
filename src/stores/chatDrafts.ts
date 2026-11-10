@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
+import { sanitizeDraftQuotes, type DraftQuote } from '@/lib/quote'
 
 /**
  * Unsent chatbox drafts, keyed by SESSION (run id). Switching between sessions,
@@ -8,8 +9,8 @@ import { reactive } from 'vue'
  * own draft instead of sharing one project-wide slot that the next session would
  * clobber. Persisting here — and mirroring to localStorage — lets the composer
  * survive session switches and reloads. We keep the typed text, pasted images
- * (base64) and attached files (by path). The key is an opaque string, so any
- * stable id works.
+ * (base64), attached files (by path) and structured quotes (UX-29, lib/quote).
+ * The key is an opaque string, so any stable id works.
  */
 export interface DraftImage {
   media_type: string
@@ -25,6 +26,8 @@ export interface ChatDraft {
   text: string
   images: DraftImage[]
   files: DraftFile[]
+  /** Quote cards above the composer; absent = none. */
+  quotes?: DraftQuote[]
 }
 
 const STORAGE_KEY = 'puppeteer.chatDrafts'
@@ -34,7 +37,12 @@ function emptyDraft(): ChatDraft {
 }
 
 function isEmpty(d: ChatDraft): boolean {
-  return !d.text && d.images.length === 0 && d.files.length === 0
+  return !d.text && d.images.length === 0 && d.files.length === 0 && !d.quotes?.length
+}
+
+function copy(d: ChatDraft): ChatDraft {
+  const quotes = d.quotes?.length ? d.quotes.map((q) => ({ ...q })) : undefined
+  return { text: d.text, images: [...d.images], files: [...d.files], ...(quotes ? { quotes } : {}) }
 }
 
 function sanitize(raw: unknown): ChatDraft | null {
@@ -57,7 +65,8 @@ function sanitize(raw: unknown): ChatDraft | null {
         )
         .map((f) => ({ name: f.name, path: f.path }))
     : []
-  const draft: ChatDraft = { text, images, files }
+  const quotes = sanitizeDraftQuotes(obj.quotes)
+  const draft: ChatDraft = { text, images, files, ...(quotes.length ? { quotes } : {}) }
   return isEmpty(draft) ? null : draft
 }
 
@@ -90,7 +99,7 @@ export const useChatDraftsStore = defineStore('chatDrafts', () => {
 
   function get(key: string): ChatDraft {
     const d = key && drafts[key]
-    return d ? { text: d.text, images: [...d.images], files: [...d.files] } : emptyDraft()
+    return d ? copy(d) : emptyDraft()
   }
 
   /** Save (or clear, when empty) the draft for a session/key. */
@@ -100,7 +109,7 @@ export const useChatDraftsStore = defineStore('chatDrafts', () => {
       if (!(key in drafts)) return
       delete drafts[key]
     } else {
-      drafts[key] = { text: draft.text, images: [...draft.images], files: [...draft.files] }
+      drafts[key] = copy(draft)
     }
     persist()
   }

@@ -21,6 +21,8 @@ import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
 import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFooter } from '@/lib/turnActions'
 import { activityMatches, activityOpen, turnActivity, type TurnActivity, type TurnActivityMap } from '@/lib/turnActivity'
+import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
+import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
 
 const { t } = useI18n()
 
@@ -40,11 +42,16 @@ const props = defineProps<{
   /** The ⌘F query while the bar is open, so a folded block holding a match opens. */
   findQuery?: string
   findCaseSensitive?: boolean
+  /** Structured quotes of the prompts here, by `quoteSet` (UX-29): cards on the bubble. */
+  quoteSets?: ReadonlyMap<string, QuoteSetView>
+  /** A quote's source being jumped to: its message (id) opens if folded. `seq` re-triggers. */
+  quoteReveal?: { id: string; seq: number } | null
 }>()
 
 const emit = defineEmits<{
   (e: 'open-file', path: string, line?: number | null): void
   (e: 'open-url', url: string): void
+  (e: 'quote-jump', quote: RunQuote): void
 }>()
 
 // Per-entry expand state for compaction-summary dividers (collapsed by default).
@@ -675,6 +682,28 @@ onMounted(() => {
   widthObserver.observe(el)
 })
 
+// ── Quote cards on a sent prompt (UX-29) ─────────────────────────────────────
+// The prompt's text starts with its quotes as a blockquote (that is what the
+// model got); with the cards shown, the bubble drops that part.
+function quoteSetOf(e: StreamEntry): QuoteSetView | null {
+  return e.kind === 'user' && e.quoteSet ? props.quoteSets?.get(e.quoteSet) ?? null : null
+}
+function bubbleText(e: Extract<StreamEntry, { kind: 'user' }>): string {
+  const set = quoteSetOf(e)
+  return set ? stripQuotePrefix(e.text, set.prefix) ?? e.text : e.text
+}
+function quoteSourceLabel(q: RunQuote): string {
+  if (q.kind !== 'file' || !q.path) return ''
+  if (q.line_start == null) return q.path
+  return q.line_end != null && q.line_end > q.line_start ? `${q.path}:${q.line_start}-${q.line_end}` : `${q.path}:${q.line_start}`
+}
+function openQuote(card: QuoteCard) {
+  if (!card.jumpable) return
+  const q = card.quote
+  if (q.kind === 'file' && q.path) emit('open-file', q.path, q.line_start)
+  else emit('quote-jump', q)
+}
+
 // ── Typewriter smoothing ────────────────────────────────────────────────────
 // Partial deltas land in bursts (a frame's flush can carry several), so the text
 // entry being streamed reveals its text at an adaptive pace instead of in
@@ -767,6 +796,16 @@ interface Fullscreen {
 }
 const fullscreen = ref<Fullscreen | null>(null)
 
+// The Quote under an answer points at the answer's first message: the whole
+// message (start = end), as the quote is the whole answer.
+function answerAnchor(f: TurnFooter): QuoteAnchor | null {
+  for (let k = f.from; k <= f.to && k < props.entries.length; k++) {
+    const e = props.entries[k]
+    if (e.kind === 'text' && e.mid) return { entryId: e.mid, block: e.block ?? 0, start: 0, end: 0 }
+  }
+  return null
+}
+
 async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
   const f = footers.value.get(i)
   if (!f) return false
@@ -782,7 +821,7 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
         return false // clipboard denied
       }
     case 'quote':
-      quoteTarget.value?.append(text)
+      quoteTarget.value?.append(text, question ? null : answerAnchor(f))
       break
     case 'fullscreen':
       fullscreen.value = { title: t(question ? 'streamLog.turn.questionTitle' : 'streamLog.turn.answerTitle'), text, plain: question }
@@ -872,6 +911,21 @@ function toggleBlock(bi: number) {
   if (b) blockChoice.value = { ...blockChoice.value, [blockId(b)]: !blockOpen.value[bi] }
 }
 
+// Jumping to a quote's source: open the block its message is folded in.
+watch(() => props.quoteReveal, (r) => {
+  if (!r) return
+  const next = { ...blockChoice.value }
+  let changed = false
+  props.entries.forEach((e, i) => {
+    if (e.kind !== 'text' || e.mid !== r.id) return
+    const bi = activity.value.memberOf.get(i)
+    if (bi === undefined || blockOpen.value[bi]) return
+    next[blockId(activity.value.blocks[bi])] = true
+    changed = true
+  })
+  if (changed) blockChoice.value = next
+})
+
 function isFolded(i: number): boolean {
   const bi = activity.value.memberOf.get(i)
   return bi !== undefined && !blockOpen.value[bi]
@@ -935,7 +989,7 @@ function toolResult(e: StreamEntry): unknown {
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
         :class="{ 'stream-entry': running && i !== entries.length - 1, 'turn-step-wrap': stepClass(i) === 'turn-step' }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i)]"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry)]"
       >
       <div :class="stepClass(i)">
       <!-- System init banner -->
@@ -960,10 +1014,34 @@ function toolResult(e: StreamEntry): unknown {
           >
             <IdeContextChip :items="entry.ideContext" variant="inside" @open-file="(p) => emit('open-file', p)" />
           </div>
+          <!-- Its structured quotes (UX-29): numbered cards that lead back to the source. -->
+          <ol v-if="quoteSetOf(entry)" class="mb-2 flex flex-col gap-1.5">
+            <li v-for="(card, ci) in quoteSetOf(entry)!.cards" :key="card.quote.id">
+              <button
+                type="button"
+                class="w-full flex items-start gap-2 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-left text-xs transition-colors"
+                :class="card.jumpable ? 'cursor-pointer hover:bg-accent/60 hover:border-primary/40' : 'cursor-default opacity-80'"
+                :disabled="!card.jumpable"
+                :title="card.jumpable ? (card.quote.kind === 'file' ? t('streamLog.quotes.openFile') : t('streamLog.quotes.goToSource')) : undefined"
+                @click="openQuote(card)"
+              >
+                <span class="shrink-0 mt-px h-4 min-w-4 px-1 rounded-full bg-primary/15 text-primary text-2xs font-semibold flex items-center justify-center">{{ ci + 1 }}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block whitespace-pre-wrap text-foreground/80 line-clamp-3">{{ card.quote.excerpt }}</span>
+                  <span v-if="card.quote.note" class="mt-0.5 block whitespace-pre-wrap text-foreground">{{ card.quote.note }}</span>
+                  <span v-if="card.quote.kind === 'file'" class="mt-0.5 block truncate font-mono text-2xs text-muted-foreground">{{ quoteSourceLabel(card.quote) }}</span>
+                  <span
+                    v-else-if="card.quote.kind === 'entry' && !card.jumpable"
+                    class="mt-0.5 block text-2xs italic text-muted-foreground"
+                  >{{ t('streamLog.quotes.sourceGone') }}</span>
+                </span>
+              </button>
+            </li>
+          </ol>
           <div
             v-if="entry.images && entry.images.length"
             class="flex flex-wrap gap-1.5"
-            :class="entry.text ? 'mb-2' : ''"
+            :class="bubbleText(entry) ? 'mb-2' : ''"
           >
             <img
               v-for="(img, ii) in entry.images"
@@ -973,9 +1051,9 @@ function toolResult(e: StreamEntry): unknown {
               alt="attachment"
             />
           </div>
-          <CollapsibleMessage v-if="entry.text" :max-height="256" fade="hsl(var(--muted))" :disabled="expandedMessageIndices.has(i)">
+          <CollapsibleMessage v-if="bubbleText(entry)" :max-height="256" fade="hsl(var(--muted))" :disabled="expandedMessageIndices.has(i)">
             <div class="whitespace-pre-wrap"><template
-                v-for="(seg, si) in userSegments(entry.text)"
+                v-for="(seg, si) in userSegments(bubbleText(entry))"
                 :key="si"
               ><span
                   v-if="seg.path"
@@ -1071,11 +1149,13 @@ function toolResult(e: StreamEntry): unknown {
            one being streamed: its text grows every chunk, so each render is a
            new cache key that will never be read again and only serves to evict
            the finalized entries that DO get re-read on scroll. -->
+      <!-- `data-quote-*`: the message a quote taken from here is anchored to (lib/quoteAnchor). -->
       <div v-else-if="entry.kind === 'text'">
         <div
           v-file-links
           v-mermaid
           v-copy-code
+          v-bind="entry.mid ? { [QUOTE_SRC_ATTR]: entry.mid, [QUOTE_BLOCK_ATTR]: entry.block ?? 0 } : {}"
           v-html="renderText(displayText(entry, i), (running && i === entries.length - 1) || !!entry.streaming)"
           class="markdown-output text-sm leading-relaxed text-foreground"
           @click="onProseClick"

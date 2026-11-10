@@ -56,6 +56,12 @@
   "turns": "{count} turns",
   "tokensSuffix": "{tokens} tok",
   "estimatedCost": "Estimated (subscription run)",
+  "quotes": {
+    "goToSource": "Go to the quoted text",
+    "openFile": "Open the quoted file",
+    "sourceGone": "Source no longer available",
+    "notLoaded": "The quoted message is not loaded in this view. Open the Session's history to go to it."
+  },
   "turn": {
     "copy": "Copy",
     "copied": "Copied",

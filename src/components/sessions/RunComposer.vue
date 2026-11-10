@@ -5,7 +5,7 @@
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, UserCircle, Navigation, Clock, Pencil,
+  Paperclip, UserCircle, Navigation, Clock, Pencil, Quote,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
@@ -30,8 +30,14 @@ const {
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
-  cancelQueuedEdit, currentRunId,
+  cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
 } = useRunSession()
+
+function quoteFileLabel(q: { path: string; lines?: { start: number; end: number } }): string {
+  const l = q.lines
+  if (!l) return q.path
+  return l.end > l.start ? `${q.path}:${l.start}-${l.end}` : `${q.path}:${l.start}`
+}
 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
@@ -142,6 +148,41 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           </div>
         </div>
       </div>
+
+      <!-- Quote cards (UX-29): sent ahead of the message as blockquotes, each with an optional note -->
+      <ol v-if="draftQuotes.length" class="mb-2 flex flex-col gap-1.5" :aria-label="t('run.quotes.title')">
+        <li
+          v-for="(q, qi) in draftQuotes"
+          :key="q.id"
+          class="group flex items-start gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs"
+        >
+          <span class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-2xs font-semibold text-primary">{{ qi + 1 }}</span>
+          <div class="min-w-0 flex-1">
+            <p class="line-clamp-2 whitespace-pre-wrap text-foreground/80" :title="q.excerpt">
+              <Quote class="mr-1 inline h-3 w-3 align-[-2px] opacity-50" :stroke-width="2" />{{ q.excerpt }}
+            </p>
+            <p v-if="q.kind === 'file'" class="mt-0.5 truncate font-mono text-2xs text-muted-foreground">{{ quoteFileLabel(q) }}</p>
+            <input
+              :value="q.note ?? ''"
+              type="text"
+              class="mt-1 w-full bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              :placeholder="t('run.quotes.notePlaceholder')"
+              :aria-label="t('run.quotes.notePlaceholder')"
+              :disabled="sendingFollowUp"
+              @input="setDraftQuoteNote(q.id, ($event.target as HTMLInputElement).value)"
+            />
+          </div>
+          <button
+            class="h-5 w-5 shrink-0 rounded flex items-center justify-center text-foreground/50 hover:text-foreground hover:bg-background cursor-pointer"
+            :title="t('run.quotes.remove')"
+            :aria-label="t('run.quotes.remove')"
+            :disabled="sendingFollowUp"
+            @click="removeDraftQuote(q.id)"
+          >
+            <X class="h-3 w-3" :stroke-width="2.5" />
+          </button>
+        </li>
+      </ol>
 
       <!-- Pasted/attached image thumbnails -->
       <div v-if="pendingImages.length" class="flex flex-wrap gap-2 mb-2">

@@ -4,10 +4,9 @@
 // sends what `onTurnEnd` hands back.
 //
 // A queued item is a snapshot of the composer draft at the moment it was queued
-// (text, pasted images, attached files). Quotes are `> ` text inside that draft
-// today, so the snapshot already carries them; once drafts hold structured
-// quotes (UX-29), they belong in the same snapshot.
+// (text, pasted images, attached files, structured quotes — UX-29).
 import type { ChatDraft } from '@/stores/chatDrafts'
+import { sanitizeDraftQuotes } from './quote.ts'
 
 export interface QueuedMessage {
   id: string
@@ -30,11 +29,12 @@ export function emptyQueue(): MessageQueue {
 }
 
 function draftIsEmpty(d: ChatDraft): boolean {
-  return !d.text.trim() && d.images.length === 0 && d.files.length === 0
+  return !d.text.trim() && d.images.length === 0 && d.files.length === 0 && !d.quotes?.length
 }
 
 function copyDraft(d: ChatDraft): ChatDraft {
-  return { text: d.text, images: [...d.images], files: [...d.files] }
+  const quotes = d.quotes?.length ? d.quotes.map((q) => ({ ...q })) : undefined
+  return { text: d.text, images: [...d.images], files: [...d.files], ...(quotes ? { quotes } : {}) }
 }
 
 /** Add a draft at the end. An empty draft is not a message, so it is ignored. */
@@ -122,7 +122,8 @@ function sanitizeDraft(raw: unknown): ChatDraft | null {
         (f): f is ChatDraft['files'][number] => !!f && typeof f.name === 'string' && typeof f.path === 'string',
       ).map((f) => ({ name: f.name, path: f.path }))
     : []
-  const draft = { text: typeof obj.text === 'string' ? obj.text : '', images, files }
+  const quotes = sanitizeDraftQuotes(obj.quotes)
+  const draft = { text: typeof obj.text === 'string' ? obj.text : '', images, files, ...(quotes.length ? { quotes } : {}) }
   return draftIsEmpty(draft) ? null : draft
 }
 
@@ -146,11 +147,14 @@ export function sanitizeQueue(raw: unknown): MessageQueue | null {
 
 /**
  * One-line label for a chip: the first line the user typed, else (a message
- * that is only a quote) the first quoted line without its `>`.
+ * that is only a quote) the first quoted line without its `>`, or the first
+ * line of its first quote card.
  */
 export function queuedPreview(item: QueuedMessage): string {
   const lines = item.draft.text.split('\n').map((l) => l.trim()).filter(Boolean)
   const typed = lines.find((l) => !l.startsWith('>'))
   if (typed) return typed
-  return lines.map((l) => l.replace(/^>\s?/, '').trim()).find(Boolean) ?? ''
+  const quoted = lines.map((l) => l.replace(/^>\s?/, '').trim()).find(Boolean)
+  if (quoted) return quoted
+  return item.draft.quotes?.[0]?.excerpt.split('\n').map((l) => l.trim()).find(Boolean) ?? ''
 }

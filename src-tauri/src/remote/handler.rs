@@ -904,6 +904,8 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
             content,
             images,
             override_budget: false,
+            quotes: Vec::new(),
+            quote_set: None,
         };
         match crate::commands::runs::send_user_message_inner(&ctx.db, &ctx.registry, payload, true).await {
             Ok(_) => {
@@ -1069,6 +1071,8 @@ async fn handle_send_chat(ctx: &HandlerCtx, cmd: &CmdPayload) {
         content,
         images,
         override_budget: false,
+        quotes: Vec::new(),
+        quote_set: None,
     };
     match crate::commands::runs::send_user_message_inner(&ctx.db, &ctx.registry, payload, true).await {
         Ok(_) => {

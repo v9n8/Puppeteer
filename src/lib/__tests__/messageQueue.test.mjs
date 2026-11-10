@@ -161,3 +161,32 @@ test('queuedPreview: first typed line, else the quoted text', () => {
   assert.equal(queuedPreview(item('> only a quote\n>\n> second')), 'only a quote')
   assert.equal(queuedPreview(item('')), '')
 })
+
+// ── Structured quotes ride along (UX-29) ────────────────────────────────────
+const quote = { id: 'q1', kind: 'entry', excerpt: 'the cat', run_id: 'r1', source_entry_id: 'msg_1', block_index: 0, start: 4, end: 11 }
+
+test('a queued draft keeps its quote cards, as a copy', () => {
+  const quotes = [{ ...quote }]
+  const q = enqueue(emptyQueue(), 'a', draft('why?', { quotes }))
+  assert.deepEqual(q.items[0].draft.quotes, [quote])
+  quotes[0].excerpt = 'changed later'
+  assert.equal(q.items[0].draft.quotes[0].excerpt, 'the cat')
+})
+
+test('a draft that is only a quote is a message; its chip shows the quote', () => {
+  const q = enqueue(emptyQueue(), 'a', draft('', { quotes: [quote] }))
+  assert.equal(q.items.length, 1)
+  assert.equal(queuedPreview(q.items[0]), 'the cat')
+  // Editing the text away keeps it: the quote is still there to send.
+  assert.equal(editQueued(q, 'a', '').items.length, 1)
+})
+
+test('sanitizeQueue: quotes survive a reload, malformed ones are dropped', () => {
+  const stored = JSON.parse(JSON.stringify({
+    items: [{ id: 'a', draft: draft('hi', { quotes: [quote, { id: 'bad', kind: 'entry', excerpt: 'x' }] }) }],
+  }))
+  assert.deepEqual(sanitizeQueue(stored).items[0].draft.quotes, [quote])
+  // No quotes: the draft keeps its old shape.
+  const plain = sanitizeQueue({ items: [{ id: 'b', draft: draft('hi') }] })
+  assert.deepEqual(plain.items[0].draft, draft('hi'))
+})

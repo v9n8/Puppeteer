@@ -259,6 +259,11 @@
   "queueHeldCancelled": "The turn was cancelled, so the queued messages were not sent.",
   "queueHeldBudget": "The budget is exceeded, so the queued messages were not sent. Sending one asks you to confirm.",
   "queueWaiting": "Not sent yet: the turn ended while this Session wasn't open here. Send them when you're ready.",
+  "quotes": {
+    "title": "Quotes",
+    "notePlaceholder": "Add a note on this quote (optional)",
+    "remove": "Remove quote"
+  },
   "startRunEnter": "Start run (Enter — empty uses the default prompt)",
   "resumeAndSend": "Resume session and send (Enter)",
   "rerunWithDefault": "Re-run with the default prompt",

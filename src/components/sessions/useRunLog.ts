@@ -12,6 +12,8 @@ import { useTurnNavigator, turnLabel } from '@/composables/useTurnNavigator'
 import { isAwayFromTop, promptsBefore } from '@/lib/turnPosition'
 import { useScrollMemory } from '@/composables/useScrollMemory'
 import { bookmarkKey, placeBookmarks, type RunBookmark } from '@/lib/bookmarks'
+import { pendingRunQuotes, quoteSetViews, type DraftQuote, type RunQuote } from '@/lib/quote'
+import { flashQuoteSource, quoteHosts, quoteRangeIn } from '@/lib/quoteAnchor'
 import type { TurnSide } from '@/lib/turnActions'
 import { openSessionWindow } from '@/lib/sessionWindow'
 import { useMarkdown } from '@/lib/markdown'
@@ -850,6 +852,103 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     await loadBookmarks(runId)
   }
 
+  // ── Quotes (UX-29) ───────────────────────────────────────────────────────────
+  // The structured quotes of the run's sent prompts, as cards on their bubbles.
+  // Each row says where its quoted message sits in the log now (Rust scans
+  // for its id), so a card whose source a Rewind cut or a purge removed says
+  // so instead of leading nowhere.
+  const runQuotes = shallowRef<RunQuote[]>([])
+  const quoteSets = computed(() => quoteSetViews(runQuotes.value))
+
+  function shownHasMessage(id: string): boolean {
+    return turnEntries.value.some((e) => e.kind === 'text' && e.mid === id)
+  }
+
+  async function loadQuotes(runId: string | null) {
+    if (!runId) return
+    try {
+      const rows = await runsStore.listRunQuotes(runId)
+      if (currentRunId.value !== runId) return
+      // A source not in the log yet (still in the drain's buffer) but on screen
+      // still leads somewhere.
+      runQuotes.value = rows.map((q) =>
+        q.kind === 'entry' && q.source_offset === null && q.source_entry_id && shownHasMessage(q.source_entry_id)
+          ? { ...q, pending: true }
+          : q,
+      )
+    } catch {
+      if (currentRunId.value === runId) runQuotes.value = []
+    }
+  }
+
+  /** A prompt just sent with quotes: show its cards now, then read them back. */
+  function noteSentQuotes(runId: string, quoteSet: string, quotes: readonly DraftQuote[]) {
+    if (currentRunId.value === runId && quotes.length) {
+      runQuotes.value = [...runQuotes.value, ...pendingRunQuotes(runId, quoteSet, quotes)]
+    }
+  }
+
+  watch(
+    currentRunId,
+    (id) => {
+      runQuotes.value = []
+      void loadQuotes(id)
+    },
+    { immediate: true },
+  )
+  // A turn's end flushes its messages to the log: what a card points at is there now.
+  onUnmounted(live.onAnyDone((runId) => {
+    if (runId === currentRunId.value) void loadQuotes(runId)
+  }))
+
+  // Opens the folded block a jumped-to message sits in (StreamLog).
+  const quoteReveal = shallowRef<{ id: string; seq: number } | null>(null)
+  let quoteRevealSeq = 0
+
+  /**
+   * Scroll to what a card quotes and highlight exactly that range. The history
+   * pane loads the window holding its message first (one read, like a ⌘F hit);
+   * the live pane shows what it has.
+   */
+  async function jumpToQuote(q: RunQuote) {
+    const id = q.kind === 'entry' ? q.source_entry_id : null
+    if (!id) return
+    const runId = currentRunId.value
+    if (!shownHasMessage(id) && isViewingHistory.value && historyHasStream.value && q.source_offset !== null) {
+      const offset = q.source_offset
+      firstLoadedSeq.value = promptsBefore(navTurns.value.map((t) => t.offset), offset)
+      await jumpToHistoryOffset(offset)
+    }
+    if (currentRunId.value !== runId) return
+    if (!shownHasMessage(id)) {
+      toast.error(t(isViewingHistory.value || q.source_offset === null ? 'streamLog.quotes.sourceGone' : 'streamLog.quotes.notLoaded'))
+      return
+    }
+    quoteReveal.value = { id, seq: ++quoteRevealSeq }
+    await nextTick()
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const root = turnScrollEl.value
+    if (!root) return
+    const hosts = quoteHosts(root, id, q.block_index ?? 0)
+    if (!hosts.length) return
+    const start = q.start_offset ?? 0
+    const end = q.end_offset ?? 0
+    let host = hosts[0]
+    let range: Range | null = null
+    if (end > start) {
+      for (const h of hosts) {
+        range = quoteRangeIn(h, start, end, q.excerpt)
+        if (range) {
+          host = h
+          break
+        }
+      }
+    }
+    // Reading back up: the next streamed chunk must not pull the reader down.
+    if (!isViewingHistory.value) stickToBottom.value = false
+    flashQuoteSource(host, range)
+  }
+
   // ── Rewind (sessions.rewind) ─────────────────────────────────────────────────
   // Turns of the shown run whose workspace snapshot can still be restored.
   const snapshotTurns = shallowRef<Set<number>>(new Set())
@@ -889,8 +988,9 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
       live.discard(target.runId)
       await loadRunLog(target.runId, { force: true })
       void loadSessionTurns(target.runId)
-      // The cut dropped the bookmarks after it.
+      // The cut dropped the bookmarks after it, and the messages some quotes point at.
       void loadBookmarks(target.runId)
+      void loadQuotes(target.runId)
     }
     void loadSnapshots(target.runId)
   }
@@ -1269,7 +1369,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     onHistoryScroll, bookmarks, placedBookmarks, bookmarkState, toggleBookmark, snapshotTurns,
     rewindTarget, onRewound, runFind, findOpen, logHits, logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
-    loadRunLog,
+    loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes,
   }
 }
 
