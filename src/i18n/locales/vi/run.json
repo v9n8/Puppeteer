@@ -249,5 +249,12 @@
     "comfortable": "Thoáng",
     "compact": "Gọn",
     "dense": "Dày"
+  },
+  "statusBar": {
+    "label": "Thanh trạng thái của Session",
+    "contextTitle": "Context — bấm để compact",
+    "compact": "Compact context",
+    "projectTitle": "Project — mở cài đặt Project",
+    "accountModelTitle": "Tài khoản · model — bấm để đổi tùy chọn run"
   }
 }

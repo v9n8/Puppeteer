@@ -332,9 +332,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Inline chips, sized to ride on the composer's usage row next to the
-       session context meter (see RunView). Horizontal, not stacked: that row
-       has width to spare and no height to spare. -->
+  <!-- Inline chips, sized to ride on the session status bar (see RunStatusBar).
+       Horizontal, not stacked: that bar has width to spare and no height to
+       spare. -->
   <div class="flex items-center gap-1.5 min-w-0 overflow-x-auto overflow-y-hidden">
     <div
       v-for="v in views"

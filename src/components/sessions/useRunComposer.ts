@@ -78,6 +78,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const target = e.target
     if (!(target instanceof Element)) return
     if (runSettingsRoot.value?.contains(target)) return
+    // The status bar's account · model chip toggles this same menu; closing here
+    // would let its click reopen it at once.
+    if (target.closest('[data-run-settings-trigger]')) return
     if (target.closest('[data-app-select-dropdown]')) return
     closeRunSettingsMenu()
   }
@@ -410,6 +413,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     && effectiveEngine.value === 'claude'
     && (claudeStore.accounts.length > 0 || !!currentRun.value.claude_account_id),
   )
+  // The Claude account this session runs on (its own pick, else the
+  // project/global default), for the status bar's account · model chip.
+  // '' when the run-settings menu offers no account choice.
+  const activeClaudeAccountLabel = computed(() => {
+    if (!showClaudeAccountSelect.value) return ''
+    const id = selectedClaudeAccountId.value || effectiveProjectClaudeAccountId.value
+    return claudeStore.accounts.find((acc) => acc.id === id)?.label ?? ''
+  })
   const claudeAccountSelectDisabled = computed(() =>
     currentStatus.value === 'running' || sendingFollowUp.value || savingClaudeAccount.value,
   )
@@ -1233,8 +1244,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
     sendingFollowUp, selectedClaudeAccountId, claudeAccountOptions, showClaudeAccountSelect,
-    claudeAccountSelectDisabled, claudeAccountSelectTitle, handleClaudeAccountChange, pendingImages,
-    pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
+    activeClaudeAccountLabel, claudeAccountSelectDisabled, claudeAccountSelectTitle,
+    handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
     toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,

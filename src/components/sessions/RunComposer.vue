@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// The composer under the AI result: palettes, attachments, usage row, prompt
-// input and the run controls. RunView shows it once a run is open. State lives
-// in useRunSession.
+// The composer under the AI result: palettes, attachments, prompt input and
+// the run controls. RunView shows it once a run is open; the usage row that
+// sat above the input is now RunStatusBar. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
@@ -11,8 +11,6 @@ import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
 import SavedPromptPicker from '@/components/SavedPromptPicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
-import ContextMeter from '@/components/ContextMeter.vue'
-import BudgetBadge from '@/components/BudgetBadge.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
 import { PERMISSION_MODE_OPTIONS } from '@/lib/engineOptions'
@@ -22,12 +20,11 @@ const { t } = useI18n()
 const {
   features, projectId, modelOverride, permissionMode, session, currentStatus, runSettingsOpen,
   runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle, toggleRunSettingsMenu,
-  closeRunSettingsMenu, modelOptions, onModelSelect, contextTokens, contextModel,
-  composerModelLabel, contextRateLimit, followUpInput, sendingFollowUp, selectedClaudeAccountId,
-  claudeAccountOptions, showClaudeAccountSelect, claudeAccountSelectDisabled,
+  closeRunSettingsMenu, modelOptions, onModelSelect, composerModelLabel, followUpInput,
+  sendingFollowUp, selectedClaudeAccountId, claudeAccountOptions, showClaudeAccountSelect, claudeAccountSelectDisabled,
   claudeAccountSelectTitle, handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
-  chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction, sendSlashCommand,
+  chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
   composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, savedPrompts,
   insertSavedPrompt, insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
@@ -119,22 +116,6 @@ const {
             <X class="h-2.5 w-2.5" :stroke-width="2.5" />
           </button>
         </div>
-      </div>
-
-      <!-- Usage row: this run's context window on the left, the account
-           plan-usage chips filling the width that used to sit empty.
-           Both parts self-hide, so the row collapses when there is
-           nothing to report. -->
-      <div class="flex items-center gap-2 px-1 pb-1.5 min-w-0">
-        <ContextMeter
-          :tokens="contextTokens"
-          :model="contextModel"
-          :rate-limit="contextRateLimit"
-          @compact="sendSlashCommand('/compact')"
-        />
-        <span v-if="contextTokens > 0 && features.isOn('usage.context_meter')" class="shrink-0 text-2xs text-muted-foreground/40">·</span>
-        <!-- Unmounting it also stops its 60 s refresh timer. -->
-        <BudgetBadge v-if="features.isOn('usage.context_meter')" />
       </div>
 
       <!-- Prompt input card: textarea on top, controls toolbar below -->

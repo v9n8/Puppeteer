@@ -16,8 +16,6 @@ const props = defineProps<{
   rateLimit?: RateLimitWindows | null
 }>()
 
-const emit = defineEmits<{ (e: 'compact'): void }>()
-
 const appSettings = useAppSettingsStore()
 
 const warnPercent = computed(() => {
@@ -60,24 +58,16 @@ const fiveHourText = computed(() => {
 </script>
 
 <template>
-  <!-- No padding of its own: it shares the composer's usage row with the account
-       usage chips, and that row owns the spacing (see RunView). -->
+  <!-- No padding of its own: it sits inside the status bar's context chip, which
+       owns the spacing and the compact action (see RunStatusBar). -->
   <div v-if="tokens > 0" class="flex shrink-0 items-center gap-2 text-2xs">
     <span class="font-mono shrink-0" :class="textClass">
       {{ formatTokensShort(tokens) }} / {{ formatTokensShort(limit) }}
     </span>
-    <div class="relative h-1 flex-1 min-w-12 max-w-40 rounded-full bg-muted overflow-hidden">
+    <div class="relative h-1 w-12 shrink-0 rounded-full bg-muted overflow-hidden">
       <div class="absolute inset-y-0 left-0 rounded-full transition-all" :class="barClass" :style="{ width: percent + '%' }" />
     </div>
     <span class="font-mono shrink-0 tabular-nums" :class="textClass">{{ percent }}%</span>
-    <button
-      v-if="isWarn"
-      class="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono cursor-pointer transition-colors text-warning hover:bg-warning/10"
-      :title="t('misc.context.compactTitle')"
-      @click="emit('compact')"
-    >
-      /compact
-    </button>
     <span
       v-if="fiveHourText"
       class="shrink-0 font-mono text-muted-foreground/70"

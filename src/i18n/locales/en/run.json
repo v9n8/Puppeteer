@@ -249,5 +249,12 @@
     "comfortable": "Comfortable",
     "compact": "Compact",
     "dense": "Dense"
+  },
+  "statusBar": {
+    "label": "Session status bar",
+    "contextTitle": "Context — click to compact",
+    "compact": "Compact context",
+    "projectTitle": "Project — open project settings",
+    "accountModelTitle": "Account · model — click to change run options"
   }
 }
