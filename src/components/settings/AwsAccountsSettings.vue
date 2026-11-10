@@ -1,7 +1,9 @@
 <script setup lang="ts">
-// Settings → "AWS Accounts" (profile/SSO only): add from the local ~/.aws
-// profiles in one click, validate, SSO login, edit and delete. SettingsView
-// fetches the account store before showing the sections (the nav badge counts it).
+// Settings → Connections → AWS (profile/SSO only): add from the local ~/.aws
+// profiles in one click, validate, SSO login, edit and delete. Opened from the
+// Connections list on one account (`accountId`), or with none on the add form.
+// SettingsView fetches the account store before showing the sections (the nav
+// badge counts it).
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Cloud, LogIn, Pencil, Plus, RefreshCw, ShieldAlert, Trash2 } from 'lucide-vue-next'
@@ -18,7 +20,10 @@ const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 
+const props = defineProps<{ accountId?: string | null }>()
+
 const awsStore = useAwsAccountsStore()
+const shown = computed(() => (props.accountId ? awsStore.accounts.filter((a) => a.id === props.accountId) : []))
 const awsEditLabel = ref<Record<string, string>>({})
 const awsEditRegion = ref<Record<string, string>>({})
 const awsEditProfileName = ref<Record<string, string>>({})
@@ -182,7 +187,7 @@ async function handleDeleteAwsAccount(id: string) {
 }
 
 onMounted(() => {
-  loadAwsProfiles()
+  if (!props.accountId) loadAwsProfiles()
 })
 </script>
 
@@ -192,6 +197,7 @@ onMounted(() => {
       <Cloud class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.aws.title') }}</span>
     </template>
+    <template v-if="!accountId">
       <p class="text-2xs text-muted-foreground leading-relaxed">
         {{ t('settings.aws.intro') }}
       </p>
@@ -201,11 +207,12 @@ onMounted(() => {
           {{ t('settings.aws.isolationWarning') }}
         </span>
       </Banner>
+    </template>
 
       <!-- Account list -->
-      <div v-if="awsStore.accounts.length" class="space-y-2">
+      <div v-if="shown.length" class="space-y-2">
         <div
-          v-for="acc in awsStore.accounts"
+          v-for="acc in shown"
           :key="acc.id"
           class="border border-border rounded-md p-3 space-y-2"
         >
@@ -298,7 +305,7 @@ onMounted(() => {
       </div>
 
       <!-- Add account: one-click from the local ~/.aws profiles -->
-      <div class="border-t border-border/60 pt-3 space-y-2">
+      <div v-if="!accountId" class="border-t border-border/60 pt-3 space-y-2">
         <div class="flex items-center justify-between">
           <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.aws.addFromProfile') }}</div>
           <Button variant="ghost" size="icon-sm" :title="t('common.refresh')" :aria-label="t('common.refresh')" :disabled="awsProfilesLoading" @click="loadAwsProfiles">

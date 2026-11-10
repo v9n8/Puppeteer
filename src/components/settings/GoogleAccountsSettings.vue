@@ -1,8 +1,10 @@
 <script setup lang="ts">
-// Settings → "Google Account" (Drive + Gmail via OAuth, multi-account).
+// Settings → Connections → Google (Drive + Gmail via OAuth, multi-account).
 // The OAuth client (Client ID/Secret) is saved once and reused for every
 // account, so adding more accounts only needs a fresh consent — no re-entry.
-import { onMounted, ref } from 'vue'
+// Opened from the Connections list on one account (`accountId`), or with none
+// on the add form (OAuth client, consent, available tools).
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AlertTriangle, CheckCircle2, HardDrive, Loader2, LogIn, Pencil, Plus, ShieldAlert, Star, Trash2,
@@ -11,13 +13,17 @@ import { invoke } from '@/lib/tauri'
 import { Banner, Button, Card, Input } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
+import { useGoogleAccountsStore } from '@/stores/googleAccounts'
+import type { GoogleAccount } from '@/stores/googleCalendar'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 
-interface GoogleAccount { id: string; label: string; email: string; scope: string; is_default: boolean; created_at: string }
-const googleAccounts = ref<GoogleAccount[]>([])
+const props = defineProps<{ accountId?: string | null }>()
+
+const googleStore = useGoogleAccountsStore()
+const shown = computed(() => (props.accountId ? googleStore.accounts.filter((a) => a.id === props.accountId) : []))
 const googleHasClient = ref(false)
 const googleClientId = ref('')
 const googleClientSecret = ref('')
@@ -31,7 +37,7 @@ const googleEditLabel = ref('')
 
 async function loadGoogleStatus() {
   try {
-    googleAccounts.value = await invoke<GoogleAccount[]>('list_google_accounts')
+    await googleStore.fetch()
     googleHasClient.value = (await invoke<{ has_client: boolean }>('google_client_status')).has_client
   } catch { /* leave defaults */ }
 }
@@ -154,20 +160,22 @@ onMounted(loadGoogleStatus)
       <span class="text-xs font-semibold">{{ t('settings.google.title') }}</span>
     </template>
 
-    <p class="text-2xs text-muted-foreground leading-relaxed">
-      {{ t('settings.google.intro') }}
-    </p>
+    <template v-if="!accountId">
+      <p class="text-2xs text-muted-foreground leading-relaxed">
+        {{ t('settings.google.intro') }}
+      </p>
 
-    <Banner :icon="ShieldAlert" class="leading-relaxed">
-      <span class="text-muted-foreground">
-        {{ t('settings.google.credsWarning') }}
-      </span>
-    </Banner>
+      <Banner :icon="ShieldAlert" class="leading-relaxed">
+        <span class="text-muted-foreground">
+          {{ t('settings.google.credsWarning') }}
+        </span>
+      </Banner>
+    </template>
 
     <!-- Connected accounts list -->
-    <div v-if="googleAccounts.length" class="space-y-2">
+    <div v-if="shown.length" class="space-y-2">
       <div
-        v-for="acc in googleAccounts"
+        v-for="acc in shown"
         :key="acc.id"
         class="border border-border rounded-md p-3 space-y-2"
       >
@@ -245,9 +253,9 @@ onMounted(loadGoogleStatus)
     </div>
 
     <!-- Add account -->
-    <div class="border border-border/60 rounded-md p-3 space-y-2.5">
+    <div v-if="!accountId" class="border border-border/60 rounded-md p-3 space-y-2.5">
       <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-        {{ googleAccounts.length ? t('settings.google.addAnother') : t('settings.google.connectAccount') }}
+        {{ googleStore.accounts.length ? t('settings.google.addAnother') : t('settings.google.connectAccount') }}
       </div>
 
       <div v-if="googleHasClient && !showGoogleClientForm" class="text-2xs text-muted-foreground flex items-center gap-1.5">
@@ -295,7 +303,7 @@ onMounted(loadGoogleStatus)
       </div>
     </div>
 
-    <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
+    <div v-if="!accountId" class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
       <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.google.availableTools') }}</div>
       <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-2xs text-muted-foreground">
         <span>📁 drive_list / search / read / download</span>

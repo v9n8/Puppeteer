@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// Settings → "GitLab Accounts": mirror of the GitHub section, plus host + email.
-// SettingsView fetches the store before showing the sections (the nav badge
-// counts it too).
-import { ref } from 'vue'
+// Settings → Connections → GitLab: mirror of the GitHub editor, plus host + email.
+// Opened from the Connections list on one account (`accountId`), or with none
+// on the add form. SettingsView fetches the store before showing the sections
+// (the nav badge counts it too).
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gitlab, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-vue-next'
 import { Banner, Button, Card, Input } from '@/components/ui'
@@ -14,7 +15,10 @@ const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 
+const props = defineProps<{ accountId?: string | null }>()
+
 const glStore = useGitlabAccountsStore()
+const shown = computed(() => (props.accountId ? glStore.accounts.filter((a) => a.id === props.accountId) : []))
 const glNewLabel = ref('')
 const glNewPat = ref('')
 const glNewHost = ref('')
@@ -115,6 +119,7 @@ async function handleDeleteGitlabAccount(id: string) {
       <Gitlab class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.gitlab.title') }}</span>
     </template>
+    <template v-if="!accountId">
       <p class="text-2xs text-muted-foreground leading-relaxed">
         {{ t('settings.gitlab.intro') }}
       </p>
@@ -124,11 +129,12 @@ async function handleDeleteGitlabAccount(id: string) {
           {{ t('settings.gitlab.isolationWarning') }}
         </span>
       </Banner>
+    </template>
 
       <!-- Account list -->
-      <div v-if="glStore.accounts.length" class="space-y-2">
+      <div v-if="shown.length" class="space-y-2">
         <div
-          v-for="acc in glStore.accounts"
+          v-for="acc in shown"
           :key="acc.id"
           class="border border-border rounded-md p-3 space-y-2"
         >
@@ -230,7 +236,7 @@ async function handleDeleteGitlabAccount(id: string) {
       </div>
 
       <!-- Add account -->
-      <div class="border-t border-border/60 pt-3 space-y-2">
+      <div v-if="!accountId" class="border-t border-border/60 pt-3 space-y-2">
         <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.gitlab.addAccount') }}</div>
         <Input
           v-model="glNewLabel"

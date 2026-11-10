@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// Settings → "Azure Accounts": each account is an isolated `az login` managed by
+// Settings → Connections → Azure: each account is an isolated `az login` managed by
 // Puppeteer (its own Azure CLI config dir), so several tenants/identities can coexist.
-// Mirrors the AWS section: validate, sign in again, edit (label, tags, pinned
+// Mirrors the AWS editor: validate, sign in again, edit (label, tags, pinned
 // subscription) and delete. Adding an account opens the browser sign-in and the
-// backend call blocks until the user finishes it.
-import { onMounted, ref } from 'vue'
+// backend call blocks until the user finishes it. Opened from the Connections
+// list on one account (`accountId`), or with none on the add form.
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   CloudCog, Loader2, LogIn, Pencil, Plus, ShieldAlert, Trash2,
@@ -21,6 +22,9 @@ const { t } = useI18n()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const store = useAzureAccountsStore()
+
+const props = defineProps<{ accountId?: string | null }>()
+const shown = computed(() => (props.accountId ? store.accounts.filter((a) => a.id === props.accountId) : []))
 
 // --- Account list ---
 const validations = ref<Record<string, AzureValidation>>({})
@@ -210,22 +214,24 @@ onMounted(() => {
       <CloudCog class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.azure.title') }}</span>
     </template>
-    <p class="text-2xs text-muted-foreground leading-relaxed">
-      {{ t('settings.azure.intro') }}
-    </p>
+    <template v-if="!accountId">
+      <p class="text-2xs text-muted-foreground leading-relaxed">
+        {{ t('settings.azure.intro') }}
+      </p>
 
-    <Banner :icon="ShieldAlert" class="leading-relaxed">
-      <span class="text-muted-foreground">
-        {{ t('settings.azure.isolationWarning') }}
-      </span>
-    </Banner>
+      <Banner :icon="ShieldAlert" class="leading-relaxed">
+        <span class="text-muted-foreground">
+          {{ t('settings.azure.isolationWarning') }}
+        </span>
+      </Banner>
+    </template>
 
     <p v-if="store.error" class="text-2xs text-destructive">{{ store.error }}</p>
 
     <!-- Account list -->
-    <div v-if="store.accounts.length" class="space-y-2">
+    <div v-if="shown.length" class="space-y-2">
       <div
-        v-for="acc in store.accounts"
+        v-for="acc in shown"
         :key="acc.id"
         class="border border-border rounded-md p-3 space-y-2"
       >
@@ -348,7 +354,7 @@ onMounted(() => {
     </div>
 
     <!-- Add account: browser az login into an isolated config dir -->
-    <div class="border-t border-border/60 pt-3 space-y-2">
+    <div v-if="!accountId" class="border-t border-border/60 pt-3 space-y-2">
       <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.addAccount') }}</div>
       <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.azure.addHint') }}</p>
       <Input

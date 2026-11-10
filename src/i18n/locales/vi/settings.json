@@ -3,22 +3,18 @@
   "title": "Cài đặt",
   "sections": {
     "general": "Chung",
-    "github": "Tài khoản GitHub",
-    "gitlab": "Tài khoản GitLab",
-    "aws": "Tài khoản AWS",
     "engines": "Engine & tài khoản",
     "ai": "Mặc định khi chạy",
     "translate": "Dịch",
-    "google": "Tài khoản Google",
     "usage": "Sử dụng & Ngân sách",
     "devices": "Thiết bị",
     "prompts": "Mẫu Prompt",
     "inbox": "Inbox API",
-    "azure": "Tài khoản Azure",
     "focus": "Focus",
     "features": "Tính năng",
     "palette": "Bảng lệnh nhanh",
-    "keymap": "Phím tắt"
+    "keymap": "Phím tắt",
+    "connections": "Kết nối"
   },
   "groups": {
     "general": "Chung",
@@ -440,6 +436,54 @@
       "bookmarks": "Đánh dấu trong Session",
       "slackThreads": "Slack thread",
       "projects": "Project"
+    }
+  },
+  "connections": {
+    "title": "Kết nối",
+    "intro": "Các tài khoản Puppeteer dùng để chạy gh, glab, git, aws, az đúng danh tính, và các tài khoản Google cho công cụ Drive, Gmail, Calendar. Mở một tài khoản để xác thực, sửa hoặc xoá.",
+    "add": "Thêm kết nối",
+    "addTitle": "Thêm tài khoản {type}",
+    "all": "Tất cả",
+    "empty": "Chưa có kết nối nào. Bấm “Thêm kết nối” để thêm.",
+    "emptyType": "Chưa có tài khoản {type}.",
+    "openHint": "Mở để xác thực, sửa hoặc xoá",
+    "validate": "Xác thực",
+    "projects": "chưa Project nào dùng | 1 Project | {count} Project",
+    "usedBy": "Dùng ở",
+    "keychain": "Lưu trong keychain của hệ điều hành",
+    "types": {
+      "github": "GitHub",
+      "gitlab": "GitLab",
+      "aws": "AWS",
+      "azure": "Azure",
+      "google": "Google"
+    },
+    "status": {
+      "validated": "Đã xác thực",
+      "validatedAt": "Đã xác thực lúc {time}",
+      "unvalidated": "Chưa xác thực",
+      "needsLogin": "Cần đăng nhập lại",
+      "connected": "Đã kết nối"
+    },
+    "check": {
+      "ok": "Hợp lệ",
+      "missingScopes": "Thiếu quyền: cần đăng nhập lại"
+    },
+    "secrets": {
+      "pat": "personal access token",
+      "oauthToken": "OAuth refresh token",
+      "clientSecret": "OAuth client secret"
+    },
+    "consumers": {
+      "projects": "Project",
+      "sessionChips": "Chip tài khoản trong Session",
+      "cliBroker": "Danh tính CLI trong Session (gh, glab, git, aws, az)",
+      "prInbox": "PR Inbox",
+      "issueLinks": "Session tạo từ Issue hoặc PR",
+      "mcpGitAccounts": "Công cụ MCP git_accounts_list",
+      "mcpCloudAccounts": "Công cụ MCP cloud_accounts_list",
+      "googleMcp": "Công cụ MCP Google (Drive, Gmail, Sheets, Calendar)",
+      "calendar": "Calendar và Focus"
     }
   }
 }

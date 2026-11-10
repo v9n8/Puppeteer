@@ -3,22 +3,18 @@
   "title": "Settings",
   "sections": {
     "general": "General",
-    "github": "GitHub Accounts",
-    "gitlab": "GitLab Accounts",
-    "aws": "AWS Accounts",
     "engines": "Engines & accounts",
     "ai": "Run defaults",
     "translate": "Translation",
-    "google": "Google Account",
     "usage": "Usage & Budget",
     "devices": "Devices",
     "prompts": "Prompt Templates",
     "inbox": "Inbox API",
-    "azure": "Azure Accounts",
     "focus": "Focus",
     "features": "Features",
     "palette": "Command Palette",
-    "keymap": "Keyboard Shortcuts"
+    "keymap": "Keyboard Shortcuts",
+    "connections": "Connections"
   },
   "groups": {
     "general": "General",
@@ -440,6 +436,54 @@
       "bookmarks": "Session bookmarks",
       "slackThreads": "Slack threads",
       "projects": "Projects"
+    }
+  },
+  "connections": {
+    "title": "Connections",
+    "intro": "Accounts Puppeteer runs gh, glab, git, aws and az as, and the Google accounts behind its Drive, Gmail and Calendar tools. Open one to validate, edit or delete it.",
+    "add": "Add connection",
+    "addTitle": "Add a {type} account",
+    "all": "All",
+    "empty": "No connections yet. Add one with “Add connection”.",
+    "emptyType": "No {type} account yet.",
+    "openHint": "Open to validate, edit or delete",
+    "validate": "Validate",
+    "projects": "no project | 1 project | {count} projects",
+    "usedBy": "Used by",
+    "keychain": "Kept in the OS keychain",
+    "types": {
+      "github": "GitHub",
+      "gitlab": "GitLab",
+      "aws": "AWS",
+      "azure": "Azure",
+      "google": "Google"
+    },
+    "status": {
+      "validated": "Validated",
+      "validatedAt": "Validated {time}",
+      "unvalidated": "Not validated",
+      "needsLogin": "Sign in again",
+      "connected": "Connected"
+    },
+    "check": {
+      "ok": "Valid",
+      "missingScopes": "Missing permissions: sign in again"
+    },
+    "secrets": {
+      "pat": "personal access token",
+      "oauthToken": "OAuth refresh token",
+      "clientSecret": "OAuth client secret"
+    },
+    "consumers": {
+      "projects": "Projects",
+      "sessionChips": "Account chips in sessions",
+      "cliBroker": "CLI identity in sessions (gh, glab, git, aws, az)",
+      "prInbox": "PR Inbox",
+      "issueLinks": "Sessions started from an Issue or PR",
+      "mcpGitAccounts": "MCP tool git_accounts_list",
+      "mcpCloudAccounts": "MCP tool cloud_accounts_list",
+      "googleMcp": "Google MCP tools (Drive, Gmail, Sheets, Calendar)",
+      "calendar": "Calendar and Focus"
     }
   }
 }

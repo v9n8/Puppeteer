@@ -14,25 +14,22 @@ import FocusSettings from '@/components/FocusSettings.vue'
 import FeaturesSettings from '@/components/FeaturesSettings.vue'
 import CommandPaletteSettings from '@/components/CommandPaletteSettings.vue'
 import KeymapSettings from '@/components/KeymapSettings.vue'
-import AzureAccountsSettings from '@/components/AzureAccountsSettings.vue'
 import GeneralSettings from '@/components/settings/GeneralSettings.vue'
-import GoogleAccountsSettings from '@/components/settings/GoogleAccountsSettings.vue'
-import GithubAccountsSettings from '@/components/settings/GithubAccountsSettings.vue'
-import GitlabAccountsSettings from '@/components/settings/GitlabAccountsSettings.vue'
-import AwsAccountsSettings from '@/components/settings/AwsAccountsSettings.vue'
+import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import AiModelsSettings from '@/components/settings/AiModelsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import UsageBudgetSettings from '@/components/settings/UsageBudgetSettings.vue'
 import PromptTemplatesSettings from '@/components/settings/PromptTemplatesSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
+import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
-import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useFeaturesStore } from '@/stores/features'
 import { SETTINGS_SECTIONS, settingsNav, type SettingsSectionId } from '@/lib/settingsSections'
+import { isConnectionTypeId, type ConnectionFilter } from '@/lib/connectionTypes'
 import { useBudgetStore } from '@/stores/budget'
 
 const { t } = useI18n()
@@ -57,12 +54,18 @@ const devicesTab = ref<DevicesTab>('remote')
 const DEVICES_TAB_OF: Record<string, DevicesTab> = { remote: 'remote', sync: 'backup', backup: 'backup' }
 // Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
 const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines' }
+// GitHub, GitLab, AWS, Azure and Google were sections too: now Connections, filtered to that type.
+const connectionsFilter = ref<ConnectionFilter>('all')
 function applySectionFromRoute() {
   let target = route.query.section
   if (typeof target === 'string' && MERGED_INTO[target]) target = MERGED_INTO[target]
   if (typeof target === 'string' && DEVICES_TAB_OF[target]) {
     devicesTab.value = DEVICES_TAB_OF[target]
     target = 'devices'
+  }
+  if (isConnectionTypeId(target)) {
+    connectionsFilter.value = target
+    target = 'connections'
   }
   if (typeof target === 'string' && SECTIONS.some(s => s.id === target)) {
     activeSection.value = target as SettingsSectionId
@@ -71,18 +74,14 @@ function applySectionFromRoute() {
 applySectionFromRoute()
 watch(() => route.query.section, applySectionFromRoute)
 
-// Stores behind the GitHub / GitLab / AWS / Claude sections: fetched here, before
-// the skeleton goes, so their lists and the nav badges are filled on first paint.
+// Stores behind Connections (GitHub / GitLab / AWS) and Claude: fetched here, before
+// the skeleton goes, so their lists and the nav badge are filled on first paint.
+// Connections fetches Azure and Google itself; the badge counts every enabled type.
 const ghStore = useGithubAccountsStore()
 const glStore = useGitlabAccountsStore()
 const awsStore = useAwsAccountsStore()
 const claudeStore = useClaudeAccountsStore()
-const ghCount = computed(() => ghStore.accounts.length)
-const glCount = computed(() => glStore.accounts.length)
-const awsCount = computed(() => awsStore.accounts.length)
-// The Azure section component owns its own fetch; the store is shared for the badge.
-const azureStore = useAzureAccountsStore()
-const azureCount = computed(() => azureStore.accounts.length)
+const { total: connectionsCount } = useConnectionSources()
 
 onMounted(async () => {
   try {
@@ -143,21 +142,9 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
             <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
             <span class="truncate">{{ t(s.labelKey) }}</span>
             <span
-              v-if="s.id === 'github' && ghCount"
+              v-if="s.id === 'connections' && connectionsCount"
               class="ml-auto text-2xs tabular-nums text-muted-foreground"
-            >{{ ghCount }}</span>
-            <span
-              v-if="s.id === 'gitlab' && glCount"
-              class="ml-auto text-2xs tabular-nums text-muted-foreground"
-            >{{ glCount }}</span>
-            <span
-              v-if="s.id === 'aws' && awsCount"
-              class="ml-auto text-2xs tabular-nums text-muted-foreground"
-            >{{ awsCount }}</span>
-            <span
-              v-if="s.id === 'azure' && azureCount"
-              class="ml-auto text-2xs tabular-nums text-muted-foreground"
-            >{{ azureCount }}</span>
+            >{{ connectionsCount }}</span>
           </button>
         </div>
       </nav>
@@ -172,11 +159,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <div v-else class="max-w-lg">
 
         <GeneralSettings v-show="activeSection === 'general'" />
-        <GoogleAccountsSettings v-show="activeSection === 'google'" />
-        <GithubAccountsSettings v-show="activeSection === 'github'" />
-        <GitlabAccountsSettings v-show="activeSection === 'gitlab'" />
-        <AwsAccountsSettings v-show="activeSection === 'aws'" />
-        <AzureAccountsSettings v-show="activeSection === 'azure'" />
+        <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />
         <EnginesSettings v-show="activeSection === 'engines'" />
         <AiModelsSettings v-show="activeSection === 'ai'" />
         <TranslateSettings v-show="activeSection === 'translate'" />

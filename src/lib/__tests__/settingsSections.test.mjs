@@ -27,7 +27,7 @@ test('settingsNav: all features on → four groups in order, every section liste
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(true))), [
     ['general', ['general', 'features', 'focus', 'palette', 'keymap']],
     ['ai', ['engines', 'ai', 'translate', 'usage', 'prompts']],
-    ['connections', ['github', 'gitlab', 'aws', 'azure', 'google', 'inbox']],
+    ['connections', ['connections', 'inbox']],
     ['system', ['devices']],
   ])
 })
@@ -36,7 +36,7 @@ test('settingsNav: features off hide their sections, ungated ones stay', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(false))), [
     ['general', ['general', 'features']],
     ['ai', ['engines', 'ai', 'translate', 'usage', 'prompts']],
-    ['connections', ['github', 'gitlab', 'inbox']],
+    ['connections', ['connections', 'inbox']],
     ['system', ['devices']],
   ])
 })

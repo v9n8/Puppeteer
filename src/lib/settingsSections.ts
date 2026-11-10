@@ -1,6 +1,6 @@
 import {
-  Cpu, Palette, FileText, Sparkles, Github, Gitlab, Cloud, CloudCog, Gauge, Radio,
-  HardDrive, Inbox, Target, ToggleRight, Command, Keyboard, Languages,
+  Cpu, Palette, FileText, Sparkles, Plug, Gauge, Radio,
+  Inbox, Target, ToggleRight, Command, Keyboard, Languages,
 } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
 
@@ -31,11 +31,9 @@ export const SETTINGS_SECTIONS = [
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
   { id: 'usage', group: 'ai', labelKey: 'settings.sections.usage', icon: Gauge },
   { id: 'prompts', group: 'ai', labelKey: 'settings.sections.prompts', icon: FileText },
-  { id: 'github', group: 'connections', labelKey: 'settings.sections.github', icon: Github },
-  { id: 'gitlab', group: 'connections', labelKey: 'settings.sections.gitlab', icon: Gitlab },
-  { id: 'aws', group: 'connections', labelKey: 'settings.sections.aws', icon: Cloud, feature: 'infra_access.aws' },
-  { id: 'azure', group: 'connections', labelKey: 'settings.sections.azure', icon: CloudCog, feature: 'infra_access.azure' },
-  { id: 'google', group: 'connections', labelKey: 'settings.sections.google', icon: HardDrive, feature: 'integrations.google' },
+  // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
+  // is gated inside the screen, and `?section=github` etc. open it filtered.
+  { id: 'connections', group: 'connections', labelKey: 'settings.sections.connections', icon: Plug },
   { id: 'inbox', group: 'connections', labelKey: 'settings.sections.inbox', icon: Inbox },
   { id: 'devices', group: 'system', labelKey: 'settings.sections.devices', icon: Radio },
 ] as const
