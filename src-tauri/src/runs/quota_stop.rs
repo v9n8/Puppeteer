@@ -162,7 +162,9 @@ async fn on_guard_status_with(
         // is gone, so the reason lands in the session's log file.
         log_buf.lock().await.push_str(&line);
         notify(&id, &reason);
-        if crate::commands::runs::cancel_run_inner(registry, db, &id, false).await.is_ok() {
+        // Not waiting for the turn to end: this may run in that session's own
+        // drain, which must keep reading to see it.
+        if crate::commands::runs::cancel_run_detached(registry, db, &id, false).await.is_ok() {
             stopped.push(id);
         }
     }

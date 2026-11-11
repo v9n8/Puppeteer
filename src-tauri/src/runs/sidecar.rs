@@ -1048,7 +1048,17 @@ pub async fn drain_sidecar(
                             // (Codex refused turn/start; the error came before it.)
                             // No `result` follows, so the next follow-up starts here.
                             (Some(_), "_puppeteer_turn_failed") => {
-                                start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
+                                // A Stop waiting for this turn ends the session.
+                                let stopping = registry.lock().await.get_mut(&run_id).is_some_and(|h| {
+                                    let stopping = h.turn_gate.stop_turn_ended();
+                                    if stopping {
+                                        h.stdin.take();
+                                    }
+                                    stopping
+                                });
+                                if !stopping {
+                                    start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
+                                }
                             }
                             // ---- control: lifecycle (swallow) -------------------
                             (Some(_), "_puppeteer_ready") => timing.on_ready(now.into_std()),
@@ -1232,14 +1242,23 @@ pub async fn drain_sidecar(
                                     } else {
                                         timing.skip_turn();
                                     }
+                                    // A Stop waited for this turn to end (AC-13):
+                                    // close the session, start nothing queued.
+                                    let stopping = registry
+                                        .lock()
+                                        .await
+                                        .get_mut(&run_id)
+                                        .is_some_and(|h| h.turn_gate.stop_turn_ended());
                                     // A follow-up sent during this turn starts now,
                                     // as a turn of its own: keep the session open.
                                     // Not on a leftover task's `result` landing
                                     // before the user's turn ended: that turn is
                                     // still running.
-                                    let next_turn = user_turn_ended_once
+                                    let next_turn = !stopping
+                                        && user_turn_ended_once
                                         && start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
-                                    let closing = !next_turn && result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once);
+                                    let closing = stopping
+                                        || (!next_turn && result_should_close_stdin(v, live_bg_tasks, user_turn_ended_once));
                                     if closing {
                                         let mut reg = registry.lock().await;
                                         if let Some(handles) = reg.get_mut(&run_id) {
@@ -1417,8 +1436,9 @@ pub async fn drain_sidecar(
     // turn's `run:done` — otherwise the webview applies them out of order and
     // shows the live worker as finished.
     let mut reg = registry.lock().await;
-    // Cancelled iff the entry was already removed by cancel_run.
-    let was_cancelled = reg.remove(&run_id).is_none();
+    // Cancelled iff the entry was already removed by cancel_run, or a Stop
+    // ended the session by interrupting its turn.
+    let was_cancelled = reg.remove(&run_id).is_none_or(|h| h.turn_gate.stopping);
     let final_status = final_run_status(
         was_cancelled,
         unresolved_error,

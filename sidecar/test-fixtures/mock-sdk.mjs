@@ -12,6 +12,8 @@
 //                 consumer pulls the next message.
 //   max-turns   — the turn ends on `options.maxTurns` (`error_max_turns`), or
 //                 succeeds when there is none.
+//   interrupt   — the turn runs until `interrupt()` is called, then ends the
+//                 way an interrupted turn does.
 
 export function query({ prompt, options }) {
   const scenario = process.env.MOCK_SCENARIO || 'permission'
@@ -25,6 +27,8 @@ export function query({ prompt, options }) {
   }
 
   const contextAnswers = []
+  let interrupt
+  const interrupted = new Promise((resolve) => { interrupt = resolve })
 
   async function* run() {
     const first = await input.next() // the first user prompt
@@ -35,6 +39,12 @@ export function query({ prompt, options }) {
       yield options.maxTurns
         ? { type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: options.maxTurns + 1 }
         : { type: 'result', subtype: 'success', num_turns: 1 }
+      while (!(await input.next()).done) { /* until stdin closes */ }
+      return
+    }
+    if (scenario === 'interrupt') {
+      await interrupted
+      yield { type: 'result', subtype: 'error_during_execution', is_error: true, mock_interrupted: true }
       while (!(await input.next()).done) { /* until stdin closes */ }
       return
     }
@@ -65,6 +75,7 @@ export function query({ prompt, options }) {
   }
 
   const session = run()
+  if (scenario === 'interrupt') session.interrupt = async () => interrupt()
   if (scenario === 'context') {
     session.getContextUsage = (opts) => {
       if (opts?.detail !== 'summary') return Promise.reject(new Error(`unexpected detail: ${opts?.detail}`))

@@ -496,6 +496,21 @@ const tests = {
     assert.equal(followUp.message.content, 'then this')
     assert.equal(code, 0)
   },
+
+  // AC-13: Stop asks the SDK to interrupt the turn (Query.interrupt()). The
+  // turn's result follows; the broker then closes the input and the session
+  // ends normally instead of being killed.
+  async 'interrupt reaches Query.interrupt(); the turn ends, then the session'() {
+    const { messages, code } = await runSidecar('interrupt', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === 'system' && msg.subtype === 'init') ctl.send({ type: 'interrupt' })
+      if (msg.type === 'result') ctl.closeInput()
+    })
+    assert.equal(of(messages, 'result').length, 1)
+    assert.equal(of(messages, 'result')[0].mock_interrupted, true)
+    assert.equal(of(messages, '_puppeteer_closed')[0].code, 0)
+    assert.equal(code, 0)
+  },
 }
 
 let failed = 0

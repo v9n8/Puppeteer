@@ -1721,15 +1721,24 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     }
   }
 
+  // Stop first asks the engine to end its turn and waits a few seconds for it
+  // (AC-13); meanwhile the button reads "Stopping…", and pressing it again
+  // kills the session at once (the backend sees the stop in progress).
+  const stoppingRunId = ref<string | null>(null)
+  const stopping = computed(() => stoppingRunId.value !== null && stoppingRunId.value === currentRunId.value)
+
   async function handleCancel() {
     if (!currentRunId.value) return
     const id = currentRunId.value
+    stoppingRunId.value = id
     try {
       await runsStore.cancelRun(id)
       live.setStatus(id, 'cancelled')
       setLocalRunStatus(id, 'cancelled')
     } catch (e) {
       toast.error(String(e))
+    } finally {
+      if (stoppingRunId.value === id) stoppingRunId.value = null
     }
   }
 
@@ -1754,7 +1763,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
-    handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
+    handleCancel, stopping, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
     removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
     cancelQueuedEdit, editingMessage, rewindingEdit, cancelEditResend,
     ...chips,

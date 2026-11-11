@@ -1441,8 +1441,96 @@ pub(crate) async fn stop_local_sidecar(registry: &RunRegistry, run_id: &str) -> 
     true
 }
 
+/// How long a Stop waits for the engine to end its turn, and then for the
+/// sidecar to exit, before it kills the sidecar.
+pub(crate) const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+const INTERRUPT_LINE: &str = "{\"type\":\"interrupt\"}\n";
+
+/// Refusal of new input while a Stop waits for the turn to end.
+pub(crate) const STOPPING_REFUSED: &str = "run is stopping";
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum StopOutcome {
+    /// Not live in this process.
+    NotLive,
+    /// It ended without being killed (the turn was interrupted, or another
+    /// Stop finished it).
+    Ended,
+    Killed,
+}
+
+pub(crate) enum StopStart {
+    Done(StopOutcome),
+    /// The engine was asked to interrupt its turn: wait with [`finish_stop`].
+    Waiting(tokio::sync::oneshot::Receiver<()>),
+}
+
+/// Stop a live run the way the engine can record (AC-13): ask it to interrupt
+/// its turn, so the transcript gets the turn's end instead of a dangling tool
+/// call, and kill the sidecar only when that does not finish within `grace`.
+pub(crate) async fn graceful_stop(registry: &RunRegistry, run_id: &str, grace: std::time::Duration) -> StopOutcome {
+    match begin_stop(registry, run_id).await {
+        StopStart::Done(outcome) => outcome,
+        StopStart::Waiting(ack) => finish_stop(registry, run_id, ack, grace).await,
+    }
+}
+
+/// First half of [`graceful_stop`], which never waits. Kills at once when
+/// there is no turn to interrupt, no input left to ask on, or a Stop is
+/// already waiting (pressing Stop again means "now").
+pub(crate) async fn begin_stop(registry: &RunRegistry, run_id: &str) -> StopStart {
+    let mut reg = registry.lock().await;
+    let Some(handles) = reg.get_mut(run_id) else {
+        return StopStart::Done(StopOutcome::NotLive);
+    };
+    let asked = !handles.turn_gate.stopping
+        && handles.turn_gate.busy
+        && handles.stdin.as_ref().is_some_and(|input| input.queue(INTERRUPT_LINE.to_string()).is_ok());
+    if !asked {
+        drop(reg);
+        stop_local_sidecar(registry, run_id).await;
+        return StopStart::Done(StopOutcome::Killed);
+    }
+    let (ack, waiting) = tokio::sync::oneshot::channel();
+    handles.turn_gate.stopping = true;
+    handles.turn_gate.stop_ack = Some(ack);
+    StopStart::Waiting(waiting)
+}
+
+/// Second half of [`graceful_stop`]: wait for the turn's `result` (the drain
+/// then closes the session's input), then for the sidecar to exit, each up to
+/// `grace`; kill it when either does not come.
+pub(crate) async fn finish_stop(
+    registry: &RunRegistry,
+    run_id: &str,
+    ack: tokio::sync::oneshot::Receiver<()>,
+    grace: std::time::Duration,
+) -> StopOutcome {
+    match tokio::time::timeout(grace, ack).await {
+        Ok(Ok(())) => {
+            let deadline = tokio::time::Instant::now() + grace;
+            while tokio::time::Instant::now() < deadline {
+                if !registry.lock().await.contains_key(run_id) {
+                    return StopOutcome::Ended;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        }
+        // The waiting entry is gone: the run ended, or another Stop killed it.
+        Ok(Err(_)) => return StopOutcome::Ended,
+        Err(_) => {}
+    }
+    if stop_local_sidecar(registry, run_id).await {
+        StopOutcome::Killed
+    } else {
+        StopOutcome::Ended
+    }
+}
+
 /// Core of [`cancel_run`] over concrete refs so the Remote Control host agent
-/// (FR-009 `cancel_run`) can reuse it without a Tauri `State`.
+/// (FR-009 `cancel_run`) can reuse it without a Tauri `State`. Returns once
+/// the run is no longer live (up to twice [`STOP_GRACE`]).
 ///
 /// `stamp_activity`: whether this cancel counts as user activity and floats the
 /// run in History. False when an agent (Conductor) cancels its own worker.
@@ -1452,9 +1540,33 @@ pub(crate) async fn cancel_run_inner(
     run_id: &str,
     stamp_activity: bool,
 ) -> Result<(), String> {
-    let run_id = run_id.to_string();
-    stop_local_sidecar(registry, &run_id).await;
+    graceful_stop(registry, run_id, STOP_GRACE).await;
+    mark_run_cancelled(db, run_id, stamp_activity).await
+}
 
+/// [`cancel_run_inner`] for a caller that must not wait for the engine: a
+/// run's own drain (the UX-14 quota stop can name that very run) and the
+/// Remote Control command loop. The wait runs in a task of its own.
+pub(crate) async fn cancel_run_detached(
+    registry: &RunRegistry,
+    db: &sqlx::SqlitePool,
+    run_id: &str,
+    stamp_activity: bool,
+) -> Result<(), String> {
+    let StopStart::Waiting(ack) = begin_stop(registry, run_id).await else {
+        return mark_run_cancelled(db, run_id, stamp_activity).await;
+    };
+    let (registry, db, run_id) = (registry.clone(), db.clone(), run_id.to_string());
+    tokio::spawn(async move {
+        finish_stop(&registry, &run_id, ack, STOP_GRACE).await;
+        if let Err(e) = mark_run_cancelled(&db, &run_id, stamp_activity).await {
+            tracing::warn!(event = "run_cancel_failed", run_id = %run_id, error = %e);
+        }
+    });
+    Ok(())
+}
+
+async fn mark_run_cancelled(db: &sqlx::SqlitePool, run_id: &str, stamp_activity: bool) -> Result<(), String> {
     let cancelled_at = chrono::Utc::now().to_rfc3339();
     let sql = if stamp_activity {
         "UPDATE runs SET status = 'cancelled', finished_at = ?, last_activity_at = ? WHERE id = ?"
@@ -1464,7 +1576,7 @@ pub(crate) async fn cancel_run_inner(
     sqlx::query(sql)
         .bind(&cancelled_at)
         .bind(&cancelled_at)
-        .bind(&run_id)
+        .bind(run_id)
         .execute(db)
         .await
         .map_err(|e| e.to_string())?;
@@ -1563,6 +1675,9 @@ pub(crate) async fn send_user_message_inner(
             .ok_or_else(|| "run not active".to_string())?;
         if handle.stdin.is_none() {
             return Err(FOLLOW_UP_REFUSED.to_string());
+        }
+        if handle.turn_gate.stopping {
+            return Err(STOPPING_REFUSED.to_string());
         }
         let gate = &mut handle.turn_gate;
         if gate.busy {
@@ -1668,6 +1783,11 @@ pub(crate) async fn start_queued_prompt(
             let Some(handle) = reg.get_mut(run_id) else {
                 return (false, lost);
             };
+            // A stopped session starts nothing more; the drain reports what
+            // still waits as lost when the session ends.
+            if handle.turn_gate.stopping {
+                return (false, lost);
+            }
             let next = handle.turn_gate.queued.pop_front();
             handle.turn_gate.busy = next.is_some();
             next
@@ -1726,6 +1846,10 @@ async fn steer_run_inner(db: &Db, registry: &RunRegistry, payload: SendUserMessa
         "{}\n",
         serde_json::json!({ "type": "steer", "text": text, "images": images_payload(&payload.images) })
     );
+    // Claude would run a steer that lands after the interrupt as a new turn.
+    if registry.lock().await.get(&payload.run_id).is_some_and(|h| h.turn_gate.stopping) {
+        return Err(STOPPING_REFUSED.to_string());
+    }
     // Not logged here: the engine may still refuse it. The drain logs it on the
     // sidecar's `_puppeteer_steered` ([`steered_log_line`]).
     write_run_stdin(registry, &payload.run_id, &send_line, "run does not accept steering").await?;
@@ -6283,6 +6407,131 @@ mod turn_gate_tests {
             Err(FOLLOW_UP_REFUSED.to_string())
         );
         assert!(registry.lock().await.get("r1").unwrap().turn_gate.queued.is_empty());
+    }
+
+    // What the drain does on the turn's `result` while a Stop waits.
+    async fn turn_ends(registry: &RunRegistry) {
+        let mut reg = registry.lock().await;
+        let handles = reg.get_mut("r1").unwrap();
+        assert!(handles.turn_gate.stop_turn_ended());
+        handles.stdin.take();
+    }
+
+    // AC-13: the engine ends the interrupted turn and the sidecar exits by itself.
+    #[tokio::test]
+    async fn a_stop_interrupts_the_turn_and_kills_nothing_when_it_ends() {
+        let (_db, registry, mut out) = running(true).await;
+        let stop = tokio::spawn({
+            let registry = registry.clone();
+            async move { graceful_stop(&registry, "r1", Duration::from_secs(5)).await }
+        });
+        assert_eq!(next_line(&mut out).await.expect("the interrupt reached the engine")["type"], "interrupt");
+        turn_ends(&registry).await;
+        let exited = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if let Some(status) = registry.lock().await.get_mut("r1").unwrap().child.try_wait().unwrap() {
+                    return status;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("the sidecar exits once its input closes");
+        assert!(exited.success(), "not killed: {exited:?}");
+        // The drain's end.
+        registry.lock().await.remove("r1");
+        assert_eq!(stop.await.unwrap(), StopOutcome::Ended);
+    }
+
+    #[tokio::test]
+    async fn a_stop_kills_the_sidecar_when_the_turn_does_not_end_in_time() {
+        let (_db, registry, mut out) = running(true).await;
+        let started = std::time::Instant::now();
+        assert_eq!(graceful_stop(&registry, "r1", Duration::from_millis(300)).await, StopOutcome::Killed);
+        assert!(started.elapsed() >= Duration::from_millis(300));
+        assert!(!registry.lock().await.contains_key("r1"));
+        assert_eq!(next_line(&mut out).await.unwrap()["type"], "interrupt");
+    }
+
+    #[tokio::test]
+    async fn a_second_stop_kills_at_once() {
+        let (_db, registry, mut out) = running(true).await;
+        let first = tokio::spawn({
+            let registry = registry.clone();
+            async move { graceful_stop(&registry, "r1", Duration::from_secs(30)).await }
+        });
+        assert_eq!(next_line(&mut out).await.unwrap()["type"], "interrupt");
+        let started = std::time::Instant::now();
+        assert_eq!(graceful_stop(&registry, "r1", Duration::from_secs(30)).await, StopOutcome::Killed);
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(!registry.lock().await.contains_key("r1"));
+        let first = tokio::time::timeout(Duration::from_secs(1), first).await.expect("the first Stop stops waiting");
+        assert_eq!(first.unwrap(), StopOutcome::Ended);
+    }
+
+    #[tokio::test]
+    async fn nothing_queued_runs_after_a_stop() {
+        let (db, registry, mut out) = running(true).await;
+        send_user_message_inner(&db, &registry, follow_up("queued"), false).await.unwrap();
+        let StopStart::Waiting(_ack) = begin_stop(&registry, "r1").await else {
+            panic!("a turn is running: the stop waits for it");
+        };
+        assert_eq!(next_line(&mut out).await.unwrap()["type"], "interrupt");
+        // New input is refused while the stop waits.
+        for refused in [
+            send_user_message_inner(&db, &registry, follow_up("later"), false).await.map(|_| ()),
+            steer_run_inner(&db, &registry, follow_up("steer")).await,
+        ] {
+            assert_eq!(refused, Err(STOPPING_REFUSED.to_string()));
+        }
+        // The turn ends: the follow-up waiting for it never starts.
+        turn_ends(&registry).await;
+        assert_eq!(start_queued_prompt(&db, &registry, "r1").await, (false, 0));
+        assert!(next_line(&mut out).await.is_none());
+        assert_eq!(registry.lock().await.get("r1").unwrap().turn_gate.queued.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_stop_kills_at_once_with_no_turn_or_no_input() {
+        let (_db, idle, mut out) = running(false).await;
+        assert_eq!(graceful_stop(&idle, "r1", Duration::from_secs(30)).await, StopOutcome::Killed);
+        assert!(next_line(&mut out).await.is_none(), "no interrupt without a turn");
+
+        let (_db, closed, _out) = running(true).await;
+        closed.lock().await.get_mut("r1").unwrap().stdin.take();
+        let started = std::time::Instant::now();
+        assert_eq!(graceful_stop(&closed, "r1", Duration::from_secs(30)).await, StopOutcome::Killed);
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert_eq!(graceful_stop(&closed, "r1", Duration::from_secs(30)).await, StopOutcome::NotLive);
+    }
+
+    // The quota stop and Remote Control: return at once, mark the run
+    // cancelled once the turn has ended.
+    #[tokio::test]
+    async fn a_detached_cancel_does_not_wait_for_the_turn() {
+        let (db, registry, mut out) = running(true).await;
+        let started = std::time::Instant::now();
+        cancel_run_detached(&registry, &db, "r1", true).await.unwrap();
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(registry.lock().await.get("r1").unwrap().turn_gate.stopping);
+        assert_eq!(next_line(&mut out).await.unwrap()["type"], "interrupt");
+        turn_ends(&registry).await;
+        registry.lock().await.remove("r1");
+        let status = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let status: String = sqlx::query_scalar("SELECT status FROM runs WHERE id = 'r1'")
+                    .fetch_one(&db)
+                    .await
+                    .unwrap();
+                if status != "running" {
+                    return status;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("the run is marked once it ended");
+        assert_eq!(status, "cancelled");
     }
 }
 

@@ -1059,7 +1059,9 @@ async fn handle_cancel_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
         reject(ctx, action, None, RejectReason::Malformed).await;
         return;
     };
-    match crate::commands::runs::cancel_run_inner(&ctx.registry, &ctx.db, &run_id, true).await {
+    // The command loop must not wait for the turn to end: a second Stop has
+    // to get through to kill it at once.
+    match crate::commands::runs::cancel_run_detached(&ctx.registry, &ctx.db, &run_id, true).await {
         Ok(()) => accept(ctx, action, Some(&run_id), None).await,
         Err(e) => {
             tracing::debug!(event = "remote_cancel_run_failed", error = %e);

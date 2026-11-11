@@ -27,7 +27,7 @@ const {
   composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention,
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
-  onComposerKeydown, handleSendFollowUp, handleCancel, queuedMessages, queueNotice, handleQueue,
+  onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
   editingMessage, rewindingEdit, cancelEditResend,
@@ -394,11 +394,11 @@ const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
               v-if="currentStatus === 'running'"
               variant="destructive"
               class="shrink-0"
-              :title="t('run.cancelRunningTurn')"
+              :title="stopping ? t('run.stopNowTitle') : t('run.cancelRunningTurn')"
               @click="handleCancel"
             >
               <Square class="h-3.5 w-3.5" :stroke-width="2" fill="currentColor" />
-              {{ t('run.cancel') }}
+              {{ stopping ? t('run.stopping') : t('run.cancel') }}
             </Button>
             <!-- While running, Cancel is the only action unless there is a
                  follow-up typed. Then the split action: Steer puts it into the

@@ -271,6 +271,8 @@
   "mcpSaveFailed": "Could not change the MCP server: {error}",
   "cancelRunningTurn": "Cancel the running turn",
   "cancel": "Cancel",
+  "stopping": "Stopping…",
+  "stopNowTitle": "The agent is finishing its turn so the session history stays intact. Click again to stop it now.",
   "attentionQuiet": "No activity from the session for {mins} minutes. It may still be working (e.g. a long model response), or it may be stuck — stop it if it should have finished.",
   "attentionLongTool": "{tool} has been running for {mins} minutes. Fine if it is a long job; stop the session if it should have finished.",
   "attentionUnresponsive": "The session bridge has not responded for {mins} minutes (not even its heartbeat). It may be frozen — stop the session if it doesn't recover.",

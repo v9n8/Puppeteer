@@ -271,6 +271,8 @@
   "mcpSaveFailed": "Không đổi được MCP server: {error}",
   "cancelRunningTurn": "Hủy lượt đang chạy",
   "cancel": "Hủy",
+  "stopping": "Đang dừng…",
+  "stopNowTitle": "Agent đang kết thúc lượt để lịch sử Session còn nguyên vẹn. Bấm lần nữa để dừng ngay.",
   "attentionQuiet": "Session không có hoạt động nào trong {mins} phút. Có thể vẫn đang xử lý (ví dụ model trả lời lâu) hoặc đã bị kẹt — hãy dừng nếu lẽ ra nó đã xong.",
   "attentionLongTool": "{tool} đã chạy {mins} phút. Bình thường nếu đây là tác vụ dài; hãy dừng Session nếu lẽ ra nó đã xong.",
   "attentionUnresponsive": "Cầu nối của Session không phản hồi {mins} phút (kể cả heartbeat). Có thể đã bị treo — hãy dừng Session nếu nó không tự hồi phục.",

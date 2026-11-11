@@ -84,6 +84,23 @@ pub struct TurnGate {
     /// When the prompt of the turn in flight reached the sidecar's input; the
     /// drain takes it at the turn's `result` for its `turn_timing` (AC-09).
     pub prompt_at: Option<std::time::Instant>,
+    /// A Stop asked the engine to interrupt the turn and waits for it to end
+    /// (`commands::runs::graceful_stop`): nothing more starts in this session,
+    /// and the run ends `cancelled`.
+    pub stopping: bool,
+    /// Wakes that Stop when the turn's `result` arrives.
+    pub stop_ack: Option<oneshot::Sender<()>>,
+}
+
+impl TurnGate {
+    /// A turn ended. True when a Stop is waiting for it, which is told so; the
+    /// drain then closes the session instead of starting a queued follow-up.
+    pub fn stop_turn_ended(&mut self) -> bool {
+        if let Some(ack) = self.stop_ack.take() {
+            let _ = ack.send(());
+        }
+        self.stopping
+    }
 }
 
 pub struct QueuedPrompt {
