@@ -371,7 +371,9 @@ fn parse_validation_map(raw: Option<&str>) -> HashMap<String, ModelValidationRep
 
 /// Run `codex debug models` and normalize the raw catalog into model options.
 async fn discover_codex_models(codex_path: &str) -> Result<Vec<ModelOption>, String> {
-    let mut cmd = tokio::process::Command::new(codex_path);
+    let bin = crate::runs::codex_bin::resolve_codex_bin(codex_path)?;
+    let codex_path = bin.display();
+    let mut cmd = tokio::process::Command::new(&bin);
     cmd.arg("debug").arg("models");
     augment_command_path(&mut cmd);
     cmd.stdin(std::process::Stdio::null())

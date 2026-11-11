@@ -440,6 +440,13 @@ pub(crate) async fn start_run_inner(
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let log_path = runs_dir.join(format!("{}.log", payload.run_id));
 
+    // Before marking it running: a missing binary leaves the run as it was.
+    let codex = if engine == "claude" {
+        None
+    } else {
+        Some(crate::runs::codex_bin::resolve_codex(&codex_path).await?)
+    };
+
     // Update run status to running. Persist the resolved model so the History
     // list and composer can show which model the session actually runs on
     // (NULL means the engine's own default was used).
@@ -645,6 +652,9 @@ pub(crate) async fn start_run_inner(
     // the stream renderer, and the permission modal all work unchanged. (Replaces
     // the old one-shot `codex exec` path, which had no streaming/approval/multi-turn.)
     let _ = &extra; // codex tuning is now via sandbox/approval env, not exec args
+    let Some(codex) = codex else {
+        return Err("Codex binary was not resolved".to_string());
+    };
     let (node_bin, sidecar_script) = resolve_codex_sidecar(&app, &node_path, &codex_sidecar_path)?;
     let mut cmd = Command::new(&node_bin);
     cmd.current_dir(&cwd).arg(&sidecar_script);
@@ -659,9 +669,7 @@ pub(crate) async fn start_run_inner(
         &cwd,
     )
     .await?;
-    if codex_path != "codex" && !codex_path.trim().is_empty() {
-        cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
-    }
+    codex.apply_env(&mut cmd);
     cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
     // The session ends when the drain closes its input, not at the end of
     // each turn: a follow-up sent meanwhile starts after it (`TurnGate`).
@@ -742,6 +750,7 @@ pub(crate) async fn start_run_inner(
     // sidecar doesn't echo it) under the turn it was captured as.
     let record_first_prompt = |turn: Option<i64>| {
         let mut buf = prompt_log_line(&prompt, &payload.images, turn);
+        buf.push_str(&codex.log_lines());
 
         // Codex app-server does not support legacy SSE. When such servers are dropped,
         // surface a one-line note in the run log so the user knows what/why.
@@ -4516,6 +4525,13 @@ pub(crate) async fn resume_run_with(
         .await;
     }
 
+    // Before marking it running: a missing binary leaves the run as it was.
+    let codex = if engine == "codex" {
+        Some(crate::runs::codex_bin::resolve_codex(&codex_path).await?)
+    } else {
+        None
+    };
+
     // Mark running; finished_at cleared so the UI reflects the active state.
     // Resuming is the clearest signal of "I'm working on this one again", so it
     // also stamps last_activity_at and floats the session to the top of History.
@@ -4589,12 +4605,10 @@ pub(crate) async fn resume_run_with(
     )
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);
-    if engine == "codex" {
+    if let Some(codex) = &codex {
         cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
         cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
-        if codex_path != "codex" && !codex_path.trim().is_empty() {
-            cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
-        }
+        codex.apply_env(&mut cmd);
         if let Some(m) = &model {
             cmd.env("PUPPETEER_CODEX_MODEL", m);
         }
@@ -4754,6 +4768,9 @@ pub(crate) async fn resume_run_with(
                 "[stderr] --- transcript for session {} no longer exists; started a new session at {} (earlier context is not available to the agent) ---\n",
                 session_id, started_at
             ));
+        }
+        if let Some(codex) = &codex {
+            buf.push_str(&codex.log_lines());
         }
     }
 

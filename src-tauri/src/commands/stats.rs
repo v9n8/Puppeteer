@@ -820,14 +820,13 @@ pub async fn refresh_codex_plan_usage(
                 .unwrap_or_else(|_| ".".to_string())
         });
 
+    let codex = crate::runs::codex_bin::resolve_codex(&codex_path).await?;
     let (node_bin, sidecar_script) = resolve_codex_sidecar(&app, &node_path, &codex_sidecar_path)?;
     let mut cmd = Command::new(&node_bin);
     cmd.current_dir(&cwd).arg(&sidecar_script);
     augment_command_path(&mut cmd);
     cmd.env("PUPPETEER_CODEX_USAGE_PROBE", "1");
-    if codex_path != "codex" && !codex_path.trim().is_empty() {
-        cmd.env("PUPPETEER_CODEX_PATH", &codex_path);
-    }
+    codex.apply_env(&mut cmd);
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());

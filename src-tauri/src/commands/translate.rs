@@ -538,9 +538,7 @@ async fn spawn_warm(
     cmd.current_dir(&cwd).arg(&sidecar_script);
     augment_command_path(&mut cmd);
     if is_codex {
-        if s.codex_path != "codex" && !s.codex_path.trim().is_empty() {
-            cmd.env("PUPPETEER_CODEX_PATH", &s.codex_path);
-        }
+        crate::runs::codex_bin::resolve_codex(&s.codex_path).await?.apply_env(&mut cmd);
         // Tool-less like the claude session (see `session_options`): read-only
         // sandbox, no exec/MCP, every approval declined.
         cmd.env("PUPPETEER_CODEX_NO_TOOLS", "1");

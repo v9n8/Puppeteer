@@ -271,6 +271,14 @@ pub fn resolve_node_bin(node_path: &str) -> String {
 /// `codex` CLIs it shells out to, which have `#!/usr/bin/env node` shebangs —
 /// can all be found even from a GUI launch.
 pub fn augment_command_path(cmd: &mut tokio::process::Command) {
+    if let Some(path) = augmented_path() {
+        cmd.env("PATH", path);
+    }
+}
+
+/// The PATH `augment_command_path` sets: node's dir, the login shell's PATH,
+/// then the app's own. None when there is nothing to set.
+pub(crate) fn augmented_path() -> Option<std::ffi::OsString> {
     let (node, login) = probe_shell_env();
     let current = std::env::var("PATH").unwrap_or_default();
 
@@ -289,14 +297,12 @@ pub fn augment_command_path(cmd: &mut tokio::process::Command) {
     if !current.is_empty() {
         parts.push(&current);
     }
-    if !parts.is_empty() {
-        match join_path_lists(&[], &parts) {
-            Ok(path) => {
-                cmd.env("PATH", path);
-            }
-            Err(e) => tracing::warn!(event = "path_join_failed", error = %e),
-        }
+    if parts.is_empty() {
+        return None;
     }
+    join_path_lists(&[], &parts)
+        .map_err(|e| tracing::warn!(event = "path_join_failed", error = %e))
+        .ok()
 }
 
 /// `dirs`, then every entry of the PATH-style `lists` (an empty list adds

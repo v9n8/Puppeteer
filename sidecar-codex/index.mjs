@@ -82,6 +82,8 @@ process.stdout.on('error', (err) => {
 // that collision (P0: remote Deny had no effect after the first turn).
 const PROC_NONCE = randomUUID().slice(0, 8)
 
+// Rust resolves the binary (`runs/codex_bin.rs`) and always sets the path, plus
+// PUPPETEER_CODEX_VERSION when `--version` answered. Supported: codex-cli 0.133+.
 const CODEX_BIN = process.env.PUPPETEER_CODEX_PATH || 'codex'
 const RESUME_THREAD = process.env.PUPPETEER_RESUME_SESSION || null
 // Turns to roll back from the end of the resumed thread (a Rewind), else 0.
@@ -412,8 +414,8 @@ try {
 // sealed secret notes vault): the macOS Keychain, the Linux Secret Service / KWallet,
 // the Windows Credential Manager. Codex applies the execpolicy rules under
 // $CODEX_HOME/rules in every approval mode, bypass included (verified with
-// codex-cli 0.165), so keep Puppeteer's rule file there — like the Claude sidecar's
-// disallowedTools, every OS gets every rule (WSL reaches `cmdkey.exe`). User-level
+// codex-cli 0.165; not re-checked on the 0.133 minimum), so keep Puppeteer's
+// rule file there — like the Claude sidecar's disallowedTools, every OS gets every rule (WSL reaches `cmdkey.exe`). User-level
 // on purpose: a project's `.codex/rules` would land in the user's repo. Best effort:
 // a write failure is reported, the session still starts.
 // This is a deny list, not a security boundary: a prefix rule only matches a
@@ -515,7 +517,8 @@ function policyFor(mode) {
     // Claude's `acceptEdits` has no one-to-one Codex policy. `on-request` with
     // workspace-write is the closest equivalent: edits inside the workspace are
     // sandboxed and allowed, while actions that need more access can still ask.
-    // Codex 0.144+ rejects the old `on-failure` value during thread/start.
+    // Codex 0.144+ rejects the old `on-failure` value during thread/start;
+    // `on-request` is in the 0.133.0-alpha.1 app-server schema too.
     case 'acceptEdits':       base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }; break
     case 'bypassPermissions': base = { approvalPolicy: 'never',      sandbox: 'danger-full-access' }; break
     // `auto` (classifier) / `dontAsk` / legacy: let Codex decide when to ask.
