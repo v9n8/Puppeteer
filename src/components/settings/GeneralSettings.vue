@@ -1,28 +1,39 @@
 <script setup lang="ts">
-// Settings → "General": language, theme, row density, font and text sizes,
-// terminal app, quit policy and launch at login. Theme and language apply on change, ahead of the
-// debounced auto-save.
+// Settings → "General", in three cards: Appearance (light / dark mode, color
+// theme, row density), Text (preview, font, weight, smoothing, text sizes, code
+// font) and App (language, terminal app, launch at login, quit policy). Theme
+// and language apply on change, ahead of the debounced auto-save; the Text
+// card and the row density are per-machine (localStorage) and apply at once.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Palette, Rows2, Rows3, Rows4 } from 'lucide-vue-next'
+import { AppWindow, Monitor, Moon, Palette, RotateCcw, Rows2, Rows3, Rows4, Sun, Type } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
-import { AppSelect, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import { AppSelect, Button, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
 import { normalizeColorTheme } from '@/lib/colorThemes'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import {
-  APP_FONT_SIZES, CHAT_FONT_SIZES, FONT_FAMILIES, pickSize,
-  DEFAULT_APP_FONT_SIZE, DEFAULT_CHAT_FONT_SIZE, type FontFamilyId,
+  APP_FONT_SIZES, CHAT_FONT_SIZES, DEFAULT_FONT_PREFS, FONT_WEIGHTS, resolveSmoothing, supportsWeight,
+  type FontFamilyId, type FontSmoothing, type FontWeight, type MonoFontId,
 } from '@/lib/appFonts'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
+import FontFamilyPicker from './FontFamilyPicker.vue'
+import SizeStepper from './SizeStepper.vue'
+import TypographyPreview from './TypographyPreview.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const { settings, loading } = useSettingsForm()
+
+const modeOptions = computed<SegmentedOption<string>[]>(() => [
+  { value: 'system', label: t('settings.general.themeSystem'), icon: Monitor },
+  { value: 'light', label: t('settings.general.themeLight'), icon: Sun },
+  { value: 'dark', label: t('settings.general.themeDark'), icon: Moon },
+])
 
 // Row density is a per-machine display preference kept in the uiLayout store
 // (localStorage), not in the settings table, so it applies on change and the
@@ -34,18 +45,57 @@ const densityOptions = computed<SegmentedOption<ListDensity>[]>(() => [
   { value: 'dense', label: t('settings.general.rowDensityDense'), icon: Rows4 },
 ])
 
-// Font and text sizes: per-machine too (lib/appFonts), applied on change.
-const FONT_LABEL_KEYS: Record<FontFamilyId, string> = {
-  theme: 'fontTheme', inter: 'fontInter', system: 'fontSystem',
-  helvetica: 'fontHelvetica', noto: 'fontNoto', custom: 'fontCustom',
-}
-const fontOptions = computed(() =>
-  FONT_FAMILIES.map((f) => ({ value: f, label: t(`settings.general.${FONT_LABEL_KEYS[f]}`) })),
+// Text: per-machine too (lib/appFonts), applied on change.
+const fonts = computed(() => uiLayout.fontPrefs)
+
+const WEIGHT_LABEL_KEYS: Record<FontWeight, string> = { 400: 'weightRegular', 450: 'weightMedium', 500: 'weightBold' }
+const weightOptions = computed<SegmentedOption<FontWeight>[]>(() =>
+  FONT_WEIGHTS.filter((w) => supportsWeight(fonts.value.family, w))
+    .map((w) => ({ value: w, label: t(`settings.general.${WEIGHT_LABEL_KEYS[w]}`) })),
 )
-const sizeOptions = (sizes: readonly number[]) =>
-  sizes.map((size) => ({ value: String(size), label: t('settings.general.fontSizePx', { size }) }))
-const appSizeOptions = computed(() => sizeOptions(APP_FONT_SIZES))
-const chatSizeOptions = computed(() => sizeOptions(CHAT_FONT_SIZES))
+const smoothingOptions = computed<SegmentedOption<FontSmoothing>[]>(() => [
+  { value: 'auto', label: t('settings.general.smoothingAuto') },
+  { value: 'crisp', label: t('settings.general.smoothingCrisp') },
+  { value: 'thin', label: t('settings.general.smoothingThin') },
+])
+const monoOptions = computed<SegmentedOption<MonoFontId>[]>(() => [
+  { value: 'jetbrains', label: t('settings.general.monoJetbrains') },
+  { value: 'plexmono', label: t('settings.general.monoPlexmono') },
+  { value: 'system', label: t('settings.general.monoSystem') },
+])
+
+// What "Automatic" resolves to on the screen this window is on.
+const smoothingNow = computed(() =>
+  resolveSmoothing('auto', window.devicePixelRatio) === 'crisp'
+    ? t('settings.general.smoothingNowCrisp')
+    : t('settings.general.smoothingNowThin'),
+)
+
+function setFamily(family: FontFamilyId) {
+  // The in-between weight doesn't exist in a font with fixed weights.
+  const weight = supportsWeight(family, fonts.value.weight) ? fonts.value.weight : 400
+  uiLayout.setFontPrefs({ family, weight })
+}
+
+// The custom font name survives a reset, so picking "Custom" again restores it.
+const RESET_KEYS = ['family', 'weight', 'smoothing', 'mono', 'appSize', 'chatSize'] as const
+const textIsDefault = computed(() => RESET_KEYS.every((k) => fonts.value[k] === DEFAULT_FONT_PREFS[k]))
+function resetText() {
+  uiLayout.setFontPrefs({ ...DEFAULT_FONT_PREFS, customFont: fonts.value.customFont })
+}
+
+const previewSummary = computed(() => {
+  const f = fonts.value
+  const family = f.family === 'custom' && f.customFont.trim()
+    ? f.customFont.trim()
+    : t(`settings.general.font${f.family.charAt(0).toUpperCase()}${f.family.slice(1)}`)
+  return [
+    family,
+    `${t(`settings.general.${WEIGHT_LABEL_KEYS[f.weight]}`)} ${f.weight}`,
+    smoothingOptions.value.find((o) => o.value === f.smoothing)?.label,
+    `${f.appSize} / ${f.chatSize} px`,
+  ].join(' · ')
+})
 
 // Only this OS's terminals: the backend reads any other value as this OS's default.
 const terminalApps = TERMINAL_APPS[desktopOs(navigator.userAgent)]
@@ -125,91 +175,152 @@ watch(() => settings.value.language, (v) => {
 </script>
 
 <template>
-  <Card body-class="p-4 space-y-4">
-    <template #header>
-      <Palette class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-      <span class="text-xs font-semibold">{{ t('settings.sections.general') }}</span>
-    </template>
-      <SettingsRow :label="t('settings.language')">
+  <div class="space-y-4">
+    <div>
+      <h3 class="text-lg font-semibold">{{ t('settings.sections.general') }}</h3>
+      <p class="mt-0.5 text-xs text-muted-foreground">{{ t('settings.general.intro') }}</p>
+    </div>
+
+    <Card body-class="divide-y divide-border">
+      <template #header>
+        <Palette class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
+        <span class="text-sm font-semibold">{{ t('settings.general.sectionAppearance') }}</span>
+      </template>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.mode')" :description="t('settings.general.modeDesc')">
+        <div class="flex justify-end">
+          <SegmentedControl v-model="settings.theme" :options="modeOptions" :stretch="false" />
+        </div>
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.colorTheme')" :description="t('settings.general.colorThemeHint')" stacked>
+        <ColorThemePicker v-model="settings.color_theme" class="mt-1.5" />
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.rowDensity')" :description="t('settings.general.rowDensityHint')">
+        <div class="flex justify-end">
+          <SegmentedControl
+            :model-value="uiLayout.listDensity"
+            :options="densityOptions"
+            :stretch="false"
+            @update:model-value="uiLayout.setListDensity"
+          />
+        </div>
+      </SettingsRow>
+    </Card>
+
+    <Card body-class="divide-y divide-border">
+      <template #header>
+        <Type class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
+        <span class="text-sm font-semibold">{{ t('settings.general.sectionText') }}</span>
+        <span class="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <Monitor class="h-4 w-4" :stroke-width="1.75" />{{ t('settings.general.deviceOnly') }}
+        </span>
+        <Button variant="ghost" size="sm" class="ml-auto -my-1" :disabled="textIsDefault" @click="resetText">
+          <RotateCcw class="h-4 w-4" :stroke-width="1.75" />{{ t('settings.general.resetText') }}
+        </Button>
+      </template>
+      <div class="p-4">
+        <TypographyPreview :summary="previewSummary" />
+      </div>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.font')" :description="t('settings.general.fontDesc')" stacked>
+        <FontFamilyPicker :model-value="fonts.family" class="mt-1.5" @update:model-value="setFamily" />
+        <div v-if="fonts.family === 'custom'" class="mt-3 flex flex-wrap items-center gap-2">
+          <Input
+            size="sm"
+            class="w-72"
+            :model-value="fonts.customFont"
+            :placeholder="t('settings.general.fontCustomPlaceholder')"
+            @change="uiLayout.setFontPrefs({ customFont: ($event.target as HTMLInputElement).value })"
+          />
+          <span class="text-xs text-muted-foreground">{{ t('settings.general.fontCustomFallback') }}</span>
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        class="px-4 py-3"
+        :label="t('settings.general.weight')"
+        :description="supportsWeight(fonts.family, 450) ? t('settings.general.weightDesc') : t('settings.general.weightStaticDesc')"
+      >
+        <div class="flex justify-end">
+          <SegmentedControl
+            :model-value="fonts.weight"
+            :options="weightOptions"
+            :stretch="false"
+            @update:model-value="(weight) => uiLayout.setFontPrefs({ weight })"
+          />
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        class="px-4 py-3"
+        :label="t('settings.general.smoothing')"
+        :description="fonts.smoothing === 'auto'
+          ? `${t('settings.general.smoothingDesc')} ${smoothingNow}`
+          : t('settings.general.smoothingDesc')"
+      >
+        <div class="flex justify-end">
+          <SegmentedControl
+            :model-value="fonts.smoothing"
+            :options="smoothingOptions"
+            :stretch="false"
+            @update:model-value="(smoothing) => uiLayout.setFontPrefs({ smoothing })"
+          />
+        </div>
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.appFontSize')" :description="t('settings.general.appFontSizeDesc')">
+        <div class="flex justify-end">
+          <SizeStepper
+            :model-value="fonts.appSize"
+            :sizes="APP_FONT_SIZES"
+            @update:model-value="(appSize) => uiLayout.setFontPrefs({ appSize })"
+          />
+        </div>
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.chatFontSize')" :description="t('settings.general.chatFontSizeDesc')">
+        <div class="flex justify-end">
+          <SizeStepper
+            :model-value="fonts.chatSize"
+            :sizes="CHAT_FONT_SIZES"
+            @update:model-value="(chatSize) => uiLayout.setFontPrefs({ chatSize })"
+          />
+        </div>
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.monoFont')" :description="t('settings.general.monoFontDesc')">
+        <div class="flex justify-end">
+          <SegmentedControl
+            :model-value="fonts.mono"
+            :options="monoOptions"
+            :stretch="false"
+            @update:model-value="(mono) => uiLayout.setFontPrefs({ mono })"
+          />
+        </div>
+      </SettingsRow>
+    </Card>
+
+    <Card body-class="divide-y divide-border">
+      <template #header>
+        <AppWindow class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
+        <span class="text-sm font-semibold">{{ t('settings.general.sectionApp') }}</span>
+      </template>
+      <SettingsRow class="px-4 py-3" :label="t('settings.language')">
         <AppSelect
           size="sm"
           v-model="settings.language"
           :options="SUPPORTED_LOCALES.map((l) => ({ value: l.value, label: l.label }))"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.general.theme')">
-        <AppSelect
-          size="sm"
-          v-model="settings.theme"
-          :options="[
-            { value: 'system', label: t('settings.general.themeSystem') },
-            { value: 'light', label: t('settings.general.themeLight') },
-            { value: 'dark', label: t('settings.general.themeDark') },
-          ]"
-        />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.colorTheme')" :hint="t('settings.general.colorThemeHint')" stacked>
-        <ColorThemePicker v-model="settings.color_theme" />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.animatedBackground')" :hint="t('settings.general.animatedBackgroundHint')">
-        <AppSelect
-          size="sm"
-          v-model="settings.animated_background"
-          :options="[
-            { value: 'true', label: t('settings.general.on') },
-            { value: 'false', label: t('settings.general.off') },
-          ]"
-        />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.rowDensity')" :hint="t('settings.general.rowDensityHint')">
-        <SegmentedControl
-          :model-value="uiLayout.listDensity"
-          :options="densityOptions"
-          @update:model-value="uiLayout.setListDensity"
-        />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.font')" :hint="t('settings.general.fontHint')">
-        <div class="flex items-center gap-2">
-          <Input
-            v-if="uiLayout.fontPrefs.family === 'custom'"
-            size="sm"
-            class="w-44"
-            :model-value="uiLayout.fontPrefs.customFont"
-            :placeholder="t('settings.general.fontCustomPlaceholder')"
-            @change="uiLayout.setFontPrefs({ customFont: ($event.target as HTMLInputElement).value })"
-          />
-          <AppSelect
-            size="sm"
-            :model-value="uiLayout.fontPrefs.family"
-            :options="fontOptions"
-            @update:model-value="(v) => uiLayout.setFontPrefs({ family: v as FontFamilyId })"
-          />
-        </div>
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.appFontSize')" :hint="t('settings.general.appFontSizeHint')">
-        <AppSelect
-          size="sm"
-          :model-value="String(uiLayout.fontPrefs.appSize)"
-          :options="appSizeOptions"
-          @update:model-value="(v) => uiLayout.setFontPrefs({ appSize: pickSize(v, APP_FONT_SIZES, DEFAULT_APP_FONT_SIZE) })"
-        />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.chatFontSize')" :hint="t('settings.general.chatFontSizeHint')">
-        <AppSelect
-          size="sm"
-          :model-value="String(uiLayout.fontPrefs.chatSize)"
-          :options="chatSizeOptions"
-          @update:model-value="(v) => uiLayout.setFontPrefs({ chatSize: pickSize(v, CHAT_FONT_SIZES, DEFAULT_CHAT_FONT_SIZE) })"
-        />
-      </SettingsRow>
-      <SettingsRow :label="t('settings.general.terminalApp')">
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.terminalApp')" :description="t('settings.general.terminalAppDesc')">
         <AppSelect
           size="sm"
           v-model="settings.terminal_app"
           :options="terminalAppOptions"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.general.quitPolicy')" :hint="t('settings.general.quitPolicyHint')">
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.launchAtLogin')" :description="t('settings.general.launchAtLoginHint')">
+        <AppSelect
+          size="sm"
+          :model-value="launchAtLogin"
+          :options="launchAtLoginOptions"
+          @update:model-value="(v) => setLaunchAtLogin(v as LaunchAtLogin)"
+        />
+      </SettingsRow>
+      <SettingsRow class="px-4 py-3" :label="t('settings.general.quitPolicy')" :description="t('settings.general.quitPolicyHint')">
         <AppSelect
           size="sm"
           v-model="settings.quit_background_policy"
@@ -220,13 +331,6 @@ watch(() => settings.value.language, (v) => {
           ]"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.general.launchAtLogin')" :hint="t('settings.general.launchAtLoginHint')">
-        <AppSelect
-          size="sm"
-          :model-value="launchAtLogin"
-          :options="launchAtLoginOptions"
-          @update:model-value="(v) => setLaunchAtLogin(v as LaunchAtLogin)"
-        />
-      </SettingsRow>
-  </Card>
+    </Card>
+  </div>
 </template>

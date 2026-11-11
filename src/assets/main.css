@@ -10,6 +10,8 @@
 @import "./themes/tokyonight.css";
 /* Aurora reacting to html[data-agent-state] (running / waiting / error / done). */
 @import "./agent-ambient.css";
+/* The other fonts Settings › General offers (lib/appFonts). */
+@import "./fonts.css";
 
 /* Inter variable — self-hosted so it works offline. One file covers all weights
  * (100–900) via the variable `wght` axis; a separate file for true italics. */
@@ -74,6 +76,8 @@
  * is the floor (badges, meta lines, hints); `text-xs` (13px) is default UI
  * text. sm/base/lg keep Tailwind's 14/16/18px. */
 @theme {
+  /* Code font; Settings › General may swap it (lib/appFonts sets --font-mono on <html>). */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
   --text-xs: 0.8125rem;
@@ -218,10 +222,17 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-ui);
+    font-weight: var(--font-weight-normal, 400);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* friendlier 1/4/6/9/a/l glyphs */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+  /* Settings › General › Font smoothing "crisp": keep the stem thickness macOS
+   * draws, which antialiased thins out — on a 1x panel that reads as blurry. */
+  html[data-font-smoothing='crisp'] body {
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
   }
 
   /* ---------------------------------------------------------------------------
@@ -408,7 +419,7 @@
 .markdown-output input[type='checkbox'] { margin-right: 0.45rem; vertical-align: -0.05em; accent-color: hsl(var(--primary)); }
 
 .markdown-output code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8em;
   background: hsl(var(--muted));
   border: 1px solid hsl(var(--border) / 0.7);
@@ -566,7 +577,7 @@
   background: transparent;
   border: 0;
   padding: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: calc(0.8rem * var(--text-scale));
   line-height: 1.6;
   color: hsl(var(--muted-foreground));

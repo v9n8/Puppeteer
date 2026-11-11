@@ -118,9 +118,9 @@ defineExpose({ mayClose })
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full bg-background">
     <!-- Header -->
-    <div class="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+    <div class="flex shrink-0 items-center gap-2 border-b border-border bg-card px-4 py-3">
       <h2 class="flex-1 text-sm font-semibold">{{ t('settings.title') }}</h2>
       <Button
         variant="ghost"
@@ -136,21 +136,28 @@ defineExpose({ mayClose })
     <!-- Content -->
     <div class="flex-1 flex min-h-0">
       <!-- Section nav -->
-      <nav class="w-56 shrink-0 border-r border-border/60 p-3 overflow-auto">
+      <!-- Same layers as the app: nav on the sidebar tone, the open section on the page tone. -->
+      <nav class="w-56 shrink-0 border-r border-border bg-sidebar p-2 overflow-auto">
         <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
-          <div class="px-2.5 pb-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div class="px-2.5 pt-1 pb-1 text-xs font-medium text-muted-foreground">
             {{ t(g.labelKey) }}
           </div>
           <button
             v-for="s in g.sections"
             :key="s.id"
-            class="w-full flex items-center gap-2.5 px-2.5 py-2 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
+            class="relative w-full flex items-center gap-2.5 h-8 px-2.5 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
             :class="activeSection === s.id
-              ? 'bg-accent text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
+              ? 'bg-primary/12 text-foreground font-medium before:absolute before:left-0 before:inset-y-1.5 before:w-0.5 before:rounded-full before:bg-primary'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+            :aria-current="activeSection === s.id ? 'page' : undefined"
             @click="activeSection = s.id"
           >
-            <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+            <component
+              :is="s.icon"
+              class="h-4 w-4 shrink-0"
+              :class="activeSection === s.id && 'text-primary'"
+              :stroke-width="1.75"
+            />
             <span class="truncate" :title="t(s.labelKey)">{{ t(s.labelKey) }}</span>
             <span
               v-if="s.id === 'connections' && connectionsCount"
