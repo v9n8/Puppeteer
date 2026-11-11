@@ -238,9 +238,10 @@ struct SessionDefaultsEntry {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct StyleRefEntry {
-    /// A built-in key, or the style's id on the exporting machine.
+    /// `default` ("No style"), or the style's id on the exporting machine (a sample's id is its key).
     key: String,
-    /// The user style's name, to find it when this machine has it under another id. `None`: a built-in.
+    /// The style's name, to find it when this machine has it under another id. `None`: `default`, or
+    /// a sample in a backup from before the samples were rows (UX-36).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     /// The project's own style (else a global one).
@@ -485,6 +486,10 @@ struct ResponseStyleEntry {
     updated_at: String,
     #[serde(default)]
     project: Option<ProjectRef>,
+    /// The sample it is (`concise`, …), whose id is that key (UX-36). `None` for the user's own,
+    /// and in backups from before the samples were rows.
+    #[serde(default)]
+    builtin_key: Option<String>,
 }
 
 /// Focus columns of `todos` (migration 0067) carried by a backup.
@@ -1314,7 +1319,7 @@ async fn collect(
 /// The user's response styles, global first; a style of a project in the Trash stays local.
 async fn collect_response_styles(db: &Db) -> Result<Vec<ResponseStyleEntry>, String> {
     let rows = sqlx::query(
-        "SELECT s.id, s.name, s.description, s.body, s.position, s.created_at, s.updated_at, \
+        "SELECT s.id, s.name, s.description, s.body, s.position, s.created_at, s.updated_at, s.builtin_key, \
                 p.name AS project_name, p.path AS project_path \
          FROM response_styles s LEFT JOIN projects p ON p.id = s.project_id \
          WHERE s.project_id IS NULL OR p.deleted_at IS NULL \
@@ -1334,6 +1339,7 @@ async fn collect_response_styles(db: &Db) -> Result<Vec<ResponseStyleEntry>, Str
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
             project: project_name_path(row),
+            builtin_key: row.get("builtin_key"),
         })
         .collect())
 }
@@ -1344,7 +1350,7 @@ async fn collect_session_defaults(db: &Db, project_id: &str) -> Result<Option<Se
     let d = crate::commands::session_defaults::load(db, project_id).await;
     let style = match d.style {
         None => None,
-        Some(key) if crate::commands::response_styles::builtin_body(&key).is_some() => {
+        Some(key) if key == crate::commands::response_styles::DEFAULT_STYLE_KEY => {
             Some(StyleRefEntry { key, name: None, project: false })
         }
         Some(key) => sqlx::query_as::<_, (String, Option<String>)>(
@@ -2933,8 +2939,8 @@ async fn import_response_style(db: &Db, entry: &ResponseStyleEntry) -> Result<Up
         return Ok(if changed { Upsert::Updated } else { Upsert::Unchanged });
     }
     sqlx::query(
-        "INSERT INTO response_styles (id, project_id, name, description, body, position, created_at, updated_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO response_styles (id, project_id, name, description, body, position, created_at, updated_at, builtin_key) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&entry.id)
     .bind(&project_id)
@@ -2944,6 +2950,7 @@ async fn import_response_style(db: &Db, entry: &ResponseStyleEntry) -> Result<Up
     .bind(entry.position)
     .bind(&entry.created_at)
     .bind(&entry.updated_at)
+    .bind(entry.builtin_key.as_deref().filter(|_| project_id.is_none()))
     .execute(db)
     .await
     .map_err(|e| e.to_string())?;
@@ -3870,10 +3877,10 @@ async fn import_tool_permissions(
     Ok(changed)
 }
 
-/// Set a project's imported default style: a built-in, else the style with the exported id in the
+/// Set a project's imported default style: "No style" (`default`), else the style with the exported id in the
 /// same scope (global / this project), else the one with its name there. True when it changed.
 async fn import_project_style(db: &Db, project_id: &str, style: &StyleRefEntry) -> Result<bool, String> {
-    let key = if crate::commands::response_styles::builtin_body(&style.key).is_some() {
+    let key = if style.key == crate::commands::response_styles::DEFAULT_STYLE_KEY {
         Some(style.key.clone())
     } else {
         let scope = style.project.then_some(project_id);
@@ -4129,25 +4136,44 @@ mod tests {
         let global = crate::commands::response_styles::create(&source, None, "Short", "d", "Be short.").await.unwrap();
         crate::commands::response_styles::create(&source, Some("p1"), "Team", "", "Team text").await.unwrap();
         let mut entries = collect_response_styles(&source).await.unwrap();
-        assert_eq!(entries.iter().map(|e| (e.name.as_str(), e.project.as_ref().map(|p| p.path.as_str()))).collect::<Vec<_>>(), [
-            ("Short", None),
-            ("Team", Some("/src/web")),
+        let listed = |entries: &[ResponseStyleEntry]| {
+            entries
+                .iter()
+                .map(|e| (e.name.clone(), e.builtin_key.clone(), e.project.as_ref().map(|p| p.path.clone())))
+                .collect::<Vec<_>>()
+        };
+        let o = |v: &str| Some(v.to_string());
+        // The samples (UX-36) travel too, with their key.
+        assert_eq!(listed(&entries), [
+            ("Concise".to_string(), o("concise"), None),
+            ("Explain for a junior".to_string(), o("explain_junior"), None),
+            ("Code review".to_string(), o("code_review"), None),
+            ("Short".to_string(), None, None),
+            ("Team".to_string(), None, o("/src/web")),
         ]);
 
-        // Another machine: the project is found by name, the global style keeps its id.
+        // Another machine: the project is found by name, the global style keeps its id. A sample
+        // deleted there comes back as a sample; the others are the same.
         let target = test_db().await;
         sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p-here', 'web', '/other/web', 'c')")
             .execute(&target)
             .await
             .unwrap();
+        crate::commands::response_styles::delete(&target, "concise").await.unwrap();
         for e in &entries {
-            assert_eq!(import_response_style(&target, e).await.unwrap(), Upsert::Created);
+            let expected = if e.builtin_key.is_some() && e.id != "concise" { Upsert::Unchanged } else { Upsert::Created };
+            assert_eq!(import_response_style(&target, e).await.unwrap(), expected, "{}", e.name);
         }
         for e in &entries {
             assert_eq!(import_response_style(&target, e).await.unwrap(), Upsert::Unchanged);
         }
+        assert_eq!(listed(&collect_response_styles(&target).await.unwrap())[0], ("Concise".to_string(), o("concise"), None));
+        entries.retain(|e| e.builtin_key.is_none());
         let rows: Vec<(String, Option<String>, String)> =
-            sqlx::query_as("SELECT id, project_id, body FROM response_styles ORDER BY name").fetch_all(&target).await.unwrap();
+            sqlx::query_as("SELECT id, project_id, body FROM response_styles WHERE builtin_key IS NULL ORDER BY name")
+                .fetch_all(&target)
+                .await
+                .unwrap();
         assert_eq!(rows[0], (global.id.clone(), None, "Be short.".to_string()));
         assert_eq!((rows[1].1.as_deref(), rows[1].2.as_str()), (Some("p-here"), "Team text"));
 

@@ -251,6 +251,7 @@ const AUDITED_COMMANDS: &[&str] = &[
     "create_response_style",
     "update_response_style",
     "delete_response_style",
+    "restore_builtin_styles",
     // MCP per session: which servers (and their credentials) the session gets.
     "set_run_mcp_override",
     // A project's defaults for new sessions: permission mode, style text, engine.
@@ -876,6 +877,7 @@ mod tests {
             "create_response_style",
             "update_response_style",
             "delete_response_style",
+            "restore_builtin_styles",
             "set_run_mcp_override",
             "set_project_session_defaults",
             "fork_run",

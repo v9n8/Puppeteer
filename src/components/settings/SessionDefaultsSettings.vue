@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { ShieldAlert, Sparkles } from 'lucide-vue-next'
 import { AppSelect, Card } from '@/components/ui'
 import { EFFORT_LEVELS, effortLevelsFor, type SelectOption } from '@/lib/engineOptions'
-import { builtinStyleLabelKey } from '@/lib/responseStyles'
+import { shownStyles } from '@/lib/responseStyles'
 import { defaultEffortChoices, defaultStyleChoices } from '@/lib/sessionDefaults'
 import type { SettingsSectionId } from '@/lib/settingsSections'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -25,7 +25,7 @@ const styles = useResponseStylesStore()
 const { claudeModelOptions, claudeFallbackOptions, codexModelOptions } = useModelOptions()
 
 onMounted(() => {
-  // My styles; Settings › Response styles loads the same list.
+  // The global styles; Settings › Response styles loads the same list.
   if (!styles.loaded) styles.load(null).catch(() => {})
 })
 
@@ -43,7 +43,7 @@ const effortOptions = computed<SelectOption[]>(() =>
   }),
 )
 
-// Built-ins and My styles under their own headings.
+// The global styles under their heading.
 const styleOptions = computed(() => {
   const out: (SelectOption & { header?: boolean })[] = []
   let group = ''
@@ -52,12 +52,9 @@ const styleOptions = computed(() => {
     group = id
     out.push({ value: `__group:${id}`, label, header: true })
   }
-  for (const c of defaultStyleChoices(styles.styles, settings.value.default_style)) {
+  for (const c of defaultStyleChoices(shownStyles(styles.styles, t), settings.value.default_style)) {
     if (c.kind === 'none') {
-      out.push({ value: '', label: t('settings.ai.styleNone'), description: t('settings.ai.styleNoneHint') })
-    } else if (c.kind === 'builtin') {
-      heading('builtin', t('responseStyles.builtinTitle'))
-      out.push({ value: c.value, label: t(builtinStyleLabelKey(c.value)), description: t(`responseStyles.builtin.${c.value}.description`) })
+      out.push({ value: c.value, label: t('settings.ai.styleNone'), description: t('settings.ai.styleNoneHint') })
     } else if (c.kind === 'mine') {
       heading('mine', t('responseStyles.mineTitle'))
       out.push(c.description ? { value: c.value, label: c.name, description: c.description } : { value: c.value, label: c.name })

@@ -869,6 +869,7 @@ pub fn run() {
             commands::response_styles::create_response_style,
             commands::response_styles::update_response_style,
             commands::response_styles::delete_response_style,
+            commands::response_styles::restore_builtin_styles,
             commands::session_defaults::set_project_session_defaults,
             commands::tool_permissions::list_project_tool_permissions,
             commands::tool_permissions::set_project_tool_permission,

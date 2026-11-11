@@ -1,7 +1,7 @@
 // Settings › "Defaults for new sessions" (UX-18): the choices of its effort and
 // response style selects, kept pure so tests can cover them.
 import type { EffortLevel } from './engineOptions.ts'
-import { BUILTIN_STYLE_KEYS, type BuiltinStyleKey } from './responseStyles.ts'
+import { NO_STYLE } from './responseStyles.ts'
 
 export interface EffortChoice {
   /** '' = the engine decides. */
@@ -24,18 +24,18 @@ export function defaultEffortChoices(levels: readonly EffortLevel[], current: st
 }
 
 export type StyleChoice =
-  | { kind: 'none'; value: '' }
-  | { kind: 'builtin'; value: BuiltinStyleKey }
+  /** '' or a saved `default` ("No style"): both mean no style here. */
+  | { kind: 'none'; value: '' | 'default' }
   | { kind: 'mine'; value: string; name: string; description: string }
   /** A saved reference that no longer resolves (a deleted style): runs ignore it. */
   | { kind: 'missing'; value: string }
 
 /**
- * The default response style select (`default_style`): "None", the built-ins
- * that add text, then the user's global styles. The built-in `default` adds no
- * text, so globally it means the same as "None" and is only listed when it is
- * the saved value. A saved value that resolves to nothing stays listed as
- * `missing`, so the select never shows blank or rewrites it.
+ * The default response style select (`default_style`): "None", then the global
+ * styles (the samples included). A saved `default` means the same as '', so
+ * "None" takes that value then and opening the screen never rewrites it. A
+ * saved value that resolves to nothing stays listed as `missing`, so the
+ * select never shows blank or rewrites it.
  */
 export function defaultStyleChoices(
   styles: readonly { id: string; project_id: string | null; name: string; description: string }[],
@@ -43,8 +43,7 @@ export function defaultStyleChoices(
 ): StyleChoice[] {
   const saved = current?.trim() ?? ''
   const out: StyleChoice[] = [
-    { kind: 'none', value: '' },
-    ...BUILTIN_STYLE_KEYS.filter((k) => k !== 'default' || saved === 'default').map((k) => ({ kind: 'builtin' as const, value: k })),
+    { kind: 'none', value: saved === NO_STYLE ? NO_STYLE : '' },
     ...styles
       .filter((s) => s.project_id === null)
       .map((s) => ({ kind: 'mine' as const, value: s.id, name: s.name, description: s.description })),

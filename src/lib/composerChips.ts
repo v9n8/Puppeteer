@@ -3,7 +3,7 @@
 // chip. Pure, so tests cover them. A pick applies to the session's next start or
 // resume; '' = no pick, and then the backend resolves the same defaults.
 import { EFFORT_LEVELS, resolvePermissionMode, type EffortLevel } from './engineOptions.ts'
-import { BUILTIN_STYLE_KEYS, isBuiltinStyle, type BuiltinStyleKey } from './responseStyles.ts'
+import { NO_STYLE } from './responseStyles.ts'
 
 export interface ComposerDefaults {
   /** The engine of a new session: 'claude' or 'codex'. */
@@ -116,7 +116,7 @@ export function effectiveEffort(pick: string, levels: readonly EffortLevel[], de
  * else the defaults in order (project's, then global); references that no
  * longer resolve are skipped. `known`
  * tells whether a style id still exists (null while the list is not loaded:
- * every reference counts). 'default' (the built-in that adds no text) when
+ * every reference counts). 'default' ("No style", which adds no text) when
  * nothing resolves.
  */
 export function inheritedStyle(
@@ -126,24 +126,23 @@ export function inheritedStyle(
 ): string {
   for (const candidate of [runStyle, ...(typeof defaultStyle === 'string' ? [defaultStyle] : defaultStyle)]) {
     const key = candidate?.trim()
-    if (key && (isBuiltinStyle(key) || !known || known(key))) return key
+    if (key && (key === NO_STYLE || !known || known(key))) return key
   }
-  return 'default'
+  return NO_STYLE
 }
 
 export type ComposerStyleChoice =
-  /** The built-in `default`: no extra text, so the chip calls it "None". */
+  /** `default`: no extra text, so the chip calls it "None". */
   | { kind: 'none'; value: 'default' }
-  | { kind: 'builtin'; value: BuiltinStyleKey }
-  /** A global style (`mine`) or one of this project's (`project`). */
+  /** A global style (`mine`, the samples included) or one of this project's (`project`). */
   | { kind: 'mine' | 'project'; value: string; name: string; description: string }
   /** The current value no longer resolves (a deleted style). */
   | { kind: 'missing'; value: string }
 
 /**
- * The style chip's choices: None, the built-ins that add text, the user's
- * global styles, then this project's. Unlike the default-style setting, "None"
- * is the built-in `default`, so picking it overrides a stored or default style.
+ * The style chip's choices: None, the global styles, then this project's.
+ * Unlike the default-style setting, "None" is `default`, so picking it
+ * overrides a stored or default style.
  * A `current` value that is none of these stays listed as `missing`.
  */
 export function composerStyleChoices(
@@ -154,8 +153,7 @@ export function composerStyleChoices(
   const style = (kind: 'mine' | 'project') => (s: (typeof styles)[number]) =>
     ({ kind, value: s.id, name: s.name, description: s.description })
   const out: ComposerStyleChoice[] = [
-    { kind: 'none', value: 'default' },
-    ...BUILTIN_STYLE_KEYS.filter((k) => k !== 'default').map((k) => ({ kind: 'builtin' as const, value: k })),
+    { kind: 'none', value: NO_STYLE },
     ...styles.filter((s) => s.project_id === null).map(style('mine')),
     ...(projectId ? styles.filter((s) => s.project_id === projectId).map(style('project')) : []),
   ]

@@ -24,29 +24,29 @@ test('effort: a saved level the model does not take stays listed, marked unsuppo
 })
 
 const mine = [
+  { id: 'concise', project_id: null, name: 'Concise', description: 'sample' },
   { id: 's1', project_id: null, name: 'Short', description: 'one line' },
   { id: 's2', project_id: 'p1', name: 'Project only', description: '' },
 ]
 
-test('style: None, the built-ins that add text, then the global styles', () => {
+test('style (UX-36): None, then the global styles, the samples included', () => {
   const choices = defaultStyleChoices(mine, '')
   assert.deepEqual(choices.map((c) => [c.kind, c.value]), [
     ['none', ''],
-    ['builtin', 'concise'],
-    ['builtin', 'explain_junior'],
-    ['builtin', 'code_review'],
+    ['mine', 'concise'],
     ['mine', 's1'],
   ])
   assert.equal(choices.at(-1).name, 'Short')
 })
 
-test('style: the "default" built-in is listed only when it is the saved value', () => {
-  assert.deepEqual(values(defaultStyleChoices([], 'default')), ['', 'default', 'concise', 'explain_junior', 'code_review'])
+test('style: a saved "default" is None, listed once and kept as it is', () => {
+  assert.deepEqual(defaultStyleChoices([], 'default'), [{ kind: 'none', value: 'default' }])
 })
 
 test('style: a saved value that resolves to nothing stays listed as missing', () => {
   assert.deepEqual(defaultStyleChoices(mine, 'gone').at(-1), { kind: 'missing', value: 'gone' })
-  // Another project's style does not resolve globally either.
+  // Another project's style does not resolve globally either, nor a deleted sample.
   assert.deepEqual(defaultStyleChoices(mine, 's2').at(-1), { kind: 'missing', value: 's2' })
-  assert.equal(defaultStyleChoices(mine, 'concise').length, 5)
+  assert.deepEqual(defaultStyleChoices([], 'code_review').at(-1), { kind: 'missing', value: 'code_review' })
+  assert.equal(defaultStyleChoices(mine, 'concise').length, 3)
 })

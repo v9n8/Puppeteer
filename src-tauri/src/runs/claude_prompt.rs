@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(recorded(&db).await, None);
         let review = style("code_review", Some("Review it."));
         let env = resume_env(&db, "r1", "p1", true, Some("FRAMING"), Some("concise"), Some(&review)).await;
-        let concise_block = response_styles::style_block(response_styles::builtin_body("concise").unwrap());
+        let concise_block = response_styles::style_block(response_styles::builtin("concise").unwrap().body);
         let rebuilt = format!("FRAMING\n\n{concise_block}");
         assert_eq!(get(&env, APPEND_ENV), Some(rebuilt.as_str()));
         assert!(get(&env, SEED_STYLE_ENV).unwrap().contains("Review it."));

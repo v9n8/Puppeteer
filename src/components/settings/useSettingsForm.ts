@@ -146,6 +146,15 @@ export function createSettingsForm(): SettingsForm {
     appSettings.refresh().catch(() => {})
   })
 
+  // Deleting the default response style empties `default_style` in the backend
+  // (UX-36), and the styles store refreshes the shared settings: follow it the
+  // same way.
+  watch(() => appSettings.settings?.default_style, (value) => {
+    if (value === undefined || !lastSaved || lastSaved.default_style === value) return
+    settings.value.default_style = value
+    lastSaved.default_style = value
+  })
+
   const form: SettingsForm = { settings, loading, load, persistChanges }
   provide(SETTINGS_FORM, form)
   return form

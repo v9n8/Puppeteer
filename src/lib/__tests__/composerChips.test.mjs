@@ -96,7 +96,8 @@ test('style: references that no longer resolve are skipped, like the backend', (
   const known = (id) => id === 'my-1'
   assert.equal(inheritedStyle('gone', 'my-1', known), 'my-1')
   assert.equal(inheritedStyle('gone', 'also-gone', known), 'default')
-  assert.equal(inheritedStyle('explain_junior', 'my-1', known), 'explain_junior')
+  // A sample is a row (UX-36): deleted, it is skipped too.
+  assert.equal(inheritedStyle('explain_junior', 'my-1', known), 'my-1')
   // Before the list loads, every reference counts.
   assert.equal(inheritedStyle('gone', 'my-1', null), 'gone')
 })
@@ -105,23 +106,22 @@ test('style (UX-19): a deleted project default falls through to the global one',
   const known = (id) => id === 'my-1'
   assert.equal(inheritedStyle(null, ['project-gone', 'my-1'], known), 'my-1')
   assert.equal(inheritedStyle(null, ['my-1', 'concise'], known), 'my-1')
-  assert.equal(inheritedStyle('concise', ['my-1'], known), 'concise')
+  assert.equal(inheritedStyle('concise', ['my-1'], (id) => id === 'concise'), 'concise')
   assert.equal(inheritedStyle(null, [], known), 'default')
 })
 
 const styles = [
+  { id: 'concise', project_id: null, name: 'Concise', description: 'sample' },
   { id: 'g1', project_id: null, name: 'Mine', description: 'global' },
   { id: 'p1', project_id: 'proj-a', name: 'Project A', description: '' },
   { id: 'p2', project_id: 'proj-b', name: 'Project B', description: '' },
 ]
 
-test('style choices: none, built-ins, my global styles, then this project\'s', () => {
+test('style choices: none, the global styles (samples included), then this project\'s', () => {
   const choices = composerStyleChoices(styles, 'proj-a', 'concise')
   assert.deepEqual(choices.map((c) => [c.kind, c.value]), [
     ['none', 'default'],
-    ['builtin', 'concise'],
-    ['builtin', 'explain_junior'],
-    ['builtin', 'code_review'],
+    ['mine', 'concise'],
     ['mine', 'g1'],
     ['project', 'p1'],
   ])
@@ -131,5 +131,5 @@ test('style choices: none, built-ins, my global styles, then this project\'s', (
 test('style choices: another project\'s or a deleted style stays listed as missing', () => {
   assert.deepEqual(composerStyleChoices(styles, 'proj-a', 'p2').at(-1), { kind: 'missing', value: 'p2' })
   assert.deepEqual(composerStyleChoices([], null, 'gone').at(-1), { kind: 'missing', value: 'gone' })
-  assert.equal(composerStyleChoices([], null, 'default').length, 4)
+  assert.equal(composerStyleChoices([], null, 'default').length, 1)
 })

@@ -10,7 +10,7 @@ import {
   EFFORT_LEVELS, PERMISSION_MODE_OPTIONS, effortLevelsFor, resolvePermissionMode, type SelectOption,
 } from '@/lib/engineOptions'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
-import { builtinStyleLabelKey } from '@/lib/responseStyles'
+import { shownStyles } from '@/lib/responseStyles'
 import {
   composerStyleChoices, effectiveEffort, effortForLaunch, inheritedEffort, inheritedModel, inheritedStyle,
 } from '@/lib/composerChips'
@@ -115,7 +115,7 @@ export function useComposerChips(core: RunSessionCore) {
   const styleValue = computed(() =>
     stylePick.value || inheritedStyle(currentRun.value?.style, defaults.value.styles, knownStyle.value),
   )
-  // Built-ins, My styles and this project's styles under their own headings.
+  // The global styles and this project's under their own headings.
   const styleOptions = computed(() => {
     const out: (SelectOption & { header?: boolean })[] = []
     let group = ''
@@ -124,12 +124,9 @@ export function useComposerChips(core: RunSessionCore) {
       group = id
       out.push({ value: `__group:${id}`, label, header: true })
     }
-    for (const c of composerStyleChoices(stylesStore.styles, projectId.value, styleValue.value)) {
+    for (const c of composerStyleChoices(shownStyles(stylesStore.styles, t), projectId.value, styleValue.value)) {
       if (c.kind === 'none') {
         out.push({ value: c.value, label: t('settings.ai.styleNone'), description: t('settings.ai.styleNoneHint') })
-      } else if (c.kind === 'builtin') {
-        heading('builtin', t('responseStyles.builtinTitle'))
-        out.push({ value: c.value, label: t(builtinStyleLabelKey(c.value)), description: t(`responseStyles.builtin.${c.value}.description`) })
       } else if (c.kind === 'mine' || c.kind === 'project') {
         heading(c.kind, c.kind === 'mine' ? t('responseStyles.mineTitle') : t('run.chipStyleProject'))
         out.push(c.description ? { value: c.value, label: c.name, description: c.description } : { value: c.value, label: c.name })

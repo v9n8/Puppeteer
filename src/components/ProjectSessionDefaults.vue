@@ -19,7 +19,7 @@ import { useResponseStylesStore } from '@/stores/responseStyles'
 import { EFFORT_LEVELS, MODEL_OPTIONS, effortLevelsFor, withCurrentModel, type SelectOption } from '@/lib/engineOptions'
 import { composerDefaults, composerStyleChoices, type ProjectSessionDefaults } from '@/lib/composerChips'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
-import { builtinStyleLabelKey, isBuiltinStyle } from '@/lib/responseStyles'
+import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
 
 const props = defineProps<{ project: Project }>()
 
@@ -108,11 +108,11 @@ const effortOptions = computed<SelectOption[]>(() =>
   }),
 )
 
-// ── Response style: built-ins, My styles, this project's styles ──
+// ── Response style: the global styles, then this project's ──
+const shown = computed(() => shownStyles(styles.styles, t))
 function styleName(key: string): string {
-  if (!key) return t('settings.ai.styleNone')
-  if (isBuiltinStyle(key)) return t(builtinStyleLabelKey(key))
-  const found = styles.styles.find((s) => s.id === key)
+  if (!key || key === NO_STYLE) return t('settings.ai.styleNone')
+  const found = shown.value.find((s) => s.id === key)
   return found ? found.name : styles.loaded ? t('settings.ai.styleMissing') : '…'
 }
 const styleOptions = computed(() => {
@@ -123,12 +123,9 @@ const styleOptions = computed(() => {
     group = id
     out.push({ value: `__group:${id}`, label, header: true })
   }
-  for (const c of composerStyleChoices(styles.styles, props.project.id, own.value.style)) {
+  for (const c of composerStyleChoices(shown.value, props.project.id, own.value.style)) {
     if (c.kind === 'none') {
       out.push({ value: c.value, label: t('settings.ai.styleNone'), description: t('settings.ai.styleNoneHint') })
-    } else if (c.kind === 'builtin') {
-      heading('builtin', t('responseStyles.builtinTitle'))
-      out.push({ value: c.value, label: t(builtinStyleLabelKey(c.value)), description: t(`responseStyles.builtin.${c.value}.description`) })
     } else if (c.kind === 'mine' || c.kind === 'project') {
       heading(c.kind, c.kind === 'mine' ? t('responseStyles.mineTitle') : t('responseStyles.projectStylesTitle'))
       out.push(c.description ? { value: c.value, label: c.name, description: c.description } : { value: c.value, label: c.name })
