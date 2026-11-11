@@ -127,7 +127,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
     <!-- Content -->
     <div class="flex-1 flex min-h-0">
       <!-- Section nav -->
-      <nav class="w-48 shrink-0 border-r border-border/60 p-3 overflow-auto">
+      <nav class="w-56 shrink-0 border-r border-border/60 p-3 overflow-auto">
         <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
           <div class="px-2.5 pb-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
             {{ t(g.labelKey) }}
@@ -142,7 +142,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
             @click="activeSection = s.id"
           >
             <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-            <span class="truncate">{{ t(s.labelKey) }}</span>
+            <span class="truncate" :title="t(s.labelKey)">{{ t(s.labelKey) }}</span>
             <span
               v-if="s.id === 'connections' && connectionsCount"
               class="ml-auto text-2xs tabular-nums text-muted-foreground"

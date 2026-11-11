@@ -4,8 +4,8 @@
   "sections": {
     "general": "Chung",
     "engines": "Engine & tài khoản",
-    "ai": "Mặc định session mới",
-    "styles": "Phong cách trả lời",
+    "ai": "Session mới",
+    "styles": "Phong cách",
     "translate": "Dịch",
     "memory": "Memory",
     "sessions": "Session",
@@ -13,7 +13,7 @@
     "inbox": "Inbox API",
     "focus": "Focus",
     "features": "Tính năng",
-    "palette": "Bảng lệnh nhanh",
+    "palette": "Lệnh nhanh",
     "keymap": "Phím tắt",
     "connections": "Kết nối"
   },
