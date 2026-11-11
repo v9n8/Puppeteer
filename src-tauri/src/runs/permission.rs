@@ -59,20 +59,29 @@ pub fn track_pending(event: PermissionRequestEvent) {
     });
 }
 
-/// Forget a request once its answer has been delivered to the sidecar.
-/// Returns whether it was still pending.
+/// Withdraw a request that ends without an answer: the sidecar settled it
+/// itself, or a broker prompt's shim hung up (an answered one was already
+/// claimed by [`take_pending`]). Audited as a cancel (AC-22). Returns whether
+/// it was still pending.
 pub fn resolve_pending(run_id: &str, request_id: &str) -> bool {
-    let mut map = pending_store().lock().unwrap_or_else(|e| e.into_inner());
-    let Some(list) = map.get_mut(run_id) else {
+    let withdrawn = {
+        let mut map = pending_store().lock().unwrap_or_else(|e| e.into_inner());
+        let Some(list) = map.get_mut(run_id) else {
+            return false;
+        };
+        let withdrawn = list.iter().find(|p| p.event.request_id == request_id).cloned();
+        list.retain(|p| p.event.request_id != request_id);
+        if list.is_empty() {
+            map.remove(run_id);
+        }
+        withdrawn
+    };
+    let Some(p) = withdrawn else {
         return false;
     };
-    let before = list.len();
-    list.retain(|p| p.event.request_id != request_id);
-    let removed = list.len() != before;
-    if list.is_empty() {
-        map.remove(run_id);
-    }
-    removed
+    use crate::runs::broker::audit;
+    audit::tool_decision(&p.event, audit::CANCEL, audit::Origin::Engine);
+    true
 }
 
 /// Claim a request for answering: remove and return it, or None when it was

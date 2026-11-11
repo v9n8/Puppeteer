@@ -1,6 +1,6 @@
 use crate::commands::github::RunRecord;
 use crate::db::Db;
-use crate::runs::broker::BrokerHandle;
+use crate::runs::broker::{audit, BrokerHandle};
 use crate::runs::sidecar::{
     apply_claude_config_dir, apply_mcp_tool_timeout, augment_command_path,
     detach_sidecar_process_group, drain_sidecar, kill_process_group, resolve_codex_sidecar,
@@ -1720,17 +1720,31 @@ pub struct RespondPermissionPayload {
     /// re-asking. Remote decisions are once-only (BR-016/AC-17) and never set it.
     #[serde(default)]
     pub remember: bool,
+    /// The webview answered from the project's standing allow / deny list, not
+    /// a person. Only labels the audit record (AC-22).
+    #[serde(default)]
+    pub auto_rule: bool,
 }
 
 #[tauri::command]
 pub async fn respond_permission(
     app: AppHandle,
+    webview: tauri::Webview,
     registry: State<'_, RunRegistry>,
     broker_approvals: State<'_, crate::runs::BrokerApprovals>,
     payload: RespondPermissionPayload,
 ) -> Result<(), String> {
     let (run_id, request_id) = (payload.run_id.clone(), payload.request_id.clone());
-    match respond_permission_inner(registry.inner(), broker_approvals.inner(), payload).await {
+    // The bridge label is the one fact about a caller the backend can trust, so
+    // a remote desktop is audited as remote whatever its payload says.
+    let origin = if crate::remote::guard::from_remote_bridge(&webview) {
+        audit::Origin::Remote
+    } else if payload.auto_rule {
+        audit::Origin::AutoRule
+    } else {
+        audit::Origin::Local
+    };
+    match respond_permission_inner(registry.inner(), broker_approvals.inner(), payload, origin).await {
         Ok(_) => {}
         // Someone else (a paired phone) answered first; the prompt is gone
         // either way, so there is nothing to report or to republish.
@@ -1756,11 +1770,13 @@ pub(crate) const PERMISSION_ALREADY_HANDLED: &str = "permission already handled"
 /// The request is CLAIMED first (taken out of the pending store), so when the
 /// desktop and a phone answer at once exactly one reaches the sidecar; the
 /// other gets [`PERMISSION_ALREADY_HANDLED`] and writes nothing. A delivery
-/// failure puts the request back so it can be retried. Returns the request.
+/// failure puts the request back so it can be retried. A delivered answer is
+/// audited once, from `origin` (AC-22). Returns the request.
 pub(crate) async fn respond_permission_inner(
     registry: &RunRegistry,
     broker_approvals: &crate::runs::BrokerApprovals,
     payload: RespondPermissionPayload,
+    origin: audit::Origin,
 ) -> Result<crate::runs::permission::PermissionRequestEvent, String> {
     if !matches!(payload.decision.as_str(), "allow" | "deny" | "ask") {
         return Err(format!("unknown permission decision: {}", payload.decision));
@@ -1779,6 +1795,7 @@ pub(crate) async fn respond_permission_inner(
         if let Some(tx) = pending.remove(&payload.request_id) {
             let allow = payload.decision == "allow";
             let _ = tx.send(allow);
+            audit_answer(&claimed.event, &payload, origin);
             return Ok(claimed.event);
         }
     }
@@ -1806,7 +1823,17 @@ pub(crate) async fn respond_permission_inner(
         crate::runs::permission::restore_pending(claimed);
         return Err(e);
     }
+    audit_answer(&claimed.event, &payload, origin);
     Ok(claimed.event)
+}
+
+fn audit_answer(
+    event: &crate::runs::permission::PermissionRequestEvent,
+    payload: &RespondPermissionPayload,
+    origin: audit::Origin,
+) {
+    let decision = audit::decision_label(&payload.decision, payload.remember, origin);
+    audit::tool_decision(event, decision, origin);
 }
 
 /// Queue one NDJSON line for a live run's sidecar and wait (bounded) for it to
@@ -6272,5 +6299,112 @@ mod trash_tests {
         }
         // A protected session can still be trashed on its own, as it could be deleted before.
         assert_eq!(trash_run_tree(&fx.db, &fx.registry, None, "kept", NOW).await.unwrap().len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod permission_audit_tests {
+    use super::*;
+    use crate::runs::broker::audit::{capture, Origin};
+    use crate::runs::permission::{self, PermissionRequestEvent};
+
+    fn track(run_id: &str, request_id: &str, input: serde_json::Value) {
+        permission::track_pending(PermissionRequestEvent {
+            run_id: run_id.to_string(),
+            request_id: request_id.to_string(),
+            tool_name: "Bash".to_string(),
+            tool_input: input,
+            session_id: None,
+            cwd: None,
+            title: None,
+            description: None,
+            display_name: None,
+            once_only: false,
+        });
+    }
+
+    fn payload(run_id: &str, request_id: &str, decision: &str, remember: bool) -> RespondPermissionPayload {
+        RespondPermissionPayload {
+            run_id: run_id.to_string(),
+            request_id: request_id.to_string(),
+            decision: decision.to_string(),
+            reason: None,
+            answers: None,
+            response: None,
+            remember,
+            auto_rule: false,
+        }
+    }
+
+    /// Answer `request_id` through the broker branch (no sidecar needed) and
+    /// return its audit records.
+    async fn answer(run_id: &str, request_id: &str, decision: &str, remember: bool, origin: Origin) -> Vec<String> {
+        let (lines, _guard) = capture::start();
+        track(run_id, request_id, serde_json::json!({ "command": "gh pr list" }));
+        let approvals = crate::runs::new_broker_approvals();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        approvals.lock().await.insert(request_id.to_string(), tx);
+        let registry = crate::runs::new_registry();
+        respond_permission_inner(&registry, &approvals, payload(run_id, request_id, decision, remember), origin)
+            .await
+            .unwrap();
+        assert_eq!(rx.await.unwrap(), decision == "allow");
+        lines.tool_records(run_id)
+    }
+
+    #[tokio::test]
+    async fn each_answer_writes_one_record() {
+        let cases = [
+            ("audit-allow", "allow", false, Origin::Local, "decision=allow origin=local"),
+            ("audit-always", "allow", true, Origin::Local, "decision=allow_always origin=local"),
+            ("audit-deny", "deny", false, Origin::Local, "decision=deny origin=local"),
+            ("audit-rule", "allow", true, Origin::AutoRule, "decision=allow origin=auto_rule"),
+            ("audit-rule-deny", "deny", false, Origin::AutoRule, "decision=deny origin=auto_rule"),
+            ("audit-remote", "allow", true, Origin::Remote, "decision=allow_always origin=remote"),
+        ];
+        for (run, decision, remember, origin, want) in cases {
+            let records = answer(run, "req-1", decision, remember, origin).await;
+            assert_eq!(records.len(), 1, "{run}: {records:?}");
+            let r = &records[0];
+            assert!(r.contains(want), "{run}: {r}");
+            for field in ["request=req-1", "engine=claude", "tool=\"Bash\"", "at=", "input=\"gh pr list\""] {
+                assert!(r.contains(field), "{run} lacks {field}: {r}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_lost_race_or_a_failed_delivery_writes_nothing() {
+        let (lines, _guard) = capture::start();
+        let approvals = crate::runs::new_broker_approvals();
+        let registry = crate::runs::new_registry();
+        // Already answered elsewhere: nothing is pending.
+        let err = respond_permission_inner(&registry, &approvals, payload("audit-lost", "r", "allow", false), Origin::Remote)
+            .await
+            .unwrap_err();
+        assert_eq!(err, PERMISSION_ALREADY_HANDLED);
+        // The sidecar is gone: the request is put back for a retry, unanswered.
+        track("audit-undelivered", "r", serde_json::Value::Null);
+        assert!(respond_permission_inner(&registry, &approvals, payload("audit-undelivered", "r", "allow", false), Origin::Local)
+            .await
+            .is_err());
+        assert!(permission::peek_pending("audit-undelivered", "r").is_some());
+        permission::clear_pending("audit-undelivered");
+        assert!(lines.tool_records("audit-lost").is_empty());
+        assert!(lines.tool_records("audit-undelivered").is_empty());
+    }
+
+    #[test]
+    fn a_withdrawn_request_is_audited_as_a_cancel_once() {
+        let (lines, _guard) = capture::start();
+        track("audit-cancel", "codex-n-3", serde_json::json!({ "command": "rm -rf build" }));
+        assert!(permission::resolve_pending("audit-cancel", "codex-n-3"));
+        // Already gone (answered, or withdrawn twice): no second record.
+        assert!(!permission::resolve_pending("audit-cancel", "codex-n-3"));
+        let records = lines.tool_records("audit-cancel");
+        assert_eq!(records.len(), 1, "{records:?}");
+        for field in ["engine=codex", "decision=cancel", "origin=engine", "input=\"rm -rf build\""] {
+            assert!(records[0].contains(field), "lacks {field}: {}", records[0]);
+        }
     }
 }

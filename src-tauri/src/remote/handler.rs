@@ -710,11 +710,13 @@ async fn handle_respond_permission(ctx: &HandlerCtx, cmd: &CmdPayload) {
         // Always from the phone is the desktop's Always: the engine may cache
         // the approval for the session (codex `acceptForSession`).
         remember,
+        auto_rule: false,
     };
     match crate::commands::runs::respond_permission_inner(
         &ctx.registry,
         &ctx.broker_approvals,
         payload,
+        crate::runs::broker::audit::Origin::Remote,
     )
     .await
     {

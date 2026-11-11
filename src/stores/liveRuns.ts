@@ -586,7 +586,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       // A failed auto-answer falls back to a visible prompt (see respond).
       const standing = standingPermissionDecision(req, s.allowedTools, s.deniedTools)
       if (standing === 'deny') {
-        void respondPermission(runId, req, 'deny', { reason: 'Auto-denied for this project' })
+        void respondPermission(runId, req, 'deny', { reason: 'Auto-denied for this project', autoRule: true })
         return
       }
       if (standing === 'allow') {
@@ -596,6 +596,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
           // let the engine cache it too (codex `acceptForSession`) rather
           // than prompting through this path again for every call.
           remember: true,
+          autoRule: true,
         })
         return
       }
@@ -705,7 +706,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     runId: string,
     req: PermissionRequest,
     decision: 'allow' | 'deny' | 'ask',
-    opts: { reason?: string; remember?: boolean; answers?: Record<string, string> } = {},
+    opts: { reason?: string; remember?: boolean; answers?: Record<string, string>; autoRule?: boolean } = {},
   ): Promise<boolean> {
     if (respondingIds.has(req.request_id)) return false
     respondingIds.add(req.request_id)
@@ -713,6 +714,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       await useRunsStore().respondPermission(req.run_id, req.request_id, decision, opts.reason, {
         remember: opts.remember,
         answers: opts.answers,
+        autoRule: opts.autoRule,
       })
       answeredIds.add(`${runId}:${req.request_id}`)
       const s = sessions.get(runId)

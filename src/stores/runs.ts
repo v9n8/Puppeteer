@@ -375,7 +375,7 @@ export const useRunsStore = defineStore('runs', () => {
     request_id: string,
     decision: 'allow' | 'deny' | 'ask',
     reason?: string,
-    extra?: { answers?: Record<string, string>; response?: string; remember?: boolean },
+    extra?: { answers?: Record<string, string>; response?: string; remember?: boolean; autoRule?: boolean },
   ): Promise<void> {
     await invoke('respond_permission', {
       payload: {
@@ -388,6 +388,8 @@ export const useRunsStore = defineStore('runs', () => {
         // "Always" — lets an engine with its own session approval cache (codex)
         // stop re-asking instead of round-tripping to the UI every time.
         remember: extra?.remember ?? false,
+        // Answered by a standing choice, not a person: labels the audit record.
+        auto_rule: extra?.autoRule ?? false,
       },
     })
   }
