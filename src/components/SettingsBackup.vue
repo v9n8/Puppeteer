@@ -7,7 +7,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { ArchiveRestore, Download, FileUp, KeyRound, Loader2, Upload } from 'lucide-vue-next'
-import { Button, Card, Input, ToggleSwitch } from '@/components/ui'
+import { Button, Card, InfoTip, Input, ToggleSwitch } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import BackupContents from '@/components/BackupContents.vue'
 import BackupImportReport from '@/components/BackupImportReport.vue'
 import { useToast } from '@/composables/useToast'
@@ -115,9 +116,8 @@ function cancelImport() {
     <template #header>
       <ArchiveRestore class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.backup.title') }}</span>
+      <InfoTip :text="t('settings.backup.help')" />
     </template>
-
-    <p class="text-2xs text-muted-foreground">{{ t('settings.backup.help') }}</p>
 
     <!-- Export -->
     <section class="space-y-3">
@@ -125,18 +125,16 @@ function cancelImport() {
         {{ t('settings.backup.export.title') }}
       </label>
 
-      <div class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3">
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-foreground">{{ t('settings.backup.export.includeSecrets') }}</p>
-          <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('settings.backup.export.includeSecretsHint') }}</p>
+      <SettingsRow :label="t('settings.backup.export.includeSecrets')" :hint="t('settings.backup.export.includeSecretsHint')">
+        <div class="flex min-[900px]:justify-end">
+          <ToggleSwitch
+            size="md"
+            :checked="includeSecrets"
+            :label="t('settings.backup.export.includeSecrets')"
+            @toggle="includeSecrets = !includeSecrets"
+          />
         </div>
-        <ToggleSwitch
-          size="md"
-          :checked="includeSecrets"
-          :label="t('settings.backup.export.includeSecrets')"
-          @toggle="includeSecrets = !includeSecrets"
-        />
-      </div>
+      </SettingsRow>
 
       <div v-if="includeSecrets" class="space-y-2">
         <Input
@@ -169,10 +167,12 @@ function cancelImport() {
 
     <!-- Import -->
     <section class="space-y-3">
-      <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-        {{ t('settings.backup.import.title') }}
-      </label>
-      <p class="text-2xs text-muted-foreground">{{ t('settings.backup.import.help') }}</p>
+      <div class="flex items-center gap-1.5">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
+          {{ t('settings.backup.import.title') }}
+        </label>
+        <InfoTip :text="t('settings.backup.import.help')" />
+      </div>
 
       <Button v-if="!importInfo" variant="outline" size="sm" @click="chooseFile">
         <FileUp class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -188,24 +188,23 @@ function cancelImport() {
         </div>
         <BackupContents :info="importInfo" />
 
-        <div v-if="importInfo.hasSecrets" class="space-y-1.5">
+        <SettingsRow v-if="importInfo.hasSecrets" :label="t('settings.backup.import.password')" :hint="t('settings.backup.import.passwordHint')">
           <Input
             v-model="importPassword"
             type="password"
             autocomplete="off"
             :placeholder="t('settings.backup.import.password')"
           />
-          <p class="text-2xs text-muted-foreground">{{ t('settings.backup.import.passwordHint') }}</p>
-        </div>
+        </SettingsRow>
         <p v-else class="text-2xs text-muted-foreground">{{ t('settings.backup.import.noSecrets') }}</p>
 
-        <label v-if="importInfo.counts.projects" class="flex items-start gap-2 text-xs">
-          <input v-model="createMissingDirs" type="checkbox" class="mt-0.5 accent-primary">
-          <span>
+        <div v-if="importInfo.counts.projects" class="flex items-center gap-1.5">
+          <label class="flex items-center gap-2 text-xs">
+            <input v-model="createMissingDirs" type="checkbox" class="accent-primary">
             {{ t('settings.backup.import.createMissingDirs') }}
-            <span class="block text-2xs text-muted-foreground">{{ t('settings.backup.import.createMissingDirsHint') }}</span>
-          </span>
-        </label>
+          </label>
+          <InfoTip :text="t('settings.backup.import.createMissingDirsHint')" />
+        </div>
 
         <div class="flex items-center gap-2">
           <Button size="sm" :disabled="importing" @click="runImport">

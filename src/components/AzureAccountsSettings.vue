@@ -10,7 +10,7 @@ import { useI18n } from 'vue-i18n'
 import {
   CloudCog, Loader2, LogIn, Pencil, Plus, ShieldAlert, Trash2,
 } from 'lucide-vue-next'
-import { AppSelect, Banner, Button, Card, Input } from '@/components/ui'
+import { AppSelect, Banner, Button, Card, InfoTip, Input } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import {
@@ -213,12 +213,9 @@ onMounted(() => {
     <template #header>
       <CloudCog class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.azure.title') }}</span>
+      <InfoTip v-if="!accountId" :text="t('settings.azure.intro')" />
     </template>
     <template v-if="!accountId">
-      <p class="text-2xs text-muted-foreground leading-relaxed">
-        {{ t('settings.azure.intro') }}
-      </p>
-
       <Banner :icon="ShieldAlert" class="leading-relaxed">
         <span class="text-muted-foreground">
           {{ t('settings.azure.isolationWarning') }}
@@ -355,8 +352,10 @@ onMounted(() => {
 
     <!-- Add account: browser az login into an isolated config dir -->
     <div v-if="!accountId" class="border-t border-border/60 pt-3 space-y-2">
-      <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.addAccount') }}</div>
-      <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.azure.addHint') }}</p>
+      <div class="flex items-center gap-1.5">
+        <div class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.azure.addAccount') }}</div>
+        <InfoTip :text="t('settings.azure.addHint')" />
+      </div>
       <Input
         v-model="newLabel"
         size="sm"

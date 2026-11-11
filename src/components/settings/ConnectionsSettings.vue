@@ -9,7 +9,7 @@ import { computed, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle, CheckCircle2, KeyRound, LogIn, Plug, Plus } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
-import { Button, Card, DropdownItem, DropdownMenu, Modal, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import { Button, Card, DropdownItem, DropdownMenu, InfoTip, Modal, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import GithubAccountsSettings from '@/components/settings/GithubAccountsSettings.vue'
 import GitlabAccountsSettings from '@/components/settings/GitlabAccountsSettings.vue'
 import AwsAccountsSettings from '@/components/settings/AwsAccountsSettings.vue'
@@ -126,8 +126,9 @@ watch([rows, types], () => {
   <Card body-class="p-4 space-y-4">
     <template #header>
       <Plug class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-      <span class="text-xs font-semibold flex-1">{{ t('settings.connections.title') }}</span>
-      <DropdownMenu align="right">
+      <span class="text-xs font-semibold">{{ t('settings.connections.title') }}</span>
+      <InfoTip :text="t('settings.connections.intro')" />
+      <DropdownMenu align="right" class="ml-auto">
         <template #trigger>
           <Button size="xs">
             <Plus class="h-3 w-3" :stroke-width="2" />
@@ -140,10 +141,6 @@ watch([rows, types], () => {
         </DropdownItem>
       </DropdownMenu>
     </template>
-
-    <p class="text-2xs text-muted-foreground leading-relaxed">
-      {{ t('settings.connections.intro') }}
-    </p>
 
     <SegmentedControl v-if="types.length > 1" :model-value="activeFilter" :options="filterOptions" @update:model-value="filter = $event" />
 

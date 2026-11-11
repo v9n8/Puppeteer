@@ -4,7 +4,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowDown, ArrowUp, Command, Eye, EyeOff, Pin, PinOff, RotateCcw } from 'lucide-vue-next'
-import { Button, Card, ToggleSwitch } from '@/components/ui'
+import { Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
 import { IS_MAC, effectiveKeymap } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
 import {
@@ -55,9 +55,8 @@ async function save(next: PaletteConfig) {
     <template #header>
       <Command class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('palette.settings.title') }}</span>
+      <InfoTip :text="t('palette.settings.help', { shortcut })" />
     </template>
-
-    <p class="text-2xs text-muted-foreground">{{ t('palette.settings.help', { shortcut }) }}</p>
 
     <!-- Groups: on / off and order -->
     <section class="space-y-2">

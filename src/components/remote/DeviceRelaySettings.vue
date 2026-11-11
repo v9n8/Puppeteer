@@ -4,7 +4,8 @@
 // to drive this one.
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Input, Card } from '@/components/ui'
+import { Button, Input, Card, InfoTip } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useRemoteControlStore } from '@/stores/remoteControl'
@@ -106,40 +107,34 @@ async function clearMasterPassword() {
   <Card>
     <template #header>
       <KeyRound class="h-4 w-4 text-primary" :stroke-width="1.75" />
-      <h3 class="text-sm font-semibold flex-1">{{ t('remote.settings.identity.title') }}</h3>
+      <h3 class="text-sm font-semibold">{{ t('remote.settings.identity.title') }}</h3>
+      <InfoTip :text="t('remote.settings.identity.intro')" />
     </template>
     <div class="p-4 space-y-4">
-      <p class="text-xs text-muted-foreground">{{ t('remote.settings.identity.intro') }}</p>
-
-      <div class="space-y-1.5">
-        <label class="text-xs font-medium text-muted-foreground">{{ t('remote.settings.relayUrl') }}</label>
+      <SettingsRow :label="t('remote.settings.relayUrl')">
         <Input
           v-model="relayUrl"
           :placeholder="t('remote.settings.relayUrlPlaceholder')"
           :disabled="savingConfig"
         />
-      </div>
+      </SettingsRow>
 
-      <div class="space-y-1.5">
-        <label class="text-xs font-medium text-muted-foreground">
-          {{ t('remote.settings.authToken') }}
-          <span v-if="status?.has_auth_token" class="text-success">{{ t('remote.settings.saved') }}</span>
-        </label>
-        <Input
-          v-model="authToken"
-          type="password"
-          :placeholder="t('remote.settings.authTokenPlaceholder')"
-          :disabled="savingConfig"
-        />
-        <p class="text-2xs text-muted-foreground/70">
-          {{ t('remote.settings.authTokenHint') }}
-        </p>
-      </div>
+      <SettingsRow :label="t('remote.settings.authToken')" :hint="t('remote.settings.authTokenHint')">
+        <div class="flex items-center gap-2">
+          <Input
+            v-model="authToken"
+            type="password"
+            class="flex-1"
+            :placeholder="t('remote.settings.authTokenPlaceholder')"
+            :disabled="savingConfig"
+          />
+          <span v-if="status?.has_auth_token" class="shrink-0 text-2xs text-success">{{ t('remote.settings.saved') }}</span>
+        </div>
+      </SettingsRow>
 
       <!-- Device name: picks this host's password-login code, so several
            Puppeteer hosts can share one relay (and one master password). -->
-      <div class="space-y-1.5">
-        <label class="text-xs font-medium text-muted-foreground">{{ t('remote.settings.deviceName') }}</label>
+      <SettingsRow :label="t('remote.settings.deviceName')" :hint="t('remote.settings.deviceNameHint')">
         <Input
           v-model="deviceAlias"
           autocomplete="off"
@@ -149,42 +144,35 @@ async function clearMasterPassword() {
           class="font-mono"
           @keyup.enter="saveConfig"
         />
-        <p class="text-2xs text-muted-foreground/70">
-          {{ t('remote.settings.deviceNameHint') }}
-        </p>
-      </div>
+      </SettingsRow>
 
       <!-- Master password: an optional stable code that replaces the per-join
            OTP for a single owner (falls back to OTP when unset). -->
-      <div class="space-y-1.5">
-        <label class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>
-            {{ t('remote.settings.masterPassword') }}
-            <span v-if="status?.has_master_password" class="text-success">{{ t('remote.settings.set') }}</span>
-          </span>
-          <button
-            v-if="status?.has_master_password"
-            type="button"
-            :disabled="savingMasterPw"
-            class="ml-auto font-normal text-2xs text-muted-foreground/80 hover:text-destructive transition-colors disabled:opacity-50"
-            @click="clearMasterPassword"
-          >
-            {{ t('common.clear') }}
-          </button>
-        </label>
-        <Input
-          v-model="masterPassword"
-          type="password"
-          :placeholder="status?.has_master_password
-            ? t('remote.settings.masterPasswordReplace')
-            : t('remote.settings.masterPasswordSet')"
-          :disabled="savingConfig || savingMasterPw"
-          @keyup.enter="saveConfig"
-        />
-        <p class="text-2xs text-muted-foreground/70">
-          {{ t('remote.settings.masterPasswordHint') }}
-        </p>
-      </div>
+      <SettingsRow :label="t('remote.settings.masterPassword')" :hint="t('remote.settings.masterPasswordHint')">
+        <div class="flex items-center gap-2">
+          <Input
+            v-model="masterPassword"
+            type="password"
+            class="flex-1"
+            :placeholder="status?.has_master_password
+              ? t('remote.settings.masterPasswordReplace')
+              : t('remote.settings.masterPasswordSet')"
+            :disabled="savingConfig || savingMasterPw"
+            @keyup.enter="saveConfig"
+          />
+          <template v-if="status?.has_master_password">
+            <span class="shrink-0 text-2xs text-success">{{ t('remote.settings.set') }}</span>
+            <button
+              type="button"
+              :disabled="savingMasterPw"
+              class="shrink-0 text-2xs text-muted-foreground/80 hover:text-destructive transition-colors disabled:opacity-50"
+              @click="clearMasterPassword"
+            >
+              {{ t('common.clear') }}
+            </button>
+          </template>
+        </div>
+      </SettingsRow>
 
       <div class="flex items-center gap-2 pt-1">
         <Button variant="outline" :disabled="savingConfig" @click="saveConfig">

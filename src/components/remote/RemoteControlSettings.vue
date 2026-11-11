@@ -5,7 +5,8 @@
 // (RemoteIndicator → RemoteSessionModal).
 import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Card, Badge, ToggleSwitch } from '@/components/ui'
+import { Button, Card, Badge, InfoTip, ToggleSwitch } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useRemoteControlStore } from '@/stores/remoteControl'
@@ -35,6 +36,12 @@ const reconnecting = computed(() => status.value?.reconnecting ?? false)
 // Can't start the agent without a relay to dial — allow turning OFF anytime, but
 // only allow turning ON once a Relay URL has been saved.
 const canToggle = computed(() => enabled.value || !!status.value?.relay_url?.trim())
+// How a remote session is opened, in the (i) beside the switch. A tooltip is
+// plain text, so the two names lose the bold the inline hint gave them.
+const perRunHint = computed(() => t('remote.settings.perRunHint', {
+  remote: t('remote.settings.remote'),
+  masterPassword: t('remote.settings.masterPasswordInline'),
+}))
 
 async function load() {
   try {
@@ -126,7 +133,10 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
     <Card>
       <template #header>
         <Radio class="h-4 w-4 text-primary" :stroke-width="1.75" />
-        <h3 class="text-sm font-semibold flex-1">{{ t('remote.settings.title') }}</h3>
+        <div class="flex flex-1 items-center gap-2">
+          <h3 class="text-sm font-semibold">{{ t('remote.settings.title') }}</h3>
+          <InfoTip :text="t('remote.settings.intro')" />
+        </div>
         <Badge v-if="enabled && connected" tone="success" class="gap-1">
           <Wifi class="h-3 w-3" :stroke-width="2" /> {{ t('remote.settings.connected') }}
         </Badge>
@@ -139,17 +149,16 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
         <Badge v-else tone="neutral">{{ t('remote.settings.off') }}</Badge>
       </template>
       <div class="p-4 space-y-4">
-        <p class="text-xs text-muted-foreground">
-          {{ t('remote.settings.intro') }}
-        </p>
-
         <!-- Master on/off switch. This is the primary control for the feature,
              so it reads as a switch rather than competing with "Save settings". -->
         <div
           class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3"
         >
           <div class="min-w-0">
-            <p class="text-sm font-medium text-foreground">{{ t('remote.settings.enable') }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="text-sm font-medium text-foreground">{{ t('remote.settings.enable') }}</p>
+              <InfoTip :text="perRunHint" />
+            </div>
             <p class="mt-0.5 text-2xs text-muted-foreground">
               <template v-if="enabled && connected">{{ t('remote.settings.state.connected') }}</template>
               <template v-else-if="enabled">{{ t('remote.settings.state.running') }}</template>
@@ -167,30 +176,16 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
           />
         </div>
 
-        <p class="text-2xs text-muted-foreground/70 border-t border-border/50 pt-3">
-          <i18n-t keypath="remote.settings.perRunHint" tag="span">
-            <template #remote>
-              <span class="font-medium text-foreground/80">{{ t('remote.settings.remote') }}</span>
-            </template>
-            <template #masterPassword>
-              <span class="font-medium text-foreground/80">{{ t('remote.settings.masterPasswordInline') }}</span>
-            </template>
-          </i18n-t>
-        </p>
-
         <!-- Remote desktop: drive another Puppeteer from this one. -->
-        <div
-          v-if="!remoteMode"
-          class="flex items-center justify-between gap-4 border-t border-border/50 pt-3"
-        >
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-foreground">{{ t('remote.settings.controlOther') }}</p>
-            <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('remote.settings.controlOtherHint') }}</p>
-          </div>
-          <Button variant="outline" class="shrink-0" @click="openRemoteDesktop">
-            <MonitorSmartphone class="h-3.5 w-3.5" :stroke-width="1.75" />
-            {{ t('remote.settings.controlOtherOpen') }}
-          </Button>
+        <div v-if="!remoteMode" class="border-t border-border/50 pt-3">
+          <SettingsRow :label="t('remote.settings.controlOther')" :hint="t('remote.settings.controlOtherHint')">
+            <div class="flex min-[900px]:justify-end">
+              <Button variant="outline" @click="openRemoteDesktop">
+                <MonitorSmartphone class="h-3.5 w-3.5" :stroke-width="1.75" />
+                {{ t('remote.settings.controlOtherOpen') }}
+              </Button>
+            </div>
+          </SettingsRow>
         </div>
       </div>
     </Card>

@@ -6,7 +6,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gitlab, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-vue-next'
-import { Banner, Button, Card, Input } from '@/components/ui'
+import { Banner, Button, Card, InfoTip, Input } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useGitlabAccountsStore, type GitlabPatValidation } from '@/stores/gitlabAccounts'
@@ -118,12 +118,9 @@ async function handleDeleteGitlabAccount(id: string) {
     <template #header>
       <Gitlab class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.gitlab.title') }}</span>
+      <InfoTip v-if="!accountId" :text="t('settings.gitlab.intro')" />
     </template>
     <template v-if="!accountId">
-      <p class="text-2xs text-muted-foreground leading-relaxed">
-        {{ t('settings.gitlab.intro') }}
-      </p>
-
       <Banner :icon="ShieldAlert" class="leading-relaxed">
         <span class="text-muted-foreground">
           {{ t('settings.gitlab.isolationWarning') }}

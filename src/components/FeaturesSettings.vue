@@ -8,7 +8,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRight, Loader2, RotateCcw, ToggleRight } from 'lucide-vue-next'
-import { Banner, Button, Card, ToggleSwitch } from '@/components/ui'
+import { Banner, Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
@@ -88,6 +88,7 @@ async function resetDefaults() {
     <template #header>
       <ToggleRight class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('features.settings.title') }}</span>
+      <InfoTip :text="t('features.settings.help')" />
       <Button
         v-if="!readOnly"
         variant="outline"
@@ -101,8 +102,6 @@ async function resetDefaults() {
         {{ t('features.settings.reset') }}
       </Button>
     </template>
-
-    <p class="text-2xs text-muted-foreground">{{ t('features.settings.help') }}</p>
 
     <Banner v-if="readOnly" tone="info">{{ t('features.settings.remoteReadOnly') }}</Banner>
 

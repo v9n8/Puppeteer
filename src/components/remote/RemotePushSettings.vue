@@ -5,7 +5,8 @@
 // Inbox; here they can only be removed.
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Card, ToggleSwitch } from '@/components/ui'
+import { Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
@@ -111,25 +112,22 @@ function fmtTime(ts: string | null): string {
   <Card>
     <template #header>
       <BellRing class="h-4 w-4 text-primary" :stroke-width="1.75" />
-      <h3 class="text-sm font-semibold flex-1">{{ t('remote.push.title') }}</h3>
+      <h3 class="text-sm font-semibold">{{ t('remote.push.title') }}</h3>
+      <InfoTip :text="t('remote.push.intro')" />
     </template>
     <div class="p-4 space-y-4">
-      <p class="text-xs text-muted-foreground">{{ t('remote.push.intro') }}</p>
-
-      <div class="space-y-2">
-        <div v-for="k in KINDS" :key="k" class="flex items-center justify-between gap-4">
-          <div class="min-w-0">
-            <p class="text-xs font-medium text-foreground">{{ t(`remote.push.kinds.${k}`) }}</p>
-            <p class="mt-0.5 text-2xs text-muted-foreground">{{ t(`remote.push.kindHints.${k}`) }}</p>
+      <div class="space-y-3">
+        <SettingsRow v-for="k in KINDS" :key="k" :label="t(`remote.push.kinds.${k}`)" :hint="t(`remote.push.kindHints.${k}`)">
+          <div class="flex min-[900px]:justify-end">
+            <ToggleSwitch
+              size="md"
+              :checked="events[k]"
+              :label="t(`remote.push.kinds.${k}`)"
+              :disabled="!loaded"
+              @toggle="toggleKind(k)"
+            />
           </div>
-          <ToggleSwitch
-            size="md"
-            :checked="events[k]"
-            :label="t(`remote.push.kinds.${k}`)"
-            :disabled="!loaded"
-            @toggle="toggleKind(k)"
-          />
-        </div>
+        </SettingsRow>
       </div>
 
       <div class="border-t border-border/50 pt-3">

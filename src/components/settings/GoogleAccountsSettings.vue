@@ -10,7 +10,7 @@ import {
   AlertTriangle, CheckCircle2, HardDrive, Loader2, LogIn, Pencil, Plus, ShieldAlert, Star, Trash2,
 } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
-import { Banner, Button, Card, Input } from '@/components/ui'
+import { Banner, Button, Card, InfoTip, Input } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useGoogleAccountsStore } from '@/stores/googleAccounts'
@@ -158,13 +158,10 @@ onMounted(loadGoogleStatus)
     <template #header>
       <HardDrive class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.google.title') }}</span>
+      <InfoTip v-if="!accountId" :text="t('settings.google.intro')" />
     </template>
 
     <template v-if="!accountId">
-      <p class="text-2xs text-muted-foreground leading-relaxed">
-        {{ t('settings.google.intro') }}
-      </p>
-
       <Banner :icon="ShieldAlert" class="leading-relaxed">
         <span class="text-muted-foreground">
           {{ t('settings.google.credsWarning') }}

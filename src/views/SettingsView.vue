@@ -176,35 +176,34 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
           <MemorySettings />
         </div>
 
-        <!-- Remote Control + Sync & backup under their shared relay / device name / master password
-             (wider than the max-w-lg forms to fit the audit table) -->
-        <div v-if="!loading && activeSection === 'devices'" class="max-w-3xl">
+        <!-- Remote Control + Sync & backup under their shared relay / device name / master password -->
+        <div v-if="!loading && activeSection === 'devices'" class="max-w-4xl">
           <DevicesSettings v-model:tab="devicesTab" />
         </div>
 
         <!-- Focus board: working hours. Mounted only while shown so it reads the live settings. -->
-        <div v-if="!loading && activeSection === 'focus'" class="max-w-lg">
+        <div v-if="!loading && activeSection === 'focus'" class="max-w-4xl">
           <FocusSettings />
         </div>
 
         <!-- Inbox API for the Chrome extension (Slack thread links + translation). Mounted only while
              shown, so opening the section always reads the live port / status. -->
-        <div v-if="!loading && activeSection === 'inbox'" class="max-w-lg">
+        <div v-if="!loading && activeSection === 'inbox'" class="max-w-4xl">
           <InboxApiSettings />
         </div>
 
         <!-- Module → prop switches. Mounted only while shown: it re-reads the tree on open. -->
-        <div v-if="!loading && activeSection === 'features'" class="max-w-lg">
+        <div v-if="!loading && activeSection === 'features'" class="max-w-4xl">
           <FeaturesSettings />
         </div>
 
         <!-- Command palette (⌘K): groups, pins, hidden items. -->
-        <div v-if="!loading && activeSection === 'palette'" class="max-w-lg">
+        <div v-if="!loading && activeSection === 'palette'" class="max-w-4xl">
           <CommandPaletteSettings />
         </div>
 
         <!-- Shortcuts of the native menu's actions (lib/keymap). -->
-        <div v-if="!loading && activeSection === 'keymap'" class="max-w-lg">
+        <div v-if="!loading && activeSection === 'keymap'" class="max-w-4xl">
           <KeymapSettings />
         </div>
       </div>

@@ -7,7 +7,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, Copy, Eye, EyeOff, Inbox, Loader2, RefreshCw } from 'lucide-vue-next'
-import { Button, Card, ToggleSwitch } from '@/components/ui'
+import { Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useInboxApiStore, type InboxApiInfo } from '@/stores/inboxApi'
@@ -111,9 +112,8 @@ onMounted(load)
     <template #header>
       <Inbox class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.inboxApi.title') }}</span>
+      <InfoTip :text="t('settings.inboxApi.help')" />
     </template>
-
-    <p class="text-2xs text-muted-foreground">{{ t('settings.inboxApi.help') }}</p>
 
     <div v-if="loading" class="h-24 animate-pulse rounded-md border border-border bg-card" />
 
@@ -124,9 +124,9 @@ onMounted(load)
       <div
         class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3"
       >
-        <div class="min-w-0">
+        <div class="flex min-w-0 items-center gap-1.5">
           <p class="text-sm font-medium text-foreground">{{ t('settings.inboxApi.enable') }}</p>
-          <p class="mt-0.5 text-2xs text-muted-foreground">{{ t('settings.inboxApi.enableHint') }}</p>
+          <InfoTip :text="t('settings.inboxApi.enableHint')" />
         </div>
         <ToggleSwitch
           size="md"
@@ -138,10 +138,7 @@ onMounted(load)
       </div>
 
       <!-- Status -->
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-          {{ t('settings.inboxApi.status') }}
-        </label>
+      <SettingsRow :label="t('settings.inboxApi.status')">
         <div class="flex items-center gap-2 text-xs">
           <span
             class="h-2 w-2 shrink-0 rounded-full"
@@ -167,14 +164,11 @@ onMounted(load)
             <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>
         </div>
-      </div>
+      </SettingsRow>
 
       <template v-if="info.enabled">
         <!-- Base URL -->
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-            {{ t('settings.inboxApi.baseUrl') }}
-          </label>
+        <SettingsRow :label="t('settings.inboxApi.baseUrl')">
           <div class="flex items-center gap-1.5">
             <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-2xs">
               {{ info.baseUrl || '—' }}
@@ -190,13 +184,10 @@ onMounted(load)
               <component :is="copied === 'url' ? Check : Copy" class="h-3.5 w-3.5" :stroke-width="1.75" />
             </Button>
           </div>
-        </div>
+        </SettingsRow>
 
         <!-- Token -->
-        <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
-            {{ t('settings.inboxApi.token') }}
-          </label>
+        <SettingsRow :label="t('settings.inboxApi.token')">
           <div class="flex items-center gap-1.5">
             <code class="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-2xs">
               {{ maskedToken || '—' }}
@@ -222,7 +213,7 @@ onMounted(load)
               <component :is="copied === 'token' ? Check : Copy" class="h-3.5 w-3.5" :stroke-width="1.75" />
             </Button>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="mt-1.5 flex items-center gap-1.5">
             <Button variant="outline" size="xs" :disabled="regenerating" @click="regenerate">
               <component
                 :is="regenerating ? Loader2 : RefreshCw"
@@ -232,9 +223,9 @@ onMounted(load)
               />
               {{ t('settings.inboxApi.regenerate') }}
             </Button>
-            <span class="text-2xs text-muted-foreground">{{ t('settings.inboxApi.regenerateHint') }}</span>
+            <InfoTip :text="t('settings.inboxApi.regenerateHint')" />
           </div>
-        </div>
+        </SettingsRow>
 
         <!-- How the extension uses it -->
         <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5 text-2xs text-muted-foreground">

@@ -7,8 +7,9 @@
 // back untouched.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, CalendarClock, Gauge, Target } from 'lucide-vue-next'
-import { AppSelect, Button, Card, Input, ToggleSwitch } from '@/components/ui'
+import { Gauge, Target } from 'lucide-vue-next'
+import { AppSelect, Button, Card, InfoTip, Input, ToggleSwitch } from '@/components/ui'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { useFocusStore } from '@/stores/focus'
@@ -162,27 +163,26 @@ async function save() {
     <div class="flex items-center gap-2">
       <Target class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
       <span class="text-xs font-semibold">{{ t('focus.settings.title') }}</span>
+      <InfoTip :text="t('focus.settings.hint')" />
     </div>
-    <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.hint') }}</p>
 
     <!-- Working hours -->
-    <div class="space-y-1.5">
-      <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.settings.workHours') }}</label>
+    <SettingsRow :label="t('focus.settings.workHours')">
       <div class="flex items-center gap-2">
         <Input v-model="form.work_start" type="time" size="sm" class="w-28" :disabled="loading" :aria-label="t('focus.settings.workStart')" />
         <span class="text-muted-foreground">–</span>
         <Input v-model="form.work_end" type="time" size="sm" class="w-28" :disabled="loading" :aria-label="t('focus.settings.workEnd')" />
       </div>
-    </div>
+    </SettingsRow>
 
-    <div class="space-y-1.5">
-      <label class="block text-2xs font-medium text-muted-foreground">{{ t('focus.settings.workDays') }}</label>
+    <!-- w-9 so the seven days fit the row's control column on one line. -->
+    <SettingsRow :label="t('focus.settings.workDays')">
       <div class="flex flex-wrap gap-1">
         <button
           v-for="d in DAYS"
           :key="d"
           type="button"
-          class="h-7 w-10 cursor-pointer rounded-md border text-xs transition-colors"
+          class="h-7 w-9 cursor-pointer rounded-md border text-xs transition-colors"
           :class="form.work_days.includes(d)
             ? 'border-primary bg-primary text-primary-foreground'
             : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'"
@@ -193,35 +193,33 @@ async function save() {
           {{ t(`focus.settings.days.${d}`) }}
         </button>
       </div>
-    </div>
+    </SettingsRow>
 
     <!-- Reminders -->
     <div class="space-y-2 border-t border-border/60 pt-4">
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <p class="flex items-center gap-1.5 text-xs font-medium">
-            <Bell class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
-            {{ t('focus.settings.reminders.title') }}
-          </p>
-          <p class="mt-0.5 text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.hint') }}</p>
+      <SettingsRow
+        :label="t('focus.settings.reminders.title')"
+        :hint="`${t('focus.settings.reminders.hint')}\n\n${t('focus.settings.reminders.workHoursOnly')}`"
+      >
+        <div class="flex min-[900px]:justify-end">
+          <ToggleSwitch
+            size="md"
+            :checked="form.notify_enabled"
+            :label="t('focus.settings.reminders.title')"
+            :disabled="loading"
+            @toggle="form.notify_enabled = !form.notify_enabled"
+          />
         </div>
-        <ToggleSwitch
-          size="md"
-          :checked="form.notify_enabled"
-          :label="t('focus.settings.reminders.title')"
-          :disabled="loading"
-          @toggle="form.notify_enabled = !form.notify_enabled"
-        />
-      </div>
+      </SettingsRow>
       <div v-if="form.notify_enabled" class="space-y-2 pl-5">
         <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          <label v-for="k in NOTIFY_KINDS" :key="k" class="flex cursor-pointer items-start gap-2 text-xs">
-            <input v-model="form.notify_kinds[k]" type="checkbox" class="mt-0.5 accent-primary" :disabled="loading" />
-            <span class="min-w-0">
-              <span class="block">{{ t(`focus.settings.reminders.kinds.${k}`) }}</span>
-              <span class="block text-2xs leading-snug text-muted-foreground">{{ t(`focus.settings.reminders.kindHints.${k}`) }}</span>
-            </span>
-          </label>
+          <div v-for="k in NOTIFY_KINDS" :key="k" class="flex items-center gap-1.5">
+            <label class="flex min-w-0 cursor-pointer items-center gap-2 text-xs">
+              <input v-model="form.notify_kinds[k]" type="checkbox" class="accent-primary" :disabled="loading" />
+              {{ t(`focus.settings.reminders.kinds.${k}`) }}
+            </label>
+            <InfoTip :text="t(`focus.settings.reminders.kindHints.${k}`)" />
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <label class="text-2xs text-muted-foreground">{{ t('focus.settings.reminders.morningTime') }}</label>
@@ -234,22 +232,16 @@ async function save() {
             :aria-label="t('focus.settings.reminders.morningTime')"
           />
         </div>
-        <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.reminders.workHoursOnly') }}</p>
       </div>
     </div>
 
     <!-- Google Calendar -->
     <div v-if="calendarOn" class="space-y-2 border-t border-border/60 pt-4">
-      <p class="flex items-center gap-1.5 text-xs font-medium">
-        <CalendarClock class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
-        {{ t('focus.settings.calendar.title') }}
-      </p>
-      <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.calendar.hint') }}</p>
-      <p v-if="!loading && !accounts.length" class="text-2xs text-muted-foreground">{{ t('focus.settings.calendar.noAccount') }}</p>
-      <template v-else>
-        <div class="w-80 max-w-full">
-          <AppSelect v-model="accountValue" :options="accountOptions" size="sm" :disabled="loading" />
-        </div>
+      <SettingsRow :label="t('focus.settings.calendar.title')" :hint="t('focus.settings.calendar.hint')">
+        <p v-if="!loading && !accounts.length" class="text-2xs text-muted-foreground">{{ t('focus.settings.calendar.noAccount') }}</p>
+        <AppSelect v-else v-model="accountValue" :options="accountOptions" size="sm" :disabled="loading" />
+      </SettingsRow>
+      <template v-if="loading || accounts.length">
         <p v-if="calendarsLoading" class="text-2xs text-muted-foreground">{{ t('focus.settings.calendar.loading') }}</p>
         <p v-else-if="calendarsError" class="text-2xs text-destructive">{{ calendarsError }}</p>
         <div v-else-if="calendars.length" class="space-y-1">
@@ -266,16 +258,16 @@ async function save() {
 
     <!-- Calibration -->
     <div class="space-y-1 border-t border-border/60 pt-4">
-      <label class="flex cursor-pointer items-start gap-2 text-xs">
-        <input v-model="form.calibration_enabled" type="checkbox" class="mt-0.5 accent-primary" :disabled="loading" />
-        <span class="min-w-0">
+      <div class="flex items-center gap-1.5">
+        <label class="flex cursor-pointer items-center gap-2 text-xs">
+          <input v-model="form.calibration_enabled" type="checkbox" class="accent-primary" :disabled="loading" />
           <span class="flex items-center gap-1.5 font-medium">
             <Gauge class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
             {{ t('focus.settings.calibration.title') }}
           </span>
-          <span class="mt-0.5 block text-2xs leading-relaxed text-muted-foreground">{{ t('focus.settings.calibration.hint') }}</span>
-        </span>
-      </label>
+        </label>
+        <InfoTip :text="t('focus.settings.calibration.hint')" />
+      </div>
     </div>
 
     <p v-if="error" class="text-2xs text-destructive">{{ error }}</p>
