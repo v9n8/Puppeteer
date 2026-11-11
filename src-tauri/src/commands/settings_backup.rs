@@ -4686,7 +4686,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         // The event itself needs an AppHandle (no mock runtime here): check it is sent.
-        let src = include_str!("settings_backup.rs");
+        // A Windows checkout has CRLF line endings.
+        let src = include_str!("settings_backup.rs").replace("\r\n", "\n");
         let apply = &src[src.find("async fn apply_bundle(").unwrap()..];
         let apply = &apply[..apply.find("\n}\n").unwrap()];
         assert!(apply.contains("trashed_project_count(db).await != trashed_before"));
