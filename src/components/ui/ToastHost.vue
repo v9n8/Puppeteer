@@ -1,9 +1,14 @@
 <script setup lang="ts">
 // App-wide toast stack. Mount once in App.vue; content is driven by useToast.
-import { useToast, type ToastVariant } from '@/composables/useToast'
+import { useToast, type ToastAction, type ToastVariant } from '@/composables/useToast'
 import { CheckCircle2, XCircle, Info } from 'lucide-vue-next'
 
 const { state, dismiss } = useToast()
+
+function runAction(id: number, action: ToastAction) {
+  dismiss(id)
+  action.run()
+}
 
 const ICONS = { success: CheckCircle2, error: XCircle, info: Info }
 const TONES: Record<ToastVariant, string> = {
@@ -38,6 +43,14 @@ const TONES: Record<ToastVariant, string> = {
             :stroke-width="2"
           />
           <span class="flex-1 text-foreground leading-snug">{{ t.message }}</span>
+          <button
+            v-if="t.action"
+            type="button"
+            class="shrink-0 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-accent"
+            @click.stop="runAction(t.id, t.action)"
+          >
+            {{ t.action.label }}
+          </button>
         </div>
       </TransitionGroup>
     </div>

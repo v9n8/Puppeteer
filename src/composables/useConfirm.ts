@@ -7,6 +7,8 @@
 //   const { confirm } = useConfirm()
 //   if (!(await confirm('Delete this?'))) return
 //
+// `choose()` adds a second action (`altLabel`) and resolves with which button
+// was pressed, or null on cancel.
 import { reactive } from 'vue'
 
 export interface ConfirmOptions {
@@ -22,8 +24,17 @@ export interface ConfirmOptions {
   variant?: 'destructive' | 'primary'
 }
 
+export interface ChoiceOptions extends ConfirmOptions {
+  /** Label of the second action, shown between Cancel and Confirm. */
+  altLabel: string
+}
+
+export type ConfirmChoice = 'confirm' | 'alt' | null
+
 interface ConfirmState extends Required<ConfirmOptions> {
   open: boolean
+  /** '' = no second action. */
+  altLabel: string
 }
 
 const state = reactive<ConfirmState>({
@@ -33,29 +44,38 @@ const state = reactive<ConfirmState>({
   confirmLabel: 'Confirm',
   cancelLabel: 'Cancel',
   variant: 'destructive',
+  altLabel: '',
 })
 
-let resolver: ((value: boolean) => void) | null = null
+let resolver: ((value: ConfirmChoice) => void) | null = null
 
-function confirm(options: ConfirmOptions | string): Promise<boolean> {
-  const opts = typeof options === 'string' ? { message: options } : options
-
+function openDialog(opts: ConfirmOptions, altLabel: string): Promise<ConfirmChoice> {
   // If a dialog is already pending, cancel it before opening the new one.
-  resolver?.(false)
+  resolver?.(null)
 
   state.title = opts.title ?? 'Confirm'
   state.message = opts.message
   state.confirmLabel = opts.confirmLabel ?? 'Confirm'
   state.cancelLabel = opts.cancelLabel ?? 'Cancel'
   state.variant = opts.variant ?? 'destructive'
+  state.altLabel = altLabel
   state.open = true
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<ConfirmChoice>((resolve) => {
     resolver = resolve
   })
 }
 
-function respond(value: boolean) {
+function confirm(options: ConfirmOptions | string): Promise<boolean> {
+  const opts = typeof options === 'string' ? { message: options } : options
+  return openDialog(opts, '').then((value) => value === 'confirm')
+}
+
+function choose(options: ChoiceOptions): Promise<ConfirmChoice> {
+  return openDialog(options, options.altLabel)
+}
+
+function respond(value: ConfirmChoice) {
   if (!state.open) return
   state.open = false
   resolver?.(value)
@@ -63,5 +83,5 @@ function respond(value: boolean) {
 }
 
 export function useConfirm() {
-  return { state, confirm, respond }
+  return { state, confirm, choose, respond }
 }

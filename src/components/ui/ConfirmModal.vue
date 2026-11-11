@@ -10,7 +10,7 @@ const { state, respond } = useConfirm()
 </script>
 
 <template>
-  <Modal :open="state.open" :title="state.title" size="sm" @close="respond(false)">
+  <Modal :open="state.open" :title="state.title" size="sm" @close="respond(null)">
     <div class="flex gap-3 px-4 py-4">
       <div
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
@@ -21,10 +21,14 @@ const { state, respond } = useConfirm()
       <p class="text-sm text-muted-foreground whitespace-pre-line self-center">{{ state.message }}</p>
     </div>
     <template #footer>
-      <Button variant="outline" @click="respond(false)">{{ state.cancelLabel }}</Button>
-      <Button :variant="state.variant === 'destructive' ? 'destructive' : 'primary'" @click="respond(true)">
-        {{ state.confirmLabel }}
-      </Button>
+      <!-- Wraps when a second action and a long label don't fit on one line. -->
+      <div class="flex w-full flex-wrap justify-end gap-2">
+        <Button variant="outline" @click="respond(null)">{{ state.cancelLabel }}</Button>
+        <Button v-if="state.altLabel" variant="outline" @click="respond('alt')">{{ state.altLabel }}</Button>
+        <Button :variant="state.variant === 'destructive' ? 'destructive' : 'primary'" @click="respond('confirm')">
+          {{ state.confirmLabel }}
+        </Button>
+      </div>
     </template>
   </Modal>
 </template>

@@ -225,6 +225,13 @@
     "modelRunning": "Pick a model once this turn ends.",
     "sharedCodexLogin": "Shared Codex login"
   },
+  "quotaSwitch": {
+    "message": "The budget (plan) of this session's account for the current cycle has been exceeded.\n{account} is still under its limit.",
+    "continueOn": "Switch to {account} and continue",
+    "switchTo": "Switch to {account}",
+    "stay": "Continue on this account",
+    "toast": "This session's account reached its quota limit. New turns are blocked."
+  },
   "chipMode": "Permission mode",
   "chipModeShort": {
     "default": "Ask",

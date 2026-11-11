@@ -222,7 +222,7 @@ export function useComposerChips(core: RunSessionCore) {
   return {
     chipOverrides, carryPicks,
     accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
-    accountUsage,
+    accountUsage, usageSnapshots, usageThresholds, loadUsage,
     modeValue, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,

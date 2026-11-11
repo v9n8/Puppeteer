@@ -42,6 +42,9 @@ import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
 import type { RunHeaderInfo } from './useRunHeaderInfo'
 import { useComposerChips } from './useComposerChips'
+import { useConfirm } from '@/composables/useConfirm'
+import { useToast } from '@/composables/useToast'
+import { quotaSwitchTargets, type QuotaSwitchAccount } from '@/lib/quotaSwitch'
 
 interface PendingImage extends ImageAttachment {
   id: string
@@ -84,6 +87,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   } = header
   // Permission mode / effort / style chips (UX-26); their picks join every launch below.
   const chips = useComposerChips(core)
+  const { choose } = useConfirm()
+  const { dismiss: dismissToast } = useToast()
 
   const runSettingsOpen = ref(false)
   const runSettingsRoot = ref<HTMLElement | null>(null)
@@ -205,9 +210,26 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // user's message or flips a run into "running". Returns the override flag to
   // pass to the backend (false = under budget, true = user chose to proceed
   // anyway), or `null` when the user declines — in which case the caller must
-  // abort without touching the timeline.
+  // abort without touching the timeline. When another account of the engine is
+  // still under its quota, the dialog offers to move the session to it first
+  // (UX-48); the send then goes out on that account.
   async function preflightBudget(engine: string): Promise<boolean | null> {
     if (!(await budgetIsOver(engine))) return false
+    const runId = currentRunId.value
+    const target = await quotaSwitchTarget(engine)
+    if (runId && target) {
+      const choice = await choose({
+        title: t('run.budgetExceededTitle'),
+        message: t('run.quotaSwitch.message', { account: target.label }),
+        confirmLabel: t('run.quotaSwitch.continueOn', { account: target.label }),
+        altLabel: t('run.quotaSwitch.stay'),
+        variant: 'primary',
+      })
+      if (choice === 'alt') return true
+      if (choice !== 'confirm' || !(await switchRunAccount(runId, engine, target.value))) return null
+      // The guard now reads the new account.
+      return preflightBudget(engine)
+    }
     const proceed = await confirm({
       title: t('run.budgetExceededTitle'),
       message: t('run.budgetConfirmMessage'),
@@ -504,22 +526,65 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   async function handleAccountChange(value: string) {
     const run = currentRun.value
-    if (!run || savingAccount.value) return
+    if (!run) return
     const next = value.trim() || null
     const codex = effectiveEngine.value === 'codex'
     if (((codex ? run.codex_account_id : run.claude_account_id) ?? null) === next) return
+    await switchRunAccount(run.id, codex ? 'codex' : 'claude', next ?? '')
+  }
+
+  // Put run `runId` on another `engine` account ('' = the Default tier for
+  // Claude, the shared login for Codex). False when it did not change.
+  async function switchRunAccount(runId: string, engine: string, value: string): Promise<boolean> {
+    if (savingAccount.value) return false
+    const codex = engine === 'codex'
     const keys = codex
       ? ['run.codexAccountUpdated', 'run.codexAccountUpdatedNextTurn', 'run.codexAccountUpdateFailed']
       : ['run.claudeAccountUpdated', 'run.claudeAccountUpdatedNextTurn', 'run.claudeAccountUpdateFailed']
     savingAccount.value = true
     try {
-      await (codex ? runsStore.setRunCodexAccount(run.id, next) : runsStore.setRunClaudeAccount(run.id, next))
-      toast.success(t(currentStatus.value === 'running' ? keys[1] : keys[0]))
+      await (codex ? runsStore.setRunCodexAccount(runId, value || null) : runsStore.setRunClaudeAccount(runId, value || null))
+      const status = runId === currentRunId.value ? currentStatus.value : runsStore.runs.find((r) => r.id === runId)?.status
+      toast.success(t(status === 'running' ? keys[1] : keys[0]))
+      return true
     } catch (e) {
       toast.error(t(keys[2], { error: String(e) }))
+      return false
     } finally {
       savingAccount.value = false
     }
+  }
+
+  // ── Quota reached: offer another account (UX-48) ──────────────────────────
+  // The usage row of the account this session runs `engine` on, as the chip
+  // shows it: its own pick, else the project/global default for Claude, the
+  // shared login for Codex.
+  function runUsageKey(engine: string): string {
+    const run = currentRun.value
+    if (engine === 'codex') return run?.codex_account_id ? `codex:${run.codex_account_id}` : 'codex'
+    const id = run?.claude_account_id || effectiveProjectClaudeAccountId.value
+    return id ? `claude:${id}` : 'claude'
+  }
+
+  // The least used account of `engine` still under its quota, to move this
+  // session to; null when there is none. Only the run's own engine: the
+  // account setters refuse another one (e.g. ahead of a handoff).
+  async function quotaSwitchTarget(engine: string): Promise<QuotaSwitchAccount | null> {
+    if (!currentRun.value || currentRun.value.engine !== engine) return null
+    const accounts: QuotaSwitchAccount[] = engine === 'codex'
+      ? [
+          { value: '', label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' },
+          ...codexStore.accounts.map((acc) => ({ value: acc.id, label: acc.label, usageKey: `codex:${acc.id}` })),
+        ]
+      : claudeStore.accounts.map((acc) => ({ value: acc.id, label: acc.label, usageKey: `claude:${acc.id}` }))
+    const currentKey = runUsageKey(engine)
+    const others = accounts.filter((acc) => acc.usageKey !== currentKey)
+    if (!others.length) return null
+    await Promise.all(others.map((acc) => chips.loadUsage(acc.usageKey)))
+    const targets = quotaSwitchTargets(
+      accounts, currentKey, chips.usageSnapshots.value, chips.usageThresholds.value, Date.now(),
+    )
+    return targets[0] ?? null
   }
 
   // ── Pasted / attached images in the composer ──────────────────────────────
@@ -1561,8 +1626,40 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     else if (result === 'failed') queueStore.requeue(runId, item, 'failed')
   }
   onUnmounted(live.onAnyDone((runId, _projectId, status) => {
-    if (runId === currentRunId.value) void drainQueue(runId, status)
+    if (runId !== currentRunId.value) return
+    void drainQueue(runId, status)
+    void offerQuotaSwitch(runId, status)
   }))
+
+  // A turn of the run on screen ended with its account over the quota: the
+  // turn tipped it over (`run:budget_exceeded`), or the quota stop cancelled
+  // the session (UX-14). Offer to move the session to another account and send
+  // the message the quota holds in the queue (UX-48). Only the window that
+  // drains the queue asks, so a pop-out doesn't ask twice.
+  let quotaToastId: number | null = null
+  async function offerQuotaSwitch(runId: string, status: string) {
+    if (status !== 'done' && status !== 'cancelled') return
+    if (!(await ownsQueue(runId))) return
+    const engine = loadedRunEngine.value || currentRun.value?.engine || effectiveEngine.value
+    if (!(await budgetIsOver(engine))) return
+    const target = await quotaSwitchTarget(engine)
+    if (!target || currentRunId.value !== runId) return
+    if (quotaToastId !== null) dismissToast(quotaToastId)
+    const waiting = queueStore.get(runId).items.length > 0
+    quotaToastId = toast.info(t('run.quotaSwitch.toast'), 15000, {
+      label: waiting
+        ? t('run.quotaSwitch.continueOn', { account: target.label })
+        : t('run.quotaSwitch.switchTo', { account: target.label }),
+      run: () => void switchAndContinue(runId, engine, target),
+    })
+  }
+
+  async function switchAndContinue(runId: string, engine: string, target: QuotaSwitchAccount) {
+    if (!(await switchRunAccount(runId, engine, target.value))) return
+    // While a turn still runs, drainQueue sends it once that turn ends.
+    const first = queueStore.get(runId).items[0]
+    if (first && currentRunId.value === runId && currentStatus.value !== 'running') await sendQueuedNow(first.id)
+  }
 
   // A chip's Send: now, as a follow-up. While a turn runs the engine starts it
   // right after that turn, as a typed Send used to.

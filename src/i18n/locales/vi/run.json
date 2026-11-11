@@ -225,6 +225,13 @@
     "modelRunning": "Chọn model sau khi lượt này kết thúc.",
     "sharedCodexLogin": "Login Codex chung"
   },
+  "quotaSwitch": {
+    "message": "Tài khoản của session này đã vượt ngân sách (plan) cho chu kỳ hiện tại.\n{account} vẫn còn dưới giới hạn.",
+    "continueOn": "Chuyển sang {account} và tiếp tục",
+    "switchTo": "Chuyển sang {account}",
+    "stay": "Vẫn dùng tài khoản này",
+    "toast": "Tài khoản của session này đã chạm giới hạn quota. Lượt mới đang bị chặn."
+  },
   "chipMode": "Chế độ quyền",
   "chipModeShort": {
     "default": "Hỏi",

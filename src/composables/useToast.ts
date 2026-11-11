@@ -12,10 +12,17 @@ import { reactive } from 'vue'
 
 export type ToastVariant = 'success' | 'error' | 'info'
 
+/** A button on the toast; pressing it runs `run` and closes the toast. */
+export interface ToastAction {
+  label: string
+  run: () => void
+}
+
 export interface ToastItem {
   id: number
   message: string
   variant: ToastVariant
+  action?: ToastAction
 }
 
 const state = reactive<{ items: ToastItem[] }>({ items: [] })
@@ -32,9 +39,9 @@ function dismiss(id: number) {
   }
 }
 
-function show(message: string, variant: ToastVariant, duration: number): number {
+function show(message: string, variant: ToastVariant, duration: number, action?: ToastAction): number {
   const id = ++seq
-  state.items.push({ id, message, variant })
+  state.items.push({ id, message, variant, action })
   if (duration > 0) {
     timers.set(id, setTimeout(() => dismiss(id), duration))
   }
@@ -54,7 +61,7 @@ const toast = {
     show(message, variant, duration),
   success: (message: string, duration = 2500) => show(message, 'success', duration),
   error: (message: string, duration = 4000) => show(message, 'error', duration),
-  info: (message: string, duration = 2500) => show(message, 'info', duration),
+  info: (message: string, duration = 2500, action?: ToastAction) => show(message, 'info', duration, action),
 }
 
 export function useToast() {
