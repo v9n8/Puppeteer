@@ -234,7 +234,7 @@ pub struct ResolvedStyle {
 
 /// The text of style `key` as usable in `project_id`: a built-in, a global
 /// style, or a style of that project. `None` when there is no such style.
-async fn lookup(db: &Db, project_id: &str, key: &str) -> Option<ResolvedStyle> {
+pub(crate) async fn lookup(db: &Db, project_id: &str, key: &str) -> Option<ResolvedStyle> {
     if let Some(body) = builtin_body(key) {
         return Some(ResolvedStyle { key: key.to_string(), body: Some(body.to_string()).filter(|b| !b.is_empty()) });
     }
@@ -330,11 +330,12 @@ pub fn compose_append(parts: &[Option<&str>]) -> Option<String> {
     }
 }
 
-/// One-time block for a RESUMED Codex thread whose style changed since its
-/// developer instructions were set (Codex ignores them on `thread/resume`), to
-/// prepend to the next turn. `previous`: the run's stored `runs.style`.
+/// One-time block for a RESUMED session whose style changed since its last
+/// turn, to prepend to the next message: Codex ignores developer instructions on
+/// `thread/resume`, and Claude resumes with the system prompt of its first turn
+/// (`runs::claude_prompt`). `previous`: the run's stored `runs.style`.
 /// `None` when the effective style did not change.
-pub fn codex_style_seed(previous: Option<&str>, next: Option<&ResolvedStyle>) -> Option<String> {
+pub fn style_change_seed(previous: Option<&str>, next: Option<&ResolvedStyle>) -> Option<String> {
     let previous = previous.map(str::trim).filter(|k| !k.is_empty() && *k != DEFAULT_STYLE_KEY);
     let next_body = next.and_then(|s| s.body.as_deref().map(|b| (s.key.as_str(), b)));
     if previous == next_body.map(|(k, _)| k) {
@@ -519,21 +520,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn codex_seed_only_when_the_style_changed() {
+    fn seed_only_when_the_style_changed() {
         let s = |key: &str, body: Option<&str>| ResolvedStyle { key: key.into(), body: body.map(str::to_string) };
         let concise = s("concise", Some("Be short."));
         let none = s("default", None);
         // Unchanged (also "no style" spelled three ways).
-        assert_eq!(codex_style_seed(Some("concise"), Some(&concise)), None);
-        assert_eq!(codex_style_seed(None, None), None);
-        assert_eq!(codex_style_seed(Some("default"), Some(&none)), None);
-        assert_eq!(codex_style_seed(None, Some(&none)), None);
+        assert_eq!(style_change_seed(Some("concise"), Some(&concise)), None);
+        assert_eq!(style_change_seed(None, None), None);
+        assert_eq!(style_change_seed(Some("default"), Some(&none)), None);
+        assert_eq!(style_change_seed(None, Some(&none)), None);
         // New or changed style: the block, wrapped like the framing seed.
-        let seed = codex_style_seed(Some("code_review"), Some(&concise)).unwrap();
+        let seed = style_change_seed(Some("code_review"), Some(&concise)).unwrap();
         assert!(seed.starts_with("<session-framing>") && seed.contains("Be short.") && seed.ends_with("</session-framing>"));
-        assert!(codex_style_seed(None, Some(&concise)).is_some());
+        assert!(style_change_seed(None, Some(&concise)).is_some());
         // Style dropped.
-        let dropped = codex_style_seed(Some("concise"), Some(&none)).unwrap();
+        let dropped = style_change_seed(Some("concise"), Some(&none)).unwrap();
         assert!(dropped.contains("no longer applies"));
         assert_eq!(crate::conductor::strip_session_framing(&format!("{seed}\n\nhello")), "hello");
     }

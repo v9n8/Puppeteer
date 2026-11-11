@@ -232,6 +232,7 @@ struct Source {
     effort: Option<String>,
     system_instruction: Option<String>,
     framing_seeded: i64,
+    claude_append: Option<String>,
     role: Option<String>,
     conductor_run_id: Option<String>,
     deleted_at: Option<String>,
@@ -250,7 +251,7 @@ pub(crate) async fn fork(db: &Db, registry: &RunRegistry, run_id: &str, at_offse
     let src: Source = sqlx::query_as(
         "SELECT r.project_id, r.repo_id, r.type, r.ref_number, r.status, r.engine, r.model, r.input_path, r.output_path,
                 r.session_id, r.transcript_path, r.claude_account_id, r.title, r.style, r.effort, r.system_instruction,
-                r.framing_seeded, r.role, r.conductor_run_id, r.deleted_at, p.path AS project_path
+                r.framing_seeded, r.claude_append, r.role, r.conductor_run_id, r.deleted_at, p.path AS project_path
          FROM runs r JOIN projects p ON p.id = r.project_id WHERE r.id = ?",
     )
     .bind(run_id)
@@ -372,9 +373,9 @@ async fn save(
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
     sqlx::query(
         "INSERT INTO runs (id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path,
-                           claude_account_id, title, style, effort, system_instruction, framing_seeded,
+                           claude_account_id, title, style, effort, system_instruction, framing_seeded, claude_append,
                            started_at, finished_at, created_at, last_activity_at, forked_from_run_id, forked_at)
-         VALUES (?, ?, ?, ?, ?, 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(&src.project_id)
@@ -391,6 +392,7 @@ async fn save(
     .bind(&src.effort)
     .bind(&src.system_instruction)
     .bind(src.framing_seeded)
+    .bind(&src.claude_append)
     .bind(now)
     .bind(now)
     .bind(now)
@@ -655,9 +657,9 @@ mod tests {
             .unwrap();
         sqlx::query(
             "INSERT INTO runs (id, project_id, type, status, engine, model, session_id, transcript_path, title, style, effort,
-                               system_instruction, framing_seeded, created_at, finished_at, pinned, protected)
+                               system_instruction, framing_seeded, claude_append, created_at, finished_at, pinned, protected)
              VALUES ('src', 'p1', 'session', 'done', 'claude', 'claude-opus-4-8', 's1', '/t/s1.jsonl', 'Refactor', 'concise', 'xhigh',
-                     'be brief', 1, 'c', 'f', 1, 1)",
+                     'be brief', 1, 'ACCOUNT', 'c', 'f', 1, 1)",
         )
         .execute(&db)
         .await
@@ -715,6 +717,13 @@ mod tests {
             (engine.as_str(), model.as_deref(), effort.as_deref(), instruction.as_deref(), seeded, pinned),
             ("claude", Some("claude-opus-4-8"), Some("xhigh"), Some("be brief"), 1, 0)
         );
+        // The copied session goes on with the system prompt it started with.
+        let append: Option<String> = sqlx::query_scalar("SELECT claude_append FROM runs WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&f.db)
+            .await
+            .unwrap();
+        assert_eq!(append.as_deref(), Some("ACCOUNT"));
         assert_eq!(out.run.effort.as_deref(), Some("xhigh"));
         assert!(forked_at.is_some());
 

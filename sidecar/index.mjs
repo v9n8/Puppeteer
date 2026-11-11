@@ -98,7 +98,7 @@ process.stdout.on('error', (err) => {
 // servers it spawns). PUPPETEER_MCP_SERVERS holds no secret (servers fetch theirs
 // from the broker), but it is still this process's input only.
 const SIDECAR_ENV = {}
-for (const k of ['PUPPETEER_MCP_SERVERS', 'PUPPETEER_ALLOWED_TOOLS', 'PUPPETEER_APPEND_SYSTEM_PROMPT']) {
+for (const k of ['PUPPETEER_MCP_SERVERS', 'PUPPETEER_ALLOWED_TOOLS', 'PUPPETEER_APPEND_SYSTEM_PROMPT', 'PUPPETEER_SEED_STYLE']) {
   SIDECAR_ENV[k] = process.env[k]
   delete process.env[k]
 }
@@ -359,6 +359,11 @@ const pendingUsageCaptures = new Set()
 
 function startQuery(firstText, opts = {}, firstImages) {
   inputQueue = new MessageQueue()
+  // A resumed session keeps the system prompt of its first turn, so a response
+  // style changed since then comes as a block before this message (the
+  // broker's <session-framing> text, the same as Codex gets).
+  const styleSeed = SIDECAR_ENV.PUPPETEER_SEED_STYLE
+  if (styleSeed) firstText = firstText ? `${styleSeed}\n\n${firstText}` : styleSeed
   inputQueue.push(userMessage(firstText, firstImages))
 
   // Auto-allowed tools (e.g. a conductor's own `mcp__conductor`). Bare names are
@@ -486,15 +491,16 @@ function startQuery(firstText, opts = {}, firstImages) {
   // preset system prompt and APPEND our context (a plain string would replace
   // the whole prompt and lose tool guidance).
   // Resume fallback: a resumed first prompt carries no options, so the broker
-  // passes the conductor framing via PUPPETEER_APPEND_SYSTEM_PROMPT (the SDK does not
-  // persist an appended system prompt across a resume).
+  // passes the append via PUPPETEER_APPEND_SYSTEM_PROMPT: the one the session's
+  // first turn had, byte for byte (AC-06).
+  // `snapshot`: the SDK records the first turn's prompt and sends that on every
+  // later turn and resume (a no-op where the account does not have it yet).
+  // A tool-less side task (noTools) stays on the SDK's own default prompt: the
+  // coding preset would only add tokens to it.
   const appendSystemPrompt = opts.appendSystemPrompt || SIDECAR_ENV.PUPPETEER_APPEND_SYSTEM_PROMPT
-  if (appendSystemPrompt) {
-    options.systemPrompt = {
-      type: 'preset',
-      preset: 'claude_code',
-      append: String(appendSystemPrompt),
-    }
+  if (appendSystemPrompt || opts.noTools !== true) {
+    options.systemPrompt = { type: 'preset', preset: 'claude_code', snapshot: true }
+    if (appendSystemPrompt) options.systemPrompt.append = String(appendSystemPrompt)
   }
   if (opts.noTools === true) applyNoTools(options)
   // 'warning' mode additionally polls /usage on an interval WHILE a run streams

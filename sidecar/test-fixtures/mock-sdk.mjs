@@ -20,10 +20,10 @@ export function query({ prompt, options }) {
   }
 
   async function* run() {
-    await input.next() // the first user prompt
+    const first = await input.next() // the first user prompt
     if (scenario === 'throw') throw new Error('mock CLI crashed')
-    // Echo the (JSON-safe) options so tests can assert what reached the SDK.
-    yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function' }
+    // Echo the (JSON-safe) options and the first prompt so tests can assert what reached the SDK.
+    yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function', mock_first_input: first.value }
     if (scenario === 'echo') {
       for (let next = await input.next(); !next.done; next = await input.next()) {
         yield { type: 'mock_echo', mock_input: next.value }

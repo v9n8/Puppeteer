@@ -129,6 +129,8 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
                     continue;
                 }
                 let Some(msg) = v.get("message") else { continue };
+                let stripped = if t == "user" { without_session_framing(msg) } else { None };
+                let msg = stripped.as_ref().unwrap_or(msg);
                 // Drop local-command noise: the `<local-command-caveat>` meta line
                 // and the `<command-name>…</command-name>` wrapper Claude Code
                 // writes for a bare slash command (e.g. `/usage`). On their own
@@ -208,6 +210,28 @@ pub(crate) fn title_from_first_message(first: Option<&str>) -> String {
     } else {
         t
     }
+}
+
+/// `msg` without the `<session-framing>` block Puppeteer put before a resumed
+/// message (a changed response style, `runs::claude_prompt`): it is not the
+/// user's words. `None` when the message has none. Images ride after the text,
+/// so only the first text is checked.
+fn without_session_framing(msg: &Value) -> Option<Value> {
+    let text = message_text(msg)?;
+    let kept = crate::conductor::strip_session_framing(&text);
+    if kept.len() == text.len() {
+        return None;
+    }
+    let mut msg = msg.clone();
+    let slot = match msg.get_mut("content")? {
+        Value::Array(blocks) => blocks
+            .iter_mut()
+            .find(|b| b.get("type").and_then(|v| v.as_str()) == Some("text"))?
+            .get_mut("text")?,
+        content => content,
+    };
+    *slot = Value::String(kept.to_string());
+    Some(msg)
 }
 
 /// Pull the first text block (or plain-string content) out of a transcript
@@ -686,6 +710,28 @@ mod tests {
         assert_eq!(p.usage.cache_read, 2);
         assert!(p.title.contains("Hello"));
         assert_eq!(p.log.lines().count(), 2);
+        let _ = fs::remove_file(&f);
+    }
+
+    #[test]
+    fn parse_transcript_drops_a_style_seed_before_a_resumed_message() {
+        let seed = crate::commands::response_styles::style_change_seed(None, Some(&crate::commands::response_styles::ResolvedStyle {
+            key: "concise".into(),
+            body: Some("Be short.".into()),
+        }))
+        .unwrap();
+        let user = |content: Value| serde_json::json!({ "type": "user", "cwd": "/proj", "message": { "role": "user", "content": content } }).to_string();
+        let content = [
+            user(Value::String(format!("{seed}\n\nHello there"))),
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hi"}]}}"#.to_string(),
+            user(serde_json::json!([{ "type": "text", "text": format!("{seed}\n\nLook") }, { "type": "image", "source": {} }])),
+        ]
+        .join("\n");
+        let f = temp_file("seed", &content);
+        let p = parse_transcript(&f, "/proj").unwrap();
+        assert!(!p.log.contains("session-framing"), "seed leaked: {}", p.log);
+        assert!(p.log.contains(r#""content":"Hello there""#) && p.log.contains(r#""text":"Look""#));
+        assert!(p.title.starts_with("Hello"));
         let _ = fs::remove_file(&f);
     }
 

@@ -190,6 +190,8 @@ const tests = {
     assert.deepEqual(o.skills, [])
     assert.equal(o.strictMcpConfig, true)
     assert.equal(o.permissionMode, 'dontAsk')
+    // Left on the SDK's own default prompt, not the coding preset.
+    assert.equal(o.systemPrompt, undefined)
     assert.equal(init.mock_has_can_use_tool, true)
     assert.equal(of(messages, '_puppeteer_permission_request').length, 0)
     const result = of(messages, 'result')[0]
@@ -311,10 +313,12 @@ const tests = {
 
   // Response style (UX-17): the broker composes one append (account context,
   // framing, style). It reaches the SDK on the preset prompt, and on a resume
-  // (first prompt without options) from PUPPETEER_APPEND_SYSTEM_PROMPT.
+  // (first prompt without options) from PUPPETEER_APPEND_SYSTEM_PROMPT — the
+  // first turn's text as it is (AC-06), recorded by the SDK (`snapshot`).
   async 'response style reaches the appended system prompt, also on resume'() {
     const style = '<response-style>\nBe short.\n</response-style>'
-    const initOptions = async (options, env = {}) => {
+    const append = `ACCOUNT\n\nFRAMING\n\n${style}`
+    const initOf = async (options, env = {}) => {
       const { messages } = await runSidecar('permission', (msg, ctl) => {
         if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', ...(options ? { options } : {}) })
         if (msg.type === '_puppeteer_permission_request') {
@@ -322,14 +326,32 @@ const tests = {
           ctl.closeInput()
         }
       }, 10_000, env)
-      return messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+      return messages.find((m) => m.type === 'system' && m.subtype === 'init')
     }
-    const started = await initOptions({ permissionMode: 'default', appendSystemPrompt: `ACCOUNT\n\nFRAMING\n\n${style}` })
-    assert.deepEqual(started.systemPrompt, { type: 'preset', preset: 'claude_code', append: `ACCOUNT\n\nFRAMING\n\n${style}` })
-    const resumed = await initOptions(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_APPEND_SYSTEM_PROMPT: `FRAMING\n\n${style}` })
+    const started = (await initOf({ permissionMode: 'default', appendSystemPrompt: append })).mock_options
+    assert.deepEqual(started.systemPrompt, { type: 'preset', preset: 'claude_code', snapshot: true, append })
+    const resumed = (await initOf(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_APPEND_SYSTEM_PROMPT: append })).mock_options
     assert.equal(resumed.resume, 'sess-1')
-    assert.ok(resumed.systemPrompt.append.endsWith(style))
-    assert.equal(resumed.systemPrompt.preset, 'claude_code')
+    assert.deepEqual(resumed.systemPrompt, started.systemPrompt)
+    // Nothing to append: still the recorded preset.
+    const plain = (await initOf({ permissionMode: 'default' })).mock_options
+    assert.deepEqual(plain.systemPrompt, { type: 'preset', preset: 'claude_code', snapshot: true })
+
+    // A style changed since: a block before the first message; the system
+    // prompt stays as it was. Only the first message gets it.
+    const seed = '<session-framing>\nThe response style of this session changed.\n</session-framing>'
+    const seeded = await initOf(null, { PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_APPEND_SYSTEM_PROMPT: append, PUPPETEER_SEED_STYLE: seed })
+    assert.deepEqual(seeded.mock_options.systemPrompt, started.systemPrompt)
+    assert.equal(seeded.mock_first_input.message.content, `${seed}\n\ngo`)
+    assert.equal((await initOf(null, { PUPPETEER_RESUME_SESSION: 'sess-1' })).mock_first_input.message.content, 'go')
+    const { messages } = await runSidecar('echo', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'one' })
+      if (msg.type === 'system' && msg.subtype === 'init') {
+        ctl.send({ type: 'prompt', text: 'two' })
+        ctl.closeInput()
+      }
+    }, 10_000, { PUPPETEER_SEED_STYLE: seed })
+    assert.deepEqual(of(messages, 'mock_echo').map((m) => m.mock_input.message.content), ['two'])
   },
 
   // Steer (D4-06): a steer reaches the SDK as a user message with priority

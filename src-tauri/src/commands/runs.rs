@@ -564,12 +564,16 @@ pub(crate) async fn start_run_inner(
             }
             // Combine the git-account context, any caller-supplied system prompt
             // (the Conductor's orchestration framing) and the response style
-            // into one append.
-            if let Some(append) = crate::commands::response_styles::compose_append(&[
+            // into one append, recorded for this session's resumes.
+            if let Some(append) = crate::runs::claude_prompt::compose_and_record(
+                &db_pool,
+                &payload.run_id,
                 account_context.as_deref(),
                 extra_system_prompt.as_deref(),
                 style_block.as_deref(),
-            ]) {
+            )
+            .await
+            {
                 options["appendSystemPrompt"] = serde_json::Value::String(append);
             }
             if auto_allow_conductor_tools {
@@ -4372,8 +4376,9 @@ pub(crate) async fn resume_run_with(
     }
 
     // A resumed top-level run is (or becomes) a conductor: re-inject its
-    // `conductor` MCP server + framing on BOTH engines — neither the Claude SDK
-    // nor Codex keeps an appended system prompt across a resume. Workers get None.
+    // `conductor` MCP server on BOTH engines. The framing is sent again too: on
+    // Claude inside the session's recorded append (runs::claude_prompt), on
+    // Codex for a new thread or as a one-time seed. Workers get None.
     let cst = app.try_state::<crate::conductor::ConductorState>();
     let crate::conductor::commands::ResumeFraming {
         launch: conductor_launch,
@@ -4654,7 +4659,7 @@ pub(crate) async fn resume_run_with(
             // The thread keeps the style of its developer instructions; only a
             // changed style is seeded, the same way (prepended to the next turn).
             if let Some(seed) =
-                crate::commands::response_styles::codex_style_seed(previous_style.as_deref(), style.as_ref())
+                crate::commands::response_styles::style_change_seed(previous_style.as_deref(), style.as_ref())
             {
                 cmd.env("PUPPETEER_CODEX_SEED_STYLE", seed);
             }
@@ -4698,14 +4703,22 @@ pub(crate) async fn resume_run_with(
         if !mcp.is_null() {
             cmd.env("PUPPETEER_MCP_SERVERS", mcp.to_string());
         }
-        // Sidecar fallbacks for a resumed first prompt that carries no options:
-        // the Claude SDK does not persist an appended system prompt, so the
-        // framing (session framing and/or a worker's instruction) and the
-        // response style are re-sent on every resume.
-        if let Some(append) =
-            crate::commands::response_styles::compose_append(&[None, framing.as_deref(), style_block.as_deref()])
+        // A resumed first prompt carries no options: the sidecar takes the
+        // append from env. It is the session's first-turn append, byte for byte,
+        // so the system prompt is the same on every turn; a changed style is
+        // seeded before the next message instead (runs::claude_prompt).
+        for (key, value) in crate::runs::claude_prompt::resume_env(
+            db.inner(),
+            &run_id,
+            &project_id,
+            resume_session,
+            framing.as_deref(),
+            previous_style.as_deref(),
+            style.as_ref(),
+        )
+        .await
         {
-            cmd.env("PUPPETEER_APPEND_SYSTEM_PROMPT", append);
+            cmd.env(key, value);
         }
         if conductor_launch.is_some() && sdk_permission_mode(&permission_mode) != "bypassPermissions" {
             cmd.env(
