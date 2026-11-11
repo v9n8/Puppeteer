@@ -1,7 +1,7 @@
 // The left rail: fetch an issue / PR by URL, the session History list (search,
 // density, row helpers) and the per-run actions shared with the header ⋯ menu.
 // Part of the RunView split (see useRunSession.ts).
-import { ref, computed, nextTick, type ComponentPublicInstance } from 'vue'
+import { ref, computed, nextTick, watch, type ComponentPublicInstance } from 'vue'
 import type { Repo } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -11,6 +11,7 @@ import {
   formatRunTimestamp, relativeAge, runStatusColorClass, runStatusIcon, shortModelId,
 } from '@/lib/runDisplay'
 import { openFileWindow } from '@/lib/fileWindow'
+import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -36,7 +37,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     conductorIdsWithRunningWorker,
   } = conductor
   const {
-    popoutSession, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
+    popoutSession, sessionListEl, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
     loadInputContent, clearHistoryView, forking, forkRun,
   } = log
 
@@ -228,6 +229,23 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     }
     return out
   })
+
+  // One page of rows at a time (UX-62): a project can hold hundreds of sessions.
+  // The page holding the open session follows it (click, deep link, a new
+  // session at the top); a new search starts from page 1. Counts and "Clear all"
+  // still work on the whole list.
+  const historyPage = ref(1)
+  const pagedRuns = computed(() => pageSlice(displayRuns.value, historyPage.value))
+  watch(sessionSearch, () => { historyPage.value = 1 })
+  // Also once the list has loaded: a deep link sets the session before its rows arrive.
+  watch([currentRunId, () => runsStore.loading], ([id]) => {
+    const page = pageOfIndex(displayRuns.value.findIndex((d) => d.run.id === id))
+    if (page) historyPage.value = page
+  }, { immediate: true })
+  function goToHistoryPage(page: number) {
+    historyPage.value = pageSlice(displayRuns.value, page).page
+    sessionListEl.value?.scrollTo({ top: 0 })
+  }
 
   // Ids of conductors the user has protected. Protection cascades to their
   // workers for "Clear all" (the bulk cleanup keeps them), so we badge those
@@ -648,7 +666,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
     runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
-    runTimestamp, sessionSearch, filteredRuns, displayRuns, isProtectedByConductor, pendingRequest,
+    runTimestamp, sessionSearch, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
     runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId,
     renameDraft, setRenameInputRef, cancelRename, commitRename, renameViaPrompt, runActionProps,
     runActionHandlers, handleClearAllRuns, handleRefInput,

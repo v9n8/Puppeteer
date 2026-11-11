@@ -926,13 +926,13 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // Ordered by last activity, not creation: a session resumed today belongs at
     // the top even if its row is months old. The COALESCE is also what the row
     // reports as `last_activity_at`, so the list and the timestamp the UI prints
-    // can never disagree.
+    // can never disagree. No row cap: the list pages itself (UX-62), and a cap
+    // would hide a project's oldest sessions without a word.
     let rows = sqlx::query(
         "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
-         ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC
-         LIMIT 500"
+         ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC"
     )
     .bind(project_id)
     .fetch_all(db)
@@ -2405,5 +2405,31 @@ mod tests {
         let got: Vec<(&str, Option<&str>, Option<&str>)> =
             runs.iter().map(|r| (r.id.as_str(), r.style.as_deref(), r.effort.as_deref())).collect();
         assert_eq!(got, [("r2", None, None), ("r1", Some("concise"), Some("high"))]);
+    }
+
+    /// History lists every session of a project, however many (it used to stop at 500).
+    #[tokio::test]
+    async fn list_runs_has_no_row_cap() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        for i in 0..520 {
+            sqlx::query("INSERT INTO runs (id, project_id, type, created_at) VALUES (?, 'p1', 'session', ?)")
+                .bind(format!("r{i}"))
+                .bind(format!("2026-01-01T00:{:02}:{:02}", i / 60, i % 60))
+                .execute(&db)
+                .await
+                .unwrap();
+        }
+        let runs = super::list_runs_inner(&db, "p1").await.unwrap();
+        assert_eq!(runs.len(), 520);
+        assert_eq!(runs[0].id, "r519");
     }
 }

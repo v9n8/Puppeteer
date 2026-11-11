@@ -7,6 +7,7 @@ import { runActivityAt } from '@/stores/runs'
 import {
   GitPullRequest, Bug, Clock, MessageSquare, Trash2, X, ShieldQuestion, MessageCircleQuestion, Pin,
   Shield, Pencil, Check, FolderTree, MoreHorizontal, Search, Network, Plus, ArrowUpDown,
+  ChevronLeft, ChevronRight,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
 import FileTree from '@/components/FileTree.vue'
@@ -20,7 +21,7 @@ const {
   leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
   runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
-  runTimestamp, sessionSearch, filteredRuns, displayRuns, isProtectedByConductor, pendingRequest,
+  runTimestamp, sessionSearch, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
   handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId, renameDraft,
   setRenameInputRef, cancelRename, commitRename, runActionProps, runActionHandlers,
   handleClearAllRuns, handleRefInput, creatingSession, handleNewSession, openFile,
@@ -210,7 +211,7 @@ const {
         </div>
         <div
           v-else
-          v-for="{ run } in displayRuns"
+          v-for="{ run } in pagedRuns.items"
           :key="run.id"
           :data-run-id="run.id"
           class="group relative border-b border-border/30 transition-colors hover:bg-accent/40 focus-within:bg-accent/40"
@@ -423,6 +424,35 @@ const {
             </Button>
           </div>
         </div>
+      </div>
+      <!-- Pager (UX-62): only shown once there is more than one page. -->
+      <div
+        v-if="pagedRuns.totalPages > 1"
+        class="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-2 py-1"
+      >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :disabled="pagedRuns.page <= 1"
+          :title="t('run.historyPrevPage')"
+          :aria-label="t('run.historyPrevPage')"
+          @click="goToHistoryPage(pagedRuns.page - 1)"
+        >
+          <ChevronLeft class="h-3.5 w-3.5" :stroke-width="2" />
+        </Button>
+        <span class="text-2xs tabular-nums text-muted-foreground">
+          {{ t('run.historyPageOf', { page: pagedRuns.page, total: pagedRuns.totalPages }) }}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :disabled="pagedRuns.page >= pagedRuns.totalPages"
+          :title="t('run.historyNextPage')"
+          :aria-label="t('run.historyNextPage')"
+          @click="goToHistoryPage(pagedRuns.page + 1)"
+        >
+          <ChevronRight class="h-3.5 w-3.5" :stroke-width="2" />
+        </Button>
       </div>
     </div>
 
