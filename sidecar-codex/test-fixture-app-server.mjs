@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
-// tests), with PUPPETEER_FIXTURE_USAGE for test-usage.mjs and
-// test-turn-outcome.mjs, with PUPPETEER_FIXTURE_RPC for test-rpc-timeout.mjs,
-// with PUPPETEER_FIXTURE_ITEMS for test-items.mjs, and with
+// tests), with PUPPETEER_FIXTURE_USAGE for test-usage.mjs,
+// test-turn-outcome.mjs and test-max-turns.mjs, with PUPPETEER_FIXTURE_RPC for
+// test-rpc-timeout.mjs, with PUPPETEER_FIXTURE_ITEMS for test-items.mjs, and with
 // PUPPETEER_FIXTURE_USER_INPUT for test-user-input.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
@@ -48,8 +48,13 @@ function send(message) {
 // reply, or with `replayLate` after the first turn/start reply); turn N plays
 // turns[N]: refused, or turn/started + its usage updates + its `error`
 // notifications + turn/completed (with `status`, default completed, and `error`).
+// A turn with `everyMs` sends its updates that far apart instead, round and
+// round up to `maxUpdates` (default 40), and a turn/interrupt ends it
+// `interrupted` (test-max-turns.mjs).
 const usageScript = process.env.PUPPETEER_FIXTURE_USAGE ? JSON.parse(process.env.PUPPETEER_FIXTURE_USAGE) : null
 let usageTurn = 0
+// The paced turn in flight: its id and timer.
+let pacedTurn = null
 const replayUsage = () => send({
   jsonrpc: '2.0',
   method: 'thread/tokenUsage/updated',
@@ -71,6 +76,26 @@ function handleUsage(message) {
     const turn = { id: `turn-${n}` }
     send({ jsonrpc: '2.0', id: message.id, result: { turn } })
     if (n === 0 && usageScript.replay && usageScript.replayLate) replayUsage()
+    if (script.everyMs) {
+      send({ jsonrpc: '2.0', method: 'turn/started', params: { threadId: 'fixture-thread', turn } })
+      const updates = script.updates || []
+      let sent = 0
+      const finish = (status) => {
+        clearInterval(pacedTurn.timer)
+        pacedTurn = null
+        send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { ...turn, status } } })
+      }
+      pacedTurn = {
+        id: turn.id,
+        finish,
+        timer: setInterval(() => {
+          if (sent >= (script.maxUpdates ?? 40)) return finish('completed')
+          const tokenUsage = updates[sent++ % updates.length]
+          send({ jsonrpc: '2.0', method: 'thread/tokenUsage/updated', params: { threadId: 'fixture-thread', turnId: turn.id, tokenUsage } })
+        }, script.everyMs),
+      }
+      return
+    }
     // Later, like a real model request: never in the same read as the reply.
     setTimeout(() => {
       send({ jsonrpc: '2.0', method: 'turn/started', params: { threadId: 'fixture-thread', turn } })
@@ -85,6 +110,9 @@ function handleUsage(message) {
       const done = { ...turn, status: script.status || 'completed', error: script.error ?? null }
       send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: done } })
     }, 30)
+  } else if (message.method === 'turn/interrupt' && pacedTurn?.id === message.params?.turnId) {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+    pacedTurn.finish('interrupted')
   } else {
     send({ jsonrpc: '2.0', id: message.id, result: {} })
   }

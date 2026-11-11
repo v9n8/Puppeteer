@@ -88,8 +88,9 @@ const notified = new Set<string>()
 
 // Native "session finished" notification. Skipped when the window is focused
 // (the Active runs dock already shows it), for cancelled runs (the user stopped
-// it), and for conductor workers (only the main run).
-async function notifyRunFinished(runId: string, projectId: string, status: string) {
+// it), and for conductor workers (only the main run). A turn a limit stopped
+// (AC-23, `reason`) says why instead of the session title.
+async function notifyRunFinished(runId: string, projectId: string, status: string, reason?: string) {
   if (!permissionGranted || status === 'cancelled') return
   try {
     // Any app window counts (a popped-out session window, …).
@@ -108,8 +109,8 @@ async function notifyRunFinished(runId: string, projectId: string, status: strin
   }
   if (meta?.conductor_run_id) return
   invoke('show_run_finished_notification', {
-    title: `${projectName(projectId)} — ${status === 'failed' ? 'session failed' : 'session finished'}`,
-    body: meta?.title || 'Claude finished responding',
+    title: `${projectName(projectId)} — ${reason ? 'session stopped' : status === 'failed' ? 'session failed' : 'session finished'}`,
+    body: reason || meta?.title || 'Claude finished responding',
     projectId,
     runId,
   }).catch(() => {
@@ -149,8 +150,8 @@ onMounted(async () => {
     permissionGranted = false
   }
 
-  unsubscribeDone = live.onAnyDone((runId, projectId, status) => {
-    void notifyRunFinished(runId, projectId, status)
+  unsubscribeDone = live.onAnyDone((runId, projectId, status, reason) => {
+    void notifyRunFinished(runId, projectId, status, reason)
   })
   unsubscribeReminder = live.onPermissionReminder((runId, projectId, req) => {
     void remindPermission(projectId, runId, req)

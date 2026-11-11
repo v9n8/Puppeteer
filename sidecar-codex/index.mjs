@@ -23,6 +23,8 @@
 //         {type:"_puppeteer_turn_failed"}          ← a prompt never became a turn (no result follows)
 //         {type:"_puppeteer_steered",text,images}  ← codex took a steer (turn/steer accepted)
 //         {type:"_puppeteer_context_usage",model,totalTokens,maxTokens}  ← before each result (AC-08)
+//         {type:"_puppeteer_limit_reached",kind:"turns",limit}  ← PUPPETEER_MAX_TURNS ended the turn
+//           (AC-23); its result: subtype "error_max_turns", as Claude's
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
@@ -138,6 +140,10 @@ let SEED_STYLE = process.env.PUPPETEER_CODEX_SEED_STYLE || null
 // the turn's `result` leaves nothing queued), so a follow-up it hands over then
 // still finds the session. Without it (translation), a turn's end ends the session.
 const KEEP_OPEN = process.env.PUPPETEER_CODEX_KEEP_OPEN === '1'
+// Model requests one turn may make (AC-23: an unattended turn); 0 = no limit.
+// Codex has no such option, so the turn's usage updates are counted (one per
+// model request) and the turn is interrupted once it has made that many.
+const MAX_TURNS = Math.max(0, Number.parseInt(process.env.PUPPETEER_MAX_TURNS, 10) || 0)
 // Per-call MCP tool timeout. The broker sets MCP_TOOL_TIMEOUT (ms) above the
 // conductor's longest `session_wait`; Codex's own default (~60s) would cut a
 // blocking wait short. Applied to every server, matching Claude's global env.
@@ -1009,6 +1015,11 @@ function noteTokenUsage(tu, updateTurnId) {
     turnLastSum = turnLastSum ? addTokens(turnLastSum, last) : last
     turnLatestLast = last
   }
+  turnRequests++
+  if (MAX_TURNS && turnRequests >= MAX_TURNS && !turnLimitHit) {
+    turnLimitHit = true
+    interruptAtLimit()
+  }
 }
 
 // The same event the Claude sidecar sends after each turn, without the split
@@ -1392,6 +1403,11 @@ function onServerMessage(msg) {
           if (!turnErrorReported) ctrl('_puppeteer_error', { error: reason })
           Object.assign(result, { subtype: 'error_during_execution', is_error: true, errors: [reason] })
           if (p.turn.error?.codexErrorInfo) result.codex_error_info = p.turn.error.codexErrorInfo
+        } else if (status === 'interrupted' && turnLimitHit) {
+          // Stopped by MAX_TURNS: the broker says so and does not resume it.
+          // A turn that ended on its own with its last allowed request is not this.
+          ctrl('_puppeteer_limit_reached', { kind: 'turns', limit: MAX_TURNS })
+          Object.assign(result, { subtype: 'error_max_turns', is_error: true, num_turns: turnRequests })
         } else if (status === 'interrupted') {
           // Stopped on request: not an error, and not a success that would clear one.
           Object.assign(result, { subtype: 'interrupted', is_error: false })
@@ -1490,6 +1506,10 @@ let turnActive = false
 let turnCompleted = false
 // The turn in flight already reported its failure (a final `error` notification).
 let turnErrorReported = false
+// The turn in flight's model requests so far, and whether MAX_TURNS asked to
+// interrupt it.
+let turnRequests = 0
+let turnLimitHit = false
 // The broker closed our stdin: no prompt or permission answer can arrive.
 let inputClosed = false
 // The turn in flight, as a promise of its id (null once refused or completed):
@@ -1707,6 +1727,8 @@ async function startTurn(text, images) {
   turnActive = true
   turnCompleted = false
   turnErrorReported = false
+  turnRequests = 0
+  turnLimitHit = false
   turnStartedAt = Date.now()
   turnBaseline = latestTotal
   turnUsageId = turnEndTotal = turnLastSum = turnLatestLast = null
@@ -1781,6 +1803,14 @@ async function interruptTurn() {
   } catch (e) {
     note(`⚠ Interrupt not applied: ${e?.message || e}`, 'warn')
   }
+}
+
+// MAX_TURNS reached: interrupt the turn, unless it ended meanwhile (its
+// turn/completed can come in the same read as its last usage update).
+async function interruptAtLimit() {
+  const turn = currentTurn
+  await turn
+  if (turnActive && currentTurn === turn) interruptTurn()
 }
 
 // ── stdin from the broker ─────────────────────────────────────────────────

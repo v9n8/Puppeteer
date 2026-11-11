@@ -946,6 +946,9 @@ async fn handle_start_run(ctx: &HandlerCtx, cmd: &CmdPayload) {
         override_budget: false,
         append_system_prompt: None,
         conductor_token: None,
+        // Started from a phone: nobody may be at the desktop while it runs, so
+        // the turn gets the unattended limits (AC-23), which only the desktop sets.
+        unattended: true,
     };
     match crate::commands::runs::start_run_inner(
         ctx.app.clone(),
@@ -1331,6 +1334,16 @@ mod tests {
     fn invoke_of(name: &str, args: serde_json::Value) -> serde_json::Value {
         ipc_request(&payload(serde_json::json!({ "action": "ipc_invoke", "id": "c1", "cmd": name, "args": args })))
             .expect("an invoke request")
+    }
+
+    // AC-23: a session the phone starts fresh is unattended (the launch needs
+    // an AppHandle, so check the source).
+    #[test]
+    fn a_remote_fresh_start_is_unattended() {
+        let src = include_str!("handler.rs").replace("\r\n", "\n");
+        let launch = &src[src.find("// Fresh launch: fetched issue/PR first run, or a brand-new session.").unwrap()..];
+        let launch = &launch[..launch.find("start_run_inner(").unwrap()];
+        assert!(launch.contains("unattended: true,"));
     }
 
     #[test]

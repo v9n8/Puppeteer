@@ -67,6 +67,10 @@ pub struct StartRunPayload {
     /// worker sessions via the `session_*` tools. `None` for ordinary runs.
     #[serde(default)]
     pub conductor_token: Option<String>,
+    /// Nobody watches this turn: a schedule fired it or Remote Control started
+    /// it. It gets the `runs::unattended` limits.
+    #[serde(default)]
+    pub unattended: bool,
 }
 
 /// JSON the sidecar consumes on its `prompt` line: a flat array of
@@ -484,6 +488,8 @@ pub(crate) async fn start_run_inner(
     } else {
         Some(crate::runs::codex_bin::resolve_codex(&codex_path).await?)
     };
+    let unattended = crate::runs::unattended::for_run(db, payload.unattended).await;
+    let time_limit = unattended.and_then(|l| l.time_limit());
 
     // Update run status to running. Persist the resolved model so the History
     // list and composer can show which model the session actually runs on
@@ -555,6 +561,9 @@ pub(crate) async fn start_run_inner(
         apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
+        }
+        if let Some(limits) = &unattended {
+            limits.apply_env(&mut cmd);
         }
         // Isolate this run to its resolved Claude account profile (clears inherited
         // auth env overrides). No-op when no managed account applies (legacy global).
@@ -684,6 +693,7 @@ pub(crate) async fn start_run_inner(
             log_path,
             false,
             SpawnMarks { command_at, spawned_at, mcp_server_count },
+            time_limit,
         ));
         // Registered and drained: now hand the first turn to the writer, once
         // the workspace is captured for Rewind. The log records the prompt (the
@@ -730,6 +740,9 @@ pub(crate) async fn start_run_inner(
     }
     if let Some(e) = &effort {
         cmd.env("PUPPETEER_CODEX_EFFORT", e);
+    }
+    if let Some(limits) = &unattended {
+        limits.apply_env(&mut cmd);
     }
     // Inject the project's enabled MCP servers for Codex (QĐ-2: actual engine).
     // Codex supports stdio + streamable HTTP; legacy SSE servers land in `skipped`.
@@ -859,6 +872,7 @@ pub(crate) async fn start_run_inner(
         log_path,
         false,
         SpawnMarks { command_at, spawned_at, mcp_server_count: Some(server_count(&codex_mcp)) },
+        time_limit,
     ));
     let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
     log_buf.lock().await.push_str(&record_first_prompt(turn));
@@ -5100,6 +5114,8 @@ pub(crate) async fn resume_run_with(
         log_path,
         true,
         SpawnMarks { command_at, spawned_at, mcp_server_count: Some(mcp_server_count) },
+        // Unattended limits cover a fresh start only (`start_run_inner`).
+        None,
     ));
 
     Ok(())
@@ -6264,6 +6280,27 @@ mod fallback_model_tests {
             assert!(body.contains(r#""claude_fallback_model" => claude_fallback_model = Some(value),"#), "{from}");
             assert!(body.contains("apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());"), "{from}");
         }
+    }
+}
+
+// AC-23: the spawns need an AppHandle, so check in the source that a fresh
+// start hands both engines the unattended limits only when its payload says
+// so, and that a resume hands none.
+#[cfg(test)]
+mod unattended_limit_tests {
+    #[test]
+    fn only_an_unattended_start_gets_the_limits() {
+        let src = include_str!("runs.rs").replace("\r\n", "\n");
+        let section = |from: &str, to: &str| {
+            let body = &src[src.find(from).unwrap()..];
+            body[..body.find(to).unwrap()].to_string()
+        };
+        let start = section("pub(crate) async fn start_run_inner(", "#[tauri::command]");
+        assert!(start.contains("crate::runs::unattended::for_run(db, payload.unattended).await"));
+        assert_eq!(start.matches("limits.apply_env(&mut cmd);").count(), 2, "Claude and Codex");
+        assert_eq!(start.matches("        time_limit,\n").count(), 2, "both drains get the clock");
+        let resume = section("pub(crate) async fn resume_run_with(", "\n}\n");
+        assert!(!resume.contains("unattended::") && !resume.contains("limits.apply_env"));
     }
 }
 

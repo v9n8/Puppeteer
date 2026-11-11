@@ -10,6 +10,8 @@
 //   context     — a turn per input; getContextUsage() answers like the real
 //                 control channel, on the message stream: only once the
 //                 consumer pulls the next message.
+//   max-turns   — the turn ends on `options.maxTurns` (`error_max_turns`), or
+//                 succeeds when there is none.
 
 export function query({ prompt, options }) {
   const scenario = process.env.MOCK_SCENARIO || 'permission'
@@ -29,6 +31,13 @@ export function query({ prompt, options }) {
     if (scenario === 'throw') throw new Error('mock CLI crashed')
     // Echo the (JSON-safe) options and the first prompt so tests can assert what reached the SDK.
     yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function', mock_first_input: first.value }
+    if (scenario === 'max-turns') {
+      yield options.maxTurns
+        ? { type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: options.maxTurns + 1 }
+        : { type: 'result', subtype: 'success', num_turns: 1 }
+      while (!(await input.next()).done) { /* until stdin closes */ }
+      return
+    }
     if (scenario === 'echo') {
       for (let next = await input.next(); !next.done; next = await input.next()) {
         yield { type: 'mock_echo', mock_input: next.value }

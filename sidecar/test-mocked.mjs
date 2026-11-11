@@ -344,6 +344,39 @@ const tests = {
     assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5' })).fallbackModel, undefined)
   },
 
+  // Unattended turn (AC-23): the broker's PUPPETEER_MAX_TURNS reaches the SDK
+  // as `maxTurns` (not for a tool-less side task), and a turn it ends is
+  // reported with `_puppeteer_limit_reached` right before its result.
+  async 'max turns reach the SDK from the env and a turn they end is reported'() {
+    const run = (env, options = { permissionMode: 'default' }) => runSidecar('max-turns', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', options })
+      if (msg.type === 'result') ctl.closeInput()
+    }, 10_000, env)
+    const limited = await run({ PUPPETEER_MAX_TURNS: '200' })
+    const init = limited.messages.find((m) => m.type === 'system' && m.subtype === 'init')
+    assert.equal(init.mock_options.maxTurns, 200)
+    const [limit] = of(limited.messages, '_puppeteer_limit_reached')
+    assert.deepEqual(limit, { type: '_puppeteer_limit_reached', kind: 'turns', limit: 200 })
+    const [result] = of(limited.messages, 'result')
+    assert.equal(result.subtype, 'error_max_turns')
+    assert.ok(limited.messages.indexOf(limit) < limited.messages.indexOf(result))
+    assert.equal(limited.code, 0)
+
+    // No env (an attended turn), an off value, a side task: no limit, no report.
+    for (const [env, options] of [
+      [{}, undefined],
+      [{ PUPPETEER_MAX_TURNS: '0' }, undefined],
+      [{ PUPPETEER_MAX_TURNS: 'many' }, undefined],
+      [{ PUPPETEER_MAX_TURNS: '200' }, { permissionMode: 'default', noTools: true }],
+    ]) {
+      const { messages } = await run(env, options)
+      const opts = messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+      assert.equal(opts.maxTurns, undefined, JSON.stringify(env))
+      assert.equal(of(messages, '_puppeteer_limit_reached').length, 0)
+      assert.equal(of(messages, 'result')[0].subtype, 'success')
+    }
+  },
+
   // Response style (UX-17): the broker composes one append (account context,
   // framing, style). It reaches the SDK on the preset prompt, and on a resume
   // (first prompt without options) from PUPPETEER_APPEND_SYSTEM_PROMPT — the

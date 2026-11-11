@@ -376,7 +376,14 @@
     "stopRunningHint": "When an engine or Claude account reaches a block threshold above, Puppeteer also stops its sessions that are still running, with the reason in each session's log. Sessions on other accounts keep running. When off, only new sessions and follow-ups are blocked.",
     "stopRunningWarning": "A session stopped mid-turn can leave a file half-edited. Check its changes before you continue.",
     "stopRunningNoBlock": "Set a block threshold first: this acts on the 5h or weekly block threshold.",
-    "emptyOff": "empty = off"
+    "emptyOff": "empty = off",
+    "unattendedTitle": "Unattended",
+    "unattendedHint": "Limits for a turn nobody is watching: one a schedule started, or one started from Remote Control. Sessions you start or continue here are not limited. Set them on this computer only: Remote Control cannot change them.",
+    "unattendedMaxTurns": "Model calls per turn",
+    "unattendedMaxTurnsHint": "How many times one unattended turn may call the model (each step of tool use is one call). 0 = no limit.",
+    "unattendedMaxMinutes": "Minutes per turn",
+    "unattendedMaxMinutesHint": "How long one unattended turn may run before Puppeteer stops it. 0 = no limit.",
+    "unattendedStop": "A turn that reaches a limit is stopped and marked failed, with the reason in its log and in the notification. It is not resumed on its own: continue it yourself if the work should go on. A long job (a big refactor on a schedule) may need higher limits."
   },
   "toast": {
     "saved": "Saved"

@@ -51,6 +51,11 @@ pub struct AppSettings {
     /// Stop the running sessions of an engine / account once it reaches a block
     /// threshold above. "false" (default) | "true"; see `runs::quota_stop`.
     pub quota_stop_running: String,
+    /// Model calls one unattended turn (a schedule's, a Remote Control start)
+    /// may make, as a whole number; "0" = no limit. See `runs::unattended`.
+    pub unattended_max_turns: String,
+    /// Minutes one unattended turn may run; "0" = no limit.
+    pub unattended_max_minutes: String,
     /// Auto-balance the default Claude account across managed accounts, so plan
     /// usage spreads instead of hammering one login. "true" (default) | "false".
     /// When on, new runs that aren't pinned to a project/account follow whichever
@@ -123,6 +128,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "budget_week_percent",
     "quota_warn_percent",
     "quota_stop_running",
+    "unattended_max_turns",
+    "unattended_max_minutes",
     "claude_auto_balance",
     "claude_auto_balance_min_swap_minutes",
     "claude_auto_balance_swap_threshold_pct",
@@ -187,6 +194,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         budget_week_percent: "".to_string(),
         quota_warn_percent: "".to_string(),
         quota_stop_running: "false".to_string(),
+        unattended_max_turns: crate::runs::unattended::DEFAULT_MAX_TURNS.to_string(),
+        unattended_max_minutes: crate::runs::unattended::DEFAULT_MAX_MINUTES.to_string(),
         claude_auto_balance: "false".to_string(),
         claude_auto_balance_min_swap_minutes: "10".to_string(),
         claude_auto_balance_swap_threshold_pct: "10".to_string(),
@@ -227,6 +236,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "budget_week_percent" => settings.budget_week_percent = value,
             "quota_warn_percent" => settings.quota_warn_percent = value,
             "quota_stop_running" => settings.quota_stop_running = value,
+            "unattended_max_turns" => settings.unattended_max_turns = value,
+            "unattended_max_minutes" => settings.unattended_max_minutes = value,
             "claude_auto_balance" => settings.claude_auto_balance = value,
             "claude_auto_balance_min_swap_minutes" => {
                 settings.claude_auto_balance_min_swap_minutes = value

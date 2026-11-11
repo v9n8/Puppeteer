@@ -17,6 +17,7 @@ pub mod ssh_access;
 pub mod stdin_writer;
 pub mod transcript;
 pub mod turn_timing;
+pub mod unattended;
 pub mod usage_cost;
 
 use std::collections::HashMap;

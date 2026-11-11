@@ -5006,6 +5006,8 @@ mod tests {
         for key in [
             "theme",
             "claude_fallback_model",
+            "unattended_max_turns",
+            "unattended_max_minutes",
             "feature.remote",
             "feature.text_tools.selection.translate",
             "inbox_api_enabled",

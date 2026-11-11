@@ -4,7 +4,8 @@
 // and the blocks on new sessions / follow-ups (`budget_5h_percent`,
 // `budget_week_percent`, enforced by `stats::enforce_budget`), plus the opt-in
 // stop of running sessions at those thresholds (`quota_stop_running`,
-// `runs::quota_stop`).
+// `runs::quota_stop`) — and the limits on a turn nobody watches
+// (`unattended_max_turns`, `unattended_max_minutes`, `runs::unattended`).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
@@ -29,13 +30,19 @@ const warnNotBelowBlock = computed(() => {
 const hasBlock = computed(() => blocks.value.some((block) => block > 0))
 const stopRunning = computed(() => settings.value.quota_stop_running === 'true')
 
-// Two sub-tabs keep this section one screen tall. The choice is not saved.
-type Tab = 'context' | 'quota'
+// Sub-tabs keep this section one screen tall. The choice is not saved.
+type Tab = 'context' | 'quota' | 'unattended'
 const tab = ref<Tab>('context')
 const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
   { value: 'context', label: t('settings.sessions.contextTitle') },
   { value: 'quota', label: t('settings.sessions.quotaTitle') },
+  { value: 'unattended', label: t('settings.sessions.unattendedTitle') },
 ])
+const tabHint = computed(() => ({
+  context: t('settings.sessions.contextHint'),
+  quota: t('settings.sessions.quotaHint'),
+  unattended: t('settings.sessions.unattendedHint'),
+})[tab.value])
 </script>
 
 <template>
@@ -47,7 +54,7 @@ const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
 
       <div class="flex items-center gap-2">
         <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
-        <InfoTip :text="tab === 'context' ? t('settings.sessions.contextHint') : t('settings.sessions.quotaHint')" />
+        <InfoTip :text="tabHint" />
       </div>
 
       <!-- Context window meter -->
@@ -58,6 +65,17 @@ const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
         <SettingsRow :label="t('settings.sessions.limitOverride')" :hint="t('settings.sessions.limitOverrideHint')">
           <Input v-model="settings.context_limit_override" type="number" min="0" :placeholder="t('settings.sessions.limitOverridePlaceholder')" />
         </SettingsRow>
+      </template>
+
+      <!-- Limits on a turn nobody watches: a schedule's, or one Remote Control started -->
+      <template v-else-if="tab === 'unattended'">
+        <SettingsRow :label="t('settings.sessions.unattendedMaxTurns')" :hint="t('settings.sessions.unattendedMaxTurnsHint')">
+          <Input v-model="settings.unattended_max_turns" type="number" min="0" placeholder="200" />
+        </SettingsRow>
+        <SettingsRow :label="t('settings.sessions.unattendedMaxMinutes')" :hint="t('settings.sessions.unattendedMaxMinutesHint')">
+          <Input v-model="settings.unattended_max_minutes" type="number" min="0" placeholder="60" />
+        </SettingsRow>
+        <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.sessions.unattendedStop') }}</p>
       </template>
 
       <!-- Usage quota: a warning tier, then the blocks on new sessions / follow-ups -->

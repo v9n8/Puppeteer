@@ -42,6 +42,9 @@
 //                                      // a request settled here (CLI cancelled
 //                                      // it, or no answer can arrive any more)
 //   { "type": "_puppeteer_steered", text, images }  // a steer reached the SDK
+//   { "type": "_puppeteer_limit_reached", kind: "turns", limit }
+//                                      // PUPPETEER_MAX_TURNS ended the turn (AC-23),
+//                                      // right before its `error_max_turns` result
 //
 // Control messages are namespaced with a `_puppeteer_` prefix so they never collide
 // with real stream-json message types.
@@ -547,6 +550,11 @@ function startQuery(firstText, opts = {}, firstImages) {
   // the model; a side task (noTools) already runs on a small model.
   const fallbackModel = process.env.PUPPETEER_FALLBACK_MODEL
   if (fallbackModel && fallbackModel !== options.model && opts.noTools !== true) options.fallbackModel = fallbackModel
+  // Model-call limit of an unattended turn (AC-23: a schedule's or a Remote
+  // Control start), from the broker's env. Over it the SDK ends the turn with
+  // an `error_max_turns` result.
+  const maxTurns = Number.parseInt(process.env.PUPPETEER_MAX_TURNS, 10)
+  if (maxTurns > 0 && opts.noTools !== true) options.maxTurns = maxTurns
   if (opts.cwd) options.cwd = opts.cwd
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).
@@ -609,6 +617,10 @@ function startQuery(firstText, opts = {}, firstImages) {
       currentQuery = query({ prompt: inputQueue, options })
       if (pollWhileRunning) startUsagePolling(usagePollMs)
       for await (const message of currentQuery) {
+        // The broker names the limit in the run's log and does not resume it.
+        if (message && message.type === 'result' && message.subtype === 'error_max_turns' && options.maxTurns) {
+          send({ type: '_puppeteer_limit_reached', kind: 'turns', limit: options.maxTurns })
+        }
         // Emit raw stream-json so the Rust drain parses it like the CLI output.
         process.stdout.write(JSON.stringify(message) + '\n')
         // Snapshot plan usage once the session is live (at init the CLI is up

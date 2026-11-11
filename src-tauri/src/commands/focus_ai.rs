@@ -878,6 +878,7 @@ pub async fn focus_start_with_ai(
             override_budget: false,
             append_system_prompt: None,
             conductor_token: None,
+            unattended: false,
         };
         crate::commands::runs::start_run_inner(
             app.clone(),

@@ -165,8 +165,9 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
   // subscriber can re-arm its listeners before the next turn.
   const doneCallbacks = new Map<string, Set<(status: string) => void>>()
   // App-wide subscribers notified on EVERY run's `run:done` (e.g. the native
-  // "session finished" notifier), regardless of which run it is.
-  const anyDoneCallbacks = new Set<(runId: string, projectId: string, status: string) => void>()
+  // "session finished" notifier), regardless of which run it is. `reason`: why a
+  // limit stopped the turn (AC-23), when one did.
+  const anyDoneCallbacks = new Set<(runId: string, projectId: string, status: string, reason?: string) => void>()
   // Runs the backend has announced as live (`run:activated`) and that haven't
   // emitted `run:done` since. This is the backend's view, independent of
   // `s.status`, so a session can never be evicted — and lose its permission
@@ -485,7 +486,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     )
 
     fns.push(
-      await listen<{ run_id: string; status: string }>(`run:done:${runId}`, (event) => {
+      await listen<{ run_id: string; status: string; reason?: string }>(`run:done:${runId}`, (event) => {
         flushEvents() // drain any events still buffered this frame before stopping
         settlePartials(s.entries) // a sidecar that died mid-block sent no `result`
         activeRunIds.delete(runId)
@@ -519,7 +520,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
           try { cb(event.payload.status) } catch { /* subscriber error must not break teardown */ }
         }
         for (const cb of anyDoneCallbacks) {
-          try { cb(runId, projectId, event.payload.status) } catch { /* subscriber error must not break teardown */ }
+          try { cb(runId, projectId, event.payload.status, event.payload.reason) } catch { /* subscriber error must not break teardown */ }
         }
         stopListening(runId)
       }),
@@ -837,7 +838,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
    * Subscribe to `run:done` of ANY run (every finished turn). Returns an
    * unsubscribe function.
    */
-  function onAnyDone(cb: (runId: string, projectId: string, status: string) => void): () => void {
+  function onAnyDone(cb: (runId: string, projectId: string, status: string, reason?: string) => void): () => void {
     anyDoneCallbacks.add(cb)
     return () => {
       anyDoneCallbacks.delete(cb)

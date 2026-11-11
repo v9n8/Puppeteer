@@ -483,6 +483,8 @@ pub async fn drain_sidecar(
     log_path: PathBuf,
     merge_existing_log: bool,
     spawn_marks: SpawnMarks,
+    // Minutes an unattended turn may run (`runs::unattended`); None = no clock.
+    time_limit: Option<u32>,
 ) {
     let mut stdout_reader = BufReader::new(stdout).lines();
     let mut stderr_reader = BufReader::new(stderr).lines();
@@ -628,6 +630,13 @@ pub async fn drain_sidecar(
     let mut unresolved_error = false;
     // Where each user turn's time goes (AC-09): one `turn_timing` record per turn.
     let mut timing = TurnTiming::new(spawn_marks);
+    // An unattended turn's clock (AC-23), from the spawn: when it runs out the
+    // sidecar is killed. The reason a limit stopped the turn goes out with
+    // `run:done` for the native notification; a later turn that succeeds
+    // (a follow-up queued meanwhile) clears it, as it clears an error.
+    let mut time_limit_at = time_limit
+        .map(|minutes| tokio::time::Instant::now() + std::time::Duration::from_secs(u64::from(minutes) * 60));
+    let mut stop_reason: Option<String> = None;
 
     // Surface a watchdog message as a log line in the run (live + log + remote).
     async fn watchdog_line(
@@ -803,6 +812,21 @@ pub async fn drain_sidecar(
                 detached = true;
                 break;
             }
+            // An unattended turn ran out of time: say why, then kill the
+            // sidecar; the run ends `failed` once its process is gone.
+            _ = async {
+                match time_limit_at {
+                    Some(at) => tokio::time::sleep_until(at).await,
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+                time_limit_at = None;
+                let reason = crate::runs::unattended::time_reason(time_limit.unwrap_or_default());
+                watchdog_line(&app, &log_buf, &remote_bus, &run_id, "warn", &reason).await;
+                unresolved_error = true;
+                stop_reason = Some(reason);
+                crate::runs::unattended::stop_sidecar(&registry, &run_id).await;
+            }
             line = stdout_reader.next_line() => {
                 match line {
                     Ok(Some(l)) => {
@@ -838,6 +862,7 @@ pub async fn drain_sidecar(
                             (Some(_), "_puppeteer_error") => unresolved_error = true,
                             (Some(v), "result") if v.get("subtype").and_then(|x| x.as_str()) == Some("success") => {
                                 unresolved_error = false;
+                                stop_reason = None;
                             }
                             _ => {}
                         }
@@ -1008,6 +1033,16 @@ pub async fn drain_sidecar(
                             // turn to steer) must not read as delivered.
                             (Some(v), "_puppeteer_steered") => {
                                 append_log(&log_buf, &crate::commands::runs::steered_log_line(v)).await;
+                            }
+                            // ---- control: an unattended turn hit its model-call limit
+                            // (AC-23). The engine ended the turn itself; the run
+                            // ends `failed` and is not resumed.
+                            (Some(v), "_puppeteer_limit_reached") => {
+                                let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or_default();
+                                let reason = crate::runs::unattended::turns_reason(limit);
+                                watchdog_line(&app, &log_buf, &remote_bus, &run_id, "warn", &reason).await;
+                                unresolved_error = true;
+                                stop_reason = Some(reason);
                             }
                             // ---- control: a prompt never became a turn ----------
                             // (Codex refused turn/start; the error came before it.)
@@ -1414,10 +1449,11 @@ pub async fn drain_sidecar(
             status: final_status.to_string(),
         });
     }
-    let _ = app.emit(
-        &format!("run:done:{}", run_id),
-        serde_json::json!({ "run_id": run_id, "status": final_status }),
-    );
+    let mut done = serde_json::json!({ "run_id": run_id, "status": final_status });
+    if let Some(reason) = stop_reason {
+        done["reason"] = Value::String(reason);
+    }
+    let _ = app.emit(&format!("run:done:{}", run_id), done);
     drop(reg);
 
     // Close the conductor control loop: hand this finished run's id to the

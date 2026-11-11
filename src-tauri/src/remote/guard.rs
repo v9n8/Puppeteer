@@ -161,7 +161,9 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// keys the registry reads (`inbox_api_enabled`, …), plus the `google` MCP
 /// switch, which gates that MCP together with `integrations.google`, and the
 /// switch that stops running sessions at the quota block tier (it kills
-/// sessions on this machine mid-turn).
+/// sessions on this machine mid-turn), and the limits on unattended turns
+/// (`runs::unattended`): a session Remote Control starts is one, so a
+/// controller must not lift its own limits.
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
@@ -169,6 +171,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && crate::features::owner(key).is_none()
         && key != "mcp_builtin_google_enabled"
         && key != crate::runs::quota_stop::SETTING
+        && key != crate::runs::unattended::MAX_TURNS_SETTING
+        && key != crate::runs::unattended::MAX_MINUTES_SETTING
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
@@ -1078,6 +1082,9 @@ mod tests {
             "animated_background",
             // Stopping running sessions at the quota block tier: local-only.
             "quota_stop_running",
+            // The limits on unattended turns (AC-23), Remote Control starts included.
+            "unattended_max_turns",
+            "unattended_max_minutes",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

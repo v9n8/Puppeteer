@@ -177,6 +177,7 @@ async fn session_spawn(
         override_budget: false,
         append_system_prompt: instruction,
         conductor_token: None,
+        unattended: false,
     };
 
     start_run_inner(state.app.clone(), db.clone(), registry(state), payload).await?;

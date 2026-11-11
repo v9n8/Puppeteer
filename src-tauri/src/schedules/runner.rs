@@ -257,11 +257,24 @@ async fn fire(app: &AppHandle, db: &Db, f: Firing) -> Result<String, String> {
     .execute(db)
     .await
     .map_err(|e| e.to_string())?;
-    let payload = crate::commands::runs::StartRunPayload {
-        run_id: run_id.clone(),
+    let payload = firing_payload(&run_id, f.prompt, f.permission_mode);
+    if let Err(e) = crate::commands::runs::start_run_inner(app.clone(), db.clone(), registry, payload).await {
+        for sql in ["DELETE FROM conductor_sessions WHERE id = ?", "DELETE FROM runs WHERE id = ?"] {
+            let _ = sqlx::query(sql).bind(&run_id).execute(db).await;
+        }
+        return Err(e);
+    }
+    Ok(run_id)
+}
+
+/// How [`fire`] starts the session: the schedule's prompt and mode, nothing
+/// that needs somebody there.
+fn firing_payload(run_id: &str, prompt: String, permission_mode: String) -> crate::commands::runs::StartRunPayload {
+    crate::commands::runs::StartRunPayload {
+        run_id: run_id.to_string(),
         engine_override: None,
-        permission_mode_override: Some(f.permission_mode),
-        prompt_override: Some(f.prompt),
+        permission_mode_override: Some(permission_mode),
+        prompt_override: Some(prompt),
         model_override: None,
         effort_override: None,
         style_override: None,
@@ -270,14 +283,9 @@ async fn fire(app: &AppHandle, db: &Db, f: Firing) -> Result<String, String> {
         override_budget: false,
         append_system_prompt: None,
         conductor_token: None,
-    };
-    if let Err(e) = crate::commands::runs::start_run_inner(app.clone(), db.clone(), registry, payload).await {
-        for sql in ["DELETE FROM conductor_sessions WHERE id = ?", "DELETE FROM runs WHERE id = ?"] {
-            let _ = sqlx::query(sql).bind(&run_id).execute(db).await;
-        }
-        return Err(e);
+        // …nor to watch it: the turn gets the unattended limits (AC-23).
+        unattended: true,
     }
-    Ok(run_id)
 }
 
 /// Start the loop (app setup). Runs while the app runs.
@@ -334,6 +342,16 @@ mod tests {
 
     fn now() -> DateTime<Local> {
         Local::now()
+    }
+
+    #[test]
+    fn a_fired_session_starts_unattended_with_the_schedule_prompt() {
+        let payload = firing_payload("r1", "run the tests".into(), "acceptEdits".into());
+        assert!(payload.unattended);
+        assert!(!payload.override_budget);
+        assert_eq!(payload.run_id, "r1");
+        assert_eq!(payload.prompt_override.as_deref(), Some("run the tests"));
+        assert_eq!(payload.permission_mode_override.as_deref(), Some("acceptEdits"));
     }
 
     #[tokio::test]

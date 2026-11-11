@@ -35,6 +35,8 @@ export interface AppSettings {
   budget_week_percent: string
   quota_warn_percent: string
   quota_stop_running: string
+  unattended_max_turns: string
+  unattended_max_minutes: string
   claude_auto_balance: string
   claude_auto_balance_min_swap_minutes: string
   claude_auto_balance_swap_threshold_pct: string
@@ -84,6 +86,8 @@ export function createSettingsForm(): SettingsForm {
     budget_week_percent: '',
     quota_warn_percent: '',
     quota_stop_running: 'false',
+    unattended_max_turns: '200',
+    unattended_max_minutes: '60',
     claude_auto_balance: 'false',
     claude_auto_balance_min_swap_minutes: '10',
     claude_auto_balance_swap_threshold_pct: '10',

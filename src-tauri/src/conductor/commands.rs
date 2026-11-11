@@ -306,6 +306,7 @@ pub async fn start_conductor(
         override_budget: override_budget.unwrap_or(false),
         append_system_prompt: None,
         conductor_token,
+        unattended: false,
     };
 
     if let Err(e) =

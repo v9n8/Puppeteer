@@ -33,6 +33,10 @@ export interface AppSettings {
   quota_warn_percent: string
   /** 'true' = stop running sessions when a block threshold is reached (default 'false'). */
   quota_stop_running: string
+  /** Model calls one unattended turn (a schedule's, a Remote Control start) may make ('0' = no limit, default '200'). */
+  unattended_max_turns: string
+  /** Minutes one unattended turn may run ('0' = no limit, default '60'). */
+  unattended_max_minutes: string
   claude_auto_balance: string
   claude_auto_balance_min_swap_minutes: string
   claude_auto_balance_swap_threshold_pct: string
