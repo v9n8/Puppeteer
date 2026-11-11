@@ -8,6 +8,7 @@ import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
 import { useDragSort } from '@/composables/useDragSort'
+import { useProjectQuickView } from '@/composables/useProjectQuickView'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useToast } from '@/composables/useToast'
 import {
@@ -34,6 +35,7 @@ const tabsStore = useWorkspaceTabsStore()
 const live = useLiveRunsStore()
 const projectsStore = useProjectsStore()
 const { newSession } = useProjectSwitcher()
+const quickView = useProjectQuickView()
 
 const activeProjectId = computed(() =>
   typeof route.params.projectId === 'string' ? route.params.projectId : null,
@@ -165,14 +167,13 @@ function openMenu(projectId: string, e: MouseEvent) {
   menu.value = { projectId, x: e.clientX, y: e.clientY }
 }
 
-// Until the quick view (UX-52) exists, both rows go to the pages it will
-// replace: the Projects page with this project selected, and its session
-// defaults section.
+// Both open the project's quick view (UX-52) over the current screen: on its
+// Overview, or straight on its session defaults.
 function viewProject(projectId: string) {
-  router.push({ name: 'projects', query: { id: projectId } }).catch(() => {})
+  quickView.open(projectId)
 }
 function openSessionDefaults(projectId: string) {
-  router.push({ name: 'project-settings', params: { projectId }, query: { section: 'session' } }).catch(() => {})
+  quickView.open(projectId, { tab: 'defaults', section: 'session' })
 }
 
 async function setColor(color: ProjectColor | null) {

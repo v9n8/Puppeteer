@@ -8,10 +8,11 @@ import { Folder, FoldVertical } from 'lucide-vue-next'
 import ContextMeter from '@/components/ContextMeter.vue'
 import UsageRings from '@/components/UsageRings.vue'
 import { DropdownMenu, DropdownItem } from '@/components/ui'
-import { runMenuAction } from '@/lib/appMenu'
+import { useProjectQuickView } from '@/composables/useProjectQuickView'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
+const quickView = useProjectQuickView()
 const {
   features, project, isSessionWindow, contextTokens, contextModel,
   contextRateLimit, sendSlashCommand, sendingFollowUp, runSettingsOpen, toggleRunSettingsMenu,
@@ -23,11 +24,10 @@ const CHIP =
   + 'transition-colors cursor-pointer hover:bg-muted hover:text-foreground '
   + 'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
 
-// Opens the titlebar project switcher through its menu action, which also leaves
-// focus mode when the titlebar is hidden. A session pop-out is locked to its one
-// run, so there the chip only shows the name.
+// Opens the project's quick view (UX-52) over the session. Only the main window
+// hosts it, so in a session pop-out the chip only shows the name.
 function openProject() {
-  runMenuAction('file.openProject')
+  if (project.value) quickView.open(project.value.id)
 }
 
 const accountModelLabel = computed(() =>

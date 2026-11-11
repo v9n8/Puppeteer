@@ -32,6 +32,8 @@ const place = defineModel<ProjectPlace>('place', { required: true })
 defineSlots<{
   /** Before the project tile (e.g. the button that opens the list on a narrow window). */
   leading?: () => unknown
+  /** After the header's own buttons (e.g. the quick view's close button, UX-52). */
+  actions?: () => unknown
 }>()
 
 const { t } = useI18n()
@@ -130,6 +132,7 @@ async function toggleHidden() {
         >
           <component :is="project.hidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
+        <slot name="actions" />
       </template>
     </DetailHeader>
 

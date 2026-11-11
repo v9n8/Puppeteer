@@ -23,6 +23,7 @@ import WhatsNewModal from '@/components/WhatsNewModal.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
+import ProjectQuickView from '@/components/projects/ProjectQuickView.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -1199,6 +1200,10 @@ onMounted(async () => {
 
     <!-- Answers the backend's quit prompt when background processes are running -->
     <QuitProcessesDialog />
+
+    <!-- A project's quick view, from its titlebar tab menu or the session status
+         bar (UX-52). Before ConfirmModal, so "Remove project" asks on top of it. -->
+    <ProjectQuickView />
 
     <!-- App-wide confirm dialog host (see useConfirm) -->
     <ConfirmModal />

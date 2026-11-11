@@ -299,7 +299,7 @@
     "label": "Session status bar",
     "contextTitle": "Context — click to compact",
     "compact": "Compact context",
-    "projectTitle": "Project — open project settings",
+    "projectTitle": "Project — view and edit this project",
     "accountModelTitle": "Account · model — click to change run options"
   },
   "fork": {

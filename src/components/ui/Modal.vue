@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 const props = withDefaults(defineProps<{
   open: boolean
   title?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'
   /** When false, hides the X and disables Esc / overlay-click dismissal. */
   closable?: boolean
   /** When false, clicking the dimmed overlay won't close it (X / Esc still do).
@@ -31,7 +31,9 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ close: []; 'update:open': [value: boolean] }>()
 const slots = useSlots()
 
-const SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl', full: 'max-w-[96vw]' }
+const SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl', '2xl': 'max-w-[1100px]', full: 'max-w-[96vw]' }
+// `2xl` and `full` keep a fixed height with `scrollBody`, so a body that switches
+// tabs doesn't make the panel jump; the others fit their content up to 80vh.
 const panelClass = computed(() =>
   cn(
     'ui-modal w-full rounded-lg border border-border/70 bg-popover shadow-2xl shadow-black/30',
@@ -39,7 +41,9 @@ const panelClass = computed(() =>
     props.scrollBody &&
       (props.size === 'full'
         ? 'h-[94vh] flex flex-col overflow-hidden'
-        : 'max-h-[80vh] flex flex-col overflow-hidden'),
+        : props.size === '2xl'
+          ? 'h-[86vh] flex flex-col overflow-hidden'
+          : 'max-h-[80vh] flex flex-col overflow-hidden'),
   ),
 )
 
