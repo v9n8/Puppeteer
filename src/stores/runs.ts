@@ -116,6 +116,11 @@ export interface RunRecord {
   output_path: string | null
   session_id: string | null
   claude_account_id: string | null
+  /**
+   * The Codex account the run ran with or was switched to; null = the shared
+   * `~/.codex` login (before its first start: follow the project / default).
+   */
+  codex_account_id: string | null
   started_at: string | null
   finished_at: string | null
   created_at: string
@@ -753,6 +758,16 @@ export const useRunsStore = defineStore('runs', () => {
     if (cached) cached.claude_account_id = next
   }
 
+  /** `null` = the shared `~/.codex` login. */
+  async function setRunCodexAccount(run_id: string, account_id: string | null): Promise<void> {
+    await invoke('set_run_codex_account', { runId: run_id, accountId: account_id })
+    const next = account_id?.trim() || null
+    const run = runs.value.find(r => r.id === run_id)
+    if (run) run.codex_account_id = next
+    const cached = runMeta.get(run_id)
+    if (cached) cached.codex_account_id = next
+  }
+
   return {
     runs, loading, loadedProjectId, runMeta, orderStale,
     fetchRuns, sortRuns, refreshMeta, fetchIssue, fetchPr,
@@ -764,6 +779,6 @@ export const useRunsStore = defineStore('runs', () => {
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun, forkRun,
     reconcileClaudeSessions, reconcileCodexSessions,
-    deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunPinned, setRunProtected, touchRun,
+    deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunCodexAccount, setRunPinned, setRunProtected, touchRun,
   }
 })

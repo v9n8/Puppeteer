@@ -16,7 +16,7 @@ const {
   permissionMode, modeValue, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortLevelsNow, effortOptions,
   effortChipLabel, effortChipTitle, stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, accountUsage,
-  accountModelLabel, accountChoices, selectedClaudeAccountId, claudeAccountSelectDisabled, handleClaudeAccountChange,
+  accountModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
   modelOptions, modelOverride, onModelSelect, currentStatus,
 } = useRunSession()
 
@@ -32,7 +32,7 @@ function pickModel(value: string) {
 }
 function pickAccount(value: string) {
   closeAccountMenu()
-  void handleClaudeAccountChange(value)
+  void handleAccountChange(value)
 }
 </script>
 
@@ -114,12 +114,12 @@ function pickAccount(value: string) {
                 :type="a.value === null ? undefined : 'button'"
                 class="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left"
                 :class="a.value === null ? '' : 'cursor-pointer hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent'"
-                :disabled="a.value === null ? undefined : claudeAccountSelectDisabled"
+                :disabled="a.value === null ? undefined : accountSelectDisabled"
                 @click="a.value !== null && pickAccount(a.value)"
               >
                 <Check
                   class="mt-0.5 h-3 w-3 shrink-0 text-primary"
-                  :class="a.value === null || a.value === selectedClaudeAccountId ? 'opacity-100' : 'opacity-0'"
+                  :class="a.value === null || a.value === selectedAccountId ? 'opacity-100' : 'opacity-0'"
                   :stroke-width="2.5"
                 />
                 <span class="flex min-w-0 flex-1 flex-col">

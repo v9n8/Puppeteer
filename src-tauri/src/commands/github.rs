@@ -32,6 +32,10 @@ pub struct RunRecord {
     pub output_path: Option<String>,
     pub session_id: Option<String>,
     pub claude_account_id: Option<String>,
+    /// The Codex account the run ran with, or was switched to; `None` = the
+    /// shared `~/.codex` login (or, before its first start, follow the defaults).
+    #[serde(default)]
+    pub codex_account_id: Option<String>,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
     pub created_at: String,
@@ -357,6 +361,7 @@ pub async fn fetch_issue(
         output_path: Some(file_path_str),
         session_id: None,
         claude_account_id: None,
+        codex_account_id: None,
         started_at: None,
         finished_at: None,
         created_at: now,
@@ -733,6 +738,7 @@ pub async fn fetch_pr(
         output_path: Some(file_path_str),
         session_id: None,
         claude_account_id: None,
+        codex_account_id: None,
         started_at: None,
         finished_at: None,
         created_at: now,
@@ -758,7 +764,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
     use sqlx::Row;
 
     let row = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, last_activity_at, title, pinned, protected FROM runs WHERE id = ?",
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, last_activity_at, title, pinned, protected FROM runs WHERE id = ?",
     )
     .bind(&run_id)
     .fetch_one(db.inner())
@@ -881,6 +887,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
         output_path,
         session_id: row.get("session_id"),
         claude_account_id: row.get("claude_account_id"),
+        codex_account_id: row.get("codex_account_id"),
         started_at: row.get("started_at"),
         finished_at: row.get("finished_at"),
         created_at: row.get("created_at"),
@@ -921,7 +928,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // reports as `last_activity_at`, so the list and the timestamp the UI prints
     // can never disagree.
     let rows = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id,
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC
@@ -945,6 +952,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
         output_path: row.get("output_path"),
         session_id: row.get("session_id"),
         claude_account_id: row.get("claude_account_id"),
+        codex_account_id: row.get("codex_account_id"),
         started_at: row.get("started_at"),
         finished_at: row.get("finished_at"),
         created_at: row.get("created_at"),

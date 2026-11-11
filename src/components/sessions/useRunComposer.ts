@@ -65,7 +65,7 @@ interface OutgoingMessage {
 
 export function useRunComposer(core: RunSessionCore, conductor: RunConductor, log: RunLog, header: RunHeaderInfo) {
   const {
-    t, runsStore, live, conductorStore, draftsStore, claudeStore, modelCatalog, confirm,
+    t, runsStore, live, conductorStore, draftsStore, claudeStore, codexStore, modelCatalog, confirm,
     toast, projectId, project, engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine,
     effectiveEngine, sessionDefaults, permissionMode, currentRunId, currentRun, currentIsSession, session,
     liveEntries, liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
@@ -405,7 +405,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   const editing = ref<EditSession<ChatDraft> | null>(null)
   const editingMessage = computed(() => (editing.value && editing.value.runId === currentRunId.value ? editing.value : null))
   const rewindingEdit = ref(false)
-  const savingClaudeAccount = ref(false)
+  const savingAccount = ref(false)
 
   const defaultClaudeAccount = computed(() =>
     claudeStore.accounts.find((acc) => acc.is_default) ?? null,
@@ -440,20 +440,49 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const id = selectedClaudeAccountId.value || effectiveProjectClaudeAccountId.value
     return claudeStore.accounts.find((acc) => acc.id === id)?.label ?? ''
   })
+  // Codex (UX-40): a run keeps the login it ran with, so there is no
+  // "Default" tier; '' is the shared `~/.codex` login.
+  const showCodexAccountSelect = computed(() =>
+    !!currentRun.value
+    && effectiveEngine.value === 'codex'
+    && (codexStore.accounts.length > 0 || !!currentRun.value.codex_account_id),
+  )
+  const activeCodexAccountLabel = computed(() => {
+    if (!showCodexAccountSelect.value) return ''
+    const id = currentRun.value?.codex_account_id
+    if (!id) return t('run.accountMenu.sharedCodexLogin')
+    return codexStore.accounts.find((acc) => acc.id === id)?.label ?? ''
+  })
+  // The picked row of the Account tab, for either engine.
+  const selectedAccountId = computed(() =>
+    effectiveEngine.value === 'codex' ? currentRun.value?.codex_account_id || '' : selectedClaudeAccountId.value,
+  )
   // The account · model chip's label, on the composer and the status bar.
   const accountModelLabel = computed(() =>
-    [activeClaudeAccountLabel.value || engineBadgeLabel.value, composerModelLabel.value]
+    [activeClaudeAccountLabel.value || activeCodexAccountLabel.value || engineBadgeLabel.value, composerModelLabel.value]
       .filter(Boolean)
       .join(' · '),
   )
   // The Account tab of the account · model menu (UX-47). `value` null: the one
-  // login there is, shown but not a choice (Codex until it runs per account,
-  // UX-40; Claude with no managed account). `usageKey` names the usage row it
-  // shows, as the status bar's usage rings key them.
+  // login there is, shown but not a choice (Codex or Claude with no managed
+  // account). `usageKey` names the usage row it shows, as the status bar's
+  // usage rings key them.
   const accountChoices = computed(() => {
     type Choice = { value: string | null; label: string; detail?: string; usageKey: string | null }
     if (effectiveEngine.value === 'codex') {
-      return [{ value: null, label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' }] as Choice[]
+      if (!showCodexAccountSelect.value) {
+        return [{ value: null, label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' }] as Choice[]
+      }
+      const out: Choice[] = [{ value: '', label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' }]
+      const currentId = currentRun.value?.codex_account_id
+      if (currentId && !codexStore.accounts.some((acc) => acc.id === currentId)) {
+        out.push({ value: currentId, label: t('run.missingCodexAccount'), usageKey: null })
+      }
+      // No usage row per Codex account yet: the stored Codex usage is one snapshot.
+      for (const acc of codexStore.accounts) {
+        out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: null })
+      }
+      return out
     }
     if (!showClaudeAccountSelect.value) {
       return [{ value: null, label: t('run.globalClaudeAccount'), usageKey: 'claude' }] as Choice[]
@@ -471,22 +500,26 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     return out
   })
   // Allowed while a turn runs: the switch is stored and the next turn resumes
-  // under the new account (set_run_claude_account copies nothing mid-turn).
-  const claudeAccountSelectDisabled = computed(() => sendingFollowUp.value || savingClaudeAccount.value)
+  // under the new account (set_run_*_account copies nothing mid-turn).
+  const accountSelectDisabled = computed(() => sendingFollowUp.value || savingAccount.value)
 
-  async function handleClaudeAccountChange(value: string) {
+  async function handleAccountChange(value: string) {
     const run = currentRun.value
-    if (!run || savingClaudeAccount.value) return
+    if (!run || savingAccount.value) return
     const next = value.trim() || null
-    if ((run.claude_account_id ?? null) === next) return
-    savingClaudeAccount.value = true
+    const codex = effectiveEngine.value === 'codex'
+    if (((codex ? run.codex_account_id : run.claude_account_id) ?? null) === next) return
+    const keys = codex
+      ? ['run.codexAccountUpdated', 'run.codexAccountUpdatedNextTurn', 'run.codexAccountUpdateFailed']
+      : ['run.claudeAccountUpdated', 'run.claudeAccountUpdatedNextTurn', 'run.claudeAccountUpdateFailed']
+    savingAccount.value = true
     try {
-      await runsStore.setRunClaudeAccount(run.id, next)
-      toast.success(t(currentStatus.value === 'running' ? 'run.claudeAccountUpdatedNextTurn' : 'run.claudeAccountUpdated'))
+      await (codex ? runsStore.setRunCodexAccount(run.id, next) : runsStore.setRunClaudeAccount(run.id, next))
+      toast.success(t(currentStatus.value === 'running' ? keys[1] : keys[0]))
     } catch (e) {
-      toast.error(t('run.claudeAccountUpdateFailed', { error: String(e) }))
+      toast.error(t(keys[2], { error: String(e) }))
     } finally {
-      savingClaudeAccount.value = false
+      savingAccount.value = false
     }
   }
 
@@ -1613,9 +1646,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     onModelSelect, contextTokens, contextModel, composerModelLabel, contextRateLimit,
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
-    sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedClaudeAccountId,
-    accountChoices, accountModelLabel, claudeAccountSelectDisabled,
-    handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
+    sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedAccountId,
+    accountChoices, accountModelLabel, accountSelectDisabled,
+    handleAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
     toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,

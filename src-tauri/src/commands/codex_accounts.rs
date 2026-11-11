@@ -52,8 +52,6 @@ pub struct CodexValidation {
 }
 
 /// The account a Codex run uses: start the CLI with `CODEX_HOME = home_dir`.
-// Codex runs pick it up in UX-40; this task only adds the accounts.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct CodexRuntimeAccount {
     pub id: String,
@@ -638,7 +636,6 @@ fn email_from_auth(home: &Path) -> Option<String> {
 /// 4. `None`: the shared `~/.codex` login, as before Codex accounts existed.
 ///
 /// The home is prepared (shared entries re-linked) on the way.
-#[allow(dead_code)] // see `CodexRuntimeAccount`
 pub async fn resolve_runtime_account(
     db: &Db,
     project_id: Option<&str>,
@@ -693,6 +690,17 @@ async fn resolve_runtime_account_with(
     };
     prepare_home(Path::new(&home_dir), global)?;
     Ok(Some(CodexRuntimeAccount { id: account_id, home_dir }))
+}
+
+/// Every account's home, where its sessions live (`<home>/sessions`).
+pub async fn account_homes(db: &Db) -> Vec<String> {
+    sqlx::query_scalar::<_, String>("SELECT home_dir FROM codex_accounts")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|d| !d.trim().is_empty())
+        .collect()
 }
 
 #[cfg(test)]

@@ -18,6 +18,7 @@ import { useServersStore } from '@/stores/servers'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -47,6 +48,7 @@ export function useRunSessionCore() {
   const awsStore = useAwsAccountsStore()
   const azureStore = useAzureAccountsStore()
   const claudeStore = useClaudeAccountsStore()
+  const codexStore = useCodexAccountsStore()
   const appSettings = useAppSettingsStore()
   const features = useFeaturesStore()
   const modelCatalog = useModelCatalogStore()
@@ -192,7 +194,7 @@ export function useRunSessionCore() {
 
   return {
     t, route, router, projectStore, runsStore, live, conductorStore, tabsStore, draftsStore, ghStore,
-    glStore, serversStore, awsStore, azureStore, claudeStore, appSettings, features,
+    glStore, serversStore, awsStore, azureStore, claudeStore, codexStore, appSettings, features,
     modelCatalog, uiLayout, confirm, prompt, toast, projectId, project, isSessionWindow, activeRunId,
     engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine, sessionDefaults,
     permissionMode, currentRunId, currentRun, currentIsSession, session, liveEntries,

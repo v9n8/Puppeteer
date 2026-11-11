@@ -2,7 +2,8 @@
 //!
 //! Both engines persist conversations to a store their CLIs / VS Code extensions
 //! also write — Claude at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`,
-//! Codex at `~/.codex/sessions/<date>/rollout-<ts>-<thread-id>.jsonl`. This
+//! Codex at `~/.codex/sessions/<date>/rollout-<ts>-<thread-id>.jsonl` (and the
+//! same under each managed account's config dir / `CODEX_HOME`). This
 //! watcher tails both so anything done OUTSIDE Puppeteer (a new session, or more
 //! turns added to one Puppeteer started) shows up without a manual refresh.
 //!
@@ -71,7 +72,12 @@ async fn follow(db: Pool<Sqlite>, app: AppHandle) {
     } else {
         Vec::new()
     };
-    let roots = watch_roots(Path::new(&home), &accounts, claude, codex);
+    let codex_homes = if codex {
+        crate::commands::codex_accounts::account_homes(&db).await
+    } else {
+        Vec::new()
+    };
+    let roots = watch_roots(Path::new(&home), &accounts, &codex_homes, claude, codex);
     *slot = watch(&roots, move |path| {
         let db = db.clone();
         let app = app.clone();
@@ -85,8 +91,14 @@ async fn follow(db: Pool<Sqlite>, app: AppHandle) {
 /// account's `projects` while `claude` is on (so external CLI/VS Code sessions
 /// run under a multi-account profile mirror in live too, AC-011; accounts added
 /// later are still picked up by the on-open reconcile), and `~/.codex/sessions`
-/// while `codex` is on.
-fn watch_roots(home: &Path, account_dirs: &[String], claude: bool, codex: bool) -> Vec<PathBuf> {
+/// plus every Codex account's `sessions` while `codex` is on.
+fn watch_roots(
+    home: &Path,
+    account_dirs: &[String],
+    codex_homes: &[String],
+    claude: bool,
+    codex: bool,
+) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if claude {
         roots.push(home.join(".claude").join("projects"));
@@ -94,6 +106,7 @@ fn watch_roots(home: &Path, account_dirs: &[String], claude: bool, codex: bool) 
     }
     if codex {
         roots.push(home.join(".codex").join("sessions"));
+        roots.extend(codex_homes.iter().map(|h| PathBuf::from(h).join("sessions")));
     }
     roots
 }
@@ -266,13 +279,14 @@ mod tests {
     fn watch_roots_follow_the_switches() {
         let home = Path::new("/h");
         let accounts = ["/acc".to_string()];
-        let roots = |claude, codex| watch_roots(home, &accounts, claude, codex);
+        let codex_homes = ["/cx".to_string()];
+        let roots = |claude, codex| watch_roots(home, &accounts, &codex_homes, claude, codex);
         let claude = [PathBuf::from("/h/.claude/projects"), PathBuf::from("/acc/projects")];
-        let codex = PathBuf::from("/h/.codex/sessions");
+        let codex = [PathBuf::from("/h/.codex/sessions"), PathBuf::from("/cx/sessions")];
 
-        assert_eq!(roots(true, true), [claude[0].clone(), claude[1].clone(), codex.clone()]);
+        assert_eq!(roots(true, true), [claude[0].clone(), claude[1].clone(), codex[0].clone(), codex[1].clone()]);
         assert_eq!(roots(true, false), claude);
-        assert_eq!(roots(false, true), [codex]);
+        assert_eq!(roots(false, true), codex);
         assert!(roots(false, false).is_empty());
     }
 

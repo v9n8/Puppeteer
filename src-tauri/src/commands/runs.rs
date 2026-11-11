@@ -2,7 +2,7 @@ use crate::commands::github::RunRecord;
 use crate::db::Db;
 use crate::runs::broker::{audit, BrokerHandle};
 use crate::runs::sidecar::{
-    apply_claude_config_dir, apply_mcp_tool_timeout, augment_command_path,
+    apply_claude_config_dir, apply_codex_home, apply_mcp_tool_timeout, augment_command_path,
     detach_sidecar_process_group, drain_sidecar, kill_process_group, resolve_codex_sidecar,
     resolve_sidecar, sdk_permission_mode,
 };
@@ -188,7 +188,7 @@ pub(crate) async fn start_run_inner(
     // Load run + project info
     let run_row = sqlx::query(
         "SELECT r.id, r.project_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                r.system_instruction, r.worktree_path, r.style, r.model, r.effort, p.path as project_path
+                r.codex_account_id, r.system_instruction, r.worktree_path, r.style, r.model, r.effort, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -205,6 +205,7 @@ pub(crate) async fn start_run_inner(
     let status: String = run_row.get("status");
     let project_path: String = run_row.get("project_path");
     let existing_claude_account_id: Option<String> = run_row.get("claude_account_id");
+    let existing_codex_account_id: Option<String> = run_row.get("codex_account_id");
     let stored_instruction: Option<String> = run_row.get("system_instruction");
     let existing_style: Option<String> = run_row.get("style");
     let existing_model: Option<String> = run_row.get("model");
@@ -322,6 +323,25 @@ pub(crate) async fn start_run_inner(
     };
     if let Some(acct) = &claude_account {
         let _ = sqlx::query("UPDATE runs SET claude_account_id = ? WHERE id = ?")
+            .bind(&acct.id)
+            .bind(&payload.run_id)
+            .execute(db)
+            .await;
+    }
+    // The Codex account, in the same order, snapshotted the same way. None =
+    // the shared `~/.codex` login, which the run then keeps on resume.
+    let codex_account = if engine == "claude" {
+        None
+    } else {
+        crate::commands::codex_accounts::resolve_runtime_account(
+            db,
+            Some(&project_id),
+            existing_codex_account_id.as_deref(),
+        )
+        .await?
+    };
+    if let Some(acct) = &codex_account {
+        let _ = sqlx::query("UPDATE runs SET codex_account_id = ? WHERE id = ?")
             .bind(&acct.id)
             .bind(&payload.run_id)
             .execute(db)
@@ -697,6 +717,7 @@ pub(crate) async fn start_run_inner(
     )
     .await?;
     codex.apply_env(&mut cmd);
+    apply_codex_home(&mut cmd, codex_account.as_ref().map(|a| a.home_dir.as_str()));
     cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
     // The session ends when the drain closes its input, not at the end of
     // each turn: a follow-up sent meanwhile starts after it (`TurnGate`).
@@ -1987,10 +2008,10 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
         }
         (Some("codex"), Some(sid)) if mirrored => {
             // Prefer the cached rollout path; only walk the tree if it's gone.
-            let file = transcript_path
-                .map(PathBuf::from)
-                .filter(|p| p.is_file())
-                .or_else(|| crate::commands::codex_sessions::codex_session_file(sid));
+            let file = match transcript_path.map(PathBuf::from).filter(|p| p.is_file()) {
+                Some(file) => Some(file),
+                None => crate::commands::codex_sessions::codex_session_file(db.inner(), sid).await,
+            };
             if let Some(file) = file {
                 let _ = crate::commands::codex_sessions::upsert_codex_session_file(
                     db.inner(),
@@ -2109,6 +2130,9 @@ pub(crate) struct RunLogRow {
     session_id: Option<String>,
     transcript_path: Option<String>,
     project_path: String,
+    /// Codex rollout stores to look in when `transcript_path` is gone (empty
+    /// for other engines).
+    codex_roots: Vec<PathBuf>,
 }
 
 pub(crate) async fn fetch_run_log_row(db: &Db, run_id: &str) -> Result<RunLogRow, String> {
@@ -2122,12 +2146,19 @@ pub(crate) async fn fetch_run_log_row(db: &Db, run_id: &str) -> Result<RunLogRow
     .fetch_one(db)
     .await
     .map_err(|e| e.to_string())?;
+    let engine: Option<String> = row.get("engine");
+    let codex_roots = if engine.as_deref() == Some("codex") {
+        crate::commands::codex_sessions::codex_sessions_roots(db).await
+    } else {
+        Vec::new()
+    };
     Ok(RunLogRow {
         output_path: row.get("output_path"),
-        engine: row.get("engine"),
+        engine,
         session_id: row.get("session_id"),
         transcript_path: row.get("transcript_path"),
         project_path: row.get("project_path"),
+        codex_roots,
     })
 }
 
@@ -2145,7 +2176,7 @@ fn resolve_transcript(row: &RunLogRow) -> Option<PathBuf> {
                         .filter(|p| p.is_file())
                 }
                 (Some("codex"), Some(sid)) => {
-                    crate::commands::codex_sessions::codex_session_file(sid)
+                    crate::commands::codex_sessions::codex_session_file_in(&row.codex_roots, sid)
                 }
                 _ => None,
             },
@@ -3002,6 +3033,7 @@ struct ClonableRun {
     resolved_input: String,
     engine: String,
     claude_account_id: Option<String>,
+    codex_account_id: Option<String>,
 }
 
 /// Source-run fields needed for cross-engine handoff. Unlike rerun, a handoff
@@ -3025,7 +3057,7 @@ async fn load_clonable_run(db: &sqlx::SqlitePool, run_id: &str) -> Result<Clonab
 
     let row = sqlx::query(
         "SELECT r.project_id, r.repo_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                p.path as project_path
+                r.codex_account_id, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -3044,6 +3076,7 @@ async fn load_clonable_run(db: &sqlx::SqlitePool, run_id: &str) -> Result<Clonab
     let status: String = row.get("status");
     let engine: String = row.get("engine");
     let claude_account_id: Option<String> = row.get("claude_account_id");
+    let codex_account_id: Option<String> = row.get("codex_account_id");
     let project_path: String = row.get("project_path");
 
     // Resolve input file: prefer stored input_path, else output_path (only valid
@@ -3088,6 +3121,7 @@ async fn load_clonable_run(db: &sqlx::SqlitePool, run_id: &str) -> Result<Clonab
         resolved_input,
         engine,
         claude_account_id,
+        codex_account_id,
     })
 }
 
@@ -3185,8 +3219,8 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO runs (id, project_id, repo_id, type, ref_number, status, engine, claude_account_id, input_path, output_path, created_at)
-         VALUES (?, ?, ?, ?, ?, 'fetched', ?, ?, ?, ?, ?)",
+        "INSERT INTO runs (id, project_id, repo_id, type, ref_number, status, engine, claude_account_id, codex_account_id, input_path, output_path, created_at)
+         VALUES (?, ?, ?, ?, ?, 'fetched', ?, ?, ?, ?, ?, ?)",
     )
     .bind(&new_id)
     .bind(&src.project_id)
@@ -3195,6 +3229,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
     .bind(src.ref_number)
     .bind(&src.engine)
     .bind(&src.claude_account_id)
+    .bind(&src.codex_account_id)
     .bind(&src.resolved_input)
     .bind(&src.resolved_input)
     .bind(&now)
@@ -3215,6 +3250,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         output_path: Some(src.resolved_input),
         session_id: None,
         claude_account_id: src.claude_account_id,
+        codex_account_id: src.codex_account_id,
         started_at: None,
         finished_at: None,
         created_at: now,
@@ -3307,6 +3343,7 @@ pub async fn create_handoff_run(
             output_path: src.input_path,
             session_id: None,
             claude_account_id: None,
+            codex_account_id: None,
             started_at: None,
             finished_at: None,
             created_at: now,
@@ -3366,6 +3403,7 @@ pub async fn create_session_run(
         output_path: None,
         session_id: None,
         claude_account_id: None,
+        codex_account_id: None,
         started_at: None,
         finished_at: None,
         created_at: now,
@@ -3793,8 +3831,8 @@ async fn delete_single_run(
     let _ = fs::remove_file(runs_dir.join(format!("{}.log", run_id)));
     let _ = fs::remove_dir_all(runs_dir.join(run_id));
 
-    // Also delete every engine transcript of the session — in every Claude
-    // account store (a switched account holds its own copy) plus subagent data —
+    // Also delete every engine transcript of the session — in every Claude /
+    // Codex account store (a switched account holds its own copy) plus subagent data —
     // so the session can't be re-mirrored back into history and disappears from
     // the CLI/VS Code resume list too. The tombstone above still guards the
     // window in case a file can't be removed; those are reported to the caller.
@@ -3805,7 +3843,11 @@ async fn delete_single_run(
         } else {
             Vec::new()
         };
-        let codex_root = crate::commands::codex_sessions::codex_sessions_root();
+        let codex_roots = if engine == "codex" {
+            crate::commands::codex_sessions::codex_sessions_roots(db).await
+        } else {
+            Vec::new()
+        };
         // Threads forked from this one that are sessions of their own stay.
         let other_threads: std::collections::HashSet<String> = if engine == "codex" {
             sqlx::query_scalar("SELECT session_id FROM runs WHERE engine = 'codex' AND session_id IS NOT NULL")
@@ -3822,7 +3864,7 @@ async fn delete_single_run(
             sid,
             transcript_path.as_deref(),
             &claude_dirs,
-            codex_root.as_deref(),
+            &codex_roots,
             &other_threads,
         );
         leftover = remove_paths(&targets);
@@ -3860,14 +3902,15 @@ fn is_plain_session_id(sid: &str) -> bool {
 /// Everything on disk holding a session's engine transcript. Claude: the cached
 /// `transcript_path`, plus `<sid>.jsonl` and the `<sid>/` folder (subagent
 /// transcripts, tool results) in every account store in `claude_dirs`. Codex:
-/// the cached path plus the thread's rollout and its subagent/fork rollouts,
-/// but not those of `other_threads` (a fork that is a session of its own).
+/// the cached path plus the thread's rollout and its subagent/fork rollouts in
+/// every store in `codex_roots`, but not those of `other_threads` (a fork that
+/// is a session of its own).
 fn engine_transcript_targets(
     engine: &str,
     session_id: &str,
     transcript_path: Option<&str>,
     claude_dirs: &[PathBuf],
-    codex_root: Option<&Path>,
+    codex_roots: &[PathBuf],
     other_threads: &std::collections::HashSet<String>,
 ) -> Vec<PathBuf> {
     let mut targets: Vec<PathBuf> = transcript_path.map(PathBuf::from).into_iter().collect();
@@ -3882,7 +3925,7 @@ fn engine_transcript_targets(
             }
         }
         "codex" => {
-            if let Some(root) = codex_root {
+            for root in codex_roots {
                 targets.extend(crate::commands::codex_sessions::codex_thread_files(
                     root,
                     session_id,
@@ -4227,6 +4270,108 @@ pub async fn set_run_claude_account_inner(
     Ok(())
 }
 
+/// The Codex account a run resumes under: the one it ran with (or was
+/// switched to), else the shared `~/.codex` login. Unlike Claude, `NULL` never
+/// falls through to the project or default account: a session started before
+/// Codex accounts existed, or on the shared login, stays there until the user
+/// switches it.
+async fn run_codex_account(
+    db: &Db,
+    run_account_id: Option<&str>,
+) -> Result<Option<crate::commands::codex_accounts::CodexRuntimeAccount>, String> {
+    match run_account_id.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(id) => crate::commands::codex_accounts::resolve_runtime_account(db, None, Some(id)).await,
+        None => Ok(None),
+    }
+}
+
+/// Ensure a resumed Codex thread's rollout is in the home it resumes under
+/// (`None` = `~/.codex`), copying it from the store of the login it last ran
+/// with (see [`crate::commands::codex_sessions::mirror_rollout`]).
+async fn mirror_codex_rollout_for_account(
+    db: &Db,
+    session_id: &str,
+    transcript_path: Option<&str>,
+    target_home: Option<&str>,
+) -> Result<Option<PathBuf>, String> {
+    let Some(target) = crate::commands::codex_sessions::sessions_root_for(target_home) else {
+        return Ok(None);
+    };
+    let roots = crate::commands::codex_sessions::codex_sessions_roots(db).await;
+    let session_id = session_id.to_string();
+    let live = transcript_path.map(PathBuf::from);
+    tokio::task::spawn_blocking(move || {
+        crate::commands::codex_sessions::mirror_rollout(&session_id, live.as_deref(), &roots, &target)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Change the Codex account a run uses (`None` = the shared `~/.codex` login).
+/// Applies from the next resume, like [`set_run_claude_account`].
+#[tauri::command]
+pub async fn set_run_codex_account(
+    db: State<'_, Db>,
+    run_id: String,
+    account_id: Option<String>,
+) -> Result<(), String> {
+    set_run_codex_account_inner(db.inner(), run_id, account_id).await
+}
+
+/// The body of [`set_run_codex_account`]. A running turn is still writing its
+/// rollout under the old home, so then only the id is stored: `resume_run`
+/// copies the rollout before the next turn. Otherwise the rollout is copied now
+/// and the run points at the copy.
+pub async fn set_run_codex_account_inner(
+    db: &Db,
+    run_id: String,
+    account_id: Option<String>,
+) -> Result<(), String> {
+    use sqlx::Row;
+
+    let account_id = account_id.and_then(|v| {
+        let v = v.trim().to_string();
+        (!v.is_empty()).then_some(v)
+    });
+    let row = sqlx::query("SELECT engine, status, session_id, transcript_path FROM runs WHERE id = ?")
+        .bind(&run_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let engine: String = row.get("engine");
+    if engine != "codex" {
+        return Err("Only Codex runs can use Codex accounts".to_string());
+    }
+    let account = run_codex_account(db, account_id.as_deref()).await?;
+
+    let status: String = row.get("status");
+    let session_id: Option<String> = row.get("session_id");
+    let mirrored = match session_id.as_deref().filter(|_| status != "running") {
+        Some(sid) => {
+            let transcript_path: Option<String> = row.get("transcript_path");
+            mirror_codex_rollout_for_account(
+                db,
+                sid,
+                transcript_path.as_deref(),
+                account.as_ref().map(|a| a.home_dir.as_str()),
+            )
+            .await?
+        }
+        None => None,
+    };
+
+    let query = match &mirrored {
+        Some(path) => sqlx::query(
+            "UPDATE runs SET codex_account_id = ?, transcript_path = ?, transcript_synced_size = NULL WHERE id = ?",
+        )
+        .bind(&account_id)
+        .bind(path.to_string_lossy().into_owned()),
+        None => sqlx::query("UPDATE runs SET codex_account_id = ? WHERE id = ?").bind(&account_id),
+    };
+    query.bind(&run_id).execute(db).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Pin or unpin a run so it sorts to the top of the History list.
 #[tauri::command]
 pub async fn set_run_pinned(db: State<'_, Db>, run_id: String, pinned: bool) -> Result<(), String> {
@@ -4379,8 +4524,8 @@ pub(crate) async fn resume_run_with(
     let command_at = std::time::Instant::now();
 
     let row = sqlx::query(
-        "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.worktree_path,
-                r.style, r.model, r.effort, p.path as project_path
+        "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.codex_account_id,
+                r.worktree_path, r.style, r.model, r.effort, p.path as project_path
          FROM runs r JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
     )
@@ -4395,6 +4540,7 @@ pub(crate) async fn resume_run_with(
     let transcript_path: Option<String> = row.get("transcript_path");
     let project_id: String = row.get("project_id");
     let claude_account_id: Option<String> = row.get("claude_account_id");
+    let codex_account_id: Option<String> = row.get("codex_account_id");
     let project_path: String = row.get("project_path");
     let worktree_path: Option<String> = row.get("worktree_path");
     let previous_style: Option<String> = row.get("style");
@@ -4410,6 +4556,14 @@ pub(crate) async fn resume_run_with(
     let claude_account = if engine == "claude" {
         effective_run_claude_account(db.inner(), &project_id, claude_account_id.as_deref())
             .await?
+    } else {
+        None
+    };
+    // A Codex run resumes under the login it ran with (or was switched to):
+    // its account, else the shared `~/.codex`. The rollout is mirrored into
+    // that home below. Errors if the account was deleted.
+    let codex_account = if engine == "codex" {
+        run_codex_account(db.inner(), codex_account_id.as_deref()).await?
     } else {
         None
     };
@@ -4557,7 +4711,16 @@ pub(crate) async fn resume_run_with(
     // fresh session in the same run instead; the earlier context is lost.
     let (transcript_available, mirrored_transcript) = match session_id.as_deref() {
         None => (false, None),
-        Some(sid) if engine == "codex" => (crate::commands::codex_sessions::codex_session_file(sid).is_some(), None),
+        Some(sid) if engine == "codex" => {
+            let rollout = mirror_codex_rollout_for_account(
+                db.inner(),
+                sid,
+                transcript_path.as_deref(),
+                codex_account.as_ref().map(|a| a.home_dir.as_str()),
+            )
+            .await?;
+            (rollout.is_some(), rollout)
+        }
         Some(sid) => {
             let mirrored = mirror_claude_transcript_for_account(
                 db.inner(),
@@ -4591,7 +4754,10 @@ pub(crate) async fn resume_run_with(
     // turn count (Codex); without one the fork starts a new session, the source
     // is never resumed in place.
     let fork_env = fork.as_ref().filter(|_| transcript_available).and_then(|f| {
-        let transcript = mirrored_transcript.as_ref().and_then(|p| fs::read(p).ok());
+        let transcript = mirrored_transcript
+            .as_ref()
+            .filter(|_| engine == "claude")
+            .and_then(|p| fs::read(p).ok());
         crate::runs::fork::resume_env(&engine, f, transcript.as_deref())
     });
     let forking = fork_env.is_some();
@@ -4699,6 +4865,7 @@ pub(crate) async fn resume_run_with(
         cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
         cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
         codex.apply_env(&mut cmd);
+        apply_codex_home(&mut cmd, codex_account.as_ref().map(|a| a.home_dir.as_str()));
         if let Some(m) = &model {
             cmd.env("PUPPETEER_CODEX_MODEL", m);
         }
@@ -4944,7 +5111,7 @@ mod transcript_purge_tests {
             "sid-1",
             None,
             &[global.clone(), account.clone()],
-            None,
+            &[],
             &Default::default(),
         );
         assert!(remove_paths(&targets).is_empty());
@@ -4961,9 +5128,9 @@ mod transcript_purge_tests {
     fn unsafe_session_id_only_targets_cached_path() {
         let dirs = [PathBuf::from("/tmp/x")];
         let targets =
-            engine_transcript_targets("claude", "../..", Some("/tmp/x/t.jsonl"), &dirs, None, &Default::default());
+            engine_transcript_targets("claude", "../..", Some("/tmp/x/t.jsonl"), &dirs, &[], &Default::default());
         assert_eq!(targets, vec![PathBuf::from("/tmp/x/t.jsonl")]);
-        assert!(engine_transcript_targets("claude", "", None, &dirs, None, &Default::default()).is_empty());
+        assert!(engine_transcript_targets("claude", "", None, &dirs, &[], &Default::default()).is_empty());
     }
 }
 
@@ -6496,6 +6663,138 @@ mod permission_audit_tests {
         assert_eq!(records.len(), 1, "{records:?}");
         for field in ["engine=codex", "decision=cancel", "origin=engine", "input=\"rm -rf build\""] {
             assert!(records[0].contains(field), "lacks {field}: {}", records[0]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod codex_account_resume_tests {
+    use super::*;
+
+    async fn db() -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'proj', '/tmp/p1', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        db
+    }
+
+    async fn add_account(db: &Db, id: &str, home: &Path, is_default: bool) {
+        sqlx::query("INSERT INTO codex_accounts (id, label, home_dir, is_default, created_at) VALUES (?, ?, ?, ?, 'c')")
+            .bind(id)
+            .bind(id)
+            .bind(home.to_string_lossy().as_ref())
+            .bind(is_default)
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("puppeteer-{tag}-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[tokio::test]
+    async fn a_run_without_an_account_resumes_on_the_shared_login() {
+        let db = db().await;
+        let home = temp_dir("codex-default");
+        add_account(&db, "def", &home, true).await;
+        // Not the default account: the session ran on ~/.codex, where its thread is.
+        assert!(run_codex_account(&db, None).await.unwrap().is_none());
+        assert!(run_codex_account(&db, Some("  ")).await.unwrap().is_none());
+        let acct = run_codex_account(&db, Some("def")).await.unwrap().unwrap();
+        assert_eq!(acct.home_dir, home.to_string_lossy());
+        assert!(run_codex_account(&db, Some("gone")).await.is_err());
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[tokio::test]
+    async fn switching_account_copies_the_rollout_once_the_turn_has_ended() {
+        let db = db().await;
+        let (a, b) = (temp_dir("codex-a"), temp_dir("codex-b"));
+        add_account(&db, "a", &a, false).await;
+        add_account(&db, "b", &b, false).await;
+        let sid = uuid::Uuid::new_v4().to_string();
+        let name = format!("rollout-2026-11-10T10-00-00-{sid}.jsonl");
+        let src = a.join("sessions/2026/11/10").join(&name);
+        fs::create_dir_all(src.parent().unwrap()).unwrap();
+        fs::write(&src, "turns").unwrap();
+        sqlx::query(
+            "INSERT INTO runs (id, project_id, type, status, engine, session_id, transcript_path, codex_account_id, created_at)
+             VALUES ('r1', 'p1', 'session', 'running', 'codex', ?, ?, 'a', 'c')",
+        )
+        .bind(&sid)
+        .bind(src.to_string_lossy().as_ref())
+        .execute(&db)
+        .await
+        .unwrap();
+        let row = |db: Db| async move {
+            sqlx::query_as::<_, (Option<String>, Option<String>)>(
+                "SELECT codex_account_id, transcript_path FROM runs WHERE id = 'r1'",
+            )
+            .fetch_one(&db)
+            .await
+            .unwrap()
+        };
+        let copy = b.join("sessions/2026/11/10").join(&name);
+
+        // Mid-turn: only the id; the rollout is still being written under `a`.
+        set_run_codex_account_inner(&db, "r1".into(), Some("b".into())).await.unwrap();
+        assert_eq!(row(db.clone()).await, (Some("b".into()), Some(src.to_string_lossy().into_owned())));
+        assert!(!copy.exists());
+
+        // Turn over: the next resume finds the thread in b's home.
+        sqlx::query("UPDATE runs SET status = 'done' WHERE id = 'r1'").execute(&db).await.unwrap();
+        let got = mirror_codex_rollout_for_account(&db, &sid, Some(src.to_str().unwrap()), Some(b.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert_eq!(got.as_deref(), Some(copy.as_path()));
+        assert_eq!(fs::read_to_string(&copy).unwrap(), "turns");
+
+        // Switching back while idle copies at once and points the run at it.
+        fs::write(&copy, "turns+more").unwrap();
+        sqlx::query("UPDATE runs SET transcript_path = ? WHERE id = 'r1'")
+            .bind(copy.to_string_lossy().as_ref())
+            .execute(&db)
+            .await
+            .unwrap();
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        fs::File::options().write(true).open(&copy).unwrap().set_modified(later).unwrap();
+        set_run_codex_account_inner(&db, "r1".into(), Some("a".into())).await.unwrap();
+        assert_eq!(row(db.clone()).await, (Some("a".into()), Some(src.to_string_lossy().into_owned())));
+        assert_eq!(fs::read_to_string(&src).unwrap(), "turns+more");
+
+        // Unknown account, or a run of another engine: refused, nothing changes.
+        assert!(set_run_codex_account_inner(&db, "r1".into(), Some("gone".into())).await.is_err());
+        sqlx::query("UPDATE runs SET engine = 'claude' WHERE id = 'r1'").execute(&db).await.unwrap();
+        assert!(set_run_codex_account_inner(&db, "r1".into(), None).await.is_err());
+        assert_eq!(row(db.clone()).await.0.as_deref(), Some("a"));
+        let _ = (fs::remove_dir_all(a), fs::remove_dir_all(b));
+    }
+
+    // Like the fallback-model check: both spawn paths need an AppHandle, so
+    // check that each hands the resolved home to the Codex sidecar.
+    #[test]
+    fn start_and_resume_both_run_codex_under_the_account_home() {
+        let src = include_str!("runs.rs").replace("\r\n", "\n");
+        for (from, to) in [
+            ("pub(crate) async fn start_run_inner(", "#[tauri::command]"),
+            ("pub(crate) async fn resume_run_with(", "\n}\n"),
+        ] {
+            let body = &src[src.find(from).unwrap()..];
+            let body = &body[..body.find(to).unwrap()];
+            assert!(
+                body.contains("apply_codex_home(&mut cmd, codex_account.as_ref().map(|a| a.home_dir.as_str()));"),
+                "{from}"
+            );
         }
     }
 }

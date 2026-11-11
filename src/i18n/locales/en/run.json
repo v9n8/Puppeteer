@@ -210,6 +210,10 @@
   "claudeAccountUpdated": "Claude account changed for this run",
   "claudeAccountUpdatedNextTurn": "Claude account changed for this run. Applies from the next turn.",
   "claudeAccountUpdateFailed": "Could not change Claude account: {error}",
+  "missingCodexAccount": "Deleted Codex account",
+  "codexAccountUpdated": "Codex account changed for this run",
+  "codexAccountUpdatedNextTurn": "Codex account changed for this run. Applies from the next turn.",
+  "codexAccountUpdateFailed": "Could not change Codex account: {error}",
   "accountMenu": {
     "title": "Account · model",
     "chipTitle": "Account · model: {value}",

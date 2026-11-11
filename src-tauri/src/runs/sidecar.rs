@@ -58,6 +58,16 @@ pub fn apply_claude_config_dir(cmd: &mut tokio::process::Command, config_dir: Op
     cmd.env("CLAUDE_CONFIG_DIR", config_dir);
 }
 
+/// Run a Codex sidecar under a Puppeteer-managed Codex account: the
+/// `codex app-server` it spawns inherits `CODEX_HOME`, so the session uses that
+/// account's login and writes its rollout there. `None` (the shared `~/.codex`
+/// login) leaves the environment as it is.
+pub fn apply_codex_home(cmd: &mut tokio::process::Command, home: Option<&str>) {
+    if let Some(home) = home.map(str::trim).filter(|v| !v.is_empty()) {
+        cmd.env("CODEX_HOME", home);
+    }
+}
+
 /// Give MCP tool calls a generous ceiling so long-blocking loopback tools aren't
 /// aborted by the client's default tool timeout with "The operation timed out."
 /// The conductor's `session_wait` streams progress and can block up to its

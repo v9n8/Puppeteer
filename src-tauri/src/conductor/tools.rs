@@ -208,9 +208,14 @@ async fn reserve_worker(
     let worker_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
+    // A Codex worker of a Codex conductor runs on the conductor's Codex
+    // account (the one the user picked or switched it to); any other worker
+    // follows the project / default account at its start.
     sqlx::query(
-        "INSERT INTO runs (id, project_id, type, status, engine, created_at, title, role, conductor_run_id, system_instruction)
-         VALUES (?, ?, 'session', 'fetched', ?, ?, ?, 'worker', ?, ?)",
+        "INSERT INTO runs (id, project_id, type, status, engine, created_at, title, role, conductor_run_id, system_instruction,
+                           codex_account_id)
+         VALUES (?, ?, 'session', 'fetched', ?, ?, ?, 'worker', ?, ?,
+                 CASE WHEN ? = 'codex' THEN (SELECT codex_account_id FROM runs WHERE id = ? AND engine = 'codex') END)",
     )
     .bind(&worker_id)
     .bind(&session.project_id)
@@ -220,6 +225,8 @@ async fn reserve_worker(
     .bind(conductor_run_id)
     // Persisted so a resume (session_send to a stopped worker) re-applies it.
     .bind(instruction)
+    .bind(engine)
+    .bind(conductor_run_id)
     .execute(db)
     .await
     .map_err(|e| e.to_string())?;
@@ -956,6 +963,35 @@ mod tests {
             Ok("bypassPermissions")
         );
         assert_eq!(workers(&db).await, 1);
+    }
+
+    #[tokio::test]
+    async fn a_codex_worker_runs_on_its_codex_conductors_account() {
+        let worker_accounts = |db: Db| async move {
+            sqlx::query_as::<_, (String, Option<String>)>(
+                "SELECT engine, codex_account_id FROM runs WHERE conductor_run_id = 'c' ORDER BY engine",
+            )
+            .fetch_all(&db)
+            .await
+            .unwrap()
+        };
+        let (db, cst) = setup("codex", "default").await;
+        sqlx::query("INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('cx', 'Work', '/tmp/cx', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE runs SET codex_account_id = 'cx' WHERE id = 'c'").execute(&db).await.unwrap();
+        spawn(&db, &cst, "codex", None).await.unwrap();
+        spawn(&db, &cst, "claude", None).await.unwrap();
+        assert_eq!(
+            worker_accounts(db).await,
+            [("claude".to_string(), None), ("codex".to_string(), Some("cx".to_string()))]
+        );
+
+        // A Claude conductor has no Codex account to hand down.
+        let (db, cst) = setup("claude", "default").await;
+        spawn(&db, &cst, "codex", None).await.unwrap();
+        assert_eq!(worker_accounts(db).await, [("codex".to_string(), None)]);
     }
 
     #[tokio::test]

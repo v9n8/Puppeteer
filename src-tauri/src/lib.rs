@@ -102,7 +102,7 @@ use commands::rules::{
 use commands::runs::{
     cancel_run, create_handoff_run, create_session_run, end_run_input, purge_run, restore_run,
     get_run_log, get_run_log_forward, get_run_log_page, get_run_log_path, get_run_log_revision, get_run_tool_records, get_run_user_records, list_live_runs, list_pending_permissions, read_run_input, rename_run, rerun_run, respond_permission,
-    resume_run, search_run_log, send_user_message, set_run_claude_account, set_run_pinned, set_run_protected, start_run, trash_all_runs, trash_run,
+    resume_run, search_run_log, send_user_message, set_run_claude_account, set_run_codex_account, set_run_pinned, set_run_protected, start_run, trash_all_runs, trash_run,
     steer_run,
 };
 use commands::sessions::reconcile_claude_sessions;
@@ -705,6 +705,7 @@ pub fn run() {
             list_trash,
             rename_run,
             set_run_claude_account,
+            set_run_codex_account,
             set_run_pinned,
             set_run_protected,
             list_project_files,

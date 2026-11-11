@@ -27,11 +27,31 @@ use tauri::State;
 /// Feature switch for mirroring the Codex rollout store.
 pub(crate) const CODEX_MIRROR: &str = "sessions.mirror_codex";
 
-/// `~/.codex/sessions`, the root of the rollout store.
+/// `~/.codex/sessions`, the rollout store of the shared login.
 pub(crate) fn codex_sessions_root() -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    let dir = Path::new(&home).join(".codex").join("sessions");
-    dir.is_dir().then_some(dir)
+    sessions_root_for(None).filter(|dir| dir.is_dir())
+}
+
+/// The rollout store of a login: `<home>/sessions` for a Codex account's home,
+/// `~/.codex/sessions` for the shared login (`None`). It may not exist yet.
+pub(crate) fn sessions_root_for(home: Option<&str>) -> Option<PathBuf> {
+    match home.map(str::trim).filter(|h| !h.is_empty()) {
+        Some(home) => Some(Path::new(home).join("sessions")),
+        None => std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".codex").join("sessions")),
+    }
+}
+
+/// Every rollout store that exists: the shared `~/.codex` one, then each Codex
+/// account's (a session runs under its account's `CODEX_HOME`).
+pub(crate) async fn codex_sessions_roots(db: &Db) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = codex_sessions_root().into_iter().collect();
+    for home in crate::commands::codex_accounts::account_homes(db).await {
+        let dir = Path::new(&home).join("sessions");
+        if dir.is_dir() {
+            roots.push(dir);
+        }
+    }
+    roots
 }
 
 /// Read just the first line of a rollout to get `(cwd, thread_id)` without
@@ -146,18 +166,99 @@ fn all_rollout_files(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Locate the rollout file for a thread id. The id is the filename suffix
-/// (`rollout-<ts>-<id>.jsonl`), so match on that rather than reading every file.
-pub(crate) fn codex_session_file(session_id: &str) -> Option<PathBuf> {
-    let root = codex_sessions_root()?;
+/// Locate the rollout file for a thread id in any store. The id is the
+/// filename suffix (`rollout-<ts>-<id>.jsonl`), so match on that rather than
+/// reading every file.
+pub(crate) async fn codex_session_file(db: &Db, session_id: &str) -> Option<PathBuf> {
+    codex_session_file_in(&codex_sessions_roots(db).await, session_id)
+}
+
+/// [`codex_session_file`] over `roots`. A thread that switched accounts has a
+/// copy of its rollout in each home it ran under; the newest is the live one.
+pub(crate) fn codex_session_file_in(roots: &[PathBuf], session_id: &str) -> Option<PathBuf> {
     let suffix = format!("-{}.jsonl", session_id);
-    all_rollout_files(&root)
-        .into_iter()
-        .find(|p| {
+    roots
+        .iter()
+        .flat_map(|root| all_rollout_files(root))
+        .filter(|p| {
             p.file_name()
                 .and_then(|n| n.to_str())
                 .is_some_and(|n| n.ends_with(&suffix))
         })
+        .reduce(|newest, p| if is_newer(&p, &newest) { p } else { newest })
+}
+
+/// `a` was modified strictly after `b` (false when either mtime is unreadable).
+fn is_newer(a: &Path, b: &Path) -> bool {
+    let mtime = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok();
+    match (mtime(a), mtime(b)) {
+        (Some(a), Some(b)) => a > b,
+        _ => false,
+    }
+}
+
+/// Make thread `session_id` resumable from the rollout store `target`: Codex
+/// finds a thread by its rollout under the active `CODEX_HOME`, so a session
+/// that ran under another login gets a copy there, at the same dated path. A
+/// copy already in `target` is refreshed when the live rollout (`live`, else
+/// the newest in `roots`) is newer, or resuming it would drop the later turns.
+/// Returns the rollout the resumed thread appends to; `None` when the thread
+/// has no rollout anywhere.
+pub(crate) fn mirror_rollout(
+    session_id: &str,
+    live: Option<&Path>,
+    roots: &[PathBuf],
+    target: &Path,
+) -> Result<Option<PathBuf>, String> {
+    let live = live
+        .filter(|p| p.is_file())
+        .map(Path::to_path_buf)
+        .or_else(|| codex_session_file_in(roots, session_id));
+    let copy = |src: &Path, dest: &Path| {
+        fs::copy(src, dest)
+            .map(|_| ())
+            .map_err(|e| format!("Failed to copy Codex rollout from {} to {}: {e}", src.display(), dest.display()))
+    };
+    if let Some(dest) = codex_session_file_in(&[target.to_path_buf()], session_id) {
+        if let Some(live) = live.filter(|l| *l != dest && is_newer(l, &dest)) {
+            copy(&live, &dest)?;
+        }
+        return Ok(Some(dest));
+    }
+    let Some(src) = live else {
+        return Ok(None);
+    };
+    let rel = roots
+        .iter()
+        .find_map(|root| src.strip_prefix(root).ok())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| dated_path(&src));
+    let dest = target.join(rel);
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    copy(&src, &dest)?;
+    Ok(Some(dest))
+}
+
+/// `<YYYY>/<MM>/<DD>/<file name>`, the way Codex files a rollout named
+/// `rollout-<YYYY>-<MM>-<DD>T…`; just the file name when it is not one.
+fn dated_path(file: &Path) -> PathBuf {
+    let Some(name) = file.file_name().and_then(|n| n.to_str()) else {
+        return PathBuf::new();
+    };
+    let date = name
+        .strip_prefix("rollout-")
+        .and_then(|rest| rest.get(..10))
+        .filter(|d| {
+            d.bytes()
+                .enumerate()
+                .all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() })
+        });
+    match date {
+        Some(d) => Path::new(&d[..4]).join(&d[5..7]).join(&d[8..10]).join(name),
+        None => PathBuf::from(name),
+    }
 }
 
 /// Map a Codex `function_call` to a Puppeteer tool_use `(name, input)`. Shell execs
@@ -389,18 +490,35 @@ async fn reconcile_codex(db: &Db, project_id: &str) -> Result<i64, String> {
     let project_name: String = row.get("name");
     let project_path: String = row.get("path");
 
-    let Some(root) = codex_sessions_root() else {
+    let roots = codex_sessions_roots(db).await;
+    if roots.is_empty() {
         return Ok(0);
-    };
+    }
 
-    let mut changed = 0i64;
-    for file in all_rollout_files(&root) {
+    // A thread that switched accounts has a rollout in each home it ran
+    // under: mirror the newest.
+    let mut threads: std::collections::HashMap<String, PathBuf> = std::collections::HashMap::new();
+    for file in roots.iter().flat_map(|root| all_rollout_files(root)) {
         let Some((cwd, thread_id)) = rollout_meta(&file) else {
             continue;
         };
         if cwd != project_path {
             continue;
         }
+        match threads.entry(thread_id) {
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                if is_newer(&file, e.get()) {
+                    e.insert(file);
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(file);
+            }
+        }
+    }
+
+    let mut changed = 0i64;
+    for (thread_id, file) in threads {
         match upsert_codex_session_file(
             db,
             project_id,
@@ -419,7 +537,8 @@ async fn reconcile_codex(db: &Db, project_id: &str) -> Result<i64, String> {
 
     // Populate the Codex plan-usage snapshot from the newest rollout so the
     // budget badge / settings panel show a % even before the first live run.
-    if let Some(rl) = latest_codex_rate_limits_any(&root) {
+    // The snapshot is the shared login's, so only its store feeds it.
+    if let Some(rl) = codex_sessions_root().and_then(|root| latest_codex_rate_limits_any(&root)) {
         persist_codex_plan_usage(db, &rl).await;
     }
     Ok(changed)
@@ -757,5 +876,72 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reconcile_codex(&db, "nope").await, Ok(0));
+    }
+
+    fn store(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("puppeteer_codex_store_{tag}_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_rollout(root: &Path, thread: &str, body: &str, age_secs: u64) -> PathBuf {
+        let file = root.join("2026/11/10").join(format!("rollout-2026-11-10T10-00-00-{thread}.jsonl"));
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, body).unwrap();
+        let at = std::time::SystemTime::now() - std::time::Duration::from_secs(age_secs);
+        fs::File::options().write(true).open(&file).unwrap().set_modified(at).unwrap();
+        file
+    }
+
+    #[test]
+    fn the_newest_copy_of_a_thread_wins() {
+        let (a, b) = (store("a"), store("b"));
+        write_rollout(&a, "t1", "old", 60);
+        let newer = write_rollout(&b, "t1", "new", 0);
+        assert_eq!(codex_session_file_in(&[a.clone(), b.clone()], "t1"), Some(newer.clone()));
+        assert_eq!(codex_session_file_in(&[b.clone(), a.clone()], "t1"), Some(newer));
+        assert_eq!(codex_session_file_in(&[a.clone(), b.clone()], "t2"), None);
+        let _ = (fs::remove_dir_all(a), fs::remove_dir_all(b));
+    }
+
+    #[test]
+    fn a_rollout_is_copied_into_the_new_home_and_a_stale_copy_refreshed() {
+        let (old, new) = (store("old"), store("new"));
+        let src = write_rollout(&old, "t1", "a\n", 60);
+        let roots = [old.clone(), new.clone()];
+
+        // A thread with no rollout anywhere: nothing to resume.
+        assert_eq!(mirror_rollout("t2", None, &roots, &new).unwrap(), None);
+
+        // Copied at the same dated path, which is where Codex looks.
+        let dest = mirror_rollout("t1", None, &roots, &new).unwrap().unwrap();
+        assert_eq!(dest, new.join("2026/11/10").join(src.file_name().unwrap()));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "a\n");
+
+        // The copy is the live one now: resuming there again copies nothing.
+        fs::write(&dest, "a\nb\n").unwrap();
+        assert_eq!(mirror_rollout("t1", Some(&dest), &roots, &new).unwrap(), Some(dest.clone()));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "a\nb\n");
+
+        // Back on the old login, which went on meanwhile: its stale copy is refreshed.
+        let back = mirror_rollout("t1", Some(&dest), &roots, &old).unwrap().unwrap();
+        assert_eq!(back, src);
+        assert_eq!(fs::read_to_string(&src).unwrap(), "a\nb\n");
+
+        // A live rollout outside every store is filed by its date.
+        let loose = store("loose").join("rollout-2026-11-09T08-00-00-t3.jsonl");
+        fs::write(&loose, "x").unwrap();
+        let dest = mirror_rollout("t3", Some(&loose), &roots, &new).unwrap().unwrap();
+        assert_eq!(dest, new.join("2026/11/09/rollout-2026-11-09T08-00-00-t3.jsonl"));
+        let _ = (fs::remove_dir_all(old), fs::remove_dir_all(new), fs::remove_dir_all(loose.parent().unwrap()));
+    }
+
+    #[test]
+    fn dated_path_follows_the_rollout_name() {
+        assert_eq!(
+            dated_path(Path::new("/x/rollout-2026-01-02T03-04-05-id.jsonl")),
+            PathBuf::from("2026/01/02/rollout-2026-01-02T03-04-05-id.jsonl")
+        );
+        assert_eq!(dated_path(Path::new("/x/rollout-latest-id.jsonl")), PathBuf::from("rollout-latest-id.jsonl"));
     }
 }

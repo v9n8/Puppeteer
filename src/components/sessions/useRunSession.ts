@@ -55,7 +55,7 @@ export function useRunSession(): RunSession {
 function useRunViewLifecycle(s: RunSession) {
   const {
     route, projectStore, runsStore, live, conductorStore, ghStore, glStore, awsStore, azureStore,
-    claudeStore, appSettings, modelCatalog, toast, projectId, activeRunId,
+    claudeStore, codexStore, appSettings, modelCatalog, toast, projectId, activeRunId,
     currentRunId, loadMarkdown, scrollMemory, onTurnNavKey, onWindowPointerUp, openRouteSearchHit,
     loadRunLog, loadProjectServers, repos, onRunSettingsPointerDown, onAccountMenuPointerDown, handleNewSession,
     isDraggingFile, addDroppedPaths, composerVisible, autoResizeComposer, ensureProjectFiles,
@@ -84,6 +84,7 @@ function useRunViewLifecycle(s: RunSession) {
     if (ghStore.accounts.length === 0) ghStore.fetch().catch(() => {})
     if (glStore.accounts.length === 0) glStore.fetch().catch(() => {})
     if (claudeStore.accounts.length === 0) claudeStore.fetch().catch(() => {})
+    if (codexStore.accounts.length === 0) codexStore.fetch().catch(() => {})
     // Header chips: which VPS servers + AWS account this project is wired to.
     if (awsStore.accounts.length === 0) awsStore.fetch().catch(() => {})
     if (azureStore.accounts.length === 0) azureStore.fetch().catch(() => {})

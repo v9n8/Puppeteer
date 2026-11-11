@@ -210,6 +210,10 @@
   "claudeAccountUpdated": "Đã đổi tài khoản Claude cho run này",
   "claudeAccountUpdatedNextTurn": "Đã đổi tài khoản Claude cho run này. Áp dụng từ lượt sau.",
   "claudeAccountUpdateFailed": "Đổi tài khoản Claude thất bại: {error}",
+  "missingCodexAccount": "Tài khoản Codex đã bị xóa",
+  "codexAccountUpdated": "Đã đổi tài khoản Codex cho run này",
+  "codexAccountUpdatedNextTurn": "Đã đổi tài khoản Codex cho run này. Áp dụng từ lượt sau.",
+  "codexAccountUpdateFailed": "Đổi tài khoản Codex thất bại: {error}",
   "accountMenu": {
     "title": "Tài khoản · model",
     "chipTitle": "Tài khoản · model: {value}",
