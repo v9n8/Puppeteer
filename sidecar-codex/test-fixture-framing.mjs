@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // JSON-RPC fixture for test-framing-seed.mjs, test-rewind.mjs, test-fork.mjs,
-// test-steer.mjs and test-queue.mjs: records thread/start, thread/resume,
-// thread/fork, thread/rollback, turn/start and turn/steer params to
-// PUPPETEER_FRAMING_RPC_OUT (NDJSON). A
+// test-steer.mjs, test-queue.mjs and test-sandbox-policy.mjs: records
+// thread/start, thread/resume, thread/fork, thread/rollback, turn/start and
+// turn/steer params to PUPPETEER_FRAMING_RPC_OUT (NDJSON). A
 // turn never completes, so it stays steerable — unless
 // PUPPETEER_FIXTURE_COMPLETE_MS is set: then it completes after that long
 // (recorded as `turn/completed`).
@@ -29,6 +29,12 @@ process.stdin.on('data', (chunk) => {
     if (m.method === 'thread/start') {
       send({ jsonrpc: '2.0', id: m.id, result: { thread: { id: 'fixture-thread' }, model: 'fixture' } })
     } else if (m.method === 'thread/resume' || m.method === 'thread/fork') {
+      // PUPPETEER_FIXTURE_REFUSE_POLICY: refuse a policy on resume/fork, like a
+      // codex whose app-server does not know the fields.
+      if (process.env.PUPPETEER_FIXTURE_REFUSE_POLICY && ('approvalPolicy' in m.params || 'sandbox' in m.params)) {
+        send({ jsonrpc: '2.0', id: m.id, error: { code: -32600, message: 'Invalid request: unknown field `approvalPolicy`' } })
+        continue
+      }
       // PUPPETEER_FIXTURE_TURNS: how many turns the resumed (or copied) thread holds.
       const held = process.env.PUPPETEER_FIXTURE_TURNS
       const turns = held ? { turns: Array.from({ length: Number(held) }, (_, i) => ({ id: `t${i}` })) } : {}

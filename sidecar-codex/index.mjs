@@ -113,8 +113,8 @@ const NO_TOOLS = process.env.PUPPETEER_CODEX_NO_TOOLS === '1'
 // instruction) for a NEW thread: sent as `developerInstructions` on
 // thread/start, after which it lives in the thread itself.
 const DEVELOPER_INSTRUCTIONS = process.env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS || null
-// One-time framing seed for a RESUMED thread that never got it at start. Codex
-// ignores developerInstructions on thread/resume, so the broker hands us a
+// One-time framing seed for a RESUMED thread that never got it at start. No
+// developerInstructions go on thread/resume, so the broker hands us a
 // ready-made <session-framing> block to prepend to this sidecar's first turn.
 let SEED_FRAMING = process.env.PUPPETEER_CODEX_SEED_FRAMING || null
 // Response style (UX-17), kept apart from the framing so that only the framing
@@ -1186,6 +1186,27 @@ const promptQueue = []
 // Prompts that arrived while a turn was in flight: never a second turn/start
 // over it, they start one by one as each turn completes.
 const waitingPrompts = []
+// The permission policy is set on thread/start, thread/resume and thread/fork
+// (all take `approvalPolicy` + `sandbox` in the 0.133 app-server) and stays on
+// the thread for every later turn. Sending it again on turn/start would replace
+// the sandbox with a bare `{ type }` object whose missing fields default to no
+// network and no extra writable roots, overriding the user's config.toml on
+// every turn. So it goes on every turn/start only for a codex that may not take
+// it on resume: one below the 0.133 minimum (an unknown field is silently
+// ignored, never refused), or one that refused it on resume.
+let policyOnEveryTurn = belowMinimumCodex(process.env.PUPPETEER_CODEX_VERSION)
+
+function belowMinimumCodex(version) {
+  const m = /^(\d+)\.(\d+)/.exec(version || '')
+  return !!m && Number(m[1]) === 0 && Number(m[2]) < 133
+}
+
+// The app-server refused the request's params (bad value or, on a codex that
+// checks, an unknown field): `Invalid request: unknown variant …` on 0.133.
+function refusedParams(response) {
+  const e = response?.error
+  return !!e && (e.code === -32602 || /unknown (field|variant)/i.test(e.message || ''))
+}
 
 async function bringUp() {
   rpcResult(await request('initialize', {
@@ -1196,10 +1217,18 @@ async function bringUp() {
 
   const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
   if (RESUME_THREAD) {
-    // No developerInstructions here: Codex ignores them on resume (framing for a
-    // resumed thread arrives via SEED_FRAMING instead).
+    // No developerInstructions here, though 0.133 takes them on resume: the
+    // framing for a resumed thread arrives once via SEED_FRAMING instead.
     const method = FORK ? 'thread/fork' : 'thread/resume'
-    const result = rpcResult(await request(method, { threadId: RESUME_THREAD }), method)
+    // The policy goes on the resume itself, so a thread first created under a
+    // looser one is gated by this run's mode (a remote `Deny` must block).
+    let response = await request(method, { threadId: RESUME_THREAD, approvalPolicy, sandbox })
+    if (refusedParams(response)) {
+      note(`⚠ ${method} refused the permission policy (${response.error.message}); resuming without it and sending the policy on every turn instead, which resets network access and writable roots from config.toml on each turn`, 'warn')
+      policyOnEveryTurn = true
+      response = await request(method, { threadId: RESUME_THREAD })
+    }
+    const result = rpcResult(response, method)
     threadId = result?.thread?.id || (FORK ? null : RESUME_THREAD)
     // A fork must never go on in the source thread.
     if (FORK && threadId === RESUME_THREAD) throw new Error('Codex returned the source thread for thread/fork')
@@ -1284,7 +1313,9 @@ function userInput(text, images) {
 }
 
 // Map the thread/start `sandbox` string onto the turn/start `sandboxPolicy`
-// object shape (all variants only require `type`).
+// object shape. Only `type` is set, so the other fields take the app-server
+// defaults (no network, no extra writable roots): used only when
+// policyOnEveryTurn.
 function sandboxPolicyObject(sandbox) {
   switch (sandbox) {
     case 'read-only':          return { type: 'readOnly' }
@@ -1320,21 +1351,18 @@ async function startTurn(text, images) {
   SEED_STYLE = null
   const prefix = [seed, styleSeed].filter(Boolean).join('\n\n')
   if (prefix) text = text ? `${prefix}\n\n${text}` : prefix
-  // Re-apply the permission policy on EVERY turn (it overrides "for this turn
-  // and subsequent turns"). This is essential for RESUMED threads: `thread/resume`
-  // does NOT accept a policy, so a resumed session would otherwise keep whatever
-  // policy it was first created with — the P0 where a remote `Deny` failed to
-  // block because the resumed run silently stayed on `on-request`.
-  const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
+  // The thread already holds the policy (see policyOnEveryTurn); the mode can't
+  // change mid-session, so a turn re-sends it only on a codex that needs it.
+  const params = { threadId, input: userInput(text, images) }
+  if (policyOnEveryTurn) {
+    const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
+    params.approvalPolicy = approvalPolicy
+    params.sandboxPolicy = sandboxPolicyObject(sandbox)
+  }
+  if (EFFORT) params.effort = EFFORT
   // Surface a rejected turn/start (e.g. bad input shape) instead of hanging: the
   // turn outcome otherwise arrives only via the turn/completed notification.
-  const starting = request('turn/start', {
-    threadId,
-    input: userInput(text, images),
-    approvalPolicy,
-    sandboxPolicy: sandboxPolicyObject(sandbox),
-    ...(EFFORT ? { effort: EFFORT } : {}),
-  }).catch((e) => ({ error: { message: e.message } })) // timed out / app-server gone: a refused turn
+  const starting = request('turn/start', params).catch((e) => ({ error: { message: e.message } })) // timed out / app-server gone: a refused turn
   const thisTurn = starting.then((r) => r?.result?.turn?.id ?? null)
   currentTurn = thisTurn
   const res = await starting

@@ -76,8 +76,8 @@ assert.ok(!argv.some((a) => a.includes('evil-mcp') || a.startsWith('mcp_servers.
 assert.equal(argv[argv.length - 1], 'app-server')
 assert.equal(threadStart.approvalPolicy, 'untrusted')
 assert.equal(threadStart.sandbox, 'read-only')
-assert.equal(turnStart.approvalPolicy, 'untrusted')
-assert.deepEqual(turnStart.sandboxPolicy, { type: 'readOnly' })
+// Set on the thread, never reset per turn (AC-05).
+assert.ok(!('approvalPolicy' in turnStart) && !('sandboxPolicy' in turnStart), 'turn/start re-sent the policy')
 assert.equal(messages.filter((m) => m.type === '_puppeteer_permission_request').length, 0, 'raised a permission prompt')
 assert.ok(messages.some((m) => m.type === '_puppeteer_log' && /no tool access/.test(m.text)))
 assert.equal(existsSync(marker), false, 'command approval was not declined')

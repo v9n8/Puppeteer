@@ -19,8 +19,8 @@ function baseEnv(mode, extra) {
   return { ...e, PUPPETEER_PERMISSION_MODE: mode || 'default', ...extra }
 }
 // Phase 1 can create the thread under a DIFFERENT policy (e.g. the legacy
-// on-request default) to prove that resuming under `default` (untrusted) and
-// overriding via turn/start still blocks — the real live scenario.
+// on-request default) to prove that resuming under `default` (untrusted), with
+// the policy set on thread/resume, still blocks — the real live scenario.
 const PHASE1_MODE = process.env.PHASE1_MODE || 'default'
 
 function spawnSidecar(env) {
