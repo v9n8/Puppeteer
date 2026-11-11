@@ -1022,7 +1022,7 @@ async fn handle_set_run_meta(ctx: &HandlerCtx, cmd: &CmdPayload) {
     // Switching the managed Claude account is NOT a composer selection: it
     // re-resolves the runtime account and mirrors the run's transcript into that
     // account's config dir, so it goes through the same code the desktop uses
-    // and can legitimately fail (wrong engine, run already executing).
+    // and can legitimately fail (wrong engine, unknown account).
     if let Some(account_id) = cmd.claude_account_id.clone() {
         let next = (!account_id.trim().is_empty()).then_some(account_id);
         if let Err(e) =

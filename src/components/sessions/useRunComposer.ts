@@ -101,9 +101,6 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const target = e.target
     if (!(target instanceof Element)) return
     if (runSettingsRoot.value?.contains(target)) return
-    // The status bar's account · model chip toggles this same menu; closing here
-    // would let its click reopen it at once.
-    if (target.closest('[data-run-settings-trigger]')) return
     if (target.closest('[data-app-select-dropdown]')) return
     closeRunSettingsMenu()
   }
@@ -430,51 +427,62 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const acc = claudeStore.accounts.find((a) => a.id === effectiveProjectClaudeAccountId.value)
     return acc ? t('run.claudeAccountDefaultWith', { account: acc.label }) : t('run.globalClaudeAccount')
   })
-  const claudeAccountOptions = computed(() => {
-    const opts = claudeStore.accounts.map((acc) => ({
-      value: acc.id,
-      label: `${acc.label}${acc.email ? ` · ${acc.email}` : ''}`,
-    }))
-    const currentId = currentRun.value?.claude_account_id
-    if (currentId && !opts.some((opt) => opt.value === currentId)) {
-      opts.unshift({ value: currentId, label: t('run.missingClaudeAccount') })
-    }
-    // Always offer the Default tier so a per-session pick can be cleared back to
-    // "follow project/global".
-    opts.unshift({ value: '', label: defaultClaudeAccountLabel.value })
-    return opts
-  })
   const showClaudeAccountSelect = computed(() =>
     !!currentRun.value
     && effectiveEngine.value === 'claude'
     && (claudeStore.accounts.length > 0 || !!currentRun.value.claude_account_id),
   )
   // The Claude account this session runs on (its own pick, else the
-  // project/global default), for the status bar's account · model chip.
-  // '' when the run-settings menu offers no account choice.
+  // project/global default), for the account · model chip. '' when there is
+  // no account to choose.
   const activeClaudeAccountLabel = computed(() => {
     if (!showClaudeAccountSelect.value) return ''
     const id = selectedClaudeAccountId.value || effectiveProjectClaudeAccountId.value
     return claudeStore.accounts.find((acc) => acc.id === id)?.label ?? ''
   })
-  const claudeAccountSelectDisabled = computed(() =>
-    currentStatus.value === 'running' || sendingFollowUp.value || savingClaudeAccount.value,
+  // The account · model chip's label, on the composer and the status bar.
+  const accountModelLabel = computed(() =>
+    [activeClaudeAccountLabel.value || engineBadgeLabel.value, composerModelLabel.value]
+      .filter(Boolean)
+      .join(' · '),
   )
-  const claudeAccountSelectTitle = computed(() =>
-    currentStatus.value === 'running'
-      ? t('run.claudeAccountRunningTitle')
-      : t('run.claudeAccountTitle'),
-  )
+  // The Account tab of the account · model menu (UX-47). `value` null: the one
+  // login there is, shown but not a choice (Codex until it runs per account,
+  // UX-40; Claude with no managed account). `usageKey` names the usage row it
+  // shows, as the status bar's usage rings key them.
+  const accountChoices = computed(() => {
+    type Choice = { value: string | null; label: string; detail?: string; usageKey: string | null }
+    if (effectiveEngine.value === 'codex') {
+      return [{ value: null, label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' }] as Choice[]
+    }
+    if (!showClaudeAccountSelect.value) {
+      return [{ value: null, label: t('run.globalClaudeAccount'), usageKey: 'claude' }] as Choice[]
+    }
+    // The Default tier first, so a per-session pick can be cleared back to
+    // "follow project/global"; its account's figures show on that account's row.
+    const out: Choice[] = [{ value: '', label: defaultClaudeAccountLabel.value, usageKey: null }]
+    const currentId = currentRun.value?.claude_account_id
+    if (currentId && !claudeStore.accounts.some((acc) => acc.id === currentId)) {
+      out.push({ value: currentId, label: t('run.missingClaudeAccount'), usageKey: null })
+    }
+    for (const acc of claudeStore.accounts) {
+      out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: `claude:${acc.id}` })
+    }
+    return out
+  })
+  // Allowed while a turn runs: the switch is stored and the next turn resumes
+  // under the new account (set_run_claude_account copies nothing mid-turn).
+  const claudeAccountSelectDisabled = computed(() => sendingFollowUp.value || savingClaudeAccount.value)
 
   async function handleClaudeAccountChange(value: string) {
     const run = currentRun.value
-    if (!run || currentStatus.value === 'running' || savingClaudeAccount.value) return
+    if (!run || savingClaudeAccount.value) return
     const next = value.trim() || null
     if ((run.claude_account_id ?? null) === next) return
     savingClaudeAccount.value = true
     try {
       await runsStore.setRunClaudeAccount(run.id, next)
-      toast.success(t('run.claudeAccountUpdated'))
+      toast.success(t(currentStatus.value === 'running' ? 'run.claudeAccountUpdatedNextTurn' : 'run.claudeAccountUpdated'))
     } catch (e) {
       toast.error(t('run.claudeAccountUpdateFailed', { error: String(e) }))
     } finally {
@@ -1606,8 +1614,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
     sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedClaudeAccountId,
-    claudeAccountOptions, showClaudeAccountSelect,
-    activeClaudeAccountLabel, claudeAccountSelectDisabled, claudeAccountSelectTitle,
+    accountChoices, accountModelLabel, claudeAccountSelectDisabled,
     handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,

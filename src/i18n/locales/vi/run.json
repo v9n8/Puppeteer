@@ -204,14 +204,23 @@
   "runSettingsMenu": "Tùy chọn run",
   "engineSetting": "Engine",
   "defaultEngine": "Engine mặc định",
-  "claudeAccountSetting": "Claude account",
   "globalClaudeAccount": "Global ~/.claude",
   "claudeAccountDefaultWith": "Mặc định · {account}",
   "missingClaudeAccount": "Tài khoản Claude đã bị xóa",
-  "claudeAccountTitle": "Tài khoản Claude cho run này (áp dụng từ lần chạy/tiếp tục tiếp theo)",
-  "claudeAccountRunningTitle": "Run đang chạy giữ nguyên tài khoản đã spawn; hãy hủy hoặc chờ xong để đổi",
   "claudeAccountUpdated": "Đã đổi tài khoản Claude cho run này",
+  "claudeAccountUpdatedNextTurn": "Đã đổi tài khoản Claude cho run này. Áp dụng từ lượt sau.",
   "claudeAccountUpdateFailed": "Đổi tài khoản Claude thất bại: {error}",
+  "accountMenu": {
+    "title": "Tài khoản · model",
+    "chipTitle": "Tài khoản · model: {value}",
+    "tabModel": "Model",
+    "tabAccount": "Tài khoản",
+    "fiveHour": "5h",
+    "week": "Tuần",
+    "nextTurn": "Áp dụng từ lượt sau.",
+    "modelRunning": "Chọn model sau khi lượt này kết thúc.",
+    "sharedCodexLogin": "Login Codex chung"
+  },
   "chipMode": "Chế độ quyền",
   "chipModeShort": {
     "default": "Hỏi",
@@ -300,7 +309,7 @@
     "contextTitle": "Context — bấm để compact",
     "compact": "Compact context",
     "projectTitle": "Project — xem và sửa Project này",
-    "accountModelTitle": "Tài khoản · model — bấm để đổi tùy chọn run"
+    "accountModelTitle": "Tài khoản · model — bấm để đổi tài khoản hoặc model"
   },
   "fork": {
     "action": "Fork Session",

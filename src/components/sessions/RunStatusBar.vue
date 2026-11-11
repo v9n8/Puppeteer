@@ -2,7 +2,6 @@
 // The session status bar at the bottom of the run screen (UX-22): account plan
 // usage on the left, then the context, project and account · model chips.
 // RunView shows it with the composer. State lives in useRunSession.
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Folder, FoldVertical } from 'lucide-vue-next'
 import ContextMeter from '@/components/ContextMeter.vue'
@@ -15,8 +14,8 @@ const { t } = useI18n()
 const quickView = useProjectQuickView()
 const {
   features, project, isSessionWindow, contextTokens, contextModel,
-  contextRateLimit, sendSlashCommand, sendingFollowUp, runSettingsOpen, toggleRunSettingsMenu,
-  engineBadgeLabel, engineBadgeIcon, composerModelLabel, activeClaudeAccountLabel,
+  contextRateLimit, sendSlashCommand, sendingFollowUp, accountMenuOpen, toggleAccountMenu,
+  engineBadgeIcon, accountModelLabel,
 } = useRunSession()
 
 const CHIP =
@@ -29,12 +28,6 @@ const CHIP =
 function openProject() {
   if (project.value) quickView.open(project.value.id)
 }
-
-const accountModelLabel = computed(() =>
-  [activeClaudeAccountLabel.value || engineBadgeLabel.value, composerModelLabel.value]
-    .filter(Boolean)
-    .join(' · '),
-)
 </script>
 
 <template>
@@ -87,17 +80,17 @@ const accountModelLabel = computed(() =>
     </button>
     <span class="h-3 w-px shrink-0 bg-border" />
 
-    <!-- Account · model: opens the composer's run-options menu (the same one as
-         its run-settings button; data-run-settings-trigger keeps that menu's
+    <!-- Account · model: opens the composer's account · model menu (the same
+         one as its chip; data-account-menu-trigger keeps that menu's
          outside-click from closing it before this click toggles it). -->
     <button
       type="button"
       :class="CHIP"
-      data-run-settings-trigger
+      data-account-menu-trigger
       :title="t('run.statusBar.accountModelTitle')"
       aria-haspopup="dialog"
-      :aria-expanded="runSettingsOpen"
-      @click="toggleRunSettingsMenu"
+      :aria-expanded="accountMenuOpen"
+      @click="toggleAccountMenu"
     >
       <component :is="engineBadgeIcon" class="h-3 w-3 shrink-0" :stroke-width="1.75" />
       <span class="max-w-60 truncate">{{ accountModelLabel }}</span>

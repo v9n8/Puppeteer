@@ -69,6 +69,19 @@ export function ringWindow(windows: UsageWindow[]): UsageWindow | null {
   return windows.reduce<UsageWindow | null>((best, w) => (best && best.percent >= w.percent ? best : w), null)
 }
 
+/**
+ * The figures an account row of the composer's account menu shows (UX-47): the
+ * 5h window, then the most used weekly one (any weekly window over its block
+ * threshold stops new turns). Codex may only have the weekly one.
+ */
+export function usageSummary(windows: UsageWindow[]): UsageWindow[] {
+  const fiveHour = windows.find((w) => w.period === '5h')
+  const week = windows
+    .filter((w) => w.period === 'week')
+    .reduce<UsageWindow | null>((best, w) => (best && best.percent >= w.percent ? best : w), null)
+  return [fiveHour, week].filter((w): w is UsageWindow => !!w)
+}
+
 /** Amber starts here when the quota warning tier (`quota_warn_percent`) is off. */
 export const DEFAULT_WARN_PERCENT = 80
 

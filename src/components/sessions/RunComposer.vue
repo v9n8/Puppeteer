@@ -5,7 +5,7 @@
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, UserCircle, Navigation, Clock, Pencil, Quote,
+  Paperclip, Navigation, Clock, Pencil, Quote,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
@@ -21,8 +21,7 @@ const {
   features, projectId, modelOverride, session, currentStatus, runSettingsOpen,
   runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle, toggleRunSettingsMenu,
   closeRunSettingsMenu, modelOptions, onModelSelect, composerModelLabel, followUpInput,
-  sendingFollowUp, selectedClaudeAccountId, claudeAccountOptions, showClaudeAccountSelect, claudeAccountSelectDisabled,
-  claudeAccountSelectTitle, handleClaudeAccountChange, pendingImages, pendingFiles, isDraggingFile,
+  sendingFollowUp, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
   composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
@@ -376,25 +375,6 @@ const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
                     >
                       <template #leading>
                         <Sparkles class="h-3 w-3 text-muted-foreground shrink-0" :stroke-width="1.5" />
-                      </template>
-                    </AppSelect>
-                  </div>
-                  <div v-if="showClaudeAccountSelect" class="space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
-                      <UserCircle class="h-3 w-3 shrink-0" :stroke-width="1.5" />
-                      <span>{{ t('run.claudeAccountSetting') }}</span>
-                    </div>
-                    <AppSelect
-                      :model-value="selectedClaudeAccountId"
-                      @update:model-value="handleClaudeAccountChange"
-                      size="sm"
-                      :options="claudeAccountOptions"
-                      :disabled="claudeAccountSelectDisabled"
-                      class="w-full"
-                      :title="claudeAccountSelectTitle"
-                    >
-                      <template #leading>
-                        <UserCircle class="h-3 w-3 text-muted-foreground shrink-0" :stroke-width="1.5" />
                       </template>
                     </AppSelect>
                   </div>

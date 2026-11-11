@@ -57,7 +57,7 @@ function useRunViewLifecycle(s: RunSession) {
     route, projectStore, runsStore, live, conductorStore, ghStore, glStore, awsStore, azureStore,
     claudeStore, appSettings, modelCatalog, toast, projectId, activeRunId,
     currentRunId, loadMarkdown, scrollMemory, onTurnNavKey, onWindowPointerUp, openRouteSearchHit,
-    loadRunLog, loadProjectServers, repos, onRunSettingsPointerDown, handleNewSession,
+    loadRunLog, loadProjectServers, repos, onRunSettingsPointerDown, onAccountMenuPointerDown, handleNewSession,
     isDraggingFile, addDroppedPaths, composerVisible, autoResizeComposer, ensureProjectFiles,
     setupMentionBridge,
   } = s
@@ -66,6 +66,7 @@ function useRunViewLifecycle(s: RunSession) {
     loadMarkdown()
     nextTick(autoResizeComposer)
     document.addEventListener('mousedown', onRunSettingsPointerDown)
+    document.addEventListener('mousedown', onAccountMenuPointerDown)
     // File → New Session (⌘T). Bound on top of the app-wide one (App.vue) while
     // this screen is open, so the new session keeps the composer's engine choice.
     unbindNewSessionMenu = registerMenuAction('file.newSession', () => {
@@ -219,6 +220,7 @@ function useRunViewLifecycle(s: RunSession) {
     conductorStore.stopPolling()
     window.removeEventListener('focus', onAppFocus)
     document.removeEventListener('mousedown', onRunSettingsPointerDown)
+    document.removeEventListener('mousedown', onAccountMenuPointerDown)
     window.removeEventListener('pointerup', onWindowPointerUp)
     window.removeEventListener('keydown', onTurnNavKey)
     sessionsChangedUnlisten?.()

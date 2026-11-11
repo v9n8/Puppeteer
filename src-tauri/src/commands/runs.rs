@@ -4127,8 +4127,8 @@ async fn effective_run_claude_account(
 }
 
 /// Change the Claude account assigned to a run/session. Applies to the next
-/// start/resume; an already-running sidecar keeps the environment it spawned
-/// with, so running runs are refused.
+/// start/resume: an already-running sidecar keeps the environment it spawned
+/// with, so for a running run only the id is stored (UX-47).
 #[tauri::command]
 pub async fn set_run_claude_account(
     db: State<'_, Db>,
@@ -4171,15 +4171,24 @@ pub async fn set_run_claude_account_inner(
         return Err("Only Claude runs can use Claude accounts".to_string());
     }
 
-    let status: String = row.get("status");
-    if status == "running" {
-        return Err("Cannot change Claude account while the run is running".to_string());
-    }
-
     // `None` = the "Default" tier: mirror into the profile the next resume will
     // really use (project → default account), not the global `~/.claude`.
     let project_id: String = row.get("project_id");
     let account = effective_run_claude_account(db, &project_id, account_id.as_deref()).await?;
+
+    // The running turn is still writing its transcript under the old account,
+    // so a copy now would miss its end. `resume_run` mirrors the transcript into
+    // the new profile before the next turn anyway.
+    let status: String = row.get("status");
+    if status == "running" {
+        sqlx::query("UPDATE runs SET claude_account_id = ? WHERE id = ?")
+            .bind(account_id)
+            .bind(&run_id)
+            .execute(db)
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
 
     let session_id: Option<String> = row.get("session_id");
     let transcript_path: Option<String> = row.get("transcript_path");
@@ -5715,6 +5724,86 @@ mod claude_account_resume_tests {
             .await
             .unwrap();
         assert_eq!(fs::read_to_string(&dest).unwrap(), "old\nnew turn\nnewest\n");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn switching_account_mid_turn_stores_the_id_and_resume_copies_the_transcript() {
+        let dir = temp_dir("claude-switch-running");
+        let default_dir = dir.join("default");
+        let other_dir = dir.join("other");
+        let db = db_with_accounts(default_dir.to_str().unwrap()).await;
+        sqlx::query("INSERT INTO claude_accounts VALUES ('acc-other', 'Claude 2', ?, 0, '2026-01-02')")
+            .bind(other_dir.to_str().unwrap())
+            .execute(&db)
+            .await
+            .unwrap();
+        let project_path = "/tmp/puppeteer-switch-project";
+        sqlx::query("ALTER TABLE projects ADD COLUMN path TEXT").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET path = ? WHERE id = 'p1'")
+            .bind(project_path)
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE runs (id TEXT PRIMARY KEY, engine TEXT, status TEXT, session_id TEXT, transcript_path TEXT,
+                                project_id TEXT, claude_account_id TEXT, transcript_synced_size INTEGER)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let live = dir.join("live.jsonl");
+        fs::write(&live, "turn 1\n").unwrap();
+        sqlx::query("INSERT INTO runs VALUES ('r1', 'claude', 'running', 's1', ?, 'p1', 'acc-default', 42)")
+            .bind(live.to_str().unwrap())
+            .execute(&db)
+            .await
+            .unwrap();
+        async fn run_row(db: &Db) -> (Option<String>, Option<String>, Option<i64>) {
+            sqlx::query_as(
+                "SELECT claude_account_id, transcript_path, transcript_synced_size FROM runs WHERE id = 'r1'",
+            )
+            .fetch_one(db)
+            .await
+            .unwrap()
+        }
+
+        // Mid-turn: only the id changes; nothing is copied into the new profile.
+        set_run_claude_account_inner(&db, "r1".into(), Some("acc-other".into())).await.unwrap();
+        let (account_id, transcript, synced) = run_row(&db).await;
+        assert_eq!(account_id.as_deref(), Some("acc-other"));
+        assert_eq!(transcript.as_deref(), live.to_str());
+        assert_eq!(synced, Some(42));
+        let dest = claude_transcript_path_for_account(other_dir.to_str(), project_path, "s1").unwrap();
+        assert!(!dest.exists());
+
+        // The turn ends with more lines; the resume copies the whole transcript.
+        fs::write(&live, "turn 1\nturn 2\n").unwrap();
+        let account = effective_run_claude_account(&db, "p1", account_id.as_deref()).await.unwrap().unwrap();
+        assert_eq!(account.config_dir, other_dir.to_str().unwrap());
+        let got = mirror_claude_transcript_for_account(
+            &db,
+            project_path,
+            "s1",
+            transcript.as_deref(),
+            Some(&account.config_dir),
+        )
+        .await
+        .unwrap();
+        assert_eq!(got.as_deref(), Some(dest.as_path()));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "turn 1\nturn 2\n");
+
+        // An unknown account is still refused mid-turn.
+        assert!(set_run_claude_account_inner(&db, "r1".into(), Some("gone".into())).await.is_err());
+
+        // Between turns the switch copies at once, as before.
+        sqlx::query("UPDATE runs SET status = 'completed' WHERE id = 'r1'").execute(&db).await.unwrap();
+        set_run_claude_account_inner(&db, "r1".into(), Some("acc-default".into())).await.unwrap();
+        let (account_id, transcript, synced) = run_row(&db).await;
+        let default_dest = claude_transcript_path_for_account(default_dir.to_str(), project_path, "s1").unwrap();
+        assert_eq!(account_id.as_deref(), Some("acc-default"));
+        assert_eq!(transcript.as_deref(), default_dest.to_str());
+        assert_eq!(synced, None);
         let _ = fs::remove_dir_all(dir);
     }
 }

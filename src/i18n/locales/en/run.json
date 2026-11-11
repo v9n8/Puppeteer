@@ -204,14 +204,23 @@
   "runSettingsMenu": "Run options",
   "engineSetting": "Engine",
   "defaultEngine": "Default engine",
-  "claudeAccountSetting": "Claude account",
   "globalClaudeAccount": "Global ~/.claude",
   "claudeAccountDefaultWith": "Default · {account}",
   "missingClaudeAccount": "Deleted Claude account",
-  "claudeAccountTitle": "Claude account for this run (applies from the next start/resume)",
-  "claudeAccountRunningTitle": "A running run keeps the account it spawned with; cancel or wait for it to finish before switching",
   "claudeAccountUpdated": "Claude account changed for this run",
+  "claudeAccountUpdatedNextTurn": "Claude account changed for this run. Applies from the next turn.",
   "claudeAccountUpdateFailed": "Could not change Claude account: {error}",
+  "accountMenu": {
+    "title": "Account · model",
+    "chipTitle": "Account · model: {value}",
+    "tabModel": "Model",
+    "tabAccount": "Account",
+    "fiveHour": "5h",
+    "week": "Week",
+    "nextTurn": "Applies from the next turn.",
+    "modelRunning": "Pick a model once this turn ends.",
+    "sharedCodexLogin": "Shared Codex login"
+  },
   "chipMode": "Permission mode",
   "chipModeShort": {
     "default": "Ask",
@@ -300,7 +309,7 @@
     "contextTitle": "Context — click to compact",
     "compact": "Compact context",
     "projectTitle": "Project — view and edit this project",
-    "accountModelTitle": "Account · model — click to change run options"
+    "accountModelTitle": "Account · model — click to switch account or model"
   },
   "fork": {
     "action": "Fork session",

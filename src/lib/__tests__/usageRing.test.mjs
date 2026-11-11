@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown,
+  usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown, usageSummary,
 } from '../usageRing.ts'
 
 const NOW = Date.parse('2026-11-10T12:00:00Z')
@@ -66,6 +66,17 @@ test('windowSeverity: red at the block threshold of the window period', () => {
   assert.equal(windowSeverity(w('seven_day', 70), th(60, 70, 0)), 'warn', '5h threshold does not apply to weekly')
   assert.equal(windowSeverity(w('seven_day_opus', 95), th(0, 0, 95)), 'over')
   assert.equal(windowSeverity(w('five_hour', 20, { blocked: true }), th()), 'over', 'plan reported blocked')
+})
+
+test('usageSummary: the 5h window, then the most used weekly one', () => {
+  assert.deepEqual(
+    usageSummary([w('five_hour', 30), w('seven_day', 20), w('seven_day_opus', 60), w('seven_day_sonnet', 10)]).map((x) => x.key),
+    ['five_hour', 'seven_day_opus'],
+  )
+  assert.deepEqual(usageSummary([w('seven_day', 40)]).map((x) => x.key), ['seven_day'], 'Codex: weekly only')
+  assert.deepEqual(usageSummary([w('five_hour', 5)]).map((x) => x.key), ['five_hour'])
+  assert.deepEqual(usageSummary([w('seven_day', 50), w('seven_day_opus', 50)]).map((x) => x.key), ['seven_day'], 'a tie keeps the first')
+  assert.deepEqual(usageSummary([]), [])
 })
 
 test('ringSeverity: the worst window colours the ring', () => {

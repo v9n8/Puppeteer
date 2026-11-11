@@ -3,9 +3,15 @@
 // the engines take these only when a turn launches — so changing one while a
 // session runs applies from the next turn. Defaults and choices:
 // lib/composerChips. Permission mode keeps its shared, remote-synced selector
-// (useRunSessionCore); effort and style picks live here, per session.
+// (useRunSessionCore); effort and style picks live here, per session. The
+// account · model chip's menu (UX-47) opens here; its rows: useRunComposer.
 import { ref, computed, watch } from 'vue'
 import { ShieldQuestion, ShieldAlert, ListChecks } from 'lucide-vue-next'
+import { invoke } from '@/lib/tauri'
+import {
+  parsePercentSetting, resetCountdown, usageSummary, usageWindows, windowSeverity,
+  type PlanUsageSnapshot, type UsageSeverity, type UsageThresholds, type UsageWindow,
+} from '@/lib/usageRing'
 import {
   EFFORT_LEVELS, PERMISSION_MODE_OPTIONS, effortLevelsFor, resolvePermissionMode, type SelectOption,
 } from '@/lib/engineOptions'
@@ -20,7 +26,7 @@ import type { RunSessionCore } from './useRunSessionCore'
 export function useComposerChips(core: RunSessionCore) {
   const {
     t, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
-    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode,
+    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode, claudeStore, appSettings,
   } = core
   const stylesStore = useResponseStylesStore()
 
@@ -140,8 +146,82 @@ export function useComposerChips(core: RunSessionCore) {
   const styleChipLabel = computed(() => styleOptions.value.find((o) => !o.header && o.value === styleValue.value)?.label ?? '')
   const styleChipTitle = computed(() => chipTitle(t('run.chipStyle'), styleChipLabel.value, !stylePick.value))
 
+  // ── Account · model (UX-47) ──
+  // One menu, two tabs. The status bar's account · model chip opens it too
+  // (data-account-menu-trigger keeps the outside-click below from closing it
+  // before that chip's click toggles it).
+  const accountMenuOpen = ref(false)
+  const accountMenuRoot = ref<HTMLElement | null>(null)
+  const accountTab = ref<'model' | 'account'>('account')
+  function toggleAccountMenu() {
+    accountMenuOpen.value = !accountMenuOpen.value
+  }
+  function closeAccountMenu() {
+    accountMenuOpen.value = false
+  }
+  function onAccountMenuPointerDown(e: MouseEvent) {
+    if (!accountMenuOpen.value) return
+    const target = e.target
+    if (!(target instanceof Element)) return
+    if (accountMenuRoot.value?.contains(target)) return
+    if (target.closest('[data-account-menu-trigger]')) return
+    closeAccountMenu()
+  }
+
+  // Plan usage per row key (`claude:<id>`, `claude`, `codex`, as the status
+  // bar's usage rings key them), read from the stored snapshots each time the
+  // menu opens: local reads, no engine call.
+  const usageSnapshots = ref<Record<string, PlanUsageSnapshot | null>>({})
+  const usageNow = ref(Date.now())
+  async function loadUsage(key: string) {
+    try {
+      usageSnapshots.value[key] = key === 'codex'
+        ? await invoke<PlanUsageSnapshot | null>('get_plan_usage_codex')
+        : key === 'claude'
+          ? await invoke<PlanUsageSnapshot | null>('get_plan_usage')
+          : await invoke<PlanUsageSnapshot | null>('get_plan_usage', { accountId: key.slice('claude:'.length) })
+    } catch {
+      // keep the previous figures on a transient error
+    }
+  }
+  watch(accountMenuOpen, (open) => {
+    if (!open) return
+    usageNow.value = Date.now()
+    const keys = ['codex', 'claude', ...claudeStore.accounts.map((a) => `claude:${a.id}`)]
+    void Promise.all(keys.map(loadUsage))
+  })
+  const usageThresholds = computed<UsageThresholds>(() => ({
+    warnPercent: parsePercentSetting(appSettings.settings?.quota_warn_percent),
+    block5hPercent: parsePercentSetting(appSettings.settings?.budget_5h_percent),
+    blockWeekPercent: parsePercentSetting(appSettings.settings?.budget_week_percent),
+  }))
+  const SEVERITY_TEXT: Record<UsageSeverity, string> = { ok: 'text-info', warn: 'text-warning', over: 'text-destructive' }
+  function usageResetText(w: UsageWindow): string {
+    if (w.rolledOver) return t('misc.budget.windowReset')
+    const c = resetCountdown(w.reset, usageNow.value)
+    if (!c) return ''
+    if (c.due) return t('misc.budget.resetsSoon')
+    if (c.days > 0) return c.hours > 0 ? t('misc.budget.resetsInDaysHours', c) : t('misc.budget.resetsInDays', c)
+    if (c.hours > 0) return c.minutes > 0 ? t('misc.budget.resetsInHoursMins', c) : t('misc.budget.resetsInHours', c)
+    return t('misc.budget.resetsInMins', c)
+  }
+  /** The 5h and weekly figures of one usage row, coloured like its ring. */
+  function accountUsage(key: string | null) {
+    if (!key) return []
+    return usageSummary(usageWindows(usageSnapshots.value[key], usageNow.value)).map((w) => ({
+      key: w.key,
+      label: t(w.period === '5h' ? 'run.accountMenu.fiveHour' : 'run.accountMenu.week'),
+      percent: w.percent,
+      color: SEVERITY_TEXT[windowSeverity(w, usageThresholds.value)],
+      reset: usageResetText(w),
+      title: `${t(`misc.budget.windows.${w.key}`)}: ${w.percent}%`,
+    }))
+  }
+
   return {
     chipOverrides, carryPicks,
+    accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
+    accountUsage,
     modeValue, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
