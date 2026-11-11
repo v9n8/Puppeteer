@@ -3,7 +3,9 @@
 // read, straight from the disk (commands/library_disk.rs) — Global is HOME's
 // folders, a project's tab its own. Replaces the Skills, Rules, Agents,
 // Commands and Import screens; nothing is created here, only listed, edited,
-// deleted, or duplicated from a project to Global.
+// deleted, or duplicated from a project to Global. A project's tab also lists
+// its Memory (CLAUDE.md / AGENTS.md, UX-55/D12), through memory_* because the
+// file may not exist yet: opening it shows an empty editor, a save creates it.
 //
 // The place lives in the URL query (lib/libraryDisk `libraryQuery`), so a link
 // can open a project's tab or one file.
@@ -22,9 +24,11 @@ import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
 import { selectedProjectId } from '@/lib/projectList'
 import {
-  CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, deletesLink, isLibraryExists, kindGroups,
-  libraryPlace, libraryQuery, type DiskFile, type DiskItem, type LibraryPlace, type LibraryScope,
+  CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, PROJECT_ITEM_KINDS, deletesLink,
+  isLibraryExists, kindGroups, libraryPlace, libraryQuery, memoryItem, memoryKindOf,
+  type DiskItem, type LibraryPlace, type LibraryScope,
 } from '@/lib/libraryDisk'
+import { CMD_MEMORY_READ, PROJECT_MEMORY_KINDS, type MemoryFile, type MemoryTarget } from '@/lib/memoryFiles'
 
 defineOptions({ name: 'LibraryView' })
 
@@ -78,9 +82,21 @@ const error = ref<string | null>(null)
 const search = ref('')
 // None while the first scan runs, so the list shows its skeleton rather than four empty groups.
 const groups = computed(() =>
-  loading.value && items.value.length === 0 ? [] : kindGroups(items.value, search.value, (k) => t(`library.kind.${k}`)),
+  loading.value && items.value.length === 0
+    ? []
+    : kindGroups(
+        items.value,
+        search.value,
+        (k) => t(`library.kind.${k}`),
+        scope.value === 'project' ? PROJECT_ITEM_KINDS : DISK_ITEM_KINDS,
+      ),
 )
 const selectedItem = computed(() => items.value.find((i) => i.path === selectedPath.value) ?? null)
+const selectedMemory = computed<MemoryTarget | null>(() =>
+  selectedItem.value?.kind === 'memory' && activeProjectId.value
+    ? { kind: memoryKindOf(selectedItem.value), project_id: activeProjectId.value }
+    : null,
+)
 const detailRef = ref<InstanceType<typeof LibraryEntryDetail> | null>(null)
 
 let scanSeq = 0
@@ -94,7 +110,11 @@ async function scan() {
   }
   loading.value = true
   try {
-    const list = await invoke<DiskItem[]>(CMD_LIBRARY_SCAN, { scope: scope.value, projectId: pid })
+    const [disk, memory] = await Promise.all([
+      invoke<DiskItem[]>(CMD_LIBRARY_SCAN, { scope: scope.value, projectId: pid }),
+      pid ? scanMemory(pid) : [],
+    ])
+    const list = [...disk, ...memory]
     if (seq !== scanSeq) return
     items.value = list
     error.value = null
@@ -107,6 +127,19 @@ async function scan() {
   } finally {
     if (seq === scanSeq) loading.value = false
   }
+}
+
+/** The project's memory files, a row each, there or not (a failed read shows on its row). */
+function scanMemory(pid: string): Promise<DiskItem[]> {
+  const root = projectsStore.projects.find((p) => p.id === pid)?.path ?? ''
+  return Promise.all(
+    PROJECT_MEMORY_KINDS.map((kind) =>
+      invoke<MemoryFile>(CMD_MEMORY_READ, { target: { kind, project_id: pid } }).then(
+        (file) => memoryItem(kind, root, file),
+        (e) => memoryItem(kind, root, String(e)),
+      ),
+    ),
+  )
 }
 
 watch([scope, activeProjectId], () => void scan())
@@ -189,9 +222,12 @@ onBeforeRouteLeave(() => confirmDiscard())
 const deleting = ref(false)
 const duplicating = ref(false)
 
-function onSaved(file: DiskFile) {
+function onSaved(file: { path: string; hash: string | null }) {
   const it = items.value.find((i) => i.path === file.path)
-  if (it) it.hash = file.hash
+  if (!it) return
+  it.hash = file.hash
+  // A memory file was just created.
+  it.missing = false
 }
 
 async function remove(item: DiskItem) {
@@ -308,6 +344,9 @@ const emptyTitle = computed(() =>
             <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
               <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
             </span>
+            <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
+              {{ t('library.missing') }}
+            </Badge>
             <Badge
               v-if="row.item.status !== 'file'"
               size="xs"
@@ -334,6 +373,7 @@ const emptyTitle = computed(() =>
         ref="detailRef"
         :key="selectedItem.path"
         :item="selectedItem"
+        :memory="selectedMemory"
         :can-duplicate="scope === 'project'"
         :deleting="deleting"
         :duplicating="duplicating"

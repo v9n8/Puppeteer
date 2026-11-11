@@ -9,12 +9,13 @@
   "searchPlaceholder": "Tìm tên hoặc mô tả…",
   "emptyTitle": "Chưa có gì ở đây",
   "emptyHint": "Skill, rule, command và agent mà CLI đọc ở chỗ này sẽ hiện ở đây.",
-  "noSelection": "Chọn một skill, rule, command hoặc agent để xem file",
+  "noSelection": "Chọn một mục để xem file",
   "kind": {
     "skill": "Skills",
     "rule": "Rules",
     "command": "Commands",
-    "agent": "Agents"
+    "agent": "Agents",
+    "memory": "Memory"
   },
   "engine": {
     "claude": "Claude",
@@ -30,6 +31,8 @@
     "puppeteer_link": "Link về thư viện cũ của Puppeteer: thay đổi áp dụng cho mọi project dùng nó",
     "symlink": "Là link: thay đổi sẽ sửa file mà link trỏ tới"
   },
+  "missing": "Chưa có",
+  "missingHint": "File chưa có: mở ra để viết, lưu sẽ tạo file",
   "preview": "Xem trước",
   "editor": "Soạn thảo",
   "saveHint": "Lưu (⌘S)",
@@ -43,6 +46,7 @@
   "duplicateExistsTitle": "Global đã có",
   "duplicateExistsMessage": "Global đã có \"{name}\". Ghi đè? File global sẽ vào Thùng rác (nếu là link thì chỉ gỡ link).",
   "puppeteerLinkWarning": "Sửa sẽ đổi ở mọi project dùng mục này.",
+  "memoryMissing": "File này chưa có: lưu sẽ tạo file.",
   "conflict": "File đã đổi trên đĩa từ lúc mở.",
   "reloadDiscard": "Tải lại (bỏ thay đổi của tôi)",
   "overwrite": "Ghi đè",

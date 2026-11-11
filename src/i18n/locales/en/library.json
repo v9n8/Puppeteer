@@ -9,12 +9,13 @@
   "searchPlaceholder": "Search name or description…",
   "emptyTitle": "Nothing here yet",
   "emptyHint": "Skills, rules, commands and agents the CLIs read from this place show up here.",
-  "noSelection": "Pick a skill, rule, command or agent to see its file",
+  "noSelection": "Pick an item to see its file",
   "kind": {
     "skill": "Skills",
     "rule": "Rules",
     "command": "Commands",
-    "agent": "Agents"
+    "agent": "Agents",
+    "memory": "Memory"
   },
   "engine": {
     "claude": "Claude",
@@ -30,6 +31,8 @@
     "puppeteer_link": "A link into Puppeteer's old library: a change applies to every project using it",
     "symlink": "A link: a change edits the file it points at"
   },
+  "missing": "Not created",
+  "missingHint": "The file isn't there yet: open it to write it, a save creates it",
   "preview": "Preview",
   "editor": "Editor",
   "saveHint": "Save (⌘S)",
@@ -43,6 +46,7 @@
   "duplicateExistsTitle": "Already in Global",
   "duplicateExistsMessage": "Global already has \"{name}\". Overwrite it? The global file goes to the Trash (a link is only removed).",
   "puppeteerLinkWarning": "Editing changes this in every project that uses it.",
+  "memoryMissing": "This file doesn't exist yet: saving creates it.",
   "conflict": "The file changed on disk since it was opened.",
   "reloadDiscard": "Reload (drop my changes)",
   "overwrite": "Overwrite",

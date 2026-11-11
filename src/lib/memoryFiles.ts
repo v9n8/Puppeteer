@@ -1,15 +1,23 @@
-// Settings › AI › Memory: the instruction files the CLIs read on their own
-// (`~/.claude/CLAUDE.md`, a project's CLAUDE.md / AGENTS.md). Pure helpers of
-// MemorySettings.vue; the paths are resolved by the backend (commands/memory.rs).
+// Memory: the instruction files the CLIs read on their own. The global ones
+// (`~/.claude/CLAUDE.md`, Codex's `~/.codex/AGENTS.md`) are edited in
+// Settings › AI › Memory, a project's CLAUDE.md / AGENTS.md in Library › By
+// project (D12). Pure helpers of MemorySettings.vue and the Library; the paths
+// are resolved by the backend (commands/memory.rs).
 
-export type MemoryKind = 'user' | 'project_claude' | 'project_agents'
+export const CMD_MEMORY_READ = 'memory_read'
+export const CMD_MEMORY_WRITE = 'memory_write'
 
-export const MEMORY_KINDS: readonly MemoryKind[] = ['user', 'project_claude', 'project_agents']
+/** Settings › AI › Memory: one global file per CLI (Claude, Codex). */
+export const GLOBAL_MEMORY_KINDS = ['user', 'codex_user'] as const
+/** Library › By project › Memory: one file per CLI in the project's root. */
+export const PROJECT_MEMORY_KINDS = ['project_claude', 'project_agents'] as const
+
+export type GlobalMemoryKind = (typeof GLOBAL_MEMORY_KINDS)[number]
+export type ProjectMemoryKind = (typeof PROJECT_MEMORY_KINDS)[number]
+export type MemoryKind = GlobalMemoryKind | ProjectMemoryKind
 
 /** What `memory_read` / `memory_write` take: a kind, never a path. */
-export type MemoryTarget =
-  | { kind: 'user' }
-  | { kind: 'project_claude' | 'project_agents'; project_id: string }
+export type MemoryTarget = { kind: GlobalMemoryKind } | { kind: ProjectMemoryKind; project_id: string }
 
 /** What `memory_read` / `memory_write` return. */
 export interface MemoryFile {
@@ -30,7 +38,7 @@ export const MEMORY_CONFLICT = 'memory_conflict'
 
 /** The target to read, or null while a project kind has no project picked. */
 export function memoryTarget(kind: MemoryKind, projectId: string | null): MemoryTarget | null {
-  if (kind === 'user') return { kind }
+  if (kind === 'user' || kind === 'codex_user') return { kind }
   return projectId ? { kind, project_id: projectId } : null
 }
 

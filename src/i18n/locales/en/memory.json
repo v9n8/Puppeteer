@@ -1,12 +1,11 @@
 {
   "title": "Memory",
-  "hint": "The instruction files Claude Code and Codex read at the start of every session. What you write here goes into every session, including ones started outside Puppeteer. Not the same as Rules: Rules is a library Puppeteer applies to projects.",
+  "hint": "The global instruction files Claude Code and Codex read at the start of every session, in every project. What you write here goes into every session, including ones started outside Puppeteer. A project's own CLAUDE.md / AGENTS.md is in Library › By project.",
+  "file": "File",
   "kind": {
-    "user": "User · CLAUDE.md",
-    "project_claude": "Project · CLAUDE.md",
-    "project_agents": "Project · AGENTS.md"
+    "user": "Claude · CLAUDE.md",
+    "codex_user": "Codex · AGENTS.md"
   },
-  "pickProject": "Pick a project to edit its file.",
   "linkTo": "Link to {path}",
   "size": "{size} · ≈ {tokens} tokens",
   "reload": "Reload from disk",
@@ -14,7 +13,7 @@
   "conflict": "This file changed outside Puppeteer since it was opened. Reload it (your edits here are lost) or overwrite it with your version.",
   "reloadDiscard": "Reload",
   "overwrite": "Overwrite",
-  "missing": "This file doesn't exist yet.",
+  "missing": "This file doesn't exist yet: saving creates it.",
   "create": "Create",
   "unsaved": "Unsaved changes",
   "saved": "Saved",

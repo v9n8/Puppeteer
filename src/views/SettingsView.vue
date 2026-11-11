@@ -175,7 +175,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
 
         <!-- Memory: CLAUDE.md / AGENTS.md editor, wider than the forms. Kept mounted (v-show) so
              switching section doesn't drop unsaved edits. -->
-        <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-3xl">
+        <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-4xl">
           <MemorySettings />
         </div>
 

@@ -1,16 +1,17 @@
-//! Settings › AI › Memory: the instruction files the CLIs read on their own at the start of every
-//! session — the user's `~/.claude/CLAUDE.md`, a project's `CLAUDE.md` (Claude Code) and
-//! `AGENTS.md` (Codex). No store of its own: the file on disk is the memory.
+//! Memory: the instruction files the CLIs read on their own at the start of every session — the
+//! user's `~/.claude/CLAUDE.md` (Claude Code) and Codex's `AGENTS.md` in its home (Settings › AI ›
+//! Memory), a project's `CLAUDE.md` and `AGENTS.md` (Library › By project). No store of its own:
+//! the file on disk is the memory.
 //!
 //! The frontend names a target, never a path; the path is resolved here. A file that is a link is
 //! followed only where the import rule (R-03) lets it lead: a project's file must stay in the
-//! project, the user's file may link into a dotfiles folder but not into a credential store or the
+//! project, a user's file may link into a dotfiles folder but not into a credential store or the
 //! app's data. Writes are atomic (temp file + rename, keeping the file's permissions) and refused
 //! when the file changed on disk since it was read, so a stale buffer can't drop what another
 //! editor — or a Rules / Skills sync, which keeps managed blocks in `AGENTS.md` — wrote meanwhile.
 //! Both commands are local-only (remote/guard.rs): the content goes into every session.
 
-use crate::commands::agents_block;
+use crate::commands::{agents_block, instruction_checks};
 use crate::db::Db;
 use crate::remote::guard::SecretPaths;
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,8 @@ const MAX_BYTES: u64 = 1024 * 1024;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MemoryTarget {
     User,
+    /// Codex's global `AGENTS.md`, in its home (`$CODEX_HOME`, else `~/.codex`).
+    CodexUser,
     ProjectClaude { project_id: String },
     ProjectAgents { project_id: String },
 }
@@ -53,7 +56,7 @@ pub struct MemoryFile {
 
 /// Where the target's file may lead.
 enum Scope<'a> {
-    /// `~/.claude/CLAUDE.md`: anywhere but a credential store or the app's data.
+    /// A user's file: anywhere but a credential store or the app's data.
     Home { home: &'a Path, app_data: Option<&'a Path> },
     /// A project's file: inside the project.
     Project { root: &'a Path },
@@ -67,10 +70,16 @@ struct Located {
     link: bool,
 }
 
-/// The target's file, `home` / `project_root` already resolved.
-fn target_file(target: &MemoryTarget, home: &Path, project_root: Option<&Path>) -> Result<PathBuf, String> {
+/// The target's file, `home` / `codex_home` / `project_root` already resolved.
+fn target_file(
+    target: &MemoryTarget,
+    home: &Path,
+    codex_home: &Path,
+    project_root: Option<&Path>,
+) -> Result<PathBuf, String> {
     match (target, project_root) {
         (MemoryTarget::User, _) => Ok(home.join(".claude").join("CLAUDE.md")),
+        (MemoryTarget::CodexUser, _) => Ok(codex_home.join("AGENTS.md")),
         (MemoryTarget::ProjectClaude { .. }, Some(root)) => Ok(root.join("CLAUDE.md")),
         (MemoryTarget::ProjectAgents { .. }, Some(root)) => Ok(root.join("AGENTS.md")),
         _ => Err("Project not found".to_string()),
@@ -79,7 +88,7 @@ fn target_file(target: &MemoryTarget, home: &Path, project_root: Option<&Path>) 
 
 /// Resolve `file` (a link followed) and refuse where `scope` doesn't let it lead. A missing file
 /// resolves to its name in the real parent folder, which must exist for a project (the project
-/// root) and is created for the user (`~/.claude`) on write.
+/// root) and is created for a user's file (`~/.claude`, `~/.codex`) on write.
 fn locate(file: &Path, scope: &Scope) -> Result<Located, String> {
     let name = file.file_name().ok_or("no file name")?;
     let parent = file.parent().ok_or("no parent folder")?;
@@ -111,7 +120,9 @@ fn locate(file: &Path, scope: &Scope) -> Result<Located, String> {
             }
         }
         Scope::Home { home, app_data } => {
-            if SecretPaths::new(Some(home), *app_data).denies(&real) {
+            // Only where a link leads is checked: the file at its own place is the CLI's, and
+            // `~/.codex` is a credential store (`auth.json`) although its `AGENTS.md` isn't.
+            if link && SecretPaths::new(Some(home), *app_data).denies(&real) {
                 return Err(format!(
                     "{} links into a credential store or Puppeteer's data — Puppeteer won't open it",
                     file.display()
@@ -204,14 +215,20 @@ pub(crate) async fn project_root(db: &Db, project_id: &str) -> Result<PathBuf, S
         .ok_or_else(|| "Project not found".to_string())
 }
 
-async fn resolve(db: &Db, target: &MemoryTarget, home: &Path, app_data: Option<&Path>) -> Result<Located, String> {
+async fn resolve(
+    db: &Db,
+    target: &MemoryTarget,
+    home: &Path,
+    codex_home: &Path,
+    app_data: Option<&Path>,
+) -> Result<Located, String> {
     let root = match target {
-        MemoryTarget::User => None,
+        MemoryTarget::User | MemoryTarget::CodexUser => None,
         MemoryTarget::ProjectClaude { project_id } | MemoryTarget::ProjectAgents { project_id } => {
             Some(project_root(db, project_id).await?)
         }
     };
-    let file = target_file(target, home, root.as_deref())?;
+    let file = target_file(target, home, codex_home, root.as_deref())?;
     let scope = match &root {
         Some(root) => Scope::Project { root },
         None => Scope::Home { home, app_data },
@@ -219,15 +236,17 @@ async fn resolve(db: &Db, target: &MemoryTarget, home: &Path, app_data: Option<&
     locate(&file, &scope)
 }
 
-fn dirs(app: &tauri::AppHandle) -> Result<(PathBuf, Option<PathBuf>), String> {
+/// HOME, Codex's global home (the one Codex accounts share their `AGENTS.md` from), app data.
+fn dirs(app: &tauri::AppHandle) -> Result<(PathBuf, PathBuf, Option<PathBuf>), String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
-    Ok((home, app.path().app_data_dir().ok()))
+    let codex_home = instruction_checks::codex_home().unwrap_or_else(|| home.join(".codex"));
+    Ok((home, codex_home, app.path().app_data_dir().ok()))
 }
 
 #[tauri::command]
 pub async fn memory_read(app: tauri::AppHandle, db: State<'_, Db>, target: MemoryTarget) -> Result<MemoryFile, String> {
-    let (home, app_data) = dirs(&app)?;
-    let loc = resolve(db.inner(), &target, &home, app_data.as_deref()).await?;
+    let (home, codex_home, app_data) = dirs(&app)?;
+    let loc = resolve(db.inner(), &target, &home, &codex_home, app_data.as_deref()).await?;
     read_at(&loc)
 }
 
@@ -239,8 +258,8 @@ pub async fn memory_write(
     content: String,
     expected_hash: Option<String>,
 ) -> Result<MemoryFile, String> {
-    let (home, app_data) = dirs(&app)?;
-    let loc = resolve(db.inner(), &target, &home, app_data.as_deref()).await?;
+    let (home, codex_home, app_data) = dirs(&app)?;
+    let loc = resolve(db.inner(), &target, &home, &codex_home, app_data.as_deref()).await?;
     write_at(&loc, &content, expected_hash.as_deref())
 }
 
@@ -260,18 +279,21 @@ mod tests {
 
     #[test]
     fn each_target_has_its_own_file() {
-        let (home, root) = (Path::new("/h"), Path::new("/p"));
-        assert_eq!(target_file(&MemoryTarget::User, home, None).unwrap(), Path::new("/h/.claude/CLAUDE.md"));
-        assert_eq!(target_file(&project("p"), home, Some(root)).unwrap(), Path::new("/p/CLAUDE.md"));
+        let (home, codex, root) = (Path::new("/h"), Path::new("/c"), Path::new("/p"));
+        assert_eq!(target_file(&MemoryTarget::User, home, codex, None).unwrap(), Path::new("/h/.claude/CLAUDE.md"));
+        assert_eq!(target_file(&MemoryTarget::CodexUser, home, codex, None).unwrap(), Path::new("/c/AGENTS.md"));
+        assert_eq!(target_file(&project("p"), home, codex, Some(root)).unwrap(), Path::new("/p/CLAUDE.md"));
         let agents = MemoryTarget::ProjectAgents { project_id: "p".into() };
-        assert_eq!(target_file(&agents, home, Some(root)).unwrap(), Path::new("/p/AGENTS.md"));
-        assert!(target_file(&project("p"), home, None).is_err());
+        assert_eq!(target_file(&agents, home, codex, Some(root)).unwrap(), Path::new("/p/AGENTS.md"));
+        assert!(target_file(&project("p"), home, codex, None).is_err());
     }
 
     #[test]
     fn target_comes_from_a_kind_not_a_path() {
         let t: MemoryTarget = serde_json::from_str(r#"{"kind":"project_agents","project_id":"x"}"#).unwrap();
         assert!(matches!(t, MemoryTarget::ProjectAgents { ref project_id } if project_id == "x"));
+        let t: MemoryTarget = serde_json::from_str(r#"{"kind":"codex_user"}"#).unwrap();
+        assert!(matches!(t, MemoryTarget::CodexUser));
         assert!(serde_json::from_str::<MemoryTarget>(r#"{"kind":"path","path":"/etc/hosts"}"#).is_err());
     }
 
@@ -288,13 +310,16 @@ mod tests {
             .unwrap();
         sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'b'").execute(&db).await.unwrap();
         let home = tmp("home");
+        let codex = home.join(".codex");
 
-        let loc = resolve(&db, &project("a"), &home, None).await.unwrap();
+        let loc = resolve(&db, &project("a"), &home, &codex, None).await.unwrap();
         assert_eq!(loc.real, live.join("CLAUDE.md"));
-        assert!(resolve(&db, &project("b"), &home, None).await.is_err(), "trashed project");
-        assert!(resolve(&db, &project("nope"), &home, None).await.is_err());
-        let loc = resolve(&db, &MemoryTarget::User, &home, None).await.unwrap();
+        assert!(resolve(&db, &project("b"), &home, &codex, None).await.is_err(), "trashed project");
+        assert!(resolve(&db, &project("nope"), &home, &codex, None).await.is_err());
+        let loc = resolve(&db, &MemoryTarget::User, &home, &codex, None).await.unwrap();
         assert_eq!(loc.real, home.join(".claude/CLAUDE.md"));
+        let loc = resolve(&db, &MemoryTarget::CodexUser, &home, &codex, None).await.unwrap();
+        assert_eq!(loc.real, codex.join("AGENTS.md"));
     }
 
     #[test]
@@ -427,6 +452,32 @@ mod tests {
             fs::write(&target, "SECRET").unwrap();
             fs::remove_file(&file).unwrap();
             symlink(&target, &file).unwrap();
+            let err = locate(&file, &scope).unwrap_err();
+            assert!(err.contains("credential store") && !err.contains("SECRET"), "{err}");
+        }
+    }
+
+    /// `~/.codex` is a credential store (`auth.json`): its `AGENTS.md` still opens and is created
+    /// there, but a link from it into the store is refused.
+    #[test]
+    fn codex_agents_md_opens_although_codex_home_is_a_credential_store() {
+        let home = tmp("codex");
+        let scope = Scope::Home { home: &home, app_data: None };
+        let file = home.join(".codex/AGENTS.md");
+
+        let loc = locate(&file, &scope).unwrap();
+        assert!(!read_at(&loc).unwrap().exists);
+        let created = write_at(&loc, "# Codex\n", None).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Codex\n");
+        let loc = locate(&file, &scope).unwrap();
+        assert_eq!(read_at(&loc).unwrap().hash, created.hash);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            fs::write(home.join(".codex/auth.json"), "SECRET").unwrap();
+            fs::remove_file(&file).unwrap();
+            symlink(home.join(".codex/auth.json"), &file).unwrap();
             let err = locate(&file, &scope).unwrap_err();
             assert!(err.contains("credential store") && !err.contains("SECRET"), "{err}");
         }

@@ -3,6 +3,9 @@
 // Editor. A save sends back the hash the file was read with, so a change made
 // elsewhere since (Claude Code, an editor, git) is never overwritten silently.
 // The host keys this pane by the item's path and asks `dirty` before leaving.
+// A project's memory file (`memory`, UX-55) goes through memory_* instead: it
+// may not exist yet, so it opens as an empty editor and a save creates it; it
+// is neither deleted nor duplicated here.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CopyPlus, Eye, Link2, Pencil, Trash2 } from 'lucide-vue-next'
@@ -17,9 +20,14 @@ import { useToast } from '@/composables/useToast'
 import {
   CMD_LIBRARY_READ, CMD_LIBRARY_WRITE, isLibraryConflict, type DiskFile, type DiskItem,
 } from '@/lib/libraryDisk'
+import {
+  CMD_MEMORY_READ, CMD_MEMORY_WRITE, isMemoryConflict, type MemoryFile, type MemoryTarget,
+} from '@/lib/memoryFiles'
 
 const props = defineProps<{
   item: DiskItem
+  /** Set for a memory row: the file it reads and writes through memory_*. */
+  memory?: MemoryTarget | null
   /** Project tab only: Global has nowhere to duplicate to. */
   canDuplicate: boolean
   deleting: boolean
@@ -27,7 +35,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  saved: [file: DiskFile]
+  saved: [file: DiskFile | MemoryFile]
   delete: []
   duplicate: []
 }>()
@@ -36,7 +44,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 const { renderText, loadMarkdown } = useMarkdown()
 
-const file = ref<DiskFile | null>(null)
+const file = ref<DiskFile | MemoryFile | null>(null)
 const content = ref('')
 const loading = ref(false)
 const loadError = ref<string | null>(null)
@@ -46,6 +54,8 @@ const conflict = ref(false)
 const dirty = computed(() => !!file.value && content.value !== file.value.content)
 const canSave = computed(() => dirty.value && !saving.value)
 const unreadable = computed(() => props.item.error ?? loadError.value)
+const missing = computed(() => !!file.value && 'exists' in file.value && !file.value.exists)
+const managedBlocks = computed(() => (file.value && 'managed_blocks' in file.value ? file.value.managed_blocks : []))
 
 type Mode = 'preview' | 'edit'
 const MODE_KEY = 'puppeteer.library.mode'
@@ -74,15 +84,23 @@ function setMode(next: Mode) {
 
 const previewHtml = computed(() => (mode.value === 'preview' ? renderText(content.value) : ''))
 
+function readFile(): Promise<DiskFile | MemoryFile> {
+  return props.memory
+    ? invoke<MemoryFile>(CMD_MEMORY_READ, { target: props.memory })
+    : invoke<DiskFile>(CMD_LIBRARY_READ, { path: props.item.path })
+}
+
 async function load() {
   if (props.item.error) return
   loading.value = true
   conflict.value = false
   try {
-    const read = await invoke<DiskFile>(CMD_LIBRARY_READ, { path: props.item.path })
+    const read = await readFile()
     file.value = read
     content.value = read.content
     loadError.value = null
+    // Nothing to preview yet: open the editor (not remembered as the preferred mode).
+    if (missing.value) mode.value = 'edit'
   } catch (e) {
     file.value = null
     loadError.value = String(e)
@@ -104,21 +122,20 @@ watch(
   },
 )
 
-async function write(expectedHash: string) {
+/** `expectedHash`: null = the memory file didn't exist. */
+async function write(expectedHash: string | null) {
   saving.value = true
   try {
-    const saved = await invoke<DiskFile>(CMD_LIBRARY_WRITE, {
-      path: props.item.path,
-      content: content.value,
-      expectedHash,
-    })
+    const saved = props.memory
+      ? await invoke<MemoryFile>(CMD_MEMORY_WRITE, { target: props.memory, content: content.value, expectedHash })
+      : await invoke<DiskFile>(CMD_LIBRARY_WRITE, { path: props.item.path, content: content.value, expectedHash })
     file.value = saved
     content.value = saved.content
     conflict.value = false
     toast.success(t('library.saved'))
     emit('saved', saved)
   } catch (e) {
-    if (isLibraryConflict(e)) conflict.value = true
+    if (isLibraryConflict(e) || isMemoryConflict(e)) conflict.value = true
     else toast.error(String(e))
   } finally {
     saving.value = false
@@ -132,7 +149,7 @@ function save() {
 /** Keep this buffer over what changed on disk: save against the file as it is now. */
 async function overwrite() {
   try {
-    const current = await invoke<DiskFile>(CMD_LIBRARY_READ, { path: props.item.path })
+    const current = await readFile()
     await write(current.hash)
   } catch (e) {
     toast.error(String(e))
@@ -160,7 +177,7 @@ defineExpose({ dirty })
           {{ saving ? t('library.saving') : t('common.save') }}
         </Button>
         <Button
-          v-if="canDuplicate"
+          v-if="canDuplicate && !memory"
           variant="outline"
           size="sm"
           :disabled="duplicating || dirty || !!item.error"
@@ -171,6 +188,7 @@ defineExpose({ dirty })
           {{ t('library.duplicate') }}
         </Button>
         <Button
+          v-if="!memory"
           variant="destructive-ghost"
           size="icon"
           :disabled="deleting || !!item.error"
@@ -222,6 +240,12 @@ defineExpose({ dirty })
     <template v-else>
       <Banner v-if="item.status === 'puppeteer_link'" tone="warning" class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
         {{ t('library.puppeteerLinkWarning') }}
+      </Banner>
+      <Banner v-if="missing" tone="info" class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
+        {{ t('library.memoryMissing') }}
+      </Banner>
+      <Banner v-if="managedBlocks.length" tone="info" class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
+        {{ t('memory.managedBlocks', { names: managedBlocks.join(', '), count: managedBlocks.length }, managedBlocks.length) }}
       </Banner>
       <Banner v-if="conflict" tone="warning" live class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
         {{ t('library.conflict') }}
