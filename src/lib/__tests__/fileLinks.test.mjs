@@ -1,11 +1,14 @@
 // Unit tests for lib/fileLinks.ts: which text references in a session resolve
-// to a project file, and the line they point at (UX-43).
+// to a project file, and the line they point at (UX-43); bare paths in prose and
+// the batched existence check behind them (UX-44).
 // Run: node --test src/lib/__tests__/fileLinks.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import MarkdownIt from 'markdown-it'
-import { hrefFileRef, matchProjectFile, parseLineRef, splitLineRef } from '../fileLinks.ts'
+import {
+  createPathChecker, findPlainPaths, hrefFileRef, matchProjectFile, parseLineRef, splitLineRef,
+} from '../fileLinks.ts'
 
 const FILES = new Set(['src/a.ts', 'src/lib/b.ts', 'docs/README.md', 'README.md', 'x/dup.ts', 'y/dup.ts'])
 const ROOT = '/Users/me/proj'
@@ -77,4 +80,77 @@ test('session markdown: README.md stays text, URLs with a scheme still link', ()
   assert.doesNotMatch(html, /http:\/\/README\.md|http:\/\/main\.rs/)
   assert.match(html, /<a href="https:\/\/example\.com\/x">/)
   assert.match(md.render('[a](/abs/a.ts:12)'), /<a href="\/abs\/a\.ts:12">/)
+})
+
+const found = (text) => findPlainPaths(text).map((p) => [p.text, p.path, p.line])
+
+test('findPlainPaths: the forms a sentence names a file in', () => {
+  assert.deepEqual(found('Xem README.md nhé.'), [['README.md', 'README.md', null]])
+  assert.deepEqual(found('see src/a.ts:12, then a.ts:12-20.'), [['src/a.ts:12', 'src/a.ts', 12], ['a.ts:12-20', 'a.ts', 12]])
+  assert.deepEqual(found('at src/a.ts:12:5 and src/b.ts#L3-L9'), [['src/a.ts:12:5', 'src/a.ts', 12], ['src/b.ts#L3-L9', 'src/b.ts', 3]])
+  assert.deepEqual(found('wrote /tmp/out/plan.md'), [['/tmp/out/plan.md', '/tmp/out/plan.md', null]])
+  assert.deepEqual(found('[a](src/a.ts#L12)'), [['src/a.ts#L12', 'src/a.ts', 12]])
+  assert.deepEqual(found('(./src/a.ts) and ../lib/x.vue'), [['./src/a.ts', './src/a.ts', null], ['../lib/x.vue', '../lib/x.vue', null]])
+  assert.deepEqual(found('.github/workflows/ci.yml'), [['.github/workflows/ci.yml', '.github/workflows/ci.yml', null]])
+  assert.deepEqual(found('ファイルsrc/a.tsを開く'), [['src/a.ts', 'src/a.ts', null]])
+  assert.deepEqual(found('Path: src/a.ts: done'), [['src/a.ts', 'src/a.ts', null]])
+  const [p] = findPlainPaths('in x/a.ts.')
+  assert.equal('in x/a.ts.'.slice(p.start, p.end), 'x/a.ts')
+})
+
+test('findPlainPaths: what must not read as a path', () => {
+  for (const text of [
+    'array.map(fn)', 'version 1.2.3', 'e.g. this', 'https://example.com/a/b.ts', 'http://x.io/README.md',
+    'www.example.com', 'foo.tsz', 'foo.ts-bar', '~/notes/a.md', 'C:/x/a.ts', 'just words',
+  ]) {
+    assert.deepEqual(found(text), [], text)
+  }
+})
+
+test('createPathChecker: one batched call per tick, cached, split at the cap', async () => {
+  const calls = []
+  const checker = createPathChecker(async (paths) => {
+    calls.push(paths)
+    return paths.map((p) => p.startsWith('yes'))
+  }, 2)
+  assert.equal(checker.known('yes1'), undefined)
+  await Promise.all([checker.check(['yes1', 'no1']), checker.check(['yes2', 'yes1'])])
+  assert.deepEqual(calls, [['yes1', 'no1'], ['yes2']])
+  assert.equal(checker.known('yes1'), true)
+  assert.equal(checker.known('no1'), false)
+  await checker.check(['yes1', 'no1', 'yes2'])
+  assert.equal(calls.length, 2) // answered from the cache
+})
+
+test('createPathChecker: clear forgets answers and drops the ones in flight', async () => {
+  let release
+  const gate = new Promise((r) => { release = r })
+  let n = 0
+  const checker = createPathChecker(async (paths) => {
+    n++
+    if (n === 1) await gate
+    return paths.map(() => true)
+  })
+  const first = checker.check(['a.ts'])
+  await Promise.resolve()
+  checker.clear()
+  release()
+  await first
+  assert.equal(checker.known('a.ts'), undefined) // asked before the clear: dropped
+  await checker.check(['a.ts'])
+  assert.equal(checker.known('a.ts'), true)
+  assert.equal(n, 2)
+})
+
+test('createPathChecker: a failed call caches nothing and rejects', async () => {
+  let fail = true
+  const checker = createPathChecker(async (paths) => {
+    if (fail) throw new Error('down')
+    return paths.map(() => true)
+  })
+  await assert.rejects(checker.check(['a.ts']))
+  assert.equal(checker.known('a.ts'), undefined)
+  fail = false
+  await checker.check(['a.ts'])
+  assert.equal(checker.known('a.ts'), true)
 })

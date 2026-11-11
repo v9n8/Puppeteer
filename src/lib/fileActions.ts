@@ -68,6 +68,8 @@ export function parentDir(relPath: string): string {
 }
 
 export function absPath(projectPath: string, relPath: string): string {
+  // A file link in a session can name a file outside the project by its full path.
+  if (/^(?:\/|[a-zA-Z]:[\\/])/.test(relPath)) return relPath
   const root = projectPath.replace(/\/+$/, '')
   return relPath ? `${root}/${relPath}` : root
 }

@@ -34,8 +34,8 @@ const {
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
-  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, fileListVersion, openFile, quoteSets, quoteReveal,
-  jumpToQuote, runsStore, loadRunLog, isSessionWindow, session,
+  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
+  jumpToQuote, runsStore, loadRunLog, isSessionWindow, session, project,
 } = useRunSession()
 // A fork names the session it came from, and opens it (not from a pop-out,
 // which stays on its one session).
@@ -393,6 +393,8 @@ function onOpenUrl(url: string) {
             :file-matcher="fileMatcher"
             :file-exists="fileExists"
             :file-list-version="fileListVersion"
+            :path-checker="pathChecker"
+            :project-path="project?.path"
             group-steps
             :steps-expanded="uiLayout.stepsExpanded"
             :find-query="findOpen ? runFind.query.value : ''"
@@ -444,6 +446,8 @@ function onOpenUrl(url: string) {
           :file-matcher="fileMatcher"
           :file-exists="fileExists"
           :file-list-version="fileListVersion"
+          :path-checker="pathChecker"
+          :project-path="project?.path"
           group-steps
           :steps-expanded="uiLayout.stepsExpanded"
           :find-query="findOpen ? runFind.query.value : ''"

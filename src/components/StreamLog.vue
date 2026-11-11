@@ -25,7 +25,8 @@ import {
 } from '@/lib/turnActivity'
 import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
 import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
-import { hrefFileRef, parseLineRef, splitLineRef } from '@/lib/fileLinks'
+import { findPlainPaths, hrefFileRef, linkPlainPaths, parseLineRef, splitLineRef, type PathChecker } from '@/lib/fileLinks'
+import FileLinkMenu from './FileLinkMenu.vue'
 
 const { t } = useI18n()
 
@@ -42,6 +43,10 @@ const props = defineProps<{
   fileExists?: (path: string) => Promise<boolean>
   /** Bumped when the project file list reloads, so finalized entries re-link. */
   fileListVersion?: number
+  /** Asks whether bare paths in prose and prompts name real files (batched, cached). */
+  pathChecker?: PathChecker
+  /** The project folder: the right-click menu on a file link acts on files in it. */
+  projectPath?: string | null
   /** No row of buttons under each turn (the whole-turn fullscreen nests a log). */
   noTurnActions?: boolean
   /** Fold each turn's tool calls, thinking and commentary under one header. */
@@ -71,11 +76,17 @@ function toggleCompact(i: number) {
   expandedCompacts.value = next
 }
 
-// Directive: mark inline `<code>` tokens that name a real project file so they
-// render as clickable file links (handled by the container's click listener).
+// Directive: mark inline `<code>` tokens and bare paths in the text that name a
+// real file so they render as clickable file links (handled by the container's
+// click listener). Runs only when an entry renders, never on scroll.
 const vFileLinks = {
-  mounted: (el: HTMLElement) => decorateFileLinks(el),
-  updated: (el: HTMLElement) => decorateFileLinks(el),
+  mounted: (el: HTMLElement) => linkFiles(el),
+  updated: (el: HTMLElement) => linkFiles(el),
+}
+
+function linkFiles(el: HTMLElement) {
+  decorateFileLinks(el)
+  linkPlainPaths(el, props.fileMatcher, props.pathChecker)
 }
 
 function decorateFileLinks(el: HTMLElement) {
@@ -96,8 +107,8 @@ function decorateFileLinks(el: HTMLElement) {
 
 function onProseClick(e: MouseEvent) {
   const target = e.target as HTMLElement
-  // Inline `<code>` that names a project file.
-  const code = target.closest('code.file-link') as HTMLElement | null
+  // Inline `<code>` or a bare path in the text that names a file.
+  const code = target.closest('.file-link[data-file-path]') as HTMLElement | null
   const codePath = code?.getAttribute('data-file-path')
   if (codePath) {
     e.preventDefault()
@@ -128,6 +139,36 @@ function onProseClick(e: MouseEvent) {
       if (ok) emit('open-file', ref.path, ref.line)
     })
   }
+}
+
+// Right-click on a file link (inline code, a bare path, a prompt token, a
+// markdown link to a file): Open · Open in VS Code · Reveal in Finder · Copy
+// path. A link to a URL keeps the webview's own menu.
+const linkMenu = ref<{ path: string; line: number | null; x: number; y: number } | null>(null)
+
+function onLinkContextMenu(e: MouseEvent) {
+  if (!props.projectPath) return
+  const target = e.target as HTMLElement
+  const at = { x: e.clientX, y: e.clientY }
+  const link = target.closest('[data-file-path]') as HTMLElement | null
+  const linkPath = link?.getAttribute('data-file-path')
+  if (linkPath) {
+    e.preventDefault()
+    linkMenu.value = { path: linkPath, line: parseLineRef(link?.textContent ?? ''), ...at }
+    return
+  }
+  const anchor = target.closest('.markdown-output a') as HTMLAnchorElement | null
+  const ref = anchor ? hrefFileRef(anchor.getAttribute('href') ?? '') : null
+  if (!ref) return
+  e.preventDefault()
+  const path = props.fileMatcher?.(ref.path) ?? null
+  if (path) {
+    linkMenu.value = { path, line: ref.line, ...at }
+    return
+  }
+  void props.fileExists?.(ref.path).then((ok) => {
+    if (ok) linkMenu.value = { path: ref.path, line: ref.line, ...at }
+  })
 }
 
 // Return the file path a tool acts on, or null when the tool isn't file-based.
@@ -488,10 +529,40 @@ interface TextSegment {
 //      it to an actual project file.
 const FILE_TOKEN_RE = /`(\/[^`\n]+)`|@(\S+)/g
 
+// Bumped when the path checker answers for a prompt, so the prompt bubbles
+// (and only they, see the v-memo) re-render with their new links.
+const promptPathsVersion = ref(0)
+
+// Push a run of prompt prose, its bare paths that name a real file as links: a
+// project file the matcher knows, else one the checker confirmed. Paths not
+// asked yet are asked now; the answer re-renders the prompt.
+function pushProse(segs: TextSegment[], text: string) {
+  const checker = props.pathChecker
+  const unknown: string[] = []
+  let last = 0
+  for (const p of findPlainPaths(text)) {
+    let path = props.fileMatcher?.(p.text) ?? null
+    if (!path && checker) {
+      const known = checker.known(p.path)
+      if (known) path = p.path
+      else if (known === undefined) unknown.push(p.path)
+    }
+    if (!path) continue
+    if (p.start > last) segs.push({ text: text.slice(last, p.start) })
+    segs.push({ text: p.text, path, line: p.line })
+    last = p.end
+  }
+  if (last < text.length) segs.push({ text: text.slice(last) })
+  if (checker && unknown.length) {
+    checker.check(unknown).then(() => { promptPathsVersion.value++ }, () => { /* left as text */ })
+  }
+}
+
 // Split a user message into plain + clickable segments. Backticked absolute
 // paths (dropped-file attachments) become links regardless of the project;
-// `@tokens` become links only when they resolve to a project file. Everything
-// else (emails, `@` in prose, unknown paths) stays plain text.
+// `@tokens` become links only when they resolve to a project file; bare paths
+// in the prose only when they name a real file. Everything else (emails, `@` in
+// prose, unknown paths) stays plain text.
 function userSegments(text: string): TextSegment[] {
   const match = props.fileMatcher
   const segs: TextSegment[] = []
@@ -501,7 +572,7 @@ function userSegments(text: string): TextSegment[] {
   while ((m = FILE_TOKEN_RE.exec(text))) {
     // Branch 1: backticked absolute path — attachment reference, always linked.
     if (m[1] !== undefined) {
-      if (m.index > last) segs.push({ text: text.slice(last, m.index) })
+      if (m.index > last) pushProse(segs, text.slice(last, m.index))
       const ref = splitLineRef(m[1])
       segs.push({ text: m[1], path: ref.path, line: ref.line })
       last = m.index + m[0].length
@@ -515,13 +586,13 @@ function userSegments(text: string): TextSegment[] {
     const core = raw.replace(/[)\].,:;'"`]+$/, '')
     const path = match(core)
     if (!path) continue
-    if (m.index > last) segs.push({ text: text.slice(last, m.index) })
+    if (m.index > last) pushProse(segs, text.slice(last, m.index))
     segs.push({ text: '@' + core, path, line: parseLineRef(core) })
     const trailing = raw.slice(core.length)
     if (trailing) segs.push({ text: trailing })
     last = m.index + m[0].length
   }
-  if (last < text.length) segs.push({ text: text.slice(last) })
+  if (last < text.length) pushProse(segs, text.slice(last))
   return segs.length ? segs : [{ text }]
 }
 
@@ -1024,7 +1095,7 @@ function toolResult(e: StreamEntry): unknown {
 </script>
 
 <template>
-  <div ref="rootEl" class="space-y-3">
+  <div ref="rootEl" class="space-y-3" @contextmenu="onLinkContextMenu">
     <template v-for="(entry, i) in entries" :key="i">
       <!-- v-memo: freeze a finalized entry so a streamed update to the LAST
            entry (or a tool result attaching, a toggle, a copy flash) never
@@ -1063,7 +1134,7 @@ function toolResult(e: StreamEntry): unknown {
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
         :class="{ 'stream-entry': running && i !== entries.length - 1, 'turn-step-wrap': stepClass(i) === 'turn-step' }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry), fileListVersion]"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry), fileListVersion, entry.kind === 'user' ? promptPathsVersion : 0]"
       >
       <div :class="stepClass(i)">
       <!-- System init banner -->
@@ -1133,6 +1204,7 @@ function toolResult(e: StreamEntry): unknown {
                   v-if="seg.path"
                   class="font-medium text-primary cursor-pointer underline decoration-dotted underline-offset-2 hover:text-primary/75"
                   :title="t('streamLog.openFile', { path: seg.path })"
+                  :data-file-path="seg.path"
                   role="button"
                   @click="emit('open-file', seg.path!, seg.line)"
                 >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
@@ -1788,6 +1860,8 @@ function toolResult(e: StreamEntry): unknown {
           :file-matcher="fileMatcher"
           :file-exists="fileExists"
           :file-list-version="fileListVersion"
+          :path-checker="pathChecker"
+          :project-path="projectPath"
           @open-file="(path, line) => emit('open-file', path, line)"
           @open-url="(url) => emit('open-url', url)"
         />
@@ -1800,9 +1874,18 @@ function toolResult(e: StreamEntry): unknown {
           v-html="renderText(fullscreen.text)"
           class="markdown-output text-sm leading-relaxed text-foreground"
           @click="onProseClick"
+          @contextmenu="onLinkContextMenu"
         />
       </template>
     </MessageFullscreen>
+
+    <FileLinkMenu
+      v-if="projectPath"
+      :project-path="projectPath"
+      :target="linkMenu"
+      @open="(path, line) => emit('open-file', path, line)"
+      @close="linkMenu = null"
+    />
   </div>
 </template>
 

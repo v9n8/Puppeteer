@@ -29,7 +29,7 @@ import {
   beginEdit, canEditResend, editDraftOf, endEdit, rewindErrorKey, rewindStep, type EditSession, type SentMessage,
 } from '@/lib/editResend'
 import type { ChatDraft } from '@/stores/chatDrafts'
-import { matchProjectFile } from '@/lib/fileLinks'
+import { createPathChecker, matchProjectFile } from '@/lib/fileLinks'
 import { openFileWindow } from '@/lib/fileWindow'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
 import type { ImageAttachment } from '@/lib/streamEvents'
@@ -983,9 +983,21 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     fileListVersion.value++
   }
 
-  // A turn that just ended may have created files: reload so they link.
+  // Whether bare paths in the log's prose and prompts name real files, for those
+  // the project list doesn't know (outside the project, ignored, new).
+  const pathChecker = createPathChecker((paths) => {
+    const projectPath = project.value?.path
+    return projectPath ? runsStore.statPaths(projectPath, paths) : Promise.resolve(paths.map(() => false))
+  })
+  watch(() => project.value?.path, () => pathChecker.clear())
+
+  // A turn that just ended may have created files: reload so they link, and
+  // forget "no such file" answers given while it ran.
   watch([currentRunId, currentStatus], ([id, status], [prevId, prevStatus]) => {
-    if (id === prevId && prevStatus === 'running' && status !== 'running') ensureProjectFiles(true)
+    if (id === prevId && prevStatus === 'running' && status !== 'running') {
+      pathChecker.clear()
+      ensureProjectFiles(true)
+    }
   })
 
   // ── Opening a file ────────────────────────────────────────────────────────
@@ -1600,7 +1612,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
     toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
-    selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, fileListVersion, openFile, mentionItems,
+    selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
     handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,

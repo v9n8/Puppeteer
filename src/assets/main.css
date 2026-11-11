@@ -667,6 +667,16 @@
 .markdown-output code.file-link:hover {
   background: hsl(var(--primary) / 0.12);
 }
+/* A bare path in the text that names a real file (UX-44, lib/fileLinks). */
+.markdown-output span.file-link {
+  cursor: pointer;
+  color: hsl(var(--primary));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.markdown-output span.file-link:hover {
+  color: hsl(var(--primary) / 0.75);
+}
 
 /* A quote card's source, jumped to (UX-29, lib/quoteAnchor): the exact quoted
    range via the Custom Highlight API, or the whole message where there is no
