@@ -21,6 +21,12 @@ pub(crate) const POLL_INTERVAL_MS: u64 = 400;
 /// How long a permission request must stay unanswered before a worker is
 /// reported as `awaiting_permission`.
 const AWAITING_PERMISSION_MIN_MS: u64 = 10_000;
+/// `session_read` page size in chars. The reply stays in the conductor's context
+/// and is re-read on every later model call, so a long one is paged rather than
+/// returned whole. Same bounds as `sidecar-mcp`'s `session_read`.
+const DEFAULT_READ_CHARS: usize = 8_000;
+const MIN_READ_CHARS: usize = 500;
+const MAX_READ_CHARS: usize = 40_000;
 
 /// Format an elapsed duration in ms as a short, human-readable string the model
 /// can quote verbatim (e.g. "58s", "1m 3s", "10m 0s"). Giving the model a ready
@@ -494,13 +500,47 @@ async fn session_read(
         .join("runs")
         .join(format!("{}.log", worker_id));
     let reply = extract_latest_reply(&log_path);
+    let (offset, max_chars) = read_window(&args);
 
-    let entry = json!({
-        "worker_id": worker_id,
-        "status": normalize_status(&status),
-        "reply": reply,
-    });
+    let mut entry = reply_page(&reply, offset, max_chars);
+    entry["worker_id"] = json!(worker_id);
+    entry["status"] = json!(normalize_status(&status));
     Ok(with_awaiting_permission(entry, &worker_id))
+}
+
+/// `(offset, max_chars)` for `session_read`; a missing or zero `max_chars` means
+/// the default page.
+fn read_window(args: &Value) -> (usize, usize) {
+    let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    let max_chars = args
+        .get("max_chars")
+        .and_then(|v| v.as_u64())
+        .filter(|&n| n > 0)
+        .map_or(DEFAULT_READ_CHARS, |n| (n as usize).clamp(MIN_READ_CHARS, MAX_READ_CHARS));
+    (offset, max_chars)
+}
+
+/// One page of `reply`: `max_chars` chars from `offset`, cut on char boundaries.
+/// A partial page carries `total_chars` and `offset`; one with more after it also
+/// carries `truncated`, `next_offset` and a note telling the model to read on.
+fn reply_page(reply: &str, offset: usize, max_chars: usize) -> Value {
+    let total = reply.chars().count();
+    let start = offset.min(total);
+    let end = start.saturating_add(max_chars).min(total);
+    let byte_at = |i: usize| reply.char_indices().nth(i).map_or(reply.len(), |(b, _)| b);
+    let mut page = json!({ "reply": &reply[byte_at(start)..byte_at(end)] });
+    if start > 0 || end < total {
+        page["total_chars"] = json!(total);
+        page["offset"] = json!(start);
+    }
+    if end < total {
+        page["truncated"] = json!(true);
+        page["next_offset"] = json!(end);
+        page["note"] = json!(format!(
+            "Reply cut at char {end} of {total}. Call session_read again with offset={end} to read the rest."
+        ));
+    }
+    page
 }
 
 async fn session_send(
@@ -1040,5 +1080,65 @@ mod tests {
         // falling back to the looser setting.
         cst.reregister_session("c", "p1", 5, Vec::new());
         assert!(wake_permission_mode(&cst, "c").is_err());
+    }
+
+    #[test]
+    fn a_short_reply_is_returned_whole() {
+        let page = reply_page("All tests pass.", 0, DEFAULT_READ_CHARS);
+        assert_eq!(page, json!({ "reply": "All tests pass." }));
+    }
+
+    #[test]
+    fn a_long_reply_is_cut_at_max_chars_and_read_on_with_offset() {
+        let reply: String = (0..1_200).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+        let first = reply_page(&reply, 0, 500);
+        assert_eq!(first["reply"].as_str().unwrap(), &reply[..500]);
+        assert_eq!(first["truncated"], json!(true));
+        assert_eq!(first["total_chars"], json!(1_200));
+        assert_eq!(first["next_offset"], json!(500));
+        assert!(first["note"].as_str().unwrap().contains("offset=500"));
+
+        let second = reply_page(&reply, 500, 500);
+        assert_eq!(second["reply"].as_str().unwrap(), &reply[500..1_000]);
+        assert_eq!(second["next_offset"], json!(1_000));
+
+        let last = reply_page(&reply, 1_000, 500);
+        assert_eq!(last["reply"].as_str().unwrap(), &reply[1_000..]);
+        assert_eq!(last.get("truncated"), None);
+        assert_eq!(last["total_chars"], json!(1_200));
+        assert_eq!(last["offset"], json!(1_000));
+
+        // Past the end: nothing left, never a panic.
+        assert_eq!(reply_page(&reply, 5_000, 500)["reply"], json!(""));
+    }
+
+    #[test]
+    fn pages_split_on_chars_so_vietnamese_and_emoji_stay_whole() {
+        let reply = "Tiếng Việt có dấu 👍🏽 ổn định ✅ ".repeat(40);
+        let total = reply.chars().count();
+        let mut joined = String::new();
+        let mut offset = 0;
+        loop {
+            let page = reply_page(&reply, offset, 500);
+            let text = page["reply"].as_str().unwrap();
+            assert!(text.chars().count() <= 500);
+            joined.push_str(text);
+            match page["next_offset"].as_u64() {
+                Some(next) => offset = next as usize,
+                None => break,
+            }
+        }
+        assert_eq!(joined, reply);
+        assert_eq!(reply_page(&reply, 0, 500)["total_chars"], json!(total));
+    }
+
+    #[test]
+    fn the_read_window_defaults_and_is_clamped() {
+        assert_eq!(read_window(&json!({})), (0, DEFAULT_READ_CHARS));
+        assert_eq!(read_window(&json!({ "max_chars": 0 })), (0, DEFAULT_READ_CHARS));
+        assert_eq!(read_window(&json!({ "max_chars": 10 })), (0, MIN_READ_CHARS));
+        assert_eq!(read_window(&json!({ "max_chars": 1_000_000 })), (0, MAX_READ_CHARS));
+        assert_eq!(read_window(&json!({ "max_chars": 2_000, "offset": 8_000 })), (8_000, 2_000));
+        assert_eq!(read_window(&json!({ "offset": -5 })), (0, DEFAULT_READ_CHARS));
     }
 }

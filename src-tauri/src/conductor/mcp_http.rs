@@ -439,10 +439,14 @@ fn tool_specs() -> Value {
         },
         {
             "name": "session_read",
-            "description": "Read a worker's latest assistant reply (its result for the last turn).",
+            "description": "Read a worker's latest assistant reply (its result for the last turn). A long reply comes in pages: on `truncated: true`, call again with `offset` = `next_offset`.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "worker_id": { "type": "string" } },
+                "properties": {
+                    "worker_id": { "type": "string" },
+                    "max_chars": { "type": "integer", "description": "Page size in chars (default 8000, max 40000)." },
+                    "offset": { "type": "integer", "description": "Char to start from (default 0)." }
+                },
                 "required": ["worker_id"]
             }
         },

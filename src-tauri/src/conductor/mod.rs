@@ -62,7 +62,9 @@ You control workers with these MCP tools (server `conductor`):
     gets misreported as "10 minutes"). This call streams progress and stays alive
     for the whole wait — it will not time out on you; trust the values it returns.
     Use session_poll any time you just want a quick status without blocking.
-- session_read(worker_id) -> the worker's latest assistant reply (its result).
+- session_read(worker_id, max_chars?, offset?) -> the worker's latest assistant
+    reply (its result), 8000 chars per page by default. On `truncated: true`, call
+    again with `offset` = `next_offset` when you need the rest.
 - session_send(worker_id, text) -> give a worker a follow-up turn.
 - session_cancel(worker_id) -> stop a worker.
 
