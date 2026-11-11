@@ -79,6 +79,13 @@
     "turnTitle": "Whole turn",
     "fork": "Fork from here"
   },
+  "runningFor": "running · {time}",
+  "taskTools": "{count} tool use | {count} tool uses",
+  "live": {
+    "retry": "Retrying ({attempt}/{max}) — waiting {secs}s",
+    "retryStatus": "Retrying ({attempt}/{max}) — waiting {secs}s · error {status}",
+    "compacting": "Compacting the conversation…"
+  },
   "activity": {
     "steps": "{count} step | {count} steps",
     "filesEdited": "{count} file edited | {count} files edited",

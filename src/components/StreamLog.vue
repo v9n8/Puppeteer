@@ -6,7 +6,7 @@ import {
   Terminal, FilePen, FilePlus2, FileText, Search, Globe, ListTodo, User, Archive, Copy, Check,
   Bot, MessageCircleQuestion, Circle, CircleDot, ClipboardList, Server, BookOpen, BellRing,
 } from 'lucide-vue-next'
-import type { StreamEntry } from '@/lib/streamEvents'
+import type { LiveStatus, StreamEntry, TaskProgress } from '@/lib/streamEvents'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { computeDiff } from '@/lib/diff'
@@ -20,7 +20,9 @@ import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
 import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFooter } from '@/lib/turnActions'
-import { activityMatches, activityOpen, turnActivity, type TurnActivity, type TurnActivityMap } from '@/lib/turnActivity'
+import {
+  activityMatches, activityOpen, formatActivityDuration, turnActivity, type TurnActivity, type TurnActivityMap,
+} from '@/lib/turnActivity'
 import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
 import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
 
@@ -29,6 +31,8 @@ const { t } = useI18n()
 const props = defineProps<{
   entries: StreamEntry[]
   running?: boolean
+  /** An API retry or compaction in progress: shown in place of "thinking". */
+  liveStatus?: LiveStatus | null
   /** `skipCache` bypasses the memo for text that is still growing — see below. */
   renderText: (md: string, skipCache?: boolean) => string
   /** Resolve a raw inline-code token to a project file path, or null. */
@@ -564,6 +568,41 @@ const lastEntryIsResult = computed(() => {
   const last = props.entries[props.entries.length - 1]
   return last?.kind === 'result'
 })
+
+const liveStatusText = computed(() => {
+  const s = props.liveStatus
+  if (!s) return ''
+  if (s.kind === 'compacting') return t('streamLog.live.compacting')
+  const args = { attempt: s.attempt, max: s.maxRetries, secs: Math.ceil(s.delayMs / 1000) }
+  return s.errorStatus !== null
+    ? t('streamLog.live.retryStatus', { ...args, status: s.errorStatus })
+    : t('streamLog.live.retry', args)
+})
+
+// `tool_progress` counts whole seconds; `12.0s` would read as false precision.
+function formatElapsed(secs: number): string {
+  return secs < 60 ? `${secs}s` : formatActivityDuration(secs * 1000)
+}
+
+/** A running tool card's status: how long it has run, once the engine says. */
+function runningText(e: StreamEntry, idle: string): string {
+  return e.kind === 'tool' && e.elapsedSecs ? t('streamLog.runningFor', { time: formatElapsed(e.elapsedSecs) }) : idle
+}
+
+function taskProgressText(task: TaskProgress): string {
+  const parts: string[] = []
+  if (task.toolUses) parts.push(t('streamLog.taskTools', task.toolUses))
+  if (task.tokens) parts.push(t('streamLog.tokensSuffix', { tokens: formatTokens(task.tokens) }))
+  if (task.durationMs) parts.push(formatActivityDuration(task.durationMs))
+  if (task.lastTool && !task.done) parts.push(task.lastTool)
+  return parts.join(' · ')
+}
+
+function compactTokensText(e: Extract<StreamEntry, { kind: 'compact' }>): string {
+  if (!e.preTokens) return ''
+  const tokens = e.postTokens ? `${formatTokens(e.preTokens)} → ${formatTokens(e.postTokens)}` : formatTokens(e.preTokens)
+  return t('streamLog.tokensSuffix', { tokens })
+}
 
 // --- Entry height measurement (feeds `content-visibility`) ------------------
 // An entry may only be skipped off-screen once we know how tall it really is;
@@ -1101,17 +1140,18 @@ function toolResult(e: StreamEntry): unknown {
           <span class="h-px flex-1 bg-border" />
           <button
             class="inline-flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide hover:text-foreground/70 transition-colors"
-            :title="expandedCompacts.has(i) ? t('streamLog.hideSummary') : t('streamLog.showSummary')"
-            @click="toggleCompact(i)"
+            :title="entry.summary ? (expandedCompacts.has(i) ? t('streamLog.hideSummary') : t('streamLog.showSummary')) : undefined"
+            @click="entry.summary && toggleCompact(i)"
           >
             <Archive class="h-3 w-3" :stroke-width="1.75" />
             {{ t('streamLog.contextCompacted') }}
-            <ChevronRight class="h-3 w-3 transition-transform" :class="expandedCompacts.has(i) ? 'rotate-90' : ''" :stroke-width="2" />
+            <span v-if="entry.preTokens" class="font-mono normal-case tracking-normal tabular-nums">{{ compactTokensText(entry) }}</span>
+            <ChevronRight v-if="entry.summary" class="h-3 w-3 transition-transform" :class="expandedCompacts.has(i) ? 'rotate-90' : ''" :stroke-width="2" />
           </button>
           <span class="h-px flex-1 bg-border" />
         </div>
         <div
-          v-if="expandedCompacts.has(i)"
+          v-if="expandedCompacts.has(i) && entry.summary"
           v-file-links
           v-mermaid
           v-copy-code
@@ -1222,7 +1262,7 @@ function toolResult(e: StreamEntry): unknown {
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.running')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <!-- Real command executed on the machine — terminal look + copy.
@@ -1308,7 +1348,7 @@ function toolResult(e: StreamEntry): unknown {
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.running')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border p-2 space-y-2">
           <template v-for="(part, pi) in editParts(entry.name, entry.input)" :key="pi">
@@ -1341,9 +1381,15 @@ function toolResult(e: StreamEntry): unknown {
           <Bot class="h-3.5 w-3.5 shrink-0 text-fuchsia-400" :stroke-width="1.75" />
           <span class="text-xs font-mono font-semibold shrink-0 text-fuchsia-600 dark:text-fuchsia-300">{{ agentInfo(entry.input).subagent || t('streamLog.agent') }}</span>
           <span class="text-2xs text-foreground/60 truncate">{{ agentInfo(entry.input).description }}</span>
+          <span
+            v-if="entry.task && taskProgressText(entry.task)"
+            class="text-2xs font-mono tabular-nums text-foreground/45 shrink-0"
+            :class="{ 'animate-pulse': !entry.task.done }"
+            :title="entry.task.summary"
+          >{{ taskProgressText(entry.task) }}</span>
           <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.running') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.running')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div v-if="agentInfo(entry.input).prompt" class="px-3 py-2 bg-black/20 dark:bg-black/25">
@@ -1433,7 +1479,7 @@ function toolResult(e: StreamEntry): unknown {
           <span class="text-2xs font-mono text-foreground/50 truncate">{{ toolSearchQuery(entry.input) }}</span>
           <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.searching') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.searching')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div v-if="entry.result" class="px-3 py-2">
@@ -1456,7 +1502,7 @@ function toolResult(e: StreamEntry): unknown {
           <span class="text-2xs font-mono text-foreground/50 truncate">{{ previewInput(entry.input) }}</span>
           <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}</span>
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ t('streamLog.loading') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.loading')) }}</span>
         </button>
         <div v-if="expanded[i] && entry.result" class="border-t border-border px-3 py-2">
           <div
@@ -1509,7 +1555,7 @@ function toolResult(e: StreamEntry): unknown {
           <span v-if="mcpSummary(entry)" class="text-2xs text-foreground/45 truncate">{{ mcpSummary(entry) }}</span>
           <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />denied</span>
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">waiting…</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, 'waiting…') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 bg-black/20 dark:bg-black/25 text-2xs">
@@ -1575,7 +1621,7 @@ function toolResult(e: StreamEntry): unknown {
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">running…</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, 'running…') }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div class="px-3 py-2 bg-black/20 dark:bg-black/25">
@@ -1688,7 +1734,8 @@ function toolResult(e: StreamEntry): unknown {
       <span class="thinking-icon inline-flex">
         <Sparkles class="h-3 w-3 text-emerald-400" :stroke-width="1.75" />
       </span>
-      <span class="thinking-text">thinking</span>
+      <span v-if="liveStatusText" :class="liveStatus?.kind === 'retry' ? 'text-warning' : 'text-foreground/60'">{{ liveStatusText }}</span>
+      <span v-else class="thinking-text">thinking</span>
       <span class="thinking-dots" aria-hidden="true">
         <span class="thinking-dot"></span>
         <span class="thinking-dot"></span>

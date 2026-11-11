@@ -196,7 +196,12 @@ export type StreamEntry =
       quoteSet?: string
     }
   | { kind: 'ide-context'; items: IdeContextItem[] }
-  | { kind: 'compact'; summary: string }
+  /**
+   * One compaction: the summary Claude injects and/or its `compact_boundary`,
+   * which carries the window size before (and, on newer CLIs, after) it.
+   * `summary` is '' while only the boundary has arrived.
+   */
+  | { kind: 'compact'; summary: string; preTokens?: number; postTokens?: number }
   | { kind: 'command'; name: string; args?: string; stdout?: string }
   /** Harness-injected user message (skill body, conductor nudge, meta) — collapsed by default. */
   | { kind: 'injected'; source: 'skill' | 'session' | 'system'; label?: string; text: string }
@@ -208,6 +213,10 @@ export type StreamEntry =
       displayName?: string
       serverDisplayName?: string
       result?: { content: string; is_error: boolean }
+      /** How long the call has run, from the engine's `tool_progress` (Claude). */
+      elapsedSecs?: number
+      /** The subagent / background task this call started (`task_progress`). */
+      task?: TaskProgress
     }
   | {
       kind: 'result'
@@ -226,6 +235,27 @@ export type StreamEntry =
     }
   | { kind: 'error'; text: string }
   | { kind: 'log'; level: string; text: string }
+
+/** Progress of a task (subagent, background shell…) as of its latest `task_*` event. */
+export interface TaskProgress {
+  toolUses?: number
+  tokens?: number
+  durationMs?: number
+  lastTool?: string
+  /** One-line status, when the engine sends one. */
+  summary?: string
+  /** A `task_notification` arrived: the task ended (completed, failed or stopped). */
+  done?: boolean
+}
+
+/**
+ * What the engine is busy with that the log itself does not show (AC-14):
+ * waiting out an API retry, or compacting the conversation. Live only — it is
+ * derived from the stream by `nextLiveStatus`, never stored as an entry.
+ */
+export type LiveStatus =
+  | { kind: 'retry'; attempt: number; maxRetries: number; delayMs: number; errorStatus: number | null }
+  | { kind: 'compacting' }
 
 export interface StreamState {
   entries: StreamEntry[]
@@ -349,6 +379,80 @@ export function settlePartials(entries: StreamEntry[]): void {
   }
 }
 
+/**
+ * A `compact_boundary` opens the compaction's divider with its token counts;
+ * the summary message that follows fills it in. The SDK stream says
+ * `compact_metadata.pre_tokens`, a CLI transcript `compactMetadata.preTokens`.
+ */
+function applyCompactBoundary(entries: StreamEntry[], e: Record<string, unknown>): void {
+  const meta = (e.compact_metadata ?? e.compactMetadata ?? {}) as Record<string, unknown>
+  const count = (v: unknown) => (typeof v === 'number' && v > 0 ? v : undefined)
+  const preTokens = count(meta.pre_tokens ?? meta.preTokens)
+  const postTokens = count(meta.post_tokens ?? meta.postTokens)
+  const tokens = {
+    ...(preTokens !== undefined ? { preTokens } : {}),
+    ...(postTokens !== undefined ? { postTokens } : {}),
+  }
+  const last = entries[entries.length - 1]
+  // A summary that came first (an older order) takes the counts instead.
+  if (last?.kind === 'compact' && last.summary && last.preTokens === undefined) {
+    entries[entries.length - 1] = { ...last, ...tokens }
+  } else {
+    entries.push({ kind: 'compact', summary: '', ...tokens })
+  }
+}
+
+/**
+ * The tool call a `tool_progress` frame is about. A main-thread heartbeat has
+ * its own id `<id>-heartbeat-<n>` and the call's id in `parent_tool_use_id`
+ * (see src-tauri/src/runs/liveness.rs); a subagent's frame names its tool
+ * directly and its parent is the subagent's own call, so that is never used.
+ */
+function progressToolId(toolIndex: Map<string, number>, e: Record<string, unknown>): string | null {
+  const own = typeof e.tool_use_id === 'string' ? e.tool_use_id.replace(/-heartbeat-\d+$/, '') : ''
+  if (own && toolIndex.has(own)) return own
+  const parent = e.parent_tool_use_id
+  if (e.heartbeat === true && typeof parent === 'string' && toolIndex.has(parent)) return parent
+  return null
+}
+
+/**
+ * Fold one stream event into the run's live status (AC-14). An `api_retry`
+ * shows until the engine produces output again; `status: compacting` until the
+ * status changes or the compaction's boundary lands. Returns `prev` itself
+ * when nothing changed.
+ */
+export function nextLiveStatus(prev: LiveStatus | null, evt: unknown): LiveStatus | null {
+  if (!evt || typeof evt !== 'object') return prev
+  const e = evt as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  if (e.type === 'system') {
+    switch (e.subtype) {
+      case 'api_retry':
+        return {
+          kind: 'retry',
+          attempt: num(e.attempt),
+          maxRetries: num(e.max_retries),
+          delayMs: num(e.retry_delay_ms),
+          errorStatus: typeof e.error_status === 'number' ? e.error_status : null,
+        }
+      case 'status':
+        if (e.status === 'compacting') return prev?.kind === 'compacting' ? prev : { kind: 'compacting' }
+        return prev?.kind === 'compacting' ? null : prev
+      case 'compact_boundary':
+      case 'init':
+        return null
+      default:
+        return prev
+    }
+  }
+  if (e.type === 'result') return null
+  // Main-thread output: the request went through. A subagent streaming
+  // meanwhile says nothing about the main thread's retry.
+  if ((e.type === 'stream_event' || e.type === 'assistant') && e.parent_tool_use_id == null) return null
+  return prev
+}
+
 export function applyStreamEvent(
   state: Pick<StreamState, 'entries' | 'toolIndex'>,
   evt: unknown,
@@ -372,6 +476,45 @@ export function applyStreamEvent(
 
   if (type === 'stream_event') {
     applyPartialEvent(state.entries, e)
+    return
+  }
+
+  if (type === 'system' && e.subtype === 'compact_boundary') {
+    applyCompactBoundary(state.entries, e)
+    return
+  }
+
+  if (type === 'tool_progress') {
+    const id = progressToolId(state.toolIndex, e)
+    const idx = id ? state.toolIndex.get(id) : undefined
+    const entry = idx === undefined ? undefined : state.entries[idx]
+    const secs = typeof e.elapsed_time_seconds === 'number' ? Math.floor(e.elapsed_time_seconds) : null
+    // New object, not a mutation: StreamLog's v-memo keys on entry identity.
+    if (idx !== undefined && entry?.kind === 'tool' && !entry.result && secs !== null && secs !== entry.elapsedSecs) {
+      state.entries[idx] = { ...entry, elapsedSecs: secs }
+    }
+    return
+  }
+
+  if (type === 'system' && (e.subtype === 'task_progress' || e.subtype === 'task_notification')) {
+    const idx = typeof e.tool_use_id === 'string' ? state.toolIndex.get(e.tool_use_id) : undefined
+    const entry = idx === undefined ? undefined : state.entries[idx]
+    if (idx === undefined || entry?.kind !== 'tool') return
+    const usage = (e.usage ?? {}) as Record<string, unknown>
+    const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
+    const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+    const prev = entry.task ?? {}
+    state.entries[idx] = {
+      ...entry,
+      task: {
+        toolUses: num(usage.tool_uses) ?? prev.toolUses,
+        tokens: num(usage.total_tokens) ?? prev.tokens,
+        durationMs: num(usage.duration_ms) ?? prev.durationMs,
+        lastTool: str(e.last_tool_name) ?? prev.lastTool,
+        summary: str(e.summary) ?? prev.summary,
+        done: e.subtype === 'task_notification',
+      },
+    }
     return
   }
 
@@ -436,7 +579,11 @@ export function applyStreamEvent(
     // divider, not a user bubble (it isn't something the user actually typed).
     if (isCompactSummaryEvent(e, rawContent)) {
       const summary = (typeof rawContent === 'string' ? rawContent : blockText(rawContent)).trim()
-      if (summary) state.entries.push({ kind: 'compact', summary })
+      if (!summary) return
+      // The boundary comes first and already opened this compaction's divider.
+      const last = state.entries[state.entries.length - 1]
+      if (last?.kind === 'compact' && !last.summary) state.entries[state.entries.length - 1] = { ...last, summary }
+      else state.entries.push({ kind: 'compact', summary })
       return
     }
     // Plain-string content represents a user message we wrote via stdin

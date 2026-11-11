@@ -6,7 +6,9 @@ import {
   extractContextTokens,
   extractTurnTotalTokens,
   isCompactBoundary,
+  nextLiveStatus,
   settlePartials,
+  type LiveStatus,
   type StreamEntry,
   type ImageAttachment,
 } from '@/lib/streamEvents'
@@ -80,6 +82,8 @@ export interface LiveSession {
    * as a banner with a stop action; never acted on automatically.
    */
   attention: RunAttention[]
+  /** API retry / compaction in progress, shown in place of "thinking" (AC-14). */
+  liveStatus: LiveStatus | null
 }
 
 /** One liveness notice, keyed so the backend can clear it when it resolves. */
@@ -272,6 +276,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         budgetBlocked: false,
         notifyDone: false,
         attention: [] as RunAttention[],
+        liveStatus: null as LiveStatus | null,
       }) as LiveSession
       // Seed the per-run allow/deny lists with the standing choices the user
       // made for this project in earlier runs, so they apply again here.
@@ -421,6 +426,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       s.hasStreamEvents = true
       for (const payload of batch) {
         applyStreamEvent({ entries: s.entries, toolIndex }, payload)
+        s.liveStatus = nextLiveStatus(s.liveStatus, payload)
         const p = payload as Record<string, unknown> | null
         if (usesProjectWriteTool(p)) projectsDirty = true
         else if (projectsDirty && (p?.type === 'user' || p?.type === 'result')) {
@@ -487,6 +493,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         s.status = event.payload.status
         s.permissionQueue = []
         s.attention = []
+        s.liveStatus = null
         for (const id of answeredIds) if (id.startsWith(`${runId}:`)) answeredIds.delete(id)
         // Flag a "run finished" notification for the Active runs dock. It stays
         // until the user opens this run (markSeen). If the run is already on

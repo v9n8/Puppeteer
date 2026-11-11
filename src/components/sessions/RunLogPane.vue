@@ -35,7 +35,7 @@ const {
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile, quoteSets, quoteReveal,
-  jumpToQuote, runsStore, loadRunLog, isSessionWindow,
+  jumpToQuote, runsStore, loadRunLog, isSessionWindow, session,
 } = useRunSession()
 // A fork names the session it came from, and opens it (not from a pop-out,
 // which stays on its one session).
@@ -433,6 +433,7 @@ function onOpenUrl(url: string) {
           v-if="liveHasStream"
           :entries="liveEntries"
           :running="currentStatus === 'running'"
+          :live-status="session?.liveStatus ?? null"
           :render-text="renderText"
           :file-matcher="fileMatcher"
           group-steps

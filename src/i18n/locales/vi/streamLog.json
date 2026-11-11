@@ -79,6 +79,13 @@
     "turnTitle": "Cả lượt",
     "fork": "Fork từ đây"
   },
+  "runningFor": "đang chạy · {time}",
+  "taskTools": "{count} lần gọi tool | {count} lần gọi tool",
+  "live": {
+    "retry": "Đang thử lại ({attempt}/{max}) — chờ {secs} giây",
+    "retryStatus": "Đang thử lại ({attempt}/{max}) — chờ {secs} giây · lỗi {status}",
+    "compacting": "Đang nén hội thoại…"
+  },
   "activity": {
     "steps": "{count} bước | {count} bước",
     "filesEdited": "sửa {count} file | sửa {count} file",
