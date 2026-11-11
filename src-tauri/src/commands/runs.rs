@@ -4421,7 +4421,8 @@ pub(crate) async fn resume_run_with(
     // A resumed top-level run is (or becomes) a conductor: re-inject its
     // `conductor` MCP server on BOTH engines. The framing is sent again too: on
     // Claude inside the session's recorded append (runs::claude_prompt), on
-    // Codex for a new thread or as a one-time seed. Workers get None.
+    // Codex as developer instructions plus, for a resumed thread, a one-time
+    // seed. Workers get None.
     let cst = app.try_state::<crate::conductor::ConductorState>();
     let crate::conductor::commands::ResumeFraming {
         launch: conductor_launch,
@@ -4685,26 +4686,27 @@ pub(crate) async fn resume_run_with(
         if !codex_mcp.is_null() {
             cmd.env("PUPPETEER_CODEX_MCP", codex_mcp.to_string());
         }
-        // Codex ignores developerInstructions on thread/resume (verified against a
-        // real Codex), so a thread never started with this framing (e.g. a legacy
-        // plain session) is seeded ONCE by prepending it to the next turn's prompt.
-        // The sidecar reports `_puppeteer_framing_seeded`, which sets
-        // runs.framing_seeded so later resumes don't repeat it.
-        if !resume_session {
-            // Fresh thread: the framing and the style go in as developer
-            // instructions, as on start.
-            if let Some(framing) = &framing {
-                cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", framing);
-            }
-            if let Some(block) = &style_block {
-                cmd.env("PUPPETEER_CODEX_STYLE_INSTRUCTIONS", block);
-            }
-        } else {
+        // The framing and the style go in as developer instructions on a fresh
+        // thread and on thread/resume / thread/fork alike. A resumed thread takes
+        // them into its config but puts them in the model's context only when
+        // codex rebuilds it, at a compact; without them a compact would drop the
+        // framing for good.
+        if let Some(framing) = &framing {
+            cmd.env("PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS", framing);
+        }
+        if let Some(block) = &style_block {
+            cmd.env("PUPPETEER_CODEX_STYLE_INSTRUCTIONS", block);
+        }
+        // Until that compact, a resumed thread never started with this framing
+        // (e.g. a legacy plain session) is seeded ONCE by prepending it to the
+        // next turn's prompt. The sidecar reports `_puppeteer_framing_seeded`,
+        // which sets runs.framing_seeded so later resumes don't repeat it.
+        if resume_session {
             if let Some(seed) = crate::conductor::codex_resume_seed(framing.as_deref(), framing_seeded) {
                 cmd.env("PUPPETEER_CODEX_SEED_FRAMING", seed);
             }
-            // The thread keeps the style of its developer instructions; only a
-            // changed style is seeded, the same way (prepended to the next turn).
+            // Until that compact the thread keeps the style it already holds;
+            // only a changed style is seeded, the same way (prepended to the next turn).
             if let Some(seed) =
                 crate::commands::response_styles::style_change_seed(previous_style.as_deref(), style.as_ref())
             {

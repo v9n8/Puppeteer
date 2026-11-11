@@ -110,17 +110,20 @@ const EFFORT = CODEX_EFFORTS.includes(process.env.PUPPETEER_CODEX_EFFORT) ? proc
 // features, disables every MCP server, and declines any approval request.
 const NO_TOOLS = process.env.PUPPETEER_CODEX_NO_TOOLS === '1'
 // Extra system framing (session orchestration prompt / a worker's role
-// instruction) for a NEW thread: sent as `developerInstructions` on
-// thread/start, after which it lives in the thread itself.
+// instruction), sent as `developerInstructions` on thread/start, thread/resume
+// and thread/fork. A new thread holds it from its first turn. A resumed or
+// forked thread takes it into its config, but codex adds it to the model's
+// context only when it rebuilds that context, at a compact: until then the
+// thread has only what its history holds, hence SEED_FRAMING.
 const DEVELOPER_INSTRUCTIONS = process.env.PUPPETEER_CODEX_DEVELOPER_INSTRUCTIONS || null
-// One-time framing seed for a RESUMED thread that never got it at start. No
-// developerInstructions go on thread/resume, so the broker hands us a
-// ready-made <session-framing> block to prepend to this sidecar's first turn.
+// One-time framing seed for a RESUMED thread that never got it at start: the
+// broker hands us a ready-made <session-framing> block to prepend to this
+// sidecar's first turn, so the framing holds from that turn on.
 let SEED_FRAMING = process.env.PUPPETEER_CODEX_SEED_FRAMING || null
 // Response style (UX-17), kept apart from the framing so that only the framing
-// is reported as `_puppeteer_framing_seeded`. A NEW thread gets it after the
-// framing in `developerInstructions`; a RESUMED thread whose style changed gets
-// the broker's ready-made block prepended to its first turn, like SEED_FRAMING.
+// is reported as `_puppeteer_framing_seeded`. It goes after the framing in
+// `developerInstructions`; a RESUMED thread whose style changed also gets the
+// broker's ready-made block prepended to its first turn, like SEED_FRAMING.
 const STYLE_INSTRUCTIONS = process.env.PUPPETEER_CODEX_STYLE_INSTRUCTIONS || null
 let SEED_STYLE = process.env.PUPPETEER_CODEX_SEED_STYLE || null
 // Session runs: stay up after a turn until the broker closes stdin (it does once
@@ -1216,15 +1219,19 @@ async function bringUp() {
   rpcNotify('initialized', undefined)
 
   const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
+  const developerInstructions = [DEVELOPER_INSTRUCTIONS, STYLE_INSTRUCTIONS].filter(Boolean).join('\n\n')
   if (RESUME_THREAD) {
-    // No developerInstructions here, though 0.133 takes them on resume: the
-    // framing for a resumed thread arrives once via SEED_FRAMING instead.
     const method = FORK ? 'thread/fork' : 'thread/resume'
     // The policy goes on the resume itself, so a thread first created under a
     // looser one is gated by this run's mode (a remote `Deny` must block).
-    let response = await request(method, { threadId: RESUME_THREAD, approvalPolicy, sandbox })
+    // The framing goes too, so the context codex rebuilds at a compact still
+    // holds it (a seed in the history may not survive the compact).
+    const params = { threadId: RESUME_THREAD, approvalPolicy, sandbox }
+    if (MODEL) params.model = MODEL
+    if (developerInstructions) params.developerInstructions = developerInstructions
+    let response = await request(method, params)
     if (refusedParams(response)) {
-      note(`⚠ ${method} refused the permission policy (${response.error.message}); resuming without it and sending the policy on every turn instead, which resets network access and writable roots from config.toml on each turn`, 'warn')
+      note(`⚠ ${method} refused the permission policy, model or framing (${response.error.message}); resuming without them and sending the policy on every turn instead, which resets network access and writable roots from config.toml on each turn`, 'warn')
       policyOnEveryTurn = true
       response = await request(method, { threadId: RESUME_THREAD })
     }
@@ -1247,7 +1254,6 @@ async function bringUp() {
   } else {
     const startParams = { cwd: CWD, approvalPolicy, sandbox }
     if (MODEL) startParams.model = MODEL
-    const developerInstructions = [DEVELOPER_INSTRUCTIONS, STYLE_INSTRUCTIONS].filter(Boolean).join('\n\n')
     if (developerInstructions) startParams.developerInstructions = developerInstructions
     const result = rpcResult(await request('thread/start', startParams), 'thread/start')
     threadId = result?.thread?.id || null

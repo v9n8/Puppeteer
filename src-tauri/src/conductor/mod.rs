@@ -146,10 +146,11 @@ pub fn run_framing(instruction: Option<&str>, launch: Option<&ConductorLaunch>) 
 }
 
 /// One-time framing seed for a resumed Codex thread that was never started with
-/// it. Codex ignores `developerInstructions` (and `config.developer_instructions`)
-/// on `thread/resume`, so the framing is prepended to that turn's prompt instead;
-/// once it is in the thread history it persists, so this is sent only while
-/// `runs.framing_seeded` is 0. Returns the block to prepend, or `None`.
+/// it. Codex takes `developerInstructions` on `thread/resume` into the thread's
+/// config but adds them to the model's context only at a compact, so the
+/// framing is also prepended to that turn's prompt; once it is in the thread
+/// history it persists, so this is sent only while `runs.framing_seeded` is 0.
+/// Returns the block to prepend, or `None`.
 pub fn codex_resume_seed(framing: Option<&str>, already_seeded: bool) -> Option<String> {
     if already_seeded {
         return None;

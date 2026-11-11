@@ -1,8 +1,9 @@
 // Response style (UX-17) reaches Codex the right way:
 //  (A) new thread → after the framing in `developerInstructions`; only the
 //      framing is reported seeded, so a style alone never marks it;
-//  (B) resumed thread whose style changed → the broker's block is prepended to
-//      the FIRST turn only (after a framing seed), with no seeded report of its own.
+//  (B) resumed thread whose style changed → the style goes in thread/resume's
+//      `developerInstructions` too, and the broker's block is prepended to the
+//      FIRST turn only (after a framing seed), with no seeded report of its own.
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -64,11 +65,11 @@ const c = await runSidecar('resume', {
   PUPPETEER_RESUME_SESSION: 'thr-old',
   PUPPETEER_CODEX_SEED_FRAMING: frame,
   PUPPETEER_CODEX_SEED_STYLE: style,
-  PUPPETEER_CODEX_STYLE_INSTRUCTIONS: 'IGNORED-ON-RESUME',
+  PUPPETEER_CODEX_STYLE_INSTRUCTIONS: 'STYLE-NOW',
   PUPPETEER_FIXTURE_COMPLETE_MS: '200',
 }, ['first', 'second'])
 const texts = turnTexts(c.rpc)
-const resumeOk = !('developerInstructions' in (c.rpc.find((r) => r.method === 'thread/resume')?.params || {})) &&
+const resumeOk = c.rpc.find((r) => r.method === 'thread/resume')?.params?.developerInstructions === 'STYLE-NOW' &&
   texts[0] === `${frame}\n\n${style}\n\nfirst` && texts[1] === 'second' && seeded(c.ctrl) === 1
 
 const d = await runSidecar('resume-style-only', { PUPPETEER_RESUME_SESSION: 'thr-old', PUPPETEER_CODEX_SEED_STYLE: style }, ['again'])

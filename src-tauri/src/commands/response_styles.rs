@@ -430,9 +430,10 @@ pub fn compose_append(parts: &[Option<&str>]) -> Option<String> {
 }
 
 /// One-time block for a RESUMED session whose style changed since its last
-/// turn, to prepend to the next message: Codex ignores developer instructions on
-/// `thread/resume`, and Claude resumes with the system prompt of its first turn
-/// (`runs::claude_prompt`). `previous`: the run's stored `runs.style`.
+/// turn, to prepend to the next message: Codex applies the developer
+/// instructions of `thread/resume` only from the next compact, and Claude
+/// resumes with the system prompt of its first turn (`runs::claude_prompt`).
+/// `previous`: the run's stored `runs.style`.
 /// `None` when the effective style did not change.
 pub fn style_change_seed(previous: Option<&str>, next: Option<&ResolvedStyle>) -> Option<String> {
     let previous = previous.map(str::trim).filter(|k| !k.is_empty() && *k != DEFAULT_STYLE_KEY);
