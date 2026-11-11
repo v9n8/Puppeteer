@@ -382,6 +382,66 @@ function applyNoTools(options) {
   return options
 }
 
+// Verify before done (AC-24). A Conductor worker's reply is read as its result and
+// an unattended turn has nobody watching, so neither should end on "done" after
+// changing files without running a check. The `Stop` hook sends the agent back
+// once per turn with VERIFY_REASON when the turn changed files (an edit tool, or
+// a Bash command that writes) and ran no check. Puppeteer's own internal hook,
+// not a user-editable one. The tools come from the tool hooks, not from the
+// message loop: the SDK runs a hook as soon as the CLI asks, possibly before the
+// loop has read the messages that came before it.
+const VERIFY_REASON = "Before finishing, run the project's tests or checks for the files you changed and report the result. If none apply, say why."
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+// A heuristic, not a parser: a missed command costs one extra round, a false
+// match one missed reminder.
+const CHECK_COMMANDS = [
+  /\b(pnpm|npm|yarn|bun)\s+(run\s+)?(test|lint|build|check|typecheck)\b/,
+  /\bcargo\s+(test|check|build|clippy|nextest)\b/,
+  /\bnode\s+(--test\b|\S*test\S*\.[cm]?js\b)/,
+  /\b(pytest|vitest|jest|tsc|eslint|ruff|mypy)\b/,
+  /\bpython3?\s+-m\s+(pytest|unittest)\b/,
+  /\bgo\s+(test|vet|build)\b/,
+  // As a command, not a word in a message (`git commit -m "make it work"`).
+  /(^|[;&|(]\s*)(make|gradle|\.\/gradlew|mvn)\b/,
+]
+const WRITE_COMMANDS = [
+  // A redirect to a file (not `2>&1`, `>/dev/null`, `=>` or `->`).
+  /(?<![0-9&=-])>>?\s*(?!&|\/dev\/null)[^\s|&;]/,
+  /\b(sed|perl)\s+(-\S+\s+)*-i/,
+  /\b(tee|rm|mv|cp|touch|mkdir|truncate|patch)\b/,
+  /\bgit\s+(apply|checkout|restore|rm|mv)\b/,
+]
+function verifyOnStopHooks() {
+  const turn = { edited: false, checked: false, blocked: false }
+  // A failed edit changed nothing; a failed check (red tests) still ran.
+  const track = async (input) => {
+    const ran = input.hook_event_name === 'PostToolUse'
+    if (EDIT_TOOLS.includes(input.tool_name)) {
+      if (ran) turn.edited = true
+    } else if (input.tool_name === 'Bash') {
+      const command = String(input.tool_input?.command ?? '')
+      if (CHECK_COMMANDS.some((re) => re.test(command))) turn.checked = true
+      if (ran && WRITE_COMMANDS.some((re) => re.test(command))) turn.edited = true
+    }
+    return {}
+  }
+  // Blocks once per turn: `stop_hook_active` is set on the stop that follows a
+  // block, and `blocked` holds even if it were not.
+  const stop = async (input) => {
+    if (turn.edited && !turn.checked && !turn.blocked && !input.stop_hook_active) {
+      turn.blocked = true
+      return { decision: 'block', reason: VERIFY_REASON }
+    }
+    // The turn ends: the next one starts clean.
+    turn.edited = turn.checked = turn.blocked = false
+    return {}
+  }
+  // Every event key holds a matcher list: one undefined event drops every hook
+  // (fixed in SDK 0.3.321).
+  const tools = [{ matcher: [...EDIT_TOOLS, 'Bash'].join('|'), hooks: [track] }]
+  return { PostToolUse: tools, PostToolUseFailure: tools, Stop: [{ hooks: [stop] }] }
+}
+
 // Claude Code reads AGENTS.md (Codex's file) when a project has no CLAUDE.md. Where every
 // AGENTS.md from cwd up to the root holds nothing but Puppeteer-written blocks, those only duplicate
 // the rules Claude already gets from .claude/rules — so turn the fallback off for that session.
@@ -555,6 +615,8 @@ function startQuery(firstText, opts = {}, firstImages) {
   // an `error_max_turns` result.
   const maxTurns = Number.parseInt(process.env.PUPPETEER_MAX_TURNS, 10)
   if (maxTurns > 0 && opts.noTools !== true) options.maxTurns = maxTurns
+  // Verify before done (AC-24): a Conductor worker's or an unattended turn.
+  if (process.env.PUPPETEER_VERIFY_ON_STOP === '1' && opts.noTools !== true) options.hooks = verifyOnStopHooks()
   if (opts.cwd) options.cwd = opts.cwd
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).

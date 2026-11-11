@@ -14,6 +14,12 @@
 //                 succeeds when there is none.
 //   interrupt   — the turn runs until `interrupt()` is called, then ends the
 //                 way an interrupted turn does.
+//   verify-stop — a turn per input, scripted by MOCK_TURNS (JSON, one entry per
+//                 turn): `tools` [{ tool, command?, failed? }] go through the
+//                 tool hooks, then the Stop hook runs like the CLI's loop (after a
+//                 block: `afterBlock` tools, then Stop again with
+//                 `stop_hook_active` set, unless the turn says `activeFlag: false`).
+//                 The result lists every Stop hook output (`mock_stops`).
 
 export function query({ prompt, options }) {
   const scenario = process.env.MOCK_SCENARIO || 'permission'
@@ -24,6 +30,25 @@ export function query({ prompt, options }) {
     if (scenario === 'abort') setTimeout(() => ac.abort(), 200)
     const res = await options.canUseTool(toolName, { file_path: 'out.txt' }, { signal: ac.signal, toolUseID: 'toolu_mock' })
     return { type: 'result', subtype: 'success', mock_tool: toolName, mock_behavior: res.behavior, mock_message: res.message ?? null }
+  }
+
+  // The hooks the CLI would call, matched like its tool matchers (`A|B`).
+  const hooksFor = (event, toolName) => (options.hooks?.[event] || [])
+    .filter((m) => !m.matcher || toolName === undefined || new RegExp(`^(${m.matcher})$`).test(toolName))
+    .flatMap((m) => m.hooks)
+  async function toolHooks({ tool, command, failed }) {
+    const event = failed ? 'PostToolUseFailure' : 'PostToolUse'
+    const tool_input = tool === 'Bash' ? { command } : { file_path: 'a.txt' }
+    for (const hook of hooksFor(event, tool)) {
+      await hook({ hook_event_name: event, tool_name: tool, tool_input }, 'toolu_mock', { signal: new AbortController().signal })
+    }
+  }
+  async function stopHooks(active) {
+    let out = {}
+    for (const hook of hooksFor('Stop')) {
+      out = await hook({ hook_event_name: 'Stop', stop_hook_active: active, last_assistant_message: 'Done.' }, undefined, { signal: new AbortController().signal })
+    }
+    return out
   }
 
   const contextAnswers = []
@@ -47,6 +72,22 @@ export function query({ prompt, options }) {
       yield { type: 'result', subtype: 'error_during_execution', is_error: true, mock_interrupted: true }
       while (!(await input.next()).done) { /* until stdin closes */ }
       return
+    }
+    if (scenario === 'verify-stop') {
+      const turns = JSON.parse(process.env.MOCK_TURNS || '[]')
+      for (let i = 0; ; i++) {
+        const turn = turns[i] || {}
+        for (const t of turn.tools || []) await toolHooks(t)
+        const stops = []
+        for (let active = false; stops.length < 5; active = turn.activeFlag !== false) {
+          const out = await stopHooks(active)
+          stops.push(out)
+          if (out.decision !== 'block') break
+          for (const t of turn.afterBlock || []) await toolHooks(t)
+        }
+        yield { type: 'result', subtype: 'success', mock_turn: i, mock_stops: stops }
+        if ((await input.next()).done) return
+      }
     }
     if (scenario === 'echo') {
       for (let next = await input.next(); !next.done; next = await input.next()) {

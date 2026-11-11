@@ -511,6 +511,67 @@ const tests = {
     assert.equal(of(messages, '_puppeteer_closed')[0].code, 0)
     assert.equal(code, 0)
   },
+
+  // AC-24: with PUPPETEER_VERIFY_ON_STOP (a worker, an unattended turn) the Stop
+  // hook sends a turn that changed files without a check back once; otherwise
+  // it lets the turn end.
+  async 'verify on stop blocks once a turn that edited without a check'() {
+    const stopsOf = async (turns, options = { permissionMode: 'default' }, env = { PUPPETEER_VERIFY_ON_STOP: '1' }) => {
+      const { messages, code } = await runSidecar('verify-stop', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', options })
+        if (msg.type === 'result') {
+          if (msg.mock_turn + 1 < turns.length) ctl.send({ type: 'prompt', text: 'next' })
+          else ctl.closeInput()
+        }
+      }, 10_000, { ...env, MOCK_TURNS: JSON.stringify(turns) })
+      assert.equal(code, 0)
+      const init = messages.find((m) => m.type === 'system' && m.subtype === 'init')
+      return { hooks: init.mock_options.hooks, stops: of(messages, 'result').map((r) => r.mock_stops) }
+    }
+    const pass = [{}]
+    const blocked = (stops) => {
+      assert.equal(stops.length, 2, JSON.stringify(stops))
+      assert.equal(stops[0].decision, 'block')
+      assert.match(stops[0].reason, /^Before finishing, run the project's tests or checks .* If none apply, say why\.$/)
+      assert.deepEqual(stops[1], {})
+    }
+    const edit = { tool: 'Edit' }
+    const bash = (command, failed) => ({ tool: 'Bash', command, failed })
+
+    // Edited, no check: blocked once; the stop after it (stop_hook_active) passes.
+    const once = await stopsOf([{ tools: [{ tool: 'Read' }, edit] }])
+    blocked(once.stops[0])
+    // Every event holds a matcher list (an undefined one would drop every hook).
+    assert.deepEqual(Object.keys(once.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'Stop'])
+    for (const list of Object.values(once.hooks)) assert.ok(Array.isArray(list) && list.length && list.every((m) => m.hooks.length))
+    // No loop even when the flag does not come.
+    blocked((await stopsOf([{ tools: [edit], activeFlag: false }])).stops[0])
+    // A check run after the block does not change that: the turn then ends.
+    blocked((await stopsOf([{ tools: [edit], afterBlock: [bash('pnpm test')] }])).stops[0])
+    // Read only, or edited and checked: never blocked.
+    assert.deepEqual((await stopsOf([{ tools: [{ tool: 'Read' }, bash('git status'), bash('ls 2>/dev/null')] }])).stops[0], pass)
+    for (const check of ['pnpm test', 'cargo test --locked', 'node --test src/a.test.mjs', 'cd sidecar && node test-mocked.mjs', 'pytest -q', 'go test ./...', 'make check']) {
+      assert.deepEqual((await stopsOf([{ tools: [edit, bash(check)] }])).stops[0], pass, check)
+    }
+    // Red tests still ran a check; a failed edit changed nothing.
+    assert.deepEqual((await stopsOf([{ tools: [edit, bash('cargo test', true)] }])).stops[0], pass)
+    assert.deepEqual((await stopsOf([{ tools: [{ tool: 'Write', failed: true }] }])).stops[0], pass)
+    // Bash that writes counts as an edit.
+    for (const write of ['echo hi > notes.txt', "sed -i '' 's/a/b/' x.rs", 'rm old.txt']) {
+      blocked((await stopsOf([{ tools: [bash(write)] }])).stops[0])
+    }
+    // Once per turn: the next turn starts clean, and is blocked again if it edits.
+    const turns = (await stopsOf([{ tools: [edit] }, { tools: [{ tool: 'Read' }] }, { tools: [{ tool: 'MultiEdit' }] }])).stops
+    blocked(turns[0])
+    assert.deepEqual(turns[1], pass)
+    blocked(turns[2])
+
+    // No env (a run somebody watches), or a side task: no hooks at all.
+    const plain = await stopsOf([{ tools: [edit] }], undefined, {})
+    assert.equal(plain.hooks, undefined)
+    assert.deepEqual(plain.stops[0], pass)
+    assert.equal((await stopsOf([{ tools: [edit] }], { permissionMode: 'default', noTools: true })).hooks, undefined)
+  },
 }
 
 let failed = 0

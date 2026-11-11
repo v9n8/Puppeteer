@@ -160,6 +160,19 @@ fn apply_claude_fallback_model(cmd: &mut Command, setting: Option<&str>) {
     }
 }
 
+/// AC-24: turns on the Claude sidecar's `Stop` hook, which asks the agent once
+/// per turn to run the checks for files it changed before it finishes.
+const VERIFY_ON_STOP_ENV: &str = "PUPPETEER_VERIFY_ON_STOP";
+
+/// Only for a turn whose reply nobody reads as it comes: a Conductor worker's
+/// (its conductor takes the reply as the result) or an unattended one (AC-23).
+/// A run somebody watches is left as it is.
+fn apply_verify_on_stop(cmd: &mut Command, worker: bool, unattended: bool) {
+    if worker || unattended {
+        cmd.env(VERIFY_ON_STOP_ENV, "1");
+    }
+}
+
 #[tauri::command]
 pub async fn start_run(
     app: AppHandle,
@@ -192,7 +205,7 @@ pub(crate) async fn start_run_inner(
     // Load run + project info
     let run_row = sqlx::query(
         "SELECT r.id, r.project_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status, r.claude_account_id,
-                r.codex_account_id, r.system_instruction, r.worktree_path, r.style, r.model, r.effort, p.path as project_path
+                r.codex_account_id, r.system_instruction, r.worktree_path, r.style, r.model, r.effort, r.role, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -214,6 +227,7 @@ pub(crate) async fn start_run_inner(
     let existing_style: Option<String> = run_row.get("style");
     let existing_model: Option<String> = run_row.get("model");
     let existing_effort: Option<String> = run_row.get("effort");
+    let is_worker = run_row.get::<Option<String>, _>("role").as_deref() == Some("worker");
     // Where the agent works: a Conductor worker's own worktree, else the
     // project. Logs stay under the project either way.
     let cwd = crate::conductor::worktree::run_dir(
@@ -565,6 +579,7 @@ pub(crate) async fn start_run_inner(
         if let Some(limits) = &unattended {
             limits.apply_env(&mut cmd);
         }
+        apply_verify_on_stop(&mut cmd, is_worker, unattended.is_some());
         // Isolate this run to its resolved Claude account profile (clears inherited
         // auth env overrides). No-op when no managed account applies (legacy global).
         apply_claude_config_dir(&mut cmd, claude_account.as_ref().map(|a| a.config_dir.as_str()));
@@ -4718,7 +4733,7 @@ pub(crate) async fn resume_run_with(
 
     let row = sqlx::query(
         "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.codex_account_id,
-                r.worktree_path, r.style, r.model, r.effort, p.path as project_path
+                r.worktree_path, r.style, r.model, r.effort, r.role, p.path as project_path
          FROM runs r JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
     )
@@ -4739,6 +4754,7 @@ pub(crate) async fn resume_run_with(
     let previous_style: Option<String> = row.get("style");
     let previous_model: Option<String> = row.get("model");
     let previous_effort: Option<String> = row.get("effort");
+    let is_worker = row.get::<Option<String>, _>("role").as_deref() == Some("worker");
 
     // Resume uses the run-level account, else (NULL = "Default" in the UI) the
     // project → default account — the same profile a fresh start would pick and
@@ -5135,6 +5151,8 @@ pub(crate) async fn resume_run_with(
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
         }
+        // A resume is never unattended (AC-23 marks fresh starts only).
+        apply_verify_on_stop(&mut cmd, is_worker, false);
         // Re-inject MCP on resume (see the Codex branch above). The sidecar reads
         // PUPPETEER_MCP_SERVERS as a fallback when the first prompt carries no options.
         // A resumed conductor keeps its `session_*` control tools: its session
@@ -6591,6 +6609,46 @@ mod unattended_limit_tests {
         assert_eq!(start.matches("        time_limit,\n").count(), 2, "both drains get the clock");
         let resume = section("pub(crate) async fn resume_run_with(", "\n}\n");
         assert!(!resume.contains("unattended::") && !resume.contains("limits.apply_env"));
+    }
+}
+
+// AC-24: the Stop hook is for a worker or an unattended turn only. The spawns
+// need an AppHandle, so the source is checked for where the flag comes from.
+#[cfg(test)]
+mod verify_on_stop_tests {
+    use super::*;
+
+    fn verify_env(worker: bool, unattended: bool) -> Option<String> {
+        let mut cmd = Command::new("x");
+        apply_verify_on_stop(&mut cmd, worker, unattended);
+        let found = cmd.as_std().get_envs().find(|(k, _)| *k == VERIFY_ON_STOP_ENV);
+        found.and_then(|(_, v)| v).map(|v| v.to_string_lossy().into_owned())
+    }
+
+    #[test]
+    fn only_a_worker_or_an_unattended_turn_gets_the_hook() {
+        assert_eq!(verify_env(false, false), None);
+        assert_eq!(verify_env(true, false).as_deref(), Some("1"));
+        assert_eq!(verify_env(false, true).as_deref(), Some("1"));
+        assert_eq!(verify_env(true, true).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn start_and_resume_pass_the_flag_on_the_claude_path() {
+        let src = include_str!("runs.rs").replace("\r\n", "\n");
+        let section = |from: &str, to: &str| {
+            let body = &src[src.find(from).unwrap()..];
+            body[..body.find(to).unwrap()].to_string()
+        };
+        let worker = "let is_worker = ";
+        let start = section("pub(crate) async fn start_run_inner(", "#[tauri::command]");
+        assert!(start.contains(worker) && start.contains("r.role,"));
+        assert_eq!(start.matches("apply_verify_on_stop(").count(), 1, "Claude only");
+        assert!(start.contains("apply_verify_on_stop(&mut cmd, is_worker, unattended.is_some());"));
+        let resume = section("pub(crate) async fn resume_run_with(", "\n}\n");
+        assert!(resume.contains(worker) && resume.contains("r.role,"));
+        assert_eq!(resume.matches("apply_verify_on_stop(").count(), 1, "Claude only");
+        assert!(resume.contains("apply_verify_on_stop(&mut cmd, is_worker, false);"));
     }
 }
 

@@ -109,6 +109,23 @@ Rules:
   decide: send guidance, cancel and respawn, or escalate to the human.
 - Keep the human informed with short status lines between tool calls."#;
 
+/// Appended to every worker's role instruction (AC-24): the conductor takes the
+/// worker's reply as its result, so the reply has to say how the work was
+/// checked. A Claude worker's `Stop` hook also asks for the check once.
+pub const WORKER_VERIFICATION: &str = "Before you finish a turn in which you changed files, run the project's tests \
+or checks (test, lint, build) for the files you changed. End your reply with a `Verification:` line saying what \
+you ran and the result. If no check applies, say why on that line.";
+
+/// A worker's role instruction as persisted and launched with: the conductor's
+/// instruction (if any), then [`WORKER_VERIFICATION`]. Persisted, so a resume
+/// re-applies it on both engines.
+pub fn worker_instruction(instruction: Option<&str>) -> String {
+    match instruction.map(str::trim).filter(|i| !i.is_empty()) {
+        Some(i) => format!("{i}\n\n{WORKER_VERIFICATION}"),
+        None => WORKER_VERIFICATION.to_string(),
+    }
+}
+
 /// Default concurrent-worker cap for a conductor that was never given one
 /// (fresh start without `max_workers`, or a legacy session auto-upgraded).
 pub const DEFAULT_MAX_WORKERS: usize = 10;
@@ -719,6 +736,17 @@ mod tests {
         let both = run_framing(Some("Role X"), Some(&launch)).unwrap();
         assert!(both.starts_with("Role X\n\n"));
         assert!(both.ends_with(&conductor_framing(3)));
+    }
+
+    #[test]
+    fn worker_instruction_ends_with_the_verification_ask() {
+        assert_eq!(worker_instruction(None), WORKER_VERIFICATION);
+        assert_eq!(worker_instruction(Some("  ")), WORKER_VERIFICATION);
+        assert_eq!(
+            worker_instruction(Some(" You are a reviewer. ")),
+            format!("You are a reviewer.\n\n{WORKER_VERIFICATION}")
+        );
+        assert!(WORKER_VERIFICATION.contains("`Verification:` line"));
     }
 
     #[test]

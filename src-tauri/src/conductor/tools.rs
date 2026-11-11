@@ -119,7 +119,8 @@ async fn session_spawn(
     let prompt = arg_str(&args, "prompt")
         .ok_or_else(|| "`prompt` is required".to_string())?;
     let role_label = arg_str(&args, "role_label").unwrap_or_else(|| "worker".to_string());
-    let instruction = arg_str(&args, "instruction");
+    // Every worker is asked to end its reply with a `Verification:` line (AC-24).
+    let instruction = Some(crate::conductor::worker_instruction(arg_str(&args, "instruction").as_deref()));
     // Passed through as the worker's model override. `start_run_inner` resolves it
     // against the WORKER's engine (which may differ from the conductor's) and drops
     // it when it belongs to the other engine, so a cross-engine spawn falls back to
