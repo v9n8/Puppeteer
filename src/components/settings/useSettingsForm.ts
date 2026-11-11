@@ -82,7 +82,7 @@ export function createSettingsForm(): SettingsForm {
     budget_week_percent: '',
     quota_warn_percent: '',
     quota_stop_running: 'false',
-    claude_auto_balance: 'true',
+    claude_auto_balance: 'false',
     claude_auto_balance_min_swap_minutes: '10',
     claude_auto_balance_swap_threshold_pct: '10',
     translate_engine: 'claude',

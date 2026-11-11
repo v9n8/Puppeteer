@@ -178,7 +178,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         budget_week_percent: "".to_string(),
         quota_warn_percent: "".to_string(),
         quota_stop_running: "false".to_string(),
-        claude_auto_balance: "true".to_string(),
+        claude_auto_balance: "false".to_string(),
         claude_auto_balance_min_swap_minutes: "10".to_string(),
         claude_auto_balance_swap_threshold_pct: "10".to_string(),
         translate_engine: "claude".to_string(),

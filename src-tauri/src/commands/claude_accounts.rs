@@ -774,13 +774,14 @@ async fn setting_value(db: &Db, key: &str) -> Option<String> {
         .flatten()
 }
 
-/// Whether auto-balance is on. Defaults to ON when unset, matching the setting
-/// default; only an explicit "false" disables it.
+/// Whether auto-balance is on. Defaults to OFF when unset, matching the setting
+/// default; a saved value other than "false" keeps it on, so machines that
+/// stored "true" before the default changed are left as they were.
 async fn auto_balance_enabled(db: &Db) -> bool {
     setting_value(db, KEY_AUTO_BALANCE)
         .await
         .map(|v| v.trim() != "false")
-        .unwrap_or(true)
+        .unwrap_or(false)
 }
 
 fn setting_f64(value: Option<String>, default: f64, min: f64, max: f64) -> f64 {
@@ -1018,5 +1019,31 @@ mod login_url_tests {
         );
         assert_eq!(parse_login_url("Opening browser to sign in…"), None);
         assert_eq!(parse_login_url("visit: javascript:alert(1)"), None);
+    }
+}
+
+#[cfg(test)]
+mod auto_balance_tests {
+    use super::*;
+
+    async fn db_with(value: Option<&str>) -> Db {
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        if let Some(value) = value {
+            sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)")
+                .bind(KEY_AUTO_BALANCE)
+                .bind(value)
+                .execute(&db)
+                .await
+                .unwrap();
+        }
+        db
+    }
+
+    #[tokio::test]
+    async fn off_unless_turned_on() {
+        assert!(!auto_balance_enabled(&db_with(None).await).await);
+        assert!(auto_balance_enabled(&db_with(Some("true")).await).await);
+        assert!(!auto_balance_enabled(&db_with(Some("false")).await).await);
     }
 }
