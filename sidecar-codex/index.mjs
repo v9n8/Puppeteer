@@ -39,6 +39,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { codexCaps, rewindMethods } from './codex-caps.mjs'
 
 // --- Orphan guard ------------------------------------------------------------
 // Puppeteer spawns this sidecar as the leader of its own process group and says so
@@ -501,6 +502,7 @@ const RPC_TIMEOUT_MS = {
   'thread/resume': 120_000,
   'thread/fork': 120_000,
   'thread/rollback': 60_000,
+  'thread/revert': 60_000,
   'turn/start': 30_000,
   'turn/steer': 30_000,
   'turn/interrupt': 30_000,
@@ -568,8 +570,9 @@ function policyFor(mode) {
     // Claude's `acceptEdits` has no one-to-one Codex policy. `on-request` with
     // workspace-write is the closest equivalent: edits inside the workspace are
     // sandboxed and allowed, while actions that need more access can still ask.
-    // Codex 0.144+ rejects the old `on-failure` value during thread/start;
-    // `on-request` is in the 0.133.0-alpha.1 app-server schema too.
+    // Codex 0.144+ rejects the old `on-failure` value during thread/start (seen
+    // on 0.144; the v2 AskForApproval at openai/codex@d15bf1d has no such value);
+    // `on-request` is in the 0.133.0-alpha.1 app-server schema and at d15bf1d.
     case 'acceptEdits':       base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }; break
     case 'bypassPermissions': base = { approvalPolicy: 'never',      sandbox: 'danger-full-access' }; break
     // `auto` (classifier) / `dontAsk` / legacy: let Codex decide when to ask.
@@ -1518,6 +1521,38 @@ function refusedParams(response) {
   return !!e && (e.code === -32602 || /unknown (field|variant)/i.test(e.message || ''))
 }
 
+// The app-server does not know the method: a plain -32601, or -32600 with
+// "unknown variant `<method>`" (how openai/codex@d15bf1d refuses a removed one,
+// codex-rs/app-server/src/message_processor.rs `deserialize_client_request`).
+function unknownMethod(response, method) {
+  const e = response?.error
+  return !!e && (e.code === -32601 || (e.message || '').includes(`unknown variant \`${method}\``))
+}
+
+// Drop the resumed (or copied) thread's last `numTurns` turns, by the first call
+// this codex takes (codex-caps.mjs): thread/rollback counts them, thread/revert
+// names the first one dropped, from the turns thread/resume / thread/fork listed.
+async function dropLastTurns(thread, numTurns) {
+  const methods = rewindMethods(codexCaps(process.env.PUPPETEER_CODEX_VERSION), thread?.historyMode)
+  for (const [i, method] of methods.entries()) {
+    const last = i === methods.length - 1
+    let params = { threadId, numTurns }
+    if (method === 'thread/revert') {
+      const turns = Array.isArray(thread?.turns) ? thread.turns : []
+      const beforeTurnId = turns[turns.length - numTurns]?.id
+      if (!beforeTurnId) {
+        if (last) throw new Error('thread/revert failed: Codex did not list the turns of the thread')
+        continue
+      }
+      params = { threadId, beforeTurnId }
+    }
+    const response = await request(method, params)
+    if (!last && unknownMethod(response, method)) continue
+    rpcResult(response, method)
+    return
+  }
+}
+
 // Notifications Puppeteer never shows, so the app-server does not send them at
 // all (exact names; one a codex does not know is ignored, checked on 0.133).
 // Command and patch output comes whole on item/completed, raw reasoning on the
@@ -1574,9 +1609,7 @@ async function bringUp() {
     const numTurns = FORK_KEEP_TURNS !== null
       ? (Number.isInteger(held) ? Math.max(0, held - FORK_KEEP_TURNS) : 0)
       : Number.isInteger(held) ? Math.min(ROLLBACK_TURNS, held) : ROLLBACK_TURNS
-    if (numTurns > 0) {
-      rpcResult(await request('thread/rollback', { threadId, numTurns }), 'thread/rollback')
-    }
+    if (numTurns > 0) await dropLastTurns(result.thread, numTurns)
   } else {
     const startParams = { cwd: CWD, approvalPolicy, sandbox }
     if (MODEL) startParams.model = MODEL
