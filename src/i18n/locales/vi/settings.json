@@ -258,6 +258,7 @@
   "ai": {
     "sessionDefaults": "Mặc định session mới",
     "sessionDefaultsHint": "Giá trị session mới dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng.",
+    "openSection": "Mở {section}",
     "modelDefault": "Mặc định (engine tự chọn)",
     "defaultEngine": "Engine",
     "defaultClaudeModel": "Model Claude",

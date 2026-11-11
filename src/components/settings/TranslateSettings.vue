@@ -4,9 +4,10 @@
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Languages } from 'lucide-vue-next'
-import { AppSelect, Card } from '@/components/ui'
+import { AppSelect, Card, InfoTip } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 import { useModelOptions } from './useModelOptions'
+import SettingsRow from './SettingsRow.vue'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
@@ -49,13 +50,10 @@ const TRANSLATE_STYLE_OPTIONS = computed(() => [
     <template #header>
       <Languages class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.translate.title') }}</span>
+      <InfoTip :text="t('settings.translate.hint')" />
     </template>
 
-      <p class="text-2xs text-muted-foreground leading-relaxed">
-        {{ t('settings.translate.hint') }}
-      </p>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.translate.engine') }}</label>
+      <SettingsRow :label="t('settings.translate.engine')">
         <AppSelect
           size="sm"
           v-model="settings.translate_engine"
@@ -64,19 +62,15 @@ const TRANSLATE_STYLE_OPTIONS = computed(() => [
             { value: 'codex', label: 'codex' },
           ]"
         />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.translate.model') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.translate.model')" :hint="t('settings.translate.modelHint')">
         <AppSelect size="sm" v-model="settings.translate_model" :options="translateModelOptions" />
-        <p class="text-2xs text-muted-foreground">{{ t('settings.translate.modelHint') }}</p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.translate.targetLanguage') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.translate.targetLanguage')">
         <AppSelect size="sm" v-model="settings.translate_target_lang" :options="TRANSLATE_TARGET_OPTIONS" />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.translate.style') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.translate.style')">
         <AppSelect size="sm" v-model="settings.translate_style" :options="TRANSLATE_STYLE_OPTIONS" />
-      </div>
+      </SettingsRow>
   </Card>
 </template>

@@ -258,6 +258,7 @@
   "ai": {
     "sessionDefaults": "Defaults for new sessions",
     "sessionDefaultsHint": "What a new session starts with, unless it picks its own.",
+    "openSection": "Open {section}",
     "modelDefault": "Default (engine decides)",
     "defaultEngine": "Engine",
     "defaultClaudeModel": "Claude model",

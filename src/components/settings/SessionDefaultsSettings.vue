@@ -5,8 +5,8 @@
 // refresh) and link here. Translation has its own section (TranslateSettings).
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ShieldAlert, Sparkles } from 'lucide-vue-next'
-import { AppSelect, Card } from '@/components/ui'
+import { ArrowUpRight, Sparkles } from 'lucide-vue-next'
+import { AppSelect, Button, Card, InfoTip } from '@/components/ui'
 import { EFFORT_LEVELS, effortLevelsFor, type SelectOption } from '@/lib/engineOptions'
 import { shownStyles } from '@/lib/responseStyles'
 import { defaultEffortChoices, defaultStyleChoices } from '@/lib/sessionDefaults'
@@ -15,6 +15,7 @@ import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useResponseStylesStore } from '@/stores/responseStyles'
 import { useSettingsForm } from './useSettingsForm'
 import { useModelOptions } from './useModelOptions'
+import SettingsRow from './SettingsRow.vue'
 
 const emit = defineEmits<{ openSection: [id: SettingsSectionId] }>()
 
@@ -72,10 +73,9 @@ const styleOptions = computed(() => {
     <template #header>
       <Sparkles class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.ai.sessionDefaults') }}</span>
+      <InfoTip :text="t('settings.ai.sessionDefaultsHint')" />
     </template>
-      <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.sessionDefaultsHint') }}</p>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEngine') }}</label>
+      <SettingsRow :label="t('settings.ai.defaultEngine')">
         <AppSelect
           size="sm"
           v-model="settings.default_engine"
@@ -84,28 +84,28 @@ const styleOptions = computed(() => {
             { value: 'codex', label: 'codex' },
           ]"
         />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.defaultClaudeModel')">
         <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.claudeFallbackModel') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.claudeFallbackModel')" :hint="t('settings.ai.fallbackHint')">
         <AppSelect size="sm" v-model="settings.claude_fallback_model" :options="claudeFallbackOptions" />
-        <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.fallbackHint') }}</p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
-        <AppSelect size="sm" v-model="settings.codex_model" :options="codexModelOptions" />
-        <p class="text-2xs text-muted-foreground leading-relaxed">
-          {{ t('settings.ai.modelListsHint') }}
-          <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openSection', 'engines')">{{ t('settings.sections.engines') }}</button>
-        </p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <ShieldAlert class="h-3 w-3" :stroke-width="1.75" />{{ t('settings.ai.defaultPermissionMode') }}
-        </label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.defaultCodexModel')" :hint="`${t('settings.ai.modelListsHint')} ${t('settings.sections.engines')}.`">
+        <div class="flex items-center gap-1">
+          <AppSelect size="sm" class="flex-1" v-model="settings.codex_model" :options="codexModelOptions" />
+          <Button
+            variant="ghost"
+            size="icon"
+            :title="t('settings.ai.openSection', { section: t('settings.sections.engines') })"
+            :aria-label="t('settings.ai.openSection', { section: t('settings.sections.engines') })"
+            @click="emit('openSection', 'engines')"
+          >
+            <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
+          </Button>
+        </div>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.defaultPermissionMode')" :hint="t('settings.ai.permissionHint')">
         <AppSelect
           size="sm"
           v-model="settings.default_permission_mode"
@@ -117,27 +117,24 @@ const styleOptions = computed(() => {
             { value: 'bypassPermissions', label: t('settings.ai.permBypass') },
           ]"
         />
-        <p class="text-2xs text-muted-foreground leading-relaxed">
-          {{ t('settings.ai.permissionHint') }}
-        </p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEffort') }}</label>
-        <template v-if="effortLevels.length">
-          <AppSelect size="sm" v-model="settings.default_effort" :options="effortOptions" />
-          <p class="text-2xs text-muted-foreground leading-relaxed">
-            {{ t('settings.ai.effortHint') }}
-          </p>
-        </template>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.defaultEffort')" :hint="t('settings.ai.effortHint')">
+        <AppSelect v-if="effortLevels.length" size="sm" v-model="settings.default_effort" :options="effortOptions" />
         <p v-else class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.effortNotTaken') }}</p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultStyle') }}</label>
-        <AppSelect size="sm" v-model="settings.default_style" :options="styleOptions" />
-        <p class="text-2xs text-muted-foreground leading-relaxed">
-          {{ t('settings.ai.styleHint') }}
-          <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openSection', 'styles')">{{ t('settings.sections.styles') }}</button>
-        </p>
-      </div>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.ai.defaultStyle')" :hint="`${t('settings.ai.styleHint')} ${t('settings.sections.styles')}.`">
+        <div class="flex items-center gap-1">
+          <AppSelect size="sm" class="flex-1" v-model="settings.default_style" :options="styleOptions" />
+          <Button
+            variant="ghost"
+            size="icon"
+            :title="t('settings.ai.openSection', { section: t('settings.sections.styles') })"
+            :aria-label="t('settings.ai.openSection', { section: t('settings.sections.styles') })"
+            @click="emit('openSection', 'styles')"
+          >
+            <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
+          </Button>
+        </div>
+      </SettingsRow>
   </Card>
 </template>
