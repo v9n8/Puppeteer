@@ -799,36 +799,93 @@ function emitMcpElicitation(rpcReqId, params) {
 // ── translate codex item → Claude-shaped stream-json ──────────────────────
 let threadId = FORK ? null : RESUME_THREAD
 let modelName = null
-// Latest TokenUsageBreakdown for the current turn. The codex app-server reports
-// usage in a separate `thread/tokenUsage/updated` notification (not on
-// `turn/completed`), so we stash the `last` breakdown here and attach it to the
-// `result` event when the turn completes.
-let lastTokenBreakdown = null
+// Token usage. The codex app-server reports it on its own
+// `thread/tokenUsage/updated` notification (not on `turn/completed`), with two
+// breakdowns: `total` is the thread's running sum over every model request,
+// `last` is the most recent request ONLY. A turn that runs tools makes several
+// requests, so a turn's usage is `total` at its end minus `total` at its start.
+// `total` outlives a resume: codex replays the stored one when we attach to a
+// thread, tagged with an old turn's id, and that only moves the baseline.
+const ZERO_TOKENS = { input: 0, cached: 0, output: 0 }
+// Latest `total` seen. Unknown (null) on a resumed or forked thread until codex
+// replays it; a new thread starts at zero.
+let latestTotal = null
+// The turn in flight: `total` when it started, its id once codex named it, the
+// `total` of its latest update, and the sum of its `last`s.
+let turnBaseline = null
+let turnUsageId = null
+let turnEndTotal = null
+let turnLastSum = null
 
-// Map a codex TokenUsageBreakdown onto the Claude `usage` shape that the Rust
-// drain reads. codex reports `inputTokens` INCLUDING the cached portion, plus a
-// separate `cachedInputTokens`; Claude keeps non-cached input and cache_read
-// separate, so we subtract to avoid double-counting. Field names vary between
-// codex versions (camelCase since the app-server v2 protocol, snake_case
-// before), so probe both. Returns null when nothing usable.
-function mapCodexUsage(raw) {
+// A codex TokenUsageBreakdown as { input, cached, output }, or null when it has
+// no counts. Field names vary between codex versions (camelCase since the
+// app-server v2 protocol, snake_case before), so probe both.
+function tokenBreakdown(raw) {
   if (!raw || typeof raw !== 'object') return null
   const u = raw.usage || raw.token_usage || raw.total_token_usage || raw
+  let found = false
   const num = (...keys) => {
-    for (const k of keys) if (typeof u[k] === 'number') return u[k]
+    for (const k of keys) if (typeof u[k] === 'number') { found = true; return u[k] }
     return 0
   }
-  const inputTotal = num('inputTokens', 'input_tokens')
-  const cached = num('cachedInputTokens', 'cached_input_tokens', 'cache_read_input_tokens')
-  const output = num('outputTokens', 'output_tokens') + num('reasoningOutputTokens', 'reasoning_output_tokens')
+  const b = {
+    input: num('inputTokens', 'input_tokens'),
+    cached: num('cachedInputTokens', 'cached_input_tokens', 'cache_read_input_tokens'),
+    output: num('outputTokens', 'output_tokens'),
+  }
+  return found ? b : null
+}
+const addTokens = (a, b) => ({ input: a.input + b.input, cached: a.cached + b.cached, output: a.output + b.output })
+const subTokens = (a, b) => ({
+  input: Math.max(a.input - b.input, 0),
+  cached: Math.max(a.cached - b.cached, 0),
+  output: Math.max(a.output - b.output, 0),
+})
+
+// Map a breakdown onto the Claude `usage` shape that the Rust drain reads.
+// codex's `inputTokens` INCLUDES the cached portion; Claude keeps non-cached
+// input and cache_read apart, so subtract. `reasoningOutputTokens` is a part of
+// `outputTokens` already (codex's own blended total doesn't add it), so it is
+// not added again. Returns null when nothing usable.
+function mapCodexUsage(b) {
+  if (!b) return null
   const usage = {
-    input_tokens: Math.max(inputTotal - cached, 0),
-    output_tokens: output,
+    input_tokens: Math.max(b.input - b.cached, 0),
+    output_tokens: b.output,
     cache_creation_input_tokens: 0,
-    cache_read_input_tokens: cached,
+    cache_read_input_tokens: b.cached,
   }
   if (!usage.input_tokens && !usage.output_tokens && !usage.cache_read_input_tokens) return null
   return usage
+}
+
+function noteTokenUsage(tu, updateTurnId) {
+  const total = tokenBreakdown(tu?.total)
+  const last = tokenBreakdown(tu?.last || (tu?.total ? null : tu))
+  // Ours: a turn is in flight and the update names it, or names no turn (older
+  // codex). One naming another turn, or coming before codex named ours (the
+  // resume replay can land after turn/start went out), is history: it only
+  // moves the baseline. Codex names the turn before any request of it ends.
+  const ours = turnActive && (updateTurnId == null || (turnUsageId != null && updateTurnId === turnUsageId))
+  if (!ours) {
+    if (total) {
+      latestTotal = total
+      if (turnActive) turnBaseline = total
+    }
+    return
+  }
+  // A resumed thread codex replayed no total for: before this turn's first
+  // request, the total was this update's total minus that request.
+  if (!turnEndTotal && !turnLastSum && !turnBaseline && total && last) turnBaseline = subTokens(total, last)
+  if (total) latestTotal = turnEndTotal = total
+  if (last) turnLastSum = turnLastSum ? addTokens(turnLastSum, last) : last
+}
+
+// The finished turn's usage: how much `total` grew over it. A codex that sends
+// only `last` (no `total`) gets the sum of the turn's `last`s instead.
+function turnUsage() {
+  if (turnEndTotal && turnBaseline) return mapCodexUsage(subTokens(turnEndTotal, turnBaseline))
+  return mapCodexUsage(turnLastSum)
 }
 
 function emitItem(item) {
@@ -936,13 +993,14 @@ function onServerMessage(msg) {
       case 'item/completed':
         emitItem(p.item)
         break
-      // Usage arrives on its own notification (since the app-server v2 protocol);
-      // stash the per-turn (`last`) breakdown to attach at turn/completed.
-      case 'thread/tokenUsage/updated': {
-        const tu = p.tokenUsage || p
-        lastTokenBreakdown = tu?.last || tu?.total || tu
+      case 'turn/started':
+        if (turnActive && p.turn?.id) turnUsageId = p.turn.id
         break
-      }
+      // Usage arrives on its own notification (since the app-server v2 protocol);
+      // the turn's share of it is worked out at turn/completed.
+      case 'thread/tokenUsage/updated':
+        noteTokenUsage(p.tokenUsage || p, p.turnId)
+        break
       // Live plan rate-limit updates (5h + weekly windows). Forwarded so the
       // budget badge / settings panel refresh mid-run, like Claude's /usage.
       case 'account/rateLimits/updated':
@@ -952,8 +1010,9 @@ function onServerMessage(msg) {
         const result = { type: 'result', subtype: 'success', num_turns: 1 }
         // Newer protocol: usage came via thread/tokenUsage/updated. Older
         // protocol: it was carried on the turn/completed params themselves.
-        const usage = mapCodexUsage(lastTokenBreakdown) || mapCodexUsage(p)
+        const usage = turnUsage() || mapCodexUsage(tokenBreakdown(p))
         if (usage) result.usage = usage
+        turnBaseline = turnUsageId = turnEndTotal = turnLastSum = null
         if (modelName) result.model = modelName
         if (turnStartedAt != null) result.duration_ms = Date.now() - turnStartedAt
         out(result)
@@ -1065,6 +1124,7 @@ async function bringUp() {
     const result = rpcResult(await request('thread/start', startParams), 'thread/start')
     threadId = result?.thread?.id || null
     modelName = result?.model || null
+    latestTotal = ZERO_TOKENS
     // The new thread carries the framing from now on; the broker persists this
     // so a later resume doesn't seed it again.
     if (threadId && DEVELOPER_INSTRUCTIONS) ctrl('_puppeteer_framing_seeded')
@@ -1150,6 +1210,8 @@ async function startTurn(text, images) {
   turnActive = true
   turnCompleted = false
   turnStartedAt = Date.now()
+  turnBaseline = latestTotal
+  turnUsageId = turnEndTotal = turnLastSum = null
   // Prepend the one-time framing seed to the first turn of a resumed thread.
   // Claimed up front so a second turn queued meanwhile can't seed it twice.
   const seed = SEED_FRAMING
@@ -1173,8 +1235,12 @@ async function startTurn(text, images) {
     sandboxPolicy: sandboxPolicyObject(sandbox),
     ...(EFFORT ? { effort: EFFORT } : {}),
   })
-  currentTurn = starting.then((r) => r?.result?.turn?.id ?? null)
+  const thisTurn = starting.then((r) => r?.result?.turn?.id ?? null)
+  currentTurn = thisTurn
   const res = await starting
+  // The reply names the turn too (for a codex that sends no turn/started),
+  // unless the turn is already over by now.
+  if (currentTurn === thisTurn && !turnUsageId) turnUsageId = res?.result?.turn?.id ?? null
   if (res?.error) {
     turnActive = false
     ctrl('_puppeteer_error', { error: `turn/start failed: ${res.error.message || JSON.stringify(res.error)}` })

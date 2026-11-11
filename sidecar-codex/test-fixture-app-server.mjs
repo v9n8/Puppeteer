@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Deterministic JSON-RPC fixture for test-deny.mjs.
+// Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
+// tests), and — with PUPPETEER_FIXTURE_USAGE — for test-usage.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
@@ -33,6 +34,49 @@ function send(message) {
   process.stdout.write(JSON.stringify(message) + '\n')
 }
 
+// Usage mode: PUPPETEER_FIXTURE_USAGE is a JSON script
+//   { replay?: TokenUsageBreakdown, replayLate?: bool, turns: [{ fail?: bool, updates?: [ThreadTokenUsage], noTurnId?: bool }] }
+// `replay` is the stored total codex sends on thread/resume (right after its
+// reply, or with `replayLate` after the first turn/start reply); turn N plays
+// turns[N]: refused, or turn/started + its usage updates + turn/completed.
+const usageScript = process.env.PUPPETEER_FIXTURE_USAGE ? JSON.parse(process.env.PUPPETEER_FIXTURE_USAGE) : null
+let usageTurn = 0
+const replayUsage = () => send({
+  jsonrpc: '2.0',
+  method: 'thread/tokenUsage/updated',
+  params: { threadId: 'fixture-thread', turnId: 'old-turn', tokenUsage: { total: usageScript.replay, last: usageScript.replay, modelContextWindow: null } },
+})
+
+function handleUsage(message) {
+  if (message.id === undefined) return
+  if (message.method === 'thread/start' || message.method === 'thread/resume') {
+    send({ jsonrpc: '2.0', id: message.id, result: { thread: { id: 'fixture-thread' }, model: 'fixture' } })
+    if (message.method === 'thread/resume' && usageScript.replay && !usageScript.replayLate) replayUsage()
+  } else if (message.method === 'turn/start') {
+    const n = usageTurn++
+    const script = usageScript.turns[n] || {}
+    if (script.fail) {
+      send({ jsonrpc: '2.0', id: message.id, error: { code: -32600, message: 'bad input' } })
+      return
+    }
+    const turn = { id: `turn-${n}` }
+    send({ jsonrpc: '2.0', id: message.id, result: { turn } })
+    if (n === 0 && usageScript.replay && usageScript.replayLate) replayUsage()
+    // Later, like a real model request: never in the same read as the reply.
+    setTimeout(() => {
+      send({ jsonrpc: '2.0', method: 'turn/started', params: { threadId: 'fixture-thread', turn } })
+      for (const tokenUsage of script.updates || []) {
+        const params = { threadId: 'fixture-thread', tokenUsage }
+        if (!script.noTurnId) params.turnId = turn.id
+        send({ jsonrpc: '2.0', method: 'thread/tokenUsage/updated', params })
+      }
+      send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { ...turn, status: 'completed' } } })
+    }, 30)
+  } else {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  }
+}
+
 process.stdin.on('data', (chunk) => {
   buffer += chunk.toString()
   let newline
@@ -43,6 +87,7 @@ process.stdin.on('data', (chunk) => {
     let message
     try { message = JSON.parse(line) } catch { continue }
     if (fixtureLog && message.method) appendFileSync(fixtureLog, JSON.stringify({ method: message.method, params: message.params }) + '\n')
+    if (usageScript) { handleUsage(message); continue }
 
     if (message.method === 'initialize') {
       send({ jsonrpc: '2.0', id: message.id, result: {} })
