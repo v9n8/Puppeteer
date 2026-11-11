@@ -212,6 +212,7 @@ pub fn run() {
         .manage(commands::app_menu::AppMenuState::default())
         .manage(commands::focus_ai::FocusAiState::default())
         .manage(commands::skill_eval::SkillEvalState::default())
+        .manage(runs::handoff::HandoffState::default())
         .setup(|app| {
             use tauri::Manager;
             let app_data_dir = app

@@ -40,6 +40,8 @@ pub enum ProcKind {
     FocusAi,
     /// One-shot Skill eval engine (`skill_eval`).
     SkillEval,
+    /// One-shot handoff summary engine (`runs::handoff`).
+    HandoffSummary,
     Probe,
     McpTest,
     SshAgent,

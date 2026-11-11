@@ -388,12 +388,15 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       }
       const override = await preflightBudget(targetEngine)
       if (override === null) return // over budget on the target engine — abort handoff start
-      const { run, context_path } = await runsStore.createHandoffRun(sourceId, targetEngine, transcript)
+      // Rust summarizes the transcript first (up to 90 s), hence "Summarizing context…".
+      const { run, context_path, summary_lines } = await runsStore.createHandoffRun(sourceId, targetEngine, transcript)
       await runsStore.fetchRuns(projectId.value) // surface the new run in the sidebar
       syncLoadedRunEngine(targetEngine)
       // Carry the model the user picked when they triggered the switch.
       if (pendingEngineModel.value !== null) modelOverride.value = pendingEngineModel.value
-      const seed = t('run.handoffSeed', { engine: sourceEngine, path: context_path })
+      const seed = summary_lines
+        ? t('run.handoffSeedSummary', { engine: sourceEngine, path: context_path, lines: summary_lines })
+        : t('run.handoffSeed', { engine: sourceEngine, path: context_path })
       await launchConductor(run.id, seed, [], override, targetEngine)
     } catch (e) {
       toast.error(t('run.handoffFailed', { error: String(e) }))

@@ -3,6 +3,7 @@ pub mod broker;
 pub mod claude_prompt;
 pub mod codex_bin;
 pub mod fork;
+pub mod handoff;
 pub mod liveness;
 pub mod model_usage;
 pub mod permission;

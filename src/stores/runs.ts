@@ -213,6 +213,8 @@ export interface DirEntry {
 export interface HandoffResult {
   run: RunRecord
   context_path: string
+  /** First lines of the context file that hold the handoff summary; null without one (AC-19). */
+  summary_lines: number | null
 }
 
 /** `fork_run`: the new session, and whether the engine conversation goes with it. */

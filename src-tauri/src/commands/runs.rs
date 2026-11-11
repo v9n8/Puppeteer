@@ -769,6 +769,14 @@ pub(crate) async fn start_run_inner(
     if let Some(block) = &style_block {
         cmd.env("PUPPETEER_CODEX_STYLE_INSTRUCTIONS", block);
     }
+    // AC-19 experiment: a Claude → Codex handoff run starts from the imported
+    // Claude session (the sidecar falls back to a new thread).
+    if let Some(source) = app
+        .try_state::<crate::runs::handoff::HandoffState>()
+        .and_then(|h| h.take_import(&payload.run_id))
+    {
+        cmd.env(crate::runs::handoff::CODEX_IMPORT_SESSION_ENV, source);
+    }
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -3076,6 +3084,10 @@ struct HandoffSourceRun {
     engine: String,
     project_path: String,
     title: Option<String>,
+    /// The engine's session id and the cwd it ran in: where its Claude session
+    /// JSONL lives (the Codex import experiment, `runs::handoff`).
+    session_id: Option<String>,
+    worktree_path: Option<String>,
 }
 
 /// Load a run and resolve its original input markdown so it can be re-run or
@@ -3164,7 +3176,7 @@ async fn load_handoff_source_run(
 
     let row = sqlx::query(
         "SELECT r.project_id, r.repo_id, r.type, r.ref_number, r.input_path, r.output_path, r.engine, r.status,
-                r.title, p.path as project_path
+                r.title, r.session_id, r.worktree_path, p.path as project_path
          FROM runs r
          JOIN projects p ON p.id = r.project_id
          WHERE r.id = ?",
@@ -3184,6 +3196,8 @@ async fn load_handoff_source_run(
     let engine: String = row.get("engine");
     let project_path: String = row.get("project_path");
     let title: Option<String> = row.get("title");
+    let session_id: Option<String> = row.get("session_id");
+    let worktree_path: Option<String> = row.get("worktree_path");
 
     let input_path = if run_type == "session" {
         None
@@ -3232,6 +3246,8 @@ async fn load_handoff_source_run(
         engine,
         project_path,
         title,
+        session_id,
+        worktree_path,
     })
 }
 
@@ -3303,16 +3319,23 @@ pub struct HandoffResult {
     /// Absolute path to the written transcript file the new run should read to
     /// pick up where the previous engine left off.
     pub context_path: String,
+    /// How many first lines of that file hold the handoff summary, so the new
+    /// run is told to read only those; `None` when there is no summary (the
+    /// file is the whole transcript, as before AC-19).
+    pub summary_lines: Option<usize>,
 }
 
 /// Fork the current conversation onto another engine. Clones the source run into
 /// a new `fetched` record targeting `target_engine`, and writes the prior
-/// conversation transcript to a context file the new run is told to read. This
-/// is a cross-engine *handoff* (Claude↔Codex) — true session resume only works
-/// within Claude (see `resume_run`), so context is carried via the transcript.
+/// conversation to a context file the new run is told to read: a short handoff
+/// summary first, then the full transcript (`runs::handoff`). This is a
+/// cross-engine *handoff* (Claude↔Codex) — true session resume only works
+/// within one engine (see `resume_run`), so context is carried via the file.
 #[tauri::command]
 pub async fn create_handoff_run(
+    app: AppHandle,
     db: State<'_, Db>,
+    handoff: State<'_, crate::runs::handoff::HandoffState>,
     run_id: String,
     target_engine: String,
     transcript: String,
@@ -3327,17 +3350,34 @@ pub async fn create_handoff_run(
     let new_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
+    // A summary that fails or times out only costs the new run the shortcut:
+    // it then reads the whole transcript, as before.
+    let summary = match crate::runs::handoff::summarize(&app, db.inner(), handoff.inner(), &transcript).await {
+        Ok(text) => Some(text),
+        Err(e) => {
+            tracing::warn!(event = "handoff_summary_failed", run_id = %run_id, error = %e);
+            None
+        }
+    };
+
     // Persist the transcript next to the per-run logs so the new run can read it.
     let runs_dir = Path::new(&src.project_path).join(".puppeteer").join("runs");
     fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
     let context_path = runs_dir.join(format!("{}.context.md", new_id));
-    let body = format!(
-        "# Ngữ cảnh phiên trước (engine: {})\n\nĐây là toàn bộ hội thoại/diễn tiến của phiên làm việc trước. \
-Đọc kỹ để nắm những gì đã làm, rồi tiếp tục công việc đang dở.\n\n---\n\n{}\n",
-        src.engine, transcript
-    );
+    let (body, summary_lines) = crate::runs::handoff::context_file(&src.engine, summary.as_deref(), &transcript);
     fs::write(&context_path, body).map_err(|e| e.to_string())?;
     let context_path = context_path.to_string_lossy().to_string();
+
+    if crate::runs::handoff::codex_import_enabled() && src.engine == "claude" && target_engine == "codex" {
+        let cwd = src.worktree_path.as_deref().unwrap_or(&src.project_path);
+        let source = std::env::var_os("HOME").and_then(|home| {
+            crate::runs::handoff::claude_import_source(Path::new(&home), cwd, src.session_id.as_deref().unwrap_or(""))
+        });
+        match source {
+            Some(path) => handoff.remember_import(&new_id, path),
+            None => tracing::info!(event = "handoff_codex_import_skipped", run_id = %run_id, reason = "no Claude session JSONL under ~/.claude/projects"),
+        }
+    }
 
     sqlx::query(
         "INSERT INTO runs (id, project_id, repo_id, type, ref_number, status, engine, input_path, output_path, created_at, title)
@@ -3386,6 +3426,7 @@ pub async fn create_handoff_run(
             forked_from_run_id: None,
         },
         context_path,
+        summary_lines,
     })
 }
 

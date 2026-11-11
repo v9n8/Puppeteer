@@ -598,6 +598,7 @@ fn proc_label(kind: crate::procs::ProcKind, is_codex: bool) -> String {
         ProcKind::SlackTranslate => "Slack translation session",
         ProcKind::FocusAi => "Focus AI session",
         ProcKind::SkillEval => "Skill eval session",
+        ProcKind::HandoffSummary => "Handoff summary session",
         _ => "Translation session",
     };
     format!("{what} ({})", if is_codex { "codex" } else { "claude" })

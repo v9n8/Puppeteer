@@ -47,7 +47,7 @@ const {
       <!-- Carrying the context over is the hand-off (`sessions.handoff`). -->
       <Button v-if="features.allows('run.handoff')" :disabled="engineSwitchBusy" @click="doHandoff(handoffTarget!)">
         <RotateCcw v-if="handingOff" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
-        {{ handingOff ? t('run.loadingContext') : t('run.continueCurrentSession') }}
+        {{ handingOff ? t('run.summarizingContext') : t('run.continueCurrentSession') }}
       </Button>
     </template>
   </Modal>

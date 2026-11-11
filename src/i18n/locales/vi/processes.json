@@ -20,6 +20,7 @@
     "slack_translate": "Dịch Slack",
     "focus_ai": "AI Focus",
     "skill_eval": "Skill eval",
+    "handoff_summary": "Tóm tắt bàn giao",
     "probe": "Kiểm tra model",
     "mcp_test": "Kiểm tra MCP",
     "ssh_agent": "ssh-agent",

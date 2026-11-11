@@ -237,7 +237,7 @@ pub fn on_exit(app: &AppHandle) {
 }
 
 /// Kill every registered run sidecar (and its CLI) and the warm translate /
-/// Slack / Focus AI / Skill eval sessions, so no `claude` / `codex` process lingers
+/// Slack / Focus AI / Skill eval / handoff summary sessions, so no `claude` / `codex` process lingers
 /// burning API tokens. Idempotent; also run on `RunEvent::Exit`.
 pub fn stop_app_sidecars(app: &AppHandle) {
     let registry = app.state::<RunRegistry>().inner().clone();
@@ -265,6 +265,9 @@ pub fn stop_app_sidecars(app: &AppHandle) {
     let skill_eval = app
         .try_state::<crate::commands::skill_eval::SkillEvalState>()
         .map(|s| s.inner().clone());
+    let handoff = app
+        .try_state::<crate::runs::handoff::HandoffState>()
+        .map(|s| s.inner().clone());
     tauri::async_runtime::block_on(async move {
         translate.shutdown().await;
         slack.0.shutdown().await;
@@ -273,6 +276,9 @@ pub fn stop_app_sidecars(app: &AppHandle) {
         }
         if let Some(skill_eval) = skill_eval {
             skill_eval.shutdown().await;
+        }
+        if let Some(handoff) = handoff {
+            handoff.shutdown().await;
         }
     });
 }

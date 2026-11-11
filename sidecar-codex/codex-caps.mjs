@@ -12,12 +12,18 @@
 // Which release first has thread/revert, and which first drops thread/rollback,
 // is not known (no release tag was checked), so both are null after 0.133.
 // 0.0.x is a build from source, of any age: not known either.
+// externalAgentConfig/import (AC-19 experiment: a Claude session imported as a
+// thread) is in both lists; it is only marked as there for 0.133, the one
+// version whose session import was read (codex-rs/app-server/src/
+// request_processors/external_agent_config_processor.rs at rust-v0.133.0-alpha.1).
 export function codexCaps(version) {
   const m = /^(\d+)\.(\d+)\./.exec(version || '')
   const upTo133 = !!m && Number(m[1]) === 0 && Number(m[2]) >= 1 && Number(m[2]) <= 133
+  const is133 = !!m && Number(m[1]) === 0 && Number(m[2]) === 133
   return {
     'thread/rollback': upTo133 ? true : null,
     'thread/revert': upTo133 ? false : null,
+    'externalAgentConfig/import': is133 ? true : null,
   }
 }
 

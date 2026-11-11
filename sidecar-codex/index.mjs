@@ -37,8 +37,8 @@
 // runs bill against the user's subscription — no API key.
 
 import { spawn, spawnSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, realpathSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { codexCaps, rewindMethods } from './codex-caps.mjs'
@@ -140,6 +140,11 @@ let SEED_STYLE = process.env.PUPPETEER_CODEX_SEED_STYLE || null
 // the turn's `result` leaves nothing queued), so a follow-up it hands over then
 // still finds the session. Without it (translation), a turn's end ends the session.
 const KEEP_OPEN = process.env.PUPPETEER_CODEX_KEEP_OPEN === '1'
+// AC-19 experiment (PUPPETEER_EXPERIMENTAL_CODEX_IMPORT on the Rust side): a
+// Claude → Codex handoff run starts from the Claude session JSONL that codex
+// imports itself (externalAgentConfig/import), instead of an empty thread.
+// Any failure falls back to a new thread; the handoff file is there either way.
+const IMPORT_SESSION = RESUME_THREAD || NO_TOOLS ? null : (process.env.PUPPETEER_CODEX_IMPORT_SESSION || null)
 // Model requests one turn may make (AC-23: an unattended turn); 0 = no limit.
 // Codex has no such option, so the turn's usage updates are counted (one per
 // model request) and the turn is interrupted once it has made that many.
@@ -1353,6 +1358,8 @@ function onServerMessage(msg) {
   // notification (streaming)
   if (msg.method) {
     const p = msg.params || {}
+    const waiter = notificationWaiters.get(msg.method)
+    if (waiter) { notificationWaiters.delete(msg.method); waiter() }
     // A notification naming another thread (a sub-agent's) is not streamed
     // into this one.
     const ownThread = !p.threadId || !threadId || p.threadId === threadId
@@ -1592,6 +1599,55 @@ const OPT_OUT_NOTIFICATIONS = [
   'rawResponseItem/completed',
 ]
 
+// Notification method → resolve, for a call that waits for one (the import).
+const notificationWaiters = new Map()
+
+function waitForNotification(method, ms) {
+  let timer
+  const done = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      notificationWaiters.delete(method)
+      reject(new Error(`${method} did not come within ${ms / 1000}s`))
+    }, ms)
+    notificationWaiters.set(method, () => { clearTimeout(timer); resolve() })
+  })
+  done.catch(() => {}) // awaited only once the request itself succeeded
+  return done
+}
+
+// Like codex-plugin-cc (EXTERNAL_AGENT_IMPORT_TIMEOUT_MS).
+const IMPORT_TIMEOUT_MS = 120_000
+
+// Import the Claude session at `source` and name the codex thread made from it,
+// or throw. The reply comes before the import is done, which codex reports on
+// externalAgentConfig/import/completed, success or not; only its ledger in
+// CODEX_HOME names the thread. A record from before this call is a session
+// already imported (and maybe continued) by an earlier handoff: not taken.
+async function importClaudeSession(source) {
+  if (codexCaps(process.env.PUPPETEER_CODEX_VERSION)['externalAgentConfig/import'] === false) {
+    throw new Error('this Codex has no externalAgentConfig/import')
+  }
+  const since = Math.floor(Date.now() / 1000)
+  const completed = waitForNotification('externalAgentConfig/import/completed', Math.round(IMPORT_TIMEOUT_MS * RPC_TIMEOUT_SCALE))
+  rpcResult(await request('externalAgentConfig/import', {
+    migrationItems: [{
+      itemType: 'SESSIONS',
+      description: 'Puppeteer handoff from Claude',
+      cwd: null,
+      details: { plugins: [], sessions: [{ path: source, cwd: CWD, title: null }], mcpServers: [], hooks: [], subagents: [], commands: [] },
+    }],
+  }), 'externalAgentConfig/import')
+  await completed
+  const path = realpathSync(source)
+  const sha = createHash('sha256').update(readFileSync(path)).digest('hex')
+  const ledger = JSON.parse(readFileSync(join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'external_agent_session_imports.json'), 'utf8'))
+  const record = (Array.isArray(ledger?.records) ? ledger.records : [])
+    .filter((r) => r?.source_path === path && r?.content_sha256 === sha && r?.imported_at >= since && typeof r?.imported_thread_id === 'string')
+    .at(-1)
+  if (!record) throw new Error('Codex finished the import without recording a new thread for it')
+  return record.imported_thread_id
+}
+
 async function bringUp() {
   rpcResult(await request('initialize', {
     clientInfo: { name: 'puppeteer-codex', title: 'Puppeteer', version: '0.1.0' },
@@ -1601,23 +1657,35 @@ async function bringUp() {
 
   const { approvalPolicy, sandbox } = policyFor(PERMISSION_MODE)
   const developerInstructions = [DEVELOPER_INSTRUCTIONS, STYLE_INSTRUCTIONS].filter(Boolean).join('\n\n')
-  if (RESUME_THREAD) {
+  let imported = null
+  if (IMPORT_SESSION) {
+    try {
+      imported = await importClaudeSession(IMPORT_SESSION)
+      note(`Codex imported the Claude session as thread ${imported}`)
+    } catch (e) {
+      note(`⚠ Codex could not import the Claude session (${e.message}); starting a new thread, the handoff file still has the context`, 'warn')
+    }
+  }
+  // An imported thread is resumed like any other: this run's policy, model and
+  // framing go on it.
+  const resumeFrom = RESUME_THREAD || imported
+  if (resumeFrom) {
     const method = FORK ? 'thread/fork' : 'thread/resume'
     // The policy goes on the resume itself, so a thread first created under a
     // looser one is gated by this run's mode (a remote `Deny` must block).
     // The framing goes too, so the context codex rebuilds at a compact still
     // holds it (a seed in the history may not survive the compact).
-    const params = { threadId: RESUME_THREAD, approvalPolicy, sandbox }
+    const params = { threadId: resumeFrom, approvalPolicy, sandbox }
     if (MODEL) params.model = MODEL
     if (developerInstructions) params.developerInstructions = developerInstructions
     let response = await request(method, params)
     if (refusedParams(response)) {
       note(`⚠ ${method} refused the permission policy, model or framing (${response.error.message}); resuming without them and sending the policy on every turn instead, which resets network access and writable roots from config.toml on each turn`, 'warn')
       policyOnEveryTurn = true
-      response = await request(method, { threadId: RESUME_THREAD })
+      response = await request(method, { threadId: resumeFrom })
     }
     const result = rpcResult(response, method)
-    threadId = result?.thread?.id || (FORK ? null : RESUME_THREAD)
+    threadId = result?.thread?.id || (FORK ? null : resumeFrom)
     // A fork must never go on in the source thread.
     if (FORK && threadId === RESUME_THREAD) throw new Error('Codex returned the source thread for thread/fork')
     modelName = result?.model || null
