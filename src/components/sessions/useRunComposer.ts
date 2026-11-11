@@ -37,6 +37,7 @@ import {
   MODEL_OPTIONS, withCurrentModel, combinedModelOptions, engineForModel,
 } from '@/lib/engineOptions'
 import { inheritedModel } from '@/lib/composerChips'
+import { autoGrowHeight, clampDragHeight } from '@/lib/autoGrow'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -71,7 +72,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     t, runsStore, live, conductorStore, draftsStore, claudeStore, codexStore, modelCatalog, confirm,
     toast, projectId, project, engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine,
     effectiveEngine, sessionDefaults, permissionMode, currentRunId, currentRun, currentIsSession, session,
-    liveEntries, liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
+    liveEntries, liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel, uiLayout,
   } = core
   const {
     conductorMaxWorkers,
@@ -968,12 +969,43 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       el.style.overflowY = 'auto'
       return
     }
-    // Collapsed: grow with content up to a cap, then scroll internally.
+    // Collapsed: grow with content up to a cap, then scroll internally. A height
+    // dragged from the top edge (UX-65) is the floor, and may pass the cap.
     const maxPx = 180
     el.style.height = 'auto'
-    const next = Math.min(el.scrollHeight, maxPx)
+    const next = autoGrowHeight(el.scrollHeight, maxPx, uiLayout.composerHeight)
     el.style.height = `${next}px`
-    el.style.overflowY = el.scrollHeight > maxPx ? 'auto' : 'hidden'
+    el.style.overflowY = el.scrollHeight > next ? 'auto' : 'hidden'
+  }
+
+  // Dragging the composer's top edge sets its height (up, taller); a double
+  // click forgets it. Dragging from "expanded" takes over from it.
+  const COMPOSER_MIN_PX = 44
+  function startComposerDrag(e: PointerEvent) {
+    const el = composerEl.value
+    if (!el || e.button !== 0) return
+    e.preventDefault()
+    const startY = e.clientY
+    const startH = el.offsetHeight
+    composerExpanded.value = false
+    const max = () => Math.round(window.innerHeight * 0.7)
+    const onMove = (ev: PointerEvent) => {
+      el.style.height = `${clampDragHeight(startH + startY - ev.clientY, COMPOSER_MIN_PX, max())}px`
+      el.style.overflowY = 'auto'
+    }
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      uiLayout.setComposerHeight(clampDragHeight(startH + startY - ev.clientY, COMPOSER_MIN_PX, max()))
+      autoResizeComposer()
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  function resetComposerHeight() {
+    uiLayout.setComposerHeight(null)
+    autoResizeComposer()
   }
 
   function toggleComposerExpand() {
@@ -1759,7 +1791,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     handleAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
-    toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
+    toggleComposerExpand, startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,

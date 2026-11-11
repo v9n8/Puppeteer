@@ -12,6 +12,7 @@ import CapturePicker from '@/components/CapturePicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
+import { autoGrowHeight } from '@/lib/autoGrow'
 import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
 import RunMcpSection from './RunMcpSection.vue'
@@ -24,7 +25,7 @@ const {
   sendingFollowUp, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
-  composerExpanded, toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen,
+  composerExpanded, toggleComposerExpand, startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention,
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
@@ -42,13 +43,31 @@ function quoteFileLabel(q: { path: string; lines?: { start: number; end: number 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
 
-// A quote card's note grows with its text: one typed in the Quote popover may
-// span lines. Not measured while hidden (scrollHeight 0), where it keeps one row.
+// A quote card's note grows with its text (up to 8rem, then scrolls): one typed
+// in the Quote popover may span lines. Its corner drags it taller or shorter
+// (UX-65); that height stays the floor while the text grows. Not measured while
+// hidden (scrollHeight 0), where it keeps one row.
+const NOTE_CAP = 128
 function fitHeight(el: HTMLTextAreaElement) {
+  const manual = Number(el.dataset.manualHeight) || null
   el.style.height = 'auto'
-  if (el.scrollHeight) el.style.height = `${el.scrollHeight}px`
+  if (el.scrollHeight) el.style.height = `${autoGrowHeight(el.scrollHeight, NOTE_CAP, manual)}px`
 }
-const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
+// A press on the field that ends with another height was a drag of its corner.
+function rememberDraggedHeight(e: PointerEvent) {
+  const el = e.currentTarget as HTMLTextAreaElement
+  const before = el.offsetHeight
+  window.addEventListener('pointerup', () => {
+    if (el.offsetHeight !== before) el.dataset.manualHeight = String(el.offsetHeight)
+  }, { once: true })
+}
+const vAutoGrow = {
+  mounted: (el: HTMLTextAreaElement) => {
+    el.addEventListener('pointerdown', rememberDraggedHeight)
+    fitHeight(el)
+  },
+  updated: fitHeight,
+}
 </script>
 
 <template>
@@ -201,7 +220,7 @@ const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
               v-auto-grow
               :value="q.note ?? ''"
               rows="1"
-              class="mt-1 block max-h-32 w-full resize-none overflow-y-auto bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              class="mt-1 block w-full resize-y overflow-y-auto bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               :placeholder="t('run.quotes.notePlaceholder')"
               :aria-label="t('run.quotes.notePlaceholder')"
               :disabled="sendingFollowUp"
@@ -260,6 +279,16 @@ const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
 
       <!-- Prompt input card: textarea on top, controls toolbar below -->
       <div class="relative rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-ring transition-colors">
+        <!-- Top-edge handle (UX-65): drag up to make the composer taller, double-click
+             to let it follow its text again. -->
+        <div
+          class="group/grip absolute inset-x-0 -top-1 z-10 flex h-2 cursor-ns-resize justify-center"
+          :title="t('run.resizeComposer')"
+          @pointerdown="startComposerDrag"
+          @dblclick="resetComposerHeight"
+        >
+          <span class="mt-0.5 h-1 w-8 rounded-full bg-border opacity-0 transition-opacity group-hover/grip:opacity-100" />
+        </div>
         <!-- Drag-and-drop hint: shown while an OS file is dragged over the window -->
         <div
           v-if="isDraggingFile"

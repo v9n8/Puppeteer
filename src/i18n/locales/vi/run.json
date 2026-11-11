@@ -203,6 +203,7 @@
   },
   "collapseComposer": "Thu gọn ô soạn thảo",
   "expandComposer": "Mở rộng ô soạn thảo (dễ đọc/sửa văn bản dài)",
+  "resizeComposer": "Kéo để đổi chiều cao ô soạn thảo · bấm đúp để về theo nội dung",
   "runSettingsTitle": "Tùy chọn run — đang dùng {engine}",
   "runSettingsMenu": "Tùy chọn run",
   "engineSetting": "Engine",

@@ -203,6 +203,7 @@
   },
   "collapseComposer": "Collapse the composer",
   "expandComposer": "Expand the composer (easier to read/edit long text)",
+  "resizeComposer": "Drag to resize the composer · double-click to fit its text again",
   "runSettingsTitle": "Run options — using {engine}",
   "runSettingsMenu": "Run options",
   "engineSetting": "Engine",

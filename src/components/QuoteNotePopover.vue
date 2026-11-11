@@ -110,7 +110,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
           :aria-label="t('selection.quoteNote.notePlaceholder')"
           @keydown="onNoteKeydown"
         />
-        <div class="flex shrink-0 items-center gap-1.5">
+        <div class="flex shrink-0 items-center gap-1.5 pr-2">
           <span class="min-w-0 flex-1 truncate text-2xs text-muted-foreground" :title="t('selection.quoteNote.keys')">
             {{ t('selection.quoteNote.keys') }}
           </span>
@@ -118,11 +118,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
           <Button size="xs" @click="save">{{ t('common.save') }}</Button>
         </div>
       </div>
+      <!-- Visible grip (UX-65): the note field fills the popover, so this corner sizes it. -->
       <div
-        class="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize"
+        class="absolute bottom-0 right-0 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 text-muted-foreground/60 hover:text-foreground"
         :title="t('selection.quoteNote.resize')"
         @pointerdown="startResize"
-      />
+      >
+        <svg class="h-2.5 w-2.5" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M9 1 1 9M9 5 5 9" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" fill="none" />
+        </svg>
+      </div>
     </div>
   </Teleport>
 </template>

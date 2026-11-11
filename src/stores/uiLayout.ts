@@ -98,6 +98,21 @@ function loadSidebarHidden(): boolean {
   }
 }
 
+/**
+ * Session composer: the height the user dragged it to from its top edge
+ * (UX-65), or none (it only grows with its text). Persisted like the timeline's.
+ */
+const COMPOSER_HEIGHT_KEY = 'puppeteer.composerHeight'
+
+function loadComposerHeight(): number | null {
+  try {
+    const n = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY))
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
+
 export const useUILayoutStore = defineStore('uiLayout', () => {
   const focusMode = ref(false)
   const sidebarHidden = ref(loadSidebarHidden())
@@ -166,6 +181,18 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     }
   }
 
+  const composerHeight = ref<number | null>(loadComposerHeight())
+
+  function setComposerHeight(px: number | null) {
+    composerHeight.value = px
+    try {
+      if (px == null) localStorage.removeItem(COMPOSER_HEIGHT_KEY)
+      else localStorage.setItem(COMPOSER_HEIGHT_KEY, String(px))
+    } catch {
+      /* storage unavailable — the in-memory value still works for this session */
+    }
+  }
+
   // Font and text sizes (lib/appFonts): applied on change; other windows follow
   // through the storage event.
   const fontPrefs = ref<FontPrefs>(loadFontPrefs())
@@ -190,6 +217,8 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     setTimelineHeight,
     stepsExpanded,
     setStepsExpanded,
+    composerHeight,
+    setComposerHeight,
     fontPrefs,
     setFontPrefs,
   }
