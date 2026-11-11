@@ -579,7 +579,7 @@ fn unique_dest(dir: &Path, name: &str) -> PathBuf {
 /// Recursively copy a file or directory tree. Links are copied as links, never
 /// followed (a `loop -> .` would nest forever), and every destination is
 /// created fresh, so a link planted at `dest` is not written through.
-fn copy_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+pub(crate) fn copy_recursive(src: &Path, dest: &Path) -> Result<(), String> {
     let meta = std::fs::symlink_metadata(src).map_err(|e| format!("copy file: {e}"))?;
     if meta.file_type().is_symlink() {
         // Creating links on Windows needs Developer Mode or admin, so they are

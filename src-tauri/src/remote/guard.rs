@@ -44,7 +44,8 @@ pub const DENIED: &str = "remote_denied_local_only";
 /// links, kicking a Controller, clearing the audit, Web Push recipients, the
 /// Inbox API's local listener, the feature switches and the built-in MCP ones),
 /// skills installed into HOME, the Memory files every session reads (read
-/// and write), importing from this machine's other AI tools, switching a
+/// and write), changing the Library files they read (skills, rules,
+/// commands, agents), importing from this machine's other AI tools, switching a
 /// schedule on (it starts runs while nobody is at this machine),
 /// installing an app update, purging the Trash, resetting the usage stats
 /// (it deletes every run), copying this machine's webview storage of tool
@@ -82,6 +83,11 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // Memory: `~/.claude/CLAUDE.md` and a project's CLAUDE.md / AGENTS.md go into every session.
     "memory_read",
     "memory_write",
+    // Library: changing the skill / rule / command / agent files every session reads (scanning
+    // and reading them stay remote-callable).
+    "library_write",
+    "library_delete",
+    "library_duplicate_to_global",
     // Import from other tools: reads this machine's tool configs (`~/.claude.json` holds the
     // Claude account) and fills the libraries from them.
     "list_import_sources",
@@ -748,6 +754,9 @@ mod tests {
             "reset_features",
             "set_builtin_mcp_enabled",
             "set_skill_global",
+            "library_write",
+            "library_delete",
+            "library_duplicate_to_global",
             "list_import_sources",
             "scan_import_source",
             "import_candidates",
@@ -804,6 +813,8 @@ mod tests {
             "apply_skill_bulk",
             "diagnose_skills",
             "list_effective_skills",
+            "library_scan",
+            "library_read",
             "search_sessions",
             "list_library_items",
             "apply_library_item",

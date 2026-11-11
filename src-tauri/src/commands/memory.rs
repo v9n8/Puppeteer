@@ -122,7 +122,7 @@ fn locate(file: &Path, scope: &Scope) -> Result<Located, String> {
     Ok(Located { shown: file.to_path_buf(), real, link })
 }
 
-fn hash(bytes: &[u8]) -> String {
+pub(crate) fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
@@ -172,7 +172,7 @@ fn write_at(loc: &Located, content: &str, expected_hash: Option<&str>) -> Result
 
 /// Temp file next to `path`, then rename over it: a CLI starting meanwhile reads the old file or
 /// the new one, never half of it. The temp file takes the old file's permissions.
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().ok_or_else(|| std::io::Error::new(ErrorKind::InvalidInput, "no parent folder"))?;
     fs::create_dir_all(dir)?;
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("memory");
@@ -194,7 +194,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 /// A live project's folder.
-async fn project_root(db: &Db, project_id: &str) -> Result<PathBuf, String> {
+pub(crate) async fn project_root(db: &Db, project_id: &str) -> Result<PathBuf, String> {
     sqlx::query_scalar::<_, String>("SELECT path FROM projects WHERE id = ? AND deleted_at IS NULL")
         .bind(project_id)
         .fetch_optional(db)

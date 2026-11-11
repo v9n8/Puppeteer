@@ -88,7 +88,7 @@ pub fn resolve(found: Vec<Found>, home_wins: bool) -> Vec<EffectiveSkill> {
 
 /// Top-level names under `rel` that git tracks anything in, with one `git ls-files` for the folder.
 /// Not a repo, or `rel` behind a symlink: none.
-fn tracked_names(root: &Path, rel: &str) -> HashSet<String> {
+pub(crate) fn tracked_names(root: &Path, rel: &str) -> HashSet<String> {
     let Ok(out) = std::process::Command::new("git").arg("-C").arg(root).args(["ls-files", "-z", "--", rel]).output()
     else {
         return HashSet::new();
