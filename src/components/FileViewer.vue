@@ -41,7 +41,7 @@ const props = withDefaults(defineProps<{
    *  i.e. the main window — not the bare pop-out viewer). */
   canCompare?: boolean
   /** Where Quote sends a selection (a session the host picked); null = no Quote. */
-  quoteTarget?: { label: string; append: (text: string, source: QuoteSource) => void } | null
+  quoteTarget?: { label: string; append: (text: string, source: QuoteSource, note?: string) => void } | null
 }>(), {
   line: null,
   canCompare: false,
@@ -769,7 +769,10 @@ const selectionSurface = useSelectionSurface({
     if (!target) return null
     const lines = selectedLines()
     const source: QuoteSource = lines ? { path: quotePath(), lines } : { path: quotePath() }
-    return { label: target.label, append: (text: string) => target.append(text, source) }
+    return {
+      label: target.label,
+      append: (text: string, _anchor?: unknown, note?: string) => target.append(text, source, note),
+    }
   },
 })
 

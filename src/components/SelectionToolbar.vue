@@ -3,12 +3,14 @@
 // body). Selecting text — or right-clicking a selection — inside a surface
 // declared with useSelectionSurface shows a small bar of the buttons that
 // surface allows and the feature tree leaves on (lib/selectionSurface). Outside
-// every surface, nothing shows.
+// every surface, nothing shows. It also hosts the Quote popover (UX-46), opened
+// from here or from the row under a turn (StreamLog).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Languages, ListTodo, ClipboardCopy, Quote, StickyNote } from 'lucide-vue-next'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import TranslatePopover from '@/components/TranslatePopover.vue'
+import QuoteNotePopover from '@/components/QuoteNotePopover.vue'
 import { invoke } from '@/lib/tauri'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { anchorFromRange } from '@/lib/quoteAnchor'
@@ -26,6 +28,7 @@ import {
 import {
   selectionBar as bar,
   selectionHost,
+  selectionQuoteNote as quoteNote,
   selectionSurfaces,
   selectionTranslation as translation,
   surfaceEls,
@@ -130,15 +133,18 @@ function onSelectionEnd(point: { x: number; y: number } | null) {
 }
 
 // Left button only: a right-click's mouseup comes after its contextmenu and
-// would pull the bar back under the selection.
+// would pull the bar back under the selection. Not while the Quote popover is
+// open: a click on its Save would bring the bar back for the selection it quotes.
 function onMouseUp(e: MouseEvent) {
-  if (e.button === 0) onSelectionEnd(null)
+  if (e.button === 0 && !quoteNote.value) onSelectionEnd(null)
 }
 
 // Right-clicking a selection opens the bar at the pointer instead of the
 // webview's menu. Without a bar to show, the system menu shows as usual; an
-// element that opened its own menu (preventDefault) keeps it alone.
+// element that opened its own menu (preventDefault) keeps it alone. While the
+// Quote popover is open, a right-click does nothing here.
 function onContextMenu(e: MouseEvent) {
+  if (quoteNote.value) return
   if (e.defaultPrevented) return hide()
   onSelectionEnd({ x: e.clientX, y: e.clientY })
   if (bar.value && actions.value.length) e.preventDefault()
@@ -160,7 +166,17 @@ async function run(action: SelectionAction) {
   hide()
   switch (action) {
     case 'quote':
-      b.quoteTarget?.append(b.text, anchorFromRange(b.range))
+      // The anchor is read off the selection now, before the popover's note
+      // field takes the focus.
+      if (b.quoteTarget) {
+        quoteNote.value = {
+          surface: b.surface,
+          target: b.quoteTarget,
+          text: b.text,
+          anchor: anchorFromRange(b.range),
+          at: { left: at.x, top: at.y, bottom: at.y },
+        }
+      }
       break
     case 'translate':
       translation.value = { surface: b.surface, text: b.text, ...at }
@@ -196,6 +212,19 @@ function closeTranslate() {
   translation.value = null
 }
 
+// Saved, the quote goes to the composer and the text it came from is no longer highlighted.
+function saveQuote(note: string) {
+  const q = quoteNote.value
+  quoteNote.value = null
+  if (!q) return
+  window.getSelection()?.removeAllRanges()
+  q.target.append(q.text, q.anchor, note)
+}
+
+function closeQuote() {
+  quoteNote.value = null
+}
+
 onMounted(() => {
   if (excludedWindow) return
   selectionHost.value = { isOn: (id) => features.isOn(id), saveNote }
@@ -210,6 +239,7 @@ onUnmounted(() => {
   document.removeEventListener('scroll', onScroll, true)
   hide()
   closeTranslate()
+  closeQuote()
 })
 </script>
 
@@ -244,5 +274,14 @@ onUnmounted(() => {
     :y="openTranslation.y"
     :initial-lang="defaultTranslateLang"
     @close="closeTranslate"
+  />
+
+  <QuoteNotePopover
+    v-if="quoteNote"
+    :text="quoteNote.text"
+    :target="quoteNote.target.label"
+    :at="quoteNote.at"
+    @save="saveQuote"
+    @close="closeQuote"
   />
 </template>

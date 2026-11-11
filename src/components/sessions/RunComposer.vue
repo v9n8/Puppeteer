@@ -42,6 +42,14 @@ function quoteFileLabel(q: { path: string; lines?: { start: number; end: number 
 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
+
+// A quote card's note grows with its text: one typed in the Quote popover may
+// span lines. Not measured while hidden (scrollHeight 0), where it keeps one row.
+function fitHeight(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  if (el.scrollHeight) el.style.height = `${el.scrollHeight}px`
+}
+const vAutoGrow = { mounted: fitHeight, updated: fitHeight }
 </script>
 
 <template>
@@ -190,14 +198,15 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               <Quote class="mr-1 inline h-3 w-3 align-[-2px] opacity-50" :stroke-width="2" />{{ q.excerpt }}
             </p>
             <p v-if="q.kind === 'file'" class="mt-0.5 truncate font-mono text-2xs text-muted-foreground">{{ quoteFileLabel(q) }}</p>
-            <input
+            <textarea
+              v-auto-grow
               :value="q.note ?? ''"
-              type="text"
-              class="mt-1 w-full bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              rows="1"
+              class="mt-1 block max-h-32 w-full resize-none overflow-y-auto bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               :placeholder="t('run.quotes.notePlaceholder')"
               :aria-label="t('run.quotes.notePlaceholder')"
               :disabled="sendingFollowUp"
-              @input="setDraftQuoteNote(q.id, ($event.target as HTMLInputElement).value)"
+              @input="setDraftQuoteNote(q.id, ($event.target as HTMLTextAreaElement).value)"
             />
           </div>
           <button

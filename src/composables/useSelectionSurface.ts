@@ -16,8 +16,11 @@ import type { SentMessage } from '@/lib/editResend'
 /** Where a quote goes; `label` names it on the button. */
 export interface QuoteTarget {
   label: string
-  /** `anchor`: where in the session's log the text was taken from (UX-29), if known. */
-  append: (text: string, anchor?: QuoteAnchor | null) => void
+  /**
+   * `anchor`: where in the session's log the text was taken from (UX-29), if
+   * known. `note`: the user's remark on it, typed in the Quote popover (UX-46).
+   */
+  append: (text: string, anchor?: QuoteAnchor | null, note?: string) => void
 }
 
 /** Taking the session shown on a surface back to one of its turns (Rewind). */
@@ -98,6 +101,17 @@ export interface SelectionTranslation {
   y: number
 }
 
+/** A quote waiting for its note in the Quote popover (UX-46), opened from the bar or a turn's row. */
+export interface SelectionQuoteNote {
+  surface: SelectionSurface
+  /** Taken when Quote was clicked: a file window's target names the lines selected then. */
+  target: QuoteTarget
+  text: string
+  anchor: QuoteAnchor | null
+  /** What Quote was clicked from (the bar's spot, a turn's button), in viewport coordinates. */
+  at: { left: number; top: number; bottom: number }
+}
+
 /**
  * What this window does with a surface's text besides the surface's own
  * callbacks: read the feature tree, file a note. Set by the toolbar; null where
@@ -115,6 +129,7 @@ export const selectionSurfaces: SelectionSurface[] = []
 export const selectionHost = shallowRef<SelectionHost | null>(null)
 export const selectionBar = shallowRef<SelectionBar | null>(null)
 export const selectionTranslation = shallowRef<SelectionTranslation | null>(null)
+export const selectionQuoteNote = shallowRef<SelectionQuoteNote | null>(null)
 
 export function surfaceEls(surface: SelectionSurface): (HTMLElement | null)[] {
   return (Array.isArray(surface.el) ? surface.el : [surface.el]).map((r) => r.value)
@@ -122,8 +137,8 @@ export function surfaceEls(surface: SelectionSurface): (HTMLElement | null)[] {
 
 /**
  * Register `surface` for the calling component's lifetime. `dismiss` hides the
- * bar and closes the translation if they belong to it — for when its content
- * is replaced (another run, another file).
+ * bar and closes the translation and the Quote popover if they belong to it —
+ * for when its content is replaced (another run, another file).
  */
 export function useSelectionSurface(surface: SelectionSurface): { dismiss: () => void } {
   selectionSurfaces.push(surface)
@@ -131,6 +146,7 @@ export function useSelectionSurface(surface: SelectionSurface): { dismiss: () =>
   function dismiss() {
     if (selectionBar.value?.surface === surface) selectionBar.value = null
     if (selectionTranslation.value?.surface === surface) selectionTranslation.value = null
+    if (selectionQuoteNote.value?.surface === surface) selectionQuoteNote.value = null
   }
 
   // A cached (KeepAlive) view keeps its registration; only what it shows goes.

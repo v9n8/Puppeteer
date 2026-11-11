@@ -571,8 +571,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       return {
         label: runLabel(run),
         // Anchored to the message it was taken from when the selection was in one.
-        append: (text: string, anchor?: QuoteAnchor | null) => {
-          addDraftQuote(entryOrTextQuote(crypto.randomUUID(), text, run.id, anchor))
+        append: (text: string, anchor?: QuoteAnchor | null, note?: string) => {
+          addDraftQuote(entryOrTextQuote(crypto.randomUUID(), text, run.id, anchor, note))
           focusComposer()
         },
       }
@@ -624,9 +624,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // A quote sent from a file window (lib/quoteAppend) for the run on screen goes
   // into the composer, not the stored draft the watcher above would overwrite. No
   // focus: the user is still reading in that other window.
-  function takeQuote(text: string, source: QuoteSource) {
+  function takeQuote(text: string, source: QuoteSource, note?: string) {
     if (!sendingFollowUp.value) {
-      addDraftQuote(fileQuote(crypto.randomUUID(), text, source))
+      addDraftQuote(fileQuote(crypto.randomUUID(), text, source, note))
       return
     }
     // The send clears the composer when it returns: add the quote after that.
@@ -635,8 +635,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const stop = watch(sendingFollowUp, (busy) => {
       if (busy) return
       stop()
-      if (currentRunId.value === runId) addDraftQuote(fileQuote(crypto.randomUUID(), text, source))
-      else appendQuoteToDraft(runId, text, source)
+      if (currentRunId.value === runId) addDraftQuote(fileQuote(crypto.randomUUID(), text, source, note))
+      else appendQuoteToDraft(runId, text, source, note)
     })
   }
 

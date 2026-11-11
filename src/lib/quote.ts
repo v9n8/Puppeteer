@@ -114,24 +114,30 @@ export interface QuoteAnchorRef {
   end: number
 }
 
-/** A new quote for the draft: anchored to a message of `runId`, or plain. */
+// A blank note is no note: the card's note field stays empty.
+const noteField = (note: string | undefined) => (note?.trim() ? { note } : {})
+
+/** A new quote for the draft: anchored to a message of `runId`, or plain; `note` typed in the Quote popover. */
 export function entryOrTextQuote(
   id: string,
   excerpt: string,
   runId: string | null,
   anchor: QuoteAnchorRef | null | undefined,
+  note?: string,
 ): DraftQuote {
   if (runId && anchor && anchor.entryId) {
     return {
       id, kind: 'entry', excerpt, run_id: runId, source_entry_id: anchor.entryId,
-      block_index: anchor.block, start: anchor.start, end: anchor.end,
+      block_index: anchor.block, start: anchor.start, end: anchor.end, ...noteField(note),
     }
   }
-  return { id, kind: 'text', excerpt }
+  return { id, kind: 'text', excerpt, ...noteField(note) }
 }
 
-export function fileQuote(id: string, excerpt: string, source: QuoteSource): FileQuote {
-  return { id, kind: 'file', excerpt, path: source.path, ...(source.lines ? { lines: { ...source.lines } } : {}) }
+export function fileQuote(id: string, excerpt: string, source: QuoteSource, note?: string): FileQuote {
+  return {
+    id, kind: 'file', excerpt, path: source.path, ...(source.lines ? { lines: { ...source.lines } } : {}), ...noteField(note),
+  }
 }
 
 /** The fields the blockquote is written from. */

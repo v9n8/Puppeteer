@@ -43,8 +43,11 @@ const props = defineProps<{
   /** Entry index of the prompt this row's turn starts with; -1 = before the loaded window. */
   promptAt: number
   state: MsgActionsState
-  /** Runs an action; resolves true when Copy actually wrote the clipboard. */
-  run: (action: TurnAction) => Promise<boolean>
+  /**
+   * Runs an action clicked on the button at `from` (Quote opens its popover
+   * there); resolves true when Copy actually wrote the clipboard.
+   */
+  run: (action: TurnAction, from: DOMRect) => Promise<boolean>
 }>()
 
 const { t } = useI18n()
@@ -66,8 +69,8 @@ const buttons = computed(() =>
 // The tick replaces the copy icon only once the clipboard write succeeded.
 const copied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
-async function click(action: TurnAction) {
-  const ok = await props.run(action)
+async function click(action: TurnAction, e: MouseEvent) {
+  const ok = await props.run(action, (e.currentTarget as HTMLElement).getBoundingClientRect())
   if (action !== 'copy' || !ok) return
   copied.value = true
   clearTimeout(copiedTimer)
@@ -104,7 +107,7 @@ function title(action: TurnAction): string {
       :class="{ 'text-primary': (action === 'copy' && copied) || (action === 'bookmark' && bookmarked) }"
       :title="title(action)"
       :aria-label="title(action)"
-      @click="click(action)"
+      @click="click(action, $event)"
     >
       <component :is="icon(action)" class="h-3.5 w-3.5" :stroke-width="1.75" />
     </Button>
@@ -123,7 +126,7 @@ function title(action: TurnAction): string {
       <template v-for="(action, n) in buttons.overflow" :key="action">
         <!-- Rewind cuts the session: kept apart from the harmless items. -->
         <DropdownSeparator v-if="action === 'rewind' && n > 0" />
-        <DropdownItem :variant="action === 'rewind' ? 'destructive' : 'default'" @click="click(action)">
+        <DropdownItem :variant="action === 'rewind' ? 'destructive' : 'default'" @click="click(action, $event)">
           <component :is="icon(action)" class="h-3.5 w-3.5" :stroke-width="1.75" />
           {{ title(action) }}
         </DropdownItem>

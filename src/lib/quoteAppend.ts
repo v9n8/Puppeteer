@@ -23,6 +23,8 @@ export interface QuoteAppend {
   runId: string
   text: string
   source: QuoteSource
+  /** Typed in the file window's Quote popover (UX-46). */
+  note?: string
   /** Label of the one window that writes it. */
   writer: string
 }
@@ -30,7 +32,7 @@ export interface QuoteAppend {
 /** A composer on screen: takes the quotes for the run it shows. */
 export interface QuoteComposer {
   runId: () => string | null
-  append: (text: string, source: QuoteSource) => void
+  append: (text: string, source: QuoteSource, note?: string) => void
 }
 
 const composers = new Set<QuoteComposer>()
@@ -44,11 +46,11 @@ export function registerQuoteComposer(composer: QuoteComposer): () => void {
 }
 
 /** Add a file window's quote to a run's stored draft (no composer is showing it), as a card. */
-export function appendQuoteToDraft(runId: string, text: string, source: QuoteSource) {
+export function appendQuoteToDraft(runId: string, text: string, source: QuoteSource, note?: string) {
   if (!text.trim()) return
   const drafts = useChatDraftsStore()
   const draft = drafts.get(runId)
-  drafts.set(runId, { ...draft, quotes: [...(draft.quotes ?? []), fileQuote(crypto.randomUUID(), text, source)] })
+  drafts.set(runId, { ...draft, quotes: [...(draft.quotes ?? []), fileQuote(crypto.randomUUID(), text, source, note)] })
 }
 
 /**
@@ -60,9 +62,9 @@ export async function composerWindowLabel(runId: string): Promise<string> {
   return (await WebviewWindow.getByLabel(session)) ? session : popoutLabel('main')
 }
 
-export async function sendQuote(runId: string, text: string, source: QuoteSource): Promise<void> {
+export async function sendQuote(runId: string, text: string, source: QuoteSource, note?: string): Promise<void> {
   const writer = await composerWindowLabel(runId)
-  await emit(QUOTE_APPEND, { runId, text, source, writer } satisfies QuoteAppend)
+  await emit(QUOTE_APPEND, { runId, text, source, note, writer } satisfies QuoteAppend)
 }
 
 /** Listen for quotes this window is the writer of. Once per webview, after Pinia. */
@@ -72,8 +74,8 @@ export async function installQuoteAppend(): Promise<void> {
     await listen<QuoteAppend>(QUOTE_APPEND, ({ payload: q }) => {
       if (q?.writer !== me || !q.runId) return
       const composer = [...composers].find((c) => c.runId() === q.runId)
-      if (composer) composer.append(q.text, q.source)
-      else appendQuoteToDraft(q.runId, q.text, q.source)
+      if (composer) composer.append(q.text, q.source, q.note)
+      else appendQuoteToDraft(q.runId, q.text, q.source, q.note)
     })
   } catch {
     /* running outside the Tauri shell */

@@ -78,8 +78,8 @@ const quoteTarget = computed(() => {
   if (!run) return null
   return {
     label: run.label,
-    append: (text: string, source: QuoteSource) => {
-      sendQuote(run.id, text, source).catch(() => { /* event bus unavailable */ })
+    append: (text: string, source: QuoteSource, note?: string) => {
+      sendQuote(run.id, text, source, note).catch(() => { /* event bus unavailable */ })
     },
   }
 })

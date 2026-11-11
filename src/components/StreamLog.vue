@@ -18,7 +18,7 @@ import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import TurnActivityHeader from './sessions/TurnActivityHeader.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
-import { selectionHost, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
+import { selectionHost, selectionQuoteNote, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
 import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFooter } from '@/lib/turnActions'
 import {
   activityMatches, activityOpen, formatActivityDuration, turnActivity, type TurnActivity, type TurnActivityMap,
@@ -857,7 +857,7 @@ function answerAnchor(f: TurnFooter): QuoteAnchor | null {
   return null
 }
 
-async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
+async function runTurnAction(i: number, action: TurnAction, from: DOMRect): Promise<boolean> {
   const f = footers.value.get(i)
   if (!f) return false
   const e = props.entries[i]
@@ -872,7 +872,16 @@ async function runTurnAction(i: number, action: TurnAction): Promise<boolean> {
         return false // clipboard denied
       }
     case 'quote':
-      quoteTarget.value?.append(text, question ? null : answerAnchor(f))
+      // Through the Quote popover (SelectionToolbar), opened at the button, for a note first.
+      if (owner.value && quoteTarget.value) {
+        selectionQuoteNote.value = {
+          surface: owner.value,
+          target: quoteTarget.value,
+          text,
+          anchor: question ? null : answerAnchor(f),
+          at: { left: from.left, top: from.top, bottom: from.bottom },
+        }
+      }
       break
     case 'fullscreen':
       fullscreen.value = { title: t(question ? 'streamLog.turn.questionTitle' : 'streamLog.turn.answerTitle'), text, plain: question }
@@ -1726,7 +1735,7 @@ function toolResult(e: StreamEntry): unknown {
           :rewind-turn="footers.get(i)!.rewindTurn"
           :prompt-at="turnPromptAt(footers.get(i)!)"
           :state="msgActionsState"
-          :run="(action) => runTurnAction(i, action)"
+          :run="(action, from) => runTurnAction(i, action, from)"
         />
       </div>
       </div><!-- /v-memo per-entry wrapper -->
@@ -1740,7 +1749,7 @@ function toolResult(e: StreamEntry): unknown {
           :rewind-turn="footers.get(i)!.rewindTurn"
           :prompt-at="turnPromptAt(footers.get(i)!)"
           :state="msgActionsState"
-          :run="(action) => runTurnAction(i, action)"
+          :run="(action, from) => runTurnAction(i, action, from)"
         />
       </div>
     </template>

@@ -98,6 +98,17 @@ test('entryOrTextQuote: anchored to a message, or plain text without an anchor',
   assert.deepEqual(textQ, { id: 'q3', kind: 'text', excerpt: 'my own question' })
 })
 
+test('a note typed in the Quote popover (UX-46) goes on the new quote; a blank one does not', () => {
+  assert.equal(entryOrTextQuote('q', 'cat', 'r1', anchor, 'why?\nreally').note, 'why?\nreally')
+  assert.equal(entryOrTextQuote('q', 'cat', 'r1', null, 'why?').note, 'why?')
+  assert.equal(fileQuote('q', 'x', { path: 'a.ts' }, 'look here').note, 'look here')
+  for (const note of [undefined, '', '  \n ']) {
+    assert.ok(!('note' in entryOrTextQuote('q', 'cat', 'r1', anchor, note)), JSON.stringify(note))
+    assert.ok(!('note' in entryOrTextQuote('q', 'cat', null, null, note)), JSON.stringify(note))
+    assert.ok(!('note' in fileQuote('q', 'x', { path: 'a.ts' }, note)), JSON.stringify(note))
+  }
+})
+
 test('wire format unchanged: the prompt is what quoting into the draft used to give', () => {
   // Before UX-29 each Quote ran appendQuote on the draft, then the user typed below.
   let old = appendQuote('', 'cat')
