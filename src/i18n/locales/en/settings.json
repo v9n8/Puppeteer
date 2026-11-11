@@ -200,22 +200,14 @@
     "deleteMessage": "Delete this AWS account? Projects linked to it will be unlinked."
   },
   "claude": {
-    "intro": "Manage multiple Claude Code subscription logins. Each account is isolated in its own profile (CLAUDE_CONFIG_DIR), so you can run in parallel with different accounts and link a specific account per project.",
-    "securityNote": "Puppeteer never stores your Claude password or OAuth token — Claude Code owns the credential. Adding or removing an account here never touches your global ~/.claude login.",
     "login": "Login",
     "validate": "Validate",
     "setDefault": "Set as default",
     "default": "Default",
     "labelPlaceholder": "Account label (e.g. Work, Personal)",
     "addAccount": "Add account",
-    "addHint": "Creates a profile slot, then opens the browser to sign in to Claude for it.",
-    "accountAdded": "Claude account created",
-    "loginStarted": "Opened the browser to sign in to Claude — finish there and Puppeteer will pick it up automatically.",
     "loginWaitingHint": "Waiting for you to sign in in the browser…",
-    "loginManualLink": "Browser didn't open or didn't finish? Open the manual sign-in page",
-    "loginCodePlaceholder": "Paste the code from the sign-in page",
     "loginSubmitCode": "Send code",
-    "loginDetected": "Claude login detected {email}",
     "waitingLogin": "waiting for login…",
     "validReady": "Valid",
     "validNeedsLogin": "Not logged in yet — click Login to authenticate",
@@ -240,6 +232,47 @@
       "suggest": "Suggestion: switch the default to {account} to balance usage."
     }
   },
+  "accounts": {
+    "intro": "Sign in to several Claude (Pro/Max) and ChatGPT (Codex) subscriptions. Each account keeps its login in a profile of its own (CLAUDE_CONFIG_DIR for Claude, CODEX_HOME for Codex), so sessions can run on different accounts side by side and a project can be linked to one account.",
+    "securityShort": "Puppeteer never stores your passwords or tokens.",
+    "securityNote": "Claude Code and Codex keep the login in the account's own profile; Puppeteer never stores the password or OAuth token. Adding or removing an account here never touches your global ~/.claude or ~/.codex login.",
+    "typeClaude": "Claude",
+    "typeCodex": "Codex",
+    "sharedCodex": "Shared Codex login",
+    "sharedCodexHint": "The login in ~/.codex, made with codex login in a terminal. Codex sessions use it while no Codex account is the default.",
+    "signInAgain": "Sign in again",
+    "deleteCodexTitle": "Delete Codex account",
+    "deleteCodexMessage": "This removes the account and its login from Puppeteer, and projects linked to it go back to the default. Your global ~/.codex login is not affected.",
+    "add": {
+      "title": "Add account",
+      "stepType": "Type",
+      "stepName": "Name",
+      "stepSignIn": "Sign in",
+      "claude": "Claude (Pro/Max)",
+      "claudeDesc": "A Claude subscription, for Claude sessions.",
+      "codex": "ChatGPT (Codex)",
+      "codexDesc": "A ChatGPT plan, for Codex sessions.",
+      "claudeHint": "Creates a profile for the account, then opens the browser to sign in to Claude with it.",
+      "codexHint": "Creates a Codex home (CODEX_HOME) for the account, then runs codex login to sign in with ChatGPT in the browser.",
+      "next": "Next",
+      "signIn": "Sign in",
+      "done": "Done",
+      "retry": "Try again",
+      "cancelNote": "Cancelling now removes this account, as it has not signed in yet."
+    },
+    "login": {
+      "openPage": "Open the sign-in page",
+      "openAgain": "Open again",
+      "waitingCode": "Waiting for the code…",
+      "deviceCode": "Enter this code on the sign-in page",
+      "copyCode": "Copy code",
+      "pasteCode": "Page shows a code? Paste it here",
+      "useDeviceCode": "Browser can't reach Puppeteer? Use a device code instead",
+      "signedIn": "Signed in",
+      "signedInAs": "Signed in as {email}",
+      "notSignedIn": "The sign-in ended, but the account is still not signed in."
+    }
+  },
   "engines": {
     "claude": "Claude",
     "codex": "Codex",
@@ -253,7 +286,7 @@
     "claudePath": "Claude binary path",
     "codexPath": "Codex binary path",
     "extraArgs": "Extra args",
-    "extraArgsHint": "(applied to all runs)"
+    "extraArgsHint": "Applied to all runs."
   },
   "ai": {
     "sessionDefaults": "Defaults for new sessions",

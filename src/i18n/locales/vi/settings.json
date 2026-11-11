@@ -200,22 +200,14 @@
     "deleteMessage": "Xóa tài khoản AWS này? Các Project liên kết với nó sẽ bị hủy liên kết."
   },
   "claude": {
-    "intro": "Quản lý nhiều tài khoản Claude Code subscription. Mỗi tài khoản được tách riêng bằng profile (CLAUDE_CONFIG_DIR), nên bạn có thể chạy song song nhiều tài khoản và gán tài khoản cụ thể cho từng Project.",
-    "securityNote": "Puppeteer không lưu mật khẩu hay OAuth token Claude — Claude Code tự quản lý thông tin đăng nhập. Thêm hoặc xóa tài khoản ở đây không ảnh hưởng tới login ~/.claude toàn cục.",
     "login": "Đăng nhập",
     "validate": "Xác thực",
     "setDefault": "Đặt làm mặc định",
     "default": "Mặc định",
     "labelPlaceholder": "Nhãn tài khoản (ví dụ: Work, Personal)",
     "addAccount": "Thêm tài khoản",
-    "addHint": "Tạo một slot profile, sau đó trình duyệt sẽ mở để đăng nhập Claude cho profile đó.",
-    "accountAdded": "Đã tạo tài khoản Claude",
-    "loginStarted": "Đã mở trình duyệt để đăng nhập Claude — hoàn tất đăng nhập ở đó, Puppeteer sẽ tự cập nhật.",
     "loginWaitingHint": "Đang chờ bạn đăng nhập trên trình duyệt…",
-    "loginManualLink": "Trình duyệt không mở hoặc không tự xong? Mở trang đăng nhập thủ công",
-    "loginCodePlaceholder": "Dán mã từ trang đăng nhập",
     "loginSubmitCode": "Gửi mã",
-    "loginDetected": "Đã đăng nhập Claude {email}",
     "waitingLogin": "đang chờ đăng nhập…",
     "validReady": "Hợp lệ",
     "validNeedsLogin": "Chưa đăng nhập — bấm Đăng nhập để xác thực",
@@ -240,6 +232,47 @@
       "suggest": "Gợi ý: nên chuyển mặc định sang {account} để cân bằng mức dùng."
     }
   },
+  "accounts": {
+    "intro": "Đăng nhập nhiều gói Claude (Pro/Max) và ChatGPT (Codex). Mỗi tài khoản giữ đăng nhập trong profile riêng (CLAUDE_CONFIG_DIR cho Claude, CODEX_HOME cho Codex), nên các Session chạy song song được bằng nhiều tài khoản và mỗi Project gán được một tài khoản.",
+    "securityShort": "Puppeteer không lưu mật khẩu hay token của bạn.",
+    "securityNote": "Claude Code và Codex tự giữ thông tin đăng nhập trong profile riêng của tài khoản; Puppeteer không lưu mật khẩu hay OAuth token. Thêm hoặc xoá tài khoản ở đây không ảnh hưởng tới login ~/.claude hay ~/.codex toàn cục.",
+    "typeClaude": "Claude",
+    "typeCodex": "Codex",
+    "sharedCodex": "Login Codex chung",
+    "sharedCodexHint": "Login trong ~/.codex, tạo bằng codex login trong terminal. Session Codex dùng login này khi chưa có tài khoản Codex nào là mặc định.",
+    "signInAgain": "Đăng nhập lại",
+    "deleteCodexTitle": "Xoá tài khoản Codex",
+    "deleteCodexMessage": "Thao tác này gỡ tài khoản và thông tin đăng nhập của nó khỏi Puppeteer; các Project đang gán tài khoản này quay về mặc định. Login ~/.codex toàn cục không bị ảnh hưởng.",
+    "add": {
+      "title": "Thêm tài khoản",
+      "stepType": "Loại",
+      "stepName": "Tên",
+      "stepSignIn": "Đăng nhập",
+      "claude": "Claude (Pro/Max)",
+      "claudeDesc": "Gói Claude, dùng cho Session Claude.",
+      "codex": "ChatGPT (Codex)",
+      "codexDesc": "Gói ChatGPT, dùng cho Session Codex.",
+      "claudeHint": "Tạo profile riêng cho tài khoản, rồi mở trình duyệt để đăng nhập Claude bằng profile đó.",
+      "codexHint": "Tạo thư mục Codex riêng (CODEX_HOME) cho tài khoản, rồi chạy codex login để đăng nhập ChatGPT trên trình duyệt.",
+      "next": "Tiếp",
+      "signIn": "Đăng nhập",
+      "done": "Xong",
+      "retry": "Thử lại",
+      "cancelNote": "Huỷ lúc này sẽ xoá tài khoản vừa tạo, vì nó chưa đăng nhập."
+    },
+    "login": {
+      "openPage": "Mở trang đăng nhập",
+      "openAgain": "Mở lại",
+      "waitingCode": "Đang chờ mã…",
+      "deviceCode": "Nhập mã này trên trang đăng nhập",
+      "copyCode": "Sao chép mã",
+      "pasteCode": "Trang hiện mã? Dán vào đây",
+      "useDeviceCode": "Trình duyệt không về được Puppeteer? Dùng mã thiết bị",
+      "signedIn": "Đã đăng nhập",
+      "signedInAs": "Đã đăng nhập: {email}",
+      "notSignedIn": "Đăng nhập đã kết thúc nhưng tài khoản vẫn chưa đăng nhập."
+    }
+  },
   "engines": {
     "claude": "Claude",
     "codex": "Codex",
@@ -253,7 +286,7 @@
     "claudePath": "Đường dẫn binary Claude",
     "codexPath": "Đường dẫn binary Codex",
     "extraArgs": "Tham số bổ sung",
-    "extraArgsHint": "(áp dụng cho mọi lần chạy)"
+    "extraArgsHint": "Áp dụng cho mọi lần chạy."
   },
   "ai": {
     "sessionDefaults": "Mặc định session mới",

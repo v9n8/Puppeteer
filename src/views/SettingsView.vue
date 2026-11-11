@@ -28,6 +28,7 @@ import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useFeaturesStore } from '@/stores/features'
 import { SETTINGS_SECTIONS, settingsNav, type SettingsSectionId } from '@/lib/settingsSections'
 import { isConnectionTypeId, type ConnectionFilter } from '@/lib/connectionTypes'
@@ -76,13 +77,14 @@ function applySectionFromRoute() {
 applySectionFromRoute()
 watch(() => route.query.section, applySectionFromRoute)
 
-// Stores behind Connections (GitHub / GitLab / AWS) and Claude: fetched here, before
+// Stores behind Connections (GitHub / GitLab / AWS), Claude and Codex: fetched here, before
 // the skeleton goes, so their lists and the nav badge are filled on first paint.
 // Connections fetches Azure and Google itself; the badge counts every enabled type.
 const ghStore = useGithubAccountsStore()
 const glStore = useGitlabAccountsStore()
 const awsStore = useAwsAccountsStore()
 const claudeStore = useClaudeAccountsStore()
+const codexStore = useCodexAccountsStore()
 const { total: connectionsCount } = useConnectionSources()
 
 onMounted(async () => {
@@ -92,6 +94,7 @@ onMounted(async () => {
     await glStore.fetch()
     await awsStore.fetch()
     await claudeStore.fetch()
+    await codexStore.fetch()
     budget.refresh()
     unlistenPlanUsage = await listen<{ provider?: string }>('plan_usage_updated', (e) => {
       // Claude plan usage feeds the budget guardrail verdict — keep the badge synced.
