@@ -18,6 +18,13 @@ const STATUS_READY: &str = "ready";
 const STATUS_NEEDS_LOGIN: &str = "needs_login";
 const STATUS_ERROR: &str = "error";
 
+/// What an account's config dir shares with the global Claude config, so a
+/// session run under the account loads the same memory, skills, agents,
+/// commands, rules and settings as one run on the default login. The login
+/// (`.claude.json`, `.credentials.json`) and the transcripts (`projects/`) stay
+/// per account.
+const SHARED_CONFIG: &[&str] = &["CLAUDE.md", "skills", "agents", "commands", "rules", "settings.json"];
+
 #[derive(Debug, Serialize, Clone)]
 pub struct ClaudeAccount {
     pub id: String,
@@ -86,6 +93,71 @@ fn account_config_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
     Ok(claude_accounts_root(app)?.join(id))
 }
 
+/// The config dir the CLI reads when no account is picked: `CLAUDE_CONFIG_DIR`
+/// as Puppeteer itself was started, else `~/.claude`.
+fn global_claude_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("CLAUDE_CONFIG_DIR").filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(dir));
+    }
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude"))
+}
+
+/// Link the global config entries into an account's config dir. Runs on create,
+/// at startup and before every spawn under the account, so an entry added to the
+/// global config later is picked up. Never fails the caller: a link that can't
+/// be made is logged and the account runs without it.
+pub fn ensure_shared_config(config_dir: &Path) {
+    link_shared_config(config_dir, global_claude_dir().as_deref());
+}
+
+fn link_shared_config(config_dir: &Path, global: Option<&Path>) {
+    use crate::commands::project_links::{create_symlink, remove_link};
+    if !config_dir.is_dir() {
+        return;
+    }
+    let Some(global) = global.filter(|g| *g != config_dir) else {
+        return;
+    };
+    for name in SHARED_CONFIG {
+        let target = global.join(name);
+        if !target.exists() {
+            continue;
+        }
+        let dest = config_dir.join(name);
+        match std::fs::symlink_metadata(&dest) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                if std::fs::read_link(&dest).is_ok_and(|current| current == target) {
+                    continue;
+                }
+                // The account dir is Puppeteer's, so a link pointing elsewhere is ours to repoint.
+                if let Err(e) = remove_link(&dest) {
+                    tracing::warn!(event = "claude_account_link_failed", dir = %config_dir.display(), entry = name, error = %e);
+                    continue;
+                }
+            }
+            Ok(_) => {
+                tracing::warn!(event = "claude_account_link_kept_own", dir = %config_dir.display(), entry = name);
+                continue;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                tracing::warn!(event = "claude_account_link_failed", dir = %config_dir.display(), entry = name, error = %e);
+                continue;
+            }
+        }
+        if let Err(e) = create_symlink(&target, &dest) {
+            tracing::warn!(event = "claude_account_link_failed", dir = %config_dir.display(), entry = name, error = %e);
+        }
+    }
+}
+
+/// Startup pass over the accounts that already exist.
+pub async fn ensure_shared_config_all(db: &Db) {
+    for dir in account_config_dirs(db).await {
+        ensure_shared_config(Path::new(&dir));
+    }
+}
+
 fn claude_path_from_rows(rows: &[sqlx::sqlite::SqliteRow]) -> String {
     rows.iter()
         .find_map(|row| {
@@ -146,6 +218,7 @@ pub async fn create_claude_account(
     let id = Uuid::new_v4().to_string();
     let config_dir = account_config_dir(&app, &id)?;
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    ensure_shared_config(&config_dir);
 
     let now = chrono::Utc::now().to_rfc3339();
     let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM claude_accounts")
@@ -1045,5 +1118,124 @@ mod auto_balance_tests {
         assert!(!auto_balance_enabled(&db_with(None).await).await);
         assert!(auto_balance_enabled(&db_with(Some("true")).await).await);
         assert!(!auto_balance_enabled(&db_with(Some("false")).await).await);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod shared_config_tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        // Spaces, quotes, `$` and non-ASCII, as a HOME might have.
+        let dir = std::env::temp_dir().join(format!("puppeteer claude's $acct ü-{}-{name}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn global_with_everything(root: &Path) -> PathBuf {
+        let global = root.join(".claude");
+        for d in ["skills", "agents", "commands", "rules", "projects", "backups"] {
+            std::fs::create_dir_all(global.join(d)).unwrap();
+        }
+        for f in ["CLAUDE.md", "settings.json", ".claude.json", ".credentials.json"] {
+            std::fs::write(global.join(f), f).unwrap();
+        }
+        global
+    }
+
+    #[test]
+    fn links_the_shared_entries_only() {
+        let root = scratch("links");
+        let global = global_with_everything(&root);
+        let acct = root.join("acct");
+        std::fs::create_dir_all(&acct).unwrap();
+
+        link_shared_config(&acct, Some(&global));
+        for name in SHARED_CONFIG {
+            assert_eq!(std::fs::read_link(acct.join(name)).unwrap(), global.join(name), "{name}");
+        }
+        for own in ["projects", "backups", ".claude.json", ".credentials.json"] {
+            assert!(std::fs::symlink_metadata(acct.join(own)).is_err(), "{own}");
+        }
+        // Through the link the CLI reads the global file.
+        assert_eq!(std::fs::read_to_string(acct.join("CLAUDE.md")).unwrap(), "CLAUDE.md");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_source_is_skipped_until_it_appears() {
+        let root = scratch("missing");
+        let global = root.join(".claude");
+        std::fs::create_dir_all(&global).unwrap();
+        let acct = root.join("acct");
+        std::fs::create_dir_all(&acct).unwrap();
+
+        link_shared_config(&acct, Some(&global));
+        assert_eq!(std::fs::read_dir(&acct).unwrap().count(), 0);
+
+        std::fs::create_dir_all(global.join("skills")).unwrap();
+        link_shared_config(&acct, Some(&global));
+        assert_eq!(std::fs::read_link(acct.join("skills")).unwrap(), global.join("skills"));
+        assert!(std::fs::symlink_metadata(acct.join("agents")).is_err());
+
+        // No global config at all, or a missing account dir: nothing happens.
+        link_shared_config(&acct, None);
+        link_shared_config(&root.join("gone"), Some(&global));
+        assert!(!root.join("gone").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn own_file_is_kept() {
+        let root = scratch("own");
+        let global = global_with_everything(&root);
+        let acct = root.join("acct");
+        std::fs::create_dir_all(acct.join("skills")).unwrap();
+        std::fs::write(acct.join("skills/mine.md"), "mine").unwrap();
+        std::fs::write(acct.join("CLAUDE.md"), "mine").unwrap();
+
+        link_shared_config(&acct, Some(&global));
+        assert_eq!(std::fs::read_to_string(acct.join("CLAUDE.md")).unwrap(), "mine");
+        assert_eq!(std::fs::read_to_string(acct.join("skills/mine.md")).unwrap(), "mine");
+        assert!(!crate::commands::project_links::is_symlink(&acct.join("skills")));
+        assert_eq!(std::fs::read_link(acct.join("agents")).unwrap(), global.join("agents"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn wrong_or_dangling_link_is_repointed() {
+        let root = scratch("repoint");
+        let global = global_with_everything(&root);
+        let acct = root.join("acct");
+        std::fs::create_dir_all(&acct).unwrap();
+        let elsewhere = root.join("old-skills");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, acct.join("skills")).unwrap();
+        std::os::unix::fs::symlink(root.join("gone.md"), acct.join("CLAUDE.md")).unwrap();
+
+        link_shared_config(&acct, Some(&global));
+        assert_eq!(std::fs::read_link(acct.join("skills")).unwrap(), global.join("skills"));
+        assert_eq!(std::fs::read_link(acct.join("CLAUDE.md")).unwrap(), global.join("CLAUDE.md"));
+        assert!(elsewhere.is_dir(), "only the link is replaced");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn running_twice_changes_nothing() {
+        let root = scratch("twice");
+        let global = global_with_everything(&root);
+        let acct = root.join("acct");
+        std::fs::create_dir_all(&acct).unwrap();
+
+        link_shared_config(&acct, Some(&global));
+        link_shared_config(&acct, Some(&global));
+        for name in SHARED_CONFIG {
+            assert_eq!(std::fs::read_link(acct.join(name)).unwrap(), global.join(name), "{name}");
+        }
+        assert_eq!(std::fs::read_dir(&acct).unwrap().count(), SHARED_CONFIG.len());
+        // The global dir itself is never linked into itself.
+        link_shared_config(&global, Some(&global));
+        assert!(!crate::commands::project_links::is_symlink(&global.join("skills")));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

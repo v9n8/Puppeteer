@@ -54,6 +54,7 @@ pub fn apply_claude_config_dir(cmd: &mut tokio::process::Command, config_dir: Op
     for key in CLAUDE_AUTH_OVERRIDE_ENV {
         cmd.env_remove(key);
     }
+    crate::commands::claude_accounts::ensure_shared_config(Path::new(config_dir));
     cmd.env("CLAUDE_CONFIG_DIR", config_dir);
 }
 

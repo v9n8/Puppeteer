@@ -453,13 +453,13 @@ fn remove_copy(dest: &Path) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn create_symlink(target: &Path, dest: &Path) -> Result<(), String> {
+pub(crate) fn create_symlink(target: &Path, dest: &Path) -> Result<(), String> {
     std::os::unix::fs::symlink(target, dest)
         .map_err(|e| format!("Cannot create symlink {} → {}: {}", dest.display(), target.display(), e))
 }
 
 #[cfg(windows)]
-fn create_symlink(target: &Path, dest: &Path) -> Result<(), String> {
+pub(crate) fn create_symlink(target: &Path, dest: &Path) -> Result<(), String> {
     let result = if target.is_dir() {
         std::os::windows::fs::symlink_dir(target, dest)
     } else {
@@ -476,12 +476,12 @@ fn create_symlink(target: &Path, dest: &Path) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn remove_link(dest: &Path) -> std::io::Result<()> {
+pub(crate) fn remove_link(dest: &Path) -> std::io::Result<()> {
     fs::remove_file(dest)
 }
 
 #[cfg(windows)]
-fn remove_link(dest: &Path) -> std::io::Result<()> {
+pub(crate) fn remove_link(dest: &Path) -> std::io::Result<()> {
     // Directory symlinks are directories to the Windows API.
     fs::remove_file(dest).or_else(|_| fs::remove_dir(dest))
 }

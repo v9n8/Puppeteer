@@ -289,6 +289,13 @@ pub fn run() {
                     commands::session_search::catch_up(&db).await;
                 });
             }
+            // Claude accounts made before UX-32 get the global config linked in.
+            {
+                let db = db.clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::claude_accounts::ensure_shared_config_all(&db).await;
+                });
+            }
             // Background-process tracker: sweeps what a previous session left
             // behind, then follows every process Puppeteer spawns from here on.
             procs::commands::install(app, &app_data_dir);
