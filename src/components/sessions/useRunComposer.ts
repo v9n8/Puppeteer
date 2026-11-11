@@ -900,6 +900,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   const composerEl = ref<HTMLTextAreaElement | null>(null)
   const projectFiles = ref<ProjectEntry[]>([])
   const projectFilesPath = ref<string | null>(null)
+  // Bumped whenever the list changes. The log's v-memo keys on it, so finalized
+  // messages re-run file-link detection when the list arrives late or grows.
+  const fileListVersion = ref(0)
   const mentionOpen = ref(false)
   const mentionQuery = ref('')
   const mentionStart = ref(0) // index of the `@` in followUpInput
@@ -963,13 +966,27 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     // `force` is passed when a new @-mention session starts so newly-added files
     // (e.g. a file just copied into the folder) show up without a reload.
     if (!force && projectFilesPath.value === path && projectFiles.value.length) return
+    let next: ProjectEntry[] = []
+    let ok = false
     try {
-      projectFiles.value = await runsStore.listProjectFiles(path)
-      projectFilesPath.value = path
-    } catch {
-      projectFiles.value = []
-    }
+      next = await runsStore.listProjectFiles(path)
+      ok = true
+    } catch { /* treated as an empty list */ }
+    // The usual reload after a turn finds the same files: keep the list as is,
+    // so the whole log isn't re-rendered for nothing.
+    const prev = projectFiles.value
+    const same = projectFilesPath.value === path && prev.length === next.length &&
+      prev.every((e, i) => e.path === next[i].path && e.is_dir === next[i].is_dir)
+    if (ok) projectFilesPath.value = path
+    if (same) return
+    projectFiles.value = next
+    fileListVersion.value++
   }
+
+  // A turn that just ended may have created files: reload so they link.
+  watch([currentRunId, currentStatus], ([id, status], [prevId, prevStatus]) => {
+    if (id === prevId && prevStatus === 'running' && status !== 'running') ensureProjectFiles(true)
+  })
 
   // ── Opening a file ────────────────────────────────────────────────────────
   // Every file opens in its own OS window (FileViewerWindow), never in a modal
@@ -984,7 +1001,19 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Resolve a raw inline-code token (e.g. `src/foo.ts` or just `foo.ts`) to a
   // project file path, or null when it doesn't name a real file.
   function fileMatcher(raw: string): string | null {
-    return matchProjectFile(raw, projectFileSet.value)
+    return matchProjectFile(raw, projectFileSet.value, project.value?.path)
+  }
+
+  /** Whether `path` (absolute, or relative to the project) is a file the viewer can open. */
+  async function fileExists(path: string): Promise<boolean> {
+    const projectPath = project.value?.path
+    if (!projectPath || !path) return false
+    try {
+      const [hit] = await runsStore.statPaths(projectPath, [path])
+      return !!hit
+    } catch {
+      return false
+    }
   }
 
   /** Show a file (optionally scrolled to `line`) in its own window. */
@@ -1571,7 +1600,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
     toggleComposerExpand, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
-    selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, openFile, mentionItems,
+    selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
     handleCancel, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,

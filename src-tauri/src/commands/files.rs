@@ -74,6 +74,40 @@ pub async fn read_project_file(
         .map_err(|e| format!("join error: {e}"))?
 }
 
+/// Cap on one `stat_paths` call, so a long answer can't make it stat without end.
+const MAX_STAT_PATHS: usize = 500;
+
+/// Which of `paths` name a file the viewer could open, in input order. Lets a
+/// link that the project file list doesn't know (a file outside the project, a
+/// `.gitignore`d one, one created since the list loaded) open only when it is
+/// real. Same confinement as [`read_project_file`]: a path it would refuse
+/// reads as `false`, and only yes/no comes back, never contents.
+#[tauri::command]
+pub async fn stat_paths(
+    webview: tauri::Webview,
+    db: State<'_, Db>,
+    project_path: String,
+    paths: Vec<String>,
+) -> Result<Vec<bool>, String> {
+    if paths.len() > MAX_STAT_PATHS {
+        return Err(format!("Too many paths (max {MAX_STAT_PATHS})"));
+    }
+    let policy = RemoteFs::for_caller(&webview, db.inner()).await?;
+    tokio::task::spawn_blocking(move || stat_within(&project_path, &paths, policy.as_ref()))
+        .await
+        .map_err(|e| format!("join error: {e}"))?
+}
+
+fn stat_within(project_path: &str, paths: &[String], policy: Option<&RemoteFs>) -> Result<Vec<bool>, String> {
+    let root = Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))?;
+    Ok(paths
+        .iter()
+        .map(|p| resolve_readable(&root, p, policy).is_ok_and(|c| c.is_file()))
+        .collect())
+}
+
 /// True when `path` lives under one of the shared AI transcript stores
 /// (`~/.claude` or `~/.codex`). These hold the session logs Puppeteer mirrors, so
 /// the file viewer is allowed to read them even though they sit outside any
@@ -131,11 +165,9 @@ fn preview_allows(root: &Path, path: &Path) -> bool {
         || temp_root_allows(path)
 }
 
-fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -> Result<FileContent, String> {
-    let root = Path::new(project_path)
-        .canonicalize()
-        .map_err(|e| format!("invalid project path: {e}"))?;
-
+/// Resolve `file_path` (absolute, or relative to the canonical `root`) to the
+/// canonical path the viewer may read, or why it may not.
+fn resolve_readable(root: &Path, file_path: &str, policy: Option<&RemoteFs>) -> Result<PathBuf, String> {
     // Resolve the requested path: absolute as-is, relative against the root.
     let requested = Path::new(file_path);
     let joined: PathBuf = if requested.is_absolute() {
@@ -157,11 +189,19 @@ fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -
         Some(p) => {
             p.read(&canonical)?;
         }
-        None if !preview_allows(&root, &canonical) => {
+        None if !preview_allows(root, &canonical) => {
             return Err("Refusing to read a file outside the project".to_string());
         }
         None => {}
     }
+    Ok(canonical)
+}
+
+fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -> Result<FileContent, String> {
+    let root = Path::new(project_path)
+        .canonicalize()
+        .map_err(|e| format!("invalid project path: {e}"))?;
+    let canonical = resolve_readable(&root, file_path, policy)?;
     if canonical.is_dir() {
         return Err(format!("{file_path} is a directory, not a file"));
     }
@@ -1025,6 +1065,32 @@ mod tests {
         // The local UI is unaffected.
         assert_eq!(read_within(home_s, ".ssh/id_rsa", None).unwrap().content, "KEY");
         assert_eq!(std::fs::read_to_string(home.join(".ssh/id_rsa")).unwrap(), "KEY");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// `stat_paths` says yes only to what the viewer could open: a file in the
+    /// project (relative or absolute), never a folder, a missing file or a
+    /// refused path. A remote desktop stays held to its allowlist (`..`, links).
+    #[cfg(unix)]
+    #[test]
+    fn stat_paths_follows_the_read_rules() {
+        use crate::remote::fs_policy::Roots;
+        let (base, proj) = tree_fixture();
+        std::fs::create_dir(proj.join("src")).unwrap();
+        std::fs::write(proj.join("src/a.ts"), "a").unwrap();
+        std::fs::write(base.join("outside/x.txt"), "x").unwrap();
+        std::os::unix::fs::symlink(base.join("outside/x.txt"), proj.join("link")).unwrap();
+        let proj_s = proj.to_str().unwrap();
+        let abs = proj.join("src/a.ts").to_string_lossy().into_owned();
+        let strings = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        let local = strings(&["src/a.ts", &abs, "src", "src/missing.ts", "/etc/hosts"]);
+        assert_eq!(stat_within(proj_s, &local, None).unwrap(), [true, true, false, false, false]);
+
+        let roots = Roots { writable: vec![proj.clone()], ..Roots::default() };
+        let policy = RemoteFs::new(roots, None, crate::remote::guard::SecretPaths::new(None, None));
+        let remote = strings(&["src/a.ts", &abs, "../outside/x.txt", "link"]);
+        assert_eq!(stat_within(proj_s, &remote, Some(&policy)).unwrap(), [true, true, false, false]);
         let _ = std::fs::remove_dir_all(&base);
     }
 

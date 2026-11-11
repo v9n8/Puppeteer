@@ -17,7 +17,7 @@ import { turnCounterLabel } from '@/lib/turnPosition'
 import { forkSource } from '@/lib/runFork'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
-import { parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
+import { hrefFileRef, parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
 import { useRunSession } from './useRunSession'
 import { useUILayoutStore } from '@/stores/uiLayout'
 
@@ -34,7 +34,7 @@ const {
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
-  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, openFile, quoteSets, quoteReveal,
+  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, fileListVersion, openFile, quoteSets, quoteReveal,
   jumpToQuote, runsStore, loadRunLog, isSessionWindow, session,
 } = useRunSession()
 // A fork names the session it came from, and opens it (not from a pop-out,
@@ -60,7 +60,7 @@ function onProseClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   const code = target.closest('code.file-link') as HTMLElement | null
   const path = code?.getAttribute('data-file-path')
-  if (path) { e.preventDefault(); openFile(path); return }
+  if (path) { e.preventDefault(); openFile(path, parseLineRef(code?.textContent ?? '')); return }
   // Markdown link: prevent the webview from navigating (relative hrefs blank
   // the SPA). Open project files in the viewer, external URLs in the browser.
   const anchor = target.closest('a') as HTMLAnchorElement | null
@@ -69,8 +69,12 @@ function onProseClick(e: MouseEvent) {
     const href = anchor.getAttribute('href') ?? ''
     if (!href) return
     if (/^(https?:|mailto:)/i.test(href)) { onOpenUrl(href); return }
-    const fp = fileMatcher(href.replace(/#.*$/, ''))
-    if (fp) openFile(fp, parseLineRef(href))
+    const ref = hrefFileRef(href)
+    if (!ref) return
+    const fp = fileMatcher(ref.path)
+    if (fp) { openFile(fp, ref.line); return }
+    // Not in the project list: open it only when it is a real file.
+    void fileExists(ref.path).then((ok) => { if (ok) openFile(ref.path, ref.line) })
   }
 }
 
@@ -387,6 +391,8 @@ function onOpenUrl(url: string) {
             :running="false"
             :render-text="renderText"
             :file-matcher="fileMatcher"
+            :file-exists="fileExists"
+            :file-list-version="fileListVersion"
             group-steps
             :steps-expanded="uiLayout.stepsExpanded"
             :find-query="findOpen ? runFind.query.value : ''"
@@ -436,6 +442,8 @@ function onOpenUrl(url: string) {
           :live-status="session?.liveStatus ?? null"
           :render-text="renderText"
           :file-matcher="fileMatcher"
+          :file-exists="fileExists"
+          :file-list-version="fileListVersion"
           group-steps
           :steps-expanded="uiLayout.stepsExpanded"
           :find-query="findOpen ? runFind.query.value : ''"

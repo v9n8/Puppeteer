@@ -25,6 +25,7 @@ import {
 } from '@/lib/turnActivity'
 import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
 import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
+import { hrefFileRef, parseLineRef, splitLineRef } from '@/lib/fileLinks'
 
 const { t } = useI18n()
 
@@ -37,6 +38,10 @@ const props = defineProps<{
   renderText: (md: string, skipCache?: boolean) => string
   /** Resolve a raw inline-code token to a project file path, or null. */
   fileMatcher?: (raw: string) => string | null
+  /** Whether a link the matcher doesn't know names a real file (asked on click). */
+  fileExists?: (path: string) => Promise<boolean>
+  /** Bumped when the project file list reloads, so finalized entries re-link. */
+  fileListVersion?: number
   /** No row of buttons under each turn (the whole-turn fullscreen nests a log). */
   noTurnActions?: boolean
   /** Fold each turn's tool calls, thinking and commentary under one header. */
@@ -64,13 +69,6 @@ function toggleCompact(i: number) {
   const next = new Set(expandedCompacts.value)
   next.has(i) ? next.delete(i) : next.add(i)
   expandedCompacts.value = next
-}
-
-// Pull a 1-based line number from a link target like `foo.ts#L635`,
-// `foo.ts#L177-L189`, or `foo.ts:635`. Returns null when there's none.
-function parseLineRef(ref: string): number | null {
-  const m = ref.match(/#L?(\d+)/i) ?? ref.match(/:(\d+)(?:-\d+)?$/)
-  return m ? parseInt(m[1], 10) : null
 }
 
 // Directive: mark inline `<code>` tokens that name a real project file so they
@@ -103,7 +101,7 @@ function onProseClick(e: MouseEvent) {
   const codePath = code?.getAttribute('data-file-path')
   if (codePath) {
     e.preventDefault()
-    emit('open-file', codePath)
+    emit('open-file', codePath, parseLineRef(code?.textContent ?? ''))
     return
   }
   // Markdown link: never let the webview follow it (a relative href blanks the
@@ -117,8 +115,18 @@ function onProseClick(e: MouseEvent) {
       emit('open-url', href)
       return
     }
-    const path = props.fileMatcher?.(href.replace(/#.*$/, '')) ?? null
-    if (path) emit('open-file', path, parseLineRef(href))
+    const ref = hrefFileRef(href)
+    if (!ref) return
+    const path = props.fileMatcher?.(ref.path) ?? null
+    if (path) {
+      emit('open-file', path, ref.line)
+      return
+    }
+    // Not in the project list (outside the project, ignored, or created after
+    // the list loaded): open it only when it is a real file.
+    void props.fileExists?.(ref.path).then((ok) => {
+      if (ok) emit('open-file', ref.path, ref.line)
+    })
   }
 }
 
@@ -470,6 +478,7 @@ function toggle(i: number) {
 interface TextSegment {
   text: string
   path?: string
+  line?: number | null
 }
 
 // Clickable file token in a user message, matched as either:
@@ -493,7 +502,8 @@ function userSegments(text: string): TextSegment[] {
     // Branch 1: backticked absolute path — attachment reference, always linked.
     if (m[1] !== undefined) {
       if (m.index > last) segs.push({ text: text.slice(last, m.index) })
-      segs.push({ text: m[1], path: m[1] })
+      const ref = splitLineRef(m[1])
+      segs.push({ text: m[1], path: ref.path, line: ref.line })
       last = m.index + m[0].length
       continue
     }
@@ -506,7 +516,7 @@ function userSegments(text: string): TextSegment[] {
     const path = match(core)
     if (!path) continue
     if (m.index > last) segs.push({ text: text.slice(last, m.index) })
-    segs.push({ text: '@' + core, path })
+    segs.push({ text: '@' + core, path, line: parseLineRef(core) })
     const trailing = raw.slice(core.length)
     if (trailing) segs.push({ text: trailing })
     last = m.index + m[0].length
@@ -1044,7 +1054,7 @@ function toolResult(e: StreamEntry): unknown {
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
         :class="{ 'stream-entry': running && i !== entries.length - 1, 'turn-step-wrap': stepClass(i) === 'turn-step' }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry)]"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry), fileListVersion]"
       >
       <div :class="stepClass(i)">
       <!-- System init banner -->
@@ -1115,7 +1125,7 @@ function toolResult(e: StreamEntry): unknown {
                   class="font-medium text-primary cursor-pointer underline decoration-dotted underline-offset-2 hover:text-primary/75"
                   :title="t('streamLog.openFile', { path: seg.path })"
                   role="button"
-                  @click="emit('open-file', seg.path!)"
+                  @click="emit('open-file', seg.path!, seg.line)"
                 >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
           </CollapsibleMessage>
         </div>
@@ -1758,6 +1768,8 @@ function toolResult(e: StreamEntry): unknown {
           :entries="fullscreen.entries"
           :render-text="renderText"
           :file-matcher="fileMatcher"
+          :file-exists="fileExists"
+          :file-list-version="fileListVersion"
           @open-file="(path, line) => emit('open-file', path, line)"
           @open-url="(url) => emit('open-url', url)"
         />

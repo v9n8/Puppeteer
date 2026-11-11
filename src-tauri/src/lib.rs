@@ -43,7 +43,7 @@ use commands::file_tree_watcher::{
 use commands::files::{
     copy_entry, create_dir, create_file, delete_entry, import_external_entries, list_dir,
     list_project_files, move_entry, start_file_drag,
-    read_file_base64, read_project_file, rename_entry, write_project_file,
+    read_file_base64, read_project_file, rename_entry, stat_paths, write_project_file,
 };
 use commands::github::{
     fetch_issue, fetch_pr, list_milestone_board, list_milestone_issues,
@@ -686,6 +686,7 @@ pub fn run() {
             set_file_tree_watch,
             stop_file_tree_watch,
             read_project_file,
+            stat_paths,
             write_project_file,
             read_file_base64,
             create_dir,

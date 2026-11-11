@@ -92,6 +92,8 @@ function useRunViewLifecycle(s: RunSession) {
     // order; later background refetches keep the rows where they are.
     await runsStore.fetchRuns(projectId.value, { keepOrder: false })
     // Preload the project file list so inline-code mentions resolve to links.
+    // Not awaited: walking a big repo must not hold back the log, which re-links
+    // its messages when the list lands (fileListVersion).
     ensureProjectFiles().catch(() => {})
     if (activeRunId.value) {
       const searchHit = hitFromRouteQuery(route.query)

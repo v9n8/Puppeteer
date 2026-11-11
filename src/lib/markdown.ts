@@ -60,6 +60,9 @@ export function useMarkdown() {
     try {
       const MarkdownIt = (await import('markdown-it')).default
       _md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: true })
+      // Only link text that carries a scheme. Fuzzy matching read `README.md` and
+      // `main.rs` as domains (.md, .rs are country codes) and opened the browser.
+      _md.linkify.set({ fuzzyLink: false })
       applyMermaidFence(_md)
       guardMarkdownImages(_md)
       mdReady.value = true

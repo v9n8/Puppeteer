@@ -586,6 +586,12 @@ export const useRunsStore = defineStore('runs', () => {
     return invoke<FileContent>('read_project_file', { projectPath: project_path, filePath: file_path })
   }
 
+  // Which of `paths` (absolute, or relative to the project) name a file the
+  // viewer could open, in input order.
+  async function statPaths(project_path: string, paths: string[]): Promise<boolean[]> {
+    return invoke<boolean[]>('stat_paths', { projectPath: project_path, paths })
+  }
+
   // Overwrite a project text file with edited contents from the file viewer.
   async function writeProjectFile(project_path: string, file_path: string, content: string): Promise<void> {
     await invoke('write_project_file', { projectPath: project_path, filePath: file_path, content })
@@ -752,7 +758,7 @@ export const useRunsStore = defineStore('runs', () => {
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, steerRun, endRunInput,
     listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, listRunQuotes, exportTranscript,
-    listProjectFiles, readProjectFile, writeProjectFile, listDir,
+    listProjectFiles, readProjectFile, statPaths, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun, forkRun,
     reconcileClaudeSessions, reconcileCodexSessions,
