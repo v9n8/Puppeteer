@@ -35,6 +35,8 @@ const props = withDefaults(
     emptyHint?: string
     /** Hide the folder headers when there is a single group. */
     flatWhenSingle?: boolean
+    /** False drops "+ New" (Library: the files are made elsewhere). */
+    addable?: boolean
   }>(),
   {
     newLabel: '',
@@ -46,6 +48,7 @@ const props = withDefaults(
     emptyTitle: '',
     emptyHint: '',
     flatWhenSingle: true,
+    addable: true,
   },
 )
 
@@ -122,11 +125,11 @@ function showHeaders(): boolean {
         </div>
         <slot name="toolbar" />
       </div>
-      <div class="flex items-center gap-1.5">
+      <div v-if="addable || $slots.controls" class="flex items-center gap-1.5">
         <div class="min-w-0 flex-1">
           <slot name="controls" />
         </div>
-        <Button size="sm" class="shrink-0" @click="emit('add')">
+        <Button v-if="addable" size="sm" class="shrink-0" @click="emit('add')">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
           {{ newLabel || t('common.new') }}
         </Button>

@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import SkillsView from '../views/SkillsView.vue'
-import RulesView from '../views/RulesView.vue'
+import LibraryView from '../views/LibraryView.vue'
 import McpServersView from '../views/McpServersView.vue'
 import ServersView from '../views/ServersView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
@@ -19,15 +18,13 @@ import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
-import LibraryItemsView from '../views/LibraryItemsView.vue'
-import ConfigImportView from '../views/ConfigImportView.vue'
 import SchedulesView from '../views/SchedulesView.vue'
 import TrashView from '../views/TrashView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
 
-// Skills / Rules / MCP / Servers edit in their list's detail pane now; the old
+// MCP / Servers edit in their list's detail pane now; the old
 // editor URLs redirect there so stale links keep working.
 function editorRedirects(base: string): RouteRecordRaw[] {
   return [
@@ -40,15 +37,14 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: '/projects' },
-    { path: '/skills', name: 'skills', component: SkillsView },
-    ...editorRedirects('/skills'),
-    { path: '/rules', name: 'rules', component: RulesView },
-    ...editorRedirects('/rules'),
-    { path: '/agents', name: 'agents', component: LibraryItemsView, props: { kind: 'agent' } },
-    { path: '/commands', name: 'commands', component: LibraryItemsView, props: { kind: 'command' } },
+    { path: '/library', name: 'library', component: LibraryView },
+    // The Library replaced these screens (UX-54); old links, editor URLs included, land on it.
+    ...['/skills', '/rules', '/agents', '/commands', '/import'].map((base) => ({
+      path: `${base}/:rest(.*)*`,
+      redirect: '/library',
+    })),
     { path: '/mcp', name: 'mcp', component: McpServersView },
     ...editorRedirects('/mcp'),
-    { path: '/import', name: 'config-import', component: ConfigImportView },
     { path: '/servers', name: 'servers', component: ServersView },
     ...editorRedirects('/servers'),
     { path: '/projects', name: 'projects', component: ProjectsView },

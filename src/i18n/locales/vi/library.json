@@ -1,0 +1,60 @@
+{
+  "title": "Thư viện",
+  "subtitle": "Skills · Rules · Commands · Agents",
+  "tabGlobal": "Global",
+  "tabProject": "Theo project",
+  "expandProjects": "Hiện danh sách project",
+  "collapseProjects": "Thu gọn danh sách project",
+  "noProjects": "Chưa có project. Thêm ở trang Project.",
+  "searchPlaceholder": "Tìm tên hoặc mô tả…",
+  "emptyTitle": "Chưa có gì ở đây",
+  "emptyHint": "Skill, rule, command và agent mà CLI đọc ở chỗ này sẽ hiện ở đây.",
+  "noSelection": "Chọn một skill, rule, command hoặc agent để xem file",
+  "kind": {
+    "skill": "Skills",
+    "rule": "Rules",
+    "command": "Commands",
+    "agent": "Agents"
+  },
+  "engine": {
+    "claude": "Claude",
+    "codex": "Codex"
+  },
+  "status": {
+    "git_tracked": "Trong git",
+    "puppeteer_link": "Link Puppeteer",
+    "symlink": "Symlink"
+  },
+  "statusHint": {
+    "git_tracked": "Đã commit trong repo của project: thay đổi sẽ vào commit",
+    "puppeteer_link": "Link về thư viện cũ của Puppeteer: thay đổi áp dụng cho mọi project dùng nó",
+    "symlink": "Là link: thay đổi sẽ sửa file mà link trỏ tới"
+  },
+  "preview": "Xem trước",
+  "editor": "Soạn thảo",
+  "saveHint": "Lưu (⌘S)",
+  "saving": "Đang lưu…",
+  "saved": "Đã lưu",
+  "unsaved": "Chưa lưu",
+  "duplicate": "Duplicate sang Global",
+  "duplicateHint": "Copy vào thư mục global, dùng cho mọi project",
+  "duplicateSaveFirst": "Lưu thay đổi trước đã",
+  "duplicated": "Đã duplicate sang Global: {path}",
+  "duplicateExistsTitle": "Global đã có",
+  "duplicateExistsMessage": "Global đã có \"{name}\". Ghi đè? File global sẽ vào Thùng rác (nếu là link thì chỉ gỡ link).",
+  "puppeteerLinkWarning": "Sửa sẽ đổi ở mọi project dùng mục này.",
+  "conflict": "File đã đổi trên đĩa từ lúc mở.",
+  "reloadDiscard": "Tải lại (bỏ thay đổi của tôi)",
+  "overwrite": "Ghi đè",
+  "discardTitle": "Bỏ thay đổi?",
+  "discardMessage": "File này có thay đổi chưa lưu. Chúng sẽ mất.",
+  "discard": "Bỏ",
+  "deleteTitle": "Xoá {name}?",
+  "deleteLinkMessage": "Gỡ link {path}.\nFile mà link trỏ tới vẫn giữ nguyên: {target}",
+  "deleteSkillMessage": "Đưa thư mục skill {path} vào Thùng rác.",
+  "deleteFileMessage": "Đưa {path} vào Thùng rác.",
+  "removeLink": "Gỡ link",
+  "moveToTrash": "Đưa vào Thùng rác",
+  "linkRemoved": "Đã gỡ link",
+  "movedToTrash": "Đã đưa vào Thùng rác"
+}

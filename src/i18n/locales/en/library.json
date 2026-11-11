@@ -1,0 +1,60 @@
+{
+  "title": "Library",
+  "subtitle": "Skills · Rules · Commands · Agents",
+  "tabGlobal": "Global",
+  "tabProject": "By project",
+  "expandProjects": "Show the project list",
+  "collapseProjects": "Collapse the project list",
+  "noProjects": "No project yet. Add one on the Projects page.",
+  "searchPlaceholder": "Search name or description…",
+  "emptyTitle": "Nothing here yet",
+  "emptyHint": "Skills, rules, commands and agents the CLIs read from this place show up here.",
+  "noSelection": "Pick a skill, rule, command or agent to see its file",
+  "kind": {
+    "skill": "Skills",
+    "rule": "Rules",
+    "command": "Commands",
+    "agent": "Agents"
+  },
+  "engine": {
+    "claude": "Claude",
+    "codex": "Codex"
+  },
+  "status": {
+    "git_tracked": "In git",
+    "puppeteer_link": "Puppeteer link",
+    "symlink": "Symlink"
+  },
+  "statusHint": {
+    "git_tracked": "Committed to the project's repo: a change ends up in a commit",
+    "puppeteer_link": "A link into Puppeteer's old library: a change applies to every project using it",
+    "symlink": "A link: a change edits the file it points at"
+  },
+  "preview": "Preview",
+  "editor": "Editor",
+  "saveHint": "Save (⌘S)",
+  "saving": "Saving…",
+  "saved": "Saved",
+  "unsaved": "Unsaved",
+  "duplicate": "Duplicate to Global",
+  "duplicateHint": "Copy it into your global folder, for every project",
+  "duplicateSaveFirst": "Save your changes first",
+  "duplicated": "Duplicated to Global: {path}",
+  "duplicateExistsTitle": "Already in Global",
+  "duplicateExistsMessage": "Global already has \"{name}\". Overwrite it? The global file goes to the Trash (a link is only removed).",
+  "puppeteerLinkWarning": "Editing changes this in every project that uses it.",
+  "conflict": "The file changed on disk since it was opened.",
+  "reloadDiscard": "Reload (drop my changes)",
+  "overwrite": "Overwrite",
+  "discardTitle": "Discard changes?",
+  "discardMessage": "This file has unsaved changes. They will be lost.",
+  "discard": "Discard",
+  "deleteTitle": "Delete {name}?",
+  "deleteLinkMessage": "Removes the link {path}.\nWhat it points at stays: {target}",
+  "deleteSkillMessage": "Moves the skill folder {path} to the Trash.",
+  "deleteFileMessage": "Moves {path} to the Trash.",
+  "removeLink": "Remove link",
+  "moveToTrash": "Move to Trash",
+  "linkRemoved": "Link removed",
+  "movedToTrash": "Moved to the Trash"
+}
