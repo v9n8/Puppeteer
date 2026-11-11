@@ -420,7 +420,9 @@
 
 .markdown-output code {
   font-family: var(--font-mono);
-  font-size: 0.8em;
+  /* Close to the text around it: at 0.8em a mono x-height reads a size smaller
+   * than the sentence, and falls under 13px at the default conversation size. */
+  font-size: max(13px, 0.9em);
   background: hsl(var(--muted));
   border: 1px solid hsl(var(--border) / 0.7);
   padding: 0.08rem 0.35rem;
