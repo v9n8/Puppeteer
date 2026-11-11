@@ -82,12 +82,14 @@ pub fn apply_mcp_tool_timeout(cmd: &mut tokio::process::Command) {
 }
 
 /// Map a Puppeteer permission mode onto a permission mode the Agent SDK accepts.
-/// Unknown/legacy modes (`auto`, `dontAsk`) fall back to `default`.
+/// Unknown modes fall back to `default`.
 pub fn sdk_permission_mode(mode: &str) -> &'static str {
     match mode {
         "acceptEdits" => "acceptEdits",
         "bypassPermissions" => "bypassPermissions",
         "plan" => "plan",
+        "auto" => "auto",
+        "dontAsk" => "dontAsk",
         _ => "default",
     }
 }
@@ -2224,6 +2226,19 @@ mod log_flusher_tests {
         LogFlusher::new(e.clone(), true);
         assert_eq!(std::fs::read_to_string(&e).unwrap(), "");
         assert!(!ends_with_newline(&tmp("missing.log")));
+    }
+}
+
+#[cfg(test)]
+mod permission_mode_tests {
+    use super::sdk_permission_mode;
+
+    #[test]
+    fn every_mode_reaches_the_sdk_as_picked() {
+        for mode in ["default", "acceptEdits", "bypassPermissions", "plan", "auto", "dontAsk"] {
+            assert_eq!(sdk_permission_mode(mode), mode);
+        }
+        assert_eq!(sdk_permission_mode("yolo"), "default");
     }
 }
 

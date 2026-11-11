@@ -304,17 +304,19 @@ async fn worker_permission_mode(
 }
 
 /// How much a mode lets a run do without asking, as each engine applies it:
-/// Claude runs `auto`/`dontAsk` as `default` (`runs::sidecar::sdk_permission_mode`),
-/// Codex runs them with the `acceptEdits` policy (`policyFor` in
-/// sidecar-codex). Any engine but `claude` launches the Codex sidecar. `None`
-/// for a mode no engine knows.
+/// Claude's `dontAsk` denies what would ask, so it does no more than `default`;
+/// Claude's `auto` also runs commands a classifier passes, more than
+/// `acceptEdits` but less than `bypassPermissions`. Codex runs both with the
+/// `acceptEdits` policy (`policyFor` in sidecar-codex). Any engine but
+/// `claude` launches the Codex sidecar. `None` for a mode no engine knows.
 fn permission_rank(mode: &str, engine: &str) -> Option<u8> {
     match mode {
         "plan" => Some(0),
         "default" => Some(1),
-        "auto" | "dontAsk" if engine == "claude" => Some(1),
+        "dontAsk" if engine == "claude" => Some(1),
+        "auto" if engine == "claude" => Some(3),
         "auto" | "dontAsk" | "acceptEdits" => Some(2),
-        "bypassPermissions" => Some(3),
+        "bypassPermissions" => Some(4),
         _ => None,
     }
 }
@@ -1058,7 +1060,7 @@ mod tests {
 
     #[tokio::test]
     async fn auto_and_dont_ask_are_ranked_as_each_engine_runs_them() {
-        // Codex runs `dontAsk` with the `acceptEdits` policy; Claude runs it as `default`.
+        // Codex runs `dontAsk` with the `acceptEdits` policy; Claude's denies what would ask.
         let (db, cst) = setup("claude", "default").await;
         assert!(spawn(&db, &cst, "codex", Some("dontAsk")).await.is_err());
         assert_eq!(spawn(&db, &cst, "claude", Some("dontAsk")).await.as_deref(), Ok("dontAsk"));
@@ -1067,6 +1069,15 @@ mod tests {
         let (db, cst) = setup("codex", "auto").await;
         assert_eq!(spawn(&db, &cst, "codex", Some("auto")).await.as_deref(), Ok("auto"));
         assert_eq!(spawn(&db, &cst, "claude", Some("acceptEdits")).await.as_deref(), Ok("acceptEdits"));
+        assert!(spawn(&db, &cst, "claude", Some("auto")).await.is_err());
+        assert!(spawn(&db, &cst, "claude", Some("bypassPermissions")).await.is_err());
+
+        // Claude's `auto` sits between `acceptEdits` and `bypassPermissions`.
+        let (db, cst) = setup("claude", "acceptEdits").await;
+        assert!(spawn(&db, &cst, "claude", Some("auto")).await.is_err());
+        let (db, cst) = setup("claude", "auto").await;
+        assert_eq!(spawn(&db, &cst, "claude", Some("auto")).await.as_deref(), Ok("auto"));
+        assert_eq!(spawn(&db, &cst, "codex", Some("auto")).await.as_deref(), Ok("auto"));
         assert!(spawn(&db, &cst, "claude", Some("bypassPermissions")).await.is_err());
     }
 
