@@ -437,7 +437,8 @@
   border-radius: 0.5rem;
   overflow: auto;
   margin: 0 0 0.8rem;
-  font-size: calc(0.8rem * var(--text-scale));
+  /* ~0.9 of the answer text, never under the 13px floor. */
+  font-size: max(13px, calc(0.8rem * var(--text-scale)));
   line-height: 1.6;
 }
 .markdown-output pre code {
