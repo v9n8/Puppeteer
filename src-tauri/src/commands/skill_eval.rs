@@ -286,7 +286,7 @@ pub fn score(expect: Expect, chosen: Option<&str>, target: &str) -> bool {
 /// Price of a call of `prompt_chars` characters, before it is made.
 pub fn estimate_call_usd(model: &str, prompt_chars: usize) -> f64 {
     let input = prompt_chars.div_ceil(CHARS_PER_TOKEN) as i64;
-    crate::runs::pricing::estimate_cost(model, input, EST_OUTPUT_TOKENS, 0, 0)
+    crate::runs::pricing::estimate_cost(model, input, EST_OUTPUT_TOKENS, Default::default(), 0)
 }
 
 /// What a finished turn cost, from its `result` message: Claude's `total_cost_usd` (the session
@@ -302,7 +302,7 @@ pub fn result_cost(result: &Value, model: &str) -> (Option<f64>, bool) {
         model,
         tok("input_tokens"),
         tok("output_tokens"),
-        tok("cache_creation_input_tokens"),
+        crate::runs::pricing::CacheWrites::from_usage(Some(usage)),
         tok("cache_read_input_tokens"),
     );
     (Some(cost), false)

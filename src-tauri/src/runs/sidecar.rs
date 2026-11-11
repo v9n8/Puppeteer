@@ -1980,7 +1980,7 @@ pub(crate) async fn insert_usage_from_result(
         eff_model.as_deref().unwrap_or(""),
         input,
         output,
-        cache_creation,
+        crate::runs::pricing::CacheWrites::from_usage(usage),
         cache_read,
     );
     let reported = value.get("total_cost_usd").and_then(|v| v.as_f64());

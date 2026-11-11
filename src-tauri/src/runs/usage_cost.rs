@@ -138,7 +138,7 @@ async fn load_rows(db: &SqlitePool, since: bool) -> anyhow::Result<Vec<LedgerRow
                 &model,
                 r.get("input_tokens"),
                 r.get("output_tokens"),
-                r.get("cache_creation_tokens"),
+                pricing::CacheWrites::unsplit(r.get("cache_creation_tokens")),
                 r.get("cache_read_tokens"),
             );
             LedgerRow { id: r.get("id"), run_id: r.get("run_id"), model, cost: r.get("cost_usd"), estimate }
@@ -234,7 +234,7 @@ pub async fn reprice_estimates(db: &SqlitePool) -> anyhow::Result<()> {
             r.get::<Option<String>, _>("model").as_deref().unwrap_or(""),
             r.get("input_tokens"),
             r.get("output_tokens"),
-            r.get("cache_creation_tokens"),
+            pricing::CacheWrites::unsplit(r.get("cache_creation_tokens")),
             r.get("cache_read_tokens"),
         );
         sqlx::query("UPDATE run_usage SET cost_usd = ? WHERE id = ?")
