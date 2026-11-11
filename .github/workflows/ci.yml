@@ -162,7 +162,7 @@ jobs:
             echo "::notice::sidecar-codex tests skipped on Windows"
           else
             for t in always-allow deny effort exit-signal fork framing-seed keychain-rules mcp-permission-key \
-                     no-tools-fail-closed no-tools queue rewind steer stdin-eof-midturn style turn-outcome usage; do
+                     no-tools-fail-closed no-tools queue rewind rpc-timeout steer stdin-eof-midturn style turn-outcome usage; do
               run sidecar-codex "test-$t.mjs"
             done
           fi

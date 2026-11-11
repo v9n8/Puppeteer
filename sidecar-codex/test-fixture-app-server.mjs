@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
-// tests), and — with PUPPETEER_FIXTURE_USAGE — for test-usage.mjs and
-// test-turn-outcome.mjs.
+// tests), with PUPPETEER_FIXTURE_USAGE for test-usage.mjs and
+// test-turn-outcome.mjs, and with PUPPETEER_FIXTURE_RPC for test-rpc-timeout.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
@@ -84,6 +84,33 @@ function handleUsage(message) {
   }
 }
 
+// RPC mode: PUPPETEER_FIXTURE_RPC is
+//   silent-initialize      never answers initialize;
+//   exit-on-thread-start   exits (code 3) on thread/start, without answering;
+//   silent-turn-start      never answers turn/start;
+//   long-turn              a turn runs until a turn/interrupt request ends it.
+// Writes one stderr line at start, for the sidecar's error tail.
+const rpcMode = process.env.PUPPETEER_FIXTURE_RPC || null
+if (rpcMode) process.stderr.write(`fixture: mode ${rpcMode}\n`)
+
+function handleRpc(message) {
+  if (message.id === undefined) return
+  const reply = (result) => send({ jsonrpc: '2.0', id: message.id, result })
+  if (message.method === 'initialize') {
+    if (rpcMode !== 'silent-initialize') reply({})
+  } else if (message.method === 'thread/start') {
+    if (rpcMode === 'exit-on-thread-start') process.exit(3)
+    reply({ thread: { id: 'fixture-thread' }, model: 'fixture' })
+  } else if (message.method === 'turn/start') {
+    if (rpcMode !== 'silent-turn-start') reply({ turn: { id: 'fixture-turn' } })
+  } else if (message.method === 'turn/interrupt') {
+    reply({})
+    send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { id: message.params.turnId, status: 'interrupted' } } })
+  } else {
+    reply({})
+  }
+}
+
 process.stdin.on('data', (chunk) => {
   buffer += chunk.toString()
   let newline
@@ -93,8 +120,9 @@ process.stdin.on('data', (chunk) => {
     if (!line) continue
     let message
     try { message = JSON.parse(line) } catch { continue }
-    if (fixtureLog && message.method) appendFileSync(fixtureLog, JSON.stringify({ method: message.method, params: message.params }) + '\n')
+    if (fixtureLog && message.method) appendFileSync(fixtureLog, JSON.stringify({ id: message.id, method: message.method, params: message.params }) + '\n')
     if (usageScript) { handleUsage(message); continue }
+    if (rpcMode) { handleRpc(message); continue }
 
     if (message.method === 'initialize') {
       send({ jsonrpc: '2.0', id: message.id, result: {} })

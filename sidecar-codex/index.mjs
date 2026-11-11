@@ -202,6 +202,13 @@ function emitCodexRateLimits(snapshot) {
 const ANSI_RE = /\x1B\[[0-9;]*m/g
 const TRACE_RE = /^\s*\d{4}-\d\d-\d\dT[\d:.]+Z\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+([\s\S]*)$/
 let lastLogLevel = 'info'
+// The app-server's last stderr lines, attached to an RPC timeout or exit error:
+// they usually say why it hung or died.
+const STDERR_TAIL_LINES = 20
+const stderrTail = []
+function withStderrTail(message) {
+  return stderrTail.length ? `${message}. Last app-server stderr:\n${stderrTail.join('\n')}` : message
+}
 
 function classifyStderrLine(raw) {
   const clean = raw.replace(ANSI_RE, '').replace(/\s+$/, '')
@@ -210,6 +217,8 @@ function classifyStderrLine(raw) {
   // ERROR in its tool router, but the rejected commandExecution item already
   // renders as ✗ in the UI — drop the redundant internal trace entirely.
   if (/rejected by user/i.test(clean)) return
+  stderrTail.push(clean)
+  if (stderrTail.length > STDERR_TAIL_LINES) stderrTail.shift()
   const m = clean.match(TRACE_RE)
   if (m) { lastLogLevel = m[1].toLowerCase(); note(m[2].trim(), lastLogLevel) }
   // continuation / non-tracing line → keep the prior record's level (don't spike to error)
@@ -470,13 +479,43 @@ ensureKeychainRules(mcpConfig.env || process.env)
 
 const codex = spawn(CODEX_BIN, [...mcpConfig.args, 'app-server'], { cwd: CWD, stdio: ['pipe', 'pipe', 'pipe'], env: mcpConfig.env })
 let rpcId = 1
-const pending = new Map() // request id → resolve
+const pending = new Map() // request id → { resolve, reject, timer }
+// How long a request may wait for its reply before it fails, so a hung
+// app-server shows up as an error instead of a silent run. The thread calls
+// cover MCP bring-up (codex gives each server up to 30s to start); the turn
+// calls only wait for the reply, never for the turn to end.
+// PUPPETEER_CODEX_RPC_TIMEOUT_SCALE shrinks them for tests.
+const RPC_TIMEOUT_MS = {
+  initialize: 30_000,
+  'thread/start': 120_000,
+  'thread/resume': 120_000,
+  'thread/fork': 120_000,
+  'thread/rollback': 60_000,
+  'turn/start': 30_000,
+  'turn/steer': 30_000,
+  'turn/interrupt': 30_000,
+}
+const RPC_TIMEOUT_SCALE = Number(process.env.PUPPETEER_CODEX_RPC_TIMEOUT_SCALE) > 0 ? Number(process.env.PUPPETEER_CODEX_RPC_TIMEOUT_SCALE) : 1
 function request(method, params) {
   const id = rpcId++
-  return new Promise((resolve) => {
-    pending.set(id, resolve)
+  const ms = Math.round((RPC_TIMEOUT_MS[method] ?? 60_000) * RPC_TIMEOUT_SCALE)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id)
+      reject(new Error(withStderrTail(`${method} timed out after ${ms / 1000}s`)))
+    }, ms)
+    pending.set(id, { resolve, reject, timer })
     codex.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
   })
+}
+
+// Fail every request still waiting for a reply (the app-server is gone).
+function failPending(err) {
+  for (const { reject, timer } of pending.values()) {
+    clearTimeout(timer)
+    reject(err)
+  }
+  pending.clear()
 }
 
 function rpcResult(response, method) {
@@ -1010,8 +1049,8 @@ function onServerMessage(msg) {
 
   // response to one of our RPC requests
   if (msg.id != null && ('result' in msg || 'error' in msg)) {
-    const resolve = pending.get(msg.id)
-    if (resolve) { pending.delete(msg.id); resolve(msg) }
+    const waiter = pending.get(msg.id)
+    if (waiter) { pending.delete(msg.id); clearTimeout(waiter.timer); waiter.resolve(msg) }
     return
   }
 
@@ -1112,14 +1151,21 @@ codex.stderr.on('data', (d) => {
 // shutdown() (SIGTERM, or codex exiting on it) after a clean end — the turn
 // completed, or no turn was running — which is how a session normally ends.
 // Anything else (our kill mid-turn, another signal) reports what happened.
+// Requests still waiting can never be answered now: they fail first, and their
+// handlers get to report it before we exit.
 codex.on('exit', (code, signal) => {
   const ourKill = shutdownCode !== null && (signal === 'SIGTERM' || signal == null)
-  if (ourKill && (shutdownCode !== 0 || turnCompleted || !turnActive)) {
-    ctrl('_puppeteer_closed', { code: shutdownCode, signal: null })
-    process.exit(shutdownCode)
+  const clean = ourKill && (shutdownCode !== 0 || turnCompleted || !turnActive)
+  const closed = clean ? { code: shutdownCode, signal: null } : { code, signal: signal ?? null }
+  const exitCode = clean ? shutdownCode : (code ?? (signal ? 1 : 0))
+  if (pending.size) {
+    if (estderrBuf.trim()) { classifyStderrLine(estderrBuf); estderrBuf = '' }
+    failPending(new Error(withStderrTail(`app-server exited (${signal ? `signal ${signal}` : `code ${code}`})`)))
   }
-  ctrl('_puppeteer_closed', { code, signal: signal ?? null })
-  process.exit(code ?? (signal ? 1 : 0))
+  setImmediate(() => {
+    ctrl('_puppeteer_closed', closed)
+    process.exit(exitCode)
+  })
 })
 
 // ── session bring-up ──────────────────────────────────────────────────────
@@ -1288,7 +1334,7 @@ async function startTurn(text, images) {
     approvalPolicy,
     sandboxPolicy: sandboxPolicyObject(sandbox),
     ...(EFFORT ? { effort: EFFORT } : {}),
-  })
+  }).catch((e) => ({ error: { message: e.message } })) // timed out / app-server gone: a refused turn
   const thisTurn = starting.then((r) => r?.result?.turn?.id ?? null)
   currentTurn = thisTurn
   const res = await starting
@@ -1319,11 +1365,26 @@ async function steerTurn(text, images) {
   const turnId = await currentTurn
   const res = turnId
     ? await request('turn/steer', { threadId, input: userInput(text, images), expectedTurnId: turnId })
+      .catch((e) => ({ error: { message: e.message } }))
     : null
   if (!turnId || res?.error) {
     note(`⚠ Steer not applied: ${res?.error?.message || 'no turn is running'}. Send it as a new message instead.`, 'warn')
   } else {
     ctrl('_puppeteer_steered', { text, images })
+  }
+}
+
+// Interrupt: `turn/interrupt` is a request naming the turn in flight (codex
+// only logs an unknown notification). No turn running: nothing to stop. The
+// turn then ends on its own turn/completed (status interrupted); a refusal or
+// a timeout is only logged, it never ends the session.
+async function interruptTurn() {
+  const turnId = await currentTurn
+  if (!threadId || !turnId) return
+  try {
+    rpcResult(await request('turn/interrupt', { threadId, turnId }), 'turn/interrupt')
+  } catch (e) {
+    note(`⚠ Interrupt not applied: ${e?.message || e}`, 'warn')
   }
 }
 
@@ -1371,7 +1432,7 @@ function handleCommand(cmd) {
       settleWaiter(cmd.requestId, cmd.decision === 'allow', { answers: cmd.answers, remember: cmd.remember })
       break
     case 'interrupt':
-      if (threadId) rpcNotify('turn/interrupt', { threadId }).catch?.(() => {})
+      interruptTurn()
       break
     case 'abort':
       shutdown(0)
