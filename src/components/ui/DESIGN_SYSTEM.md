@@ -11,11 +11,11 @@ Primitives live in `src/components/ui/` and are imported from `@/components/ui`.
 ### Colors (`src/assets/main.css`)
 
 The default theme is flat **Zinc + Indigo**, tuned for mid-range IPS monitors:
-neutral surfaces, one indigo accent, 1px hairline borders, no glass and no
+neutral surfaces, one indigo accent, 1px solid borders, no glass and no
 shadows on in-page surfaces (shadows only on popovers, menus, toasts, modals).
-Dark mode is charcoal (`#131315` page → `#1f1f23` card → `#27272c` popover),
-not deep navy, so the tiers stay apart on a panel with washed-out blacks.
-Measured pairs and the reviewed proposal: `docs/design/design-system-preview.html`.
+Dark mode is charcoal (`#151518` sidebar → `#1f1f23` page → `#2e2e34` card →
+`#3c3c44` popover), not deep navy, so the tiers stay apart on a panel with
+washed-out blacks.
 
 Use the semantic utilities — they follow light/dark mode and the color themes.
 
@@ -25,7 +25,8 @@ Use the semantic utilities — they follow light/dark mode and the color themes.
 | Text | `text-foreground`, `text-muted-foreground` | `text-gray-*` |
 | Brand / selected | `primary` (`bg-primary`, `text-primary`, `bg-primary/15` for a selected row) | `indigo-*` |
 | Hover | `bg-accent` (`hover:bg-accent/50` for rows) | |
-| Field / outline-button border | `border-input` (`border-border` is the decorative hairline for cards, dividers, menus) | |
+| Field / outline-button border | `border-input` (`border-border` is the quiet divider for cards and regions) | |
+| Floating layer border (menu, popover, modal, tooltip) | `border-popover-border` | `border-border` |
 | Error / delete | `destructive` | `red-*` |
 | Success / done / connected | `success` | `emerald-*`, `green-*` |
 | Warning / pending / overdue-soon | `warning` | `amber-*`, `yellow-*` |
@@ -143,30 +144,13 @@ desktop `xs`/`icon-sm` sizes here.
 Touch targets: ≥ 32px in dense toolbars, ≥ 36px (`Button size="md"`) for decision
 buttons, ≥ 44px for a standalone primary action.
 
-## 6. Themes and skins
+## 6. Themes
 
 Palettes live one per file in `src/assets/themes/<id>.css` (imported at the top of `main.css`) and are registered in `src/lib/colorThemes.ts`. Every file defines a `[data-theme='<id>']:not(.dark)` and a `[data-theme='<id>'].dark` block with the full token set plus `--aurora-1/2`; `src/lib/__tests__/themeContrast.test.mjs` enforces WCAG AA on every pair.
 
-A **skin** (group `skin`) also changes shape, material and motion, not just color. Skin rules go in the same file, **outside `@layer`** (unlayered rules beat Tailwind utilities), always scoped under `[data-theme='<id>']`. Hooks a skin may restyle:
+A theme changes **colors only**: never radius, font, material or motion, so every component has one look. All palettes follow one rule: each declares its surfaces, text, primary and four status colors; secondary text, `--input`, `--popover-border`, `--border` and the tinted surfaces are derived from the text color until secondary text is ≥ 4.5:1 on every surface (≥ 7:1 in `contrast`), `--input` / `--popover-border` ≥ 3:1, and `--border` a quiet ~1.4:1. A removed palette id is mapped to its replacement in `normalizeColorTheme`.
 
-| Hook | Element |
-|---|---|
-| `--radius` | every `rounded-sm/md/lg` (and primitives) |
-| `--font-ui` | body font stack (`font-mono` follows Tailwind's `--font-mono`) |
-| `.ui-card` `.ui-modal` `.ui-drawer` `.ui-popover` `.ui-toast` | surfaces (Card, Modal, Drawer, Dropdown/ContextMenu, toasts) |
-| `.ui-btn` + `.ui-btn-<variant>` | Button (`primary`, `outline`, `ghost`, `destructive`, `destructive-ghost`, `subtle`) |
-| `.ui-field` | Input / Textarea / AppSelect trigger |
-| `.ui-menu-item` | DropdownMenu row (DropdownItem) |
-| `.ui-switch` · `.ui-switch-knob` | ToggleSwitch track (`aria-checked`) · knob |
-| `.ui-segmented` + `.is-active` | SegmentedControl group · selected segment |
-| `.ui-badge` + `.ui-badge-<tone>` | Badge (`neutral`, `running`, `success`, `error`, `warning`, `info`, `primary`) |
-| `.ui-backdrop` | Modal / Drawer scrim |
-| `.app-shell` · `.app-titlebar` · `.app-sidebar` | window root (opaque `bg-background` — it hides `body::before` unless a skin makes it translucent) · title bar · navigation sidebar |
-| `.app-sidebar .is-active` · `.app-nav-indicator` | active nav link · its 2px primary bar |
-| `body::before` / `body::after` | full-window background layers (aurora by default) |
-| `html[data-agent-state]` | `idle` · `running` · `waiting` · `error` · `done` — the app-wide agent state (see `src/assets/agent-ambient.css`) |
-
-Skin rules: keep text readable (the contrast test still runs on the tokens), put any animation behind `@media (prefers-reduced-motion: no-preference)` and under `html:not([data-animated-bg='false'])`, and never animate layout properties — the stream log must stay smooth.
+`html[data-agent-state]` (`idle` · `running` · `waiting` · `error` · `done`) drives the app-wide ambient light (`src/assets/agent-ambient.css`); it pauses under `html[data-animated-bg='false']` and `prefers-reduced-motion`.
 
 ## 7. Checklist for a new screen
 

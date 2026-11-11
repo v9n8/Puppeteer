@@ -1,46 +1,52 @@
 // Named color palettes (Settings → Color theme). Each id matches a
-// `[data-theme='<id>']` block in src/assets/main.css or
-// src/assets/themes/<id>.css; `default` has no attribute (the :root / .dark
-// tokens). Pure data, shared by the desktop picker and the phone Controller.
+// `[data-theme='<id>']` block in src/assets/themes/<id>.css; `default` has no
+// attribute (the :root / .dark tokens in main.css). Pure data, shared by the
+// desktop picker and the phone Controller.
 
-export type ColorThemeGroup = 'basic' | 'macos' | 'dev' | 'seasonal'
+export const COLOR_THEMES = [
+  'default',
+  'contrast',
+  'graphite',
+  'ocean',
+  'paper',
+  'forest',
+  'nord',
+  'tokyonight',
+] as const
 
-export const COLOR_THEME_GROUPS: readonly ColorThemeGroup[] = ['basic', 'macos', 'dev', 'seasonal']
+export type ColorThemeId = (typeof COLOR_THEMES)[number]
 
-export interface ColorThemeDef {
-  id: string
-  group: ColorThemeGroup
-  /** Follows the macOS accent color (System Settings → Appearance) when the
-   *  webview exposes it; the CSS `--primary` is the fallback. */
-  systemAccent?: boolean
+// Removed palettes still stored in settings or on a phone: read as the closest one left.
+const REPLACED_BY: Record<string, ColorThemeId> = {
+  macos: 'ocean',
+  tahoe: 'ocean',
+  crt: 'contrast',
+  monokai: 'tokyonight',
+  midautumn: 'default',
 }
 
-export const COLOR_THEME_DEFS: readonly ColorThemeDef[] = [
-  { id: 'default', group: 'basic' },
-  { id: 'contrast', group: 'basic' },
-  { id: 'macos', group: 'macos', systemAccent: true },
-  { id: 'tahoe', group: 'macos', systemAccent: true },
-  { id: 'graphite', group: 'macos' },
-  { id: 'monokai', group: 'dev' },
-  { id: 'tokyonight', group: 'dev' },
-  { id: 'nord', group: 'dev' },
-  { id: 'crt', group: 'dev' },
-  { id: 'midautumn', group: 'seasonal' },
-]
+/** A stored palette id as one that still exists, or null when it was never a palette. */
+export function knownColorTheme(id: unknown): ColorThemeId | null {
+  if (typeof id !== 'string') return null
+  if ((COLOR_THEMES as readonly string[]).includes(id)) return id as ColorThemeId
+  return REPLACED_BY[id] ?? null
+}
 
-export const COLOR_THEMES: readonly string[] = COLOR_THEME_DEFS.map((d) => d.id)
+/** A stored palette id as one that still exists; unknown ids become `default`. */
+export function normalizeColorTheme(id: unknown): ColorThemeId {
+  return knownColorTheme(id) ?? 'default'
+}
+
+function capitalized(id: string): string {
+  return `${id.charAt(0).toUpperCase()}${id.slice(1)}`
+}
 
 /** i18n key of a palette's name, e.g. `tokyonight` → `settings.general.colorTokyonight`. */
 export function colorThemeLabelKey(id: string): string {
-  return `settings.general.color${id.charAt(0).toUpperCase()}${id.slice(1)}`
+  return `settings.general.color${capitalized(id)}`
 }
 
-/** Whether a palette tints `--primary` with the macOS accent color. */
-export function followsSystemAccent(id: string): boolean {
-  return COLOR_THEME_DEFS.some((d) => d.id === id && d.systemAccent)
-}
-
-/** The palettes of one group, in display order. */
-export function colorThemesIn(group: ColorThemeGroup): ColorThemeDef[] {
-  return COLOR_THEME_DEFS.filter((d) => d.group === group)
+/** i18n key of a palette's one-line description, e.g. `settings.general.colorTokyonightHint`. */
+export function colorThemeHintKey(id: string): string {
+  return `${colorThemeLabelKey(id)}Hint`
 }

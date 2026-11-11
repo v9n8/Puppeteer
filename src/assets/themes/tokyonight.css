@@ -1,63 +1,66 @@
-/* Tokyo Night — neon-on-midnight; Tokyo Night Day (light) / Tokyo Night Night (dark) from folke/tokyonight.nvim */
+/* Tokyo Night (dark) and Tokyo Day (light), blue-violet accent.
+ * Generated from the shared derivation rule (docs/design/mockups/02-themes.html). */
 @layer base {
   [data-theme='tokyonight']:not(.dark) {
-    --background: 230 11% 89%;
-    --foreground: 222 55% 30%;
-    --card: 240 10% 92%;
-    --card-foreground: 222 55% 30%;
-    --popover: 240 10% 92%;
-    --popover-foreground: 222 55% 30%;
-    --primary: 215 81% 51%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 229 23% 81%;
-    --secondary-foreground: 222 55% 40%;
-    --muted: 229 23% 81%;
-    --muted-foreground: 227 33% 39%;
-    --accent: 217 55% 87%;
-    --accent-foreground: 222 55% 45%;
-    --destructive: 343 91% 48%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 230 25% 73%;
-    --input: 230 25% 73%;
-    --ring: 215 81% 51%;
-    --sidebar: 224 25% 85%;
-    --success: 89 34% 34%;
-    --success-foreground: 0 0% 100%;
-    --warning: 35 39% 40%;
-    --warning-foreground: 0 0% 100%;
-    --info: 195 100% 30%;
-    --info-foreground: 0 0% 100%;
-    --aurora-1: 266 85% 64%;
-    --aurora-2: 195 100% 30%;
+    --background: 231.4 16.3% 91.6%; /* #e6e7ed */
+    --foreground: 230.5 31.1% 23.9%; /* #2a3050 */
+    --card: 240.0 23.1% 97.5%; /* #f7f7fa */
+    --card-foreground: 230.5 31.1% 23.9%; /* #2a3050 */
+    --popover: 0.0 0.0% 100.0%; /* #ffffff */
+    --popover-foreground: 230.5 31.1% 23.9%; /* #2a3050 */
+    --popover-border: 230.4 10.0% 51.2%; /* #767a8f */
+    --primary: 223.1 62.2% 42.5%; /* #294fb0 */
+    --primary-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --secondary: 240.0 12.0% 90.2%; /* #e3e3e9 */
+    --secondary-foreground: 230.5 31.1% 23.9%; /* #2a3050 */
+    --muted: 226.7 15.8% 88.8%; /* #dee0e7 */
+    --muted-foreground: 230.6 17.2% 36.5%; /* #4d526d */
+    --accent: 231.4 12.7% 89.2%; /* #e0e1e7 */
+    --accent-foreground: 230.5 31.1% 23.9%; /* #2a3050 */
+    --destructive: 350.9 64.1% 38.2%; /* #a02336 */
+    --destructive-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --border: 234.0 11.9% 83.5%; /* #d0d1da */
+    --input: 230.4 10.0% 51.2%; /* #767a8f */
+    --ring: 223.1 62.2% 42.5%; /* #294fb0 */
+    --sidebar: 229.1 16.9% 87.3%; /* #d9dbe4 */
+    --success: 171.2 34.3% 27.5%; /* #2e5e57 */
+    --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --warning: 35.0 100.0% 24.5%; /* #7d4900 */
+    --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --info: 188.7 65.4% 24.9%; /* #165d69 */
+    --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --aurora-1: 223.1 62.2% 42.5%;
+    --aurora-2: 188.7 65.4% 24.9%;
   }
   [data-theme='tokyonight'].dark {
-    --background: 235 19% 13%;
-    --foreground: 229 73% 86%;
-    --card: 240 15% 10%;
-    --card-foreground: 229 73% 86%;
-    --popover: 240 15% 10%;
-    --popover-foreground: 229 73% 86%;
-    --primary: 221 89% 72%;
-    --primary-foreground: 240 15% 10%;
-    --secondary: 228 23% 21%;
-    --secondary-foreground: 229 73% 86%;
-    --muted: 228 23% 21%;
-    --muted-foreground: 229 35% 75%;
-    --accent: 220 33% 33%;
-    --accent-foreground: 229 73% 86%;
-    --destructive: 349 89% 72%;
-    --destructive-foreground: 240 15% 10%;
-    --border: 229 24% 31%;
-    --input: 229 24% 31%;
-    --ring: 221 89% 72%;
-    --sidebar: 225 25% 6%;
-    --success: 89 51% 61%;
-    --success-foreground: 240 15% 10%;
-    --warning: 36 66% 64%;
-    --warning-foreground: 240 15% 10%;
-    --info: 202 100% 75%;
-    --info-foreground: 240 15% 10%;
-    --aurora-1: 261 85% 79%;
-    --aurora-2: 202 100% 75%;
+    --background: 235.4 19.4% 13.1%; /* #1b1c28 */
+    --foreground: 229.3 69.2% 87.3%; /* #c8d0f5 */
+    --card: 229.6 24.2% 18.6%; /* #24283b */
+    --card-foreground: 229.3 69.2% 87.3%; /* #c8d0f5 */
+    --popover: 226.2 21.7% 23.5%; /* #2f3549 */
+    --popover-foreground: 229.3 69.2% 87.3%; /* #c8d0f5 */
+    --popover-border: 229.7 15.0% 54.3%; /* #797f9c */
+    --primary: 220.8 88.7% 72.4%; /* #7aa2f7 */
+    --primary-foreground: 220.9 33.3% 12.9%; /* #161d2c */
+    --secondary: 228.0 21.0% 23.3%; /* #2f3448 */
+    --secondary-foreground: 229.3 69.2% 87.3%; /* #c8d0f5 */
+    --muted: 235.7 16.3% 16.9%; /* #242532 */
+    --muted-foreground: 228.9 22.4% 66.7%; /* #979ebd */
+    --accent: 228.0 21.0% 23.3%; /* #2f3448 */
+    --accent-foreground: 229.3 69.2% 87.3%; /* #c8d0f5 */
+    --destructive: 348.8 89.0% 71.6%; /* #f7768e */
+    --destructive-foreground: 347.0 35.4% 12.7%; /* #2c151a */
+    --border: 228.5 18.1% 28.2%; /* #3b4055 */
+    --input: 229.7 15.0% 54.3%; /* #797f9c */
+    --ring: 220.8 88.7% 72.4%; /* #7aa2f7 */
+    --sidebar: 232.5 19.0% 8.2%; /* #111219 */
+    --success: 88.8 50.5% 61.2%; /* #9ece6a */
+    --success-foreground: 90.0 32.1% 11.0%; /* #1c2513 */
+    --warning: 35.5 65.9% 64.3%; /* #e0af68 */
+    --warning-foreground: 34.3 35.6% 11.6%; /* #281f13 */
+    --info: 202.2 100.0% 74.5%; /* #7dcfff */
+    --info-foreground: 202.5 35.3% 13.3%; /* #16252e */
+    --aurora-1: 220.8 88.7% 72.4%;
+    --aurora-2: 202.2 100.0% 74.5%;
   }
 }

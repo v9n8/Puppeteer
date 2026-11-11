@@ -1,0 +1,66 @@
+/* Forest: green-grey surfaces, moss accent; "success" moves to teal so it never matches the primary button.
+ * Generated from the shared derivation rule (docs/design/mockups/02-themes.html). */
+@layer base {
+  [data-theme='forest']:not(.dark) {
+    --background: 140.0 12.0% 95.1%; /* #f1f4f2 */
+    --foreground: 152.3 25.5% 10.0%; /* #13201a */
+    --card: 0.0 0.0% 100.0%; /* #ffffff */
+    --card-foreground: 152.3 25.5% 10.0%; /* #13201a */
+    --popover: 0.0 0.0% 100.0%; /* #ffffff */
+    --popover-foreground: 152.3 25.5% 10.0%; /* #13201a */
+    --popover-border: 154.3 2.8% 50.4%; /* #7d8481 */
+    --primary: 157.3 64.1% 25.1%; /* #17694a */
+    --primary-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --secondary: 150.0 4.3% 91.0%; /* #e7e9e8 */
+    --secondary-foreground: 152.3 25.5% 10.0%; /* #13201a */
+    --muted: 135.0 9.5% 91.8%; /* #e8ece9 */
+    --muted-foreground: 153.3 5.0% 35.1%; /* #555e5a */
+    --accent: 180.0 2.0% 90.0%; /* #e5e6e6 */
+    --accent-foreground: 152.3 25.5% 10.0%; /* #13201a */
+    --destructive: 4.3 76.0% 39.2%; /* #b02318 */
+    --destructive-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --border: 150.0 2.6% 84.7%; /* #d7d9d8 */
+    --input: 154.3 2.8% 50.4%; /* #7d8481 */
+    --ring: 157.3 64.1% 25.1%; /* #17694a */
+    --sidebar: 137.1 13.7% 90.0%; /* #e2e9e4 */
+    --success: 189.2 77.8% 24.7%; /* #0e6170 */
+    --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --warning: 18.8 83.7% 31.4%; /* #93370d */
+    --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --info: 221.6 56.4% 39.6%; /* #2c4f9e */
+    --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --aurora-1: 157.3 64.1% 25.1%;
+    --aurora-2: 221.6 56.4% 39.6%;
+  }
+  [data-theme='forest'].dark {
+    --background: 145.7 11.9% 11.6%; /* #1a211d */
+    --foreground: 140.0 22.0% 92.0%; /* #e6efe9 */
+    --card: 144.0 11.6% 16.9%; /* #26302a */
+    --card-foreground: 140.0 22.0% 92.0%; /* #e6efe9 */
+    --popover: 145.0 10.7% 22.0%; /* #323e37 */
+    --popover-foreground: 140.0 22.0% 92.0%; /* #e6efe9 */
+    --popover-border: 144.0 4.1% 52.2%; /* #808a84 */
+    --primary: 151.5 55.7% 63.7%; /* #6fd6a5 */
+    --primary-foreground: 151.6 32.2% 11.6%; /* #14271e */
+    --secondary: 144.0 8.9% 22.0%; /* #333d37 */
+    --secondary-foreground: 140.0 22.0% 92.0%; /* #e6efe9 */
+    --muted: 145.7 8.9% 15.5%; /* #242b27 */
+    --muted-foreground: 140.0 5.0% 64.9%; /* #a1aaa4 */
+    --accent: 144.0 8.9% 22.0%; /* #333d37 */
+    --accent-foreground: 140.0 22.0% 92.0%; /* #e6efe9 */
+    --destructive: 3.9 100.0% 79.0%; /* #ff9b94 */
+    --destructive-foreground: 3.2 26.0% 14.3%; /* #2e1c1b */
+    --border: 144.0 7.4% 26.7%; /* #3f4943 */
+    --input: 144.0 4.1% 52.2%; /* #808a84 */
+    --ring: 151.5 55.7% 63.7%; /* #6fd6a5 */
+    --sidebar: 140.0 14.3% 8.2%; /* #121814 */
+    --success: 187.6 62.7% 65.3%; /* #6fd0de */
+    --success-foreground: 189.0 33.3% 11.8%; /* #142528 */
+    --warning: 30.8 92.4% 69.0%; /* #f9b267 */
+    --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
+    --info: 224.4 100.0% 81.2%; /* #9fb8ff */
+    --info-foreground: 225.9 22.7% 14.7%; /* #1d212e */
+    --aurora-1: 151.5 55.7% 63.7%;
+    --aurora-2: 224.4 100.0% 81.2%;
+  }
+}

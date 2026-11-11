@@ -10,7 +10,7 @@ import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { AppSelect, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
-import { applySystemAccent } from '@/lib/systemAccent'
+import { normalizeColorTheme } from '@/lib/colorThemes'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import {
@@ -106,10 +106,9 @@ function applyTheme(theme: string) {
 }
 
 function applyColorTheme(theme: string) {
-  const t = theme && theme !== 'default' ? theme : ''
-  if (t) document.documentElement.setAttribute('data-theme', t)
+  const t = normalizeColorTheme(theme)
+  if (t !== 'default') document.documentElement.setAttribute('data-theme', t)
   else document.documentElement.removeAttribute('data-theme')
-  applySystemAccent(t)
 }
 
 // Apply theme instantly (don't wait for the debounced save).

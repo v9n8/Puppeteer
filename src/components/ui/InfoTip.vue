@@ -105,7 +105,7 @@ onBeforeUnmount(() => bind(false))
       :id="id"
       ref="tip"
       role="tooltip"
-      class="ui-popover pointer-events-none fixed z-[100] w-max max-w-[min(20rem,calc(100vw-1rem))] whitespace-pre-line rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-lg shadow-black/20"
+      class="ui-popover pointer-events-none fixed z-[100] w-max max-w-[min(20rem,calc(100vw-1rem))] whitespace-pre-line rounded-md border border-popover-border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-lg shadow-black/20"
       :style="pos ? { left: `${pos.left}px`, top: `${pos.top}px` } : { left: '0px', top: '0px', visibility: 'hidden' }"
     >
       {{ text }}

@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { COLOR_THEME_DEFS, COLOR_THEME_GROUPS, COLOR_THEMES, colorThemeLabelKey, colorThemesIn } from '../colorThemes.ts'
+import { COLOR_THEMES, colorThemeHintKey, colorThemeLabelKey, knownColorTheme, normalizeColorTheme } from '../colorThemes.ts'
 
 const src = fileURLToPath(new URL('../../', import.meta.url))
 const mainCss = readFileSync(`${src}assets/main.css`, 'utf8')
@@ -15,30 +15,44 @@ test('ids are unique and default comes first', () => {
   assert.equal(COLOR_THEMES[0], 'default')
 })
 
-test('every group is used and every theme is in a known group', () => {
-  for (const g of COLOR_THEME_GROUPS) assert.ok(colorThemesIn(g).length > 0, g)
-  for (const d of COLOR_THEME_DEFS) assert.ok(COLOR_THEME_GROUPS.includes(d.group), d.id)
-})
-
 test('every named theme has light and dark CSS blocks', () => {
   for (const id of COLOR_THEMES.filter((t) => t !== 'default')) {
     const file = `${src}assets/themes/${id}.css`
-    const css = existsSync(file) ? readFileSync(file, 'utf8') : mainCss
+    assert.ok(existsSync(file), `${id} has no file`)
+    const css = readFileSync(file, 'utf8')
     assert.ok(css.includes(`[data-theme='${id}']:not(.dark)`), `${id} light`)
     assert.ok(css.includes(`[data-theme='${id}'].dark`), `${id} dark`)
-    if (existsSync(file)) assert.ok(mainCss.includes(`@import "./themes/${id}.css";`), `${id} imported`)
+    assert.ok(mainCss.includes(`@import "./themes/${id}.css";`), `${id} imported`)
   }
 })
 
-test('every theme and group has a name in en and vi', () => {
+test('every theme has a name and a description in en and vi', () => {
   for (const loc of ['en', 'vi']) {
     const general = JSON.parse(readFileSync(`${src}i18n/locales/${loc}/settings.json`, 'utf8')).general
     for (const id of COLOR_THEMES) {
-      const key = colorThemeLabelKey(id).replace('settings.general.', '')
-      assert.equal(typeof general[key], 'string', `${loc} ${key}`)
+      for (const key of [colorThemeLabelKey(id), colorThemeHintKey(id)]) {
+        const leaf = key.replace('settings.general.', '')
+        assert.equal(typeof general[leaf], 'string', `${loc} ${leaf}`)
+      }
     }
-    for (const g of COLOR_THEME_GROUPS) assert.equal(typeof general.colorGroup[g], 'string', `${loc} ${g}`)
   }
+})
+
+test('no theme file is left without a registered id', () => {
+  const imported = [...mainCss.matchAll(/@import "\.\/themes\/([\w-]+)\.css";/g)].map((m) => m[1])
+  assert.deepEqual(imported.sort(), COLOR_THEMES.filter((t) => t !== 'default').sort())
+})
+
+test('removed palettes read as their replacement, unknown ids as default', () => {
+  assert.equal(normalizeColorTheme('macos'), 'ocean')
+  assert.equal(normalizeColorTheme('tahoe'), 'ocean')
+  assert.equal(normalizeColorTheme('crt'), 'contrast')
+  assert.equal(normalizeColorTheme('monokai'), 'tokyonight')
+  assert.equal(normalizeColorTheme('midautumn'), 'default')
+  assert.equal(normalizeColorTheme('paper'), 'paper')
+  assert.equal(normalizeColorTheme('neon'), 'default')
+  assert.equal(normalizeColorTheme(undefined), 'default')
+  assert.equal(knownColorTheme('neon'), null)
 })
 
 test('label key capitalizes the id', () => {

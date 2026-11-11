@@ -1,0 +1,66 @@
+/* Ocean: blue-grey surfaces with a macOS-style blue accent. Replaces the old macOS and Tahoe themes.
+ * Generated from the shared derivation rule (docs/design/mockups/02-themes.html). */
+@layer base {
+  [data-theme='ocean']:not(.dark) {
+    --background: 214.3 33.3% 95.9%; /* #f1f4f8 */
+    --foreground: 214.3 38.2% 10.8%; /* #111a26 */
+    --card: 0.0 0.0% 100.0%; /* #ffffff */
+    --card-foreground: 214.3 38.2% 10.8%; /* #111a26 */
+    --popover: 0.0 0.0% 100.0%; /* #ffffff */
+    --popover-foreground: 214.3 38.2% 10.8%; /* #111a26 */
+    --popover-border: 215.0 4.9% 51.8%; /* #7e838a */
+    --primary: 214.0 90.1% 39.6%; /* #0a59c0 */
+    --primary-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --secondary: 210.0 4.3% 91.0%; /* #e7e8e9 */
+    --secondary-foreground: 214.3 38.2% 10.8%; /* #111a26 */
+    --muted: 217.5 21.1% 92.5%; /* #e8ebf0 */
+    --muted-foreground: 216.0 8.0% 36.7%; /* #565c65 */
+    --accent: 210.0 4.0% 90.2%; /* #e5e6e7 */
+    --accent-foreground: 214.3 38.2% 10.8%; /* #111a26 */
+    --destructive: 4.3 76.2% 39.6%; /* #b22318 */
+    --destructive-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --border: 220.0 3.9% 84.9%; /* #d7d8da */
+    --input: 215.0 4.9% 51.8%; /* #7e838a */
+    --ring: 214.0 90.1% 39.6%; /* #0a59c0 */
+    --sidebar: 212.3 30.2% 91.6%; /* #e3e9f0 */
+    --success: 154.9 90.1% 19.8%; /* #05603a */
+    --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --warning: 18.8 83.7% 31.4%; /* #93370d */
+    --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --info: 202.7 85.2% 29.2%; /* #0b5a8a */
+    --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --aurora-1: 214.0 90.1% 39.6%;
+    --aurora-2: 202.7 85.2% 29.2%;
+  }
+  [data-theme='ocean'].dark {
+    --background: 215.3 24.6% 13.5%; /* #1a212b */
+    --foreground: 214.3 43.8% 93.7%; /* #e8eef6 */
+    --card: 216.9 25.5% 20.0%; /* #263040 */
+    --card-foreground: 214.3 43.8% 93.7%; /* #e8eef6 */
+    --popover: 217.1 25.0% 26.7%; /* #334055 */
+    --popover-foreground: 214.3 43.8% 93.7%; /* #e8eef6 */
+    --popover-border: 216.0 8.9% 56.1%; /* #858d99 */
+    --primary: 211.8 100.0% 71.2%; /* #6cb1ff */
+    --primary-foreground: 211.1 41.5% 12.7%; /* #13202e */
+    --secondary: 218.4 19.4% 25.3%; /* #343d4d */
+    --secondary-foreground: 214.3 43.8% 93.7%; /* #e8eef6 */
+    --muted: 215.3 19.1% 17.5%; /* #242b35 */
+    --muted-foreground: 216.7 11.2% 68.6%; /* #a6adb8 */
+    --accent: 218.4 19.4% 25.3%; /* #343d4d */
+    --accent-foreground: 214.3 43.8% 93.7%; /* #e8eef6 */
+    --destructive: 3.9 100.0% 79.0%; /* #ff9b94 */
+    --destructive-foreground: 3.2 26.0% 14.3%; /* #2e1c1b */
+    --border: 216.0 16.6% 29.6%; /* #3f4958 */
+    --input: 216.0 8.9% 56.1%; /* #858d99 */
+    --ring: 211.8 100.0% 71.2%; /* #6cb1ff */
+    --sidebar: 214.3 28.0% 9.8%; /* #121820 */
+    --success: 153.1 58.4% 60.4%; /* #5fd5a0 */
+    --success-foreground: 154.3 38.2% 10.8%; /* #11261d */
+    --warning: 30.8 92.4% 69.0%; /* #f9b267 */
+    --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
+    --info: 201.5 87.3% 69.2%; /* #6cc4f5 */
+    --info-foreground: 201.6 39.7% 12.4%; /* #13232c */
+    --aurora-1: 211.8 100.0% 71.2%;
+    --aurora-2: 201.5 87.3% 69.2%;
+  }
+}

@@ -20,9 +20,16 @@ test('each field overrides on its own', () => {
     theme: 'dark',
     color_theme: 'nord',
   })
-  assert.deepEqual(resolveAppearance(host, { theme: 'host', color_theme: 'tahoe' }), {
+  assert.deepEqual(resolveAppearance(host, { theme: 'host', color_theme: 'paper' }), {
     theme: 'light',
-    color_theme: 'tahoe',
+    color_theme: 'paper',
+  })
+})
+
+test('a removed palette from the Host shows as the one that replaced it', () => {
+  assert.deepEqual(resolveAppearance({ theme: 'dark', color_theme: 'tahoe' }, NO_OVERRIDE), {
+    theme: 'dark',
+    color_theme: 'ocean',
   })
 })
 
@@ -35,9 +42,16 @@ test('before any Host frame the desktop defaults apply', () => {
 })
 
 test('parseOverride keeps known values', () => {
-  assert.deepEqual(parseOverride({ theme: 'system', color_theme: 'midautumn' }), {
+  assert.deepEqual(parseOverride({ theme: 'system', color_theme: 'forest' }), {
     theme: 'system',
-    color_theme: 'midautumn',
+    color_theme: 'forest',
+  })
+})
+
+test('parseOverride reads a removed palette as its replacement', () => {
+  assert.deepEqual(parseOverride({ theme: 'system', color_theme: 'monokai' }), {
+    theme: 'system',
+    color_theme: 'tokyonight',
   })
 })
 

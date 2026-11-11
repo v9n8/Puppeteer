@@ -3,7 +3,7 @@
 // "follow the desktop" for that field. Pure logic, no DOM (see
 // src/controller/appearance.ts for applying it).
 
-import { COLOR_THEMES } from './colorThemes.ts'
+import { COLOR_THEMES, knownColorTheme, normalizeColorTheme } from './colorThemes.ts'
 
 export { COLOR_THEMES }
 
@@ -36,7 +36,8 @@ export function parseOverride(raw: unknown): AppearanceOverride {
   const o = raw as Record<string, unknown>
   return {
     theme: pick(o.theme, THEME_MODES),
-    color_theme: pick(o.color_theme, COLOR_THEMES),
+    // A removed palette stored before reads as the one that replaced it.
+    color_theme: knownColorTheme(o.color_theme) ?? FOLLOW_HOST,
   }
 }
 
@@ -45,6 +46,6 @@ export function resolveAppearance(host: Appearance | null, override: AppearanceO
   const base = host ?? DEFAULT_APPEARANCE
   return {
     theme: override.theme !== FOLLOW_HOST ? override.theme : base.theme,
-    color_theme: override.color_theme !== FOLLOW_HOST ? override.color_theme : base.color_theme,
+    color_theme: normalizeColorTheme(override.color_theme !== FOLLOW_HOST ? override.color_theme : base.color_theme),
   }
 }

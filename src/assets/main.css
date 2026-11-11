@@ -1,14 +1,13 @@
 @import "tailwindcss";
 /* Named color themes kept one file each (same shape as the blocks below);
  * ids are listed in src/lib/colorThemes.ts. */
-@import "./themes/monokai.css";
-@import "./themes/tokyonight.css";
-@import "./themes/nord.css";
 @import "./themes/contrast.css";
-@import "./themes/macos.css";
-@import "./themes/tahoe.css";
 @import "./themes/graphite.css";
-@import "./themes/crt.css";
+@import "./themes/ocean.css";
+@import "./themes/paper.css";
+@import "./themes/forest.css";
+@import "./themes/nord.css";
+@import "./themes/tokyonight.css";
 /* Aurora reacting to html[data-agent-state] (running / waiting / error / done). */
 @import "./agent-ambient.css";
 
@@ -37,6 +36,7 @@
   --color-card-foreground: hsl(var(--card-foreground));
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-secondary: hsl(var(--secondary));
@@ -108,137 +108,88 @@
    * surfaces + one indigo accent; hairline borders, no glass, no in-page
    * shadows. Dark mode is charcoal, not deep navy: near-black tiers merge on
    * an IPS panel, so card/popover each sit one clear step above the page.
-   * Secondary text stays >= 4.5:1 on every surface it lands on (see
-   * docs/design/design-system-preview.html for the measured pairs).
+   * Every theme shares one rule: secondary text >= 4.5:1 on every surface it
+   * lands on; `--input` (control borders) and `--popover-border` (floating
+   * layers) >= 3:1; `--border` (region dividers) a quiet ~1.4:1.
    * `.theme-scope` re-declares the tokens on an element so a theme preview tile
    * (with its own `data-theme` / `.dark`) doesn't inherit the active palette.
    * ------------------------------------------------------------------------- */
   :root,
   .theme-scope {
-    --background: 240 9.1% 95.7%; /* #f3f3f5 */
-    --foreground: 240 5.9% 10%; /* #18181b */
-    --card: 0 0% 100%; /* #ffffff */
-    --card-foreground: 240 5.9% 10%; /* #18181b */
-    --popover: 0 0% 100%; /* #ffffff */
-    --popover-foreground: 240 5.9% 10%; /* #18181b */
-    --primary: 243.4 75.4% 58.6%; /* #4f46e5 */
-    --primary-foreground: 0 0% 100%; /* #ffffff */
-    --secondary: 240 6.9% 88.6%; /* #e0e0e4 */
-    --secondary-foreground: 240 5.9% 10%; /* #18181b */
-    --muted: 240 8.6% 93.1%; /* #ececef */
-    --muted-foreground: 240 5% 35.1%; /* #55555e */
-    --accent: 240 6.7% 91.2%; /* #e7e7ea */
-    --accent-foreground: 240 5.9% 10%; /* #18181b */
-    --destructive: 0 73.7% 41.8%; /* #b91c1c */
-    --destructive-foreground: 0 0% 100%; /* #ffffff */
-    --border: 240 8.3% 90.6%; /* #e5e5e9 */
-    --input: 240 7.2% 81%; /* #cbcbd2 */
-    --ring: 243.4 75.4% 58.6%; /* #4f46e5 */
+    --background: 240.0 14.3% 95.9%; /* #f3f3f6 */
+    --foreground: 240.0 5.9% 10.0%; /* #18181b */
+    --card: 0.0 0.0% 100.0%; /* #ffffff */
+    --card-foreground: 240.0 5.9% 10.0%; /* #18181b */
+    --popover: 0.0 0.0% 100.0%; /* #ffffff */
+    --popover-foreground: 240.0 5.9% 10.0%; /* #18181b */
+    --popover-border: 240.0 4.8% 55.1%; /* #878792 */
+    --primary: 243.3 75.8% 57.8%; /* #4b42e5 */
+    --primary-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --secondary: 240.0 10.2% 90.4%; /* #e4e4e9 */
+    --secondary-foreground: 240.0 5.9% 10.0%; /* #18181b */
+    --muted: 240.0 11.8% 93.3%; /* #ececf0 */
+    --muted-foreground: 240.0 5.9% 33.3%; /* #50505a */
+    --accent: 240.0 11.5% 89.8%; /* #e2e2e8 */
+    --accent-foreground: 240.0 5.9% 10.0%; /* #18181b */
+    --destructive: 4.3 76.2% 39.6%; /* #b22318 */
+    --destructive-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --border: 240.0 9.1% 82.7%; /* #cfcfd7 */
+    --input: 240.0 4.7% 53.9%; /* #84848f */
+    --ring: 243.3 75.8% 57.8%; /* #4b42e5 */
     --radius: 0.5rem; /* md 8px controls, lg 12px cards, sm 6px chips */
-    --sidebar: 240 9.1% 97.8%; /* #f9f9fa */
-    --success: 163.1 88.1% 19.8%; /* #065f46 */
-    --warning: 22.7 82.5% 31.4%; /* #92400e */
-    --info: 201 90% 27.5%; /* #075985 */
-    --success-foreground: 0 0% 100%; /* #ffffff */
-    --warning-foreground: 0 0% 100%; /* #ffffff */
-    --info-foreground: 0 0% 100%; /* #ffffff */
+    --sidebar: 240.0 9.5% 91.8%; /* #e8e8ec */
+    --success: 154.9 90.1% 19.8%; /* #05603a */
+    --warning: 18.8 83.7% 31.4%; /* #93370d */
+    --info: 202.7 85.2% 29.2%; /* #0b5a8a */
+    --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     /* Non-primary tints of the aurora background; themes may override. */
     --aurora-1: 280 85% 60%;
     --aurora-2: 200 90% 60%;
-    /* UI font stack; skins may swap it (see DESIGN_SYSTEM.md → Skins). */
+    /* UI font stack; Settings › General may swap it (lib/appFonts). */
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   .dark {
-    --background: 240 5% 7.8%; /* #131315 */
-    --foreground: 240 8.6% 93.1%; /* #ececef */
-    --card: 240 6.1% 12.9%; /* #1f1f23 */
-    --card-foreground: 240 8.6% 93.1%; /* #ececef */
-    --popover: 240 6% 16.3%; /* #27272c */
-    --popover-foreground: 240 8.6% 93.1%; /* #ececef */
-    --primary: 235.6 88.6% 75.9%; /* #8b93f8 */
-    --primary-foreground: 237.9 50% 11%; /* #0e0f2a */
-    --secondary: 240 5.1% 23.1%; /* #38383e */
-    --secondary-foreground: 240 8.6% 93.1%; /* #ececef */
-    --muted: 240 5.7% 10.4%; /* #19191c */
-    --muted-foreground: 240 5.7% 65.9%; /* #a3a3ad */
-    --accent: 240 4.8% 20.6%; /* #323237 */
-    --accent-foreground: 240 8.6% 93.1%; /* #ececef */
-    --destructive: 0 93.7% 75.3%; /* #fb8585 */
-    --destructive-foreground: 0 61.5% 10.2%; /* #2a0a0a */
-    --border: 240 4.6% 21.4%; /* #343439 */
-    --input: 240 4.5% 30.4%; /* #4a4a51 */
-    --ring: 235.6 88.6% 75.9%; /* #8b93f8 */
-    --sidebar: 240 6.3% 6.3%; /* #0f0f11 */
-    --success: 158.1 64.4% 51.6%; /* #34d399 */
-    --warning: 27 96% 61%; /* #fb923c */
-    --info: 198.4 93.2% 59.6%; /* #38bdf8 */
+    --background: 240.0 6.1% 12.9%; /* #1f1f23 */
+    --foreground: 240.0 9.1% 93.5%; /* #ededf0 */
+    --card: 240.0 6.1% 19.2%; /* #2e2e34 */
+    --card-foreground: 240.0 9.1% 93.5%; /* #ededf0 */
+    --popover: 240.0 6.2% 25.1%; /* #3c3c44 */
+    --popover-foreground: 240.0 9.1% 93.5%; /* #ededf0 */
+    --popover-border: 240.0 4.3% 50.0%; /* #7a7a85 */
+    --primary: 236.1 93.9% 80.8%; /* #a0a6fc */
+    --primary-foreground: 238.1 50.0% 12.5%; /* #101130 */
+    --secondary: 240.0 6.5% 24.3%; /* #3a3a42 */
+    --secondary-foreground: 240.0 9.1% 93.5%; /* #ededf0 */
+    --muted: 240.0 6.8% 17.3%; /* #29292f */
+    --muted-foreground: 240.0 7.6% 74.1%; /* #b8b8c2 */
+    --accent: 240.0 6.5% 24.3%; /* #3a3a42 */
+    --accent-foreground: 240.0 9.1% 93.5%; /* #ededf0 */
+    --destructive: 3.9 100.0% 79.0%; /* #ff9b94 */
+    --destructive-foreground: 3.2 26.0% 14.3%; /* #2e1c1b */
+    --border: 240.0 5.7% 30.8%; /* #4a4a53 */
+    --input: 240.0 5.0% 56.7%; /* #8b8b96 */
+    --ring: 236.1 93.9% 80.8%; /* #a0a6fc */
+    --sidebar: 240.0 6.7% 8.8%; /* #151518 */
+    --success: 153.1 58.4% 60.4%; /* #5fd5a0 */
+    --warning: 30.8 92.4% 69.0%; /* #f9b267 */
+    --info: 201.5 87.3% 69.2%; /* #6cc4f5 */
     /* Light fills in dark mode → dark text on solid success/warning/info. */
-    --success-foreground: 165.7 91.3% 9%; /* #022c22 */
-    --warning-foreground: 23.1 86.7% 8.8%; /* #2a1203 */
-    --info-foreground: 204 80.2% 15.9%; /* #082f49 */
+    --success-foreground: 154.3 38.2% 10.8%; /* #11261d */
+    --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
+    --info-foreground: 201.6 39.7% 12.4%; /* #13232c */
     --aurora-1: 280 90% 62%;
     --aurora-2: 200 90% 60%;
   }
 
-  /* ---------------------------------------------------------------------------
-   * Named color themes. The `data-theme` attribute on <html> selects the palette
-   * (set in applyColorTheme); the `.dark` class still selects light vs dark mode.
-   * `:not(.dark)` / `.dark` are mutually exclusive and both (0,2,0) specificity,
-   * so they override the base :root / .dark tokens regardless of source order.
-   * The default (indigo) theme uses no attribute → falls through to :root/.dark.
-   * ------------------------------------------------------------------------- */
-
-  /* ===========================================================================
-   * Mid-Autumn Festival (Tết Trung Thu) theme — festive seasonal palette.
-   * ========================================================================= */
-
-  /* Mid-Autumn Night (Đêm Trung Thu) — warm festive palette: deep lantern-red
-   * base with a moon-gold accent (red + gold). */
-  [data-theme='midautumn']:not(.dark) {
-    --background: 32 55% 97%;
-    --foreground: 350 40% 14%;
-    --card: 0 0% 100%;
-    --card-foreground: 350 40% 14%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 350 40% 14%;
-    --primary: 36 90% 34%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 30 45% 93%;
-    --secondary-foreground: 350 40% 24%;
-    --muted: 30 45% 93%;
-    --muted-foreground: 348 18% 42%;
-    --accent: 38 75% 88%;
-    --accent-foreground: 28 65% 30%;
-    --destructive: 0 74% 45%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 32 34% 87%;
-    --input: 32 34% 87%;
-    --ring: 36 90% 34%;
-    --sidebar: 34 46% 96%;
-  }
-  [data-theme='midautumn'].dark {
-    --background: 350 42% 7%;
-    --foreground: 42 38% 96%;
-    --card: 351 34% 12%;
-    --card-foreground: 42 38% 96%;
-    --popover: 351 34% 12%;
-    --popover-foreground: 42 38% 96%;
-    --primary: 44 94% 62%;
-    --primary-foreground: 350 60% 10%;
-    --secondary: 350 26% 19%;
-    --secondary-foreground: 42 38% 96%;
-    --muted: 350 26% 19%;
-    --muted-foreground: 40 24% 79%;
-    --accent: 352 46% 30%;
-    --accent-foreground: 44 45% 96%;
-    --destructive: 6 82% 60%;
-    --destructive-foreground: 6 70% 8%;
-    --border: 350 24% 26%;
-    --input: 350 24% 26%;
-    --ring: 44 94% 62%;
-    --sidebar: 352 46% 5%;
-  }
+  /* Named color themes live in ./themes/<id>.css (imported at the top). The
+   * `data-theme` attribute on <html> selects the palette (applyColorTheme); the
+   * `.dark` class still selects light vs dark. `:not(.dark)` / `.dark` are
+   * mutually exclusive and both (0,2,0), so they override the base :root / .dark
+   * tokens regardless of source order. The default theme uses no attribute.
+   * Themes change colors only, never the shape of a component. */
 }
 
 @layer base {

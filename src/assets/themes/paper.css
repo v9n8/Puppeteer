@@ -1,0 +1,66 @@
+/* Paper: warm cream surfaces, brown-black text, terracotta accent. Easy on the eyes for long reading.
+ * Generated from the shared derivation rule (docs/design/mockups/02-themes.html). */
+@layer base {
+  [data-theme='paper']:not(.dark) {
+    --background: 38.6 38.9% 92.9%; /* #f4efe6 */
+    --foreground: 32.3 18.8% 13.5%; /* #29231c */
+    --card: 40.0 50.0% 97.6%; /* #fcfaf6 */
+    --card-foreground: 32.3 18.8% 13.5%; /* #29231c */
+    --popover: 40.0 100.0% 98.8%; /* #fffdf9 */
+    --popover-foreground: 32.3 18.8% 13.5%; /* #29231c */
+    --popover-border: 30.0 3.9% 49.8%; /* #847f7a */
+    --primary: 14.1 66.5% 36.3%; /* #9a3c1f */
+    --primary-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --secondary: 34.3 12.7% 89.2%; /* #e7e4e0 */
+    --secondary-foreground: 32.3 18.8% 13.5%; /* #29231c */
+    --muted: 38.6 26.9% 89.8%; /* #ece7de */
+    --muted-foreground: 35.0 7.0% 33.7%; /* #5c5750 */
+    --accent: 34.3 11.9% 88.4%; /* #e5e2de */
+    --accent-foreground: 32.3 18.8% 13.5%; /* #29231c */
+    --destructive: 2.6 72.5% 37.1%; /* #a3201a */
+    --destructive-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --border: 34.3 8.2% 83.3%; /* #d8d5d1 */
+    --input: 30.0 3.9% 49.8%; /* #847f7a */
+    --ring: 14.1 66.5% 36.3%; /* #9a3c1f */
+    --sidebar: 39.0 31.2% 87.5%; /* #e9e2d5 */
+    --success: 105.0 50.8% 24.7%; /* #2f5f1f */
+    --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --warning: 32.6 100.0% 26.7%; /* #884a00 */
+    --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --info: 203.9 56.4% 30.6%; /* #22577a */
+    --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    --aurora-1: 14.1 66.5% 36.3%;
+    --aurora-2: 203.9 56.4% 30.6%;
+  }
+  [data-theme='paper'].dark {
+    --background: 37.5 12.9% 12.2%; /* #23201b */
+    --foreground: 37.9 37.3% 90.0%; /* #efe8dc */
+    --card: 38.2 12.9% 16.7%; /* #302c25 */
+    --card-foreground: 37.9 37.3% 90.0%; /* #efe8dc */
+    --popover: 38.6 12.7% 21.6%; /* #3e3930 */
+    --popover-foreground: 37.9 37.3% 90.0%; /* #efe8dc */
+    --popover-border: 36.0 6.0% 51.2%; /* #8a847b */
+    --primary: 21.7 79.9% 70.8%; /* #f0a479 */
+    --primary-foreground: 22.9 32.3% 12.7%; /* #2b1e16 */
+    --secondary: 38.2 9.9% 21.8%; /* #3d3932 */
+    --secondary-foreground: 37.9 37.3% 90.0%; /* #efe8dc */
+    --muted: 37.5 9.8% 16.1%; /* #2d2a25 */
+    --muted-foreground: 37.5 8.6% 63.5%; /* #aaa49a */
+    --accent: 38.2 9.9% 21.8%; /* #3d3932 */
+    --accent-foreground: 37.9 37.3% 90.0%; /* #efe8dc */
+    --destructive: 8.6 100.0% 78.0%; /* #ff9f8f */
+    --destructive-foreground: 9.0 27.8% 14.1%; /* #2e1d1a */
+    --border: 35.0 9.0% 26.3%; /* #49443d */
+    --input: 36.0 6.0% 51.2%; /* #8a847b */
+    --ring: 21.7 79.9% 70.8%; /* #f0a479 */
+    --sidebar: 36.0 11.1% 8.8%; /* #191714 */
+    --success: 95.5 48.1% 69.0%; /* #a9d68a */
+    --success-foreground: 98.6 21.9% 12.5%; /* #1e2719 */
+    --warning: 37.8 83.9% 68.4%; /* #f2c06b */
+    --warning-foreground: 38.4 39.7% 12.4%; /* #2c2313 */
+    --info: 204.3 65.9% 73.5%; /* #8fc4e8 */
+    --info-foreground: 206.2 23.5% 13.3%; /* #1a232a */
+    --aurora-1: 21.7 79.9% 70.8%;
+    --aurora-2: 204.3 65.9% 73.5%;
+  }
+}

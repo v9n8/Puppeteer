@@ -37,7 +37,7 @@ const SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl'
 // tabs doesn't make the panel jump; the others fit their content up to 80vh.
 const panelClass = computed(() =>
   cn(
-    'ui-modal w-full rounded-lg border border-border/70 bg-popover shadow-2xl shadow-black/30',
+    'ui-modal w-full rounded-lg border border-popover-border bg-popover shadow-2xl shadow-black/30',
     SIZES[props.size],
     props.scrollBody &&
       (props.size === 'full'

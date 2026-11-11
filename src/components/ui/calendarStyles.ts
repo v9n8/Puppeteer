@@ -13,7 +13,7 @@ export const pickerTrigger = (size: keyof typeof controlSize) => [
 ]
 
 export const popoverContent =
-  'z-50 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg shadow-black/20 outline-none'
+  'z-50 rounded-md border border-popover-border bg-popover p-3 text-popover-foreground shadow-lg shadow-black/20 outline-none'
 
 export const calendarHeader = 'flex items-center justify-between gap-2 pb-2'
 export const calendarHeading = 'text-xs font-semibold capitalize text-foreground'

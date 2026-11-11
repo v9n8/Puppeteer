@@ -12,6 +12,7 @@ import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
+import { normalizeColorTheme } from '@/lib/colorThemes'
 
 export interface AppSettings {
   default_engine: string
@@ -107,6 +108,8 @@ export function createSettingsForm(): SettingsForm {
     settings.value = await invoke<AppSettings>('get_settings')
     // Older backends don't know this key yet; show the default instead of a blank select.
     settings.value.quit_background_policy ||= 'ask'
+    // A removed palette (macos, tahoe…) shows as the one that replaced it.
+    settings.value.color_theme = normalizeColorTheme(settings.value.color_theme)
     lastSaved = { ...settings.value }
   }
 

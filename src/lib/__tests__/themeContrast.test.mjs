@@ -89,10 +89,10 @@ const themeFiles = existsSync(themesDir)
 const all = mergeThemeBlocks([mainBlocks, ...themeFiles.map((t) => t.blocks)])
 const themeIds = ['default', ...Object.keys(all.themes)]
 
-test('base blocks and at least the legacy themes are discovered', () => {
+test('base blocks and the theme files are discovered', () => {
   assert.ok(Object.keys(mainBlocks.root).length > 0)
   assert.ok(Object.keys(mainBlocks.dark).length > 0)
-  for (const id of ['midautumn']) {
+  for (const id of ['contrast', 'ocean', 'paper', 'forest', 'nord', 'tokyonight', 'graphite']) {
     assert.ok(all.themes[id], `theme ${id} not found`)
   }
 })

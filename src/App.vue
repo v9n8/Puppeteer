@@ -32,7 +32,6 @@ import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.v
 import RemoteDesktopAlert from '@/components/remote/RemoteDesktopAlert.vue'
 import FileViewerWindow from '@/views/FileViewerWindow.vue'
 import PermissionWindow from '@/views/PermissionWindow.vue'
-import ThemeDecorations from '@/components/ThemeDecorations.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
 import SelectionToolbar from '@/components/SelectionToolbar.vue'
@@ -67,7 +66,7 @@ import { useChatDraftsStore } from '@/stores/chatDrafts'
 import { useToast } from '@/composables/useToast'
 import { useAgentAmbient } from '@/composables/useAgentAmbient'
 import { useFindShortcut } from '@/composables/usePageFind'
-import { applySystemAccent } from '@/lib/systemAccent'
+import { normalizeColorTheme } from '@/lib/colorThemes'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
@@ -307,17 +306,9 @@ const isRunRoute = computed(
   () => route.name === 'project-run' || route.name === 'project-run-detail',
 )
 
-// Color themes that ship an animated decorative background scene. When one is
-// active AND the user hasn't turned animations off, the app root is made
-// transparent so the body-level scene (ThemeDecorations) shows through.
-const SCENIC_THEMES = new Set(['midautumn'])
-const sceneTheme = computed(() => appSettings.settings?.color_theme ?? 'default')
 // Read through the feature tree, so turning the `app` module off stops it too.
 const animatedBgOn = computed(() => features.isOn('app.animated_background'))
-const sceneOn = computed(() => SCENIC_THEMES.has(sceneTheme.value) && animatedBgOn.value)
-// The macOS accent may change in System Settings while we're in the background.
-window.addEventListener('focus', () => applySystemAccent(document.documentElement.dataset.theme ?? ''))
-// Exposed on <html> so skin / ambient CSS can drop its motion too.
+// Exposed on <html> so the ambient CSS can drop its motion too.
 watchEffect(() => {
   document.documentElement.dataset.animatedBg = animatedBgOn.value ? 'true' : 'false'
 })
@@ -644,10 +635,9 @@ function applyTheme(theme: string) {
 // Named color palette. Sets the `data-theme` attribute on <html> (see main.css);
 // the default (indigo) theme uses no attribute so it falls back to :root/.dark.
 function applyColorTheme(theme: string) {
-  const t = theme && theme !== 'default' ? theme : ''
-  if (t) document.documentElement.setAttribute('data-theme', t)
+  const t = normalizeColorTheme(theme)
+  if (t !== 'default') document.documentElement.setAttribute('data-theme', t)
   else document.documentElement.removeAttribute('data-theme')
-  applySystemAccent(t)
 }
 
 onMounted(async () => {
@@ -940,7 +930,6 @@ onMounted(async () => {
     v-else-if="isSessionWindow"
     class="app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden"
   >
-    <ThemeDecorations :active="sceneOn" :theme="sceneTheme" />
     <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
       <div class="flex-1 min-w-0 overflow-auto">
         <RouterView />
@@ -956,11 +945,6 @@ onMounted(async () => {
   </div>
 
   <div v-else class="app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden">
-    <!-- Animated decorative overlay for scenic themes (e.g. Full Moon 🌕).
-         Sits ABOVE the UI as a non-interactive, screen-blended light layer so it
-         stays visible over the app's opaque panels without blocking clicks. -->
-    <ThemeDecorations :active="sceneOn" :theme="sceneTheme" />
-
     <!-- Unified title bar: brand + open-project tabs + global actions on ONE 44px
          row spanning the whole window, above both columns.
 
