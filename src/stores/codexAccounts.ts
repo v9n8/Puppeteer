@@ -73,6 +73,15 @@ export const useCodexAccountsStore = defineStore('codexAccounts', () => {
     }
   }
 
+  // Every account once per app session (the startup probe covers only the
+  // shared ~/.codex login), one at a time. See the Claude store.
+  let usageProbed = false
+  async function probeAccountsUsageOnce(): Promise<void> {
+    if (usageProbed) return
+    usageProbed = true
+    for (const a of accounts.value) await refreshUsage(a.id)
+  }
+
   async function create(label: string): Promise<CodexAccount> {
     const account = await invoke<CodexAccount>('create_codex_account', { label })
     await fetch()
@@ -118,6 +127,6 @@ export const useCodexAccountsStore = defineStore('codexAccounts', () => {
 
   return {
     accounts, loading, error, budgets, refreshingUsage, usageErrors,
-    fetch, fetchBudget, refreshUsage, create, rename, remove, setDefault, login, cancelLogin, validate,
+    fetch, fetchBudget, refreshUsage, probeAccountsUsageOnce, create, rename, remove, setDefault, login, cancelLogin, validate,
   }
 })

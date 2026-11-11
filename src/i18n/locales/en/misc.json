@@ -20,6 +20,8 @@
     "windowWeek": "weekly window",
     "quotaWarnToast": "{label} has used {percent}% of its {window}.",
     "ringLabel": "{label} plan usage: {percent}%",
+    "ringLabelNoData": "{label} plan usage: no data yet",
+    "noData": "No plan usage read for this account yet. Refresh to read it now.",
     "windows": {
       "five_hour": "5-hour window",
       "seven_day": "Weekly (all models)",

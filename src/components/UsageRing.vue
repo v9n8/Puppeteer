@@ -36,8 +36,12 @@ const SEV_BG: Record<UsageSeverity, string> = { ok: 'bg-info', warn: 'bg-warning
 const shown = computed(() => ringWindow(props.account.windows))
 const ringPct = computed(() => Math.min(100, Math.max(0, shown.value?.percent ?? 0)))
 const severity = computed(() => ringSeverity(props.account.windows, props.thresholds))
+// An account without plan numbers yet (UX-63): an empty ring whose card offers the refresh.
+const noData = computed(() => props.account.windows.length === 0)
 const ringTitle = computed(() =>
-  t('misc.budget.ringLabel', { label: props.account.label, percent: shown.value?.percent ?? 0 }),
+  noData.value
+    ? t('misc.budget.ringLabelNoData', { label: props.account.label })
+    : t('misc.budget.ringLabel', { label: props.account.label, percent: shown.value?.percent ?? 0 }),
 )
 
 const rows = computed(() =>
@@ -185,7 +189,8 @@ onBeforeUnmount(() => {
       />
     </svg>
     <span class="max-w-16 truncate">{{ account.label }}</span>
-    <span class="font-mono font-semibold tabular-nums" :class="SEV_TEXT[severity]">{{ shown?.percent ?? 0 }}%</span>
+    <span v-if="noData" class="font-mono tabular-nums">–</span>
+    <span v-else class="font-mono font-semibold tabular-nums" :class="SEV_TEXT[severity]">{{ shown?.percent ?? 0 }}%</span>
   </button>
 
   <!-- Teleported and `fixed`, so the status bar's overflow can't clip it. -->
@@ -216,6 +221,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <p v-if="noData" class="text-2xs text-muted-foreground">{{ t('misc.budget.noData') }}</p>
       <div v-for="r in rows" :key="r.w.key" class="flex flex-col gap-1">
         <div class="flex items-baseline gap-2 text-2xs">
           <span class="min-w-0 flex-1 truncate text-muted-foreground">{{ r.label }}</span>

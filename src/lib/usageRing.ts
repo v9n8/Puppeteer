@@ -179,3 +179,12 @@ export interface UsageRingAccount {
   /** Last failed live probe, shown in the card. */
   refreshError: string | null
 }
+
+/**
+ * The rings the status bar shows: every set-up account, with numbers or not
+ * (an empty ring offers its refresh), so no account goes missing; the global
+ * Claude row and the shared Codex login only once they have numbers.
+ */
+export function visibleUsageRings<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(rows: readonly R[]): R[] {
+  return rows.filter((r) => r.windows.length > 0 || r.key.includes(':'))
+}

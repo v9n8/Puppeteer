@@ -137,6 +137,17 @@ export const useClaudeAccountsStore = defineStore('claudeAccounts', () => {
     }
   }
 
+  // The plan-usage probe once per app session for every account the startup
+  // probe (budget store, default account) leaves out, so each status-bar ring
+  // has numbers without a run on that account first. One at a time: each spawns
+  // the CLI. Store state, so remounting the status bar doesn't probe again.
+  let usageProbed = false
+  async function probeOtherAccountsUsageOnce(): Promise<void> {
+    if (usageProbed) return
+    usageProbed = true
+    for (const a of accounts.value.filter((a) => !a.is_default)) await refreshUsage(a.id)
+  }
+
   async function setDefault(id: string): Promise<void> {
     await invoke('set_default_claude_account', { id })
     await fetch()
@@ -166,5 +177,5 @@ export const useClaudeAccountsStore = defineStore('claudeAccounts', () => {
     return result
   }
 
-  return { accounts, balance, loading, error, budgets, refreshingUsage, usageErrors, fetch, fetchBudget, fetchBalance, refreshUsage, create, rename, remove, setDefault, login, submitLoginCode, cancelLogin, validate }
+  return { accounts, balance, loading, error, budgets, refreshingUsage, usageErrors, fetch, fetchBudget, fetchBalance, refreshUsage, probeOtherAccountsUsageOnce, create, rename, remove, setDefault, login, submitLoginCode, cancelLogin, validate }
 })

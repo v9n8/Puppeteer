@@ -20,6 +20,8 @@
     "windowWeek": "cửa sổ tuần",
     "quotaWarnToast": "{label} đã dùng {percent}% {window}.",
     "ringLabel": "Mức dùng plan {label}: {percent}%",
+    "ringLabelNoData": "Mức dùng plan {label}: chưa có số liệu",
+    "noData": "Chưa đọc được mức dùng plan của tài khoản này. Bấm làm mới để đọc ngay.",
     "windows": {
       "five_hour": "Cửa sổ 5h",
       "seven_day": "Tuần (tất cả model)",

@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown, usageSummary,
+  visibleUsageRings,
   planUsageRead,
 } from '../usageRing.ts'
 
@@ -113,4 +114,16 @@ test('planUsageRead: each row key reads its own login snapshot', () => {
   assert.deepEqual(planUsageRead('claude:a1'), { cmd: 'get_plan_usage', args: { accountId: 'a1' } })
   assert.deepEqual(planUsageRead('codex'), { cmd: 'get_plan_usage_codex' })
   assert.deepEqual(planUsageRead('codex:x1'), { cmd: 'get_plan_usage_codex', args: { accountId: 'x1' } })
+})
+
+test('visibleUsageRings: every account shows, data or not; global rows wait for data', () => {
+  const w = [{ key: 'five_hour', period: '5h', percent: 3, reset: null, rolledOver: false, blocked: false }]
+  const rows = [
+    { key: 'claude:a', windows: w },
+    { key: 'claude:b', windows: [] },
+    { key: 'codex', windows: [] },
+    { key: 'codex:c', windows: [] },
+    { key: 'claude', windows: w },
+  ]
+  assert.deepEqual(visibleUsageRings(rows).map((r) => r.key), ['claude:a', 'claude:b', 'codex:c', 'claude'])
 })

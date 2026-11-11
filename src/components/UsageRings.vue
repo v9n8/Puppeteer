@@ -2,7 +2,8 @@
 // Plan usage on the session status bar (UX-23, replaces BudgetBadge): one
 // UsageRing per Claude account (or the single global Claude snapshot when no
 // accounts are set up), the shared Codex login and each Codex account (UX-41).
-// A ring hides while its account has no plan data. This component also keeps
+// An account's ring shows even before it has plan data (lib/usageRing
+// visibleUsageRings); the global Claude and shared Codex rings wait for theirs. This component also keeps
 // the numbers fresh and raises the quota warning toast (UX-13), so both stop
 // while the bar hides usage.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -17,7 +18,7 @@ import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useToast } from '@/composables/useToast'
 import type { QuotaWarnWindow } from '@/lib/quotaWarn'
 import {
-  parsePercentSetting, planUsageRead, usageWindows,
+  parsePercentSetting, planUsageRead, usageWindows, visibleUsageRings,
   type PlanUsageSnapshot, type UsageRingAccount, type UsageThresholds,
 } from '@/lib/usageRing'
 
@@ -109,7 +110,7 @@ const rows = computed<UsageRow[]>(() => {
   }, ...codexAccountRows]
 })
 
-const visibleRows = computed(() => rows.value.filter((r) => r.windows.length > 0))
+const visibleRows = computed(() => visibleUsageRings(rows.value))
 
 const thresholds = computed<UsageThresholds>(() => ({
   warnPercent: parsePercentSetting(app.settings?.quota_warn_percent),
@@ -207,9 +208,13 @@ onMounted(async () => {
   // The store's startup flag (not a component flag) guards them, because this
   // bar mounts again on every project switch and a probe shells out to the
   // `claude` / `codex` CLI. The Claude probe runs on the default account, the
-  // Codex one on the shared `~/.codex` login.
-  void budget.refreshPlanUsage({ reason: 'startup' }).then(reloadClaude)
-  void budget.refreshCodexPlanUsage({ reason: 'startup' }).then(() => loadSnapshot('codex'))
+  // Codex one on the shared `~/.codex` login; then every other account once.
+  void budget.refreshPlanUsage({ reason: 'startup' })
+    .then(() => claudeAccounts.probeOtherAccountsUsageOnce())
+    .then(reloadClaude)
+  void budget.refreshCodexPlanUsage({ reason: 'startup' })
+    .then(() => codexAccounts.probeAccountsUsageOnce())
+    .then(reloadCodex)
   // Recompute rollover against the clock and pick up snapshots written by runs.
   timer = setInterval(reloadAll, 60_000)
   clockTimer = setInterval(() => { now.value = Date.now() }, 30_000)
