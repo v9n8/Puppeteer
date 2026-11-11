@@ -15,6 +15,8 @@
 //!     `_puppeteer_turn_failed` (Codex) → a prompt never became a turn; like a
 //!         `result`, it lets the next follow-up waiting in the `TurnGate` start.
 //!     `_puppeteer_steered` → the engine took a steer; only now is it logged.
+//!     `_puppeteer_context_usage` → what the context window holds after a turn;
+//!         a `context_usage` line in the run log and tracing, not sent to the UI.
 //!
 //! Auth: the SDK uses its bundled CLI, which reads the same macOS Keychain login
 //! as `claude` — so runs bill against the user's subscription, no API key.
@@ -968,6 +970,14 @@ pub async fn drain_sidecar(
                             (Some(_), "_puppeteer_framing_seeded") => {
                                 crate::conductor::commands::mark_framing_seeded(&db_pool, &run_id).await;
                             }
+                            // ---- control: context-window makeup (AC-08) --------
+                            // A measurement for later analysis, not shown: one
+                            // line in the run log and tracing, no UI or remote emit.
+                            (Some(v), "_puppeteer_context_usage") => {
+                                let record = context_usage_record(v, &engine);
+                                tracing::info!(target: "puppeteer::context_usage", run_id = %run_id, usage = %record);
+                                append_log(&log_buf, &format!("{}\n", record)).await;
+                            }
                             // ---- control: the engine took a steer --------------
                             // Logged now, not when sent: a steer it refused (no
                             // turn to steer) must not read as delivered.
@@ -1477,6 +1487,22 @@ fn final_run_status(
     } else {
         "done"
     }
+}
+
+/// A sidecar's `_puppeteer_context_usage` as the run log's `context_usage`
+/// line: the same fields, tagged with the run's engine.
+fn context_usage_record(event: &Value, engine: &str) -> Value {
+    let mut record = serde_json::Map::new();
+    record.insert("type".into(), Value::from("context_usage"));
+    record.insert("engine".into(), Value::from(engine));
+    if let Some(fields) = event.as_object() {
+        for (key, value) in fields {
+            if key != "type" && key != "engine" {
+                record.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    Value::Object(record)
 }
 
 /// Does this `_puppeteer_ready` declare the sidecar's liveness heartbeat?
@@ -2444,6 +2470,34 @@ mod turn_end_tests {
             final_run_status(true, true, Some(1), Some("SIGKILL"), exit1),
             "cancelled"
         );
+    }
+
+    #[test]
+    fn context_usage_becomes_a_tagged_log_record() {
+        let event = serde_json::json!({
+            "type": "_puppeteer_context_usage",
+            "totalTokens": 65500, "maxTokens": 200000,
+            "categories": { "mcp_tools": 9000, "mcp_tools_deferred": 20000 },
+            "memoryFiles": { "count": 2, "tokens": 1500 },
+        });
+        let record = context_usage_record(&event, "claude");
+        assert_eq!(
+            record,
+            serde_json::json!({
+                "type": "context_usage", "engine": "claude",
+                "totalTokens": 65500, "maxTokens": 200000,
+                "categories": { "mcp_tools": 9000, "mcp_tools_deferred": 20000 },
+                "memoryFiles": { "count": 2, "tokens": 1500 },
+            })
+        );
+        // One line that `grep '"type":"context_usage"'` finds.
+        let line = record.to_string();
+        assert!(line.contains(r#""type":"context_usage""#) && !line.contains('\n'), "{line}");
+        let codex = context_usage_record(
+            &serde_json::json!({ "type": "_puppeteer_context_usage", "engine": "x", "totalTokens": 1780, "maxTokens": null }),
+            "codex",
+        );
+        assert_eq!(codex, serde_json::json!({ "type": "context_usage", "engine": "codex", "totalTokens": 1780, "maxTokens": null }));
     }
 
     #[test]

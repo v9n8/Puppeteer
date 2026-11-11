@@ -18,6 +18,7 @@
 //         {type:"_puppeteer_permission_request",requestId,tool_name,tool_input,title,description}
 //         {type:"_puppeteer_turn_failed"}          ← a prompt never became a turn (no result follows)
 //         {type:"_puppeteer_steered",text,images}  ← codex took a steer (turn/steer accepted)
+//         {type:"_puppeteer_context_usage",model,totalTokens,maxTokens}  ← before each result (AC-08)
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
@@ -860,6 +861,11 @@ let turnBaseline = null
 let turnUsageId = null
 let turnEndTotal = null
 let turnLastSum = null
+// For the context measurement (AC-08): the model's window (any update, the
+// replay included, may carry it) and the turn's latest `last` — the request
+// that now holds the whole context.
+let contextWindow = null
+let turnLatestLast = null
 
 // A codex TokenUsageBreakdown as { input, cached, output }, or null when it has
 // no counts. Field names vary between codex versions (camelCase since the
@@ -906,6 +912,8 @@ function mapCodexUsage(b) {
 function noteTokenUsage(tu, updateTurnId) {
   const total = tokenBreakdown(tu?.total)
   const last = tokenBreakdown(tu?.last || (tu?.total ? null : tu))
+  const reportedWindow = tu?.modelContextWindow ?? tu?.model_context_window
+  if (typeof reportedWindow === 'number' && reportedWindow > 0) contextWindow = reportedWindow
   // Ours: a turn is in flight and the update names it, or names no turn (older
   // codex). One naming another turn, or coming before codex named ours (the
   // resume replay can land after turn/start went out), is history: it only
@@ -922,7 +930,23 @@ function noteTokenUsage(tu, updateTurnId) {
   // request, the total was this update's total minus that request.
   if (!turnEndTotal && !turnLastSum && !turnBaseline && total && last) turnBaseline = subTokens(total, last)
   if (total) latestTotal = turnEndTotal = total
-  if (last) turnLastSum = turnLastSum ? addTokens(turnLastSum, last) : last
+  if (last) {
+    turnLastSum = turnLastSum ? addTokens(turnLastSum, last) : last
+    turnLatestLast = last
+  }
+}
+
+// The same event the Claude sidecar sends after each turn, without the split
+// by category (codex reports none): the context is what the turn's last
+// request carried in and wrote (its input already counts the cached part).
+// `total` is the thread's sum over every request, not a window size.
+function emitContextUsage() {
+  if (!turnLatestLast) return
+  ctrl('_puppeteer_context_usage', {
+    model: modelName,
+    totalTokens: turnLatestLast.input + turnLatestLast.output,
+    maxTokens: contextWindow,
+  })
 }
 
 // The finished turn's usage: how much `total` grew over it. A codex that sends
@@ -1096,7 +1120,8 @@ function onServerMessage(msg) {
         // protocol: it was carried on the turn/completed params themselves.
         const usage = turnUsage() || mapCodexUsage(tokenBreakdown(p))
         if (usage) result.usage = usage
-        turnBaseline = turnUsageId = turnEndTotal = turnLastSum = null
+        emitContextUsage()
+        turnBaseline = turnUsageId = turnEndTotal = turnLastSum = turnLatestLast = null
         if (modelName) result.model = modelName
         if (turnStartedAt != null) result.duration_ms = Date.now() - turnStartedAt
         out(result)
@@ -1348,7 +1373,7 @@ async function startTurn(text, images) {
   turnErrorReported = false
   turnStartedAt = Date.now()
   turnBaseline = latestTotal
-  turnUsageId = turnEndTotal = turnLastSum = null
+  turnUsageId = turnEndTotal = turnLastSum = turnLatestLast = null
   // Prepend the one-time framing seed to the first turn of a resumed thread.
   // Claimed up front so a second turn queued meanwhile can't seed it twice.
   const seed = SEED_FRAMING

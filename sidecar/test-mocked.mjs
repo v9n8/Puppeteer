@@ -382,6 +382,49 @@ const tests = {
     assert.deepEqual(of(messages, 'mock_echo').map((m) => m.mock_input.message.content), ['two'])
   },
 
+  // Context measurement (AC-08): after each turn's result, the window's makeup
+  // as a summary (no grid, no per-skill lists). The SDK answers on the message
+  // stream, so the loop must not wait for it: the second turn still runs, and
+  // each answer arrives with the turn after it.
+  async 'each result reports a context usage summary without blocking the loop'() {
+    const { messages, code } = await runSidecar('context', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+      if (msg.type === 'result' && msg.mock_turn === 0) ctl.send({ type: 'prompt', text: 'again' })
+      if (msg.type === 'result' && msg.mock_turn === 1) ctl.closeInput()
+    })
+    assert.equal(code, 0)
+    assert.equal(of(messages, 'result').length, 2)
+    const usage = of(messages, '_puppeteer_context_usage')
+    assert.equal(usage.length, 2)
+    assert.deepEqual(usage[0], {
+      type: '_puppeteer_context_usage',
+      model: 'claude-opus-5-5',
+      totalTokens: 65500,
+      maxTokens: 200000,
+      categories: {
+        system_prompt: 3000, system_tools: 12000, mcp_tools: 9000, mcp_tools_deferred: 20000,
+        memory_files: 1500, 'Legacy row': 7, messages: 40000, free_space: 100000,
+      },
+      mcpToolCount: 7,
+      mcpTools: [
+        { name: 'mcp__s__t3', serverName: 's', tokens: 4000, isLoaded: false },
+        { name: 'mcp__s__t5', serverName: 's', tokens: 2000, isLoaded: true },
+        { name: 'mcp__s__t1', serverName: 's', tokens: 900, isLoaded: true },
+        { name: 'mcp__s__t4', serverName: 's', tokens: 300, isLoaded: true },
+        { name: 'mcp__s__t6', serverName: 's', tokens: 70, isLoaded: true },
+      ],
+      memoryFiles: { count: 2, tokens: 1500 },
+      messageBreakdown: { toolCallTokens: 5000, toolResultTokens: 30000, attachmentTokens: 0, assistantMessageTokens: 3000, userMessageTokens: 2000 },
+    })
+    assert.equal(usage[1].categories.messages, 41000)
+    // Answered after the turn's result, and flushed before the session closes.
+    const at = (m) => messages.indexOf(m)
+    const results = of(messages, 'result')
+    assert.ok(at(usage[0]) > at(results[0]) && at(usage[1]) > at(results[1]))
+    assert.ok(at(usage[1]) < at(of(messages, '_puppeteer_closed')[0]))
+    assert.ok(!of(messages, '_puppeteer_log').some((m) => /context usage capture skipped/.test(m.text)))
+  },
+
   // Steer (D4-06): a steer reaches the SDK as a user message with priority
   // `next` (folded into the running turn); a plain follow-up goes with `later`
   // (D4-15: a turn of its own, after the one in flight). Before any turn there

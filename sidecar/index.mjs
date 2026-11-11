@@ -28,6 +28,11 @@
 //   { "type": "_puppeteer_usage", usage }  // structured /usage data (plan rate-limit
 //                                      // utilization + reset windows), captured at
 //                                      // turn end and on the get_usage command
+//   { "type": "_puppeteer_context_usage", model, totalTokens, maxTokens,
+//        categories: { <category id>: tokens }, mcpToolCount, mcpTools (top 5),
+//        memoryFiles: { count, tokens }, messageBreakdown? }
+//                                      // the context window's makeup, after
+//                                      // each turn's `result` (AC-08)
 //   { "type": "_puppeteer_done" }          // query iterator finished
 //   { "type": "_puppeteer_closed", "code": 0|1 }  // session fully torn down (the
 //                                      // process exits right after, with `code`)
@@ -158,6 +163,78 @@ async function captureUsage() {
 
 function requestUsageCapture() {
   const p = captureUsage()
+  pendingUsageCaptures.add(p)
+  p.finally(() => pendingUsageCaptures.delete(p))
+}
+
+// What the context window holds at the end of a turn (AC-08): tokens per
+// category (system prompt, tool schemas, memory files, messages…), the
+// heaviest MCP tools and the memory files — measured before anything is cut.
+// `summary` answers from the last response's usage and local estimates;
+// `full` would count every category with the token-count API. Same rules as
+// captureUsage(): single-flight, 8s cap, never throws, never awaited in the
+// message loop (its response rides that loop).
+async function captureContext() {
+  if (contextCaptureInFlight) return
+  const q = currentQuery
+  if (!q || typeof q.getContextUsage !== 'function') return
+  contextCaptureInFlight = true
+  let timer
+  try {
+    const usage = await Promise.race([
+      q.getContextUsage({ detail: 'summary' }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('context usage request timed out')), 8000)
+      }),
+    ])
+    if (usage) send({ type: '_puppeteer_context_usage', ...contextUsageSummary(usage) })
+  } catch (err) {
+    send({ type: '_puppeteer_log', level: 'debug', text: `context usage capture skipped: ${String(err)}` })
+  } finally {
+    if (timer) clearTimeout(timer)
+    contextCaptureInFlight = false
+  }
+}
+
+// The measurement without the per-square grid, per-skill and per-agent lists:
+// one small line per turn in the run log.
+function contextUsageSummary(u) {
+  const list = (x) => (Array.isArray(x) ? x : [])
+  const categories = {}
+  for (const c of list(u.categories)) {
+    // `id` is absent from a CLI that predates it; the name is the next best key.
+    const key = c?.id || c?.name
+    if (key && typeof c.tokens === 'number') categories[key] = (categories[key] || 0) + c.tokens
+  }
+  const mcpTools = list(u.mcpTools).filter((t) => typeof t?.tokens === 'number')
+  const memoryFiles = list(u.memoryFiles)
+  const summary = {
+    model: u.model ?? null,
+    totalTokens: u.totalTokens ?? null,
+    maxTokens: u.maxTokens ?? null,
+    categories,
+    mcpToolCount: mcpTools.length,
+    mcpTools: [...mcpTools]
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 5)
+      .map(({ name, serverName, tokens, isLoaded }) => ({ name, serverName, tokens, isLoaded })),
+    memoryFiles: {
+      count: memoryFiles.length,
+      tokens: memoryFiles.reduce((sum, f) => sum + (Number(f?.tokens) || 0), 0),
+    },
+  }
+  // How `messages` splits: tool calls and results vs. the conversation itself.
+  const mb = u.messageBreakdown
+  if (mb) {
+    const { toolCallTokens, toolResultTokens, attachmentTokens, assistantMessageTokens, userMessageTokens } = mb
+    summary.messageBreakdown = { toolCallTokens, toolResultTokens, attachmentTokens, assistantMessageTokens, userMessageTokens }
+  }
+  return summary
+}
+
+// In the usage captures' set, so the session's final flush waits for it too.
+function requestContextCapture() {
+  const p = captureContext()
   pendingUsageCaptures.add(p)
   p.finally(() => pendingUsageCaptures.delete(p))
 }
@@ -354,6 +431,7 @@ function claudeEffortLevels(model) {
 let currentQuery = null
 let started = false
 let usageCaptureInFlight = false
+let contextCaptureInFlight = false
 let usagePollTimer = null
 const pendingUsageCaptures = new Set()
 
@@ -539,7 +617,10 @@ function startQuery(firstText, opts = {}, firstImages) {
         // Refresh once more at turn end so the app-wide usage warning reflects
         // the tokens just consumed. Best-effort: may miss if the session tears
         // down first; captureUsage()'s single-flight dedupes with the init call.
-        if (message && message.type === 'result') requestUsageCapture()
+        if (message && message.type === 'result') {
+          requestUsageCapture()
+          requestContextCapture()
+        }
       }
       stopUsagePolling()
       await flushUsageCaptures()
