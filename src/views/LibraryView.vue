@@ -3,25 +3,31 @@
 // read, straight from the disk (commands/library_disk.rs) — Global is HOME's
 // folders, a project's tab its own. Replaces the Skills, Rules, Agents,
 // Commands and Import screens; nothing is created here, only listed, edited,
-// deleted, or duplicated from a project to Global. A project's tab also lists
-// its Memory (CLAUDE.md / AGENTS.md, UX-55/D12), through memory_* because the
-// file may not exist yet: opening it shows an empty editor, a save creates it.
+// deleted, duplicated from a project to Global, or imported from another AI
+// tool as files into the tab's `.claude/` folders (UX-56). A project's tab
+// also lists its Memory (CLAUDE.md / AGENTS.md, UX-55/D12), through memory_*
+// because the file may not exist yet: opening it shows an empty editor, a save
+// creates it.
 //
 // The place lives in the URL query (lib/libraryDisk `libraryQuery`), so a link
 // can open a project's tab or one file.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertCircle, Library, RotateCw } from 'lucide-vue-next'
+import { AlertCircle, Import, Library, RotateCw } from 'lucide-vue-next'
 import { Badge, Button, PageHeader, SegmentedControl } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import LibraryProjectList from '@/components/library/LibraryProjectList.vue'
 import LibraryEntryDetail from '@/components/library/LibraryEntryDetail.vue'
+import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import { invoke } from '@/lib/tauri'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
+import { useFeaturesStore } from '@/stores/features'
+import { isRemoteMode } from '@/lib/ipc/remote'
+import { IMPORT_FEATURE, type ImportDest } from '@/lib/configImport'
 import { selectedProjectId } from '@/lib/projectList'
 import {
   CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, PROJECT_ITEM_KINDS, deletesLink,
@@ -280,6 +286,19 @@ async function duplicate(item: DiskItem) {
   }
 }
 
+// ── Import (UX-56) ──────────────────────────────────────────────────────────
+
+const features = useFeaturesStore()
+// Reads this machine's tool configs and writes files: local-only.
+const canImport = computed(() => !isRemoteMode() && features.isOn(IMPORT_FEATURE))
+const importOpen = ref(false)
+const importDest = computed<ImportDest>(() => ({ into: 'library', scope: scope.value, project_id: activeProjectId.value }))
+const importDestLabel = computed(() => {
+  if (scope.value === 'global') return '~/.claude/'
+  const root = projectsStore.projects.find((p) => p.id === activeProjectId.value)?.path ?? ''
+  return `${root}/.claude/`
+})
+
 const emptyTitle = computed(() =>
   scope.value === 'project' && !activeProjectId.value ? t('library.noProjects') : t('library.emptyTitle'),
 )
@@ -293,6 +312,17 @@ const emptyTitle = computed(() =>
       </template>
       <template #actions>
         <SegmentedControl :model-value="scope" :options="scopeOptions" :stretch="false" @update:model-value="selectScope" />
+        <Button
+          v-if="canImport"
+          variant="ghost"
+          size="xs"
+          :disabled="scope === 'project' && !activeProjectId"
+          :title="t('configImport.title')"
+          @click="importOpen = true"
+        >
+          <Import class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ t('library.import') }}
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -383,5 +413,13 @@ const emptyTitle = computed(() =>
       />
       <DetailEmpty v-else :icon="Library" :text="t('library.noSelection')" />
     </div>
+
+    <ConfigImportDialog
+      v-if="canImport"
+      v-model:open="importOpen"
+      :dest="importDest"
+      :dest-label="importDestLabel"
+      @imported="scan"
+    />
   </div>
 </template>

@@ -1,6 +1,7 @@
 {
   "title": "Thư viện",
   "subtitle": "Skills · Rules · Commands · Agents",
+  "import": "Nhập",
   "tabGlobal": "Global",
   "tabProject": "Theo project",
   "expandProjects": "Hiện danh sách project",

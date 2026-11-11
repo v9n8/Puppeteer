@@ -1,20 +1,20 @@
-// Unit tests for lib/configImport.ts (the Import screen's selection state).
+// Unit tests for lib/configImport.ts (the Import dialog's selection state).
 // Run: node --test src/lib/__tests__/configImport.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  CONFLICT_CHOICES,
   buildPicks,
   candidateSections,
   conflictOf,
   countOutcomes,
   importReady,
-  importedKinds,
   initialChoices,
   nameError,
+  readsDest,
   sourceAdapters,
   sourceKey,
   sourceRef,
-  visibleSources,
   withAllPicked,
   withChoice,
 } from '../configImport.ts'
@@ -25,7 +25,6 @@ const cand = (id, kind, name, extra = {}) => ({
   name,
   description: '',
   origin: `/src/${id}`,
-  target: kind === 'skill' || kind === 'rule' ? 'claude' : null,
   hash: 'h',
   exists: false,
   mcp: null,
@@ -34,7 +33,7 @@ const cand = (id, kind, name, extra = {}) => ({
 
 const candidates = [
   cand('mcp:github', 'mcp', 'github'),
-  cand('skills:.claude/skills/pdf', 'skill', 'pdf', { target: 'both' }),
+  cand('skills:.claude/skills/pdf', 'skill', 'pdf'),
   cand('rules:CLAUDE.md', 'rule', 'CLAUDE', { exists: true }),
   cand('rules:.claude/rules/CLAUDE.md', 'rule', 'CLAUDE'),
   cand('agents:.claude/agents/review.md', 'agent', 'review'),
@@ -49,23 +48,21 @@ const source = (adapter, scope, projectId, kinds) => ({
   kinds,
 })
 
-test('visibleSources drops the kinds whose library is off, then sources left empty', () => {
-  const sources = [
-    source('claude_code', 'global', null, ['agent']),
-    source('claude_code', 'project', 'p1', ['rule', 'agent', 'command']),
-    source('codex', 'global', null, ['skill']),
-  ]
-  const on = new Set(['library.commands'])
-  const got = visibleSources(sources, (f) => on.has(f))
-  assert.deepEqual(
-    got.map((s) => [s.adapter, s.scope, s.project_id, s.kinds]),
-    [
-      ['claude_code', 'project', 'p1', ['rule', 'command']],
-      ['codex', 'global', null, ['skill']],
-    ],
-  )
-  // The input is left as it was.
-  assert.deepEqual(sources[1].kinds, ['rule', 'agent', 'command'])
+test('readsDest: the source reading the Library tab an import writes to', () => {
+  const home = source('cursor', 'global', null, ['rule'])
+  const p1 = source('cursor', 'project', 'p1', ['rule'])
+  const p2 = source('cursor', 'project', 'p2', ['rule'])
+  const global = { into: 'library', scope: 'global', project_id: null }
+  const project = { into: 'library', scope: 'project', project_id: 'p1' }
+  assert.deepEqual([home, p1, p2].map((s) => readsDest(s, global)), [true, false, false])
+  assert.deepEqual([home, p1, p2].map((s) => readsDest(s, project)), [false, true, false])
+  // The MCP list is no place on disk.
+  assert.deepEqual([home, p1].map((s) => readsDest(s, { into: 'mcp' })), [false, false])
+})
+
+test('CONFLICT_CHOICES: a file can be overwritten, an MCP server cannot', () => {
+  assert.ok(CONFLICT_CHOICES.library.includes('overwrite'))
+  assert.deepEqual(CONFLICT_CHOICES.mcp, ['rename', 'skip'])
 })
 
 test('sourceAdapters lists each adapter once, in backend order (a new tool needs no code)', () => {
@@ -90,14 +87,11 @@ test('sourceRef keeps only what the commands take; sourceKey tells sources apart
   assert.equal(keys.size, 4)
 })
 
-test('initialChoices ticks new items, leaves taken names unticked, defaults the engine', () => {
+test('initialChoices ticks new items and leaves taken names unticked', () => {
   const choices = initialChoices(candidates)
-  assert.deepEqual(choices['mcp:github'], { picked: true, name: 'github', target: null, onConflict: 'rename' })
-  assert.deepEqual(choices['skills:.claude/skills/pdf'], { picked: true, name: 'pdf', target: 'both', onConflict: 'rename' })
+  assert.deepEqual(choices['mcp:github'], { picked: true, name: 'github', onConflict: 'rename' })
+  assert.deepEqual(choices['skills:.claude/skills/pdf'], { picked: true, name: 'pdf', onConflict: 'rename' })
   assert.equal(choices['rules:CLAUDE.md'].picked, false)
-  assert.equal(choices['agents:.claude/agents/review.md'].target, null)
-  // A skill or rule the adapter gives no engine goes to Claude, as the backend does.
-  assert.equal(initialChoices([cand('rules:x', 'rule', 'x', { target: null })])['rules:x'].target, 'claude')
 })
 
 test('withChoice and withAllPicked return new objects and ignore unknown ids', () => {
@@ -157,21 +151,19 @@ test('candidateSections groups by kind in screen order, empty kinds left out', (
   assert.deepEqual(candidateSections([]), [])
 })
 
-test('buildPicks sends the ticked ones in scan order, a name or target only when changed', () => {
+test('buildPicks sends the ticked ones in scan order, a name only when changed', () => {
   let choices = initialChoices(candidates)
   choices = withChoice(choices, 'mcp:github', { name: 'gh', onConflict: 'skip' })
-  choices = withChoice(choices, 'skills:.claude/skills/pdf', { target: 'codex' })
+  choices = withChoice(choices, 'skills:.claude/skills/pdf', { onConflict: 'overwrite' })
   choices = withChoice(choices, 'rules:.claude/rules/CLAUDE.md', { picked: false })
-  // An agent has no engine choice: a stray target is never sent.
-  choices = withChoice(choices, 'agents:.claude/agents/review.md', { target: 'codex' })
   assert.deepEqual(buildPicks(candidates, choices), [
     { id: 'mcp:github', on_conflict: 'skip', name: 'gh' },
-    { id: 'skills:.claude/skills/pdf', on_conflict: 'rename', target: 'codex' },
+    { id: 'skills:.claude/skills/pdf', on_conflict: 'overwrite' },
     { id: 'agents:.claude/agents/review.md', on_conflict: 'rename' },
   ])
-  // Back to the proposed engine: nothing to override.
-  choices = withChoice(choices, 'skills:.claude/skills/pdf', { target: 'both' })
-  assert.deepEqual(buildPicks(candidates, choices)[1], { id: 'skills:.claude/skills/pdf', on_conflict: 'rename' })
+  // Back to the proposed name: nothing to override.
+  choices = withChoice(choices, 'mcp:github', { name: 'github' })
+  assert.deepEqual(buildPicks(candidates, choices)[0], { id: 'mcp:github', on_conflict: 'skip' })
 })
 
 test('importReady needs a ticked candidate and valid names on every ticked one', () => {
@@ -187,7 +179,7 @@ test('importReady needs a ticked candidate and valid names on every ticked one',
   assert.equal(importReady([], {}), false)
 })
 
-test('countOutcomes and importedKinds read the import result', () => {
+test('countOutcomes reads the import result', () => {
   const outcomes = [
     { id: 'a', kind: 'skill', status: 'imported', name: 'a', message: null },
     { id: 'b', kind: 'mcp', status: 'imported', name: 'b-2', message: null },
@@ -196,6 +188,4 @@ test('countOutcomes and importedKinds read the import result', () => {
     { id: 'e', kind: null, status: 'failed', name: null, message: 'not found in the source any more' },
   ]
   assert.deepEqual(countOutcomes(outcomes), { imported: 2, skipped: 1, failed: 2 })
-  assert.deepEqual(importedKinds(outcomes), ['mcp', 'skill'])
-  assert.deepEqual(importedKinds([]), [])
 })

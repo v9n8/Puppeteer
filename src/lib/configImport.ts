@@ -1,33 +1,39 @@
 // Import from other AI tools (backend `src-tauri/src/import`, `library.import_external`):
 // the three local-only commands, their shapes (snake_case, as serde sends them), and
-// the pure state of the Import screen — which candidates are ticked, under what name,
-// for which engine, and what happens when the name is taken.
+// the pure state of the Import dialog — which candidates are ticked, under what name,
+// and what happens when the name is taken. Since UX-56 an import fills one of two
+// places: the Library (rules, skills, agents, commands as files in `.claude/` of
+// HOME or a project) or the MCP servers list.
 //
 // Kept free of Vue / Tauri / `@/` imports so it can be unit-tested with `node --test`.
 
 export const IMPORT_FEATURE = 'library.import_external'
-/** → every (adapter, scope) holding something to import. */
+/** `{ into }` → every (adapter, scope) holding something to import there. */
 export const CMD_LIST_IMPORT_SOURCES = 'list_import_sources'
-/** `{ source }` → `{ candidates, problems }`. */
+/** `{ source, dest }` → `{ candidates, problems }`. */
 export const CMD_SCAN_IMPORT_SOURCE = 'scan_import_source'
-/** `{ source, picks }` → one outcome per pick. */
+/** `{ source, dest, picks }` → one outcome per pick. */
 export const CMD_IMPORT_CANDIDATES = 'import_candidates'
 
 export type ImportKind = 'mcp' | 'rule' | 'skill' | 'agent' | 'command'
 export type ImportScope = 'global' | 'project'
-export type ImportTarget = 'claude' | 'codex' | 'both'
-export type OnConflict = 'skip' | 'rename'
+export type ImportInto = 'library' | 'mcp'
+/** `overwrite`: files only — the one there goes to the Trash (a link is removed). */
+export type OnConflict = 'skip' | 'rename' | 'overwrite'
+
+/** Where an import goes: the Library's scope, or the MCP list. */
+export type ImportDest =
+  | { into: 'library'; scope: ImportScope; project_id: string | null }
+  | { into: 'mcp' }
 
 /** Section order on screen. */
 export const KIND_ORDER: readonly ImportKind[] = ['mcp', 'rule', 'skill', 'agent', 'command']
 
-/** Kinds whose library has a prop of its own; the others are core. */
-export const KIND_FEATURE: Readonly<Partial<Record<ImportKind, string>>> = {
-  agent: 'library.agents',
-  command: 'library.commands',
+/** What a taken name can be met with, per destination: an MCP server is never replaced. */
+export const CONFLICT_CHOICES: Readonly<Record<ImportInto, readonly OnConflict[]>> = {
+  library: ['rename', 'overwrite', 'skip'],
+  mcp: ['rename', 'skip'],
 }
-
-export const TARGETS: readonly ImportTarget[] = ['claude', 'codex', 'both']
 
 export interface ImportSource {
   /** Adapter id (`claude_code`, …): the list is open, a new tool is one more id. */
@@ -59,14 +65,12 @@ export interface McpSummary {
 export interface ImportCandidate {
   id: string
   kind: ImportKind
-  /** Proposed library name. */
+  /** Proposed name. */
   name: string
   description: string
   origin: string
-  /** Skills and rules only. */
-  target: ImportTarget | null
   hash: string
-  /** The library already has an item of this kind named `name`. */
+  /** Where it goes, something of this kind is already named `name` (case ignored for files). */
   exists: boolean
   mcp: McpSummary | null
 }
@@ -85,7 +89,6 @@ export interface ImportScan {
 export interface ImportPick {
   id: string
   name?: string
-  target?: ImportTarget
   on_conflict: OnConflict
 }
 
@@ -109,20 +112,9 @@ export function sourceRef(s: ImportSource): ImportSourceRef {
   return { adapter: s.adapter, scope: s.scope, project_id: s.project_id }
 }
 
-/**
- * The sources as the screen offers them: kinds whose library is off dropped (the
- * scan leaves them out too), and a source left with nothing dropped as well.
- */
-export function visibleSources(sources: readonly ImportSource[], isOn: (feature: string) => boolean): ImportSource[] {
-  return sources
-    .map((s) => ({
-      ...s,
-      kinds: s.kinds.filter((k) => {
-        const feature = KIND_FEATURE[k]
-        return !feature || isOn(feature)
-      }),
-    }))
-    .filter((s) => s.kinds.length > 0)
+/** Whether `s` reads the place a Library import writes to: the pick offered first. */
+export function readsDest(s: ImportSource, dest: ImportDest): boolean {
+  return dest.into === 'library' && s.scope === dest.scope && (s.scope === 'global' || s.project_id === dest.project_id)
 }
 
 /** Adapter ids in the order the backend lists them. */
@@ -135,32 +127,18 @@ export function sourceAdapters(sources: readonly ImportSource[]): string[] {
 export interface ImportChoice {
   picked: boolean
   name: string
-  /** `null` for kinds without an engine choice. */
-  target: ImportTarget | null
   onConflict: OnConflict
 }
 
 export type ImportChoices = Record<string, ImportChoice>
 
-/** Skills and rules are written per engine; MCP servers, agents and commands are not chosen here. */
-export function hasTarget(kind: ImportKind): boolean {
-  return kind === 'skill' || kind === 'rule'
-}
-
 /**
- * Fresh choices for a scan: new items ticked, names the library already has left
- * unticked (ticking one imports it under a free name unless told to skip).
+ * Fresh choices for a scan: new items ticked, names already there left unticked
+ * (ticking one imports it under a free name unless told otherwise).
  */
 export function initialChoices(candidates: readonly ImportCandidate[]): ImportChoices {
   const out: ImportChoices = {}
-  for (const c of candidates) {
-    out[c.id] = {
-      picked: !c.exists,
-      name: c.name,
-      target: hasTarget(c.kind) ? (c.target ?? 'claude') : null,
-      onConflict: 'rename',
-    }
-  }
+  for (const c of candidates) out[c.id] = { picked: !c.exists, name: c.name, onConflict: 'rename' }
   return out
 }
 
@@ -176,8 +154,8 @@ export function withAllPicked(choices: ImportChoices, ids: readonly string[], pi
   return out
 }
 
-// The backend's library names (`import::library_name`, MCP's `validate_name`):
-// ASCII letters, digits, `-`, `_`.
+// The backend's names (`import::library_name`, MCP's `validate_name`): ASCII
+// letters, digits, `-`, `_` — a file name too.
 const NAME_RE = /^[A-Za-z0-9_-]+$/
 
 export type NameError = 'empty' | 'invalid'
@@ -188,8 +166,8 @@ export function nameError(name: string): NameError | null {
 }
 
 /**
- * Why the name of a ticked candidate may be taken when it is imported: the
- * library has it (`exists`, known for the proposed name only), or an earlier
+ * Why the name of a ticked candidate may be taken when it is imported: it is
+ * already there (`exists`, known for the proposed name only), or an earlier
  * ticked candidate of the same kind uses it (`duplicate`: picks run in order,
  * the first one gets the name). `null` for an unticked candidate.
  */
@@ -221,7 +199,7 @@ export function candidateSections(candidates: readonly ImportCandidate[]): Candi
   )
 }
 
-/** The ticked candidates as picks, in scan order; a name or target only when it differs. */
+/** The ticked candidates as picks, in scan order; a name only when it differs. */
 export function buildPicks(candidates: readonly ImportCandidate[], choices: ImportChoices): ImportPick[] {
   const picks: ImportPick[] = []
   for (const c of candidates) {
@@ -229,7 +207,6 @@ export function buildPicks(candidates: readonly ImportCandidate[], choices: Impo
     if (!choice?.picked) continue
     const pick: ImportPick = { id: c.id, on_conflict: choice.onConflict }
     if (choice.name !== c.name) pick.name = choice.name
-    if (hasTarget(c.kind) && choice.target && choice.target !== (c.target ?? 'claude')) pick.target = choice.target
     picks.push(pick)
   }
   return picks
@@ -250,10 +227,4 @@ export function countOutcomes(outcomes: readonly ImportOutcome[]): OutcomeCounts
   const counts: OutcomeCounts = { imported: 0, skipped: 0, failed: 0 }
   for (const o of outcomes) counts[o.status] += 1
   return counts
-}
-
-/** Kinds something was imported into: the libraries to list again. */
-export function importedKinds(outcomes: readonly ImportOutcome[]): ImportKind[] {
-  const kinds = new Set(outcomes.filter((o) => o.status === 'imported' && o.kind).map((o) => o.kind as ImportKind))
-  return KIND_ORDER.filter((k) => kinds.has(k))
 }

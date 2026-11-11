@@ -19,12 +19,13 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { Plus, RotateCw, Server, Upload } from 'lucide-vue-next'
+import { Import, Plus, RotateCw, Server, Upload } from 'lucide-vue-next'
 import { AppSelect, Button } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import McpServerDetail from '@/components/mcp/McpServerDetail.vue'
 import McpInfoDetail from '@/components/mcp/McpInfoDetail.vue'
+import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -32,6 +33,8 @@ import { useMcpServersStore, type McpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
+import { isRemoteMode } from '@/lib/ipc/remote'
+import { IMPORT_FEATURE } from '@/lib/configImport'
 import {
   BUILTIN_PREFIX,
   MCP_CATALOG,
@@ -86,6 +89,10 @@ const features = useFeaturesStore()
 watch(() => features.tree, () => {
   if (appSettings.loaded) appSettings.refresh().catch(() => {})
 })
+
+// Import from other AI tools (UX-56): reads this machine's tool configs, so local-only.
+const canImportTools = computed(() => !isRemoteMode() && features.isOn(IMPORT_FEATURE))
+const importToolsOpen = ref(false)
 
 // The Google-backed built-in is injected at run launch only when an OAuth client
 // is configured AND at least one account is connected (mirrors the backend
@@ -478,6 +485,17 @@ function dotClass(row: McpRow): string {
           <Upload class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
         <Button
+          v-if="canImportTools"
+          variant="outline"
+          size="icon"
+          class="shrink-0"
+          :title="t('configImport.title')"
+          :aria-label="t('configImport.title')"
+          @click="importToolsOpen = true"
+        >
+          <Import class="h-3.5 w-3.5" :stroke-width="1.75" />
+        </Button>
+        <Button
           variant="outline"
           size="icon"
           class="shrink-0"
@@ -574,5 +592,12 @@ function dotClass(row: McpRow): string {
         </Button>
       </template>
     </DetailEmpty>
+
+    <ConfigImportDialog
+      v-if="canImportTools"
+      v-model:open="importToolsOpen"
+      :dest="{ into: 'mcp' }"
+      @imported="refresh"
+    />
   </div>
 </template>

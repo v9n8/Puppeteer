@@ -1,10 +1,12 @@
 //! Import from other AI tools (report §5.1.9): one adapter per tool finds its config (detect),
-//! reads it into tool-neutral candidates (scan), and the picked ones are copied into Puppeteer's
-//! libraries ([`apply`]).
+//! reads it into tool-neutral candidates (scan), and the picked ones are copied ([`apply`]).
+//! Since UX-56 an import fills one of two places ([`ImportInto`]): rules, skills, agents and
+//! commands become files in the `.claude/` folders of HOME or a project (the Library); MCP
+//! servers go into Puppeteer's MCP list.
 //!
 //! The flow is three commands ([`commands`]), all local-only and gated on [`FEATURE`]:
-//! 1. `list_import_sources`: each (adapter, scope) holding something to import — HOME (`global`)
-//!    and every project.
+//! 1. `list_import_sources`: each (adapter, scope) holding something to import into that place —
+//!    HOME (`global`) and every project.
 //! 2. `scan_import_source`: that source's candidates, plus one problem per item that could not be
 //!    read. A broken item never fails the scan.
 //! 3. `import_candidates`: the picked candidates, by id, one outcome each. The source is scanned
@@ -26,7 +28,6 @@ pub mod gemini;
 pub mod vscode;
 pub mod windsurf;
 
-use crate::commands::library_items::LibraryKind;
 use crate::commands::mcp::McpServerExport;
 use crate::db::Db;
 use crate::remote::guard::SecretPaths;
@@ -73,13 +74,40 @@ impl ImportKind {
             ImportKind::Command => "commands",
         }
     }
+}
 
-    /// The prop this kind's library also needs (skills, rules and MCP are core).
-    pub fn feature(self) -> Option<&'static str> {
+/// What an import fills.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImportInto {
+    /// Rules, skills, agents and commands, as files in `.claude/` (the Library's scope). Claude
+    /// Code and Codex are not offered: the Library reads their files where they are.
+    Library,
+    /// MCP servers, into Puppeteer's list, from every tool.
+    Mcp,
+}
+
+impl ImportInto {
+    pub fn offers(self, adapter: &str) -> bool {
+        self == ImportInto::Mcp || !matches!(adapter, "claude_code" | "codex")
+    }
+
+    pub fn takes(self, kind: ImportKind) -> bool {
+        (kind == ImportKind::Mcp) == (self == ImportInto::Mcp)
+    }
+}
+
+/// Where an import writes, resolved.
+pub enum Dest<'a> {
+    Files(&'a apply::FileDest<'a>),
+    Mcp,
+}
+
+impl Dest<'_> {
+    pub fn fills(&self) -> ImportInto {
         match self {
-            ImportKind::Agent => Some(LibraryKind::Agent.feature()),
-            ImportKind::Command => Some(LibraryKind::Command.feature()),
-            _ => None,
+            Dest::Files(_) => ImportInto::Library,
+            Dest::Mcp => ImportInto::Mcp,
         }
     }
 }
@@ -123,11 +151,9 @@ pub struct Candidate {
     /// sha256 of the content (an MCP server: of its fields but the secret VALUEs), to spot one
     /// item found by two adapters.
     pub hash: String,
-    /// A library item of this kind already has `name`.
+    /// Where it goes, something of this kind already has `name`: an entry of the `.claude/`
+    /// folder (case ignored), or an MCP server.
     pub exists: bool,
-    /// Skills: the library skill with the same SKILL.md (but for its `name:`). Importing it again
-    /// is skipped, whatever the pick says.
-    pub duplicate_of: Option<String>,
     pub mcp: Option<McpSummary>,
     #[serde(skip)]
     pub payload: Payload,
@@ -187,30 +213,17 @@ pub fn adapter(id: &str) -> Result<&'static dyn Adapter, String> {
     ADAPTERS.iter().copied().find(|a| a.id() == id).ok_or_else(|| format!("unknown import adapter '{id}'"))
 }
 
-/// Scan a source, keep the kinds whose library is on, and flag names the library already has.
-pub async fn scan(db: &Db, adapter: &dyn Adapter, root: &Path, scope: Scope, ctx: &ScanContext) -> ScanReport {
+/// Scan a source, keep the kinds `dest` takes, and flag names already there.
+pub async fn scan(db: &Db, adapter: &dyn Adapter, root: &Path, scope: Scope, ctx: &ScanContext, dest: Dest<'_>) -> ScanReport {
     let mut report = adapter.scan(root, scope, ctx);
-    let mut off = Vec::new();
-    for kind in [ImportKind::Agent, ImportKind::Command] {
-        if !kind_on(db, kind).await {
-            off.push(kind);
-        }
-    }
-    report.candidates.retain(|c| !off.contains(&c.kind));
+    report.candidates.retain(|c| dest.fills().takes(c.kind));
     for c in &mut report.candidates {
-        c.exists = name_taken(db, c.kind, &c.name).await.unwrap_or(false);
-        if let Payload::SkillDir(dir) = &c.payload {
-            c.duplicate_of = same_library_skill(db, dir).await;
-        }
+        c.exists = match dest {
+            Dest::Files(files) => apply::file_taken(files, c.kind, &c.name),
+            Dest::Mcp => name_taken(db, c.kind, &c.name).await.unwrap_or(false),
+        };
     }
     report
-}
-
-pub(crate) async fn kind_on(db: &Db, kind: ImportKind) -> bool {
-    match kind.feature() {
-        Some(id) => crate::features::is_on(db, id).await,
-        None => true,
-    }
 }
 
 /// Case-insensitive like the file system (APFS) the library files live on.
@@ -225,16 +238,6 @@ pub(crate) async fn name_taken(db: &Db, kind: ImportKind, name: &str) -> Result<
 pub(crate) fn skill_body_hash(dir: &Path) -> Option<String> {
     let content = read_text(&dir.join("SKILL.md"), MAX_TEXT_BYTES).ok()?;
     Some(crate::commands::skills::skill_hash(&with_frontmatter_name(&content, "")))
-}
-
-/// The library skill whose SKILL.md is the one in `dir` but for the name. The same folder can be
-/// found by two adapters (Codex and Craft both read `.agents/skills`, a skill is often kept for
-/// both Claude and Codex), and must come in once.
-pub(crate) async fn same_library_skill(db: &Db, dir: &Path) -> Option<String> {
-    let wanted = skill_body_hash(dir)?;
-    let library: Vec<(String, String)> =
-        sqlx::query_as("SELECT name, source_path FROM skills ORDER BY name").fetch_all(db).await.ok()?;
-    library.into_iter().find(|(_, source)| skill_body_hash(Path::new(source)).as_ref() == Some(&wanted)).map(|(name, _)| name)
 }
 
 // ---- Helpers for adapters ---------------------------------------------------------------------
@@ -417,7 +420,6 @@ pub(crate) fn text_candidate(
         target: target.map(str::to_string),
         hash: crate::commands::rules::content_hash(&content),
         exists: false,
-        duplicate_of: None,
         mcp: None,
         payload: Payload::Text(content),
     })
@@ -460,7 +462,6 @@ pub(crate) fn skill_candidate(
         target: Some(target),
         hash: crate::commands::skills::skill_hash(&content),
         exists: false,
-        duplicate_of: None,
         mcp: None,
         payload: Payload::SkillDir(real_dir),
     })
@@ -622,7 +623,6 @@ pub(crate) fn mcp_candidate(path: &Path, raw_name: &str, export: McpServerExport
         target: None,
         hash: crate::commands::rules::content_hash(&fingerprint.to_string()),
         exists: false,
-        duplicate_of: None,
         mcp: Some(summary),
         payload: Payload::Mcp(export),
     }

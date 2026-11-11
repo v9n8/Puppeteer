@@ -1,9 +1,11 @@
 {
   "title": "Import from other AI tools",
   "refresh": "Refresh",
-  "hint": "Copies MCP servers, rules, skills, agents and commands from another AI tool's config into Puppeteer's libraries. Pick the tool and where to read it, then tick what to import.",
-  "remote": "Import reads the AI tool configs of the computer running Puppeteer, so it only works in the app on that computer, not from a remote desktop.",
-  "noSources": "No AI tool config with something to import was found in your home folder or in any project.",
+  "hintLibrary": "Copies rules and skills from another AI tool as files into the folder below. Claude Code and Codex aren't listed: the Library already reads their files.",
+  "hintMcp": "Copies MCP servers from another AI tool's config into Puppeteer's MCP servers.",
+  "into": "Writes into",
+  "noSourcesLibrary": "No other AI tool with rules or skills to import was found in your home folder or in any project.",
+  "noSourcesMcp": "No AI tool config with MCP servers was found in your home folder or in any project.",
   "tool": "Tool",
   "from": "From",
   "scopeHome": "Home folder (global)",
@@ -11,22 +13,17 @@
   "scanning": "Reading the config…",
   "noCandidates": "Nothing left to import here.",
   "pickAll": "Tick or untick all",
-  "name": "Name in the library",
+  "name": "Name",
   "secretKeys": "secrets: {keys} (stored in the Keychain)",
   "import": "Import ({count})",
   "importing": "Importing…",
-  "copyOnly": "Files are copied; the tool's own config is not changed.",
+  "copyOnly": "Only copies: the other tool's files and config are not changed.",
   "kind": {
     "mcp": "MCP servers",
     "rule": "Rules",
     "skill": "Skills",
     "agent": "Agents",
     "command": "Commands"
-  },
-  "target": {
-    "claude": "Claude",
-    "codex": "Codex",
-    "both": "Both"
   },
   "adapter": {
     "claude_code": "Claude Code",
@@ -39,9 +36,11 @@
     "craft": "Craft Agents"
   },
   "conflict": {
-    "exists": "Name already in the library",
+    "existsFile": "Already in the folder",
+    "existsMcp": "Name already in the MCP list",
     "duplicate": "Same name as an item above",
     "rename": "Import under a new name",
+    "overwrite": "Overwrite (old one to the Trash)",
     "skip": "Skip it"
   },
   "nameError": {
@@ -51,7 +50,7 @@
   "outcome": {
     "summary": "Imported {imported}, skipped {skipped}, failed {failed}.",
     "renamed": "imported as {name}",
-    "skipped": "skipped, the library already has {name}",
+    "skipped": "skipped, {name} is already there",
     "failed": "failed"
   }
 }

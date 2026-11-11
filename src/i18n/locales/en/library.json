@@ -1,6 +1,7 @@
 {
   "title": "Library",
   "subtitle": "Skills · Rules · Commands · Agents",
+  "import": "Import",
   "tabGlobal": "Global",
   "tabProject": "By project",
   "expandProjects": "Show the project list",

@@ -197,18 +197,50 @@ fn in_puppeteer_library(path: &Path) -> bool {
     })
 }
 
+/// Whether the folder `rel` of the base, really at `real`, lies where it may.
+fn folder_allowed(real: &Path, real_base: &Path, rel: &Path, secret: &SecretPaths) -> bool {
+    // `~/.codex/prompts` lies in a credential store (`~/.codex`): reached without a link, it is the
+    // tool's own folder.
+    real == real_base.join(rel) || (real.starts_with(real_base) && !secret.denies(real))
+}
+
 /// The real folder, with the real base, when it lies where it may.
 fn open_folder(base: &Path, folder: &Folder, secret: &SecretPaths) -> Result<(PathBuf, PathBuf), String> {
     let at = base.join(folder.rel);
     let real_base = fs::canonicalize(base).map_err(|_| format!("Folder not found: {}", base.display()))?;
     let real = fs::canonicalize(&at).map_err(|_| format!("Folder not found: {}", at.display()))?;
-    // `~/.codex/prompts` lies in a credential store (`~/.codex`): reached without a link, it is the
-    // tool's own folder.
-    if real == real_base.join(folder.rel) || (real.starts_with(&real_base) && !secret.denies(&real)) {
+    if folder_allowed(&real, &real_base, Path::new(folder.rel), secret) {
         Ok((real_base, real))
     } else {
         Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()))
     }
+}
+
+/// The real `.claude/` folder of `kind` in HOME or a project, where an import from another tool
+/// writes (UX-56); with `create`, made when missing. Each part is checked before anything is
+/// created in it, so a `.claude` a cloned repo links elsewhere gets nothing.
+pub(crate) fn claude_folder(base: &Path, kind: ItemKind, secret: &SecretPaths, create: bool) -> Result<PathBuf, String> {
+    let folder = FOLDERS
+        .iter()
+        .find(|f| f.kind == kind && f.engine == "claude")
+        .ok_or_else(|| format!("No Claude folder for {kind:?}"))?;
+    let real_base = fs::canonicalize(base).map_err(|_| format!("Folder not found: {}", base.display()))?;
+    let mut rel = PathBuf::new();
+    for part in Path::new(folder.rel).components() {
+        rel.push(part);
+        let at = base.join(&rel);
+        if fs::symlink_metadata(&at).is_err() {
+            if !create {
+                return Err(format!("Folder not found: {}", at.display()));
+            }
+            fs::create_dir(&at).map_err(|e| format!("{}: {}", at.display(), e))?;
+        }
+        let real = fs::canonicalize(&at).map_err(|e| format!("{}: {}", at.display(), e))?;
+        if !folder_allowed(&real, &real_base, &rel, secret) {
+            return Err(format!("{} leads outside {} — Puppeteer won't write there", at.display(), base.display()));
+        }
+    }
+    open_folder(base, folder, secret).map(|(_, dir)| dir)
 }
 
 /// An item's entry on disk.
@@ -368,13 +400,13 @@ fn write_at(loc: &Located, content: &str, expected_hash: &str, secret: &SecretPa
 
 /// Remove the link at `at`, never what it points at (a link to a folder is a directory entry on
 /// Windows).
-fn remove_link(at: &Path) -> Result<(), String> {
+pub(crate) fn remove_link(at: &Path) -> Result<(), String> {
     fs::remove_file(at).or_else(|_| fs::remove_dir(at)).map_err(|e| format!("{}: {}", at.display(), e))
 }
 
-type Trash<'a> = &'a dyn Fn(&Path) -> Result<(), String>;
+pub(crate) type Trash<'a> = &'a dyn Fn(&Path) -> Result<(), String>;
 
-fn os_trash(path: &Path) -> Result<(), String> {
+pub(crate) fn os_trash(path: &Path) -> Result<(), String> {
     trash::delete(path).map_err(|e| format!("Delete failed: {e}"))
 }
 
