@@ -23,6 +23,7 @@ use crate::runs::liveness::{
     Action as LivenessAction, Liveness, SIDECAR_EXIT_GRACE, WATCHDOG_TICK,
 };
 use crate::runs::permission::PermissionRequestEvent;
+use crate::runs::turn_timing::{SpawnMarks, TurnTiming};
 use crate::runs::RunRegistry;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -468,6 +469,7 @@ pub async fn drain_sidecar(
     log_buf: Arc<TokioMutex<String>>,
     log_path: PathBuf,
     merge_existing_log: bool,
+    spawn_marks: SpawnMarks,
 ) {
     let mut stdout_reader = BufReader::new(stdout).lines();
     let mut stderr_reader = BufReader::new(stderr).lines();
@@ -603,6 +605,8 @@ pub async fn drain_sidecar(
     // The sidecar reported a fatal `_puppeteer_error` that no later successful turn
     // superseded → the run ends `failed`.
     let mut unresolved_error = false;
+    // Where each user turn's time goes (AC-09): one `turn_timing` record per turn.
+    let mut timing = TurnTiming::new(spawn_marks);
 
     // Surface a watchdog message as a log line in the run (live + log + remote).
     async fn watchdog_line(
@@ -977,7 +981,8 @@ pub async fn drain_sidecar(
                                 start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
                             }
                             // ---- control: lifecycle (swallow) -------------------
-                            (Some(_), "_puppeteer_ready") | (Some(_), "_puppeteer_done") => {}
+                            (Some(_), "_puppeteer_ready") => timing.on_ready(now.into_std()),
+                            (Some(_), "_puppeteer_done") => {}
                             // The session is torn down for good (finished, or the
                             // engine died). Release stdin so the sidecar can exit,
                             // and make sure it does: a sidecar lingering here would
@@ -1006,6 +1011,7 @@ pub async fn drain_sidecar(
                                     append_log(&log_buf, &format!("{}\n", l)).await;
                                 }
                                 capture_session_id(&session_id_arc, &db_pool, &run_id, v).await;
+                                timing.on_event(now.into_std(), v);
                                 // Track the active model from the init event so it
                                 // can be stamped onto the usage row at turn end.
                                 if v.get("type").and_then(|x| x.as_str()) == Some("system")
@@ -1143,6 +1149,18 @@ pub async fn drain_sidecar(
                                     gate_marked = false;
                                     if result_ends_user_turn(v) {
                                         user_turn_ended_once = true;
+                                        // Taken before a queued follow-up goes out
+                                        // below and marks its own prompt.
+                                        let prompt_at = registry
+                                            .lock()
+                                            .await
+                                            .get_mut(&run_id)
+                                            .and_then(|h| h.turn_gate.prompt_at.take());
+                                        let record = timing.finish(now.into_std(), prompt_at, &engine);
+                                        tracing::info!(target: "puppeteer::turn_timing", run_id = %run_id, timing = %record);
+                                        append_log(&log_buf, &format!("{}\n", record)).await;
+                                    } else {
+                                        timing.skip_turn();
                                     }
                                     // A follow-up sent during this turn starts now,
                                     // as a turn of its own: keep the session open.

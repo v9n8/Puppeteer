@@ -8,6 +8,7 @@ use crate::runs::sidecar::{
 };
 use crate::runs::ssh_access::{self, SshAccessGuard};
 use crate::runs::stdin_writer::SidecarInput;
+use crate::runs::turn_timing::SpawnMarks;
 use crate::runs::{BrokerRunCtx, BrokerRunGuard, BrokerRuns, QueuedPrompt, RunHandles, RunRegistry, TurnGate};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -180,6 +181,7 @@ pub(crate) async fn start_run_inner(
     payload: StartRunPayload,
 ) -> Result<(), String> {
     use sqlx::Row;
+    let command_at = std::time::Instant::now();
     let db = &db;
     let registry = &registry;
 
@@ -543,6 +545,7 @@ pub(crate) async fn start_run_inner(
         let mut child = cmd
             .spawn()
             .map_err(|e| format!("Failed to spawn sidecar ({}): {}", node_bin, e))?;
+        let spawned_at = std::time::Instant::now();
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
         // The sidecar's input writer exists from the start: no write to the pipe
@@ -555,6 +558,7 @@ pub(crate) async fn start_run_inner(
 
         // Build the first turn (queued below, once the run is registered).
         let mut first_line: Option<String> = None;
+        let mut mcp_server_count = None;
         if input.is_some() {
             // GĐ6 (AC1): describe the project's pre-wired git account(s) to Claude
             // via an appended system prompt. `None` when nothing is linked → no
@@ -609,6 +613,7 @@ pub(crate) async fn start_run_inner(
                 &permission_mode,
             )
             .await?;
+            mcp_server_count = Some(server_count(&mcp));
             if !mcp.is_null() {
                 options["mcpServers"] = mcp;
             }
@@ -655,12 +660,16 @@ pub(crate) async fn start_run_inner(
             log_buf.clone(),
             log_path,
             false,
+            SpawnMarks { command_at, spawned_at, mcp_server_count },
         ));
         // Registered and drained: now hand the first turn to the writer, once
         // the workspace is captured for Rewind. The log records the prompt (the
         // SDK doesn't echo it) under the turn it was captured as.
         let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
         log_buf.lock().await.push_str(&prompt_log_line(&prompt, &payload.images, turn));
+        if first_line.is_some() {
+            mark_prompt_sent(registry, &payload.run_id).await;
+        }
         queue_first_prompt(input.as_ref(), first_line);
         return Ok(());
     }
@@ -732,6 +741,7 @@ pub(crate) async fn start_run_inner(
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn codex sidecar ({}): {}", node_bin, e))?;
+    let spawned_at = std::time::Instant::now();
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
     // Input writer from the start; nothing writes the pipe on this task (see
@@ -824,9 +834,13 @@ pub(crate) async fn start_run_inner(
         log_buf.clone(),
         log_path,
         false,
+        SpawnMarks { command_at, spawned_at, mcp_server_count: Some(server_count(&codex_mcp)) },
     ));
     let turn = crate::runs::snapshots::before_turn(db, &payload.run_id).await;
     log_buf.lock().await.push_str(&record_first_prompt(turn));
+    if first_line.is_some() {
+        mark_prompt_sent(registry, &payload.run_id).await;
+    }
     queue_first_prompt(input.as_ref(), first_line);
     Ok(())
 }
@@ -1563,8 +1577,22 @@ async fn send_prompt(
     // the history view renders it (parseStreamLog only understands stream-json).
     let log_line = quoted_prompt_log_line(text, images, turn, quote_set);
     write_run_stdin(registry, run_id, &send_line, FOLLOW_UP_REFUSED).await?;
+    mark_prompt_sent(registry, run_id).await;
     log_buf.lock().await.push_str(&log_line);
     Ok(turn)
+}
+
+/// The prompt of the turn now starting reached the sidecar's input: the mark
+/// the turn's `turn_timing` counts its first token and its length from.
+async fn mark_prompt_sent(registry: &RunRegistry, run_id: &str) {
+    if let Some(handle) = registry.lock().await.get_mut(run_id) {
+        handle.turn_gate.prompt_at = Some(std::time::Instant::now());
+    }
+}
+
+/// How many MCP servers an assembled map hands the sidecar (`Null`: none).
+fn server_count(mcp: &serde_json::Value) -> usize {
+    mcp.as_object().map_or(0, |servers| servers.len())
 }
 
 /// A turn of `run_id` just ended (its `result`, or a Codex turn that never
@@ -4310,6 +4338,7 @@ pub(crate) async fn resume_run_with(
     stamp_activity: bool,
 ) -> Result<(), String> {
     use sqlx::Row;
+    let command_at = std::time::Instant::now();
 
     let row = sqlx::query(
         "SELECT r.engine, r.status, r.session_id, r.transcript_path, r.project_id, r.claude_account_id, r.worktree_path,
@@ -4626,6 +4655,7 @@ pub(crate) async fn resume_run_with(
     )
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);
+    let mcp_server_count;
     if let Some(codex) = &codex {
         cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
         cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
@@ -4651,6 +4681,7 @@ pub(crate) async fn resume_run_with(
             &permission_mode,
         )
         .await?;
+        mcp_server_count = server_count(&codex_mcp);
         if !codex_mcp.is_null() {
             cmd.env("PUPPETEER_CODEX_MCP", codex_mcp.to_string());
         }
@@ -4717,6 +4748,7 @@ pub(crate) async fn resume_run_with(
             &permission_mode,
         )
         .await?;
+        mcp_server_count = server_count(&mcp);
         if !mcp.is_null() {
             cmd.env("PUPPETEER_MCP_SERVERS", mcp.to_string());
         }
@@ -4756,6 +4788,7 @@ pub(crate) async fn resume_run_with(
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn sidecar ({}): {}", node_bin, e))?;
+    let spawned_at = std::time::Instant::now();
 
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
@@ -4842,6 +4875,7 @@ pub(crate) async fn resume_run_with(
         log_buf,
         log_path,
         true,
+        SpawnMarks { command_at, spawned_at, mcp_server_count: Some(mcp_server_count) },
     ));
 
     Ok(())

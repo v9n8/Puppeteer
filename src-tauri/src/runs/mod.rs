@@ -16,6 +16,7 @@ pub mod snapshots;
 pub mod ssh_access;
 pub mod stdin_writer;
 pub mod transcript;
+pub mod turn_timing;
 pub mod usage_cost;
 
 use std::collections::HashMap;
@@ -78,6 +79,9 @@ pub struct TurnGate {
     /// Claude wake-up), and no `result` has ended it yet.
     pub busy: bool,
     pub queued: std::collections::VecDeque<QueuedPrompt>,
+    /// When the prompt of the turn in flight reached the sidecar's input; the
+    /// drain takes it at the turn's `result` for its `turn_timing` (AC-09).
+    pub prompt_at: Option<std::time::Instant>,
 }
 
 pub struct QueuedPrompt {
