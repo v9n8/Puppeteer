@@ -38,5 +38,19 @@
   "hideProject": "Ẩn Project (các Session vẫn chạy bình thường)",
   "unhideProject": "Hiện lại Project",
   "toastHidden": "Đã ẩn \"{name}\"",
-  "toastShown": "Đã hiện lại \"{name}\""
+  "toastShown": "Đã hiện lại \"{name}\"",
+  "searchPlaceholder": "Tìm theo tên hoặc đường dẫn",
+  "showList": "Danh sách Project",
+  "noSelection": "Chọn một Project ở bên trái",
+  "overview": {
+    "sessions": "Session",
+    "running": "Đang chạy",
+    "lastSession": "Session gần nhất",
+    "engine": "Engine",
+    "model": "Model",
+    "claudeAccount": "Tài khoản Claude",
+    "noRepos": "Chưa liên kết repository nào",
+    "noConnections": "Chưa liên kết tài khoản hay máy chủ nào",
+    "removeHint": "Chuyển Project và các Session của nó vào Thùng rác. File trên đĩa vẫn giữ nguyên."
+  }
 }

@@ -1,144 +1,89 @@
 <script setup lang="ts">
+// Projects page (UX-49): the project list on the left, the selected project on
+// the right. Management only — no click here opens a session; sessions open from
+// the project tabs on the titlebar (D3). `?id=` picks the project, `?tab=` its tab.
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { openGanttWindow } from '@/lib/ganttWindow'
-import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo, type Project } from '@/stores/projects'
-import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
-import { fullListMove, projectIcon, projectTileClass, visibleProjects } from '@/lib/projectAppearance'
+import { useRoute, useRouter } from 'vue-router'
+import { useMediaQuery } from '@vueuse/core'
+import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
+import { visibleProjects } from '@/lib/projectAppearance'
+import { projectTab, selectedProjectId, type ProjectTab } from '@/lib/projectList'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
-import { useServersStore, type ProjectServer } from '@/stores/servers'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
-import { useFeaturesStore } from '@/stores/features'
 import { open } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@/lib/tauri'
 import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
-import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, SquareTerminal, Code2, Settings, HardDrive, Cloud, CloudCog, GanttChartSquare, GripVertical, Eye, EyeOff } from 'lucide-vue-next'
-import { Button, Input, Badge, Modal, Card, PageHeader, Banner } from '@/components/ui'
-import { useConfirm } from '@/composables/useConfirm'
+import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, PanelLeft } from 'lucide-vue-next'
+import { Button, Input, Badge, Modal, Drawer } from '@/components/ui'
+import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
+import ProjectList from '@/components/projects/ProjectList.vue'
+import ProjectDetailPane from '@/components/projects/ProjectDetailPane.vue'
 import { useToast } from '@/composables/useToast'
-import { useDragSort } from '@/composables/useDragSort'
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const store = useProjectsStore()
 const ghStore = useGithubAccountsStore()
 const glStore = useGitlabAccountsStore()
-const serversStore = useServersStore()
 const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
-const features = useFeaturesStore()
-const tabsStore = useWorkspaceTabsStore()
-const { confirm } = useConfirm()
 const { toast } = useToast()
 const adding = ref(false)
 const detecting = ref(false)
 
-function accountLabel(accountId: string | null): string | null {
-  if (!accountId) return null
-  return ghStore.accounts.find(a => a.id === accountId)?.label ?? t('projects.unknownAccount')
-}
+const addLabel = computed(() =>
+  detecting.value ? t('projects.detecting') : adding.value ? t('projects.adding') : t('projects.addProject'),
+)
 
-function gitlabAccountLabel(accountId: string | null): string | null {
-  if (!accountId) return null
-  return glStore.accounts.find(a => a.id === accountId)?.label ?? t('projects.unknownAccount')
-}
-
-// The AWS account linked to a project (label + region shown on its chip).
-function awsAccount(accountId: string | null) {
-  if (!accountId) return null
-  return awsStore.accounts.find(a => a.id === accountId) ?? null
-}
-
-// The Azure account linked to a project (label + subscription in its chip tooltip).
-function azureAccount(accountId: string | null) {
-  if (!accountId) return null
-  return azureStore.accounts.find(a => a.id === accountId) ?? null
-}
-
-// Mapped VPS servers per project (project_servers has no bulk endpoint, so we
-// fan out list_project_servers once after the projects load).
-const MAX_SERVER_CHIPS = 2
-type SrvTone = 'success' | 'error' | 'neutral'
-const projectServers = ref<Record<string, ProjectServer[]>>({})
-async function loadProjectServers() {
-  const entries = await Promise.all(
-    store.projects.map(async (p): Promise<[string, ProjectServer[]]> => {
-      try {
-        return [p.id, await serversStore.listForProject(p.id)]
-      } catch {
-        return [p.id, []]
-      }
-    }),
-  )
-  projectServers.value = Object.fromEntries(entries)
-}
-
-// Decorate each project's servers into header-style chips (tone by status,
-// collapsing the overflow into a single "+N").
-const projectChips = computed(() => {
-  const map: Record<string, {
-    visible: { key: string; label: string; tone: SrvTone; title: string }[]
-    hiddenCount: number
-    hiddenTitle: string
-  }> = {}
-  for (const p of store.projects) {
-    const chips = (projectServers.value[p.id] ?? []).map((s) => {
-      const tone: SrvTone = s.status === 'online' ? 'success' : s.status === 'offline' ? 'error' : 'neutral'
-      const status = s.status ? ` · ${s.status}` : ''
-      return {
-        key: `${s.id}-${s.role}`,
-        label: s.label,
-        tone,
-        title: `${s.role}: ${s.username}@${s.host}:${s.port}${status}`,
-      }
-    })
-    map[p.id] = {
-      visible: chips.slice(0, MAX_SERVER_CHIPS),
-      hiddenCount: Math.max(0, chips.length - MAX_SERVER_CHIPS),
-      hiddenTitle: chips.slice(MAX_SERVER_CHIPS).map((c) => c.label).join('\n'),
-    }
-  }
-  return map
-})
-
-// --- Hidden projects -----------------------------------------------------------
-// Hidden projects stay off the grid until "Show hidden projects" is on; they are
+// --- List and selection ---------------------------------------------------------
+// Hidden projects stay off the list until "Show hidden projects" is on; they are
 // not deleted, so their sessions, links and tools keep working.
+const search = ref('')
 const showHidden = ref(false)
 const shownProjects = computed(() => visibleProjects(store.projects, showHidden.value))
 const hiddenCount = computed(() => store.projects.filter(p => p.hidden).length)
 
-async function toggleHidden(project: Project) {
-  const hidden = !project.hidden
-  try {
-    await store.updateAppearance(project, { hidden })
-    // Its tab goes too; opening the project again brings the tab back.
-    if (hidden) tabsStore.close(project.id)
-    toast.success(t(hidden ? 'projects.toastHidden' : 'projects.toastShown', { name: project.name }))
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-// --- Drag & drop reorder ------------------------------------------------------
-// Only the grip handle starts a drag — the card itself is a big click target
-// that navigates into the project. The dragged card follows the cursor and the
-// others slide to the slot they'd take once it's gone; see useDragSort.
-// Indexes are in the shown list; the store reorders the full one.
-const gridRef = ref<HTMLElement | null>(null)
-const { dragFrom, start: startDrag, itemStyle: cardStyle, clickWasDrag } = useDragSort({
-  container: gridRef,
-  onDrop: (from, to) => store.reorder(...fullListMove(store.projects, shownProjects.value, from, to)),
+const selectedId = computed(() => selectedProjectId(store.projects, shownProjects.value, route.query.id))
+const selected = computed(() => store.projects.find(p => p.id === selectedId.value) ?? null)
+const tab = computed<ProjectTab>({
+  get: () => projectTab(route.query.tab),
+  set: (value) => router.replace({ query: { ...route.query, tab: value } }),
 })
 
-/** A click landing after a drag is the drop, not a request to open the card. */
-function onCardClick(projectId: string) {
-  if (clickWasDrag()) return
-  router.push(`/projects/${projectId}`)
+// On a narrow window the list leaves the row and opens as a drawer.
+const narrow = useMediaQuery('(max-width: 1023px)')
+const listOpen = ref(false)
+
+function select(id: string) {
+  listOpen.value = false
+  router.replace({ query: { ...route.query, id } })
 }
+
+/** A drop in the list, by id: the store reorders the full list (hidden projects included). */
+function move(fromId: string, toId: string) {
+  const index = (id: string) => store.projects.findIndex(p => p.id === id)
+  store.reorder(index(fromId), index(toId))
+}
+
+// The same list sits beside the detail or, on a narrow window, in a drawer.
+const listProps = computed(() => ({
+  projects: shownProjects.value,
+  selectedId: selectedId.value,
+  hiddenCount: hiddenCount.value,
+  emptyStore: !store.loading && store.projects.length === 0,
+  loading: store.loading,
+  error: store.error,
+  addLabel: addLabel.value,
+  addDisabled: adding.value || detecting.value,
+}))
+const emptyText = computed(() =>
+  store.loading ? t('common.loading') : store.projects.length === 0 ? t('projects.emptyTitle') : t('projects.noSelection'),
+)
+
+const listEvents = { select, add: () => handleAdd(), retry: () => store.fetchProjects(), move }
 
 interface PendingRepo extends DetectedRepo {
   _key: number
@@ -183,7 +128,6 @@ onMounted(async () => {
   if (glStore.accounts.length === 0) glStore.fetch()
   if (awsStore.accounts.length === 0) awsStore.fetch()
   if (azureStore.accounts.length === 0) azureStore.fetch()
-  loadProjectServers()
 })
 
 async function handleAdd() {
@@ -256,289 +200,50 @@ async function confirmAdd() {
     pendingRepos.value = []
     newRepoUrl.value = ''
     toast.success(t('projects.toastAdded'))
-    router.push(`/projects/${project.id}`)
+    select(project.id)
   } catch (e) {
     toast.error(String(e).includes('project_is_home') ? t('projects.errorHomeFolder') : String(e))
   } finally {
     adding.value = false
   }
 }
-
-async function handleRemove(project: { id: string; name: string }) {
-  if (!(await confirm({
-    title: t('projects.confirmRemoveTitle'),
-    message: t('projects.confirmRemoveMessage', { name: project.name }),
-    confirmLabel: t('common.remove'),
-  }))) return
-  try {
-    await store.removeProject(project.id)
-    toast.success(t('projects.toastDeleted'))
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-async function handleOpenInTerminal(project: { path: string }) {
-  try {
-    const settings = await invoke<{ terminal_app: string }>('get_settings')
-    await store.openInTerminal(project.path, settings.terminal_app)
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-async function handleOpenInVscode(project: { path: string }) {
-  try {
-    await store.openInVscode(project.path)
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-async function handleOpenInFolder(project: { path: string }) {
-  try {
-    await store.openInFolder(project.path)
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
-    <!-- Header -->
-    <PageHeader
-      :title="t('projects.title')"
-      :count="!store.loading && shownProjects.length > 0 ? shownProjects.length : null"
-    >
-      <template #actions>
-        <!-- A toggle: pressed (subtle fill) while hidden projects are on the grid. -->
+  <div class="flex h-full min-h-0">
+    <aside v-if="!narrow" class="flex w-[280px] shrink-0 flex-col border-r border-border/60">
+      <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
+    </aside>
+    <Drawer v-else :open="listOpen" side="left" size="sm" :title="t('projects.title')" @close="listOpen = false">
+      <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
+    </Drawer>
+
+    <ProjectDetailPane v-if="selected" v-model:tab="tab" :project="selected">
+      <template v-if="narrow" #leading>
         <Button
-          v-if="hiddenCount > 0"
-          :variant="showHidden ? 'subtle' : 'ghost'"
-          :aria-pressed="showHidden"
-          @click="showHidden = !showHidden"
+          variant="outline"
+          size="icon"
+          class="shrink-0"
+          :title="t('projects.showList')"
+          :aria-label="t('projects.showList')"
+          @click="listOpen = true"
         >
-          <component :is="showHidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('projects.showHidden', { count: hiddenCount }) }}
-        </Button>
-        <Button
-          :disabled="adding || detecting"
-          @click="handleAdd"
-        >
-          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ detecting ? t('projects.detecting') : adding ? t('projects.adding') : t('projects.addProject') }}
+          <PanelLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
       </template>
-    </PageHeader>
-
-    <!-- Content -->
-    <div class="flex-1 overflow-auto p-6">
-      <div v-if="store.loading" class="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-        <div v-for="i in 8" :key="i" class="h-32 rounded-xl border border-border bg-card animate-pulse" />
-      </div>
-
-      <Banner v-else-if="store.error" tone="destructive">
-        {{ store.error }}
-      </Banner>
-
-      <div v-else-if="store.projects.length === 0" class="flex flex-col items-center justify-center h-full min-h-80 text-center">
-        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted mb-4">
-          <FolderOpen class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <p class="text-sm font-medium">{{ t('projects.emptyTitle') }}</p>
-        <p class="text-xs text-muted-foreground mt-1 max-w-50">{{ t('projects.emptyHint') }}</p>
-        <Button
-          class="mt-4"
-          @click="handleAdd"
-        >
+    </ProjectDetailPane>
+    <DetailEmpty v-else :icon="FolderOpen" :text="emptyText">
+      <div class="mt-4 flex justify-center gap-2">
+        <Button v-if="narrow && store.projects.length > 0" variant="outline" size="sm" @click="listOpen = true">
+          <PanelLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ t('projects.showList') }}
+        </Button>
+        <Button v-if="!store.loading" size="sm" :disabled="adding || detecting" @click="handleAdd">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('projects.addProject') }}
+          {{ addLabel }}
         </Button>
       </div>
-
-      <div v-else-if="shownProjects.length === 0" class="flex flex-col items-center justify-center h-full min-h-80 text-center">
-        <p class="text-sm font-medium">{{ t('projects.allHiddenTitle') }}</p>
-        <Button class="mt-4" variant="outline" @click="showHidden = true">
-          <Eye class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('projects.showHidden', { count: hiddenCount }) }}
-        </Button>
-      </div>
-
-      <div v-else ref="gridRef" class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
-        <Card
-          v-for="(project, index) in shownProjects"
-          :key="project.id"
-          :data-drag-index="index"
-          class="group relative flex flex-col cursor-pointer hover:border-primary/40 hover:shadow-[0_1px_3px_0_rgb(0_0_0/0.08)]"
-          :class="dragFrom === index
-            ? 'shadow-xl ring-1 ring-primary/40 cursor-grabbing'
-            : 'transition-all duration-150 hover:-translate-y-0.5'"
-          :style="cardStyle(index)"
-          body-class="flex flex-col flex-1 p-4"
-          @click="onCardClick(project.id)"
-        >
-          <!-- hover accent line -->
-          <span class="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-linear-to-r from-primary to-primary/30 transition-transform duration-200 group-hover:scale-x-100" />
-
-          <!-- Drag handle: appears on hover, starts a pointer-based reorder -->
-          <button
-            class="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent group-hover:opacity-100 transition-all cursor-grab active:cursor-grabbing touch-none"
-            :class="dragFrom === index ? 'opacity-100 text-foreground' : 'opacity-0'"
-            :title="t('projects.dragToReorder')"
-            @click.stop
-            @pointerdown="startDrag(index, $event)"
-          >
-            <GripVertical class="h-4 w-4" :stroke-width="2" />
-          </button>
-
-          <!-- Icon + name/path (the project's own colour and icon, else primary + folder) -->
-          <div class="flex items-start gap-3 mb-3" :class="{ 'opacity-60': project.hidden }">
-            <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors"
-              :class="projectTileClass(project.color)"
-            >
-              <component :is="projectIcon(project.icon)" class="h-4.5 w-4.5" :stroke-width="1.75" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5">
-                <p class="text-sm font-semibold truncate leading-tight">{{ project.name }}</p>
-                <Badge v-if="project.hidden" tone="neutral" class="shrink-0">
-                  <EyeOff class="h-2.5 w-2.5" :stroke-width="2" />
-                  {{ t('projects.hiddenBadge') }}
-                </Badge>
-              </div>
-              <p class="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed font-mono break-all">{{ project.path }}</p>
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex items-start justify-between gap-2 pt-2.5 border-t border-border/60 mt-auto">
-            <div class="flex items-center gap-1.5 flex-wrap min-w-0">
-              <Badge v-if="project.github_account_id" tone="info" class="max-w-[9rem]">
-                <Github class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
-                <span class="truncate">{{ accountLabel(project.github_account_id) }}</span>
-                <span v-if="project.github_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.github_account_ids.length - 1 }}</span>
-              </Badge>
-              <Badge v-if="project.gitlab_account_id" tone="warning" class="max-w-[9rem]">
-                <Gitlab class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
-                <span class="truncate">{{ gitlabAccountLabel(project.gitlab_account_id) }}</span>
-                <span v-if="project.gitlab_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.gitlab_account_ids.length - 1 }}</span>
-              </Badge>
-              <!-- Mapped VPS servers (tone by connection status). -->
-              <Badge
-                v-for="chip in projectChips[project.id]?.visible"
-                :key="chip.key"
-                :tone="chip.tone"
-                :title="chip.title"
-                class="max-w-[9rem]"
-              >
-                <HardDrive class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
-                <span class="truncate">{{ chip.label }}</span>
-              </Badge>
-              <Badge
-                v-if="projectChips[project.id]?.hiddenCount"
-                tone="neutral"
-                :title="projectChips[project.id]?.hiddenTitle"
-              >
-                <HardDrive class="h-2.5 w-2.5" :stroke-width="2" />
-                +{{ projectChips[project.id].hiddenCount }}
-              </Badge>
-              <!-- Default AWS account (+N other enabled). -->
-              <Badge
-                v-if="awsAccount(project.aws_account_id)"
-                tone="primary"
-                class="max-w-[9rem]"
-                :title="t('projects.awsChipTitle', { label: awsAccount(project.aws_account_id)!.label, region: awsAccount(project.aws_account_id)!.region })"
-              >
-                <Cloud class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
-                <span class="truncate">{{ awsAccount(project.aws_account_id)!.label }}</span>
-                <span v-if="project.aws_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.aws_account_ids.length - 1 }}</span>
-              </Badge>
-              <!-- Default Azure account (+N other enabled). -->
-              <Badge
-                v-if="azureAccount(project.azure_account_id)"
-                tone="primary"
-                class="max-w-[9rem]"
-                :title="t('projects.azureChipTitle', {
-                  label: azureAccount(project.azure_account_id)!.label,
-                  subscription: azureAccount(project.azure_account_id)!.subscription_name
-                    ?? azureAccount(project.azure_account_id)!.subscription_id ?? '—',
-                })"
-              >
-                <CloudCog class="h-2.5 w-2.5 shrink-0" :stroke-width="2" />
-                <span class="truncate">{{ azureAccount(project.azure_account_id)!.label }}</span>
-                <span v-if="project.azure_account_ids.length > 1" class="shrink-0 opacity-70">+{{ project.azure_account_ids.length - 1 }}</span>
-              </Badge>
-            </div>
-            <!-- Actions on hover: grouped into a segmented toolbar for a crisper, cohesive look -->
-            <div
-              class="flex items-center gap-0.5 rounded-lg border border-border/70 bg-card/80 p-0.5 shadow-sm opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150"
-              @click.stop
-            >
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :title="t('projects.openInVscode')"
-                @click="handleOpenInVscode(project)"
-              >
-                <Code2 class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :title="t('projects.openFolder')"
-                @click="handleOpenInFolder(project)"
-              >
-                <FolderOpen class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :title="t('projects.openInTerminal')"
-                @click="handleOpenInTerminal(project)"
-              >
-                <SquareTerminal class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <span class="mx-0.5 h-4 w-px bg-border/70" />
-              <Button
-                v-if="features.allows('projects.gantt')"
-                variant="ghost"
-                size="icon-sm"
-                :title="t('projects.gantt')"
-                @click="openGanttWindow(project.id)"
-              >
-                <GanttChartSquare class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :title="t('projects.projectSettings')"
-                @click="router.push(`/projects/${project.id}/settings`)"
-              >
-                <Settings class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :title="project.hidden ? t('projects.unhideProject') : t('projects.hideProject')"
-                @click="toggleHidden(project)"
-              >
-                <component :is="project.hidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                variant="destructive-ghost"
-                size="icon-sm"
-                :title="t('projects.removeProject')"
-                @click="handleRemove(project)"
-              >
-                <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
-    </div>
+    </DetailEmpty>
 
     <!-- Add project modal -->
     <Modal :open="!!pending" size="md" scroll-body :title="t('projects.addProject')" @close="cancelAdd">

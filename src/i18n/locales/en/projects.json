@@ -38,5 +38,19 @@
   "hideProject": "Hide project (sessions keep working)",
   "unhideProject": "Show project again",
   "toastHidden": "\"{name}\" hidden",
-  "toastShown": "\"{name}\" shown again"
+  "toastShown": "\"{name}\" shown again",
+  "searchPlaceholder": "Search name or path",
+  "showList": "Project list",
+  "noSelection": "Select a project on the left",
+  "overview": {
+    "sessions": "Sessions",
+    "running": "Running now",
+    "lastSession": "Latest session",
+    "engine": "Engine",
+    "model": "Model",
+    "claudeAccount": "Claude account",
+    "noRepos": "No repositories linked",
+    "noConnections": "No accounts or servers linked",
+    "removeHint": "Moves the project and its sessions to the Trash. Files on disk stay."
+  }
 }
