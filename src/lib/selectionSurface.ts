@@ -156,3 +156,22 @@ export function toolbarPosition(
   y = Math.max(MARGIN, Math.min(y, viewport.height - bar.height - MARGIN))
   return { x, y }
 }
+
+/**
+ * Top-left of the bar opened by a right-click at `point`: at the pointer, like
+ * a context menu; to its left / above it when there is no room right / below;
+ * always kept inside the viewport.
+ */
+export function pointToolbarPosition(
+  point: { x: number; y: number },
+  bar: Box,
+  viewport: Box,
+): { x: number; y: number } {
+  let x = point.x
+  if (x + bar.width > viewport.width - MARGIN) x = point.x - bar.width
+  let y = point.y
+  if (y + bar.height > viewport.height - MARGIN) y = point.y - bar.height
+  x = Math.max(MARGIN, Math.min(x, viewport.width - bar.width - MARGIN))
+  y = Math.max(MARGIN, Math.min(y, viewport.height - bar.height - MARGIN))
+  return { x, y }
+}

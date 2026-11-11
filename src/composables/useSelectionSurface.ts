@@ -85,6 +85,8 @@ export interface SelectionBar {
   /** The selection itself, for Quote to anchor on (lib/quoteAnchor). */
   range: Range | null
   rect: { left: number; top: number; bottom: number }
+  /** Where the selection was right-clicked: the bar sits there, not under `rect`. */
+  point: { x: number; y: number } | null
   quoteTarget: QuoteTarget | null
 }
 

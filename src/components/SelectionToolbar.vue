@@ -17,6 +17,7 @@ import {
   copyMdText,
   isSelectionExcludedWindow,
   pickSurface,
+  pointToolbarPosition,
   scrollMovesSurface,
   selectionActions,
   toolbarPosition,
@@ -83,7 +84,10 @@ const barSize = ref({ width: 0, height: 0 })
 const position = computed(() => {
   const b = bar.value
   if (!b) return { x: 0, y: 0 }
-  return toolbarPosition(b.rect, barSize.value, { width: window.innerWidth, height: window.innerHeight })
+  const viewport = { width: window.innerWidth, height: window.innerHeight }
+  return b.point
+    ? pointToolbarPosition(b.point, barSize.value, viewport)
+    : toolbarPosition(b.rect, barSize.value, viewport)
 })
 
 watch(actions, () => {
@@ -97,7 +101,8 @@ function hide() {
   bar.value = null
 }
 
-function onSelectionEnd() {
+// The bar for the current selection: under it, or at `point` when it was right-clicked.
+function onSelectionEnd(point: { x: number; y: number } | null) {
   const sel = window.getSelection()
   if (!sel || sel.isCollapsed) return hide()
   const text = sel.toString().trim()
@@ -116,11 +121,27 @@ function onSelectionEnd() {
     text,
     range,
     rect: { left: rect.left, top: rect.top, bottom: rect.bottom },
+    point,
     quoteTarget: surface.quoteTarget?.() ?? null,
   }
   // Warm the translation sidecar now, while the user reaches for the button, so
   // the first translation isn't paying Node/SDK cold-start.
   if (canTranslate(features.tree, surface.allow, excludedWindow)) void invoke('prewarm_translate', { source: 'selection' }).catch(() => {})
+}
+
+// Left button only: a right-click's mouseup comes after its contextmenu and
+// would pull the bar back under the selection.
+function onMouseUp(e: MouseEvent) {
+  if (e.button === 0) onSelectionEnd(null)
+}
+
+// Right-clicking a selection opens the bar at the pointer instead of the
+// webview's menu. Without a bar to show, the system menu shows as usual; an
+// element that opened its own menu (preventDefault) keeps it alone.
+function onContextMenu(e: MouseEvent) {
+  if (e.defaultPrevented) return hide()
+  onSelectionEnd({ x: e.clientX, y: e.clientY })
+  if (bar.value && actions.value.length) e.preventDefault()
 }
 
 // The bar is anchored to a viewport rect that scrolling the surface invalidates.
@@ -178,14 +199,14 @@ function closeTranslate() {
 onMounted(() => {
   if (excludedWindow) return
   selectionHost.value = { isOn: (id) => features.isOn(id), saveNote }
-  window.addEventListener('mouseup', onSelectionEnd)
-  window.addEventListener('contextmenu', onSelectionEnd)
+  window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('contextmenu', onContextMenu)
   document.addEventListener('scroll', onScroll, true)
 })
 onUnmounted(() => {
   selectionHost.value = null
-  window.removeEventListener('mouseup', onSelectionEnd)
-  window.removeEventListener('contextmenu', onSelectionEnd)
+  window.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('contextmenu', onContextMenu)
   document.removeEventListener('scroll', onScroll, true)
   hide()
   closeTranslate()

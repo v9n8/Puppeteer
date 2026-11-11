@@ -8,6 +8,7 @@ import {
   copyMdText,
   isSelectionExcludedWindow,
   pickSurface,
+  pointToolbarPosition,
   scrollMovesSurface,
   selectionActions,
   toolbarPosition,
@@ -349,4 +350,34 @@ test('an unmeasured bar (size 0) still lands under the selection', () => {
     toolbarPosition({ left: 100, top: 300, bottom: 320 }, { width: 0, height: 0 }, VIEW),
     { x: 100, y: 326 },
   )
+})
+
+// ── Placement at a right-click ──────────────────────────────────────────────
+
+test('a right-click puts the bar at the pointer', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 300, y: 400 }, BAR, VIEW), { x: 300, y: 400 })
+})
+
+test('near the right edge the bar opens to the left of the pointer', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 900, y: 400 }, BAR, VIEW), { x: 700, y: 400 })
+})
+
+test('near the bottom edge the bar opens above the pointer', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 300, y: 790 }, BAR, VIEW), { x: 300, y: 766 })
+})
+
+test('near the left and top edges the bar stays 8px inside', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 2, y: 3 }, BAR, VIEW), { x: 8, y: 8 })
+})
+
+test('in the bottom-right corner the bar flips both ways', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 960, y: 780 }, BAR, VIEW), { x: 760, y: 756 })
+})
+
+test('a bar wider than the space on either side is still kept inside', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 100, y: 400 }, { width: 950, height: 24 }, VIEW), { x: 8, y: 400 })
+})
+
+test('an unmeasured bar (size 0) still lands at the pointer', () => {
+  assert.deepEqual(pointToolbarPosition({ x: 300, y: 400 }, { width: 0, height: 0 }, VIEW), { x: 300, y: 400 })
 })
