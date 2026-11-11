@@ -7,6 +7,7 @@ import { useProjectsStore } from '@/stores/projects'
 import { useProjectIssuesStore, type MilestoneGroup } from '@/stores/projectIssues'
 import { Button, Card, AppSelect, Skeleton, Input, PageHeader, SegmentedControl, Banner } from '@/components/ui'
 import GanttChart from '@/components/GanttChart.vue'
+import { projectPageQuery } from '@/lib/projectSections'
 import { RefreshCw, CircleDot, GanttChartSquare, FolderOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -355,7 +356,7 @@ function relativeTime(iso: string | null): string {
         <!-- Banners -->
         <Banner v-if="!store.board.boardLinked" tone="info">
           {{ t('gantt.bannerNoBoardPrefix') }}
-          <RouterLink :to="`/projects/${selectedProjectId}/settings?section=board`" class="text-primary hover:underline font-medium">{{ t('gantt.bannerNoBoardLink') }}</RouterLink>.
+          <RouterLink :to="{ path: '/projects', query: projectPageQuery(selectedProjectId, 'board') }" class="text-primary hover:underline font-medium">{{ t('gantt.bannerNoBoardLink') }}</RouterLink>.
         </Banner>
         <Banner v-if="store.board.skippedNonGithub" tone="warning">
           {{ t('gantt.bannerSkippedNonGithub') }}

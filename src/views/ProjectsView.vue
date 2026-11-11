@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // Projects page (UX-49): the project list on the left, the selected project on
 // the right. Management only — no click here opens a session; sessions open from
-// the project tabs on the titlebar (D3). `?id=` picks the project, `?tab=` its tab.
+// the project tabs on the titlebar (D3). `?id=` picks the project, `?tab=` its tab
+// and `?section=` the section in that tab (the old settings page, UX-50).
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useMediaQuery } from '@vueuse/core'
 import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
 import { visibleProjects } from '@/lib/projectAppearance'
-import { projectTab, selectedProjectId, type ProjectTab } from '@/lib/projectList'
+import { projectPlace, selectedProjectId, type ProjectPlace } from '@/lib/projectList'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
@@ -48,9 +49,9 @@ const hiddenCount = computed(() => store.projects.filter(p => p.hidden).length)
 
 const selectedId = computed(() => selectedProjectId(store.projects, shownProjects.value, route.query.id))
 const selected = computed(() => store.projects.find(p => p.id === selectedId.value) ?? null)
-const tab = computed<ProjectTab>({
-  get: () => projectTab(route.query.tab),
-  set: (value) => router.replace({ query: { ...route.query, tab: value } }),
+const place = computed<ProjectPlace>({
+  get: () => projectPlace(route.query.tab, route.query.section),
+  set: ({ tab, section }) => router.replace({ query: { ...route.query, tab, section: section ?? undefined } }),
 })
 
 // On a narrow window the list leaves the row and opens as a drawer.
@@ -218,7 +219,7 @@ async function confirmAdd() {
       <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
     </Drawer>
 
-    <ProjectDetailPane v-if="selected" v-model:tab="tab" :project="selected">
+    <ProjectDetailPane v-if="selected" v-model:place="place" :project="selected">
       <template v-if="narrow" #leading>
         <Button
           variant="outline"

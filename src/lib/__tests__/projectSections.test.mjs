@@ -3,7 +3,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { PROJECT_GROUPS, PROJECT_SECTIONS, projectNav, sectionFromQuery } from '../projectSections.ts'
+import {
+  PROJECT_GROUPS, PROJECT_SECTIONS, projectNav, sectionFromQuery, sectionGroup, tabSection, projectPageQuery,
+} from '../projectSections.ts'
 
 const shape = (nav) => nav.map((g) => [g.id, g.sections.map((s) => s.id)])
 
@@ -59,6 +61,40 @@ test('sectionFromQuery: every old tab id opens its section, anything else is ign
   for (const inherited of ['toString', 'constructor', '__proto__']) assert.equal(sectionFromQuery(inherited), null)
   for (const bad of [undefined, null, '', 'library', 'defaults', ['board'], 42]) {
     assert.equal(sectionFromQuery(bad), null, String(bad))
+  }
+})
+
+test('sectionGroup: the tab each section sits in', () => {
+  assert.equal(sectionGroup('overview'), 'overview')
+  assert.equal(sectionGroup('board'), 'overview')
+  assert.equal(sectionGroup('styles'), 'defaults')
+  assert.equal(sectionGroup('azure'), 'connections')
+  assert.equal(sectionGroup('conflicts'), 'library')
+  assert.equal(sectionGroup('deploy'), 'servers')
+})
+
+test('tabSection: the requested section while the tab lists it, else the first', () => {
+  assert.equal(tabSection('connections', 'aws', false), 'aws')
+  assert.equal(tabSection('connections', null, false), 'github')
+  // A section of another tab is not shown here.
+  assert.equal(tabSection('connections', 'skills', false), 'github')
+  assert.equal(tabSection('defaults', 'styles', false), 'styles')
+  // Conflicts only while there are some.
+  assert.equal(tabSection('library', 'conflicts', true), 'conflicts')
+  assert.equal(tabSection('library', 'conflicts', false), 'skills')
+  for (const g of PROJECT_GROUPS) assert.equal(sectionGroup(tabSection(g.id, null, false)), g.id)
+})
+
+test('projectPageQuery: the old settings link opens the same section on the Projects page', () => {
+  assert.deepEqual(projectPageQuery('p1', 'board'), { id: 'p1', tab: 'overview', section: 'board' })
+  assert.deepEqual(projectPageQuery('p1', 'claude'), { id: 'p1', tab: 'defaults', section: 'session' })
+  assert.deepEqual(projectPageQuery('p1', 'tools'), { id: 'p1', tab: 'servers', section: 'tools' })
+  assert.deepEqual(projectPageQuery('p1'), { id: 'p1' })
+  assert.deepEqual(projectPageQuery('p1', 'nope'), { id: 'p1' })
+  for (const id of OLD_TABS) {
+    const q = projectPageQuery('p1', id)
+    assert.equal(q.section, MOVED[id] ?? id)
+    assert.equal(q.tab, sectionGroup(q.section))
   }
 })
 

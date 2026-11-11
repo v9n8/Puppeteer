@@ -9,8 +9,8 @@ import { openPrInboxWindow } from '../lib/prInboxWindow'
 import { openCalendarWindow } from '../lib/calendarWindow'
 import { openGanttWindow } from '../lib/ganttWindow'
 import { openFocusWindow } from '../lib/focusWindow'
+import { projectPageQuery } from '../lib/projectSections'
 import IssuesGanttView from '../views/IssuesGanttView.vue'
-import ProjectDetailView from '../views/ProjectDetailView.vue'
 import RunView from '../views/RunView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import StatsView from '../views/StatsView.vue'
@@ -90,7 +90,12 @@ const router = createRouter({
     },
     { path: '/projects/:projectId', name: 'project-run', component: RunView },
     { path: '/projects/:projectId/run/:runId', name: 'project-run-detail', component: RunView },
-    { path: '/projects/:projectId/settings', name: 'project-settings', component: ProjectDetailView },
+    // The project settings page became the tabs of the Projects page (UX-50); old links land there.
+    {
+      path: '/projects/:projectId/settings',
+      name: 'project-settings',
+      redirect: (to) => ({ path: '/projects', query: projectPageQuery(String(to.params.projectId), to.query.section) }),
+    },
     { path: '/stats', name: 'stats', component: StatsView },
     // Same for the Calendar (lib/calendarWindow): CalendarView is rendered only
     // in that window; the route diverts to it.

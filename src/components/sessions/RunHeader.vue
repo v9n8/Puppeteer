@@ -11,6 +11,7 @@ import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { Button, Badge, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useRunSession } from './useRunSession'
+import { projectPageQuery } from '@/lib/projectSections'
 
 const { t } = useI18n()
 const {
@@ -173,7 +174,7 @@ const {
             <span class="flex-1">{{ t('run.focusMode') }}</span>
             <Check v-if="uiLayout.focusMode" class="h-3.5 w-3.5 shrink-0 text-primary" :stroke-width="2" />
           </DropdownItem>
-          <DropdownItem :title="t('run.projectSettingsTitle')" @click="router.push(`/projects/${projectId}/settings`)">
+          <DropdownItem :title="t('run.projectSettingsTitle')" @click="router.push({ path: '/projects', query: projectPageQuery(projectId) })">
             <Settings class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
             {{ t('run.projectSettings') }}
           </DropdownItem>

@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/projectList.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { filterProjects, selectedProjectId, projectTab } from '../projectList.ts'
+import { filterProjects, selectedProjectId, projectTab, projectPlace, PROJECT_TABS } from '../projectList.ts'
 
 const projects = [
   { id: 'a', name: 'Puppeteer', path: '/Users/me/repos/puppeteer', hidden: false },
@@ -36,8 +36,31 @@ test('no or an unknown request falls back to the first listed project', () => {
   assert.equal(selectedProjectId([], [], undefined), null)
 })
 
+test('the tabs are the five settings groups (UX-50)', () => {
+  assert.deepEqual([...PROJECT_TABS], ['overview', 'defaults', 'connections', 'library', 'servers'])
+})
+
 test('an unknown tab opens the overview', () => {
   assert.equal(projectTab('overview'), 'overview')
+  assert.equal(projectTab('library'), 'library')
   assert.equal(projectTab('nope'), 'overview')
   assert.equal(projectTab(undefined), 'overview')
+  assert.equal(projectTab('toString'), 'overview')
+})
+
+test('no tab: the tab of the requested section, the old ids included', () => {
+  assert.equal(projectTab(undefined, 'board'), 'overview')
+  assert.equal(projectTab(undefined, 'aws'), 'connections')
+  assert.equal(projectTab(undefined, 'claude'), 'defaults')
+  assert.equal(projectTab('nope', 'tools'), 'servers')
+  assert.equal(projectTab(undefined, 'nope'), 'overview')
+  // A named tab wins over the section's own tab.
+  assert.equal(projectTab('library', 'aws'), 'library')
+})
+
+test('projectPlace: tab and section from the query', () => {
+  assert.deepEqual(projectPlace('connections', 'gitlab'), { tab: 'connections', section: 'gitlab' })
+  assert.deepEqual(projectPlace(undefined, 'claude'), { tab: 'defaults', section: 'session' })
+  assert.deepEqual(projectPlace('servers', undefined), { tab: 'servers', section: null })
+  assert.deepEqual(projectPlace(undefined, undefined), { tab: 'overview', section: null })
 })

@@ -3,7 +3,7 @@ import {
   Puzzle, ScrollText, Server, GitMerge, Rocket, ShieldCheck,
 } from 'lucide-vue-next'
 
-/** Headings of the project settings nav, in display order. */
+/** Tabs of the project detail column (UX-50), in display order. */
 export const PROJECT_GROUPS = [
   { id: 'overview', labelKey: 'projectDetail.groups.overview' },
   // Per-project defaults for new sessions (UX-19) and the project's own response styles.
@@ -16,11 +16,12 @@ export const PROJECT_GROUPS = [
 export type ProjectGroupId = (typeof PROJECT_GROUPS)[number]['id']
 
 /**
- * Sections of the project settings screen, in nav order within their `group`.
- * The ids are the old flat tab ids, so `/projects/<id>/settings?section=<id>`
- * opens the same panel as before the grouping (`claude`, the Claude account, now
- * lives in `session`: see LEGACY_SECTIONS). `conflicts` (skill and rule sync
- * conflicts) only shows while the project has some.
+ * Sections of the project detail column, in nav order within their `group` tab.
+ * The ids are the old flat tab ids, so `?section=<id>` (and the old
+ * `/projects/<id>/settings?section=<id>` link) opens the same panel as before the
+ * grouping (`claude`, the Claude account, now lives in `session`: see
+ * LEGACY_SECTIONS). `conflicts` (skill and rule sync conflicts) only shows while
+ * the project has some.
  */
 export const PROJECT_SECTIONS = [
   { id: 'overview', group: 'overview', icon: Settings },
@@ -64,4 +65,28 @@ const LEGACY_SECTIONS = new Map<unknown, ProjectSectionId>([
 /** The section a `?section=` query names, or null when it names none. */
 export function sectionFromQuery(value: unknown): ProjectSectionId | null {
   return LEGACY_SECTIONS.get(value) ?? PROJECT_SECTIONS.find((s) => s.id === value)?.id ?? null
+}
+
+/** The tab a section sits in. */
+export function sectionGroup(section: ProjectSectionId): ProjectGroupId {
+  return PROJECT_SECTIONS.find((s) => s.id === section)!.group
+}
+
+/**
+ * The section a tab shows: the requested one while that tab lists it, else the
+ * tab's first. Every tab has a section that is always listed.
+ */
+export function tabSection(tab: ProjectGroupId, requested: ProjectSectionId | null, hasConflicts: boolean): ProjectSectionId {
+  const sections = projectNav(PROJECT_SECTIONS, hasConflicts).find((g) => g.id === tab)!.sections
+  return (sections.find((s) => s.id === requested) ?? sections[0]).id
+}
+
+/**
+ * The Projects page query that opens a project at a section (UX-50): what the
+ * old `/projects/<id>/settings?section=` page opened. No or an unknown section
+ * opens the project on its first tab.
+ */
+export function projectPageQuery(projectId: string, section?: unknown): Record<string, string> {
+  const target = sectionFromQuery(section)
+  return target ? { id: projectId, tab: sectionGroup(target), section: target } : { id: projectId }
 }
