@@ -10,6 +10,8 @@
 //         {type:"assistant",message:{content:[{type:"text"|"thinking"|"tool_use",...}]}}
 //         {type:"user",message:{content:[{type:"tool_result",tool_use_id,content}]}}
 //         {type:"result",subtype:"success"}            ← ends the turn
+//           (a failed turn: subtype "error_during_execution", is_error, errors;
+//            an interrupted one: subtype "interrupted")
 //     - control, namespaced `_puppeteer_*`:
 //         {type:"_puppeteer_ready"} / {type:"_puppeteer_done"} / {type:"_puppeteer_error",error}
 //         {type:"_puppeteer_closed",code,signal}   ← session over (signal ⇒ crash)
@@ -888,6 +890,33 @@ function turnUsage() {
   return mapCodexUsage(turnLastSum)
 }
 
+// A plain-words lead for the codex error codes users hit most.
+const CODEX_ERROR_HINTS = {
+  usageLimitExceeded: 'Codex usage limit reached',
+  contextWindowExceeded: "The conversation no longer fits in the model's context window",
+  unauthorized: 'Codex is not signed in, or its login expired',
+  serverOverloaded: 'Codex servers are overloaded, try again later',
+}
+
+// `codexErrorInfo` is a bare code ("usageLimitExceeded") or, for the codes that
+// carry an HTTP status, a one-key object ({ httpConnectionFailed: { httpStatusCode } }).
+function codexErrorCode(info) {
+  if (typeof info === 'string') return info
+  if (info && typeof info === 'object') return Object.keys(info)[0] ?? null
+  return null
+}
+
+// A codex TurnError ({ message, codexErrorInfo, additionalDetails }) as one line.
+function describeTurnError(err) {
+  if (typeof err === 'string') return err
+  const message = String(err?.message ?? '').trim()
+  const details = String(err?.additionalDetails ?? '').trim()
+  const text = details && details !== message ? `${message} (${details})` : message
+  const hint = CODEX_ERROR_HINTS[codexErrorCode(err?.codexErrorInfo)]
+  if (hint) return text ? `${hint}: ${text}` : hint
+  return text || 'Codex turn failed'
+}
+
 function emitItem(item) {
   if (!item || typeof item !== 'object') return
   switch (item.type) {
@@ -1008,6 +1037,19 @@ function onServerMessage(msg) {
         break
       case 'turn/completed': {
         const result = { type: 'result', subtype: 'success', num_turns: 1 }
+        // The broker ends the run `failed` on a `_puppeteer_error` that no later
+        // `success` result clears. Codex usually reports the failure first on an
+        // `error` notification (willRetry: false); report it here only if not.
+        const status = p.turn?.status
+        if (status === 'failed') {
+          const reason = describeTurnError(p.turn.error)
+          if (!turnErrorReported) ctrl('_puppeteer_error', { error: reason })
+          Object.assign(result, { subtype: 'error_during_execution', is_error: true, errors: [reason] })
+          if (p.turn.error?.codexErrorInfo) result.codex_error_info = p.turn.error.codexErrorInfo
+        } else if (status === 'interrupted') {
+          // Stopped on request: not an error, and not a success that would clear one.
+          Object.assign(result, { subtype: 'interrupted', is_error: false })
+        }
         // Newer protocol: usage came via thread/tokenUsage/updated. Older
         // protocol: it was carried on the turn/completed params themselves.
         const usage = turnUsage() || mapCodexUsage(tokenBreakdown(p))
@@ -1025,9 +1067,18 @@ function onServerMessage(msg) {
         else if (!KEEP_OPEN || inputClosed) shutdown(0)
         break
       }
-      case 'error':
-        ctrl('_puppeteer_error', { error: typeof p === 'string' ? p : JSON.stringify(p) })
+      case 'error': {
+        const text = p.error ? describeTurnError(p.error) : (typeof p === 'string' ? p : JSON.stringify(p))
+        // willRetry: codex reconnects on its own ("Reconnecting... 2/5") and the
+        // turn goes on, so this is a warning, not a failure of the run.
+        if (p.willRetry) {
+          note(`⚠ Codex: ${text}`, 'warn')
+          break
+        }
+        if (turnActive) turnErrorReported = true
+        ctrl('_puppeteer_error', { error: text })
         break
+      }
       default: break // ignore deltas/status/etc for v1
     }
   }
@@ -1078,6 +1129,8 @@ let turnStartedAt = null
 let turnActive = false
 // The last turn started got its turn/completed (reset by the next turn/start).
 let turnCompleted = false
+// The turn in flight already reported its failure (a final `error` notification).
+let turnErrorReported = false
 // The broker closed our stdin: no prompt or permission answer can arrive.
 let inputClosed = false
 // The turn in flight, as a promise of its id (null once refused or completed):
@@ -1209,6 +1262,7 @@ async function startTurn(text, images) {
   if (!threadId) { ctrl('_puppeteer_error', { error: 'no thread' }); return }
   turnActive = true
   turnCompleted = false
+  turnErrorReported = false
   turnStartedAt = Date.now()
   turnBaseline = latestTotal
   turnUsageId = turnEndTotal = turnLastSum = null

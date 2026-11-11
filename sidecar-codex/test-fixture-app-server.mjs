@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
-// tests), and — with PUPPETEER_FIXTURE_USAGE — for test-usage.mjs.
+// tests), and — with PUPPETEER_FIXTURE_USAGE — for test-usage.mjs and
+// test-turn-outcome.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
@@ -35,10 +36,12 @@ function send(message) {
 }
 
 // Usage mode: PUPPETEER_FIXTURE_USAGE is a JSON script
-//   { replay?: TokenUsageBreakdown, replayLate?: bool, turns: [{ fail?: bool, updates?: [ThreadTokenUsage], noTurnId?: bool }] }
+//   { replay?: TokenUsageBreakdown, replayLate?: bool, turns: [{ fail?: bool, updates?: [ThreadTokenUsage], noTurnId?: bool,
+//     errors?: [{ error: TurnError, willRetry: bool }], status?: TurnStatus, error?: TurnError }] }
 // `replay` is the stored total codex sends on thread/resume (right after its
 // reply, or with `replayLate` after the first turn/start reply); turn N plays
-// turns[N]: refused, or turn/started + its usage updates + turn/completed.
+// turns[N]: refused, or turn/started + its usage updates + its `error`
+// notifications + turn/completed (with `status`, default completed, and `error`).
 const usageScript = process.env.PUPPETEER_FIXTURE_USAGE ? JSON.parse(process.env.PUPPETEER_FIXTURE_USAGE) : null
 let usageTurn = 0
 const replayUsage = () => send({
@@ -70,7 +73,11 @@ function handleUsage(message) {
         if (!script.noTurnId) params.turnId = turn.id
         send({ jsonrpc: '2.0', method: 'thread/tokenUsage/updated', params })
       }
-      send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { ...turn, status: 'completed' } } })
+      for (const e of script.errors || []) {
+        send({ jsonrpc: '2.0', method: 'error', params: { ...e, threadId: 'fixture-thread', turnId: turn.id } })
+      }
+      const done = { ...turn, status: script.status || 'completed', error: script.error ?? null }
+      send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: done } })
     }, 30)
   } else {
     send({ jsonrpc: '2.0', id: message.id, result: {} })
