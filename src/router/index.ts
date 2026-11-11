@@ -23,6 +23,7 @@ import TrashView from '../views/TrashView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
+import { useSettingsModal } from '../composables/useSettingsModal'
 
 // MCP / Servers edit in their list's detail pane now; the old
 // editor URLs redirect there so stale links keep working.
@@ -104,7 +105,18 @@ const router = createRouter({
         return from.matched.length > 0 ? false : '/projects'
       },
     },
-    { path: '/settings', name: 'settings', component: SettingsView },
+    // Settings is a modal over the current screen (components/settings/SettingsModal);
+    // the route only opens it, so `?section=` links, ⌘, and the menu keep working.
+    // SettingsView is never rendered here — the guard always diverts.
+    {
+      path: '/settings',
+      name: 'settings',
+      component: SettingsView,
+      beforeEnter: (to, from) => {
+        useSettingsModal().openSettings(to.query.section)
+        return from.matched.length > 0 ? false : '/projects'
+      },
+    },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
   ],

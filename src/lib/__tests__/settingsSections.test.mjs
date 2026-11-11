@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SETTINGS_GROUPS, SETTINGS_SECTIONS, groupLabelKey, settingsNav } from '../settingsSections.ts'
+import { SETTINGS_GROUPS, SETTINGS_SECTIONS, groupLabelKey, resolveSettingsPlace, settingsNav } from '../settingsSections.ts'
 
 const prop = (id, effective) => ({
   id, stored: null, effective, locked: false, default: effective, degraded: [], reason_key: null,
@@ -65,4 +65,19 @@ test('group and section labels exist in en and vi', () => {
     for (const g of SETTINGS_GROUPS) assert.equal(typeof get(groupLabelKey(g.id)), 'string', `${locale} ${g.labelKey}`)
     for (const s of SETTINGS_SECTIONS) assert.equal(typeof get(s.labelKey), 'string', `${locale} ${s.labelKey}`)
   }
+})
+
+test('resolveSettingsPlace: current ids, merged old ids, tabs and connection filters', () => {
+  assert.deepEqual(resolveSettingsPlace('memory'), { section: 'memory' })
+  assert.deepEqual(resolveSettingsPlace('claude'), { section: 'engines' })
+  assert.deepEqual(resolveSettingsPlace('usage'), { section: 'sessions' })
+  assert.deepEqual(resolveSettingsPlace('remote'), { section: 'devices', devicesTab: 'remote' })
+  assert.deepEqual(resolveSettingsPlace('sync'), { section: 'devices', devicesTab: 'backup' })
+  assert.deepEqual(resolveSettingsPlace('google'), { section: 'connections', connectionsFilter: 'google' })
+})
+
+test('resolveSettingsPlace: no section or an unknown one keeps what is open', () => {
+  assert.equal(resolveSettingsPlace(undefined), null)
+  assert.equal(resolveSettingsPlace(['ai']), null)
+  assert.equal(resolveSettingsPlace('nope'), null)
 })

@@ -261,7 +261,7 @@ watch(isOpen, (val) => {
         ref="listRef"
         data-app-select-dropdown
         role="listbox"
-        class="z-50 min-w-32 overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg shadow-black/20 focus:outline-none"
+        class="z-[100] min-w-32 overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg shadow-black/20 focus:outline-none"
         :style="dropdownStyle"
         tabindex="-1"
         @keydown="onKeydown"

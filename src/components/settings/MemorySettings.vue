@@ -65,6 +65,9 @@ async function mayDiscard(): Promise<boolean> {
   })
 }
 
+// Settings asks before closing over unsaved edits.
+defineExpose({ mayDiscard })
+
 async function selectKind(next: GlobalMemoryKind) {
   if (next === kind.value || !(await mayDiscard())) return
   kind.value = next

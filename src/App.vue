@@ -24,6 +24,7 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
 import ProjectQuickView from '@/components/projects/ProjectQuickView.vue'
+import SettingsModal from '@/components/settings/SettingsModal.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -947,6 +948,7 @@ onMounted(async () => {
     </main>
     <!-- Overlay hosts the run screen relies on; NOT PermissionNotifier /
          CalendarReminder — those stay owned by the main window. -->
+    <SettingsModal />
     <ConfirmModal />
     <PromptModal />
     <ToastHost />
@@ -1201,6 +1203,10 @@ onMounted(async () => {
     <!-- A project's quick view, from its titlebar tab menu or the session status
          bar (UX-52). Before ConfirmModal, so "Remove project" asks on top of it. -->
     <ProjectQuickView />
+
+    <!-- Settings (E1): a modal over the current screen; the `/settings` route opens it.
+         Before ConfirmModal, so its confirms show on top of it. -->
+    <SettingsModal />
 
     <!-- App-wide confirm dialog host (see useConfirm) -->
     <ConfirmModal />

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// Settings screen: the section nav (with its `?section=` deep link and feature
-// gating) and the active section. Each section lives in components/settings/
-// (or components/ for the older ones); the `settings` table form they share is
-// created here (useSettingsForm) so its auto-save stops with this view.
+// Settings, shown in the modal of components/settings/SettingsModal.vue: the
+// section nav (deep link and feature gating) and the active section. Each
+// section lives in components/settings/ (or components/ for the older ones);
+// the `settings` table form they share is created here (useSettingsForm) so its
+// auto-save stops when the modal closes.
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
-import { PageHeader } from '@/components/ui'
+import { X } from 'lucide-vue-next'
+import { Button } from '@/components/ui'
 import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.vue'
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
@@ -31,8 +32,11 @@ import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useFeaturesStore } from '@/stores/features'
 import { SETTINGS_SECTIONS, settingsNav, type SettingsSectionId } from '@/lib/settingsSections'
-import { isConnectionTypeId, type ConnectionFilter } from '@/lib/connectionTypes'
+import type { ConnectionFilter } from '@/lib/connectionTypes'
 import { useBudgetStore } from '@/stores/budget'
+import { useSettingsModal } from '@/composables/useSettingsModal'
+
+const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 
@@ -45,37 +49,20 @@ const { loading, load } = createSettingsForm()
 let unlistenPlanUsage: UnlistenFn | null = null
 let unlistenBudgetStatus: UnlistenFn | null = null
 
-const SECTIONS = SETTINGS_SECTIONS
 const activeSection = ref<SettingsSectionId>('general')
 
-// Allow deep-linking to a specific section via `/settings?section=google` (used
-// by the "Google settings" button on the MCP Servers screen's built-in row).
-const route = useRoute()
+// A deep link (`/settings?section=google`, e.g. the "Google settings" button on
+// the MCP Servers screen's built-in row) opens on its section, tab or filter.
+const { requested } = useSettingsModal()
 const devicesTab = ref<DevicesTab>('remote')
-// Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
-const DEVICES_TAB_OF: Record<string, DevicesTab> = { remote: 'remote', sync: 'backup', backup: 'backup' }
-// Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
-// Usage & Budget is now AI › Sessions.
-const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines', usage: 'sessions' }
-// GitHub, GitLab, AWS, Azure and Google were sections too: now Connections, filtered to that type.
 const connectionsFilter = ref<ConnectionFilter>('all')
-function applySectionFromRoute() {
-  let target = route.query.section
-  if (typeof target === 'string' && MERGED_INTO[target]) target = MERGED_INTO[target]
-  if (typeof target === 'string' && DEVICES_TAB_OF[target]) {
-    devicesTab.value = DEVICES_TAB_OF[target]
-    target = 'devices'
-  }
-  if (isConnectionTypeId(target)) {
-    connectionsFilter.value = target
-    target = 'connections'
-  }
-  if (typeof target === 'string' && SECTIONS.some(s => s.id === target)) {
-    activeSection.value = target as SettingsSectionId
-  }
-}
-applySectionFromRoute()
-watch(() => route.query.section, applySectionFromRoute)
+watch(requested, (place) => {
+  if (!place) return
+  if (place.devicesTab) devicesTab.value = place.devicesTab
+  if (place.connectionsFilter) connectionsFilter.value = place.connectionsFilter
+  activeSection.value = place.section
+  requested.value = null
+}, { immediate: true })
 
 // Stores behind Connections (GitHub / GitLab / AWS), Claude and Codex: fetched here, before
 // the skeleton goes, so their lists and the nav badge are filled on first paint.
@@ -115,17 +102,36 @@ onUnmounted(() => {
 // empty loses its heading; when the open section is hidden (switched off meanwhile,
 // or a deep link), fall back to General.
 const features = useFeaturesStore()
-const nav = computed(() => settingsNav(SECTIONS, features.tree))
+const nav = computed(() => settingsNav(SETTINGS_SECTIONS, features.tree))
 const visibleSections = computed(() => nav.value.flatMap((g) => g.sections))
 watch([visibleSections, activeSection, () => features.loaded], ([list, active, loaded]) => {
   if (loaded && !list.some((s) => s.id === active)) activeSection.value = 'general'
 }, { immediate: true })
+
+// Closing drops the Memory editor's unsaved edits, so it asks first, like
+// switching its file does.
+const memory = ref<InstanceType<typeof MemorySettings> | null>(null)
+async function mayClose(): Promise<boolean> {
+  return memory.value ? memory.value.mayDiscard() : true
+}
+defineExpose({ mayClose })
 </script>
 
 <template>
   <div class="flex flex-col h-full">
     <!-- Header -->
-    <PageHeader :title="t('settings.title')" />
+    <div class="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+      <h2 class="flex-1 text-sm font-semibold">{{ t('settings.title') }}</h2>
+      <Button
+        variant="ghost"
+        size="icon"
+        :title="t('common.close')"
+        :aria-label="t('common.close')"
+        @click="emit('close')"
+      >
+        <X class="h-4 w-4" :stroke-width="1.75" />
+      </Button>
+    </div>
 
     <!-- Content -->
     <div class="flex-1 flex min-h-0">
@@ -176,7 +182,7 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
         <!-- Memory: CLAUDE.md / AGENTS.md editor, wider than the forms. Kept mounted (v-show) so
              switching section doesn't drop unsaved edits. -->
         <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-4xl">
-          <MemorySettings />
+          <MemorySettings ref="memory" />
         </div>
 
         <!-- Remote Control + Sync & backup under their shared relay / device name / master password -->

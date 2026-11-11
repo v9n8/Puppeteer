@@ -4,6 +4,7 @@ import {
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
+import { isConnectionTypeId, type ConnectionTypeId } from './connectionTypes.ts'
 
 /** Headings of the Settings nav, in display order. */
 export const SETTINGS_GROUPS = [
@@ -60,4 +61,30 @@ export function settingsNav<S extends { group: SettingsGroupId; feature?: string
   return SETTINGS_GROUPS
     .map((g) => ({ id: g.id, labelKey: g.labelKey, sections: visible.filter((s) => s.group === g.id) }))
     .filter((g) => g.sections.length > 0)
+}
+
+/** Where a `/settings?section=` deep link lands: the section, plus the tab or filter it implies. */
+export interface SettingsPlace {
+  section: SettingsSectionId
+  devicesTab?: 'remote' | 'backup'
+  connectionsFilter?: ConnectionTypeId
+}
+
+// Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
+const DEVICES_TAB_OF: Record<string, 'remote' | 'backup'> = { remote: 'remote', sync: 'backup', backup: 'backup' }
+// Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
+// Usage & Budget is now AI › Sessions.
+const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines', usage: 'sessions' }
+
+/**
+ * Resolves a deep link's section id, old ids included. GitHub, GitLab, AWS, Azure
+ * and Google were sections too: now Connections, filtered to that type. An unknown
+ * id gives `null` (the caller keeps whatever is open).
+ */
+export function resolveSettingsPlace(target: unknown): SettingsPlace | null {
+  if (typeof target !== 'string') return null
+  const id = MERGED_INTO[target] ?? target
+  if (DEVICES_TAB_OF[id]) return { section: 'devices', devicesTab: DEVICES_TAB_OF[id] }
+  if (isConnectionTypeId(id)) return { section: 'connections', connectionsFilter: id }
+  return SETTINGS_SECTIONS.some((s) => s.id === id) ? { section: id as SettingsSectionId } : null
 }

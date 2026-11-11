@@ -2,9 +2,10 @@
 // Shared dialog: dimmed overlay + centered panel, Esc / overlay-click to close,
 // optional title + close button + footer. Replaces the hand-rolled
 // `fixed inset-0 z-50 …` overlays repeated across the app.
-import { computed, watch, onBeforeUnmount, useSlots } from 'vue'
+import { computed, ref, watch, onBeforeUnmount, useSlots } from 'vue'
 import { X } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
+import { isTopModal, pushModal, removeModal } from '@/lib/modalStack'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -58,24 +59,39 @@ function onOverlayClick() {
   close()
 }
 
+const modalId = Symbol('modal')
+const zIndex = ref(50)
+
+// Only the newest open dialog takes Escape (lib/modalStack).
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') close()
+  if (e.key === 'Escape' && isTopModal(modalId)) close()
 }
 
 watch(
   () => props.open,
   (open) => {
-    if (open) window.addEventListener('keydown', onKey)
-    else window.removeEventListener('keydown', onKey)
+    if (open) {
+      zIndex.value = pushModal(modalId)
+      window.addEventListener('keydown', onKey)
+    } else {
+      removeModal(modalId)
+      window.removeEventListener('keydown', onKey)
+    }
   },
+  { immediate: true },
 )
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  removeModal(modalId)
+  window.removeEventListener('keydown', onKey)
+})
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="open"
-    class="ui-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    class="ui-backdrop fixed inset-0 flex items-center justify-center bg-black/60 p-4"
+    :style="{ zIndex }"
     @click.self="onOverlayClick"
   >
     <div :class="panelClass">
@@ -109,4 +125,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
