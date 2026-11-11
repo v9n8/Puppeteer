@@ -1071,6 +1071,7 @@ async fn assemble_run_mcp(
     let map = if gates.puppeteer && selection.builtins.contains("puppeteer") {
         mcp::with_builtin_puppeteer(
             map,
+            engine,
             node_bin,
             &crate::runs::sidecar::resolve_mcp_sidecar_script(app),
             &crate::runs::sidecar::resolve_db_path(app),
@@ -1085,6 +1086,7 @@ async fn assemble_run_mcp(
         mcp::with_builtin_google(
             db,
             map,
+            engine,
             &launch,
             &crate::runs::sidecar::resolve_mcp_script(app, "google.mjs"),
             project_path,

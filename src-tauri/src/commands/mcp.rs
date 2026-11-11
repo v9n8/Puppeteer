@@ -1526,8 +1526,11 @@ pub async fn set_builtin_mcp_enabled(
 /// mismatch), in which case `mcp` is returned unchanged so the run still works.
 /// A user server literally named `puppeteer` takes precedence (not overwritten).
 /// `disabled_groups` (see [`BuiltinGates`]) are hidden by the server.
+/// `engine` decides whether its tools are deferred (see [`defer_builtin_tools`]).
+#[allow(clippy::too_many_arguments)]
 pub fn with_builtin_puppeteer(
     mcp: serde_json::Value,
+    engine: &str,
     node_bin: &str,
     script: &std::path::Path,
     db_path: &std::path::Path,
@@ -1543,7 +1546,7 @@ pub fn with_builtin_puppeteer(
         _ => serde_json::Map::new(),
     };
     map.entry("puppeteer".to_string()).or_insert_with(|| {
-        serde_json::json!({
+        let mut cfg = serde_json::json!({
             "type": "stdio",
             "command": node_bin,
             "args": [script.to_string_lossy()],
@@ -1553,7 +1556,9 @@ pub fn with_builtin_puppeteer(
                 "PUPPETEER_PROJECT_PATH": project_path,
                 "PUPPETEER_MCP_DISABLED_GROUPS": disabled_groups.join(","),
             }
-        })
+        });
+        defer_builtin_tools(&mut cfg, engine);
+        cfg
     });
     serde_json::Value::Object(map)
 }
@@ -1577,9 +1582,11 @@ pub fn with_builtin_puppeteer(
 /// client creds or no accounts exist, when the script is missing, or when the
 /// map already carries a user server named `google` (user servers take
 /// precedence). Whether the run's set has it is the caller's check.
+/// `engine` decides whether its tools are deferred (see [`defer_builtin_tools`]).
 pub async fn with_builtin_google(
     db: &Db,
     mcp: serde_json::Value,
+    engine: &str,
     launch: &McpLaunch,
     google_script: &std::path::Path,
     project_path: &str,
@@ -1625,16 +1632,34 @@ pub async fn with_builtin_google(
     };
     if google_script.exists() {
         map.entry("google".to_string()).or_insert_with(|| {
-            serde_json::json!({
+            let mut cfg = serde_json::json!({
                 "type": "stdio",
                 "command": launch.node_bin,
                 "args": [google_script.to_string_lossy()],
                 "env": env,
-            })
+            });
+            defer_builtin_tools(&mut cfg, engine);
+            cfg
         });
     }
 
     serde_json::Value::Object(map)
+}
+
+/// On Claude, put a built-in server's tools behind tool search (`alwaysLoad:
+/// false`) instead of sending every schema with every request: together the
+/// two carry about 11k tokens (`puppeteer` 37 tools at the default groups,
+/// `google` 44), well under the 10% of the context window at which the CLI
+/// defers MCP tools by itself. The model still sees their names and loads a
+/// schema when it needs one. Only our own config gets it: a user server keeps
+/// its own setting, and `conductor` stays loaded, being small and how the
+/// model learns it can hand work off. Codex hides MCP tools by its own count
+/// and its `mcp_servers.*` overrides take no such key, so its config is left
+/// as is.
+fn defer_builtin_tools(cfg: &mut serde_json::Value, engine: &str) {
+    if engine == "claude" {
+        cfg["alwaysLoad"] = serde_json::Value::Bool(false);
+    }
 }
 
 /// Env of the built-in `google` server: broker coordinates and the connected
@@ -1951,6 +1976,7 @@ mod tests {
         let env = |groups: &[&str]| {
             let map = super::with_builtin_puppeteer(
                 serde_json::Value::Null,
+                "claude",
                 "node",
                 &script,
                 db,
@@ -1962,6 +1988,32 @@ mod tests {
         };
         assert_eq!(env(&["todos", "vps"]), "todos,vps");
         assert_eq!(env(&[]), "");
+    }
+
+    #[test]
+    fn builtin_puppeteer_tools_are_deferred_on_claude_only() {
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let db = std::path::Path::new("/tmp/data.db");
+        let build = |engine: &str, mcp: serde_json::Value| {
+            super::with_builtin_puppeteer(mcp, engine, "node", &script, db, "p1", "/tmp/p1", &[])
+        };
+        assert_eq!(build("claude", serde_json::Value::Null)["puppeteer"]["alwaysLoad"], false);
+        assert!(build("codex", serde_json::Value::Null)["puppeteer"].get("alwaysLoad").is_none());
+        // A user server named `puppeteer` wins and keeps its own config.
+        let own = serde_json::json!({ "type": "stdio", "command": "x" });
+        let user = serde_json::json!({ "puppeteer": own.clone() });
+        assert_eq!(build("claude", user)["puppeteer"], own);
+    }
+
+    #[test]
+    fn defer_builtin_tools_touches_claude_only() {
+        // `with_builtin_google` needs the Keychain, so its helper is checked here.
+        let mut claude = serde_json::json!({ "type": "stdio", "command": "node" });
+        super::defer_builtin_tools(&mut claude, "claude");
+        assert_eq!(claude["alwaysLoad"], false);
+        let mut codex = serde_json::json!({ "type": "stdio", "command": "node" });
+        super::defer_builtin_tools(&mut codex, "codex");
+        assert!(codex.get("alwaysLoad").is_none(), "no unknown key in Codex's mcp_servers");
     }
 
     #[test]

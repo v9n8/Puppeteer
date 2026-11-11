@@ -658,6 +658,7 @@ mod tests {
         let mcp = with_conductor(serde_json::json!({}), "http://127.0.0.1:1/mcp", &launch());
         let c = &mcp["conductor"];
         assert!(c.get("headers").is_none(), "no bearer in the config");
+        assert!(c.get("alwaysLoad").is_none(), "stays loaded, unlike the built-ins (AC-10)");
         let expected = if cfg!(windows) {
             r#""/bin/node" "/shims/puppeteer-mcp-launch.mjs" "headers" "@conductor""#
         } else {
