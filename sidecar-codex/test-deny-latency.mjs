@@ -4,7 +4,8 @@
 // Uses the REAL `codex app-server` (needs ChatGPT auth + network). The prompt
 // asks Codex to write a marker OUTSIDE the workspace so `workspace-write`
 // forces an approval request. We wait DELAY_MS after seeing the request before
-// sending `deny`, then assert the marker was NOT created.
+// sending `deny`, then assert the marker was NOT created. The deny is a remote
+// one (codex `cancel`) unless DENY_ORIGIN=local (codex `decline`, the desktop's).
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -16,6 +17,7 @@ const work = process.env.TEST_CWD || mkdtempSync(join(tmpdir(), 'puppeteer-codex
 const marker = join(tmpdir(), `RC_DENY_LATENCY_${process.pid}`)
 try { rmSync(marker) } catch {}
 const DELAY_MS = Number(process.env.DENY_DELAY_MS || '12000')
+const DENY_ORIGIN = process.env.DENY_ORIGIN || 'remote'
 
 // Strip ambient Puppeteer runtime vars (e.g. PUPPETEER_RESUME_SESSION) so the sidecar
 // starts a fresh thread instead of trying to resume the caller's session.
@@ -61,7 +63,7 @@ child.stdout.on('data', (chunk) => {
       setTimeout(() => {
         sentDeny = true
         console.error('[test] sending deny now')
-        child.stdin.write(JSON.stringify({ type: 'permission_response', requestId: m.requestId, decision: 'deny' }) + '\n')
+        child.stdin.write(JSON.stringify({ type: 'permission_response', requestId: m.requestId, decision: 'deny', origin: DENY_ORIGIN }) + '\n')
       }, DELAY_MS)
     }
     if (m.type === '_puppeteer_error') console.error('[sidecar error]', m.error)

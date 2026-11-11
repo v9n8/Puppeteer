@@ -2,7 +2,8 @@
 // Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
 // tests), with PUPPETEER_FIXTURE_USAGE for test-usage.mjs and
 // test-turn-outcome.mjs, with PUPPETEER_FIXTURE_RPC for test-rpc-timeout.mjs,
-// and with PUPPETEER_FIXTURE_ITEMS for test-items.mjs.
+// with PUPPETEER_FIXTURE_ITEMS for test-items.mjs, and with
+// PUPPETEER_FIXTURE_USER_INPUT for test-user-input.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
@@ -28,8 +29,12 @@ const mcpMode = process.env.PUPPETEER_MCP_PERMISSION_KEY_TEST === '1'
 // reproduces that so the per-server permission key stays covered.
 const mcpOmitToolName = process.env.PUPPETEER_MCP_OMIT_TOOLNAME === '1'
 // When set, record the approval decision the sidecar sent so a test can assert
-// it (e.g. `acceptForSession` for an "always" allow).
+// it (e.g. `acceptForSession` for an "always" allow). In user-input mode, the
+// whole reply as JSON.
 const decisionOut = process.env.PUPPETEER_DECISION_OUT
+// User-input mode: the turn asks the user two questions (request_user_input),
+// one of them an MCP tool approval as codex words it.
+const userInputMode = process.env.PUPPETEER_FIXTURE_USER_INPUT === '1'
 let buffer = ''
 
 function send(message) {
@@ -159,6 +164,41 @@ process.stdin.on('data', (chunk) => {
       send({ jsonrpc: '2.0', id: message.id, result: {} })
     } else if (message.method === 'turn/start') {
       send({ jsonrpc: '2.0', id: message.id, result: { turn: { id: 'fixture-turn' } } })
+      if (userInputMode) {
+        send({
+          jsonrpc: '2.0',
+          id: 93,
+          method: 'item/tool/requestUserInput',
+          params: {
+            threadId: 'fixture-thread',
+            turnId: 'fixture-turn',
+            itemId: 'fixture-call',
+            questions: [
+              {
+                id: 'color',
+                header: 'Theme',
+                question: 'Which color?',
+                isOther: true,
+                isSecret: false,
+                options: [{ label: 'Red', description: 'Warm' }, { label: 'Blue', description: 'Cool' }],
+              },
+              {
+                id: 'mcp_tool_call_approval_call-1',
+                header: 'Approve app tool call?',
+                question: 'Allow Drive to run tool "list_files"?',
+                isOther: false,
+                isSecret: false,
+                options: [
+                  { label: 'Allow', description: 'Run the tool and continue.' },
+                  { label: 'Allow for this session', description: 'Run the tool and remember this choice for this session.' },
+                  { label: 'Cancel', description: 'Cancel this tool call' },
+                ],
+              },
+            ],
+          },
+        })
+        continue
+      }
       if (mcpMode) {
         send({
           jsonrpc: '2.0',
@@ -198,6 +238,13 @@ process.stdin.on('data', (chunk) => {
           },
         },
       })
+      send({
+        jsonrpc: '2.0',
+        method: 'turn/completed',
+        params: { turn: { id: 'fixture-turn', status: 'completed' } },
+      })
+    } else if (message.id === 93 && message.result) {
+      if (decisionOut) writeFileSync(decisionOut, JSON.stringify(message.result))
       send({
         jsonrpc: '2.0',
         method: 'turn/completed',

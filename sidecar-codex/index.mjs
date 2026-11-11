@@ -26,7 +26,9 @@
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
-//     {type:"permission_response",requestId,decision}  ("allow" | "deny")
+//     {type:"permission_response",requestId,decision,origin?,answers?,remember?}
+//       decision "allow" | "deny"; origin "local" | "remote" (who answered);
+//       answers: AskUserQuestion answers, question text → answer
 //     {type:"interrupt"} / {type:"abort"}
 //
 // Auth: `codex app-server` reads the same ChatGPT login as the codex CLI, so
@@ -604,13 +606,17 @@ function emitPermission(rpcReqId, { tool_name, tool_input, title, description, d
   ctrl('_puppeteer_permission_request', { requestId, tool_name, tool_input, title, description, display_name })
 }
 
-// Answer a pending codex approval / elicitation (from the user's response, or
-// declined by us when the input channel closed).
-function settleWaiter(requestId, accept, { answers, remember } = {}) {
+// Answer a pending codex approval / elicitation / question (from the user's
+// response, or declined by us when the input channel closed).
+function settleWaiter(requestId, accept, { answers, remember, origin } = {}) {
   const w = permWaiters.get(requestId)
   if (!w) return false
   permWaiters.delete(requestId)
   if (!accept && w.command != null) declinedCommands.add(cmdKey(w.command))
+  if (w.kind === 'user_input') {
+    rpcRespond(w.rpcId, { answers: accept ? userInputAnswers(answers, w.answerKeys) : {} })
+    return true
+  }
   if (w.kind === 'mcp_elicitation_form') {
     const content = accept ? elicitationContentFromAnswers(answers, w.answerKeys) : null
     emitMcpToolResult(w.toolUseId, accept)
@@ -622,10 +628,13 @@ function settleWaiter(requestId, accept, { answers, remember } = {}) {
     rpcRespond(w.rpcId, { action: accept ? 'accept' : 'decline', content: null, _meta: null })
     return true
   }
-  // Fail closed on a deny. `cancel` both rejects the pending operation and
-  // interrupts the turn, preventing a command from racing ahead while the
-  // approval response propagates through the remote controller/host path.
-  // A later prompt can resume the same conversation normally.
+  // A deny made at this desktop is a `decline`: the operation is rejected but
+  // the turn goes on, so the agent learns it was refused and can try another
+  // way. Any other deny (a phone or remote desktop, or one we make ourselves
+  // because no answer can come) fails closed with `cancel`, which also
+  // interrupts the turn: a remote answer is slow to arrive, and it has not
+  // been checked yet that a `decline` stops a command racing ahead meanwhile.
+  // A later prompt can resume the same conversation normally after a cancel.
   //
   // An "always" allow additionally opts into codex's OWN session-scoped
   // approval cache (`acceptForSession`), so matching commands / file changes
@@ -635,7 +644,10 @@ function settleWaiter(requestId, accept, { answers, remember } = {}) {
   const allowDecision = remember
     ? (w.legacy ? 'approved_for_session' : 'acceptForSession')
     : (w.legacy ? 'approved' : 'accept')
-  rpcRespond(w.rpcId, { decision: accept ? allowDecision : 'cancel' })
+  const denyDecision = origin === 'local'
+    ? (w.legacy ? 'denied' : 'decline')
+    : (w.legacy ? 'abort' : 'cancel')
+  rpcRespond(w.rpcId, { decision: accept ? allowDecision : denyDecision })
   return true
 }
 
@@ -861,6 +873,44 @@ function emitMcpElicitation(rpcReqId, params) {
     description: params?.message || 'Allow this MCP request to continue?',
     display_name: 'MCP request',
   }, { kind: 'mcp_elicitation', toolUseId })
+}
+
+// Codex's request_user_input tool (`item/tool/requestUserInput`) as Claude's
+// AskUserQuestion prompt. Its MCP tool approvals come this way too when the
+// `tool_call_mcp_elicitation` feature is off (question ids starting with
+// `mcp_tool_call_approval`), with the options codex offers. The modal answers
+// by question text, so `answerKeys` maps each shown text back to its id.
+function emitUserInput(rpcReqId, params) {
+  const questions = []
+  const answerKeys = {}
+  for (const q of Array.isArray(params?.questions) ? params.questions : []) {
+    if (!q || typeof q.id !== 'string') continue
+    let question = String(q.question || q.header || q.id)
+    if (answerKeys[question]) question = `${question} (${q.id})`
+    questions.push({
+      header: String(q.header || ''),
+      question,
+      multiSelect: false,
+      options: (Array.isArray(q.options) ? q.options : [])
+        .map((o) => ({ label: String(o?.label ?? ''), description: String(o?.description ?? '') }))
+        .filter((o) => o.label),
+    })
+    answerKeys[question] = q.id
+  }
+  emitPermission(rpcReqId, {
+    tool_name: 'AskUserQuestion',
+    tool_input: { questions },
+  }, { kind: 'user_input', answerKeys })
+}
+
+function userInputAnswers(answers, answerKeys) {
+  const byId = {}
+  for (const [question, value] of Object.entries(answers || {})) {
+    const id = answerKeys?.[question]
+    const text = String(value ?? '').trim()
+    if (id && text) byId[id] = { answers: [text] }
+  }
+  return byId
 }
 
 // ── translate codex item → Claude-shaped stream-json ──────────────────────
@@ -1261,7 +1311,7 @@ function onServerMessage(msg) {
         emitMcpElicitation(msg.id, p)
         return
       case 'item/tool/requestUserInput':
-        rpcRespond(msg.id, { answers: {} })
+        emitUserInput(msg.id, p)
         return
       case 'item/permissions/requestApproval':
         // Grant nothing this turn (≈ decline); per-command approvals still flow
@@ -1741,7 +1791,7 @@ function handleCommand(cmd) {
       steerTurn(cmd.text, cmd.images)
       break
     case 'permission_response':
-      settleWaiter(cmd.requestId, cmd.decision === 'allow', { answers: cmd.answers, remember: cmd.remember })
+      settleWaiter(cmd.requestId, cmd.decision === 'allow', { answers: cmd.answers, remember: cmd.remember, origin: cmd.origin })
       break
     case 'interrupt':
       interruptTurn()

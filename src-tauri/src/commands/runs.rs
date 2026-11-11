@@ -1823,18 +1823,7 @@ pub(crate) async fn respond_permission_inner(
         }
     }
     // Route the decision back to the sidecar's canUseTool callback over stdin.
-    let line = format!(
-        "{}\n",
-        serde_json::json!({
-            "type": "permission_response",
-            "requestId": payload.request_id,
-            "decision": payload.decision,
-            "reason": payload.reason,
-            "answers": payload.answers,
-            "response": payload.response,
-            "remember": payload.remember,
-        })
-    );
+    let line = permission_response_line(&payload, origin);
     if let Err(e) = write_run_stdin(
         registry,
         &payload.run_id,
@@ -1848,6 +1837,27 @@ pub(crate) async fn respond_permission_inner(
     }
     audit_answer(&claimed.event, &payload, origin);
     Ok(claimed.event)
+}
+
+/// The `permission_response` line for the sidecar. `origin` says whether the
+/// answer came from this desktop (a standing choice applied here included) or
+/// a remote surface: codex denies a local answer with `decline` (the turn goes
+/// on) and a remote one with `cancel` (AC-16).
+fn permission_response_line(payload: &RespondPermissionPayload, origin: audit::Origin) -> String {
+    let origin = if origin == audit::Origin::Remote { "remote" } else { "local" };
+    format!(
+        "{}\n",
+        serde_json::json!({
+            "type": "permission_response",
+            "requestId": payload.request_id,
+            "decision": payload.decision,
+            "reason": payload.reason,
+            "answers": payload.answers,
+            "response": payload.response,
+            "remember": payload.remember,
+            "origin": origin,
+        })
+    )
 }
 
 fn audit_answer(
@@ -6650,6 +6660,24 @@ mod permission_audit_tests {
         permission::clear_pending("audit-undelivered");
         assert!(lines.tool_records("audit-lost").is_empty());
         assert!(lines.tool_records("audit-undelivered").is_empty());
+    }
+
+    #[test]
+    fn the_sidecar_line_says_where_the_answer_came_from() {
+        let cases = [
+            (Origin::Local, "local"),
+            (Origin::AutoRule, "local"),
+            (Origin::Remote, "remote"),
+        ];
+        for (origin, want) in cases {
+            let line = permission_response_line(&payload("run", "req-1", "deny", false), origin);
+            assert!(line.ends_with('\n'), "{line:?}");
+            let v: serde_json::Value = serde_json::from_str(line.trim_end()).unwrap();
+            assert_eq!(v["type"], "permission_response");
+            assert_eq!(v["requestId"], "req-1");
+            assert_eq!(v["decision"], "deny");
+            assert_eq!(v["origin"], want, "{origin:?}");
+        }
     }
 
     #[test]
