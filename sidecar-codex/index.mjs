@@ -1280,6 +1280,8 @@ async function bringUp() {
     const startParams = { cwd: CWD, approvalPolicy, sandbox }
     if (MODEL) startParams.model = MODEL
     if (developerInstructions) startParams.developerInstructions = developerInstructions
+    // A side task is never resumed: no rollout on disk for each translation.
+    if (NO_TOOLS) startParams.ephemeral = true
     const result = rpcResult(await request('thread/start', startParams), 'thread/start')
     threadId = result?.thread?.id || null
     modelName = result?.model || null

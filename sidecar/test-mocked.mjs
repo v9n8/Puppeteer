@@ -190,8 +190,11 @@ const tests = {
     assert.deepEqual(o.skills, [])
     assert.equal(o.strictMcpConfig, true)
     assert.equal(o.permissionMode, 'dontAsk')
-    // Left on the SDK's own default prompt, not the coding preset.
-    assert.equal(o.systemPrompt, undefined)
+    // No user/project settings, hooks or CLAUDE.md, and a short prompt of its
+    // own instead of the coding preset (AC-12).
+    assert.deepEqual(o.settingSources, [])
+    assert.equal(o.systemPrompt.type, 'custom')
+    assert.ok(o.systemPrompt.prompt.length < 300, 'side-task system prompt is not short')
     assert.equal(init.mock_has_can_use_tool, true)
     assert.equal(of(messages, '_puppeteer_permission_request').length, 0)
     const result = of(messages, 'result')[0]
@@ -213,6 +216,8 @@ const tests = {
     const o = messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
     assert.equal(o.tools, undefined)
     assert.equal(o.strictMcpConfig, undefined)
+    assert.equal(o.settingSources, undefined)
+    assert.equal(o.systemPrompt.type, 'preset')
     assert.equal(o.permissionMode, 'default')
     // Secret store reads are denied in every session, whatever the OS.
     for (const rule of [

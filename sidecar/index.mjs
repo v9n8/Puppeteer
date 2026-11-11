@@ -8,7 +8,7 @@
 // Protocol — IN (stdin, one JSON object per line):
 //   { "type": "prompt", "text": "...", "options": { model?, effort?, cwd?, resume?,
 //        permissionMode?, allowedTools?, includePartialMessages?, noTools? } }
-//     noTools: true starts a session with NO tools at all (see applyNoTools).
+//     noTools: true starts a session with NO tools and no settings (see applyNoTools).
 //     First prompt starts the session; later prompts are follow-up user turns.
 //   { "type": "permission_response", "requestId": "...", "decision": "allow"|"deny",
 //        "reason"?: "...", "always"?: bool }
@@ -324,6 +324,9 @@ function cancelPermission(requestId, reason, level, text) {
   send({ type: '_puppeteer_permission_cancelled', requestId, level, text })
 }
 const NO_TOOLS_REASON = 'This session has no tool access.'
+// System prompt of a tool-less side task; each task's own instructions come in
+// the user message.
+const SIDE_TASK_SYSTEM_PROMPT = "You are a text-processing engine inside the Puppeteer app. Follow the user's instruction exactly and return only the requested output."
 
 // Agents never read the OS secret store where Puppeteer keeps PATs / tokens (and the
 // sealed secret notes vault): the macOS Keychain, the Linux Secret Service / KWallet,
@@ -357,8 +360,12 @@ const KEYCHAIN_DENY_RULES = [
 // reaches the permission layer is denied — never auto-approved. Used for the
 // translation engine, whose prompts carry UNTRUSTED text (Slack messages, GitHub
 // comments) that could otherwise prompt-inject a Bash/Write/WebFetch call.
+// It also loads no user/project settings, hooks or CLAUDE.md and runs on a short
+// prompt of its own: none of that belongs in a one-off translation (AC-12).
 // Overrides whatever the caller or env fallbacks set.
 function applyNoTools(options) {
+  options.settingSources = []
+  options.systemPrompt = { type: 'custom', prompt: SIDE_TASK_SYSTEM_PROMPT }
   options.tools = []
   options.allowedTools = []
   options.mcpServers = {}
@@ -579,13 +586,10 @@ function startQuery(firstText, opts = {}, firstImages) {
   // first turn had, byte for byte (AC-06).
   // `snapshot`: the SDK records the first turn's prompt and sends that on every
   // later turn and resume (a no-op where the account does not have it yet).
-  // A tool-less side task (noTools) stays on the SDK's own default prompt: the
-  // coding preset would only add tokens to it.
+  // A tool-less side task (noTools) gets its own short prompt (applyNoTools).
   const appendSystemPrompt = opts.appendSystemPrompt || SIDECAR_ENV.PUPPETEER_APPEND_SYSTEM_PROMPT
-  if (appendSystemPrompt || opts.noTools !== true) {
-    options.systemPrompt = { type: 'preset', preset: 'claude_code', snapshot: true }
-    if (appendSystemPrompt) options.systemPrompt.append = String(appendSystemPrompt)
-  }
+  options.systemPrompt = { type: 'preset', preset: 'claude_code', snapshot: true }
+  if (appendSystemPrompt) options.systemPrompt.append = String(appendSystemPrompt)
   if (opts.noTools === true) applyNoTools(options)
   // 'warning' mode additionally polls /usage on an interval WHILE a run streams
   // (used when already near the plan limit). In every mode we still capture once

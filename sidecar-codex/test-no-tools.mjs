@@ -76,6 +76,8 @@ assert.ok(!argv.some((a) => a.includes('evil-mcp') || a.startsWith('mcp_servers.
 assert.equal(argv[argv.length - 1], 'app-server')
 assert.equal(threadStart.approvalPolicy, 'untrusted')
 assert.equal(threadStart.sandbox, 'read-only')
+// A side task writes no rollout to disk (AC-12).
+assert.equal(threadStart.ephemeral, true)
 // Set on the thread, never reset per turn (AC-05).
 assert.ok(!('approvalPolicy' in turnStart) && !('sandboxPolicy' in turnStart), 'turn/start re-sent the policy')
 assert.equal(messages.filter((m) => m.type === '_puppeteer_permission_request').length, 0, 'raised a permission prompt')

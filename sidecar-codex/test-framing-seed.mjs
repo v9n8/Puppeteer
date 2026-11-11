@@ -74,8 +74,10 @@ const resumeOk = bResume?.params?.developerInstructions === 'FRAMING-B' && bResu
   texts[0] === `${seed}\n\nfirst` && texts[1] === 'second' && seeded(b.ctrl) === 1
 
 const c = await runSidecar('plain', {}, ['plain'])
+const cStart = c.rpc.find((r) => r.method === 'thread/start')?.params || {}
+// A regular thread is kept on disk so it can be resumed (only side tasks are ephemeral).
 const plainOk = seeded(c.ctrl) === 0 && turnTexts(c.rpc)[0] === 'plain' &&
-  !('developerInstructions' in (c.rpc.find((r) => r.method === 'thread/start')?.params || {}))
+  !('developerInstructions' in cStart) && !('ephemeral' in cStart)
 
 // A thread already framed gets no seed; its fork still carries the framing.
 const d = await runSidecar('fork', {
