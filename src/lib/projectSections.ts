@@ -1,6 +1,6 @@
 import {
   Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, Github, Gitlab, Cloud, CloudCog,
-  Puzzle, ScrollText, Server, GitMerge, Rocket, ShieldCheck,
+  Library, Server, GitMerge, Rocket, ShieldCheck,
 } from 'lucide-vue-next'
 
 /** Tabs of the project detail column (UX-50), in display order. */
@@ -19,8 +19,8 @@ export type ProjectGroupId = (typeof PROJECT_GROUPS)[number]['id']
  * Sections of the project detail column, in nav order within their `group` tab.
  * The ids are the old flat tab ids, so `?section=<id>` (and the old
  * `/projects/<id>/settings?section=<id>` link) opens the same panel as before the
- * grouping (`claude`, the Claude account, now lives in `session`: see
- * LEGACY_SECTIONS). `conflicts` (skill and rule sync conflicts) only shows while
+ * grouping (`claude`, the Claude account, now lives in `session`, and `skills`
+ * and `rules` in `files`: see LEGACY_SECTIONS). `conflicts` (skill and rule sync conflicts) only shows while
  * the project has some.
  */
 export const PROJECT_SECTIONS = [
@@ -32,8 +32,8 @@ export const PROJECT_SECTIONS = [
   { id: 'gitlab', group: 'connections', icon: Gitlab },
   { id: 'aws', group: 'connections', icon: Cloud },
   { id: 'azure', group: 'connections', icon: CloudCog },
-  { id: 'skills', group: 'library', icon: Puzzle },
-  { id: 'rules', group: 'library', icon: ScrollText },
+  // What the project has on disk; read-only, edited on the Library screen (UX-57).
+  { id: 'files', group: 'library', icon: Library },
   { id: 'mcp', group: 'library', icon: Server },
   { id: 'conflicts', group: 'library', icon: GitMerge },
   { id: 'deploy', group: 'servers', icon: Rocket },
@@ -60,6 +60,9 @@ export function projectNav<S extends { id: string; group: ProjectGroupId }>(
 const LEGACY_SECTIONS = new Map<unknown, ProjectSectionId>([
   // The Claude account select moved into the session defaults form (UX-19).
   ['claude', 'session'],
+  // The old library's per-project switches gave way to the files on disk (UX-57).
+  ['skills', 'files'],
+  ['rules', 'files'],
 ])
 
 /** The section a `?section=` query names, or null when it names none. */

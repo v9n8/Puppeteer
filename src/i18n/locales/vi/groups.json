@@ -37,18 +37,5 @@
   "toastDeleted": "Đã xóa nhóm",
   "toastNoProjects": "Chưa có Project nào. Hãy thêm một Project trước.",
   "toastAppliedAll": "Đã bật \"{name}\" cho {count} Project.",
-  "toastAppliedAllPartial": "Đã bật cho {applied} Project.\n\nThất bại với {failed}:\n{details}",
-  "projectGroupsTitle": "Nhóm",
-  "projectGroupsEmpty": "Chưa có nhóm nào.",
-  "projectGroupsEmptyLink": "Tạo nhóm",
-  "groupEmptyHint": "Nhóm chưa có thành viên",
-  "viaGroup": "Theo nhóm",
-  "viaGroupHint": "Đang áp dụng theo nhóm. Bật công tắc này để giữ lại kể cả khi tắt nhóm.",
-  "enableGroup": "Bật cả nhóm cho Project này",
-  "disableGroup": "Tắt cả nhóm cho Project này",
-  "reapply": "Áp dụng lại đủ nhóm",
-  "toastGroupEnabled": "Đã bật \"{name}\" ({count} mục).",
-  "toastGroupEnabledPartial": "Đã bật {applied} mục của \"{name}\".\n\nThất bại:\n{details}",
-  "toastGroupDisabled": "Đã tắt \"{name}\". Đã gỡ {removed} mục.",
-  "toastGroupDisabledKept": "Đã tắt \"{name}\". Đã gỡ {removed} mục, giữ lại {kept} mục (bật thủ công hoặc thuộc nhóm khác)."
+  "toastAppliedAllPartial": "Đã bật cho {applied} Project.\n\nThất bại với {failed}:\n{details}"
 }

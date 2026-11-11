@@ -1,48 +1,64 @@
 <script setup lang="ts">
-// Library tab of the project detail column: which skills, rules and MCP servers
-// the project gets, and the skill/rule sync conflicts to resolve. Kept as it was
-// on the old settings page until the Library screen takes it over (UX-57).
+// Library tab of the project detail column: what the project has on disk
+// (skills, rules, commands, agents), read-only with links into the Library
+// screen that edits them (UX-57); which MCP servers the project gets; and the
+// old library's skill/rule sync conflicts to resolve.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GitMerge, Puzzle, ScrollText, Server } from 'lucide-vue-next'
+import { AlertCircle, GitMerge, Library, Server } from 'lucide-vue-next'
 import { Badge, Banner, Button, Card, ToggleSwitch } from '@/components/ui'
-import ProjectGroupToggles from '@/components/ProjectGroupToggles.vue'
 import { useToast } from '@/composables/useToast'
 import { composerDefaults } from '@/lib/composerChips'
-import { useProjectsStore, type AppliedRule, type AppliedSkill, type InstructionWarning, type Project } from '@/stores/projects'
-import { useSkillsStore } from '@/stores/skills'
-import { useRulesStore } from '@/stores/rules'
-import type { GroupKind, ProjectGroupState } from '@/stores/groups'
+import { invoke } from '@/lib/tauri'
+import { CMD_LIBRARY_SCAN, kindGroups, libraryQuery, type DiskItem } from '@/lib/libraryDisk'
+import { useProjectsStore, type InstructionWarning, type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
-import { useFeaturesStore } from '@/stores/features'
 
-const props = defineProps<{ project: Project; section: 'skills' | 'rules' | 'mcp' | 'conflicts' }>()
+const props = defineProps<{ project: Project; section: 'files' | 'mcp' | 'conflicts' }>()
 
 const { t } = useI18n()
 const { toast } = useToast()
 const projectStore = useProjectsStore()
-const skillsStore = useSkillsStore()
-const rulesStore = useRulesStore()
 const mcpStore = useMcpServersStore()
 const appSettings = useAppSettingsStore()
-const features = useFeaturesStore()
 
 const projectId = computed(() => props.project.id)
 
 const projectConflicts = computed(() => projectStore.conflicts.filter(c => c.project_id === projectId.value))
 const projectRuleConflicts = computed(() => projectStore.ruleConflicts.filter(c => c.project_id === projectId.value))
 
-const appliedSkills = ref<AppliedSkill[]>([])
-const loadingSkills = ref(false)
+// --- Files on disk (the Library screen's project tab, listed only) ---
+const files = ref<DiskItem[]>([])
+const loadingFiles = ref(false)
+const filesError = ref<string | null>(null)
+// Kinds the project has none of are left out: the list stays short.
+const fileGroups = computed(() =>
+  kindGroups(files.value, '', k => t(`library.kind.${k}`)).filter(g => g.rows.length > 0),
+)
 
-const targetLabel = computed<Record<string, string>>(() => ({
-  claude: 'Claude',
-  codex: 'Codex',
-  both: t('projectDetail.targetBoth'),
-}))
-const appliedRules = ref<AppliedRule[]>([])
-const loadingRules = ref(false)
+async function loadFiles() {
+  const id = projectId.value
+  loadingFiles.value = true
+  try {
+    const list = await invoke<DiskItem[]>(CMD_LIBRARY_SCAN, { scope: 'project', projectId: id })
+    if (id !== projectId.value) return
+    files.value = list
+    filesError.value = null
+  } catch (e) {
+    if (id !== projectId.value) return
+    files.value = []
+    filesError.value = String(e)
+  } finally {
+    loadingFiles.value = false
+  }
+}
+
+/** The Library screen on this project's tab, at one file when given. */
+function libraryLink(path: string | null = null) {
+  return { path: '/library', query: libraryQuery({ scope: 'project', projectId: projectId.value, path }) }
+}
+
 // How Claude/Codex will load this project's instruction files — warnings only, never auto-fixed.
 const instructionWarnings = ref<InstructionWarning[]>([])
 async function loadInstructionWarnings() {
@@ -68,25 +84,6 @@ function instructionWarningText(w: InstructionWarning): string {
       return t('projectDetail.warnTrackedByGit', { paths: w.paths.join(', ') })
   }
 }
-const togglingRuleId = ref<string | null>(null)
-// Unified list of every rule with its per-project applied state, mirroring the
-// MCP servers tab (single toggleable list instead of add/applied panels).
-// `manual` (this switch) and `from_group` are two independent links — either one on its own keeps
-// the rule applied, so the switch only ever controls the direct link.
-const ruleItems = computed(() =>
-  rulesStore.rules.map(r => {
-    const applied = appliedRules.value.find(a => a.rule_id === r.id)
-    return {
-      ...r,
-      applied: !!applied,
-      manual: applied?.manual ?? false,
-      from_group: applied?.from_group ?? false,
-      has_claude: applied?.has_claude ?? false,
-      has_codex: applied?.has_codex ?? false,
-      codex_skill: applied?.codex_skill ?? false,
-    }
-  })
-)
 
 // --- MCP servers (per-project enable/disable) ---
 const mcpServers = ref<ProjectMcpServer[]>([])
@@ -152,183 +149,19 @@ async function handleToggleMcpServer(server: ProjectMcpServer) {
   }
 }
 
-async function loadAppliedRules() {
-  const id = projectId.value
-  loadingRules.value = true
-  try {
-    const rules = await projectStore.getAppliedRules(id)
-    if (id === projectId.value) appliedRules.value = rules
-  } finally {
-    loadingRules.value = false
-  }
-  await loadInstructionWarnings()
-}
-
-// Direct link only — see `handleToggleSkill`.
-async function handleToggleRule(rule: { id: string; manual: boolean }) {
-  togglingRuleId.value = rule.id
-  try {
-    if (rule.manual) {
-      await projectStore.removeRuleFromProject(projectId.value, rule.id)
-    } else {
-      await projectStore.applyRule(projectId.value, rule.id)
-    }
-    await Promise.all([loadAppliedRules(), loadGroupStates('rule')])
-    toast.success(t('projectDetail.toastSaved'))
-  } catch (e) {
-    toast.error(String(e))
-  } finally {
-    togglingRuleId.value = null
-  }
-}
-
-// ── Skill / rule groups: flip a whole bundle on or off for this project ──────
-const skillGroupStates = ref<ProjectGroupState[]>([])
-const ruleGroupStates = ref<ProjectGroupState[]>([])
-const togglingGroupId = ref<string | null>(null)
-
-async function loadGroupStates(kind: GroupKind) {
-  const id = projectId.value
-  // Off, the backend refuses every group command (`library.groups`).
-  const states = (await features.isOnAfterLoad('library.groups'))
-    ? await projectStore.getProjectGroups(kind, id)
-    : []
-  if (id !== projectId.value) return
-  if (kind === 'skill') skillGroupStates.value = states
-  else ruleGroupStates.value = states
-}
-
-/** Re-read both the group states and the per-item list they just changed. */
-async function refreshAfterGroupChange(kind: GroupKind) {
-  await loadGroupStates(kind)
-  if (kind === 'skill') await loadAppliedSkills()
-  else await loadAppliedRules()
-}
-
-async function handleToggleGroup(kind: GroupKind, group: ProjectGroupState) {
-  if (group.member_count === 0) return
-  togglingGroupId.value = group.group_id
-  try {
-    // The group link is independent of the per-item switches: this toggle only adds or drops that
-    // link, so it reads straight off `linked`.
-    if (group.linked) {
-      const outcome = await projectStore.disableGroup(kind, projectId.value, group.group_id)
-      const kept = outcome.kept_manual + outcome.kept_other_group
-      toast.success(
-        kept > 0
-          ? t('groups.toastGroupDisabledKept', { name: group.name, removed: outcome.removed, kept })
-          : t('groups.toastGroupDisabled', { name: group.name, removed: outcome.removed }),
-      )
-    } else {
-      const outcome = await projectStore.enableGroup(kind, projectId.value, group.group_id)
-      if (outcome.failures.length > 0) {
-        const details = outcome.failures.map(f => `• ${f.item_name}: ${f.error}`).join('\n')
-        toast.error(t('groups.toastGroupEnabledPartial', { name: group.name, applied: outcome.applied, details }))
-      } else {
-        toast.success(t('groups.toastGroupEnabled', { name: group.name, count: outcome.applied }))
-      }
-    }
-    await refreshAfterGroupChange(kind)
-  } catch (e) {
-    toast.error(String(e))
-  } finally {
-    togglingGroupId.value = null
-  }
-}
-
-/** A linked group whose members were partly switched off by hand: re-apply the missing ones. */
-async function handleReapplyGroup(kind: GroupKind, group: ProjectGroupState) {
-  togglingGroupId.value = group.group_id
-  try {
-    const outcome = await projectStore.enableGroup(kind, projectId.value, group.group_id)
-    if (outcome.failures.length > 0) {
-      const details = outcome.failures.map(f => `• ${f.item_name}: ${f.error}`).join('\n')
-      toast.error(t('groups.toastGroupEnabledPartial', { name: group.name, applied: outcome.applied, details }))
-    } else {
-      toast.success(t('groups.toastGroupEnabled', { name: group.name, count: outcome.applied }))
-    }
-    await refreshAfterGroupChange(kind)
-  } catch (e) {
-    toast.error(String(e))
-  } finally {
-    togglingGroupId.value = null
-  }
-}
-
-const togglingSkillId = ref<string | null>(null)
-// Unified list of every skill with its per-project applied state (see ruleItems).
-const skillItems = computed(() =>
-  skillsStore.skills.map(s => {
-    const applied = appliedSkills.value.find(a => a.skill_id === s.id)
-    return {
-      ...s,
-      applied: !!applied,
-      manual: applied?.manual ?? false,
-      from_group: applied?.from_group ?? false,
-      has_claude: applied?.has_claude ?? false,
-      has_codex: applied?.has_codex ?? false,
-    }
-  })
-)
-
-async function loadAppliedSkills() {
-  const id = projectId.value
-  loadingSkills.value = true
-  try {
-    const skills = await projectStore.getAppliedSkills(id)
-    if (id === projectId.value) appliedSkills.value = skills
-  } finally {
-    loadingSkills.value = false
-  }
-  await loadInstructionWarnings()
-}
-
-// The switch owns the direct link only: turning it off on a skill a group also provides leaves the
-// skill in place (the group still wants it), it just stops being hand-picked.
-async function handleToggleSkill(skill: { id: string; manual: boolean }) {
-  togglingSkillId.value = skill.id
-  try {
-    if (skill.manual) {
-      await projectStore.removeSkillFromProject(projectId.value, skill.id)
-    } else {
-      await projectStore.applySkill(projectId.value, skill.id)
-    }
-    // One skill can complete or break a group, so the group rows have to follow — in parallel, so
-    // the row isn't frozen for two round trips.
-    await Promise.all([loadAppliedSkills(), loadGroupStates('skill')])
-    toast.success(t('projectDetail.toastSaved'))
-  } catch (e) {
-    toast.error(String(e))
-  } finally {
-    togglingSkillId.value = null
-  }
-}
-
 // The whole tab loads once per project, so moving between its sections reads nothing again.
 // Each load drops an answer for a project the user already left.
 watch(projectId, async () => {
-  if (skillsStore.skills.length === 0) await skillsStore.fetchSkills()
-  if (rulesStore.rules.length === 0) await rulesStore.fetchRules()
   await appSettings.ensureLoaded()
-  await loadAppliedSkills()
-  await loadAppliedRules()
-  await loadGroupStates('skill')
-  await loadGroupStates('rule')
+  await loadFiles()
+  await loadInstructionWarnings()
   await loadProjectMcpServers()
 }, { immediate: true })
 </script>
 
 <template>
-  <!-- Skills -->
-  <div v-if="section === 'skills'" class="max-w-lg space-y-5">
-    <ProjectGroupToggles
-      v-if="features.isOn('library.groups')"
-      kind="skill"
-      :groups="skillGroupStates"
-      :toggling="togglingGroupId"
-      @toggle="handleToggleGroup('skill', $event)"
-      @reapply="handleReapplyGroup('skill', $event)"
-    />
+  <!-- Files on disk: listed here, edited on the Library screen -->
+  <div v-if="section === 'files'" class="max-w-lg space-y-5">
     <Banner v-if="instructionWarnings.length > 0" tone="warning">
       <p class="font-medium text-warning">{{ t('projectDetail.instructionWarningsTitle') }}</p>
       <p
@@ -339,150 +172,73 @@ watch(projectId, async () => {
     </Banner>
     <Card>
       <template #header>
-        <Puzzle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-        <span class="text-xs font-semibold">{{ t('projectDetail.skills') }}</span>
+        <Library class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
+        <span class="text-xs font-semibold">{{ t('library.subtitle') }}</span>
         <span
-          v-if="appliedSkills.length > 0"
+          v-if="files.length > 0"
           class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
-        >{{ appliedSkills.length }}</span>
-        <RouterLink to="/skills" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+        >{{ files.length }}</span>
+        <RouterLink
+          :to="libraryLink()"
+          class="ml-auto shrink-0 text-2xs text-primary hover:underline"
+          :title="t('projectDetail.openInLibraryHint')"
+        >{{ t('projectDetail.openInLibrary') }}</RouterLink>
       </template>
 
       <!-- Loading -->
-      <div v-if="loadingSkills" class="divide-y divide-border/50">
+      <div v-if="loadingFiles" class="divide-y divide-border/50">
         <div v-for="i in 2" :key="i" class="flex items-center gap-3 px-4 py-3">
           <div class="flex-1 space-y-1.5">
             <div class="h-2.5 w-24 bg-muted animate-pulse rounded" />
             <div class="h-2 w-36 bg-muted animate-pulse rounded" />
           </div>
-          <div class="h-6 w-11 rounded-full bg-muted animate-pulse shrink-0" />
         </div>
       </div>
 
-      <!-- Empty -->
+      <div v-else-if="filesError" class="px-4 py-6 text-center text-xs text-destructive break-words">{{ filesError }}</div>
+
       <div
-        v-else-if="skillItems.length === 0"
+        v-else-if="files.length === 0"
         class="px-4 py-6 text-center text-xs text-muted-foreground"
       >
-        {{ t('projectDetail.noSkillsPrefix') }}
-        <RouterLink to="/skills" class="text-primary hover:underline">{{ t('projectDetail.createOne') }}</RouterLink>
-        {{ t('projectDetail.toEnableHere') }}
+        {{ t('projectDetail.libraryFilesEmpty') }}
       </div>
 
-      <!-- Skill list with on/off toggles -->
-      <div v-else class="divide-y divide-border/50">
-        <div
-          v-for="skill in skillItems"
-          :key="skill.id"
-          class="flex items-center gap-3 px-4 py-3"
-        >
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <p class="text-xs font-medium font-mono truncate">{{ skill.name }}</p>
-              <Badge tone="neutral" size="xs" class="shrink-0 uppercase tracking-wide">
-                {{ targetLabel[skill.target] }}
-              </Badge>
-              <Badge v-if="skill.from_group" tone="info" size="xs" class="shrink-0">{{ t('groups.viaGroup') }}</Badge>
-              <Badge v-if="skill.has_claude" tone="primary" size="xs" class="shrink-0">.claude/skills</Badge>
-              <Badge v-if="skill.has_codex" tone="neutral" size="xs" class="shrink-0">.agents/skills</Badge>
-            </div>
-            <p v-if="skill.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ skill.description }}</p>
-          </div>
-          <!-- Controls the direct link; a skill a group provides stays applied either way. -->
-          <ToggleSwitch
-            :checked="skill.manual ? true : skill.from_group ? 'mixed' : false"
-            :disabled="togglingSkillId === skill.id"
-            :loading="togglingSkillId === skill.id"
-            :label="skill.manual
-              ? t('projectDetail.disableForProject')
-              : skill.from_group ? t('groups.viaGroupHint') : t('projectDetail.enableForProject')"
-            @toggle="handleToggleSkill(skill)"
-          />
-        </div>
-      </div>
-    </Card>
-  </div>
-
-  <!-- Rules -->
-  <div v-else-if="section === 'rules'" class="max-w-lg space-y-5">
-    <ProjectGroupToggles
-      v-if="features.isOn('library.groups')"
-      kind="rule"
-      :groups="ruleGroupStates"
-      :toggling="togglingGroupId"
-      @toggle="handleToggleGroup('rule', $event)"
-      @reapply="handleReapplyGroup('rule', $event)"
-    />
-    <Banner v-if="instructionWarnings.length > 0" tone="warning">
-      <p class="font-medium text-warning">{{ t('projectDetail.instructionWarningsTitle') }}</p>
-      <p
-        v-for="(w, i) in instructionWarnings"
-        :key="i"
-        class="mt-1 leading-relaxed"
-      >{{ instructionWarningText(w) }}</p>
-    </Banner>
-    <Card>
-      <template #header>
-        <ScrollText class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-        <span class="text-xs font-semibold">{{ t('projectDetail.rules') }}</span>
-        <span
-          v-if="appliedRules.length > 0"
-          class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
-        >{{ appliedRules.length }}</span>
-        <RouterLink to="/rules" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
-      </template>
-
-      <!-- Loading -->
-      <div v-if="loadingRules" class="divide-y divide-border/50">
-        <div v-for="i in 2" :key="i" class="flex items-center gap-3 px-4 py-3">
-          <div class="flex-1 space-y-1.5">
-            <div class="h-2.5 w-24 bg-muted animate-pulse rounded" />
-            <div class="h-2 w-36 bg-muted animate-pulse rounded" />
-          </div>
-          <div class="h-6 w-11 rounded-full bg-muted animate-pulse shrink-0" />
-        </div>
-      </div>
-
-      <!-- Empty -->
-      <div
-        v-else-if="ruleItems.length === 0"
-        class="px-4 py-6 text-center text-xs text-muted-foreground"
-      >
-        {{ t('projectDetail.noRulesPrefix') }}
-        <RouterLink to="/rules" class="text-primary hover:underline">{{ t('projectDetail.createOne') }}</RouterLink>
-        {{ t('projectDetail.toEnableHere') }}
-      </div>
-
-      <!-- Rule list with on/off toggles -->
-      <div v-else class="divide-y divide-border/50">
-        <div
-          v-for="rule in ruleItems"
-          :key="rule.id"
-          class="flex items-center gap-3 px-4 py-3"
-        >
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <p class="text-xs font-medium font-mono truncate">{{ rule.name }}</p>
-              <Badge tone="neutral" size="xs" class="shrink-0 uppercase tracking-wide">
-                {{ targetLabel[rule.target] }}
-              </Badge>
-              <Badge v-if="rule.from_group" tone="info" size="xs" class="shrink-0">{{ t('groups.viaGroup') }}</Badge>
-              <Badge v-if="rule.has_claude" tone="primary" size="xs" class="shrink-0">.claude/rules</Badge>
-              <Badge v-if="rule.has_codex" tone="neutral" size="xs" class="shrink-0">{{ rule.codex_skill ? '.agents/skills' : 'AGENTS.md' }}</Badge>
-            </div>
-            <p v-if="rule.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ rule.description }}</p>
-          </div>
-          <!-- Controls the direct link; a rule a group provides stays applied either way. -->
-          <ToggleSwitch
-            :checked="rule.manual ? true : rule.from_group ? 'mixed' : false"
-            :disabled="togglingRuleId === rule.id"
-            :loading="togglingRuleId === rule.id"
-            :label="rule.manual
-              ? t('projectDetail.disableForProject')
-              : rule.from_group ? t('groups.viaGroupHint') : t('projectDetail.enableForProject')"
-            @toggle="handleToggleRule(rule)"
-          />
-        </div>
+      <!-- One block per kind; a row opens that file in the Library -->
+      <div v-else class="divide-y divide-border/60">
+        <section v-for="group in fileGroups" :key="group.key">
+          <h3 class="flex items-center gap-1.5 px-4 pt-3 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+            {{ group.label }}
+            <span class="tabular-nums">{{ group.rows.length }}</span>
+          </h3>
+          <RouterLink
+            v-for="row in group.rows"
+            :key="row.id"
+            :to="libraryLink(row.item.path)"
+            class="block px-4 py-2 transition-colors hover:bg-accent/50"
+            :title="t('projectDetail.openFileInLibrary', { name: row.item.name })"
+          >
+            <span class="flex min-w-0 items-center gap-1.5">
+              <span class="min-w-0 truncate font-mono text-xs font-medium" :title="row.item.name">{{ row.item.name }}</span>
+              <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
+                <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </span>
+              <Badge
+                v-if="row.item.status !== 'file'"
+                size="xs"
+                :tone="row.item.status === 'puppeteer_link' ? 'warning' : 'neutral'"
+                class="shrink-0"
+                :title="t(`library.statusHint.${row.item.status}`)"
+              >{{ t(`library.status.${row.item.status}`) }}</Badge>
+              <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
+            </span>
+            <span
+              v-if="row.item.description"
+              class="mt-0.5 block truncate text-2xs text-muted-foreground"
+              :title="row.item.description"
+            >{{ row.item.description }}</span>
+          </RouterLink>
+        </section>
       </div>
     </Card>
   </div>

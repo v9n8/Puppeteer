@@ -22,12 +22,13 @@ test('every section belongs to a known group, ids are unique', () => {
 })
 
 // UX-19: the Claude account tab became part of `session`; `styles` is new.
-const MOVED = { claude: 'session' }
+// UX-57: `skills` and `rules` became the read-only `files` list.
+const MOVED = { claude: 'session', skills: 'files', rules: 'files' }
 
 test('no old tab is lost', () => {
   const now = PROJECT_SECTIONS.map((s) => s.id)
   for (const id of OLD_TABS) assert.ok(now.includes(MOVED[id] ?? id), id)
-  assert.deepEqual(now.filter((id) => !OLD_TABS.includes(id)).sort(), ['session', 'styles'])
+  assert.deepEqual(now.filter((id) => !OLD_TABS.includes(id)).sort(), ['files', 'session', 'styles'])
 })
 
 test('projectNav: five groups in order, conflicts under Library when present', () => {
@@ -35,14 +36,14 @@ test('projectNav: five groups in order, conflicts under Library when present', (
     ['overview', ['overview', 'board']],
     ['defaults', ['session', 'styles']],
     ['connections', ['github', 'gitlab', 'aws', 'azure']],
-    ['library', ['skills', 'rules', 'mcp', 'conflicts']],
+    ['library', ['files', 'mcp', 'conflicts']],
     ['servers', ['deploy', 'tools']],
   ])
 })
 
 test('projectNav: no conflicts → no Conflicts entry', () => {
   const library = projectNav(PROJECT_SECTIONS, false).find((g) => g.id === 'library')
-  assert.deepEqual(library.sections.map((s) => s.id), ['skills', 'rules', 'mcp'])
+  assert.deepEqual(library.sections.map((s) => s.id), ['files', 'mcp'])
 })
 
 test('projectNav: an empty group gets no heading, groups follow PROJECT_GROUPS order', () => {
@@ -57,7 +58,7 @@ test('projectNav: an empty group gets no heading, groups follow PROJECT_GROUPS o
 
 test('sectionFromQuery: every old tab id opens its section, anything else is ignored', () => {
   for (const id of OLD_TABS) assert.equal(sectionFromQuery(id), MOVED[id] ?? id)
-  for (const id of ['session', 'styles']) assert.equal(sectionFromQuery(id), id)
+  for (const id of ['session', 'styles', 'files']) assert.equal(sectionFromQuery(id), id)
   for (const inherited of ['toString', 'constructor', '__proto__']) assert.equal(sectionFromQuery(inherited), null)
   for (const bad of [undefined, null, '', 'library', 'defaults', ['board'], 42]) {
     assert.equal(sectionFromQuery(bad), null, String(bad))
@@ -77,17 +78,18 @@ test('tabSection: the requested section while the tab lists it, else the first',
   assert.equal(tabSection('connections', 'aws', false), 'aws')
   assert.equal(tabSection('connections', null, false), 'github')
   // A section of another tab is not shown here.
-  assert.equal(tabSection('connections', 'skills', false), 'github')
+  assert.equal(tabSection('connections', 'files', false), 'github')
   assert.equal(tabSection('defaults', 'styles', false), 'styles')
   // Conflicts only while there are some.
   assert.equal(tabSection('library', 'conflicts', true), 'conflicts')
-  assert.equal(tabSection('library', 'conflicts', false), 'skills')
+  assert.equal(tabSection('library', 'conflicts', false), 'files')
   for (const g of PROJECT_GROUPS) assert.equal(sectionGroup(tabSection(g.id, null, false)), g.id)
 })
 
 test('projectPageQuery: the old settings link opens the same section on the Projects page', () => {
   assert.deepEqual(projectPageQuery('p1', 'board'), { id: 'p1', tab: 'overview', section: 'board' })
   assert.deepEqual(projectPageQuery('p1', 'claude'), { id: 'p1', tab: 'defaults', section: 'session' })
+  assert.deepEqual(projectPageQuery('p1', 'rules'), { id: 'p1', tab: 'library', section: 'files' })
   assert.deepEqual(projectPageQuery('p1', 'tools'), { id: 'p1', tab: 'servers', section: 'tools' })
   assert.deepEqual(projectPageQuery('p1'), { id: 'p1' })
   assert.deepEqual(projectPageQuery('p1', 'nope'), { id: 'p1' })

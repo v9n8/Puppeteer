@@ -37,18 +37,5 @@
   "toastDeleted": "Group deleted",
   "toastNoProjects": "No projects yet. Add one first.",
   "toastAppliedAll": "Enabled \"{name}\" for {count} projects.",
-  "toastAppliedAllPartial": "Enabled for {applied} projects.\n\nFailed for {failed}:\n{details}",
-  "projectGroupsTitle": "Groups",
-  "projectGroupsEmpty": "No groups yet.",
-  "projectGroupsEmptyLink": "Create one",
-  "groupEmptyHint": "This group has no members",
-  "viaGroup": "From group",
-  "viaGroupHint": "Applied by a group. Switch this on to keep it even when the group is turned off.",
-  "enableGroup": "Enable the whole group for this project",
-  "disableGroup": "Disable the whole group for this project",
-  "reapply": "Re-apply the full group",
-  "toastGroupEnabled": "Enabled \"{name}\" ({count} items).",
-  "toastGroupEnabledPartial": "Enabled {applied} items of \"{name}\".\n\nFailed:\n{details}",
-  "toastGroupDisabled": "Disabled \"{name}\". Removed {removed} items.",
-  "toastGroupDisabledKept": "Disabled \"{name}\". Removed {removed}, kept {kept} (hand-picked or still in another group)."
+  "toastAppliedAllPartial": "Enabled for {applied} projects.\n\nFailed for {failed}:\n{details}"
 }
