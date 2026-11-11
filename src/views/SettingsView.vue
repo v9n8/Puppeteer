@@ -154,11 +154,11 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
       <!-- Active section panel -->
       <div class="flex-1 overflow-auto p-6 min-w-0">
         <!-- Loading skeleton -->
-        <div v-if="loading" class="max-w-lg space-y-4">
+        <div v-if="loading" class="max-w-4xl space-y-4">
           <div v-for="i in 3" :key="i" class="h-28 bg-card rounded-lg border border-border animate-pulse" />
         </div>
 
-        <div v-else class="max-w-lg">
+        <div v-else class="max-w-4xl">
 
         <GeneralSettings v-show="activeSection === 'general'" />
         <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />

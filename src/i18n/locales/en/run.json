@@ -295,12 +295,6 @@
   "projectSettings": "Project settings",
   "relNow": "now",
   "notRunSessionHint": "type your goal in the chat box below to launch the session",
-  "density": {
-    "title": "Row density",
-    "comfortable": "Comfortable",
-    "compact": "Compact",
-    "dense": "Dense"
-  },
   "statusBar": {
     "label": "Session status bar",
     "contextTitle": "Context — click to compact",

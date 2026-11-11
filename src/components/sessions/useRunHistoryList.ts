@@ -4,9 +4,8 @@
 import { ref, computed, nextTick, type ComponentPublicInstance } from 'vue'
 import type { Repo } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
-import type { ListDensity } from '@/stores/uiLayout'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { GitPullRequest, Bug, Loader2, Rows2, Rows3, Rows4, CircleDashed } from 'lucide-vue-next'
+import { GitPullRequest, Bug, Loader2, CircleDashed } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 import {
   formatRunTimestamp, relativeAge, runStatusColorClass, runStatusIcon, shortModelId,
@@ -60,13 +59,9 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   const fetchTriggerEl = ref<HTMLElement | null>(null)
   onClickOutside(fetchPanelEl, () => { fetchOpen.value = false }, { ignore: [fetchTriggerEl] })
 
-  // List density menu (persisted in the uiLayout store; shared with the worker panel).
+  // List density (set in Settings › General, persisted in the uiLayout store;
+  // shared with the worker panel).
   const historyDensity = computed(() => uiLayout.listDensity)
-  const historyDensityOptions: { value: ListDensity; icon: typeof Rows2 }[] = [
-    { value: 'comfortable', icon: Rows2 },
-    { value: 'compact', icon: Rows3 },
-    { value: 'dense', icon: Rows4 },
-  ]
   // Left rail view: session controls/history, or the project file tree.
   const leftTab = ref<'session' | 'files'>('session')
 
@@ -650,7 +645,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
 
   return {
     repos, refInput, detectedRef, fetching, fetchOpen, fetchPanelEl, fetchTriggerEl, historyDensity,
-    historyDensityOptions, leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
+    leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
     runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
     runTimestamp, sessionSearch, filteredRuns, displayRuns, isProtectedByConductor, pendingRequest,

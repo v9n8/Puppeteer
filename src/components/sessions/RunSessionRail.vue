@@ -1,24 +1,23 @@
 <script setup lang="ts">
 // Left rail of the run screen: Session tab (new session, fetch issue/PR,
-// density, History list) and Files tab. RunView hides it in focus mode and in a
+// History list) and Files tab. RunView hides it in focus mode and in a
 // session pop-out. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
 import { runActivityAt } from '@/stores/runs'
 import {
   GitPullRequest, Bug, Clock, MessageSquare, Trash2, X, ShieldQuestion, MessageCircleQuestion, Pin,
-  Shield, Pencil, Check, FolderTree, MoreHorizontal, Search, Network, Plus, AlignJustify,
-  ArrowUpDown,
+  Shield, Pencil, Check, FolderTree, MoreHorizontal, Search, Network, Plus, ArrowUpDown,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
 import FileTree from '@/components/FileTree.vue'
-import { Button, Input, DropdownMenu, DropdownItem } from '@/components/ui'
+import { Button, Input, DropdownMenu } from '@/components/ui'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const {
-  runsStore, uiLayout, project, currentRunId, runLabel, sessionListEl, loadRunLog, repos, refInput,
+  runsStore, project, currentRunId, runLabel, sessionListEl, loadRunLog, repos, refInput,
   detectedRef, fetching, fetchOpen, fetchPanelEl, fetchTriggerEl, historyDensity,
-  historyDensityOptions, leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
+  leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
   runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
   runTimestamp, sessionSearch, filteredRuns, displayRuns, isProtectedByConductor, pendingRequest,
@@ -52,7 +51,8 @@ const {
     </div>
 
     <!-- Compact top toolbar: one New session button (every session is a
-         conductor), the Fetch issue/PR popover, and the History density menu. -->
+         conductor) and the Fetch issue/PR popover. Row density is set in
+         Settings › General. -->
     <div v-show="leftTab === 'session'" class="p-3 border-b border-border/60">
       <div class="relative flex items-center gap-1.5">
         <Button class="flex-1" :disabled="creatingSession" @click="handleNewSession">
@@ -72,31 +72,6 @@ const {
             <GitPullRequest class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>
         </span>
-        <DropdownMenu align="right">
-          <template #trigger>
-            <Button
-              variant="outline"
-              size="icon"
-              :title="t('run.density.title')"
-              :aria-label="t('run.density.title')"
-            >
-              <AlignJustify class="h-3.5 w-3.5" :stroke-width="1.75" />
-            </Button>
-          </template>
-          <DropdownItem
-            v-for="opt in historyDensityOptions"
-            :key="opt.value"
-            @click="uiLayout.setListDensity(opt.value)"
-          >
-            <component :is="opt.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-            <span class="flex-1">{{ t(`run.density.${opt.value}`) }}</span>
-            <Check
-              v-if="uiLayout.listDensity === opt.value"
-              class="h-3.5 w-3.5 shrink-0 text-primary"
-              :stroke-width="2"
-            />
-          </DropdownItem>
-        </DropdownMenu>
 
       <!-- Fetch popover: spans the toolbar row (the rail clips overflow, so
            it can't hang off the icon itself). -->

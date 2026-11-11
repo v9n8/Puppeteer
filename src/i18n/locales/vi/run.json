@@ -295,12 +295,6 @@
   "projectSettings": "Cài đặt Project",
   "relNow": "vừa xong",
   "notRunSessionHint": "gõ mục tiêu ở khung chat phía dưới để khởi chạy Session",
-  "density": {
-    "title": "Mật độ dòng",
-    "comfortable": "Thoáng",
-    "compact": "Gọn",
-    "dense": "Dày"
-  },
   "statusBar": {
     "label": "Thanh trạng thái của Session",
     "contextTitle": "Context — bấm để compact",

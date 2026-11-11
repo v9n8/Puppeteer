@@ -1,21 +1,34 @@
 <script setup lang="ts">
-// Settings → "General": language, theme, terminal app, quit policy and launch at
-// login. Theme and language apply on change, ahead of the debounced auto-save.
+// Settings → "General": language, theme, row density, terminal app, quit policy
+// and launch at login. Theme and language apply on change, ahead of the
+// debounced auto-save.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Palette } from 'lucide-vue-next'
+import { Palette, Rows2, Rows3, Rows4 } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
-import { AppSelect, Card } from '@/components/ui'
+import { AppSelect, Card, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
 import { applySystemAccent } from '@/lib/systemAccent'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
+import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import { useSettingsForm } from './useSettingsForm'
+import SettingsRow from './SettingsRow.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const { settings, loading } = useSettingsForm()
+
+// Row density is a per-machine display preference kept in the uiLayout store
+// (localStorage), not in the settings table, so it applies on change and the
+// session list and worker panel follow at once.
+const uiLayout = useUILayoutStore()
+const densityOptions = computed<SegmentedOption<ListDensity>[]>(() => [
+  { value: 'comfortable', label: t('settings.general.rowDensityComfortable'), icon: Rows2 },
+  { value: 'compact', label: t('settings.general.rowDensityCompact'), icon: Rows3 },
+  { value: 'dense', label: t('settings.general.rowDensityDense'), icon: Rows4 },
+])
 
 // Only this OS's terminals: the backend reads any other value as this OS's default.
 const terminalApps = TERMINAL_APPS[desktopOs(navigator.userAgent)]
@@ -101,16 +114,14 @@ watch(() => settings.value.language, (v) => {
       <Palette class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.sections.general') }}</span>
     </template>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.language') }}</label>
+      <SettingsRow :label="t('settings.language')">
         <AppSelect
           size="sm"
           v-model="settings.language"
           :options="SUPPORTED_LOCALES.map((l) => ({ value: l.value, label: l.label }))"
         />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.theme') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.theme')">
         <AppSelect
           size="sm"
           v-model="settings.theme"
@@ -120,14 +131,11 @@ watch(() => settings.value.language, (v) => {
             { value: 'dark', label: t('settings.general.themeDark') },
           ]"
         />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.colorTheme') }}</label>
-        <p class="text-2xs text-muted-foreground">{{ t('settings.general.colorThemeHint') }}</p>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.colorTheme')" :hint="t('settings.general.colorThemeHint')" stacked>
         <ColorThemePicker v-model="settings.color_theme" />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.animatedBackground') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.animatedBackground')" :hint="t('settings.general.animatedBackgroundHint')">
         <AppSelect
           size="sm"
           v-model="settings.animated_background"
@@ -136,18 +144,22 @@ watch(() => settings.value.language, (v) => {
             { value: 'false', label: t('settings.general.off') },
           ]"
         />
-        <p class="text-2xs text-muted-foreground">{{ t('settings.general.animatedBackgroundHint') }}</p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.terminalApp') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.rowDensity')" :hint="t('settings.general.rowDensityHint')">
+        <SegmentedControl
+          :model-value="uiLayout.listDensity"
+          :options="densityOptions"
+          @update:model-value="uiLayout.setListDensity"
+        />
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.terminalApp')">
         <AppSelect
           size="sm"
           v-model="settings.terminal_app"
           :options="terminalAppOptions"
         />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.quitPolicy') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.quitPolicy')" :hint="t('settings.general.quitPolicyHint')">
         <AppSelect
           size="sm"
           v-model="settings.quit_background_policy"
@@ -157,17 +169,14 @@ watch(() => settings.value.language, (v) => {
             { value: 'keep_leftovers', label: t('settings.general.quitPolicyKeep') },
           ]"
         />
-        <p class="text-2xs text-muted-foreground">{{ t('settings.general.quitPolicyHint') }}</p>
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.general.launchAtLogin') }}</label>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.launchAtLogin')" :hint="t('settings.general.launchAtLoginHint')">
         <AppSelect
           size="sm"
           :model-value="launchAtLogin"
           :options="launchAtLoginOptions"
           @update:model-value="(v) => setLaunchAtLogin(v as LaunchAtLogin)"
         />
-        <p class="text-2xs text-muted-foreground">{{ t('settings.general.launchAtLoginHint') }}</p>
-      </div>
+      </SettingsRow>
   </Card>
 </template>
