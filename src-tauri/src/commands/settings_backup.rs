@@ -4875,6 +4875,7 @@ mod tests {
     fn feature_switches_are_portable_but_not_the_seed_flag() {
         for key in [
             "theme",
+            "claude_fallback_model",
             "feature.remote",
             "feature.text_tools.selection.translate",
             "inbox_api_enabled",

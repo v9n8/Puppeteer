@@ -144,6 +144,17 @@ async fn claude_usage_capture_mode(db: &Db, claude_account_id: Option<&str>) -> 
     }
 }
 
+/// Hand a Claude run its fallback model (AC-17): the `claude_fallback_model`
+/// setting, [`DEFAULT_CLAUDE_FALLBACK_MODEL`](crate::commands::settings::DEFAULT_CLAUDE_FALLBACK_MODEL)
+/// while it is unset, none when it is "". The sidecar leaves it out when it is
+/// the run's model or the run is a side task.
+fn apply_claude_fallback_model(cmd: &mut Command, setting: Option<&str>) {
+    let model = setting.unwrap_or(crate::commands::settings::DEFAULT_CLAUDE_FALLBACK_MODEL).trim();
+    if !model.is_empty() {
+        cmd.env("PUPPETEER_FALLBACK_MODEL", model);
+    }
+}
+
 #[tauri::command]
 pub async fn start_run(
     app: AppHandle,
@@ -238,6 +249,7 @@ pub(crate) async fn start_run_inner(
     let mut sidecar_path = String::new();
     let mut codex_sidecar_path = String::new();
     let mut claude_model = String::new();
+    let mut claude_fallback_model: Option<String> = None;
     let mut codex_model = String::new();
     let mut extra_args = String::new();
     // Fixed prompts for the GitHub "Analyze issue" / "Review PR" actions. No longer
@@ -265,6 +277,7 @@ pub(crate) async fn start_run_inner(
             "sidecar_path" => sidecar_path = value,
             "codex_sidecar_path" => codex_sidecar_path = value,
             "claude_model" => claude_model = value,
+            "claude_fallback_model" => claude_fallback_model = Some(value),
             "codex_model" => codex_model = value,
             "extra_args" => extra_args = value,
             "default_permission_mode" => default_permission_mode = value,
@@ -514,6 +527,7 @@ pub(crate) async fn start_run_inner(
         if let Some(m) = &model {
             cmd.env("PUPPETEER_MODEL", m);
         }
+        apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
         }
@@ -4399,6 +4413,7 @@ pub(crate) async fn resume_run_with(
     let mut sidecar_path = String::new();
     let mut codex_sidecar_path = String::new();
     let mut claude_model = String::new();
+    let mut claude_fallback_model: Option<String> = None;
     let mut codex_model = String::new();
     let mut default_permission_mode = "default".to_string();
     let mut default_effort = String::new();
@@ -4412,6 +4427,7 @@ pub(crate) async fn resume_run_with(
             "sidecar_path" => sidecar_path = value,
             "codex_sidecar_path" => codex_sidecar_path = value,
             "claude_model" => claude_model = value,
+            "claude_fallback_model" => claude_fallback_model = Some(value),
             "codex_model" => codex_model = value,
             "default_permission_mode" => default_permission_mode = value,
             "default_effort" => default_effort = value,
@@ -4681,6 +4697,7 @@ pub(crate) async fn resume_run_with(
         if let Some(m) = &model {
             cmd.env("PUPPETEER_MODEL", m);
         }
+        apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
         }
@@ -5871,6 +5888,44 @@ mod turn_gate_tests {
             Err(FOLLOW_UP_REFUSED.to_string())
         );
         assert!(registry.lock().await.get("r1").unwrap().turn_gate.queued.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod fallback_model_tests {
+    use super::*;
+
+    fn fallback_env(setting: Option<&str>) -> Option<String> {
+        let mut cmd = Command::new("x");
+        apply_claude_fallback_model(&mut cmd, setting);
+        let found = cmd.as_std().get_envs().find(|(k, _)| *k == "PUPPETEER_FALLBACK_MODEL");
+        found.and_then(|(_, v)| v).map(|v| v.to_string_lossy().into_owned())
+    }
+
+    #[test]
+    fn the_setting_reaches_the_sidecar_and_an_empty_one_turns_it_off() {
+        assert_eq!(fallback_env(None).as_deref(), Some("sonnet"));
+        assert_eq!(fallback_env(Some(" claude-sonnet-4-6 ")).as_deref(), Some("claude-sonnet-4-6"));
+        assert_eq!(fallback_env(Some("sonnet,haiku")).as_deref(), Some("sonnet,haiku"));
+        assert_eq!(fallback_env(Some("")), None);
+        assert_eq!(fallback_env(Some("  ")), None);
+    }
+
+    // start_run and resume_run_with each spawn the Claude sidecar; the spawns need
+    // an AppHandle (no mock runtime here), so check both read the setting and
+    // hand it over.
+    #[test]
+    fn start_and_resume_both_pass_the_fallback_model() {
+        let src = include_str!("runs.rs").replace("\r\n", "\n");
+        for (from, to) in [
+            ("pub(crate) async fn start_run_inner(", "#[tauri::command]"),
+            ("pub(crate) async fn resume_run_with(", "\n}\n"),
+        ] {
+            let body = &src[src.find(from).unwrap()..];
+            let body = &body[..body.find(to).unwrap()];
+            assert!(body.contains(r#""claude_fallback_model" => claude_fallback_model = Some(value),"#), "{from}");
+            assert!(body.contains("apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());"), "{from}");
+        }
     }
 }
 

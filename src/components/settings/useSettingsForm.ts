@@ -18,6 +18,7 @@ export interface AppSettings {
   claude_path: string
   codex_path: string
   claude_model: string
+  claude_fallback_model: string
   codex_model: string
   extra_args: string
   theme: string
@@ -66,6 +67,7 @@ export function createSettingsForm(): SettingsForm {
     claude_path: 'claude',
     codex_path: 'codex',
     claude_model: '',
+    claude_fallback_model: 'sonnet',
     codex_model: '',
     extra_args: '',
     theme: 'system',

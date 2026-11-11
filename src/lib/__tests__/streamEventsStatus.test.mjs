@@ -1,5 +1,6 @@
 // Unit tests for the engine status events in lib/streamEvents.ts (AC-14):
-// API retry, compaction, tool elapsed time and task progress.
+// API retry, compaction, tool elapsed time and task progress; the switch to
+// the fallback model (AC-17).
 // Run: node --test src/lib/__tests__/streamEventsStatus.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -179,4 +180,24 @@ test('task_progress / task_notification: the subagent card follows its task', ()
   const n = state.entries.length
   applyStreamEvent(state, { type: 'system', subtype: 'task_progress', task_id: 'x', usage: { tool_uses: 1 } })
   assert.equal(state.entries.length, n)
+})
+
+test('model_fallback (AC-17): one warning entry naming both models, from the stream and a transcript', () => {
+  const state = createStreamState()
+  applyStreamEvent(state, {
+    type: 'system', subtype: 'model_fallback', trigger: 'overloaded',
+    original_model: 'claude-opus-5-5', fallback_model: 'claude-sonnet-4-6',
+    content: 'Switched to Sonnet 4.6 due to high demand for Opus 5.5',
+  })
+  assert.deepEqual(state.entries, [{ kind: 'model-fallback', model: 'claude-opus-5-5', fallback: 'claude-sonnet-4-6' }])
+
+  const saved = parseStreamLog(JSON.stringify({
+    type: 'system', subtype: 'model_fallback', trigger: 'model_not_found', originalModel: 'claude-opus-5-5', fallbackModel: 'sonnet',
+  }))
+  assert.deepEqual(saved.entries, [{ kind: 'model-fallback', model: 'claude-opus-5-5', fallback: 'sonnet' }])
+
+  // Without the fallback's name there is nothing to say.
+  const bare = createStreamState()
+  applyStreamEvent(bare, { type: 'system', subtype: 'model_fallback', original_model: 'claude-opus-5-5' })
+  assert.deepEqual(bare.entries, [])
 })

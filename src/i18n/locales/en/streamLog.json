@@ -80,6 +80,7 @@
     "fork": "Fork from here"
   },
   "runningFor": "running · {time}",
+  "modelFallback": "This turn ran on {fallback} because {model} was unavailable",
   "taskTools": "{count} tool use | {count} tool uses",
   "live": {
     "retry": "Retrying ({attempt}/{max}) — waiting {secs}s",

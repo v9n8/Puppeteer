@@ -311,6 +311,34 @@ const tests = {
     assert.equal(resumedHaiku.effort, undefined)
   },
 
+  // Fallback model (AC-17): the broker's env reaches the SDK on start and on
+  // resume, except when it is the model itself (the SDK throws on that) or for
+  // a tool-less side task.
+  async 'fallback model reaches the SDK unless it is the model or a side task'() {
+    const initOptions = async (options, env = {}) => {
+      const { messages } = await runSidecar('echo', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', ...(options ? { options } : {}) })
+        if (msg.type === 'system' && msg.subtype === 'init') ctl.closeInput()
+      }, 10_000, env)
+      return messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    }
+    const base = { permissionMode: 'default' }
+    const env = { PUPPETEER_FALLBACK_MODEL: 'sonnet' }
+    assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5' }, env)).fallbackModel, 'sonnet')
+    // Engine default model: the CLI resolves it, the fallback still applies.
+    assert.equal((await initOptions(base, env)).fallbackModel, 'sonnet')
+    const resumed = await initOptions(null, { ...env, PUPPETEER_RESUME_SESSION: 'sess-1', PUPPETEER_MODEL: 'claude-opus-4-8' })
+    assert.equal(resumed.resume, 'sess-1')
+    assert.equal(resumed.fallbackModel, 'sonnet')
+    // The same id as the model: none.
+    assert.equal((await initOptions({ ...base, model: 'sonnet' }, env)).fallbackModel, undefined)
+    assert.equal((await initOptions(null, { ...env, PUPPETEER_MODEL: 'sonnet' })).fallbackModel, undefined)
+    // A side task keeps its own model.
+    assert.equal((await initOptions({ ...base, model: 'haiku', noTools: true }, env)).fallbackModel, undefined)
+    // Turned off in Settings: the broker sets no env.
+    assert.equal((await initOptions({ ...base, model: 'claude-opus-5-5' })).fallbackModel, undefined)
+  },
+
   // Response style (UX-17): the broker composes one append (account context,
   // framing, style). It reaches the SDK on the preset prompt, and on a resume
   // (first prompt without options) from PUPPETEER_APPEND_SYSTEM_PROMPT — the

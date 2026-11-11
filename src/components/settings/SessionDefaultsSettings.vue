@@ -22,7 +22,7 @@ const { t } = useI18n()
 const { settings } = useSettingsForm()
 const modelCatalog = useModelCatalogStore()
 const styles = useResponseStylesStore()
-const { claudeModelOptions, codexModelOptions } = useModelOptions()
+const { claudeModelOptions, claudeFallbackOptions, codexModelOptions } = useModelOptions()
 
 onMounted(() => {
   // My styles; Settings › Response styles loads the same list.
@@ -91,6 +91,11 @@ const styleOptions = computed(() => {
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
         <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.claudeFallbackModel') }}</label>
+        <AppSelect size="sm" v-model="settings.claude_fallback_model" :options="claudeFallbackOptions" />
+        <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.fallbackHint') }}</p>
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>

@@ -456,6 +456,12 @@ function startQuery(firstText, opts = {}, firstImages) {
   // A level the model cannot take is left out: the model's default applies.
   const effort = opts.effort || process.env.PUPPETEER_EFFORT
   if (effort && claudeEffortLevels(options.model).includes(effort)) options.effort = effort
+  // Fallback model (AC-17), from the broker's env on start and resume alike: the
+  // CLI switches to it while the model is overloaded or unavailable and tries
+  // the model again on the next user turn. The SDK throws on a fallback equal to
+  // the model; a side task (noTools) already runs on a small model.
+  const fallbackModel = process.env.PUPPETEER_FALLBACK_MODEL
+  if (fallbackModel && fallbackModel !== options.model && opts.noTools !== true) options.fallbackModel = fallbackModel
   if (opts.cwd) options.cwd = opts.cwd
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).

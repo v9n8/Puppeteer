@@ -1009,6 +1009,8 @@ mod tests {
             "language",
             "default_engine",
             "claude_model",
+            // The fallback model (AC-17), like the other model keys.
+            "claude_fallback_model",
             "extra_args",
             "default_permission_mode",
             "claude_path",

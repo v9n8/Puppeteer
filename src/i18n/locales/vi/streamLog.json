@@ -80,6 +80,7 @@
     "fork": "Fork từ đây"
   },
   "runningFor": "đang chạy · {time}",
+  "modelFallback": "Lượt này chạy bằng {fallback} vì {model} tạm không dùng được",
   "taskTools": "{count} lần gọi tool | {count} lần gọi tool",
   "live": {
     "retry": "Đang thử lại ({attempt}/{max}) — chờ {secs} giây",

@@ -10,6 +10,10 @@ pub struct AppSettings {
     pub codex_path: String,
     /// Default model for Claude runs (SDK alias: ""=engine default, opus, sonnet, haiku).
     pub claude_model: String,
+    /// Model a Claude run switches to while its own is overloaded or unavailable
+    /// (AC-17): an SDK alias or id, a comma-separated list tried in order.
+    /// Unset = [`DEFAULT_CLAUDE_FALLBACK_MODEL`]; "" = off.
+    pub claude_fallback_model: String,
     /// Default model for Codex runs ("" = engine default, e.g. gpt-5-codex, gpt-5).
     pub codex_model: String,
     pub extra_args: String,
@@ -89,6 +93,9 @@ pub struct AppSettings {
     pub keymap_config: String,
 }
 
+/// [`AppSettings::claude_fallback_model`] while the key is unset.
+pub const DEFAULT_CLAUDE_FALLBACK_MODEL: &str = "sonnet";
+
 /// `AppSettings` keys carried by a settings backup. `claude_path` / `codex_path` are left out:
 /// they are machine-specific binary paths. Internal bookkeeping keys (usage snapshots, balancer
 /// state, Inbox API token, the `feature._seeded` flag…) are never exported. The feature switches
@@ -99,6 +106,7 @@ pub struct AppSettings {
 pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "default_engine",
     "claude_model",
+    "claude_fallback_model",
     "codex_model",
     "extra_args",
     "theme",
@@ -162,6 +170,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         claude_path: "claude".to_string(),
         codex_path: "codex".to_string(),
         claude_model: "".to_string(),
+        claude_fallback_model: DEFAULT_CLAUDE_FALLBACK_MODEL.to_string(),
         codex_model: "".to_string(),
         extra_args: "".to_string(),
         theme: "system".to_string(),
@@ -201,6 +210,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "claude_path" => settings.claude_path = value,
             "codex_path" => settings.codex_path = value,
             "claude_model" => settings.claude_model = value,
+            "claude_fallback_model" => settings.claude_fallback_model = value,
             "codex_model" => settings.codex_model = value,
             "extra_args" => settings.extra_args = value,
             "theme" => settings.theme = value,

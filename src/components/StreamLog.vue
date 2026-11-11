@@ -1702,6 +1702,15 @@ function toolResult(e: StreamEntry): unknown {
         <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
         <span class="whitespace-pre-wrap">{{ entry.text }}</span>
       </div>
+
+      <!-- the turn went on on the fallback model (AC-17) -->
+      <div
+        v-else-if="entry.kind === 'model-fallback'"
+        class="my-1 flex items-start gap-2 text-xs text-warning"
+      >
+        <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
+        <span>{{ t('streamLog.modelFallback', { fallback: entry.fallback, model: entry.model }) }}</span>
+      </div>
       </div><!-- /block rail -->
 
       <!-- Row of buttons ending a turn: under the question bubble (aligned with

@@ -235,6 +235,11 @@ export type StreamEntry =
     }
   | { kind: 'error'; text: string }
   | { kind: 'log'; level: string; text: string }
+  /**
+   * Claude switched this turn to its fallback model (AC-17): `model` was
+   * overloaded or unavailable. The next turn tries `model` again.
+   */
+  | { kind: 'model-fallback'; model: string; fallback: string }
 
 /** Progress of a task (subagent, background shell…) as of its latest `task_*` event. */
 export interface TaskProgress {
@@ -481,6 +486,14 @@ export function applyStreamEvent(
 
   if (type === 'system' && e.subtype === 'compact_boundary') {
     applyCompactBoundary(state.entries, e)
+    return
+  }
+
+  // The stream spells the models in snake_case, a saved transcript in camelCase.
+  if (type === 'system' && e.subtype === 'model_fallback') {
+    const str = (v: unknown) => (typeof v === 'string' ? v : '')
+    const fallback = str(e.fallback_model) || str(e.fallbackModel)
+    if (fallback) state.entries.push({ kind: 'model-fallback', model: str(e.original_model) || str(e.originalModel), fallback })
     return
   }
 

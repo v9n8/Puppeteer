@@ -1,6 +1,6 @@
 // Claude / Codex model choices shared by Settings → "Defaults for new sessions"
-// (the default model of each engine) and Settings → "Translation" (the translate
-// model), so both selects offer the same list.
+// (the default model of each engine, Claude's fallback model) and Settings →
+// "Translation" (the translate model), so the selects offer the same list.
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -34,6 +34,20 @@ export function useModelOptions() {
       withCurrentModel(CLAUDE_MODEL_OPTIONS, settings.value.claude_model),
     ),
   )
+  // Fallback model choices (AC-17): off, the `sonnet` alias (the default, so it
+  // follows the current Sonnet), then the same pinned table and the saved pick.
+  const claudeFallbackOptions = computed(() =>
+    modelCatalog.withValidation(
+      withCurrentModel(
+        [
+          { value: '', label: t('settings.ai.fallbackOff') },
+          { value: 'sonnet', label: 'sonnet', description: t('settings.ai.fallbackSonnetAlias') },
+          ...CLAUDE_MODEL_OPTIONS.filter((o) => o.value !== ''),
+        ],
+        settings.value.claude_fallback_model,
+      ),
+    ),
+  )
   // Codex model choices = curated fallback, replaced by the CLI-refreshed cache
   // (`codex debug models`) once the user refreshes in Settings.
   const codexModelOptions = computed(() => modelCatalog.codexOptions(CODEX_MODEL_OPTIONS))
@@ -43,7 +57,7 @@ export function useModelOptions() {
     modelCatalog.ensureLoaded().catch(() => {})
   })
 
-  return { claudeModelOptions, codexModelOptions }
+  return { claudeModelOptions, claudeFallbackOptions, codexModelOptions }
 }
 
 /** Format a model-cache timestamp for the "last refreshed" hint. */
