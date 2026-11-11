@@ -1,18 +1,22 @@
 <script setup lang="ts">
-// Settings → "General": language, theme, row density, terminal app, quit policy
-// and launch at login. Theme and language apply on change, ahead of the
+// Settings → "General": language, theme, row density, font and text sizes,
+// terminal app, quit policy and launch at login. Theme and language apply on change, ahead of the
 // debounced auto-save.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Palette, Rows2, Rows3, Rows4 } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
-import { AppSelect, Card, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import { AppSelect, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
 import { applySystemAccent } from '@/lib/systemAccent'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
+import {
+  APP_FONT_SIZES, CHAT_FONT_SIZES, FONT_FAMILIES, pickSize,
+  DEFAULT_APP_FONT_SIZE, DEFAULT_CHAT_FONT_SIZE, type FontFamilyId,
+} from '@/lib/appFonts'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
 
@@ -29,6 +33,19 @@ const densityOptions = computed<SegmentedOption<ListDensity>[]>(() => [
   { value: 'compact', label: t('settings.general.rowDensityCompact'), icon: Rows3 },
   { value: 'dense', label: t('settings.general.rowDensityDense'), icon: Rows4 },
 ])
+
+// Font and text sizes: per-machine too (lib/appFonts), applied on change.
+const FONT_LABEL_KEYS: Record<FontFamilyId, string> = {
+  theme: 'fontTheme', inter: 'fontInter', system: 'fontSystem',
+  helvetica: 'fontHelvetica', noto: 'fontNoto', custom: 'fontCustom',
+}
+const fontOptions = computed(() =>
+  FONT_FAMILIES.map((f) => ({ value: f, label: t(`settings.general.${FONT_LABEL_KEYS[f]}`) })),
+)
+const sizeOptions = (sizes: readonly number[]) =>
+  sizes.map((size) => ({ value: String(size), label: t('settings.general.fontSizePx', { size }) }))
+const appSizeOptions = computed(() => sizeOptions(APP_FONT_SIZES))
+const chatSizeOptions = computed(() => sizeOptions(CHAT_FONT_SIZES))
 
 // Only this OS's terminals: the backend reads any other value as this OS's default.
 const terminalApps = TERMINAL_APPS[desktopOs(navigator.userAgent)]
@@ -150,6 +167,40 @@ watch(() => settings.value.language, (v) => {
           :model-value="uiLayout.listDensity"
           :options="densityOptions"
           @update:model-value="uiLayout.setListDensity"
+        />
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.font')" :hint="t('settings.general.fontHint')">
+        <div class="flex items-center gap-2">
+          <Input
+            v-if="uiLayout.fontPrefs.family === 'custom'"
+            size="sm"
+            class="w-44"
+            :model-value="uiLayout.fontPrefs.customFont"
+            :placeholder="t('settings.general.fontCustomPlaceholder')"
+            @change="uiLayout.setFontPrefs({ customFont: ($event.target as HTMLInputElement).value })"
+          />
+          <AppSelect
+            size="sm"
+            :model-value="uiLayout.fontPrefs.family"
+            :options="fontOptions"
+            @update:model-value="(v) => uiLayout.setFontPrefs({ family: v as FontFamilyId })"
+          />
+        </div>
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.appFontSize')" :hint="t('settings.general.appFontSizeHint')">
+        <AppSelect
+          size="sm"
+          :model-value="String(uiLayout.fontPrefs.appSize)"
+          :options="appSizeOptions"
+          @update:model-value="(v) => uiLayout.setFontPrefs({ appSize: pickSize(v, APP_FONT_SIZES, DEFAULT_APP_FONT_SIZE) })"
+        />
+      </SettingsRow>
+      <SettingsRow :label="t('settings.general.chatFontSize')" :hint="t('settings.general.chatFontSizeHint')">
+        <AppSelect
+          size="sm"
+          :model-value="String(uiLayout.fontPrefs.chatSize)"
+          :options="chatSizeOptions"
+          @update:model-value="(v) => uiLayout.setFontPrefs({ chatSize: pickSize(v, CHAT_FONT_SIZES, DEFAULT_CHAT_FONT_SIZE) })"
         />
       </SettingsRow>
       <SettingsRow :label="t('settings.general.terminalApp')">

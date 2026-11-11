@@ -361,7 +361,7 @@ function onOpenUrl(url: string) {
       <div
         v-if="isViewingHistory"
         ref="historyEl"
-        class="flex-1 min-h-0 overflow-auto p-4"
+        class="chat-text flex-1 min-h-0 overflow-auto p-4"
         @scroll="onHistoryScroll"
       >
         <!-- Loading animation while the log is read + parsed from disk. -->
@@ -433,7 +433,7 @@ function onOpenUrl(url: string) {
       <div
         v-else-if="hasLiveOutput"
         ref="outputEl"
-        class="flex-1 min-h-0 overflow-auto p-4"
+        class="chat-text flex-1 min-h-0 overflow-auto p-4"
         @scroll="onOutputScroll"
         @pointerdown="onOutputPointerDown"
       >

@@ -80,6 +80,27 @@
   --text-xs--line-height: 1.125rem;
 }
 
+/* Text sizes follow Settings › General (lib/appFonts): --app-text-scale for the
+ * app, --chat-text-scale inside a conversation (.chat-text). Only text scales;
+ * spacing stays. The sizes are declared again on .chat-text because a var()
+ * inside a custom property resolves where that property is declared. */
+:root { --text-scale: var(--app-text-scale, 1); }
+.chat-text { --text-scale: var(--chat-text-scale, 1); }
+:root,
+.chat-text {
+  --text-2xs: calc(0.75rem * var(--text-scale));
+  --text-2xs--line-height: calc(1rem * var(--text-scale));
+  --text-xs: calc(0.8125rem * var(--text-scale));
+  --text-xs--line-height: calc(1.125rem * var(--text-scale));
+  --text-sm: calc(0.875rem * var(--text-scale));
+  --text-base: calc(1rem * var(--text-scale));
+  --text-lg: calc(1.125rem * var(--text-scale));
+  --text-xl: calc(1.25rem * var(--text-scale));
+  --text-2xl: calc(1.5rem * var(--text-scale));
+  --text-3xl: calc(1.875rem * var(--text-scale));
+  --text-4xl: calc(2.25rem * var(--text-scale));
+}
+
 @layer base {
   /* ---------------------------------------------------------------------------
    * Default theme: flat "Zinc + Indigo", tuned for mid-range IPS panels
@@ -370,7 +391,7 @@
  * (StreamLog stream view + RunView legacy columns) and stay in sync.
  * ------------------------------------------------------------------------- */
 .markdown-output {
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--text-scale));
   line-height: 1.7;
   color: hsl(var(--foreground) / 0.92);
   word-break: break-word;
@@ -393,7 +414,7 @@
   scroll-margin-top: 1rem;
 }
 .markdown-output h1 {
-  font-size: 1.2rem;
+  font-size: calc(1.2rem * var(--text-scale));
   font-weight: 700;
   margin: 1.4rem 0 0.7rem;
   padding-bottom: 0.35rem;
@@ -401,17 +422,17 @@
   letter-spacing: -0.01em;
 }
 .markdown-output h2 {
-  font-size: 1.05rem;
+  font-size: calc(1.05rem * var(--text-scale));
   margin: 1.3rem 0 0.6rem;
   padding-bottom: 0.3rem;
   border-bottom: 1px solid hsl(var(--border) / 0.6);
   letter-spacing: -0.01em;
 }
-.markdown-output h3 { font-size: 0.95rem; margin: 1.1rem 0 0.45rem; }
-.markdown-output h4 { font-size: 0.875rem; margin: 0.9rem 0 0.35rem; }
+.markdown-output h3 { font-size: calc(0.95rem * var(--text-scale)); margin: 1.1rem 0 0.45rem; }
+.markdown-output h4 { font-size: calc(0.875rem * var(--text-scale)); margin: 0.9rem 0 0.35rem; }
 .markdown-output h5,
 .markdown-output h6 {
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--text-scale));
   margin: 0.8rem 0 0.3rem;
   color: hsl(var(--foreground) / 0.8);
   text-transform: uppercase;
@@ -452,7 +473,7 @@
   border-radius: 0.5rem;
   overflow: auto;
   margin: 0 0 0.8rem;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--text-scale));
   line-height: 1.6;
 }
 .markdown-output pre code {
@@ -496,7 +517,7 @@
 .markdown-output table {
   border-collapse: collapse;
   margin: 0 0 0.8rem;
-  font-size: 0.82rem;
+  font-size: calc(0.82rem * var(--text-scale));
   display: block;
   overflow-x: auto;
   max-width: 100%;
@@ -595,7 +616,7 @@
   border: 0;
   padding: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--text-scale));
   line-height: 1.6;
   color: hsl(var(--muted-foreground));
   white-space: pre;

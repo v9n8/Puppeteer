@@ -6,10 +6,12 @@ import { i18n } from './i18n'
 import './assets/main.css'
 import App from './App.vue'
 import { installHomeEndKeys } from './lib/homeEndKeys'
+import { installFontPrefs } from './lib/appFonts'
 import { isRemoteMode } from './lib/ipc/remote'
 import { installQuoteAppend } from './lib/quoteAppend'
 
 installHomeEndKeys()
+installFontPrefs()
 
 function mountApp() {
   const app = createApp(App)

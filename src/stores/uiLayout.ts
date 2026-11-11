@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { applyFontPrefs, loadFontPrefs, saveFontPrefs, type FontPrefs } from '@/lib/appFonts'
 
 /**
  * App-wide layout visibility state shared between App.vue and RunView.
@@ -165,6 +166,16 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     }
   }
 
+  // Font and text sizes (lib/appFonts): applied on change; other windows follow
+  // through the storage event.
+  const fontPrefs = ref<FontPrefs>(loadFontPrefs())
+
+  function setFontPrefs(patch: Partial<FontPrefs>) {
+    fontPrefs.value = { ...fontPrefs.value, ...patch }
+    saveFontPrefs(fontPrefs.value)
+    applyFontPrefs(fontPrefs.value)
+  }
+
   return {
     focusMode,
     toggleFocus,
@@ -179,5 +190,7 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     setTimelineHeight,
     stepsExpanded,
     setStepsExpanded,
+    fontPrefs,
+    setFontPrefs,
   }
 })
