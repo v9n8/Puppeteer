@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown, usageSummary,
+  planUsageRead,
 } from '../usageRing.ts'
 
 const NOW = Date.parse('2026-11-10T12:00:00Z')
@@ -105,4 +106,11 @@ test('resetCountdown: unknown, due, minutes, hours, days', () => {
   assert.deepEqual(resetCountdown('2026-11-10T12:45:00Z', NOW), { due: false, days: 0, hours: 0, minutes: 45 })
   assert.deepEqual(resetCountdown(LATER, NOW), { due: false, days: 0, hours: 2, minutes: 30 })
   assert.deepEqual(resetCountdown('2026-11-13T16:10:00Z', NOW), { due: false, days: 3, hours: 4, minutes: 0 })
+})
+
+test('planUsageRead: each row key reads its own login snapshot', () => {
+  assert.deepEqual(planUsageRead('claude'), { cmd: 'get_plan_usage' })
+  assert.deepEqual(planUsageRead('claude:a1'), { cmd: 'get_plan_usage', args: { accountId: 'a1' } })
+  assert.deepEqual(planUsageRead('codex'), { cmd: 'get_plan_usage_codex' })
+  assert.deepEqual(planUsageRead('codex:x1'), { cmd: 'get_plan_usage_codex', args: { accountId: 'x1' } })
 })

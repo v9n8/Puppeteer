@@ -9,7 +9,7 @@ import { ref, computed, watch } from 'vue'
 import { ShieldQuestion, ShieldAlert, ListChecks } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import {
-  parsePercentSetting, resetCountdown, usageSummary, usageWindows, windowSeverity,
+  parsePercentSetting, planUsageRead, resetCountdown, usageSummary, usageWindows, windowSeverity,
   type PlanUsageSnapshot, type UsageSeverity, type UsageThresholds, type UsageWindow,
 } from '@/lib/usageRing'
 import {
@@ -26,7 +26,7 @@ import type { RunSessionCore } from './useRunSessionCore'
 export function useComposerChips(core: RunSessionCore) {
   const {
     t, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
-    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode, claudeStore, appSettings,
+    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode, claudeStore, codexStore, appSettings,
   } = core
   const stylesStore = useResponseStylesStore()
 
@@ -168,18 +168,15 @@ export function useComposerChips(core: RunSessionCore) {
     closeAccountMenu()
   }
 
-  // Plan usage per row key (`claude:<id>`, `claude`, `codex`, as the status
-  // bar's usage rings key them), read from the stored snapshots each time the
-  // menu opens: local reads, no engine call.
+  // Plan usage per row key (`claude:<id>`, `claude`, `codex`, `codex:<id>`, as
+  // the status bar's usage rings key them), read from the stored snapshots each
+  // time the menu opens: local reads, no engine call.
   const usageSnapshots = ref<Record<string, PlanUsageSnapshot | null>>({})
   const usageNow = ref(Date.now())
   async function loadUsage(key: string) {
     try {
-      usageSnapshots.value[key] = key === 'codex'
-        ? await invoke<PlanUsageSnapshot | null>('get_plan_usage_codex')
-        : key === 'claude'
-          ? await invoke<PlanUsageSnapshot | null>('get_plan_usage')
-          : await invoke<PlanUsageSnapshot | null>('get_plan_usage', { accountId: key.slice('claude:'.length) })
+      const read = planUsageRead(key)
+      usageSnapshots.value[key] = await invoke<PlanUsageSnapshot | null>(read.cmd, read.args)
     } catch {
       // keep the previous figures on a transient error
     }
@@ -187,7 +184,11 @@ export function useComposerChips(core: RunSessionCore) {
   watch(accountMenuOpen, (open) => {
     if (!open) return
     usageNow.value = Date.now()
-    const keys = ['codex', 'claude', ...claudeStore.accounts.map((a) => `claude:${a.id}`)]
+    const keys = [
+      'codex', 'claude',
+      ...claudeStore.accounts.map((a) => `claude:${a.id}`),
+      ...codexStore.accounts.map((a) => `codex:${a.id}`),
+    ]
     void Promise.all(keys.map(loadUsage))
   })
   const usageThresholds = computed<UsageThresholds>(() => ({

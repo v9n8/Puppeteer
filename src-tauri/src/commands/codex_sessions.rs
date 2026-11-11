@@ -535,11 +535,20 @@ async fn reconcile_codex(db: &Db, project_id: &str) -> Result<i64, String> {
         }
     }
 
-    // Populate the Codex plan-usage snapshot from the newest rollout so the
-    // budget badge / settings panel show a % even before the first live run.
-    // The snapshot is the shared login's, so only its store feeds it.
-    if let Some(rl) = codex_sessions_root().and_then(|root| latest_codex_rate_limits_any(&root)) {
-        persist_codex_plan_usage(db, &rl).await;
+    // Populate each login's plan-usage snapshot from the newest rollout in its
+    // own store, so the usage rings show a % even before the first live run.
+    let mut stores: Vec<(Option<String>, PathBuf)> =
+        codex_sessions_root().map(|root| (None, root)).into_iter().collect();
+    for (id, home) in crate::commands::codex_accounts::account_ids_and_homes(db).await {
+        if let Some(root) = sessions_root_for(Some(&home)).filter(|dir| dir.is_dir()) {
+            stores.push((Some(id), root));
+        }
+    }
+    for (id, root) in stores {
+        if let Some(rl) = latest_codex_rate_limits_any(&root, &roots) {
+            let key = crate::commands::stats::codex_plan_usage_key(id.as_deref());
+            persist_codex_plan_usage(db, &key, &rl).await;
+        }
     }
     Ok(changed)
 }
@@ -549,8 +558,10 @@ async fn reconcile_codex(db: &Db, project_id: &str) -> Result<i64, String> {
 // Codex exposes the account's plan rate-limits (the "% used" behind `/status`)
 // via the app-server `account/rateLimits/read` RPC and writes the same data into
 // each rollout's `token_count` events. Both shapes are normalized here into the
-// SAME `plan_usage` snapshot the Claude path stores, under the settings key
-// `plan_usage_codex`, so the badge / settings / budget logic are shared.
+// SAME `plan_usage` snapshot the Claude path stores, under the settings key of
+// the login it came from (`stats::codex_plan_usage_key`: `plan_usage_codex` for
+// the shared `~/.codex`, `plan_usage_codex:<id>` per account), so the badge /
+// settings / budget logic are shared.
 
 /// One RateLimitWindow field, tolerating both the app-server camelCase
 /// (`usedPercent`, `windowDurationMins`, `resetsAt`) and the rollout snake_case
@@ -642,13 +653,41 @@ pub(crate) fn latest_codex_rate_limits(file: &Path) -> Option<Value> {
     latest
 }
 
-/// Newest rollout across the whole store that has usable rate-limits — used at
-/// reconcile time to seed the snapshot regardless of which project it came from.
-fn latest_codex_rate_limits_any(root: &Path) -> Option<Value> {
+/// [`latest_codex_rate_limits`] of `file`, unless they may be another login's.
+/// A thread that switched logins has a copy of its rollout in each store
+/// ([`mirror_rollout`], same file name), and a fresh copy still ends with the
+/// figures of the login it came from: while another store's copy ends with the
+/// same figures, they are not this login's own. Its next turn appends its own.
+pub(crate) fn own_codex_rate_limits(file: &Path, roots: &[PathBuf]) -> Option<Value> {
+    let rl = latest_codex_rate_limits(file)?;
+    let name = file.file_name()?;
+    let copied = roots
+        .iter()
+        .filter(|root| !file.starts_with(root))
+        .flat_map(|root| all_rollout_files(root))
+        .filter(|other| other.file_name() == Some(name))
+        .any(|other| latest_codex_rate_limits(&other).as_ref() == Some(&rl));
+    (!copied).then_some(rl)
+}
+
+/// The plan-usage key of the login whose store holds `file`: the account
+/// (`(id, home)`) whose `<home>/sessions` it is in, else the shared `~/.codex`.
+pub(crate) fn rollout_usage_key(accounts: &[(String, String)], file: &Path) -> String {
+    let id = accounts
+        .iter()
+        .find(|(_, home)| file.starts_with(Path::new(home).join("sessions")))
+        .map(|(id, _)| id.as_str());
+    crate::commands::stats::codex_plan_usage_key(id)
+}
+
+/// Newest rollout in the store `root` with usable rate-limits of its own login
+/// ([`own_codex_rate_limits`] against every store in `roots`) — used at
+/// reconcile time to seed that login's snapshot regardless of the project.
+fn latest_codex_rate_limits_any(root: &Path, roots: &[PathBuf]) -> Option<Value> {
     let mut files = all_rollout_files(root);
     files.sort();
     for file in files.into_iter().rev() {
-        if let Some(rl) = latest_codex_rate_limits(&file) {
+        if let Some(rl) = own_codex_rate_limits(&file, roots) {
             if codex_rate_limits_to_snapshot(&rl).is_some() {
                 return Some(rl);
             }
@@ -657,13 +696,15 @@ fn latest_codex_rate_limits_any(root: &Path) -> Option<Value> {
     None
 }
 
-/// Persist a codex RateLimitSnapshot as the latest `plan_usage_codex` state.
-/// No-op (returns false) when the snapshot has no usable window.
-pub(crate) async fn persist_codex_plan_usage(db_pool: &sqlx::SqlitePool, rl: &Value) -> bool {
+/// Persist a codex RateLimitSnapshot as the latest state of the login's `key`
+/// (`stats::codex_plan_usage_key`). No-op (returns false) when the snapshot has
+/// no usable window.
+pub(crate) async fn persist_codex_plan_usage(db_pool: &sqlx::SqlitePool, key: &str, rl: &Value) -> bool {
     let Some(snapshot) = codex_rate_limits_to_snapshot(rl) else {
         return false;
     };
-    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('plan_usage_codex', ?)")
+    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+        .bind(key)
         .bind(snapshot.to_string())
         .execute(db_pool)
         .await
@@ -934,6 +975,74 @@ mod tests {
         let dest = mirror_rollout("t3", Some(&loose), &roots, &new).unwrap().unwrap();
         assert_eq!(dest, new.join("2026/11/09/rollout-2026-11-09T08-00-00-t3.jsonl"));
         let _ = (fs::remove_dir_all(old), fs::remove_dir_all(new), fs::remove_dir_all(loose.parent().unwrap()));
+    }
+
+    /// One rollout line reporting `pct`% of the 5h window.
+    fn usage_line(pct: u32) -> String {
+        format!(
+            r#"{{"type":"event_msg","payload":{{"type":"token_count","rate_limits":{{"primary":{{"used_percent":{pct},"window_minutes":300}}}}}}}}"#
+        ) + "\n"
+    }
+
+    #[test]
+    fn a_copied_rollout_does_not_hand_its_figures_to_the_new_login() {
+        let (a, b) = (store("ua"), store("ub"));
+        let roots = [a.clone(), b.clone()];
+        let src = write_rollout(&a, "t1", &usage_line(97), 60);
+        // A on its own: its figures.
+        assert!(own_codex_rate_limits(&src, &roots).is_some());
+
+        // Switched to B: the copy still ends with A's 97%, in both stores.
+        let dest = mirror_rollout("t1", None, &roots, &b).unwrap().unwrap();
+        assert_eq!(own_codex_rate_limits(&dest, &roots), None);
+        assert_eq!(own_codex_rate_limits(&src, &roots), None);
+        assert_eq!(latest_codex_rate_limits_any(&b, &roots), None);
+        // An older thread of B's own still seeds B.
+        let own = write_rollout(&b, "t0", &usage_line(12), 600);
+        assert_eq!(latest_codex_rate_limits_any(&b, &roots), latest_codex_rate_limits(&own));
+
+        // B's first turn there appends B's figures: B's own now, A's again A's.
+        fs::write(&dest, usage_line(97) + &usage_line(5)).unwrap();
+        let b_own = own_codex_rate_limits(&dest, &roots).unwrap();
+        assert_eq!(b_own["primary"]["used_percent"], 5);
+        assert_eq!(own_codex_rate_limits(&src, &roots).unwrap()["primary"]["used_percent"], 97);
+        let _ = (fs::remove_dir_all(a), fs::remove_dir_all(b));
+    }
+
+    #[test]
+    fn a_rollout_is_keyed_by_the_login_of_its_store() {
+        let accounts = [("x1".to_string(), "/data/codex-accounts/x1".to_string())];
+        let key = |p: &str| rollout_usage_key(&accounts, Path::new(p));
+        assert_eq!(key("/data/codex-accounts/x1/sessions/2026/11/10/rollout-a.jsonl"), "plan_usage_codex:x1");
+        assert_eq!(key("/home/u/.codex/sessions/2026/11/10/rollout-a.jsonl"), "plan_usage_codex");
+        // Not its store: a file elsewhere in the home.
+        assert_eq!(key("/data/codex-accounts/x1/archived/rollout-a.jsonl"), "plan_usage_codex");
+    }
+
+    #[tokio::test]
+    async fn a_snapshot_is_stored_under_its_login() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let rl = serde_json::json!({ "primary": { "used_percent": 40, "window_minutes": 300 } });
+        let shared = crate::commands::stats::codex_plan_usage_key(None);
+        let x1 = crate::commands::stats::codex_plan_usage_key(Some("x1"));
+        assert!(persist_codex_plan_usage(&db, &x1, &rl).await);
+        let stored = |key: String| {
+            let db = db.clone();
+            async move {
+                sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
+                    .bind(key)
+                    .fetch_optional(&db)
+                    .await
+                    .unwrap()
+            }
+        };
+        assert!(stored(x1).await.is_some_and(|v| v.contains("\"utilization\":40")));
+        assert_eq!(stored(shared).await, None);
     }
 
     #[test]

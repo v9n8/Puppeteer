@@ -1,5 +1,6 @@
 // Usage rings on the session status bar (UX-23): one donut per account with
-// plan usage (each Claude account, Codex). These helpers turn a stored plan
+// plan usage (each Claude account, the shared Codex login and each Codex
+// account). These helpers turn a stored plan
 // snapshot (`get_plan_usage` / `get_plan_usage_codex`, the `/usage` and
 // `/status` data) into the windows a ring and its card show, and decide their
 // colour from the quota settings.
@@ -153,9 +154,21 @@ export function resetCountdown(reset: string | null | undefined, now: number): R
   return { due: false, days, hours, minutes: days > 0 ? 0 : totalMinutes % 60 }
 }
 
-/** One ring on the status bar: a Claude account (or the single global Claude row) or Codex. */
+/**
+ * The stored-snapshot read behind a usage row key (local DB, no engine call):
+ * `claude` is the default Claude account (or the global `~/.claude`),
+ * `codex` the shared `~/.codex` login, `<engine>:<accountId>` that account.
+ */
+export function planUsageRead(key: string): { cmd: string; args?: { accountId: string } } {
+  const sep = key.indexOf(':')
+  const engine = sep < 0 ? key : key.slice(0, sep)
+  const cmd = engine === 'codex' ? 'get_plan_usage_codex' : 'get_plan_usage'
+  return sep < 0 ? { cmd } : { cmd, args: { accountId: key.slice(sep + 1) } }
+}
+
+/** One ring on the status bar: a Claude account (or the single global Claude row) or a Codex login. */
 export interface UsageRingAccount {
-  /** Stable row id, e.g. `claude:<accountId>`, `claude` or `codex` (same as the quota toast rows). */
+  /** Stable row id, e.g. `claude:<accountId>`, `claude`, `codex` or `codex:<accountId>` (same as the quota toast rows). */
   key: string
   label: string
   /** Engine name for the card header ("Claude" / "Codex"). */

@@ -632,10 +632,15 @@ async fn load_plan_usage_key(db: &Db, key: &str) -> Result<Option<PlanUsage>, St
 }
 
 /// Latest Codex plan-usage snapshot (the `/status` rate-limits), or None if none
-/// captured yet. Mirrors [`get_plan_usage`] for the Codex account.
+/// captured yet. `account_id` reads that Codex account's own snapshot; omitted =
+/// the shared `~/.codex` login (unlike Claude, a choice of its own, not "the
+/// default").
 #[tauri::command]
-pub async fn get_plan_usage_codex(db: State<'_, Db>) -> Result<Option<PlanUsage>, String> {
-    load_plan_usage_key(db.inner(), "plan_usage_codex").await
+pub async fn get_plan_usage_codex(
+    db: State<'_, Db>,
+    account_id: Option<String>,
+) -> Result<Option<PlanUsage>, String> {
+    load_plan_usage_key(db.inner(), &codex_plan_usage_key(account_id.as_deref())).await
 }
 
 #[tauri::command]
@@ -784,13 +789,22 @@ pub async fn refresh_plan_usage(
 
 /// Probe Codex now for fresh plan rate-limits via the app-server
 /// `account/rateLimits/read` RPC (no thread, no turn, no quota spend). Spawns the
-/// Codex sidecar in probe mode, persists the returned snapshot to
-/// `plan_usage_codex`, and returns it. Mirrors [`refresh_plan_usage`].
+/// Codex sidecar in probe mode under `account_id`'s `CODEX_HOME` (omitted = the
+/// shared `~/.codex` login), persists the returned snapshot to that login's key
+/// ([`codex_plan_usage_key`]), and returns it. Mirrors [`refresh_plan_usage`].
 #[tauri::command]
 pub async fn refresh_codex_plan_usage(
     app: AppHandle,
     db: State<'_, Db>,
+    account_id: Option<String>,
 ) -> Result<Option<PlanUsage>, String> {
+    // Errors when the account is gone, rather than probing the shared login.
+    let account = match account_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(id) => crate::commands::codex_accounts::resolve_runtime_account(db.inner(), None, Some(id)).await?,
+        None => None,
+    };
+    let plan_usage_key = codex_plan_usage_key(account.as_ref().map(|a| a.id.as_str()));
+
     let rows = sqlx::query("SELECT key, value FROM settings")
         .fetch_all(db.inner())
         .await
@@ -827,6 +841,7 @@ pub async fn refresh_codex_plan_usage(
     augment_command_path(&mut cmd);
     cmd.env("PUPPETEER_CODEX_USAGE_PROBE", "1");
     codex.apply_env(&mut cmd);
+    crate::runs::sidecar::apply_codex_home(&mut cmd, account.as_ref().map(|a| a.home_dir.as_str()));
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -852,7 +867,7 @@ pub async fn refresh_codex_plan_usage(
             match value.get("type").and_then(|v| v.as_str()) {
                 Some("_puppeteer_usage") => {
                     if let Some(rl) = value.get("usage").and_then(|u| u.get("rate_limits")) {
-                        if crate::commands::codex_sessions::persist_codex_plan_usage(&db_pool, rl).await {
+                        if crate::commands::codex_sessions::persist_codex_plan_usage(&db_pool, &plan_usage_key, rl).await {
                             let _ = app.emit("plan_usage_updated", serde_json::json!({ "provider": "codex", "source": "probe" }));
                             return Ok(true);
                         }
@@ -879,7 +894,7 @@ pub async fn refresh_codex_plan_usage(
     let _ = child.kill().await;
 
     match outcome {
-        Ok(Ok(true)) => load_plan_usage_key(db.inner(), "plan_usage_codex").await,
+        Ok(Ok(true)) => load_plan_usage_key(db.inner(), &plan_usage_key).await,
         Ok(Ok(false)) => Err("codex usage probe completed without a fresh usage snapshot".to_string()),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("codex usage probe timed out".to_string()),
@@ -1011,6 +1026,16 @@ pub fn claude_plan_usage_key(account_id: Option<&str>) -> String {
     }
 }
 
+/// Settings KV key holding a Codex login's plan-usage snapshot: the legacy
+/// `plan_usage_codex` for the shared `~/.codex` login (`None`), and
+/// `plan_usage_codex:<id>` for a Puppeteer-managed Codex account.
+pub fn codex_plan_usage_key(account_id: Option<&str>) -> String {
+    match account_id.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(id) => format!("plan_usage_codex:{id}"),
+        None => "plan_usage_codex".to_string(),
+    }
+}
+
 /// Resolve which Claude plan-usage key the read-only badge/settings surfaces
 /// should show: the current default account's key, or the global key when no
 /// managed accounts exist.
@@ -1116,8 +1141,10 @@ fn plan_display_status(plan_json: Option<&str>, stale_secs: i64, warn_percent: i
 /// this fraction of it. Drives the more-careful Claude usage-capture mode.
 const GUARDRAIL_WARN_RATIO: f64 = 0.9;
 
-/// The run-blocking guardrail verdict for a specific `engine`. Checks that
-/// engine's REAL plan windows — the rolling 5h window and the weekly window —
+/// The run-blocking guardrail verdict for a specific `engine` and its account
+/// (`account_id`: a Claude account for Claude, a Codex account for Codex; `None`
+/// = the global `~/.claude` / shared `~/.codex` login). Checks that
+/// login's REAL plan windows — the rolling 5h window and the weekly window —
 /// against the separately-configured block thresholds (`budget_5h_percent` /
 /// `budget_week_percent`). Blocks when ANY configured window reaches its
 /// threshold; a window with no threshold (empty) or no data is skipped. When the
@@ -1127,10 +1154,14 @@ const GUARDRAIL_WARN_RATIO: f64 = 0.9;
 pub async fn budget_status_for(
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
 ) -> Result<BudgetStatus, String> {
-    // Which Claude snapshot key applies to this run's resolved account.
-    let claude_key = claude_plan_usage_key(claude_account_id);
+    // Which snapshot key applies to this run's resolved account.
+    let plan_key = if engine == "codex" {
+        codex_plan_usage_key(account_id)
+    } else {
+        claude_plan_usage_key(account_id)
+    };
     let rows = sqlx::query("SELECT key, value FROM settings")
         .fetch_all(db)
         .await
@@ -1139,8 +1170,7 @@ pub async fn budget_status_for(
     let mut block_week: i64 = 0;
     let mut warn_percent: i64 = 0;
     let mut stale_secs: i64 = 120;
-    let mut plan_claude: Option<String> = None;
-    let mut plan_codex: Option<String> = None;
+    let mut plan_json: Option<String> = None;
     for row in &rows {
         let key: String = row.get("key");
         let value: String = row.get("value");
@@ -1149,13 +1179,10 @@ pub async fn budget_status_for(
             "budget_week_percent" => block_week = value.trim().parse::<i64>().unwrap_or(0).clamp(0, 100),
             "quota_warn_percent" => warn_percent = parse_quota_warn_percent(&value),
             "plan_stale_secs" => stale_secs = value.trim().parse::<i64>().unwrap_or(120).clamp(10, 3600),
-            "plan_usage_codex" => plan_codex = Some(value),
-            s if s == claude_key => plan_claude = Some(value),
+            s if s == plan_key => plan_json = Some(value),
             _ => {}
         }
     }
-
-    let plan_json = if engine == "codex" { plan_codex } else { plan_claude };
 
     // 1) Real plan windows for this engine (the true ceiling).
     if let Some(snapshot) = plan_json
@@ -1226,7 +1253,7 @@ pub async fn budget_status_for(
     })
 }
 
-/// Plan-usage badge status for a snapshot key (`plan_usage` | `plan_usage_codex`),
+/// Plan-usage badge status for a snapshot key (`plan_usage[:<id>]` | `plan_usage_codex[:<id>]`),
 /// callable OFF the Tauri command path (e.g. the Remote Control forwarder, which
 /// mirrors these badges to a controller). Falls back to the `disabled` shape on
 /// any read error so the caller always gets a renderable status.
@@ -1259,10 +1286,14 @@ pub async fn get_budget_status(db: State<'_, Db>) -> Result<BudgetStatus, String
 }
 
 #[tauri::command]
-pub async fn get_codex_budget_status(db: State<'_, Db>) -> Result<BudgetStatus, String> {
-    // Same as the Claude badge: the account's REAL Codex rate-limit usage,
-    // independent of the Usage budget setting.
-    let (plan_json, stale_secs, warn) = read_plan_snapshot(db.inner(), "plan_usage_codex").await?;
+pub async fn get_codex_budget_status(
+    db: State<'_, Db>,
+    account_id: Option<String>,
+) -> Result<BudgetStatus, String> {
+    // Same as the Claude badge: the login's REAL Codex rate-limit usage,
+    // independent of the Usage budget setting. Omitted = the shared `~/.codex`.
+    let key = codex_plan_usage_key(account_id.as_deref());
+    let (plan_json, stale_secs, warn) = read_plan_snapshot(db.inner(), &key).await?;
     Ok(plan_display_status(plan_json.as_deref(), stale_secs, warn))
 }
 
@@ -1290,12 +1321,13 @@ pub async fn get_run_budget(
     run_id: Option<String>,
     project_id: Option<String>,
 ) -> Result<BudgetStatus, String> {
-    // Resolve the same Claude account the run will actually use: an existing
-    // run's explicit selection wins. A resumable Claude run with no selection is
-    // legacy/global `~/.claude`; a not-yet-started run still falls through to the
-    // project's linked account/default. Codex ignores the account.
-    let account_id = resolve_claude_account_for_budget(
+    // Resolve the same account (of `engine`) the run will actually use: an
+    // existing run's explicit selection wins. A resumable run with no selection
+    // is the global `~/.claude` / shared `~/.codex` login; a not-yet-started run
+    // still falls through to the project's linked account/default.
+    let account_id = resolve_account_for_budget(
         db.inner(),
+        &engine,
         run_id.as_deref(),
         project_id.as_deref(),
     )
@@ -1303,36 +1335,48 @@ pub async fn get_run_budget(
     guard_status(db.inner(), &engine, account_id.as_deref()).await
 }
 
-/// Resolve which Claude account a budget check should read: a run's assigned
+/// Resolve which `engine` account a budget check should read: a run's assigned
 /// account first; resumable legacy/global runs stay global; not-yet-started
 /// runs fall back to the project's linked account, then the default.
-async fn resolve_claude_account_for_budget(
+async fn resolve_account_for_budget(
     db: &Db,
+    engine: &str,
     run_id: Option<&str>,
     project_id: Option<&str>,
 ) -> Option<String> {
     use sqlx::Row;
 
+    let codex = engine == "codex";
+    let own_engine = if codex { "codex" } else { "claude" };
     if let Some(run_id) = run_id.filter(|s| !s.trim().is_empty()) {
         if let Ok(Some(row)) = sqlx::query(
-            "SELECT engine, session_id, claude_account_id FROM runs WHERE id = ?",
+            "SELECT engine, session_id, claude_account_id, codex_account_id FROM runs WHERE id = ?",
         )
         .bind(run_id)
         .fetch_optional(db)
         .await
         {
-            let account_id: Option<String> = row.get("claude_account_id");
+            let account_id: Option<String> =
+                row.get(if codex { "codex_account_id" } else { "claude_account_id" });
             if account_id.as_deref().is_some_and(|id| !id.trim().is_empty()) {
                 return account_id;
             }
-            let engine: String = row.get("engine");
+            let run_engine: String = row.get("engine");
             let session_id: Option<String> = row.get("session_id");
-            if engine == "claude"
+            if run_engine == own_engine
                 && session_id.as_deref().is_some_and(|sid| !sid.trim().is_empty())
             {
                 return None;
             }
         }
+    }
+    if codex {
+        if let Some(project_id) = project_id.filter(|s| !s.trim().is_empty()) {
+            if let Some(id) = crate::commands::codex_accounts::project_account_id(db, project_id).await {
+                return Some(id);
+            }
+        }
+        return crate::commands::codex_accounts::default_account_id(db).await;
     }
     if let Some(project_id) = project_id.filter(|s| !s.trim().is_empty()) {
         if let Some(id) = crate::commands::claude_accounts::project_account_id(db, project_id).await {
@@ -1353,9 +1397,9 @@ const BUDGET_GUARD_FEATURE: &str = "usage.budget_guard";
 pub async fn guard_status(
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
 ) -> Result<BudgetStatus, String> {
-    let mut status = budget_status_for(db, engine, claude_account_id).await?;
+    let mut status = budget_status_for(db, engine, account_id).await?;
     if status.is_over && !crate::features::is_on(db, BUDGET_GUARD_FEATURE).await {
         status.is_over = false;
     }
@@ -1363,19 +1407,20 @@ pub async fn guard_status(
 }
 
 /// Guardrail used at every token-consuming entry point (start / resume /
-/// follow-up). Refuses when the budget is over, unless the user explicitly
-/// overrode it. The error is prefixed `BUDGET_EXCEEDED` so the UI can offer a
-/// one-click override.
+/// follow-up), against `engine`'s account `account_id` (see
+/// [`budget_status_for`]). Refuses when the budget is over, unless the user
+/// explicitly overrode it. The error is prefixed `BUDGET_EXCEEDED` so the UI
+/// can offer a one-click override.
 pub async fn enforce_budget(
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
     override_budget: bool,
 ) -> Result<(), String> {
     if override_budget {
         return Ok(());
     }
-    let status = guard_status(db, engine, claude_account_id).await?;
+    let status = guard_status(db, engine, account_id).await?;
     if status.is_over {
         return Err(format!(
             "BUDGET_EXCEEDED: {} usage at {}% of the {} limit",
@@ -1551,6 +1596,59 @@ mod account_stats_tests {
         set("budget_5h_percent", "90".into()).await;
         let status = guard_status(&db, "codex", None).await.unwrap();
         assert!(status.is_quota_warn && !status.is_over);
+    }
+
+    /// Each Codex login has its own snapshot: the shared `~/.codex` keeps the
+    /// old key, an account gets its own, and only the run's one gates it.
+    #[tokio::test]
+    async fn codex_usage_and_blocking_are_per_account() {
+        let db = db().await;
+        for q in [
+            "INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('x1', 'Work', '/tmp/x1', '2026-01-01')",
+            "INSERT INTO codex_accounts (id, label, home_dir, is_default, created_at) VALUES ('x2', 'Home', '/tmp/x2', 1, '2026-01-01')",
+            "INSERT INTO runs (id, project_id, type, engine, codex_account_id, session_id, created_at) VALUES ('cx1', 'p', 'session', 'codex', 'x1', 's1', '2026-01-01')",
+            "INSERT INTO runs (id, project_id, type, engine, session_id, created_at) VALUES ('cx-shared', 'p', 'session', 'codex', 's2', '2026-01-01')",
+            "INSERT INTO runs (id, project_id, type, engine, created_at) VALUES ('cx-new', 'p', 'session', 'codex', '2026-01-01')",
+        ] {
+            sqlx::query(q).execute(&db).await.unwrap();
+        }
+        assert_eq!(codex_plan_usage_key(None), "plan_usage_codex");
+        assert_eq!(codex_plan_usage_key(Some(" ")), "plan_usage_codex");
+        assert_eq!(codex_plan_usage_key(Some("x1")), "plan_usage_codex:x1");
+
+        let snapshot = |pct: f64| {
+            serde_json::json!({
+                "captured_at": Utc::now().to_rfc3339(),
+                "rate_limits_available": true,
+                "windows": { "five_hour": {
+                    "utilization": pct,
+                    "resets_at": (Utc::now() + Duration::hours(2)).to_rfc3339(),
+                } },
+            })
+            .to_string()
+        };
+        let set = crate::commands::settings::set_setting;
+        set(&db, "budget_5h_percent", "80").await.unwrap();
+        set(&db, &codex_plan_usage_key(Some("x1")), &snapshot(95.0)).await.unwrap();
+        set(&db, &codex_plan_usage_key(Some("x2")), &snapshot(10.0)).await.unwrap();
+        set(&db, &codex_plan_usage_key(None), &snapshot(40.0)).await.unwrap();
+
+        assert!(enforce_budget(&db, "codex", Some("x1"), false).await.is_err());
+        assert_eq!(enforce_budget(&db, "codex", Some("x2"), false).await, Ok(()));
+        assert_eq!(enforce_budget(&db, "codex", None, false).await, Ok(()));
+        // A Claude account of the same id reads its own key, not Codex's.
+        assert_eq!(budget_status_for(&db, "claude", Some("x1")).await.unwrap().source, "disabled");
+
+        // The preflight reads the account the run will run under.
+        let account = |run: &'static str| {
+            let db = db.clone();
+            async move { resolve_account_for_budget(&db, "codex", Some(run), Some("p")).await }
+        };
+        assert_eq!(account("cx1").await.as_deref(), Some("x1"));
+        assert_eq!(account("cx-shared").await, None, "a session on the shared login stays there");
+        assert_eq!(account("cx-new").await.as_deref(), Some("x2"), "not started: the default");
+        sqlx::query("UPDATE projects SET codex_account_id = 'x1' WHERE id = 'p'").execute(&db).await.unwrap();
+        assert_eq!(account("cx-new").await.as_deref(), Some("x1"), "not started: the project's");
     }
 }
 

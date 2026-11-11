@@ -36,6 +36,7 @@ const rows = computed(() => accountRows({
   claude: claudeStore.accounts,
   claudeBudgets: claudeStore.budgets,
   codex: codexStore.accounts,
+  codexBudgets: codexStore.budgets,
   sharedCodexLabel: t('settings.accounts.sharedCodex'),
   sharedCodexUsage: budget.codexStatus,
 }))

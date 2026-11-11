@@ -503,10 +503,10 @@ pub async fn drain_sidecar(
     // Snapshot the run's project + engine once so usage rows are self-contained
     // (they survive deletion of the run/project). `engine` is already updated to
     // the effective engine before this task spawns.
-    let (project_id, project_name, engine, claude_account_id) = {
+    let (project_id, project_name, engine, claude_account_id, codex_account_id) = {
         use sqlx::Row;
         match sqlx::query(
-            "SELECT r.project_id, r.engine, r.claude_account_id, p.name AS project_name
+            "SELECT r.project_id, r.engine, r.claude_account_id, r.codex_account_id, p.name AS project_name
              FROM runs r JOIN projects p ON p.id = r.project_id
              WHERE r.id = ?",
         )
@@ -519,15 +519,23 @@ pub async fn drain_sidecar(
                 row.get::<String, _>("project_name"),
                 row.get::<String, _>("engine"),
                 row.get::<Option<String>, _>("claude_account_id"),
+                row.get::<Option<String>, _>("codex_account_id"),
             ),
-            Err(_) => (String::new(), String::new(), String::new(), None),
+            Err(_) => (String::new(), String::new(), String::new(), None, None),
         }
     };
 
-    // Which per-account Claude snapshot key this run's live /usage writes to, so
+    // Which per-account snapshot key this run's live /usage writes to, so
     // parallel runs on different accounts never overwrite each other's badge.
+    // The sidecar runs under one login for its whole life: a switch of account
+    // takes effect on the next resume, which spawns a new one.
     let plan_usage_key =
         crate::commands::stats::claude_plan_usage_key(claude_account_id.as_deref());
+    let codex_plan_usage_key =
+        crate::commands::stats::codex_plan_usage_key(codex_account_id.as_deref());
+    // The account of this run's engine, as the budget guardrail and the quota
+    // stop read it.
+    let quota_account_id = if engine == "codex" { codex_account_id.clone() } else { claude_account_id.clone() };
 
     // Announce this run to the desktop webview so app-wide surfaces (the active-
     // runs dock, the permission notifier and its native OS notification) attach
@@ -952,7 +960,7 @@ pub async fn drain_sidecar(
                                     let is_codex = usage.get("provider").and_then(|p| p.as_str()) == Some("codex");
                                     let persisted = if is_codex {
                                         if let Some(rl) = usage.get("rate_limits") {
-                                            crate::commands::codex_sessions::persist_codex_plan_usage(&db_pool, rl).await
+                                            crate::commands::codex_sessions::persist_codex_plan_usage(&db_pool, &codex_plan_usage_key, rl).await
                                         } else {
                                             false
                                         }
@@ -960,14 +968,20 @@ pub async fn drain_sidecar(
                                         persist_plan_usage(&db_pool, &plan_usage_key, usage).await
                                     };
                                     if persisted {
-                                        let _ = app.emit("plan_usage_updated", serde_json::json!({ "run_id": run_id }));
+                                        // `provider` tells the usage rings which rows to re-read.
+                                        let provider = is_codex.then_some("codex");
+                                        let _ = app.emit("plan_usage_updated", serde_json::json!({ "run_id": run_id, "provider": provider }));
                                         // Fresh Claude plan utilization → re-balance the default account.
                                         if !is_codex {
                                             crate::commands::claude_accounts::request_balance_eval(&app);
                                         }
-                                        let quota_engine = if is_codex { "codex" } else { engine.as_str() };
+                                        let (quota_engine, quota_account) = if is_codex {
+                                            ("codex", codex_account_id.as_deref())
+                                        } else {
+                                            (engine.as_str(), quota_account_id.as_deref())
+                                        };
                                         crate::runs::quota_stop::on_plan_snapshot(
-                                            &registry, &db_pool, quota_engine, claude_account_id.as_deref(),
+                                            &registry, &db_pool, quota_engine, quota_account,
                                             |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
                                         )
                                         .await;
@@ -1058,7 +1072,7 @@ pub async fn drain_sidecar(
                                         );
                                         crate::commands::claude_accounts::request_balance_eval(&app);
                                         crate::runs::quota_stop::on_plan_snapshot(
-                                            &registry, &db_pool, &engine, claude_account_id.as_deref(),
+                                            &registry, &db_pool, &engine, quota_account_id.as_deref(),
                                             |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
                                         )
                                         .await;
@@ -1073,7 +1087,7 @@ pub async fn drain_sidecar(
                                     );
                                     crate::commands::claude_accounts::request_balance_eval(&app);
                                     crate::runs::quota_stop::on_plan_snapshot(
-                                        &registry, &db_pool, &engine, claude_account_id.as_deref(),
+                                        &registry, &db_pool, &engine, quota_account_id.as_deref(),
                                         |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
                                     )
                                     .await;
@@ -1212,7 +1226,7 @@ pub async fn drain_sidecar(
                                     // the UI to lock the composer so the next turn
                                     // (resume / follow-up) can't be started.
                                     if let Ok(status) =
-                                        crate::commands::stats::guard_status(&db_pool, &engine, claude_account_id.as_deref()).await
+                                        crate::commands::stats::guard_status(&db_pool, &engine, quota_account_id.as_deref()).await
                                     {
                                         if status.is_over {
                                             let _ = app.emit(
@@ -1228,7 +1242,7 @@ pub async fn drain_sidecar(
                                         // this quota. This one is spared when its session
                                         // is closing anyway: its turn has just ended.
                                         crate::runs::quota_stop::on_guard_status(
-                                            &registry, &db_pool, &engine, claude_account_id.as_deref(), &status,
+                                            &registry, &db_pool, &engine, quota_account_id.as_deref(), &status,
                                             closing.then_some(run_id.as_str()),
                                             |id, msg| quota_stop_notice(&app, &remote_bus, id, msg),
                                         )

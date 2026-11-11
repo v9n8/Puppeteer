@@ -12,7 +12,7 @@ const plan = (percent, extra = {}) => ({
   source: 'plan', percent, period: 'week', is_warning: false, is_over: false, ...extra,
 })
 const rowsOf = (input) => accountRows({
-  claude: [], claudeBudgets: {}, codex: [], sharedCodexLabel: 'Shared Codex login', sharedCodexUsage: null, ...input,
+  claude: [], claudeBudgets: {}, codex: [], codexBudgets: {}, sharedCodexLabel: 'Shared Codex login', sharedCodexUsage: null, ...input,
 })
 
 test('Claude rows first, then Codex, each keyed by kind', () => {
@@ -35,11 +35,12 @@ test('the shared Codex login is the default until a Codex account is', () => {
   assert.equal(shared.isDefault, false)
 })
 
-test('usage only from a plan verdict; Codex accounts have none yet', () => {
+test('usage only from a plan verdict, per login of either kind', () => {
   const rows = rowsOf({
     claude: [acc('a'), acc('b')],
     claudeBudgets: { a: plan(72, { is_warning: true }), b: { ...plan(10), source: 'disabled' } },
-    codex: [acc('x')],
+    codex: [acc('x'), acc('y')],
+    codexBudgets: { y: plan(91, { is_over: true }) },
     sharedCodexUsage: plan(15, { period: '5h' }),
   })
   const by = Object.fromEntries(rows.map((r) => [r.key, r.usage]))
@@ -47,6 +48,7 @@ test('usage only from a plan verdict; Codex accounts have none yet', () => {
   assert.equal(by['claude:b'], null)
   assert.deepEqual(by[SHARED_CODEX_KEY], { percent: 15, period: '5h', warning: false, over: false })
   assert.equal(by['codex:x'], null)
+  assert.deepEqual(by['codex:y'], { percent: 91, period: 'week', warning: false, over: true })
 })
 
 test('detail: the e-mail, else the sign-in method', () => {

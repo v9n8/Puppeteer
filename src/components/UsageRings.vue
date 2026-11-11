@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // Plan usage on the session status bar (UX-23, replaces BudgetBadge): one
 // UsageRing per Claude account (or the single global Claude snapshot when no
-// accounts are set up) plus Codex. A ring hides while its account has no plan
-// data. This component also keeps the numbers fresh and raises the quota
-// warning toast (UX-13), so both stop while the bar hides usage.
+// accounts are set up), the shared Codex login and each Codex account (UX-41).
+// A ring hides while its account has no plan data. This component also keeps
+// the numbers fresh and raises the quota warning toast (UX-13), so both stop
+// while the bar hides usage.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -12,10 +13,11 @@ import UsageRing from '@/components/UsageRing.vue'
 import { useBudgetStore } from '@/stores/budget'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useToast } from '@/composables/useToast'
 import type { QuotaWarnWindow } from '@/lib/quotaWarn'
 import {
-  parsePercentSetting, usageWindows,
+  parsePercentSetting, planUsageRead, usageWindows,
   type PlanUsageSnapshot, type UsageRingAccount, type UsageThresholds,
 } from '@/lib/usageRing'
 
@@ -23,6 +25,7 @@ const { t } = useI18n()
 const budget = useBudgetStore()
 const app = useAppSettingsStore()
 const claudeAccounts = useClaudeAccountsStore()
+const codexAccounts = useCodexAccountsStore()
 const { toast } = useToast()
 const now = ref(Date.now())
 
@@ -71,9 +74,28 @@ const rows = computed<UsageRow[]>(() => {
         await loadSnapshot('claude')
       },
     }]
+  const codexAccountRows: UsageRow[] = codexAccounts.accounts.map((acc) => {
+    const key = `codex:${acc.id}`
+    const b = codexAccounts.budgets[acc.id]
+    return {
+      key,
+      label: acc.label,
+      engine: 'Codex',
+      windows: usageWindows(snapshots.value[key], now.value),
+      capturedAt: snapshots.value[key]?.captured_at ?? null,
+      refreshing: codexAccounts.refreshingUsage[acc.id] ?? false,
+      refreshError: codexAccounts.usageErrors[acc.id] ?? null,
+      quotaWarnWindows: b ? (b.quota_warn_windows ?? []) : undefined,
+      refresh: async () => {
+        await codexAccounts.refreshUsage(acc.id)
+        await loadSnapshot(key)
+      },
+    }
+  })
   return [...claudeRows, {
     key: 'codex',
-    label: 'Codex',
+    // With Codex accounts, this ring is the shared `~/.codex` login's only.
+    label: codexAccounts.accounts.length > 0 ? t('settings.accounts.sharedCodex') : 'Codex',
     engine: 'Codex',
     windows: usageWindows(snapshots.value.codex, now.value),
     capturedAt: snapshots.value.codex?.captured_at ?? null,
@@ -84,7 +106,7 @@ const rows = computed<UsageRow[]>(() => {
       await budget.refreshCodexPlanUsage({ reason: 'manual', force: true })
       await loadSnapshot('codex')
     },
-  }]
+  }, ...codexAccountRows]
 })
 
 const visibleRows = computed(() => rows.value.filter((r) => r.windows.length > 0))
@@ -116,12 +138,8 @@ watch(() => rows.value.map((r) => ({ key: r.key, label: r.label, windows: r.quot
 /** Snapshot reads are local DB reads (no engine call). Keeps the old value on error. */
 async function loadSnapshot(key: string) {
   try {
-    const snap = key === 'codex'
-      ? await invoke<PlanUsageSnapshot | null>('get_plan_usage_codex')
-      : key === 'claude'
-        ? await invoke<PlanUsageSnapshot | null>('get_plan_usage')
-        : await invoke<PlanUsageSnapshot | null>('get_plan_usage', { accountId: key.slice('claude:'.length) })
-    snapshots.value[key] = snap
+    const read = planUsageRead(key)
+    snapshots.value[key] = await invoke<PlanUsageSnapshot | null>(read.cmd, read.args)
   } catch {
     // leave the previous value on transient errors
   }
@@ -130,7 +148,7 @@ async function loadSnapshots() {
   await Promise.all(rows.value.map((r) => loadSnapshot(r.key)))
 }
 
-/** Re-read every managed account's verdict (skips accounts mid-probe). */
+/** Re-read every managed Claude account's verdict (skips accounts mid-probe). */
 async function refreshAccountBudgets() {
   await Promise.all(
     claudeAccounts.accounts
@@ -139,10 +157,28 @@ async function refreshAccountBudgets() {
   )
 }
 
+/** Same for every Codex account. */
+async function refreshCodexAccountBudgets() {
+  await Promise.all(
+    codexAccounts.accounts
+      .filter((a) => !codexAccounts.refreshingUsage[a.id])
+      .map((a) => codexAccounts.fetchBudget(a.id)),
+  )
+}
+
+const isCodexRow = (key: string) => key === 'codex' || key.startsWith('codex:')
+
 /** Re-read the Claude rows: account verdicts and snapshots (local reads). */
 function reloadClaude() {
   void refreshAccountBudgets()
-  void Promise.all(rows.value.filter((r) => r.key !== 'codex').map((r) => loadSnapshot(r.key)))
+  void Promise.all(rows.value.filter((r) => !isCodexRow(r.key)).map((r) => loadSnapshot(r.key)))
+}
+
+/** Re-read the Codex rows: the shared login and every account. */
+function reloadCodex() {
+  if (!budget.refreshingCodexPlan) void budget.refreshCodex()
+  void refreshCodexAccountBudgets()
+  void Promise.all(rows.value.filter((r) => isCodexRow(r.key)).map((r) => loadSnapshot(r.key)))
 }
 
 /** Local reads only: the verdicts (quota toast) and the snapshots (rings). */
@@ -150,6 +186,7 @@ function reloadAll() {
   void budget.refresh()
   void budget.refreshCodex()
   void refreshAccountBudgets()
+  void refreshCodexAccountBudgets()
   void loadSnapshots()
 }
 
@@ -162,14 +199,15 @@ let unmounted = false
 onMounted(async () => {
   await app.ensureLoaded()
   now.value = Date.now()
-  await Promise.all([budget.refresh(), budget.refreshCodex(), claudeAccounts.fetch()])
+  await Promise.all([budget.refresh(), budget.refreshCodex(), claudeAccounts.fetch(), codexAccounts.fetch()])
   await loadSnapshots()
   if (unmounted) return
   // The only automatic probes: one per provider per app session. After that the
   // % stays fresh from the capture on every run, or the card's refresh button.
   // The store's startup flag (not a component flag) guards them, because this
   // bar mounts again on every project switch and a probe shells out to the
-  // `claude` / `codex` CLI. The Claude probe runs on the default account.
+  // `claude` / `codex` CLI. The Claude probe runs on the default account, the
+  // Codex one on the shared `~/.codex` login.
   void budget.refreshPlanUsage({ reason: 'startup' }).then(reloadClaude)
   void budget.refreshCodexPlanUsage({ reason: 'startup' }).then(() => loadSnapshot('codex'))
   // Recompute rollover against the clock and pick up snapshots written by runs.
@@ -178,8 +216,7 @@ onMounted(async () => {
   // Immediately when a sidecar / watcher persists a fresh snapshot during a run.
   const offPlan = await listen<{ provider?: string }>('plan_usage_updated', (e) => {
     if (e.payload?.provider === 'codex') {
-      if (!budget.refreshingCodexPlan) void budget.refreshCodex()
-      void loadSnapshot('codex')
+      reloadCodex()
     } else {
       if (!budget.refreshingPlan) void budget.refresh()
       reloadClaude()

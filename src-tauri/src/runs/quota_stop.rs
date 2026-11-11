@@ -1,4 +1,4 @@
-//! UX-14: stop the running sessions of an engine / Claude account once its
+//! UX-14: stop the running sessions of an engine / account once its
 //! quota block tier (`budget_5h_percent` / `budget_week_percent`) is reached.
 //!
 //! Opt-in (`quota_stop_running`, off by default): a session stopped mid-turn
@@ -15,7 +15,7 @@ use std::sync::{Mutex as StdMutex, OnceLock};
 
 use sqlx::Row;
 
-use crate::commands::stats::{claude_plan_usage_key, guard_status, BudgetStatus};
+use crate::commands::stats::{claude_plan_usage_key, codex_plan_usage_key, guard_status, BudgetStatus};
 use crate::db::Db;
 use crate::runs::RunRegistry;
 
@@ -30,13 +30,14 @@ fn latch() -> &'static Latch {
     LATCH.get_or_init(Default::default)
 }
 
-/// The plan snapshot the guard reads for a run: Codex is engine-wide, Claude
-/// is per account (`None` → the global key, as `budget_status_for` does).
-fn quota_key(engine: &str, claude_account_id: Option<&str>) -> String {
+/// The plan snapshot the guard reads for a run: per account of its engine
+/// (`None` → the global `~/.claude` / shared `~/.codex` key, as
+/// `budget_status_for` does).
+fn quota_key(engine: &str, account_id: Option<&str>) -> String {
     if engine == "codex" {
-        "plan_usage_codex".to_string()
+        codex_plan_usage_key(account_id)
     } else {
-        format!("{engine}:{}", claude_plan_usage_key(claude_account_id))
+        format!("{engine}:{}", claude_plan_usage_key(account_id))
     }
 }
 
@@ -81,7 +82,8 @@ async fn stop_reason(db: &Db, status: &BudgetStatus) -> String {
     }
 }
 
-/// Feed one guard verdict for `engine` / `claude_account_id`. When the setting
+/// Feed one guard verdict for `engine` / `account_id` (that engine's account).
+/// When the setting
 /// is on and this is the crossing, every live, running session on the same
 /// quota (except `exclude`) gets the reason in its log, then is cancelled the
 /// way the UI's Cancel does. `notify(run_id, line)` runs right before each
@@ -90,12 +92,12 @@ pub async fn on_guard_status(
     registry: &RunRegistry,
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
     status: &BudgetStatus,
     exclude: Option<&str>,
     notify: impl FnMut(&str, &str),
 ) -> Vec<String> {
-    on_guard_status_with(latch(), registry, db, engine, claude_account_id, status, exclude, notify).await
+    on_guard_status_with(latch(), registry, db, engine, account_id, status, exclude, notify).await
 }
 
 /// [`on_guard_status`] after a fresh plan snapshot: reads the guard itself,
@@ -104,14 +106,14 @@ pub async fn on_plan_snapshot(
     registry: &RunRegistry,
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
     notify: impl FnMut(&str, &str),
 ) -> Vec<String> {
     if !is_enabled(db).await {
         return Vec::new();
     }
-    match guard_status(db, engine, claude_account_id).await {
-        Ok(status) => on_guard_status(registry, db, engine, claude_account_id, &status, None, notify).await,
+    match guard_status(db, engine, account_id).await {
+        Ok(status) => on_guard_status(registry, db, engine, account_id, &status, None, notify).await,
         Err(_) => Vec::new(),
     }
 }
@@ -122,7 +124,7 @@ async fn on_guard_status_with(
     registry: &RunRegistry,
     db: &Db,
     engine: &str,
-    claude_account_id: Option<&str>,
+    account_id: Option<&str>,
     status: &BudgetStatus,
     exclude: Option<&str>,
     mut notify: impl FnMut(&str, &str),
@@ -130,14 +132,14 @@ async fn on_guard_status_with(
     if engine.is_empty() || !is_enabled(db).await {
         return Vec::new();
     }
-    let key = quota_key(engine, claude_account_id);
+    let key = quota_key(engine, account_id);
     if !crossed(latch, &key, status.is_over) {
         return Vec::new();
     }
     let reason = stop_reason(db, status).await;
     let line = format!("[log:warn] {reason}\n");
 
-    let rows = sqlx::query("SELECT id, engine, claude_account_id FROM runs WHERE status = 'running'")
+    let rows = sqlx::query("SELECT id, engine, claude_account_id, codex_account_id FROM runs WHERE status = 'running'")
         .fetch_all(db)
         .await
         .unwrap_or_default();
@@ -145,7 +147,8 @@ async fn on_guard_status_with(
     for row in rows {
         let id: String = row.get("id");
         let run_engine: String = row.get("engine");
-        let run_account: Option<String> = row.get("claude_account_id");
+        let run_account: Option<String> =
+            row.get(if run_engine == "codex" { "codex_account_id" } else { "claude_account_id" });
         if Some(id.as_str()) == exclude || quota_key(&run_engine, run_account.as_deref()) != key {
             continue;
         }
@@ -286,6 +289,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_codex_crossing_stops_that_codex_account_only() {
+        let db = db().await;
+        crate::commands::settings::set_setting(&db, SETTING, "true").await.unwrap();
+        for q in [
+            "INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('x1', 'Work', '/tmp/x1', '2026-01-01')",
+            "INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('x2', 'Home', '/tmp/x2', '2026-01-01')",
+            "INSERT INTO runs (id, project_id, type, engine, codex_account_id, status, created_at) VALUES ('x1-run', 'p', 'session', 'codex', 'x1', 'running', '2026-01-01')",
+            "INSERT INTO runs (id, project_id, type, engine, codex_account_id, status, created_at) VALUES ('x2-run', 'p', 'session', 'codex', 'x2', 'running', '2026-01-01')",
+        ] {
+            sqlx::query(q).execute(&db).await.unwrap();
+        }
+        let registry = registry(&["x1-run", "x2-run", "codex-run", "a1-run"]).await;
+        let latch = Latch::default();
+        let check = |percent| {
+            let (latch, registry, db) = (&latch, &registry, &db);
+            async move { on_guard_status_with(latch, registry, db, "codex", Some("x1"), &status(percent), None, |_, _| {}).await }
+        };
+        assert!(check(85).await.is_empty());
+        assert_eq!(check(92).await, vec!["x1-run"]);
+        // The other Codex account, the shared login and Claude: untouched.
+        for (id, want) in [("x1-run", "cancelled"), ("x2-run", "running"), ("codex-run", "running"), ("a1-run", "running")] {
+            assert_eq!(run_status(&db, id).await, want, "{id}");
+        }
+    }
+
+    #[tokio::test]
     async fn off_stops_nothing() {
         let db = db().await;
         let registry = registry(&["a1-run", "a1-run2"]).await;
@@ -323,8 +352,11 @@ mod tests {
     }
 
     #[test]
-    fn codex_is_engine_wide_and_claude_per_account() {
-        assert_eq!(quota_key("codex", Some("a1")), quota_key("codex", None));
+    fn the_quota_is_per_account_for_both_engines() {
+        assert_ne!(quota_key("codex", Some("x1")), quota_key("codex", None));
+        assert_ne!(quota_key("codex", Some("x1")), quota_key("codex", Some("x2")));
+        assert_eq!(quota_key("codex", Some(" ")), quota_key("codex", None));
+        assert_ne!(quota_key("codex", Some("a1")), quota_key("claude", Some("a1")));
         assert_ne!(quota_key("claude", Some("a1")), quota_key("claude", Some("a2")));
         assert_ne!(quota_key("claude", None), quota_key("claude", Some("a1")));
         assert_eq!(quota_key("claude", Some(" ")), quota_key("claude", None));

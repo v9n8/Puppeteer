@@ -692,6 +692,40 @@ async fn resolve_runtime_account_with(
     Ok(Some(CodexRuntimeAccount { id: account_id, home_dir }))
 }
 
+/// The default Codex account, `None` while the shared `~/.codex` login is it.
+pub async fn default_account_id(db: &Db) -> Option<String> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT id FROM codex_accounts WHERE is_default = 1 ORDER BY created_at LIMIT 1",
+    )
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten()
+}
+
+/// The Codex account linked to a project, if any.
+pub async fn project_account_id(db: &Db, project_id: &str) -> Option<String> {
+    sqlx::query_scalar::<_, Option<String>>("SELECT codex_account_id FROM projects WHERE id = ?")
+        .bind(project_id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+        .filter(|id| !id.trim().is_empty())
+}
+
+/// `(id, home)` of every account, to tell which login a rollout belongs to.
+pub async fn account_ids_and_homes(db: &Db) -> Vec<(String, String)> {
+    sqlx::query_as::<_, (String, String)>("SELECT id, home_dir FROM codex_accounts")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, home)| !home.trim().is_empty())
+        .collect()
+}
+
 /// Every account's home, where its sessions live (`<home>/sessions`).
 pub async fn account_homes(db: &Db) -> Vec<String> {
     sqlx::query_scalar::<_, String>("SELECT home_dir FROM codex_accounts")

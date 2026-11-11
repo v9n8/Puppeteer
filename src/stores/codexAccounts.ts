@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
+import type { AccountBudget } from '@/stores/claudeAccounts'
 
 // Codex (ChatGPT) accounts, each signed in with `codex login` under its own
 // CODEX_HOME. No account is the default until the user picks one: Codex runs
@@ -28,16 +29,47 @@ export const useCodexAccountsStore = defineStore('codexAccounts', () => {
   const accounts = ref<CodexAccount[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  // Per-account plan-usage verdict, keyed by account id (UX-41).
+  const budgets = ref<Record<string, AccountBudget>>({})
+  // Per-account live-probe state for the usage ring's refresh button.
+  const refreshingUsage = ref<Record<string, boolean>>({})
+  const usageErrors = ref<Record<string, string | null>>({})
 
   async function fetch() {
     loading.value = true
     error.value = null
     try {
       accounts.value = await invoke<CodexAccount[]>('list_codex_accounts')
+      await Promise.all(accounts.value.map(a => fetchBudget(a.id)))
     } catch (e) {
       error.value = String(e)
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchBudget(id: string) {
+    try {
+      budgets.value[id] = await invoke<AccountBudget>('get_codex_budget_status', { accountId: id })
+    } catch {
+      // Best-effort; leave any prior value.
+    }
+  }
+
+  // Probe Codex for one account's rate limits (under its CODEX_HOME), then
+  // re-read its verdict.
+  async function refreshUsage(id: string): Promise<void> {
+    if (refreshingUsage.value[id]) return
+    refreshingUsage.value[id] = true
+    usageErrors.value[id] = null
+    try {
+      await invoke('refresh_codex_plan_usage', { accountId: id })
+    } catch (e) {
+      usageErrors.value[id] = String(e)
+      // Probe is best-effort; fall back to the latest stored snapshot below.
+    } finally {
+      refreshingUsage.value[id] = false
+      await fetchBudget(id)
     }
   }
 
@@ -84,5 +116,8 @@ export const useCodexAccountsStore = defineStore('codexAccounts', () => {
     return result
   }
 
-  return { accounts, loading, error, fetch, create, rename, remove, setDefault, login, cancelLogin, validate }
+  return {
+    accounts, loading, error, budgets, refreshingUsage, usageErrors,
+    fetch, fetchBudget, refreshUsage, create, rename, remove, setDefault, login, cancelLogin, validate,
+  }
 })

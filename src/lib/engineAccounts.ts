@@ -72,13 +72,13 @@ function row(kind: AccountKind, a: AccountLike, usage: AccountUsage | null): Acc
  * Claude accounts, then Codex. Each kind has its own default. For Codex that is
  * the shared `~/.codex` login until an account is picked, so once a Codex
  * account exists that login gets a row of its own (first among Codex) to pick
- * it back. Per-account Codex usage is not tracked yet: only the shared login
- * has a number.
+ * it back. Every login has its own usage.
  */
 export function accountRows(input: {
   claude: AccountLike[]
   claudeBudgets: Record<string, PlanVerdict | undefined>
   codex: AccountLike[]
+  codexBudgets: Record<string, PlanVerdict | undefined>
   sharedCodexLabel: string
   sharedCodexUsage: PlanVerdict | null
 }): AccountRow[] {
@@ -94,7 +94,7 @@ export function accountRows(input: {
       isDefault: !input.codex.some((a) => a.is_default),
       usage: usageOf(input.sharedCodexUsage),
     })
-    rows.push(...input.codex.map((a) => row('codex', a, null)))
+    rows.push(...input.codex.map((a) => row('codex', a, usageOf(input.codexBudgets[a.id]))))
   }
   return rows
 }

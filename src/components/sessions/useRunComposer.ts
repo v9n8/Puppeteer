@@ -478,9 +478,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       if (currentId && !codexStore.accounts.some((acc) => acc.id === currentId)) {
         out.push({ value: currentId, label: t('run.missingCodexAccount'), usageKey: null })
       }
-      // No usage row per Codex account yet: the stored Codex usage is one snapshot.
       for (const acc of codexStore.accounts) {
-        out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: null })
+        out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: `codex:${acc.id}` })
       }
       return out
     }

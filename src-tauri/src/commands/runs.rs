@@ -354,7 +354,10 @@ pub(crate) async fn start_run_inner(
     crate::commands::stats::enforce_budget(
         db,
         &engine,
-        claude_account.as_ref().map(|a| a.id.as_str()),
+        claude_account
+            .as_ref()
+            .map(|a| a.id.as_str())
+            .or(codex_account.as_ref().map(|a| a.id.as_str())),
         payload.override_budget,
     )
     .await?;
@@ -1477,6 +1480,21 @@ pub async fn send_user_message(
     send_user_message_inner(db.inner(), registry.inner(), payload, true).await
 }
 
+/// A run's engine and the account of that engine it is on (`None`: the global
+/// `~/.claude` / shared `~/.codex` login), as the budget guardrail reads them.
+async fn run_engine_account(db: &Db, run_id: &str) -> Result<(String, Option<String>), String> {
+    use sqlx::Row;
+    let row = sqlx::query("SELECT engine, claude_account_id, codex_account_id FROM runs WHERE id = ?")
+        .bind(run_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
+    let engine: String = row.get("engine");
+    let account_id: Option<String> =
+        row.get(if engine == "codex" { "codex_account_id" } else { "claude_account_id" });
+    Ok((engine, account_id))
+}
+
 /// Core of [`send_user_message`] over concrete refs so the Remote Control host
 /// agent (FR-009 `send_chat_message`) can reuse it without a Tauri `State`.
 ///
@@ -1489,20 +1507,13 @@ pub(crate) async fn send_user_message_inner(
     payload: SendUserMessagePayload,
     stamp_activity: bool,
 ) -> Result<Option<i64>, String> {
-    use sqlx::Row;
     // A follow-up turn consumes tokens like any other, so gate it too — against
-    // the guardrail for this run's engine and its assigned Claude account.
-    let run_meta = sqlx::query("SELECT engine, claude_account_id FROM runs WHERE id = ?")
-        .bind(&payload.run_id)
-        .fetch_one(db)
-        .await
-        .map_err(|e| e.to_string())?;
-    let engine: String = run_meta.get("engine");
-    let claude_account_id: Option<String> = run_meta.get("claude_account_id");
+    // the guardrail for this run's engine and its assigned account.
+    let (engine, account_id) = run_engine_account(db, &payload.run_id).await?;
     crate::commands::stats::enforce_budget(
         db,
         &engine,
-        claude_account_id.as_deref(),
+        account_id.as_deref(),
         payload.override_budget,
     )
     .await?;
@@ -1680,17 +1691,10 @@ pub async fn steer_run(
 }
 
 async fn steer_run_inner(db: &Db, registry: &RunRegistry, payload: SendUserMessagePayload) -> Result<(), String> {
-    use sqlx::Row;
     crate::features::require(db, STEER_FEATURE).await?;
     // It extends a turn that consumes tokens: same guardrail as a follow-up.
-    let run_meta = sqlx::query("SELECT engine, claude_account_id FROM runs WHERE id = ?")
-        .bind(&payload.run_id)
-        .fetch_one(db)
-        .await
-        .map_err(|e| e.to_string())?;
-    let engine: String = run_meta.get("engine");
-    let claude_account_id: Option<String> = run_meta.get("claude_account_id");
-    crate::commands::stats::enforce_budget(db, &engine, claude_account_id.as_deref(), payload.override_budget).await?;
+    let (engine, account_id) = run_engine_account(db, &payload.run_id).await?;
+    crate::commands::stats::enforce_budget(db, &engine, account_id.as_deref(), payload.override_budget).await?;
 
     let text = payload.content.trim();
     if text.is_empty() && payload.images.is_empty() {
@@ -4584,7 +4588,10 @@ pub(crate) async fn resume_run_with(
     crate::commands::stats::enforce_budget(
         db.inner(),
         &engine,
-        claude_account.as_ref().map(|a| a.id.as_str()),
+        claude_account
+            .as_ref()
+            .map(|a| a.id.as_str())
+            .or(codex_account.as_ref().map(|a| a.id.as_str())),
         override_budget.unwrap_or(false),
     )
     .await?;
