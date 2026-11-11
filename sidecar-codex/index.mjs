@@ -9,6 +9,9 @@
 //         {type:"system",subtype:"init",session_id,model,cwd,tools}
 //         {type:"assistant",message:{content:[{type:"text"|"thinking"|"tool_use",...}]}}
 //         {type:"user",message:{content:[{type:"tool_result",tool_use_id,content}]}}
+//         {type:"stream_event",event:{type:"content_block_start"|"content_block_delta",...}}
+//           ← text / reasoning-summary deltas, as Claude's partial messages (AC-15)
+//         {type:"system",subtype:"api_retry"|"status"|"compact_boundary",...}  ← as Claude's (AC-15)
 //         {type:"result",subtype:"success"}            ← ends the turn
 //           (a failed turn: subtype "error_during_execution", is_error, errors;
 //            an interrupted one: subtype "interrupted")
@@ -16,6 +19,7 @@
 //         {type:"_puppeteer_ready"} / {type:"_puppeteer_done"} / {type:"_puppeteer_error",error}
 //         {type:"_puppeteer_closed",code,signal}   ← session over (signal ⇒ crash)
 //         {type:"_puppeteer_permission_request",requestId,tool_name,tool_input,title,description}
+//         {type:"_puppeteer_permission_cancelled",requestId,level,text}  ← codex withdrew it, or no answer can come
 //         {type:"_puppeteer_turn_failed"}          ← a prompt never became a turn (no result follows)
 //         {type:"_puppeteer_steered",text,images}  ← codex took a steer (turn/steer accepted)
 //         {type:"_puppeteer_context_usage",model,totalTokens,maxTokens}  ← before each result (AC-08)
@@ -584,7 +588,7 @@ const cmdKey = (c) => (Array.isArray(c) ? c.join(' ') : String(c ?? '')).trim()
 
 function emitPermission(rpcReqId, { tool_name, tool_input, title, description, display_name }, waiter = {}) {
   const requestId = `codex-${PROC_NONCE}-${rpcReqId}`
-  permWaiters.set(requestId, { rpcId: rpcReqId, command: tool_input?.command, kind: 'approval', ...waiter })
+  permWaiters.set(requestId, { rpcId: rpcReqId, command: tool_input?.command, kind: 'approval', toolName: tool_name, ...waiter })
   if (NO_TOOLS) {
     settleWaiter(requestId, false)
     ctrl('_puppeteer_log', { level: 'warn', text: `⚠ ${tool_name} was denied: this session has no tool access.` })
@@ -633,6 +637,24 @@ function settleWaiter(requestId, accept, { answers, remember } = {}) {
     : (w.legacy ? 'approved' : 'accept')
   rpcRespond(w.rpcId, { decision: accept ? allowDecision : 'cancel' })
   return true
+}
+
+// Codex withdrew a request before we answered it (serverRequest/resolved: the
+// turn was interrupted, the request expired). Drop the waiter unanswered and
+// close the prompt everywhere, as the Claude sidecar does when the CLI
+// withdraws one. Codex also sends it for a request we answered: no waiter then.
+function withdrawWaiter(rpcReqId) {
+  for (const [requestId, w] of permWaiters) {
+    if (String(w.rpcId) !== String(rpcReqId)) continue
+    permWaiters.delete(requestId)
+    emitMcpToolResult(w.toolUseId, false, 'Withdrawn by Codex.')
+    ctrl('_puppeteer_permission_cancelled', {
+      requestId,
+      level: 'info',
+      text: `Permission request for ${w.toolName} was withdrawn.`,
+    })
+    return
+  }
 }
 
 function enumOptions(schema) {
@@ -786,7 +808,7 @@ function emitMcpToolUse(rpcReqId, params, { displayName, input }) {
   return id
 }
 
-function emitMcpToolResult(toolUseId, accepted) {
+function emitMcpToolResult(toolUseId, accepted, content = accepted ? 'Accepted by user.' : 'Denied by user.') {
   if (!toolUseId) return
   out({
     type: 'user',
@@ -795,7 +817,7 @@ function emitMcpToolResult(toolUseId, accepted) {
       content: [{
         type: 'tool_result',
         tool_use_id: toolUseId,
-        content: accepted ? 'Accepted by user.' : 'Denied by user.',
+        content,
         is_error: !accepted,
       }],
     },
@@ -983,52 +1005,235 @@ function describeTurnError(err) {
   return text || 'Codex turn failed'
 }
 
-function emitItem(item) {
-  if (!item || typeof item !== 'object') return
+// ── live streaming (AC-15) ────────────────────────────────────────────────
+// Text and reasoning-summary deltas go out as the Claude sidecar's partial
+// messages (`stream_event` content_block_start / content_block_delta), so the
+// frontend streams Codex text the same way. A block opens on its item's first
+// delta, so an item that never streams leaves no empty entry; the complete
+// item still comes on item/completed and replaces what was streamed. Not
+// persisted: the broker drops `stream_event`s from the run log.
+const streamedItems = new Map() // itemId → { kind, index, text, part }
+let streamIndex = 0
+function streamDelta(itemId, kind, chunk, part = 0) {
+  if (!itemId || typeof chunk !== 'string' || !chunk) return
+  let s = streamedItems.get(itemId)
+  if (!s) {
+    s = { kind, index: streamIndex++, text: '', part }
+    streamedItems.set(itemId, s)
+    const block = kind === 'text' ? { type: 'text', text: '' } : { type: 'thinking', thinking: '' }
+    out({ type: 'stream_event', event: { type: 'content_block_start', index: s.index, content_block: block }, parent_tool_use_id: null })
+  }
+  // A new summary part: the complete item joins its parts with a newline.
+  if (part !== s.part) {
+    s.part = part
+    if (s.text) chunk = `\n${chunk}`
+  }
+  s.text += chunk
+  const delta = kind === 'text' ? { type: 'text_delta', text: chunk } : { type: 'thinking_delta', thinking: chunk }
+  out({ type: 'stream_event', event: { type: 'content_block_delta', index: s.index, delta }, parent_tool_use_id: null })
+}
+// What an item streamed, for a complete item that came without its text.
+function takeStreamed(itemId) {
+  const s = streamedItems.get(itemId)
+  streamedItems.delete(itemId)
+  return s?.text || ''
+}
+
+// Tool items whose input is known when they start: their card shows from
+// item/started ("running"), and item/completed adds only the result. A web
+// search names its query only once done, so it waits for item/completed.
+const EARLY_TOOL_ITEMS = new Set(['commandExecution', 'mcpToolCall', 'collabAgentToolCall', 'dynamicToolCall'])
+const startedTools = new Set() // item ids whose tool_use already went out
+
+// Like Claude Code's `mcp__<server>__<tool>`, so the frontend's MCP card and
+// its checks on Puppeteer's own tools (`mcp__puppeteer__…`) apply to Codex too.
+const mcpNamePart = (s) => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '_')
+
+function collabDescription(item) {
+  const who = (item.receiverThreadIds ?? []).join(', ')
+  return [item.tool, item.model, who].filter(Boolean).join(' · ')
+}
+
+function webSearchQuery(item) {
+  const a = item.action
+  return item.query || a?.query || (a?.queries ?? []).join(' · ') || a?.url || ''
+}
+
+// The Claude-shaped tool call for a tool item, or null for an item that is not one.
+function toolUseOf(item) {
   switch (item.type) {
-    case 'agentMessage': {
-      const text = String(item.text ?? '')
-      // `id`, like Claude's message id: what a structured quote of this message
-      // is anchored by (UX-29). Made here, once, so the live view and the log
-      // (which keeps this line verbatim) agree on it.
-      if (text.trim()) out({ type: 'assistant', message: { id: `codex-${randomUUID()}`, role: 'assistant', content: [{ type: 'text', text }] } })
-      break
-    }
-    case 'reasoning': {
-      // summaries are usually omitted; surface any text we do get.
-      const parts = []
-      for (const s of item.summary ?? []) if (typeof s === 'string') parts.push(s)
-      for (const c of item.content ?? []) if (c?.text) parts.push(c.text)
-      const text = parts.join('\n').trim()
-      if (text) out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: text }] } })
-      break
-    }
+    case 'commandExecution':
+      return { name: 'Bash', input: { command: item.command, description: (item.commandActions?.[0]?.name) || undefined } }
+    // Map to an Edit-like tool_use so the frontend diff view can render it.
+    case 'fileChange':
+      return { name: 'Edit', input: item }
+    case 'mcpToolCall':
+      return { name: `mcp__${mcpNamePart(item.server)}__${mcpNamePart(item.tool)}`, input: item.arguments ?? {} }
+    // A sub-agent call (spawn, send input, wait…): the frontend's agent card.
+    case 'collabAgentToolCall':
+      return { name: 'Task', input: { subagent_type: item.tool, description: collabDescription(item), prompt: item.prompt || undefined } }
+    case 'dynamicToolCall':
+      return { name: item.namespace ? `${item.namespace}__${item.tool}` : String(item.tool ?? 'tool'), input: item.arguments ?? {} }
+    case 'webSearch':
+      return { name: 'WebSearch', input: { query: webSearchQuery(item) } }
+    case 'imageView':
+      return { name: 'Read', input: { file_path: item.path } }
+    // A plan-mode plan: the frontend's plan card. Shown only, never approved.
+    case 'plan':
+      return { name: 'ExitPlanMode', input: { plan: String(item.text ?? '') } }
+    default:
+      return null
+  }
+}
+
+function emitToolUse(id, use) {
+  out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name: use.name, input: use.input }] } })
+}
+
+function emitToolResult(id, content, isError) {
+  out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } })
+}
+
+// The finished tool item's result as { content, isError }, or null when it has
+// none to show (a file change: the diff in its input is the result).
+function toolResultOf(item) {
+  switch (item.type) {
     case 'commandExecution': {
-      out({ type: 'assistant', message: { role: 'assistant', content: [
-        { type: 'tool_use', id: item.id, name: 'Bash', input: { command: item.command, description: (item.commandActions?.[0]?.name) || undefined } },
-      ] } })
       const rejected =
         item.status === 'declined' ||
         declinedCommands.delete(cmdKey(item.command))
       const isError = rejected || (item.exitCode != null && item.exitCode !== 0)
-      const output = rejected
+      const content = rejected
         ? 'Rejected by user — command was not run.'
         : (item.aggregatedOutput != null ? String(item.aggregatedOutput) : '')
-      out({ type: 'user', message: { role: 'user', content: [
-        { type: 'tool_result', tool_use_id: item.id, content: output, is_error: isError },
-      ] } })
-      break
+      return { content, isError }
     }
-    case 'fileChange': {
-      // Map to an Edit-like tool_use so the frontend diff view can render it.
-      out({ type: 'assistant', message: { role: 'assistant', content: [
-        { type: 'tool_use', id: item.id, name: 'Edit', input: item },
-      ] } })
-      break
+    case 'mcpToolCall':
+      if (item.error) return { content: String(item.error.message ?? 'MCP tool call failed'), isError: true }
+      // MCP content blocks, as Claude's tool_result carries them.
+      return { content: item.result?.content ?? '', isError: item.status === 'failed' }
+    case 'collabAgentToolCall': {
+      const states = Object.entries(item.agentsStates ?? {})
+        .map(([thread, st]) => `${thread}: ${st?.status ?? 'unknown'}${st?.message ? ` — ${st.message}` : ''}`)
+      return { content: states.join('\n'), isError: item.status === 'failed' }
     }
-    // userMessage: skip — the broker already logs the synthetic user entry.
-    default: break
+    case 'dynamicToolCall': {
+      const content = (item.contentItems ?? []).map((c) => (c?.type === 'inputText' ? c.text : '[image]')).join('\n')
+      return { content, isError: item.success === false || item.status === 'failed' }
+    }
+    case 'webSearch': {
+      const a = item.action
+      const content = a?.type === 'openPage' ? `Opened ${a.url ?? ''}`
+        : a?.type === 'findInPage' ? `Searched ${a.url ?? ''} for "${a.pattern ?? ''}"`
+          : `Searched the web for "${webSearchQuery(item)}"`
+      return { content, isError: false }
+    }
+    case 'imageView':
+      return { content: `Viewed ${item.path ?? 'an image'}`, isError: false }
+    case 'plan':
+      return { content: '', isError: false }
+    default:
+      return null
   }
+}
+
+// A compaction ends the window it was measured on, like Claude's boundary.
+// Codex reports it twice (the contextCompaction item and the deprecated
+// thread/compacted), so one per turn goes out.
+let compactedTurn
+function emitCompactBoundary(turnId) {
+  const key = turnId ?? null
+  if (compactedTurn === key) return
+  compactedTurn = key
+  out({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto' } })
+}
+
+function emitItemStarted(item) {
+  if (!item || typeof item !== 'object') return
+  if (item.type === 'contextCompaction') {
+    out({ type: 'system', subtype: 'status', status: 'compacting' })
+    return
+  }
+  if (!EARLY_TOOL_ITEMS.has(item.type) || !item.id || startedTools.has(item.id)) return
+  const use = toolUseOf(item)
+  if (!use) return
+  startedTools.add(item.id)
+  emitToolUse(item.id, use)
+}
+
+function emitItem(item, turnId) {
+  if (!item || typeof item !== 'object') return
+  switch (item.type) {
+    case 'agentMessage': {
+      const streamed = takeStreamed(item.id)
+      const text = String(item.text ?? '') || streamed
+      // `id`, like Claude's message id: what a structured quote of this message
+      // is anchored by (UX-29). Made here, once, so the live view and the log
+      // (which keeps this line verbatim) agree on it.
+      if (text.trim()) out({ type: 'assistant', message: { id: `codex-${randomUUID()}`, role: 'assistant', content: [{ type: 'text', text }] } })
+      return
+    }
+    case 'reasoning': {
+      // summaries are usually omitted; surface any text we do get. The v2
+      // protocol sends `content` as strings, older ones as { text } parts.
+      const parts = []
+      for (const s of item.summary ?? []) if (typeof s === 'string') parts.push(s)
+      for (const c of item.content ?? []) {
+        const t = typeof c === 'string' ? c : c?.text
+        if (t) parts.push(t)
+      }
+      const streamed = takeStreamed(item.id)
+      const text = parts.join('\n').trim() || streamed.trim()
+      if (text) out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: text }] } })
+      return
+    }
+    case 'contextCompaction':
+      emitCompactBoundary(turnId)
+      return
+    // Not shown: userMessage and hookPrompt (the broker already logs the
+    // user's entry), review-mode markers, image generation (no card for it yet).
+    default: {
+      const use = toolUseOf(item)
+      if (!use) return
+      if (!startedTools.delete(item.id)) emitToolUse(item.id, use)
+      const result = toolResultOf(item)
+      if (result) emitToolResult(item.id, result.content, result.isError)
+    }
+  }
+}
+
+// Codex's plan (its update_plan tool) as Claude's TodoWrite, which the
+// frontend shows as a checklist. Each update is a call of its own, like
+// each TodoWrite.
+const TODO_STATUS = { pending: 'pending', inProgress: 'in_progress', completed: 'completed' }
+let planUpdates = 0
+function emitPlanUpdate(p) {
+  const todos = (p.plan ?? [])
+    .filter((s) => typeof s?.step === 'string' && s.step.trim())
+    .map((s) => ({ content: s.step, status: TODO_STATUS[s.status] ?? 'pending', activeForm: s.step }))
+  const id = `codex-plan-${PROC_NONCE}-${planUpdates++}`
+  emitToolUse(id, { name: 'TodoWrite', input: { todos } })
+  emitToolResult(id, p.explanation || 'Plan updated.', false)
+}
+
+// A Codex reconnect (`error` with willRetry, "Reconnecting... 2/5") as
+// Claude's api_retry, which the frontend shows as a status line until output
+// resumes. Codex names no delay. Without an attempt count, only the log line.
+function emitRetryStatus(err) {
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(String(err?.message ?? ''))
+  if (!m) return
+  const info = err?.codexErrorInfo
+  const detail = info && typeof info === 'object' ? Object.values(info)[0] : null
+  const status = detail?.httpStatusCode
+  out({
+    type: 'system',
+    subtype: 'api_retry',
+    attempt: Number(m[1]),
+    max_retries: Number(m[2]),
+    retry_delay_ms: 0,
+    error_status: typeof status === 'number' ? status : null,
+    error: codexErrorCode(info),
+  })
 }
 
 // ── handle a message from codex app-server ────────────────────────────────
@@ -1084,9 +1289,31 @@ function onServerMessage(msg) {
   // notification (streaming)
   if (msg.method) {
     const p = msg.params || {}
+    // A notification naming another thread (a sub-agent's) is not streamed
+    // into this one.
+    const ownThread = !p.threadId || !threadId || p.threadId === threadId
     switch (msg.method) {
+      case 'item/started':
+        if (ownThread) emitItemStarted(p.item)
+        break
       case 'item/completed':
-        emitItem(p.item)
+        emitItem(p.item, p.turnId)
+        break
+      case 'item/agentMessage/delta':
+        if (ownThread) streamDelta(p.itemId, 'text', p.delta)
+        break
+      case 'item/reasoning/summaryTextDelta':
+        if (ownThread) streamDelta(p.itemId, 'thinking', p.delta, p.summaryIndex ?? 0)
+        break
+      case 'turn/plan/updated':
+        if (ownThread) emitPlanUpdate(p)
+        break
+      // Deprecated twin of the contextCompaction item.
+      case 'thread/compacted':
+        if (ownThread) emitCompactBoundary(p.turnId)
+        break
+      case 'serverRequest/resolved':
+        withdrawWaiter(p.requestId)
         break
       case 'turn/started':
         if (turnActive && p.turn?.id) turnUsageId = p.turn.id
@@ -1122,6 +1349,8 @@ function onServerMessage(msg) {
         if (usage) result.usage = usage
         emitContextUsage()
         turnBaseline = turnUsageId = turnEndTotal = turnLastSum = turnLatestLast = null
+        streamedItems.clear()
+        startedTools.clear()
         if (modelName) result.model = modelName
         if (turnStartedAt != null) result.duration_ms = Date.now() - turnStartedAt
         out(result)
@@ -1140,13 +1369,16 @@ function onServerMessage(msg) {
         // turn goes on, so this is a warning, not a failure of the run.
         if (p.willRetry) {
           note(`⚠ Codex: ${text}`, 'warn')
+          emitRetryStatus(p.error)
           break
         }
         if (turnActive) turnErrorReported = true
         ctrl('_puppeteer_error', { error: text })
         break
       }
-      default: break // ignore deltas/status/etc for v1
+      // Everything else is not shown (turn/diff/updated: not yet); the unused
+      // high-volume ones are opted out at initialize (OPT_OUT_NOTIFICATIONS).
+      default: break
     }
   }
 }
@@ -1236,10 +1468,29 @@ function refusedParams(response) {
   return !!e && (e.code === -32602 || /unknown (field|variant)/i.test(e.message || ''))
 }
 
+// Notifications Puppeteer never shows, so the app-server does not send them at
+// all (exact names; one a codex does not know is ignored, checked on 0.133).
+// Command and patch output comes whole on item/completed, raw reasoning on the
+// reasoning item (only its summary streams), the plan-mode text on its plan item.
+const OPT_OUT_NOTIFICATIONS = [
+  'item/commandExecution/outputDelta',
+  'item/commandExecution/terminalInteraction',
+  'item/fileChange/outputDelta',
+  'item/fileChange/patchUpdated',
+  'item/reasoning/textDelta',
+  'item/reasoning/summaryPartAdded',
+  'item/plan/delta',
+  'item/mcpToolCall/progress',
+  'turn/diff/updated',
+  'command/exec/outputDelta',
+  'process/outputDelta',
+  'rawResponseItem/completed',
+]
+
 async function bringUp() {
   rpcResult(await request('initialize', {
     clientInfo: { name: 'puppeteer-codex', title: 'Puppeteer', version: '0.1.0' },
-    capabilities: { experimentalApi: true, requestAttestation: false },
+    capabilities: { experimentalApi: true, requestAttestation: false, optOutNotificationMethods: OPT_OUT_NOTIFICATIONS },
   }), 'initialize')
   rpcNotify('initialized', undefined)
 

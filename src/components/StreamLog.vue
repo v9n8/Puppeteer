@@ -655,6 +655,12 @@ const liveStatusText = computed(() => {
   if (!s) return ''
   if (s.kind === 'compacting') return t('streamLog.live.compacting')
   const args = { attempt: s.attempt, max: s.maxRetries, secs: Math.ceil(s.delayMs / 1000) }
+  // Codex names no delay: leave the wait out rather than show "waiting 0s".
+  if (s.delayMs <= 0) {
+    return s.errorStatus !== null
+      ? t('streamLog.live.retryNowStatus', { ...args, status: s.errorStatus })
+      : t('streamLog.live.retryNow', args)
+  }
   return s.errorStatus !== null
     ? t('streamLog.live.retryStatus', { ...args, status: s.errorStatus })
     : t('streamLog.live.retry', args)

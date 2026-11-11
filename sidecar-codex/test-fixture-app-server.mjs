@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Deterministic JSON-RPC fixture for test-deny.mjs (and the other approval
 // tests), with PUPPETEER_FIXTURE_USAGE for test-usage.mjs and
-// test-turn-outcome.mjs, and with PUPPETEER_FIXTURE_RPC for test-rpc-timeout.mjs.
+// test-turn-outcome.mjs, with PUPPETEER_FIXTURE_RPC for test-rpc-timeout.mjs,
+// and with PUPPETEER_FIXTURE_ITEMS for test-items.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
@@ -111,6 +112,27 @@ function handleRpc(message) {
   }
 }
 
+// Items mode: PUPPETEER_FIXTURE_ITEMS is a JSON array of messages (notifications
+// or server requests) sent as they are after the turn/start reply, then
+// turn/completed. Every client message, replies included, goes to the log.
+const itemsScript = process.env.PUPPETEER_FIXTURE_ITEMS ? JSON.parse(process.env.PUPPETEER_FIXTURE_ITEMS) : null
+
+function handleItems(message) {
+  if (fixtureLog && !message.method) appendFileSync(fixtureLog, JSON.stringify({ id: message.id, result: message.result }) + '\n')
+  if (message.id === undefined || !message.method) return
+  if (message.method === 'thread/start') {
+    send({ jsonrpc: '2.0', id: message.id, result: { thread: { id: 'fixture-thread' }, model: 'fixture' } })
+  } else if (message.method === 'turn/start') {
+    send({ jsonrpc: '2.0', id: message.id, result: { turn: { id: 'fixture-turn' } } })
+    setTimeout(() => {
+      for (const m of itemsScript) send({ jsonrpc: '2.0', ...m })
+      send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { id: 'fixture-turn', status: 'completed' } } })
+    }, 30)
+  } else {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+  }
+}
+
 process.stdin.on('data', (chunk) => {
   buffer += chunk.toString()
   let newline
@@ -123,6 +145,7 @@ process.stdin.on('data', (chunk) => {
     if (fixtureLog && message.method) appendFileSync(fixtureLog, JSON.stringify({ id: message.id, method: message.method, params: message.params }) + '\n')
     if (usageScript) { handleUsage(message); continue }
     if (rpcMode) { handleRpc(message); continue }
+    if (itemsScript) { handleItems(message); continue }
 
     if (message.method === 'initialize') {
       send({ jsonrpc: '2.0', id: message.id, result: {} })

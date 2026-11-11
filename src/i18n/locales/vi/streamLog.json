@@ -85,6 +85,8 @@
   "live": {
     "retry": "Đang thử lại ({attempt}/{max}) — chờ {secs} giây",
     "retryStatus": "Đang thử lại ({attempt}/{max}) — chờ {secs} giây · lỗi {status}",
+    "retryNow": "Đang thử lại ({attempt}/{max})",
+    "retryNowStatus": "Đang thử lại ({attempt}/{max}) · lỗi {status}",
     "compacting": "Đang nén hội thoại…"
   },
   "activity": {
