@@ -120,7 +120,7 @@ fn tracked_paths(project: &Path, candidates: &[String]) -> Vec<String> {
         .collect()
 }
 
-fn codex_home() -> Option<PathBuf> {
+pub(crate) fn codex_home() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("CODEX_HOME") {
         return Some(PathBuf::from(dir));
     }

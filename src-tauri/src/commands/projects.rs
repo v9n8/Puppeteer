@@ -49,6 +49,10 @@ pub struct Project {
     /// default Claude account, or the global profile when none exists.
     #[serde(default)]
     pub claude_account_id: Option<String>,
+    /// Linked Codex account (isolated by CODEX_HOME). `None` = use the default
+    /// Codex account, or the shared `~/.codex` login when none is default.
+    #[serde(default)]
+    pub codex_account_id: Option<String>,
     /// GitHub Project V2 board URL for milestone/issue tracking (`None` = not linked).
     #[serde(default)]
     pub github_project_board_url: Option<String>,
@@ -814,7 +818,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
     let rows = sqlx::query(
         "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
-                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, p.codex_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
@@ -849,6 +853,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
             aws_account_ids: split_ids(row.get("aws_account_ids")),
             azure_account_ids: split_ids(row.get("azure_account_ids")),
             claude_account_id: row.get("claude_account_id"),
+            codex_account_id: row.get("codex_account_id"),
             github_project_board_url: row.get("github_project_board_url"),
             github_project_field_mappings: row.get("github_project_field_mappings"),
             run_count: row.get("run_count"),
@@ -959,6 +964,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         aws_account_ids: Vec::new(),
         azure_account_ids: Vec::new(),
         claude_account_id: None,
+        codex_account_id: None,
         github_project_board_url: None,
         github_project_field_mappings: None,
         run_count: 0,
@@ -1211,7 +1217,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
     let row = sqlx::query(
         "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
-                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, \
+                (SELECT GROUP_CONCAT(account_id) FROM project_gitlab_accounts WHERE project_id = p.id) AS gitlab_account_ids, p.aws_account_id, p.azure_account_id, p.claude_account_id, p.codex_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_aws_accounts WHERE project_id = p.id) AS aws_account_ids, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
@@ -1241,6 +1247,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
         aws_account_ids: split_ids(row.get("aws_account_ids")),
         azure_account_ids: split_ids(row.get("azure_account_ids")),
         claude_account_id: row.get("claude_account_id"),
+        codex_account_id: row.get("codex_account_id"),
         github_project_board_url: row.get("github_project_board_url"),
         github_project_field_mappings: row.get("github_project_field_mappings"),
         run_count: row.get("run_count"),

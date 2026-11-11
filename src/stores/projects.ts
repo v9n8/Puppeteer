@@ -27,6 +27,7 @@ export interface Project {
   azure_account_id: string | null
   azure_account_ids: string[]
   claude_account_id: string | null
+  codex_account_id: string | null
   github_project_board_url: string | null
   github_project_field_mappings: string | null
   run_count: number

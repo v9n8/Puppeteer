@@ -5,6 +5,7 @@ pub mod aws_accounts;
 pub mod aws_sso;
 pub mod azure_accounts;
 pub mod claude_accounts;
+pub mod codex_accounts;
 pub mod codex_sessions;
 pub mod file_tree_watcher;
 pub mod files;

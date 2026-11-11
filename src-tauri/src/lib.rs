@@ -36,6 +36,11 @@ use commands::claude_accounts::{
     submit_claude_login_code, set_default_claude_account,
     set_project_claude_account, validate_claude_account, BalanceGuard,
 };
+use commands::codex_accounts::{
+    cancel_codex_account_login, create_codex_account, delete_codex_account, list_codex_accounts,
+    login_codex_account, rename_codex_account, set_default_codex_account,
+    set_project_codex_account, validate_codex_account,
+};
 use commands::codex_sessions::reconcile_codex_sessions;
 use commands::file_tree_watcher::{
     set_file_tree_watch, stop_file_tree_watch, FileTreeWatchers,
@@ -581,6 +586,15 @@ pub fn run() {
             validate_claude_account,
             set_project_claude_account,
             get_claude_balance,
+            list_codex_accounts,
+            create_codex_account,
+            rename_codex_account,
+            delete_codex_account,
+            set_default_codex_account,
+            login_codex_account,
+            cancel_codex_account_login,
+            validate_codex_account,
+            set_project_codex_account,
             list_google_calendars,
             list_google_calendar_events,
             create_google_calendar_event,

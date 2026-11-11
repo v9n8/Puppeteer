@@ -459,6 +459,7 @@
       "azureAccounts": "Azure accounts",
       "googleAccounts": "Google accounts",
       "claudeAccounts": "Claude accounts",
+      "codexAccounts": "Codex accounts",
       "notes": "Notes",
       "secretNotes": "Secret notes",
       "todos": "Todos",

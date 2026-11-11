@@ -459,6 +459,7 @@
       "azureAccounts": "Tài khoản Azure",
       "googleAccounts": "Tài khoản Google",
       "claudeAccounts": "Tài khoản Claude",
+      "codexAccounts": "Tài khoản Codex",
       "notes": "Ghi chú",
       "secretNotes": "Note bí mật",
       "todos": "Todo",

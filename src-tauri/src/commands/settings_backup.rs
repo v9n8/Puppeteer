@@ -3,7 +3,7 @@
 //!
 //! The file is JSON (`*.puppeteer-backup`). It holds the portable app settings, the Skills / Rules
 //! library (file contents included) with their groups, the Agents / Commands library, MCP servers,
-//! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude), notes / todos and Slack threads (messages and
+//! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude, Codex), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links, defaults for new
 //! sessions, standing tool permissions. Sessions and usage history stay on the machine; the bookmarks on them travel, and
@@ -108,6 +108,8 @@ struct Bundle {
     #[serde(default)]
     claude_accounts: Vec<ClaudeEntry>,
     #[serde(default)]
+    codex_accounts: Vec<CodexEntry>,
+    #[serde(default)]
     notes: Vec<NoteEntry>,
     #[serde(default)]
     todos: Vec<TodoEntry>,
@@ -182,6 +184,8 @@ struct ProjectEntry {
     azure_account: Option<String>,
     #[serde(default)]
     claude_account: Option<String>,
+    #[serde(default)]
+    codex_account: Option<String>,
     #[serde(default)]
     repos: Vec<RepoEntry>,
     #[serde(default)]
@@ -418,6 +422,12 @@ struct GoogleEntry {
 
 #[derive(Serialize, Deserialize)]
 struct ClaudeEntry {
+    id: String,
+    label: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CodexEntry {
     id: String,
     label: String,
 }
@@ -769,6 +779,7 @@ impl Bundle {
             ("azureAccounts", self.azure_accounts.len()),
             ("googleAccounts", self.google_accounts.len()),
             ("claudeAccounts", self.claude_accounts.len()),
+            ("codexAccounts", self.codex_accounts.len()),
             ("notes", self.notes.len()),
             ("todos", self.todos.len()),
             ("slackThreads", self.slack_threads.len()),
@@ -1209,6 +1220,16 @@ async fn collect(
             label: row.get("label"),
         })
         .collect();
+    let codex_accounts = sqlx::query("SELECT id, label FROM codex_accounts ORDER BY label")
+        .fetch_all(db)
+        .await
+        .map_err(err)?
+        .iter()
+        .map(|row| CodexEntry {
+            id: row.get("id"),
+            label: row.get("label"),
+        })
+        .collect();
 
     let project_of = |row: &sqlx::sqlite::SqliteRow| -> Option<ProjectRef> {
         let name: Option<String> = row.get("project_name");
@@ -1302,6 +1323,7 @@ async fn collect(
         azure_accounts,
         google_accounts,
         claude_accounts,
+        codex_accounts,
         notes,
         todos,
         slack_threads,
@@ -1417,13 +1439,14 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
                 p.position, p.github_project_board_url, p.github_project_field_mappings, \
                 p.color, p.icon, p.hidden, \
                 gh.label AS github_account, gl.label AS gitlab_account, aws.label AS aws_account, az.label AS azure_account, \
-                cl.label AS claude_account \
+                cl.label AS claude_account, cx.label AS codex_account \
          FROM projects p \
          LEFT JOIN github_accounts gh ON gh.id = p.github_account_id \
          LEFT JOIN gitlab_accounts gl ON gl.id = p.gitlab_account_id \
          LEFT JOIN aws_accounts aws ON aws.id = p.aws_account_id \
          LEFT JOIN azure_accounts az ON az.id = p.azure_account_id \
          LEFT JOIN claude_accounts cl ON cl.id = p.claude_account_id \
+         LEFT JOIN codex_accounts cx ON cx.id = p.codex_account_id \
          WHERE p.deleted_at IS NULL \
          ORDER BY p.position, p.name",
     )
@@ -1575,6 +1598,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             aws_account: row.get("aws_account"),
             azure_account: row.get("azure_account"),
             claude_account: row.get("claude_account"),
+            codex_account: row.get("codex_account"),
             repos,
             skills,
             rules,
@@ -1968,6 +1992,10 @@ async fn apply_bundle(
     for entry in &bundle.claude_accounts {
         let result = import_claude(&app, db, entry).await;
         report.record("claudeAccounts", &entry.label, result);
+    }
+    for entry in &bundle.codex_accounts {
+        let result = import_codex(&app, db, entry).await;
+        report.record("codexAccounts", &entry.label, result);
     }
     // Projects before notes / todos / threads so those can re-link to them.
     let app_data = app.path().app_data_dir().ok();
@@ -2835,6 +2863,32 @@ async fn import_claude(app: &AppHandle, db: &Db, entry: &ClaudeEntry) -> Result<
     Ok(Upsert::Created)
 }
 
+async fn import_codex(app: &AppHandle, db: &Db, entry: &CodexEntry) -> Result<Upsert, String> {
+    if id_by(db, "codex_accounts", "label", &entry.label)
+        .await?
+        .is_some()
+    {
+        return Ok(Upsert::Unchanged);
+    }
+    // The login lives in the account's CODEX_HOME, which stays on the exporting machine: the
+    // account arrives logged out and never as the default.
+    let id = free_id(db, "codex_accounts", &entry.id).await;
+    let home = crate::commands::codex_accounts::codex_accounts_root(app)?.join(&id);
+    std::fs::create_dir_all(&home).map_err(|e| e.to_string())?;
+    sqlx::query(
+        "INSERT INTO codex_accounts (id, label, home_dir, status, is_default, created_at) \
+         VALUES (?, ?, ?, 'unknown', 0, ?)",
+    )
+    .bind(&id)
+    .bind(&entry.label)
+    .bind(home.to_string_lossy().as_ref())
+    .bind(chrono::Utc::now().to_rfc3339())
+    .execute(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(Upsert::Created)
+}
+
 async fn import_note(db: &Db, entry: &NoteEntry) -> Result<Upsert, String> {
     let project_id = resolve_project(db, &entry.project).await;
     let exists = id_by(db, "notes", "id", &entry.id).await?.is_some();
@@ -3402,6 +3456,7 @@ async fn import_project(
     let aws = id_by_label(db, "aws_accounts", &entry.aws_account).await?;
     let azure = id_by_label(db, "azure_accounts", &entry.azure_account).await?;
     let claude = id_by_label(db, "claude_accounts", &entry.claude_account).await?;
+    let codex = id_by_label(db, "codex_accounts", &entry.codex_account).await?;
     // A colour / icon this version does not know (hand-edited, newer app) is left out.
     let mut appearance = |field: &str, value: &Option<String>, allowed: &[&str]| -> Option<String> {
         let value = value.clone().filter(|v| !v.is_empty())?;
@@ -3442,6 +3497,7 @@ async fn import_project(
                  aws_account_id = COALESCE(?, aws_account_id), \
                  azure_account_id = COALESCE(?, azure_account_id), \
                  claude_account_id = COALESCE(?, claude_account_id), \
+                 codex_account_id = COALESCE(?, codex_account_id), \
                  color = COALESCE(?, color), icon = COALESCE(?, icon), \
                  hidden = COALESCE(?, hidden) \
                  WHERE id = ? AND (default_engine IS NOT ? \
@@ -3453,6 +3509,7 @@ async fn import_project(
                  OR (? IS NOT NULL AND aws_account_id IS NOT ?) \
                  OR (? IS NOT NULL AND azure_account_id IS NOT ?) \
                  OR (? IS NOT NULL AND claude_account_id IS NOT ?) \
+                 OR (? IS NOT NULL AND codex_account_id IS NOT ?) \
                  OR (? IS NOT NULL AND color IS NOT ?) OR (? IS NOT NULL AND icon IS NOT ?) \
                  OR (? IS NOT NULL AND hidden IS NOT ?))",
             );
@@ -3466,6 +3523,7 @@ async fn import_project(
                 &aws,
                 &azure,
                 &claude,
+                &codex,
                 &color,
                 &icon,
             ];
@@ -3499,8 +3557,8 @@ async fn import_project(
                 "INSERT INTO projects (id, name, path, github_owner, github_repo, default_engine, \
                  created_at, position, github_project_board_url, github_project_field_mappings, \
                  github_account_id, gitlab_account_id, aws_account_id, \
-                 azure_account_id, claude_account_id, color, icon, hidden) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 azure_account_id, claude_account_id, codex_account_id, color, icon, hidden) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&id)
             .bind(&entry.name)
@@ -3517,6 +3575,7 @@ async fn import_project(
             .bind(&aws)
             .bind(&azure)
             .bind(&claude)
+            .bind(&codex)
             .bind(&color)
             .bind(&icon)
             .bind(entry.hidden.unwrap_or(false))
@@ -3953,6 +4012,50 @@ mod tests {
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    /// A project's Codex account travels by label and links to the account of that label here.
+    #[tokio::test]
+    async fn project_codex_account_travels_by_label() {
+        let source = test_db().await;
+        let home = std::env::temp_dir().join(format!("puppeteer-backup-{}", Uuid::new_v4()));
+        let path = home.join("shop");
+        sqlx::query("INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('x1', 'work', '/h/x1', 'c')")
+            .execute(&source)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, codex_account_id) VALUES ('p1', 'shop', ?, 'c', 'x1')")
+            .bind(path.to_string_lossy().as_ref())
+            .execute(&source)
+            .await
+            .unwrap();
+        let projects = collect_projects(&source).await.unwrap();
+        assert_eq!(projects[0].codex_account.as_deref(), Some("work"));
+
+        let target = test_db().await;
+        sqlx::query("INSERT INTO codex_accounts (id, label, home_dir, created_at) VALUES ('y9', 'work', '/h/y9', 'c')")
+            .execute(&target)
+            .await
+            .unwrap();
+        let linked = |id: String| {
+            let db = target.clone();
+            async move {
+                sqlx::query_scalar::<_, Option<String>>("SELECT codex_account_id FROM projects WHERE id = ?")
+                    .bind(id)
+                    .fetch_one(&db)
+                    .await
+                    .unwrap()
+            }
+        };
+        let (outcome, id, _) = import_project(&target, &projects[0], true, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Created);
+        assert_eq!(linked(id.clone()).await.as_deref(), Some("y9"));
+
+        sqlx::query("UPDATE projects SET codex_account_id = NULL").execute(&target).await.unwrap();
+        let (outcome, _, _) = import_project(&target, &projects[0], true, None).await.unwrap();
+        assert_eq!(outcome, Upsert::Updated);
+        assert_eq!(linked(id).await.as_deref(), Some("y9"));
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     /// A backup names the server id, which becomes the key folder name: a bad one gets a fresh id.
@@ -4433,6 +4536,7 @@ mod tests {
             azure_accounts: vec![],
             google_accounts: vec![],
             claude_accounts: vec![],
+            codex_accounts: vec![],
             notes: vec![],
             todos: vec![],
             slack_threads: threads,
