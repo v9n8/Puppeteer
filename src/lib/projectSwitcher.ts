@@ -75,6 +75,21 @@ export function switcherRows<T extends SwitcherProject>(
   return [...recent.map((p) => row(p, true)), ...rest.map((p) => row(p, false))]
 }
 
+/** Which tabs a "Close …" row of a tab's right-click menu closes (UX-51). */
+export type TabCloseScope = 'others' | 'right' | 'all'
+
+/**
+ * The project ids a "Close …" row closes, in strip order: every tab but
+ * `projectId`, the tabs after it, or all of them. Unknown `projectId`: none,
+ * except for "all", which does not depend on it.
+ */
+export function tabsToClose(order: readonly string[], projectId: string, scope: TabCloseScope): string[] {
+  if (scope === 'all') return [...order]
+  const at = order.indexOf(projectId)
+  if (at === -1) return []
+  return scope === 'others' ? order.filter((id) => id !== projectId) : order.slice(at + 1)
+}
+
 /** The row the arrow keys move to from `index`, wrapping at both ends; -1 when there are none. */
 export function stepIndex(index: number, delta: 1 | -1, count: number): number {
   if (count <= 0) return -1

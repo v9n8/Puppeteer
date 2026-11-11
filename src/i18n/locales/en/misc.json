@@ -32,7 +32,14 @@
   "tabs": {
     "project": "Project",
     "closeTab": "Close tab",
-    "dragToReorder": "Drag to reorder"
+    "dragToReorder": "Drag to reorder",
+    "closeOthers": "Close other tabs",
+    "closeRight": "Close tabs to the right",
+    "closeAll": "Close all tabs",
+    "viewProject": "View project",
+    "sessionDefaults": "Session defaults",
+    "clearColor": "Clear color",
+    "allTabs": "All open tabs"
   },
   "translate": {
     "heading": "Translation",

@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  MRU_LIMIT, touchMru, previousProject, switcherRows, stepIndex, wasRestored,
+  MRU_LIMIT, touchMru, previousProject, switcherRows, stepIndex, tabsToClose, wasRestored,
 } from '../projectSwitcher.ts'
 
 const p = (id, name, path = `/code/${id}`, hidden = false) => ({ id, name, path, hidden })
@@ -71,6 +71,18 @@ test('stepIndex: arrow keys wrap at both ends', () => {
   assert.equal(stepIndex(-1, 1, 3), 0)
   assert.equal(stepIndex(-1, -1, 3), 2)
   assert.equal(stepIndex(0, 1, 0), -1)
+})
+
+test('tabsToClose: other tabs, tabs to the right, all tabs', () => {
+  const order = ['a', 'b', 'c', 'd']
+  assert.deepEqual(tabsToClose(order, 'b', 'others'), ['a', 'c', 'd'])
+  assert.deepEqual(tabsToClose(order, 'b', 'right'), ['c', 'd'])
+  assert.deepEqual(tabsToClose(order, 'd', 'right'), [], 'nothing right of the last tab')
+  assert.deepEqual(tabsToClose(['a'], 'a', 'others'), [], 'nothing else open')
+  assert.deepEqual(tabsToClose(order, 'b', 'all'), order)
+  assert.notEqual(tabsToClose(order, 'b', 'all'), order, 'a copy: closing mutates the store\'s list')
+  assert.deepEqual(tabsToClose(order, 'x', 'others'), [], 'unknown tab closes nothing')
+  assert.deepEqual(tabsToClose(order, 'x', 'right'), [])
 })
 
 test('wasRestored: old row or existing sessions mean it came back from the Trash', () => {

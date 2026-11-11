@@ -32,7 +32,14 @@
   "tabs": {
     "project": "Project",
     "closeTab": "Đóng tab",
-    "dragToReorder": "Kéo để sắp xếp lại"
+    "dragToReorder": "Kéo để sắp xếp lại",
+    "closeOthers": "Đóng các tab khác",
+    "closeRight": "Đóng các tab bên phải",
+    "closeAll": "Đóng tất cả tab",
+    "viewProject": "Xem Project",
+    "sessionDefaults": "Mặc định Session",
+    "clearColor": "Bỏ màu",
+    "allTabs": "Mọi tab đang mở"
   },
   "translate": {
     "heading": "Bản dịch",
