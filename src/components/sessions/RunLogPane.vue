@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus, Bookmark,
-  ChevronsDownUp, ChevronsUpDown, GitFork,
+  ChevronsDownUp, ChevronsUpDown, ChevronsUp, ChevronsDown, GitFork,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
@@ -49,6 +49,29 @@ function openForkSource() {
   if (forkLinkable.value && forkSourceRun.value) void loadRunLog(forkSourceRun.value.id)
 }
 const uiLayout = useUILayoutStore()
+
+// Floating column (E8): round 32px buttons, icons only.
+const NAV_BTN =
+  'flex h-6 w-6 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer'
+const JUMP_BTN =
+  'pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-foreground/80 shadow-md transition-[opacity,color] hover:text-foreground cursor-pointer'
+const JUMP_OFF = 'pointer-events-none opacity-0'
+// "Top" once the reader has left the start of the log; "Latest" once they have
+// scrolled up away from the bottom (live), or the history window is not at its end.
+const canJumpTop = computed(() => turnPositionTracked.value && turnAwayFromTop.value)
+const canJumpLatest = computed(() =>
+  isViewingHistory.value
+    ? historyHasStream.value && !historyLoading.value && (historyAwayFromBottom.value || historyHasMoreBelow.value)
+    : hasLiveOutput.value && !stickToBottom.value,
+)
+function jumpToLatest() {
+  if (isViewingHistory.value) {
+    scrollHistoryToLatest()
+  } else {
+    stickToBottom.value = true
+    scrollOutputToBottom()
+  }
+}
 
 // Directive for RunView's own markdown containers (issue/PR Content, legacy
 // HTML). Marks inline `<code>` that names a project file as a clickable link.
@@ -202,64 +225,6 @@ function onOpenUrl(url: string) {
             <span class="truncate">{{ forkedFromLabel }}</span>
           </component>
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
-            <!-- Prompt navigator: step between the user's own messages or
-                 pick one from the list. Lives in the toolbar (not floating
-                 over the chat) so it never covers the conversation. Only
-                 worth showing once there is more than one prompt. -->
-            <div
-              v-if="showTurnNav"
-              class="flex items-center h-6 rounded border border-border text-2xs font-mono text-foreground/70"
-            >
-              <button
-                type="button"
-                class="flex items-center h-full rounded-l px-1 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-                :title="t('run.prevPrompt')"
-                @click="prevTurn"
-              >
-                <ChevronUp class="h-3.5 w-3.5" :stroke-width="2" />
-              </button>
-              <DropdownMenu align="right" @update:open="onTurnMenuToggle">
-                <template #trigger>
-                  <button
-                    type="button"
-                    class="flex items-center gap-1 h-full border-x border-border px-1.5 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-                    :title="t('run.promptList')"
-                  >
-                    <MessageSquare class="h-3.5 w-3.5" :stroke-width="1.75" />
-                    <span class="tabular-nums">{{ turnCounterLabel(currentTurnSeq, navTurns.length) }}</span>
-                  </button>
-                </template>
-                <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
-                  <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
-                    {{ t('run.promptList') }}
-                  </div>
-                  <DropdownItem
-                    v-for="(turn, ti) in navTurns"
-                    :key="ti"
-                    :variant="ti === activeTurnSeq ? 'primary' : 'default'"
-                    class="!items-start"
-                    @click="jumpToSessionTurn(ti, true)"
-                  >
-                    <span
-                      class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-2xs font-mono tabular-nums"
-                      :class="ti === activeTurnSeq ? 'bg-primary/15 text-primary' : 'bg-muted text-foreground/45'"
-                    >{{ ti + 1 }}</span>
-                    <span
-                      class="min-w-0 flex-1 whitespace-normal break-words leading-snug line-clamp-2"
-                      :class="turn.label ? '' : 'italic text-foreground/40'"
-                    >{{ turn.label || t('run.promptNoText') }}</span>
-                  </DropdownItem>
-                </div>
-              </DropdownMenu>
-              <button
-                type="button"
-                class="flex items-center h-full rounded-r px-1 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-                :title="t('run.nextPrompt')"
-                @click="nextTurn"
-              >
-                <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
-              </button>
-            </div>
             <!-- Bookmarked turns of this session; picking one jumps there
                  like the prompt list does (a window read at its offset). -->
             <DropdownMenu
@@ -361,7 +326,7 @@ function onOpenUrl(url: string) {
       <div
         v-if="isViewingHistory"
         ref="historyEl"
-        class="chat-text flex-1 min-h-0 overflow-auto p-4"
+        class="chat-text flex-1 min-h-0 overflow-auto p-4 pr-14"
         @scroll="onHistoryScroll"
       >
         <!-- Loading animation while the log is read + parsed from disk. -->
@@ -433,7 +398,7 @@ function onOpenUrl(url: string) {
       <div
         v-else-if="hasLiveOutput"
         ref="outputEl"
-        class="chat-text flex-1 min-h-0 overflow-auto p-4"
+        class="chat-text flex-1 min-h-0 overflow-auto p-4 pr-14"
         @scroll="onOutputScroll"
         @pointerdown="onOutputPointerDown"
       >
@@ -489,37 +454,92 @@ function onOpenUrl(url: string) {
         </div>
       </div>
 
-      <!-- Jump-to-top / jump-to-latest buttons: "Top" once the reader
-           has left the start of the log, "Latest" once they have scrolled
-           up away from the bottom. The prompt navigator now lives in the
-           toolbar, so these always sit at the bottom. -->
-      <div class="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+      <!-- Floating column at the bottom right (after AWOG's SessionTranscript):
+           the prompt navigator — previous prompt · n/N (opens the prompt list) ·
+           next prompt — then Top and Latest. Top and Latest always keep their
+           place, dimmed while there is nowhere to go, so the navigator above
+           them never jumps. The log keeps a right gutter (pr-14) for it. -->
+      <div
+        v-if="isViewingHistory ? historyHasStream : hasLiveOutput"
+        class="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col items-center gap-1.5"
+      >
+        <div
+          v-if="showTurnNav"
+          class="pointer-events-auto flex w-8 flex-col items-center rounded-full border border-border bg-card py-0.5 shadow-md"
+          role="group"
+          :aria-label="t('run.promptNav')"
+        >
+          <button
+            type="button"
+            :class="NAV_BTN"
+            :title="t('run.prevPrompt')"
+            :aria-label="t('run.prevPrompt')"
+            @click="prevTurn"
+          >
+            <ChevronUp class="h-3.5 w-3.5" :stroke-width="2" />
+          </button>
+          <DropdownMenu align="right" prefer="above" @update:open="onTurnMenuToggle">
+            <template #trigger>
+              <button
+                type="button"
+                class="rounded px-0.5 text-2xs font-mono tabular-nums text-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+                :title="t('run.promptList')"
+                :aria-label="t('run.promptList')"
+              >{{ turnCounterLabel(currentTurnSeq, navTurns.length) }}</button>
+            </template>
+            <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
+              <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
+                {{ t('run.promptList') }}
+              </div>
+              <DropdownItem
+                v-for="(turn, ti) in navTurns"
+                :key="ti"
+                :variant="ti === activeTurnSeq ? 'primary' : 'default'"
+                class="!items-start"
+                @click="jumpToSessionTurn(ti, true)"
+              >
+                <span
+                  class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-2xs font-mono tabular-nums"
+                  :class="ti === activeTurnSeq ? 'bg-primary/15 text-primary' : 'bg-muted text-foreground/45'"
+                >{{ ti + 1 }}</span>
+                <span
+                  class="min-w-0 flex-1 whitespace-normal break-words leading-snug line-clamp-2"
+                  :class="turn.label ? '' : 'italic text-foreground/40'"
+                >{{ turn.label || t('run.promptNoText') }}</span>
+              </DropdownItem>
+            </div>
+          </DropdownMenu>
+          <button
+            type="button"
+            :class="NAV_BTN"
+            :title="t('run.nextPrompt')"
+            :aria-label="t('run.nextPrompt')"
+            @click="nextTurn"
+          >
+            <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
+          </button>
+        </div>
         <button
-          v-if="turnPositionTracked && turnAwayFromTop"
-          class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+          type="button"
+          :class="[JUMP_BTN, !canJumpTop && JUMP_OFF]"
           :title="t('run.scrollToTop')"
+          :aria-label="t('run.scrollToTop')"
+          :aria-hidden="!canJumpTop || undefined"
+          :tabindex="canJumpTop ? undefined : -1"
           @click="scrollToFirstTurn"
         >
-          <ChevronUp class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('run.top') }}
+          <ChevronsUp class="h-4 w-4" :stroke-width="2" />
         </button>
         <button
-          v-if="hasLiveOutput && !isViewingHistory && !stickToBottom"
-          class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
+          type="button"
+          :class="[JUMP_BTN, !canJumpLatest && JUMP_OFF]"
           :title="t('run.scrollToLatest')"
-          @click="stickToBottom = true; scrollOutputToBottom()"
+          :aria-label="t('run.scrollToLatest')"
+          :aria-hidden="!canJumpLatest || undefined"
+          :tabindex="canJumpLatest ? undefined : -1"
+          @click="jumpToLatest"
         >
-          <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('run.latest') }}
-        </button>
-        <button
-          v-else-if="isViewingHistory && historyHasStream && !historyLoading && (historyAwayFromBottom || historyHasMoreBelow)"
-          class="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-2xs font-mono text-foreground/80 shadow-md transition-colors hover:bg-card hover:text-foreground cursor-pointer"
-          :title="t('run.scrollToLatest')"
-          @click="scrollHistoryToLatest"
-        >
-          <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
-          {{ t('run.latest') }}
+          <ChevronsDown class="h-4 w-4" :stroke-width="2" />
         </button>
       </div>
       </div>
