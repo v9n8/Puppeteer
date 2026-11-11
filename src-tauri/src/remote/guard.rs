@@ -88,6 +88,9 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "library_write",
     "library_delete",
     "library_duplicate_to_global",
+    // Turning Puppeteer's links into files across HOME and every project (UX-58), and its preview.
+    "library_materialize_preview",
+    "library_materialize",
     // Import from other tools: reads this machine's tool configs (`~/.claude.json` holds the
     // Claude account) and fills the libraries from them.
     "list_import_sources",
@@ -761,6 +764,8 @@ mod tests {
             "library_write",
             "library_delete",
             "library_duplicate_to_global",
+            "library_materialize_preview",
+            "library_materialize",
             "list_import_sources",
             "scan_import_source",
             "import_candidates",

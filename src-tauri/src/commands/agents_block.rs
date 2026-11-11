@@ -97,6 +97,23 @@ pub fn strip_all(content: &str) -> String {
     out
 }
 
+/// `content` with every managed block's markers dropped and its text left where it was: the text
+/// becomes the user's own (UX-58). A block with no END marker is kept, like [`strip_all`].
+pub fn unwrap_all(content: &str) -> String {
+    let mut out = String::new();
+    let mut rest = content;
+    while let Some((s, e)) = next_block(rest) {
+        let block = &rest[s..e];
+        let body_start = block.find(" START -->").map_or(0, |i| i + " START -->".len());
+        let body_end = block.rfind("<!-- puppeteer:").unwrap_or(block.len());
+        out.push_str(&rest[..s]);
+        out.push_str(block[body_start..body_end].trim_matches(['\r', '\n']));
+        rest = &rest[e..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// `kind:name` of the managed blocks in `content`, in file order (up to one with no END marker,
 /// like [`strip_all`]).
 pub fn block_names(content: &str) -> Vec<String> {
@@ -193,6 +210,18 @@ mod tests {
                        <!-- puppeteer:skill:b START -->\ny\n<!-- puppeteer:skill:b END -->\n";
         assert_eq!(block_names(content), vec!["rule:a".to_string(), "skill:b".to_string()]);
         assert!(block_names("# Mine\n").is_empty());
+    }
+
+    #[test]
+    fn unwrap_keeps_every_block_text_and_drops_only_the_markers() {
+        let content = "# Mine\n\n<!-- puppeteer:rule:a START -->\nUse tabs.\n<!-- puppeteer:rule:a END -->\n\n\
+                       Between\n\n<!-- puppeteer:skill:b START -->\n## Skill: b\nSteps\n<!-- puppeteer:skill:b END -->\n";
+        assert_eq!(unwrap_all(content), "# Mine\n\nUse tabs.\n\nBetween\n\n## Skill: b\nSteps\n");
+        assert!(block_names(&unwrap_all(content)).is_empty());
+        // No block, or one with no END marker: left as it is.
+        assert_eq!(unwrap_all("# Mine\n"), "# Mine\n");
+        let open = "# Mine\n<!-- puppeteer:rule:x START -->\nmine\n";
+        assert_eq!(unwrap_all(open), open);
     }
 
     #[cfg(unix)]

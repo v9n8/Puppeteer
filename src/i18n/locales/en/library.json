@@ -46,7 +46,7 @@
   "duplicated": "Duplicated to Global: {path}",
   "duplicateExistsTitle": "Already in Global",
   "duplicateExistsMessage": "Global already has \"{name}\". Overwrite it? The global file goes to the Trash (a link is only removed).",
-  "puppeteerLinkWarning": "Editing changes this in every project that uses it.",
+  "puppeteerLinkWarning": "Editing changes this in every project that uses it. “Convert links” at the top gives each one a file of its own.",
   "memoryMissing": "This file doesn't exist yet: saving creates it.",
   "conflict": "The file changed on disk since it was opened.",
   "reloadDiscard": "Reload (drop my changes)",
@@ -61,5 +61,24 @@
   "removeLink": "Remove link",
   "moveToTrash": "Move to Trash",
   "linkRemoved": "Link removed",
-  "movedToTrash": "Moved to the Trash"
+  "movedToTrash": "Moved to the Trash",
+  "materialize": {
+    "open": "Convert links",
+    "openHint": "Turn every link into Puppeteer's old library (HOME and every project) into a file of its own. You see the list first.",
+    "title": "Turn links into files",
+    "intro": "Skills, rules, commands and agents Puppeteer linked from its old library are shared: editing one changes it in every project linked to it.\nEach link below becomes a copy of its own, with the same content. Puppeteer's blocks in a project's AGENTS.md keep their text and lose only their markers. Nothing else is touched.",
+    "home": "Global (HOME)",
+    "loading": "Looking for links…",
+    "nothing": "Nothing to change: no link into Puppeteer's old library is left.",
+    "inGitWarning": "{count} of these are tracked by git: the change shows up in the repo and goes into your next commit.",
+    "copiedFrom": "Copied from {target}",
+    "blocks": "Block markers removed, text kept: {names}",
+    "leftAsIs": "Left as is: {error}",
+    "apply": "Convert {count}",
+    "applying": "Converting…",
+    "done": "Converted {count}.",
+    "failed": "Stopped at {path}: {error}. What was converted before it stays converted.",
+    "skipped": "{count} needed no change any more.",
+    "libraryKept": "The old library stays as it is. Each change is logged."
+  }
 }

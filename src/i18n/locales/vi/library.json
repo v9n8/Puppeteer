@@ -46,7 +46,7 @@
   "duplicated": "Đã duplicate sang Global: {path}",
   "duplicateExistsTitle": "Global đã có",
   "duplicateExistsMessage": "Global đã có \"{name}\". Ghi đè? File global sẽ vào Thùng rác (nếu là link thì chỉ gỡ link).",
-  "puppeteerLinkWarning": "Sửa sẽ đổi ở mọi project dùng mục này.",
+  "puppeteerLinkWarning": "Sửa sẽ đổi ở mọi project dùng mục này. Nút “Đổi link thành file” ở đầu màn tách mỗi chỗ thành file riêng.",
   "memoryMissing": "File này chưa có: lưu sẽ tạo file.",
   "conflict": "File đã đổi trên đĩa từ lúc mở.",
   "reloadDiscard": "Tải lại (bỏ thay đổi của tôi)",
@@ -61,5 +61,24 @@
   "removeLink": "Gỡ link",
   "moveToTrash": "Đưa vào Thùng rác",
   "linkRemoved": "Đã gỡ link",
-  "movedToTrash": "Đã đưa vào Thùng rác"
+  "movedToTrash": "Đã đưa vào Thùng rác",
+  "materialize": {
+    "open": "Đổi link thành file",
+    "openHint": "Đổi mọi link về thư viện cũ của Puppeteer (HOME và mọi project) thành file riêng. Bạn xem danh sách trước.",
+    "title": "Đổi link thành file",
+    "intro": "Skill, rule, command và agent mà Puppeteer link từ thư viện cũ đang dùng chung: sửa một chỗ là đổi ở mọi project link tới nó.\nMỗi link bên dưới sẽ thành một bản copy riêng, cùng nội dung. Khối của Puppeteer trong AGENTS.md của project giữ nguyên chữ, chỉ bỏ dấu đánh dấu. Không đụng gì khác.",
+    "home": "Global (HOME)",
+    "loading": "Đang tìm link…",
+    "nothing": "Không có gì để đổi: không còn link nào về thư viện cũ của Puppeteer.",
+    "inGitWarning": "{count} mục đang được git theo dõi: thay đổi sẽ hiện trong repo và vào commit tiếp theo của bạn.",
+    "copiedFrom": "Copy từ {target}",
+    "blocks": "Bỏ dấu đánh dấu khối, giữ chữ: {names}",
+    "leftAsIs": "Giữ nguyên: {error}",
+    "apply": "Đổi {count} mục",
+    "applying": "Đang đổi…",
+    "done": "Đã đổi {count} mục.",
+    "failed": "Dừng ở {path}: {error}. Các mục đã đổi trước đó vẫn giữ.",
+    "skipped": "{count} mục không còn cần đổi.",
+    "libraryKept": "Thư viện cũ giữ nguyên. Mỗi thay đổi đều được ghi log."
+  }
 }

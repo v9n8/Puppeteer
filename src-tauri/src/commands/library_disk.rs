@@ -27,6 +27,8 @@ use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Manager, State};
 
+pub mod materialize;
+
 /// Error prefix of a write refused because the file changed on disk since it was read.
 pub const CONFLICT: &str = "library_conflict";
 /// Error prefix of a duplicate refused because Global already has that name; the UI asks to

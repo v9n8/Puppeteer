@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PROJECT_ITEM_KINDS, deletesLink, isLibraryConflict, isLibraryExists, kindGroups, libraryPlace, libraryQuery,
-  memoryItem, memoryKindOf,
+  materializeCounts, materializePaths, memoryItem, memoryKindOf,
 } from '../libraryDisk.ts'
 
 const item = (kind, name, engine = 'claude', description = '') => ({
@@ -97,4 +97,29 @@ test('libraryPlace / libraryQuery: the URL query round-trips', () => {
   assert.deepEqual(libraryQuery(place), { scope: 'project', project: 'p1', path: '/x/a.md' })
   assert.deepEqual(libraryPlace(libraryQuery(place)), place)
   assert.deepEqual(libraryQuery({ scope: 'global', projectId: 'p1', path: null }), { scope: 'global' })
+})
+
+const link = (entry, extra = {}) => ({
+  kind: 'skill', engine: 'claude', name: entry, entry, target: `/lib/${entry}`, git_tracked: false, error: null, ...extra,
+})
+const plan = [
+  { scope: 'global', project_id: null, project_name: null, root: '/h', links: [link('/h/a')], agents_md: null },
+  {
+    scope: 'project', project_id: 'p1', project_name: 'P', root: '/p',
+    links: [link('/p/b', { git_tracked: true }), link('/p/gone', { error: 'target missing' })],
+    agents_md: { path: '/p/AGENTS.md', blocks: ['rule:x'], git_tracked: true, error: null },
+  },
+  {
+    scope: 'project', project_id: 'p2', project_name: 'Q', root: '/q', links: [],
+    agents_md: { path: '/q/AGENTS.md', blocks: ['rule:y'], git_tracked: false, error: 'is a link' },
+  },
+]
+
+test('materializePaths: every link and AGENTS.md that can change, in order; blocked ones left out', () => {
+  assert.deepEqual(materializePaths(plan), ['/h/a', '/p/b', '/p/AGENTS.md'])
+  assert.deepEqual(materializePaths([]), [])
+})
+
+test('materializeCounts: what changes and how much of it git tracks, blocked ones left out', () => {
+  assert.deepEqual(materializeCounts(plan), { changes: 3, inGit: 2 })
 })

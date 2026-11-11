@@ -74,7 +74,7 @@ fn in_puppeteer_library(path: &Path) -> bool {
 }
 
 /// Whether git tracks anything at `dest` (a file, or files under a folder) in the project's repo.
-fn git_tracked(root: &Path, dest: &Path) -> bool {
+pub(crate) fn git_tracked(root: &Path, dest: &Path) -> bool {
     let Ok(rel) = dest.strip_prefix(root) else { return false };
     std::process::Command::new("git")
         .arg("-C")

@@ -4,7 +4,8 @@
 // folders, a project's tab its own. Replaces the Skills, Rules, Agents,
 // Commands and Import screens; nothing is created here, only listed, edited,
 // deleted, duplicated from a project to Global, or imported from another AI
-// tool as files into the tab's `.claude/` folders (UX-56). A project's tab
+// tool as files into the tab's `.claude/` folders (UX-56), or the links
+// Puppeteer made into its old library turned into files (UX-58). A project's tab
 // also lists its Memory (CLAUDE.md / AGENTS.md, UX-55/D12), through memory_*
 // because the file may not exist yet: opening it shows an empty editor, a save
 // creates it.
@@ -14,13 +15,14 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertCircle, Import, Library, RotateCw } from 'lucide-vue-next'
+import { AlertCircle, Import, Library, RotateCw, Unlink } from 'lucide-vue-next'
 import { Badge, Button, PageHeader, SegmentedControl } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import LibraryProjectList from '@/components/library/LibraryProjectList.vue'
 import LibraryEntryDetail from '@/components/library/LibraryEntryDetail.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
+import LibraryMaterializeDialog from '@/components/library/LibraryMaterializeDialog.vue'
 import { invoke } from '@/lib/tauri'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -299,6 +301,12 @@ const importDestLabel = computed(() => {
   return `${root}/.claude/`
 })
 
+// ── Links into the old library → files (UX-58) ─────────────────────────────
+
+// Changes files in HOME and every project: local-only.
+const canMaterialize = !isRemoteMode()
+const materializeOpen = ref(false)
+
 const emptyTitle = computed(() =>
   scope.value === 'project' && !activeProjectId.value ? t('library.noProjects') : t('library.emptyTitle'),
 )
@@ -322,6 +330,16 @@ const emptyTitle = computed(() =>
         >
           <Import class="h-3.5 w-3.5" :stroke-width="1.75" />
           {{ t('library.import') }}
+        </Button>
+        <Button
+          v-if="canMaterialize"
+          variant="ghost"
+          size="xs"
+          :title="t('library.materialize.openHint')"
+          @click="materializeOpen = true"
+        >
+          <Unlink class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ t('library.materialize.open') }}
         </Button>
         <Button
           variant="ghost"
@@ -421,5 +439,7 @@ const emptyTitle = computed(() =>
       :dest-label="importDestLabel"
       @imported="scan"
     />
+
+    <LibraryMaterializeDialog v-if="canMaterialize" v-model:open="materializeOpen" @changed="scan" />
   </div>
 </template>

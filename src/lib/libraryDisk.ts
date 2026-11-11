@@ -13,6 +13,9 @@ export const CMD_LIBRARY_READ = 'library_read'
 export const CMD_LIBRARY_WRITE = 'library_write'
 export const CMD_LIBRARY_DELETE = 'library_delete'
 export const CMD_LIBRARY_DUPLICATE = 'library_duplicate_to_global'
+/** UX-58: turning Puppeteer's links into files. Both local-only. */
+export const CMD_LIBRARY_MATERIALIZE_PREVIEW = 'library_materialize_preview'
+export const CMD_LIBRARY_MATERIALIZE = 'library_materialize'
 
 export type LibraryScope = 'global' | 'project'
 export type DiskItemKind = 'skill' | 'rule' | 'command' | 'agent'
@@ -159,4 +162,64 @@ export function libraryQuery(place: LibraryPlace): Record<string, string> {
   if (place.scope === 'project' && place.projectId) q.project = place.projectId
   if (place.path) q.path = place.path
   return q
+}
+
+// ── Links into the old library → files (UX-58) ─────────────────────────────
+
+/** A link `library_materialize` turns into a file (or a skill's folder). */
+export interface PlannedLink {
+  kind: DiskItemKind
+  engine: 'claude' | 'codex'
+  name: string
+  /** The link, as the list shows it: the id the apply takes back. */
+  entry: string
+  /** What it points at in the old library: copied in its place. */
+  target: string
+  git_tracked: boolean
+  /** Why it can't be changed (its target is gone, …): left as is. */
+  error: string | null
+}
+
+/** A project's AGENTS.md whose Puppeteer blocks lose their markers (the text stays). */
+export interface PlannedBlocks {
+  path: string
+  /** `kind:name` of each block. */
+  blocks: string[]
+  git_tracked: boolean
+  error: string | null
+}
+
+/** What changes in HOME (`global`) or one project, as `library_materialize_preview` returns it. */
+export interface PlannedPlace {
+  scope: LibraryScope
+  project_id: string | null
+  project_name: string | null
+  root: string
+  links: PlannedLink[]
+  agents_md: PlannedBlocks | null
+}
+
+export interface MaterializeOutcome {
+  done: string[]
+  /** Where it stopped; what is in `done` stays done. */
+  failed: { path: string; error: string } | null
+  /** Confirmed but nothing to do any more. */
+  skipped: string[]
+}
+
+/** The paths the apply is confirmed for: every link and AGENTS.md the preview can change. */
+export function materializePaths(plan: readonly PlannedPlace[]): string[] {
+  return plan.flatMap((p) => [
+    ...p.links.filter((l) => !l.error).map((l) => l.entry),
+    ...(p.agents_md && !p.agents_md.error ? [p.agents_md.path] : []),
+  ])
+}
+
+/** Counts for the preview: what changes, and how much of it git tracks. */
+export function materializeCounts(plan: readonly PlannedPlace[]): { changes: number; inGit: number } {
+  const all = plan.flatMap((p) => [...p.links, ...(p.agents_md ? [p.agents_md] : [])])
+  return {
+    changes: all.filter((x) => !x.error).length,
+    inGit: all.filter((x) => !x.error && x.git_tracked).length,
+  }
 }
