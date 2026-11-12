@@ -25,7 +25,7 @@ import {
 } from '@/lib/turnActivity'
 import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
 import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
-import { findPlainPaths, hrefFileRef, linkPlainPaths, parseLineRef, splitLineRef, type PathChecker } from '@/lib/fileLinks'
+import { codePathCandidate, findPlainPaths, hrefFileRef, linkPlainPaths, parseLineRef, splitLineRef, type PathChecker } from '@/lib/fileLinks'
 import FileLinkMenu from './FileLinkMenu.vue'
 
 const { t } = useI18n()
@@ -91,18 +91,38 @@ function linkFiles(el: HTMLElement) {
 
 function decorateFileLinks(el: HTMLElement) {
   const match = props.fileMatcher
-  if (!match) return
+  const checker = props.pathChecker
+  if (!match && !checker) return
+  const unknown: Array<{ code: HTMLElement; raw: string; path: string }> = []
   el.querySelectorAll('code').forEach((code) => {
     if (code.closest('pre')) return // skip multi-line code blocks
-    const path = match((code.textContent ?? '').trim())
-    if (path) {
-      code.classList.add('file-link')
-      code.setAttribute('data-file-path', path)
-    } else {
-      code.classList.remove('file-link')
-      code.removeAttribute('data-file-path')
-    }
+    const raw = (code.textContent ?? '').trim()
+    // The project list leaves git-ignored files out, so a token it doesn't know
+    // is asked of the disk: an ignored file is still one the user can open.
+    const matched = match?.(raw) ?? null
+    const candidate = matched ? null : codePathCandidate(raw)
+    const known = candidate ? checker?.known(candidate) : undefined
+    setFileLink(code, matched ?? (known ? candidate : null))
+    if (candidate && known === undefined) unknown.push({ code, raw, path: candidate })
   })
+  if (!checker || !unknown.length) return
+  checker.check(unknown.map((u) => u.path)).then(() => {
+    for (const u of unknown) {
+      // Re-rendered while the answer was on its way: that render decides.
+      if (!u.code.isConnected || (u.code.textContent ?? '').trim() !== u.raw) continue
+      if (checker.known(u.path)) setFileLink(u.code, u.path)
+    }
+  }, () => { /* backend unavailable: leave as text */ })
+}
+
+function setFileLink(code: HTMLElement, path: string | null) {
+  if (path) {
+    code.classList.add('file-link')
+    code.setAttribute('data-file-path', path)
+  } else {
+    code.classList.remove('file-link')
+    code.removeAttribute('data-file-path')
+  }
 }
 
 function onProseClick(e: MouseEvent) {

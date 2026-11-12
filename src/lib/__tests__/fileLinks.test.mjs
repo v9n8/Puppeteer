@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import MarkdownIt from 'markdown-it'
 import {
-  createPathChecker, findPlainPaths, hrefFileRef, matchProjectFile, parseLineRef, splitLineRef,
+  codePathCandidate, createPathChecker, findPlainPaths, hrefFileRef, matchProjectFile, parseLineRef, splitLineRef,
 } from '../fileLinks.ts'
 
 const FILES = new Set(['src/a.ts', 'src/lib/b.ts', 'docs/README.md', 'README.md', 'x/dup.ts', 'y/dup.ts'])
@@ -104,6 +104,16 @@ test('findPlainPaths: what must not read as a path', () => {
     'www.example.com', 'foo.tsz', 'foo.ts-bar', '~/notes/a.md', 'C:/x/a.ts', 'just words',
   ]) {
     assert.deepEqual(found(text), [], text)
+  }
+})
+
+test('codePathCandidate: an inline-code path the project list may not know', () => {
+  assert.equal(codePathCandidate('tasks/#27/po-comment-draft.md'), 'tasks/#27/po-comment-draft.md')
+  assert.equal(codePathCandidate('dist/app.js:12'), 'dist/app.js')
+  assert.equal(codePathCandidate('.env.local'), null) // `local` is not a file extension we link
+  assert.equal(codePathCandidate('/Users/me/proj/out/a.ts#L3,'), '/Users/me/proj/out/a.ts')
+  for (const raw of ['', 'pnpm build:vite', 'array.map', 'v1.2.3', 'x'.repeat(198) + '.ts']) {
+    assert.equal(codePathCandidate(raw), null, raw)
   }
 })
 

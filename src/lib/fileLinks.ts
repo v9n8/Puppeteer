@@ -104,6 +104,19 @@ const PLAIN_PATH_RE =
 const PATH_GLUE_BEFORE = /[\w.@/:~\\-]/
 const PATH_GLUE_AFTER = /[\w/@+\\-]/
 
+/**
+ * The path an inline-code token names when the project list doesn't know it
+ * (git-ignored, outside the project, created since the list loaded), for the
+ * backend to confirm; null when the token doesn't read as a file path. Ignore
+ * rules only keep files out of git, so they must not keep a link from opening.
+ */
+export function codePathCandidate(raw: string): string | null {
+  if (!raw || raw.length > 200 || /\s/.test(raw)) return null
+  const path = splitLineRef(raw.replace(TRAILING_PUNCT, '')).path
+  const ext = path.match(/\.([a-z0-9]+)$/i)?.[1]
+  return ext && PATH_EXTENSIONS.has(ext.toLowerCase()) ? path : null
+}
+
 /** A bare path found in prose: where it sits, the text as written, the path without its line. */
 export interface PlainPath {
   start: number
