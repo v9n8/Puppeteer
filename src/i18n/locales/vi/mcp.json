@@ -133,6 +133,8 @@
     "hint": "Dán hướng dẫn cài đặt MCP server: đoạn cấu hình, lệnh cài đặt, hoặc link README (GitHub, npm). Viết cho công cụ nào cũng được.",
     "placeholder": "Ví dụ: một khối cấu hình JSON, một lệnh cài đặt, hoặc https://github.com/…/…",
     "privacy": "Định dạng quen thuộc được đọc ngay trên máy. Chỉ khi không đọc được mới nhờ AI, và token trong nội dung được che trước khi gửi.",
+    "runOn": "Nhờ AI bằng",
+    "runOnHint": "Chỉ dùng khi không đọc được định dạng quen thuộc. Điền sẵn theo mặc định ở Cài đặt (engine, model của nó, tài khoản mặc định); đổi ở đây chỉ áp dụng cho lần này.",
     "read": "Tạo bản nháp",
     "reading": "Đang đọc…",
     "none": "Không tìm thấy MCP server nào. Hãy dán đoạn có lệnh cài đặt hoặc khối cấu hình.",

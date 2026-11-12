@@ -365,3 +365,22 @@ export function validateHintedValues(form: Pick<McpForm, 'transport' | 'envRows'
 export function formSnapshot(form: McpForm, withEnabled: boolean): string {
   return JSON.stringify({ ...form, enabled: withEnabled ? form.enabled : null })
 }
+
+export type SetupEngine = 'claude' | 'codex'
+
+/**
+ * What "Add with AI" asks on `engine` before the user changes it: that engine's
+ * default model and default account (Settings). An empty model or account is the
+ * engine's own default (no default account: `~/.claude` / the shared Codex login).
+ */
+export function setupTargetFor(
+  engine: SetupEngine,
+  models: Record<SetupEngine, string>,
+  accounts: Record<SetupEngine, readonly { id: string; is_default: boolean }[]>,
+): { engine: SetupEngine; model: string; accountId: string } {
+  return {
+    engine,
+    model: models[engine],
+    accountId: accounts[engine].find((a) => a.is_default)?.id ?? '',
+  }
+}

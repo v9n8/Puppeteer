@@ -8,7 +8,7 @@
 //! prompt ([`redact`]), and every env / header VALUE of an AI draft is dropped (its hint, e.g.
 //! `Bearer …`, is kept), so a value the model made up never reaches the form.
 
-use crate::commands::translate::{submit_prompt, TranslateState, TurnEvent};
+use crate::commands::translate::{submit_prompt_on, SideTaskTarget, TranslateState, TurnEvent};
 use crate::db::Db;
 use crate::import::paste::{self, PastedServer};
 use crate::runs::transcript::redact;
@@ -54,14 +54,18 @@ pub struct McpSetupDrafts {
     pub by_ai: bool,
 }
 
-/// Drafts from pasted setup text or a README link: a known format first, the AI otherwise. No
-/// server found is an empty list, not an error.
+/// Drafts from pasted setup text or a README link: a known format first, the AI otherwise, on
+/// the engine / model / account picked in the dialog (empty model or account = that engine's
+/// default). No server found is an empty list, not an error.
 #[tauri::command]
 pub async fn draft_mcp_servers(
     app: AppHandle,
     db: State<'_, Db>,
     state: State<'_, McpSetupState>,
     text: String,
+    engine: String,
+    model: String,
+    account_id: Option<String>,
 ) -> Result<McpSetupDrafts, String> {
     if text.len() > paste::MAX_TEXT_BYTES {
         return Err("The pasted text is too long".to_string());
@@ -74,12 +78,19 @@ pub async fn draft_mcp_servers(
     if !servers.is_empty() {
         return Ok(McpSetupDrafts { servers, by_ai: false });
     }
-    let answer = ask(&app, db.inner(), &state.0, prompt(&text)).await?;
+    let target = SideTaskTarget { engine: &engine, model: &model, account_id: account_id.as_deref() };
+    let answer = ask(&app, db.inner(), &state.0, prompt(&text), target).await?;
     Ok(McpSetupDrafts { servers: ai_drafts(&answer), by_ai: true })
 }
 
-async fn ask(app: &AppHandle, db: &Db, state: &TranslateState, prompt: String) -> Result<String, String> {
-    let (turn, rx) = submit_prompt(app, db, state, prompt, true).await?;
+async fn ask(
+    app: &AppHandle,
+    db: &Db,
+    state: &TranslateState,
+    prompt: String,
+    target: SideTaskTarget<'_>,
+) -> Result<String, String> {
+    let (turn, rx) = submit_prompt_on(app, db, state, prompt, target).await?;
     let mut rx = rx.ok_or("no result channel")?;
     let wait = async {
         loop {

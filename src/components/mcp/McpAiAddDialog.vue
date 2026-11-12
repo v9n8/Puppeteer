@@ -1,12 +1,20 @@
 <script setup lang="ts">
 // "Add with AI" (UX-87): paste setup text or a README link; the backend reads a known format or
-// asks the AI (`draft_mcp_servers`). One server opens as a draft right away, several are listed
-// to pick from. Nothing is saved here — the user finishes and saves the draft in the pane.
-import { ref, watch } from 'vue'
+// asks the AI (`draft_mcp_servers`) on the engine / model / account picked here, which start on
+// the defaults of Settings. One server opens as a draft right away, several are listed to pick
+// from. Nothing is saved here — the user finishes and saves the draft in the pane.
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loader2, Sparkles } from 'lucide-vue-next'
-import { Banner, Button, Modal, Textarea } from '@/components/ui'
-import { useMcpServersStore, type PastedServer } from '@/stores/mcpServers'
+import { AppSelect, Banner, Button, InfoTip, Modal, Textarea } from '@/components/ui'
+import { useMcpServersStore, type McpSetupTarget, type PastedServer } from '@/stores/mcpServers'
+import { useAppSettingsStore } from '@/stores/appSettings'
+import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { useCodexAccountsStore } from '@/stores/codexAccounts'
+import { useModelCatalogStore } from '@/stores/modelCatalog'
+import { MODEL_OPTIONS, withCurrentModel, type SelectOption } from '@/lib/engineOptions'
+import { composerDefaults } from '@/lib/composerChips'
+import { setupTargetFor, type SetupEngine } from '@/lib/mcpRows'
 
 const props = defineProps<{ open: boolean }>()
 
@@ -18,6 +26,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const store = useMcpServersStore()
+const appSettings = useAppSettingsStore()
+const claudeStore = useClaudeAccountsStore()
+const codexStore = useCodexAccountsStore()
+const modelCatalog = useModelCatalogStore()
 
 // The text survives closing without a pick, so a retry needs no re-paste.
 const text = ref('')
@@ -25,15 +37,55 @@ const reading = ref(false)
 const error = ref<string | null>(null)
 const found = ref<PastedServer[]>([])
 const byAi = ref(false)
+const target = ref<McpSetupTarget>({ engine: 'claude', model: '', accountId: '' })
 
+function pickEngine(engine: SetupEngine) {
+  target.value = setupTargetFor(engine, composerDefaults({ settings: appSettings.settings }).models, {
+    claude: claudeStore.accounts,
+    codex: codexStore.accounts,
+  })
+}
+
+// Every open starts on the defaults again: a pick here is for this request only.
 watch(
   () => props.open,
-  (open) => {
+  async (open) => {
     if (!open) return
     error.value = null
     found.value = []
+    await Promise.all([
+      appSettings.ensureLoaded(),
+      claudeStore.accounts.length ? null : claudeStore.fetch(),
+      codexStore.accounts.length ? null : codexStore.fetch(),
+      modelCatalog.ensureLoaded(),
+    ]).catch((e) => {
+      error.value = String(e)
+    })
+    pickEngine(composerDefaults({ settings: appSettings.settings }).engine === 'codex' ? 'codex' : 'claude')
   },
+  { immediate: true },
 )
+
+const engineOptions: SelectOption[] = [
+  { value: 'claude', label: 'Claude' },
+  { value: 'codex', label: 'Codex' },
+]
+const modelOptions = computed<SelectOption[]>(() => {
+  const { engine, model } = target.value
+  const base = engine === 'codex'
+    ? modelCatalog.codexOptions(MODEL_OPTIONS.codex)
+    : modelCatalog.withValidation(MODEL_OPTIONS.claude)
+  return withCurrentModel(base, model).map((o) => (o.value ? o : { ...o, label: t('settings.ai.modelDefault') }))
+})
+// Without a default account the engine's own login runs; it is offered as the empty choice.
+const accountOptions = computed<SelectOption[]>(() => {
+  const codex = target.value.engine === 'codex'
+  const accounts = codex ? codexStore.accounts : claudeStore.accounts
+  const own = accounts.some((a) => a.is_default)
+    ? []
+    : [{ value: '', label: codex ? t('settings.accounts.sharedCodex') : t('projectDetail.sessionDefaults.noAccount') }]
+  return [...own, ...accounts.map((a) => ({ value: a.id, label: a.label }))]
+})
 
 async function read() {
   if (!text.value.trim() || reading.value) return
@@ -41,7 +93,7 @@ async function read() {
   error.value = null
   found.value = []
   try {
-    const drafts = await store.draftServers(text.value)
+    const drafts = await store.draftServers(text.value, target.value)
     byAi.value = drafts.by_ai
     if (drafts.servers.length === 0) error.value = t('mcp.aiAdd.none')
     else if (drafts.servers.length === 1) pick(drafts.servers[0])
@@ -86,6 +138,32 @@ function onKeydown(e: KeyboardEvent) {
         :disabled="reading"
         @keydown="onKeydown"
       />
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-medium">{{ t('mcp.aiAdd.runOn') }}</span>
+          <InfoTip :text="t('mcp.aiAdd.runOnHint')" />
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <label class="min-w-0 space-y-1">
+            <span class="text-2xs text-muted-foreground">{{ t('settings.ai.defaultEngine') }}</span>
+            <AppSelect
+              size="sm"
+              :model-value="target.engine"
+              :options="engineOptions"
+              :disabled="reading"
+              @update:model-value="pickEngine($event === 'codex' ? 'codex' : 'claude')"
+            />
+          </label>
+          <label class="min-w-0 space-y-1">
+            <span class="text-2xs text-muted-foreground">{{ t('settings.engines.models') }}</span>
+            <AppSelect v-model="target.model" size="sm" :options="modelOptions" :disabled="reading" />
+          </label>
+          <label class="min-w-0 space-y-1">
+            <span class="text-2xs text-muted-foreground">{{ t('settings.engines.accounts') }}</span>
+            <AppSelect v-model="target.accountId" size="sm" :options="accountOptions" :disabled="reading" />
+          </label>
+        </div>
+      </div>
       <p class="text-2xs text-muted-foreground">{{ t('mcp.aiAdd.privacy') }}</p>
 
       <Banner v-if="error" tone="warning">{{ error }}</Banner>

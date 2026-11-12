@@ -33,7 +33,7 @@
 
 use crate::db::Db;
 use crate::runs::sidecar::{
-    apply_claude_config_dir, augment_command_path, detach_sidecar_process_group,
+    apply_claude_config_dir, apply_codex_home, augment_command_path, detach_sidecar_process_group,
     kill_process_group, resolve_codex_sidecar, resolve_sidecar,
 };
 use serde_json::Value;
@@ -388,6 +388,10 @@ struct TranslateSettings {
     default_target: String,
     /// Config dir of the default Claude account (None = global profile).
     claude_config_dir: Option<String>,
+    /// `CODEX_HOME` of a picked Codex account (None = the shared `~/.codex` login).
+    codex_home: Option<String>,
+    /// An empty Claude model is the CLI's own default rather than [`DEFAULT_CLAUDE_MODEL`].
+    cli_default_model: bool,
 }
 
 async fn load_settings(db: &Db) -> Result<TranslateSettings, String> {
@@ -406,6 +410,8 @@ async fn load_settings(db: &Db) -> Result<TranslateSettings, String> {
         style: "natural".to_string(),
         default_target: "vi".to_string(),
         claude_config_dir: None,
+        codex_home: None,
+        cli_default_model: false,
     };
     for row in &rows {
         let key: String = row.get("key");
@@ -432,12 +438,14 @@ async fn load_settings(db: &Db) -> Result<TranslateSettings, String> {
 /// Fingerprint of the settings that pin a warm session — a change respawns it.
 fn signature(s: &TranslateSettings) -> String {
     format!(
-        "{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}",
         s.engine.trim().to_lowercase(),
         s.model.trim(),
         s.claude_path.trim(),
         s.codex_path.trim(),
-        s.claude_config_dir.as_deref().unwrap_or("")
+        s.claude_config_dir.as_deref().unwrap_or(""),
+        s.codex_home.as_deref().unwrap_or(""),
+        s.cli_default_model
     )
 }
 
@@ -546,6 +554,7 @@ async fn spawn_warm(
         if !s.model.trim().is_empty() {
             cmd.env("PUPPETEER_CODEX_MODEL", s.model.trim());
         }
+        apply_codex_home(&mut cmd, s.codex_home.as_deref());
     } else if s.claude_path != "claude" && !s.claude_path.trim().is_empty() {
         cmd.env("PUPPETEER_CLAUDE_PATH", &s.claude_path);
     }
@@ -941,7 +950,49 @@ pub async fn submit_prompt_as(
     submit_with(app, state, &settings, prompt, true, None).await
 }
 
-/// Shared body of `submit` / `submit_prompt` / `submit_prompt_as`: ensure a
+/// The engine, model and account a caller picks for its side task (MCP "Add with AI"), in place
+/// of the translate settings. An empty model is the engine's own default; no account is the
+/// engine's default account.
+pub struct SideTaskTarget<'a> {
+    pub engine: &'a str,
+    pub model: &'a str,
+    pub account_id: Option<&'a str>,
+}
+
+/// [`submit_prompt`] on the engine / model / account of `target`.
+pub async fn submit_prompt_on(
+    app: &AppHandle,
+    db: &Db,
+    state: &TranslateState,
+    prompt: String,
+    target: SideTaskTarget<'_>,
+) -> Result<(u64, Option<UnboundedReceiver<TurnEvent>>), String> {
+    if prompt.trim().is_empty() {
+        return Err(ERR_NOTHING_TO_TRANSLATE.to_string());
+    }
+    let mut settings = load_settings(db).await?;
+    settings.engine = target.engine.trim().to_ascii_lowercase();
+    settings.model = target.model.trim().to_string();
+    settings.cli_default_model = true;
+    match settings.engine.as_str() {
+        "claude" => {
+            settings.claude_config_dir =
+                crate::commands::claude_accounts::resolve_runtime_account(db, None, target.account_id)
+                    .await?
+                    .map(|a| a.config_dir);
+        }
+        "codex" => {
+            settings.codex_home =
+                crate::commands::codex_accounts::resolve_runtime_account(db, None, target.account_id)
+                    .await?
+                    .map(|a| a.home_dir);
+        }
+        other => return Err(format!("Unknown engine: {other}")),
+    }
+    submit_with(app, state, &settings, prompt, true, None).await
+}
+
+/// Shared body of `submit` and the `submit_prompt*` family: ensure a
 /// warm sidecar, enqueue the turn and write the prompt.
 async fn submit_with(
     app: &AppHandle,
@@ -1004,7 +1055,12 @@ async fn submit_with(
 
     // First prompt carries the session options; follow-ups are bare user turns.
     let line = if !w.started && !is_codex {
-        let options = session_options(&settings.model, &std::env::temp_dir().to_string_lossy());
+        let mut options = session_options(&settings.model, &std::env::temp_dir().to_string_lossy());
+        if settings.cli_default_model && settings.model.trim().is_empty() {
+            if let Some(o) = options.as_object_mut() {
+                o.remove("model");
+            }
+        }
         serde_json::json!({ "type": "prompt", "text": prompt, "options": options }).to_string()
     } else {
         serde_json::json!({ "type": "prompt", "text": prompt }).to_string()

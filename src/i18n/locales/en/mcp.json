@@ -133,6 +133,8 @@
     "hint": "Paste an MCP server's setup instructions: a config block, an install command, or a README link (GitHub, npm). Whichever tool they were written for.",
     "placeholder": "For example: a JSON config block, an install command, or https://github.com/…/…",
     "privacy": "Known formats are read right here. Only text they miss goes to the AI, with tokens masked first.",
+    "runOn": "Ask the AI on",
+    "runOnHint": "Used only when no known format matches. Starts on the defaults in Settings (engine, its model, the default account); a change here applies to this request only.",
     "read": "Create draft",
     "reading": "Reading…",
     "none": "No MCP server found. Paste the part with the install command or the config block.",

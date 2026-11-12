@@ -22,6 +22,7 @@ import {
   parseArgs,
   serverLine,
   serverRow,
+  setupTargetFor,
   toSecretEntries,
   validateForm,
   validateHintedValues,
@@ -228,4 +229,15 @@ test('a blank value with a hint blocks Save and Test until filled', () => {
   assert.equal(validateForm(form), null)
   // Only the transport's own rows count, as in the payload.
   assert.equal(validateHintedValues({ ...form, transport: 'stdio', envRows: [] }), null)
+})
+
+test('setupTargetFor takes the default model and default account of the engine', () => {
+  const models = { claude: 'claude-sonnet-4-6', codex: '' }
+  const accounts = {
+    claude: [{ id: 'c1', is_default: false }, { id: 'c2', is_default: true }],
+    codex: [{ id: 'x1', is_default: false }],
+  }
+  assert.deepEqual(setupTargetFor('claude', models, accounts), { engine: 'claude', model: 'claude-sonnet-4-6', accountId: 'c2' })
+  // No default Codex account: the shared login, and the engine's own model.
+  assert.deepEqual(setupTargetFor('codex', models, accounts), { engine: 'codex', model: '', accountId: '' })
 })

@@ -106,6 +106,13 @@ export interface PastedServer {
   headers: PastedValue[]
 }
 
+/** Engine / model / account "Add with AI" asks; empty model or account = the engine's default. */
+export interface McpSetupTarget {
+  engine: 'claude' | 'codex'
+  model: string
+  accountId: string
+}
+
 /** "Add with AI" result — mirrors the Rust `McpSetupDrafts`. */
 export interface McpSetupDrafts {
   servers: PastedServer[]
@@ -191,9 +198,14 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     return invoke<PastedServer[]>('parse_mcp_setup_text', { text })
   }
 
-  /** Drafts from pasted text or a README link: a known format first, the AI otherwise. */
-  async function draftServers(text: string): Promise<McpSetupDrafts> {
-    return invoke<McpSetupDrafts>('draft_mcp_servers', { text })
+  /** Drafts from pasted text or a README link: a known format first, the AI on `target` otherwise. */
+  async function draftServers(text: string, target: McpSetupTarget): Promise<McpSetupDrafts> {
+    return invoke<McpSetupDrafts>('draft_mcp_servers', {
+      text,
+      engine: target.engine,
+      model: target.model,
+      accountId: target.accountId || null,
+    })
   }
 
   async function exportServer(id: string, path: string): Promise<void> {
