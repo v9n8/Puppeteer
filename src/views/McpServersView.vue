@@ -112,6 +112,7 @@ async function loadGoogleStatus() {
 
 interface Builtin extends BuiltinInfo {
   description: string
+  purpose: string
   status: string
   enabled: boolean
   /** Settings section that sets it up (accounts), if any. */
@@ -139,6 +140,7 @@ const builtins = computed<Builtin[]>(() => {
     tone: puppeteerOn ? 'success' : 'neutral',
     status: puppeteerOn ? t('mcp.list.builtin.active') : t('mcp.list.builtin.disabled'),
     description: t('mcp.list.builtin.description', { tools: 'mcp__puppeteer__*' }),
+    purpose: t('mcp.list.builtin.purpose'),
     enabled: puppeteerOn,
     toolGroups: PUPPETEER_TOOL_GROUPS,
   }
@@ -150,6 +152,7 @@ const builtins = computed<Builtin[]>(() => {
     tone: googleState === 'active' ? 'success' : googleState === 'disabled' ? 'neutral' : 'warning',
     status: t(`mcp.list.builtin.${googleState}`),
     description: t('mcp.list.builtin.googleDescription', { tools: 'mcp__google__*' }),
+    purpose: t('mcp.list.builtin.googlePurpose'),
     enabled: googleOn,
     // Settings hides the Google section while `integrations.google` is off.
     section: features.isOn('integrations.google') ? 'google' : undefined,
@@ -574,6 +577,7 @@ function dotClass(row: McpRow): string {
       :toggling="togglingId === selectedRow.id"
       :configurable="!!selectedBuiltin?.section"
       :tool-groups="selectedBuiltin?.toolGroups"
+      :purpose="selectedBuiltin?.purpose"
       :adding="addingName === selectedRow.name"
       @add="selectedEntry && addFromCatalog(selectedEntry)"
       @settings="openSettings(selectedRow)"

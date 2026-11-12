@@ -25,6 +25,8 @@ const props = defineProps<{
   configurable?: boolean
   /** Built-in rows: tool groups to list. */
   toolGroups?: string[]
+  /** Built-in rows: what the AI uses it for. */
+  purpose?: string
   adding: boolean
 }>()
 
@@ -74,7 +76,16 @@ const meta = computed(() =>
         </DetailSection>
 
         <DetailSection :title="t('mcp.detail.about')" :hint="isBuiltin ? t('mcp.detail.builtinHint') : t('mcp.detail.addHint')">
-          <p class="text-xs leading-relaxed">{{ row.description }}</p>
+          <!-- Built-ins appear on every machine unasked: say where they come from. -->
+          <dl v-if="isBuiltin" class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-xs leading-relaxed">
+            <dt class="text-muted-foreground">{{ t('mcp.detail.source') }}</dt>
+            <dd>{{ t('mcp.detail.sourceBuiltin') }}</dd>
+            <dt class="text-muted-foreground">{{ t('mcp.editor.description') }}</dt>
+            <dd>{{ row.description }}</dd>
+            <dt class="text-muted-foreground">{{ t('mcp.detail.purpose') }}</dt>
+            <dd>{{ purpose }}</dd>
+          </dl>
+          <p v-else class="text-xs leading-relaxed">{{ row.description }}</p>
         </DetailSection>
 
         <DetailSection v-if="isBuiltin" :title="t('mcp.detail.tools')">

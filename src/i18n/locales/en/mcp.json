@@ -5,11 +5,13 @@
     "builtin": {
       "active": "Built-in · active",
       "disabled": "Built-in · disabled",
-      "description": "Auto-injected into every run. Gives the AI your notes, cross-session recall, project context (file tree & git) and managed VPS — as {tools} tools.",
+      "description": "Puppeteer's own data, as {tools} tools: notes, todos, past sessions (search and read), projects and repos, the project's file tree and git, Slack threads the app saved, the Skills and Rules library, managed VPS and cloud accounts, dev servers, the code index, and schedule proposals.",
+      "purpose": "Lets the AI use what you keep in Puppeteer without pasting it into the prompt: recall an earlier session, write a note or todo, look up a rule, run a command on a managed server.",
       "settings": "Google settings",
       "needsClient": "Built-in · needs OAuth client",
       "noAccount": "Built-in · no account",
-      "googleDescription": "Drive (drive_*): list, search, read, upload, share, delete files. Sheets (sheets_*): read any tab, edit individual cells, append rows. Gmail (mail_*): search, read, attachments, send, reply, labels. Calendar (cal_*): view events, check free slots, create and update meetings. Injected when a Google account is connected — as {tools} tools."
+      "googleDescription": "Drive (drive_*): list, search, read, upload, share, delete files. Sheets (sheets_*): read any tab, edit individual cells, append rows. Gmail (mail_*): search, read, attachments, send, reply, labels. Calendar (cal_*): view events, check free slots, create and update meetings — as {tools} tools.",
+      "googlePurpose": "Lets the AI work with your Google Drive, Sheets, Gmail and Calendar through the accounts you connect. Off by default because it reaches your mail and files: it is injected only once you switch it on and connect at least one Google account (Google settings)."
     },
     "empty": {
       "title": "No MCP servers yet",
@@ -54,7 +56,7 @@
     "name": "Name",
     "namePlaceholder": "my-mcp-server",
     "description": "Description",
-    "descriptionPlaceholder": "What this server provides",
+    "descriptionPlaceholder": "What this server provides and what you use it for",
     "transport": "Transport",
     "sseWarning": "SSE is Claude-only; Codex runs support stdio and streamable HTTP.",
     "process": "Process",
@@ -98,6 +100,9 @@
     "duplicated": "Secret values aren't copied — fill them in before saving",
     "dismiss": "Dismiss",
     "about": "About",
+    "source": "Source",
+    "sourceBuiltin": "Added by the app itself — not a server you created, and not synced from Claude Code or Codex.",
+    "purpose": "Purpose",
     "tools": "Tools",
     "builtinHint": "Injected at run launch, not stored as a server — it can be turned off but not deleted.",
     "perProject": "Per project",

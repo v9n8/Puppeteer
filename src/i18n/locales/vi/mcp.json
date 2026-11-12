@@ -5,11 +5,13 @@
     "builtin": {
       "active": "Tích hợp sẵn · hoạt động",
       "disabled": "Tích hợp sẵn · đã tắt",
-      "description": "Tự động chèn vào mọi run. Cung cấp cho AI ghi chú của bạn, khả năng nhớ xuyên Session, Context của Project (cây thư mục & git) và VPS được quản lý — dưới dạng các tool {tools}.",
+      "description": "Dữ liệu của chính Puppeteer, dưới dạng các tool {tools}: ghi chú, todo, Session cũ (tìm và đọc), Project và repo, cây thư mục và git của Project, Slack thread app đã lưu, thư viện Skills và Rules, VPS và tài khoản cloud được quản lý, dev server, code index và đề xuất lịch chạy.",
+      "purpose": "Cho AI dùng những gì bạn lưu trong Puppeteer mà không phải dán vào prompt: nhớ lại một Session trước, ghi note hoặc todo, tra một rule, chạy lệnh trên server được quản lý.",
       "settings": "Cài đặt Google",
       "needsClient": "Tích hợp sẵn · cần OAuth client",
       "noAccount": "Tích hợp sẵn · chưa có tài khoản",
-      "googleDescription": "Drive (drive_*): liệt kê, tìm, đọc, tải lên, chia sẻ, xóa file. Sheets (sheets_*): đọc mọi tab, sửa từng ô, thêm dòng. Gmail (mail_*): tìm, đọc, tệp đính kèm, gửi, trả lời, nhãn. Calendar (cal_*): xem sự kiện, tìm giờ trống, tạo và cập nhật cuộc họp. Được chèn khi đã kết nối tài khoản Google — dưới dạng các tool {tools}."
+      "googleDescription": "Drive (drive_*): liệt kê, tìm, đọc, tải lên, chia sẻ, xóa file. Sheets (sheets_*): đọc mọi tab, sửa từng ô, thêm dòng. Gmail (mail_*): tìm, đọc, tệp đính kèm, gửi, trả lời, nhãn. Calendar (cal_*): xem sự kiện, tìm giờ trống, tạo và cập nhật cuộc họp — dưới dạng các tool {tools}.",
+      "googlePurpose": "Cho AI làm việc với Google Drive, Sheets, Gmail và Calendar qua các tài khoản bạn kết nối. Mặc định tắt vì nó chạm tới mail và file của bạn: chỉ được chèn khi bạn bật và đã kết nối ít nhất một tài khoản Google (Cài đặt Google)."
     },
     "empty": {
       "title": "Chưa có MCP server nào",
@@ -54,7 +56,7 @@
     "name": "Tên",
     "namePlaceholder": "my-mcp-server",
     "description": "Mô tả",
-    "descriptionPlaceholder": "Server này cung cấp gì",
+    "descriptionPlaceholder": "Server này cung cấp gì, dùng để làm gì",
     "transport": "Transport",
     "sseWarning": "SSE chỉ dành cho Claude; các run Codex hỗ trợ stdio và streamable HTTP.",
     "process": "Tiến trình",
@@ -98,6 +100,9 @@
     "duplicated": "Giá trị secret không được sao chép — hãy điền lại trước khi lưu",
     "dismiss": "Đóng",
     "about": "Giới thiệu",
+    "source": "Nguồn",
+    "sourceBuiltin": "Do app tự thêm sẵn — không phải server bạn tạo, cũng không đồng bộ từ Claude Code hay Codex.",
+    "purpose": "Mục đích",
     "tools": "Tools",
     "builtinHint": "Được chèn khi khởi chạy run, không lưu như một server — có thể tắt nhưng không xoá được.",
     "perProject": "Theo Project",
