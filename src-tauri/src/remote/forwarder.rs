@@ -92,7 +92,7 @@ fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
             cwd,
             once_only,
         },
-        RemoteRunEvent::Done { run_id, status } => StreamPayload::Done { run_id, status },
+        RemoteRunEvent::Done { run_id, status, .. } => StreamPayload::Done { run_id, status },
         RemoteRunEvent::Meta {
             run_id,
             engine,

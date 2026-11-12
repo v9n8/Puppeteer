@@ -1465,15 +1465,31 @@ pub async fn drain_sidecar(
     .execute(&db_pool)
     .await;
 
+    // Read from the DB, not memory: a quota stop's registry entry may already
+    // be gone (`stop_local_sidecar`), while its `end_reason` was written first.
+    let (role, end_reason): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT role, end_reason FROM runs WHERE id = ?")
+            .bind(&run_id)
+            .fetch_optional(&db_pool)
+            .await
+            .map_err(|e| tracing::warn!(event = "run_done_meta_failed", run_id = %run_id, error = %e))
+            .ok()
+            .flatten()
+            .unwrap_or_default();
     if let Some(bus) = &remote_bus {
         bus.publish(crate::remote::RemoteRunEvent::Done {
             run_id: run_id.clone(),
             status: final_status.to_string(),
+            worker: role.as_deref() == Some("worker"),
+            end_reason: end_reason.clone(),
         });
     }
     let mut done = serde_json::json!({ "run_id": run_id, "status": final_status });
     if let Some(reason) = stop_reason {
         done["reason"] = Value::String(reason);
+    }
+    if let Some(end_reason) = end_reason {
+        done["end_reason"] = Value::String(end_reason);
     }
     let _ = app.emit(&format!("run:done:{}", run_id), done);
     drop(reg);

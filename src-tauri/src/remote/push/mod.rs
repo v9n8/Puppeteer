@@ -183,11 +183,13 @@ pub async fn forget_session(db: &Db, session_secret: &str) {
     }
 }
 
-/// Which bus events count, and as what.
+/// Which bus events count, and as what. A Conductor worker finishing never
+/// counts, like the desktop notification: only the conductor's own turn does.
 fn kind_of(ev: &RemoteRunEvent) -> Option<PushKind> {
     match ev {
         RemoteRunEvent::PermissionRequest { .. } => Some(PushKind::Pending),
-        RemoteRunEvent::Done { status, .. } => kind_of_done(status),
+        RemoteRunEvent::Done { worker: true, .. } => None,
+        RemoteRunEvent::Done { status, end_reason, .. } => kind_of_done(status, end_reason.as_deref()),
         _ => None,
     }
 }
@@ -336,7 +338,12 @@ mod tests {
             once_only: true,
         };
         assert_eq!(kind_of(&req), Some(PushKind::Pending));
-        let done = |status: &str| RemoteRunEvent::Done { run_id: "r".into(), status: status.into() };
+        let done = |status: &str| RemoteRunEvent::Done {
+            run_id: "r".into(),
+            status: status.into(),
+            worker: false,
+            end_reason: None,
+        };
         assert_eq!(kind_of(&done("done")), Some(PushKind::Done));
         assert_eq!(kind_of(&done("failed")), Some(PushKind::Failed));
         assert_eq!(kind_of(&done("cancelled")), None);
@@ -344,5 +351,52 @@ mod tests {
         assert_eq!(kind_of(&out), None);
         let resolved = RemoteRunEvent::PermissionResolved { run_id: "r".into(), request_id: "q".into() };
         assert_eq!(kind_of(&resolved), None);
+    }
+
+    #[test]
+    fn workers_never_count_and_a_quota_stop_counts_as_failed() {
+        let done = |status: &str, worker: bool, end_reason: Option<&str>| RemoteRunEvent::Done {
+            run_id: "r".into(),
+            status: status.into(),
+            worker,
+            end_reason: end_reason.map(Into::into),
+        };
+        // A Conductor worker finishing or failing: nothing, whatever the status.
+        assert_eq!(kind_of(&done("done", true, None)), None);
+        assert_eq!(kind_of(&done("failed", true, None)), None);
+        assert_eq!(kind_of(&done("cancelled", true, Some("quota"))), None);
+        // Stopped by the quota stop: failed. Stopped by the user: nothing.
+        assert_eq!(kind_of(&done("cancelled", false, Some("quota"))), Some(PushKind::Failed));
+        assert_eq!(kind_of(&done("cancelled", false, None)), None);
+        // The conductor's own turn: as before.
+        assert_eq!(kind_of(&done("done", false, None)), Some(PushKind::Done));
+    }
+
+    #[test]
+    fn one_burst_counts_quota_stops_and_the_conductor_but_no_worker() {
+        let done = |status: &str, worker: bool, end_reason: Option<&str>| RemoteRunEvent::Done {
+            run_id: "r".into(),
+            status: status.into(),
+            worker,
+            end_reason: end_reason.map(Into::into),
+        };
+        let t0 = Instant::now();
+        let mut co = Coalescer::new(COALESCE_WINDOW);
+        for ev in [
+            // Three workers end, then their conductor's turn does.
+            done("done", true, None),
+            done("failed", true, None),
+            done("done", true, None),
+            done("done", false, None),
+            // The quota stop cancels two sessions; the user stops a third.
+            done("cancelled", false, Some(crate::runs::quota_stop::END_REASON)),
+            done("cancelled", false, Some(crate::runs::quota_stop::END_REASON)),
+            done("cancelled", false, None),
+        ] {
+            if let Some(kind) = kind_of(&ev) {
+                co.note(kind, t0);
+            }
+        }
+        assert_eq!(co.take_due(t0 + COALESCE_WINDOW), Some(BurstCounts { new_pending: 0, done: 1, failed: 2 }));
     }
 }

@@ -33,8 +33,15 @@ pub enum RemoteRunEvent {
         /// A broker prompt: once-only, never Always.
         once_only: bool,
     },
-    /// The run finished (was `run:done:<id>`).
-    Done { run_id: String, status: String },
+    /// The run finished (was `run:done:<id>`). `worker`: a Conductor worker
+    /// (`runs.role`). `end_reason`: `runs.end_reason`, e.g. `quota` for a
+    /// session the quota stop cancelled.
+    Done {
+        run_id: String,
+        status: String,
+        worker: bool,
+        end_reason: Option<String>,
+    },
     /// The run's engine/model/permission-mode selection changed (was
     /// `run:meta:<id>`). Published whenever the desktop composer OR a remote
     /// controller updates a selector, so both surfaces stay in lock-step.

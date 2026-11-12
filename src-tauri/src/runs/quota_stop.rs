@@ -22,6 +22,10 @@ use crate::runs::RunRegistry;
 /// The opt-in switch. Local-only for Remote Control (`remote::guard`).
 pub const SETTING: &str = "quota_stop_running";
 
+/// `runs.end_reason` of a session stopped here (HD-07): its `run:done` and
+/// push then tell it apart from one the user stopped.
+pub const END_REASON: &str = "quota";
+
 /// Last guard verdict (`is_over`) per quota key.
 type Latch = StdMutex<HashMap<String, bool>>;
 
@@ -62,6 +66,17 @@ pub async fn is_enabled(db: &Db) -> bool {
     setting(db, SETTING).await.is_some_and(|v| v.trim() == "true")
 }
 
+async fn set_end_reason(db: &Db, run_id: &str, end_reason: Option<&str>) {
+    if let Err(e) = sqlx::query("UPDATE runs SET end_reason = ? WHERE id = ?")
+        .bind(end_reason)
+        .bind(run_id)
+        .execute(db)
+        .await
+    {
+        tracing::warn!(event = "quota_stop_end_reason_failed", run_id = %run_id, error = %e);
+    }
+}
+
 /// The line written into each stopped session's log, e.g.
 /// "Stopped: quota limit reached (5h 92% ≥ 90%)".
 async fn stop_reason(db: &Db, status: &BudgetStatus) -> String {
@@ -85,8 +100,8 @@ async fn stop_reason(db: &Db, status: &BudgetStatus) -> String {
 /// Feed one guard verdict for `engine` / `account_id` (that engine's account).
 /// When the setting
 /// is on and this is the crossing, every live, running session on the same
-/// quota (except `exclude`) gets the reason in its log, then is cancelled the
-/// way the UI's Cancel does. `notify(run_id, line)` runs right before each
+/// quota (except `exclude`) gets the reason in its log and [`END_REASON`],
+/// then is cancelled the way the UI's Cancel does. `notify(run_id, line)` runs right before each
 /// cancel, so the caller can show the line live. Returns the stopped run ids.
 pub async fn on_guard_status(
     registry: &RunRegistry,
@@ -162,10 +177,15 @@ async fn on_guard_status_with(
         // is gone, so the reason lands in the session's log file.
         log_buf.lock().await.push_str(&line);
         notify(&id, &reason);
+        // In the DB before the stop, not a flag in memory: the drain reads it
+        // for `run:done` after the stop may have removed the registry entry.
+        set_end_reason(db, &id, Some(END_REASON)).await;
         // Not waiting for the turn to end: this may run in that session's own
         // drain, which must keep reading to see it.
         if crate::commands::runs::cancel_run_detached(registry, db, &id, false).await.is_ok() {
             stopped.push(id);
+        } else {
+            set_end_reason(db, &id, None).await;
         }
     }
     stopped
@@ -256,6 +276,15 @@ mod tests {
             .get("status")
     }
 
+    async fn end_reason(db: &Db, id: &str) -> Option<String> {
+        sqlx::query("SELECT end_reason FROM runs WHERE id = ?")
+            .bind(id)
+            .fetch_one(db)
+            .await
+            .unwrap()
+            .get("end_reason")
+    }
+
     /// Under, then over: the crossing stops a1's running sessions only.
     async fn cross(latch: &Latch, registry: &RunRegistry, db: &Db, notes: &mut Vec<(String, String)>) -> Vec<String> {
         let mut notify = |id: &str, line: &str| notes.push((id.to_string(), line.to_string()));
@@ -288,6 +317,53 @@ mod tests {
         }
         assert!(registry.lock().await.contains_key("a2-run"));
         assert!(registry.lock().await["a2-run"].log_buf.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_reason_is_in_the_db_before_the_stop() {
+        let db = db().await;
+        crate::commands::settings::set_setting(&db, SETTING, "true").await.unwrap();
+        // What each run's end_reason was at the moment it turned 'cancelled'.
+        for q in [
+            "CREATE TABLE seen (id TEXT, end_reason TEXT)",
+            "CREATE TRIGGER seen_cancel AFTER UPDATE OF status ON runs WHEN NEW.status = 'cancelled' \
+             BEGIN INSERT INTO seen VALUES (NEW.id, NEW.end_reason); END",
+        ] {
+            sqlx::query(q).execute(&db).await.unwrap();
+        }
+        let registry = registry(&["a1-run", "a1-run2", "a2-run"]).await;
+
+        let mut stopped = cross(&Latch::default(), &registry, &db, &mut Vec::new()).await;
+        stopped.sort();
+        assert_eq!(stopped, vec!["a1-run", "a1-run2"]);
+        let seen: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT id, end_reason FROM seen ORDER BY id").fetch_all(&db).await.unwrap();
+        assert_eq!(
+            seen,
+            vec![("a1-run".into(), Some(END_REASON.into())), ("a1-run2".into(), Some(END_REASON.into()))]
+        );
+        assert_eq!(end_reason(&db, "a1-run").await.as_deref(), Some("quota"));
+        assert_eq!(end_reason(&db, "a2-run").await, None, "not stopped");
+    }
+
+    #[tokio::test]
+    async fn a_failed_stop_clears_the_reason_again() {
+        let db = db().await;
+        crate::commands::settings::set_setting(&db, SETTING, "true").await.unwrap();
+        // The stop's write fails for a1-run only.
+        sqlx::query(
+            "CREATE TRIGGER refuse_cancel BEFORE UPDATE OF status ON runs \
+             WHEN NEW.id = 'a1-run' AND NEW.status = 'cancelled' BEGIN SELECT RAISE(ABORT, 'refused'); END",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let registry = registry(&["a1-run", "a1-run2"]).await;
+
+        assert_eq!(cross(&Latch::default(), &registry, &db, &mut Vec::new()).await, vec!["a1-run2"]);
+        assert_eq!(run_status(&db, "a1-run").await, "running");
+        assert_eq!(end_reason(&db, "a1-run").await, None);
+        assert_eq!(end_reason(&db, "a1-run2").await.as_deref(), Some("quota"));
     }
 
     #[tokio::test]

@@ -29,12 +29,14 @@ impl PushKind {
     }
 }
 
-/// Map a `run:done` status to a kind. A cancel is the user's own doing — not
-/// worth a notification.
-pub fn kind_of_done(status: &str) -> Option<PushKind> {
+/// Map a `run:done` status (and `runs.end_reason`) to a kind. A cancel is the
+/// user's own doing — not worth a notification — unless the quota stop did it:
+/// the user did not end that session, so it counts as failed.
+pub fn kind_of_done(status: &str, end_reason: Option<&str>) -> Option<PushKind> {
     match status {
         "done" => Some(PushKind::Done),
         "failed" => Some(PushKind::Failed),
+        "cancelled" if end_reason == Some(crate::runs::quota_stop::END_REASON) => Some(PushKind::Failed),
         _ => None,
     }
 }
@@ -256,9 +258,11 @@ mod tests {
 
     #[test]
     fn done_status_maps_to_a_kind() {
-        assert_eq!(kind_of_done("done"), Some(PushKind::Done));
-        assert_eq!(kind_of_done("failed"), Some(PushKind::Failed));
-        assert_eq!(kind_of_done("cancelled"), None);
+        assert_eq!(kind_of_done("done", None), Some(PushKind::Done));
+        assert_eq!(kind_of_done("failed", None), Some(PushKind::Failed));
+        assert_eq!(kind_of_done("cancelled", None), None);
+        assert_eq!(kind_of_done("cancelled", Some("quota")), Some(PushKind::Failed));
+        assert_eq!(kind_of_done("cancelled", Some("app_closed")), None);
     }
 
     #[test]
