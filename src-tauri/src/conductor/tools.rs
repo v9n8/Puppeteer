@@ -9,6 +9,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
+use super::framing;
 use super::mcp_http::HttpState;
 use super::ConductorState;
 use crate::commands::runs::{start_run_inner, StartRunPayload};
@@ -506,8 +507,10 @@ async fn session_read(
         .join(format!("{}.log", worker_id));
     let reply = extract_latest_reply(&log_path);
     let (offset, max_chars) = read_window(&args);
+    let role = framing::worker_role(&db, conductor_run_id, &worker_id).await?;
 
-    let mut entry = reply_page(&reply, offset, max_chars);
+    let page = reply_page(&reply, offset, max_chars);
+    let mut entry = framing::frame_page(page, &worker_id, &role, &framing::new_nonce());
     entry["worker_id"] = json!(worker_id);
     entry["status"] = json!(normalize_status(&status));
     Ok(with_awaiting_permission(entry, &worker_id))
@@ -1144,6 +1147,26 @@ mod tests {
         }
         assert_eq!(joined, reply);
         assert_eq!(reply_page(&reply, 0, 500)["total_chars"], json!(total));
+    }
+
+    #[test]
+    fn every_page_is_framed_and_paging_still_counts_reply_chars() {
+        let reply: String = (0..1_200).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+        for offset in [0, 500, 1_000] {
+            let bare = reply_page(&reply, offset, 500);
+            let framed = framing::frame_page(bare.clone(), "w1", "reviewer", "3fa9c1d2e8b0");
+            let body = bare["reply"].as_str().unwrap();
+            assert_eq!(
+                framed["reply"].as_str().unwrap(),
+                format!("<worker-report-3fa9c1d2e8b0 worker=\"w1\" role=\"reviewer\">\n{body}\n</worker-report-3fa9c1d2e8b0>")
+            );
+            for key in ["total_chars", "offset", "truncated", "next_offset", "note"] {
+                assert_eq!(framed.get(key), bare.get(key), "{key} at offset {offset}");
+            }
+        }
+        let second = framing::frame_page(reply_page(&reply, 500, 500), "w1", "reviewer", "3fa9c1d2e8b0");
+        assert_eq!(second["total_chars"], json!(1_200));
+        assert_eq!(second["next_offset"], json!(1_000));
     }
 
     #[test]
