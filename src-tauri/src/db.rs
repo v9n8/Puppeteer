@@ -23,16 +23,23 @@ pub async fn init_db(db_path: &Path) -> Result<Db> {
 }
 
 /// Runs marked `running` in the DB but with no live process — left behind when a
-/// previous app session exited mid-run. Nothing from that session is driving
+/// previous app session exited mid-run (a crash and a normal quit alike: the
+/// quit path never writes run status). Nothing from that session is driving
 /// them any more, so flip any leftover `running` rows to `cancelled` instead of
-/// leaving them stuck forever. Their processes did NOT necessarily die with the
-/// app: the background-process tracker (`procs::startup_sweep`) finds and stops
-/// or lists whatever is still alive.
-async fn reconcile_interrupted_runs(pool: &Db) -> Result<()> {
-    sqlx::query("UPDATE runs SET status = 'cancelled', finished_at = ? WHERE status = 'running'")
-        .bind(chrono::Utc::now().to_rfc3339())
-        .execute(pool)
-        .await?;
+/// leaving them stuck forever, marked `end_reason = 'app_closed'` and
+/// `interrupted_pending = 1` so they stay apart from runs the user stopped and
+/// wait for the user to resume or dismiss them; nothing is restarted here.
+/// Their processes did NOT necessarily die with the app: the
+/// background-process tracker (`procs::startup_sweep`) finds and stops or lists
+/// whatever is still alive.
+pub(crate) async fn reconcile_interrupted_runs(pool: &Db) -> Result<()> {
+    sqlx::query(
+        "UPDATE runs SET status = 'cancelled', finished_at = ?, end_reason = 'app_closed', interrupted_pending = 1 \
+         WHERE status = 'running'",
+    )
+    .bind(chrono::Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -425,5 +432,98 @@ mod tests {
         }
         sqlx::migrate!("./migrations").run(&switched_off).await.unwrap();
         assert!(!builtin_mcp_globally_enabled(&switched_off, "google").await);
+    }
+
+    /// HD-04: runs from before 0021 ended for a reason the app never recorded.
+    #[tokio::test]
+    async fn existing_runs_are_not_marked_interrupted() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, status, created_at) VALUES
+                ('r1', 'p1', 'session', 'done', 'c'), ('r2', 'p1', 'session', 'cancelled', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let rows: Vec<(String, Option<String>, i64)> =
+            sqlx::query_as("SELECT id, end_reason, interrupted_pending FROM runs ORDER BY id")
+                .fetch_all(&db)
+                .await
+                .unwrap();
+        assert_eq!(rows, vec![("r1".into(), None, 0), ("r2".into(), None, 0)]);
+    }
+
+    /// HD-AC-01 (data): a run still `running` when the app exited is told apart
+    /// from one the user stopped, and History gets the reason.
+    #[tokio::test]
+    async fn a_run_cut_off_by_the_app_is_marked_apart_from_one_the_user_stopped() {
+        let db = db_at_0001().await;
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, status, created_at, finished_at) VALUES
+                ('a', 'p1', 'session', 'running', 'c', NULL),
+                ('b', 'p1', 'session', 'cancelled', 'c', 'stopped'),
+                ('d', 'p1', 'session', 'done', 'c', 'done')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        super::reconcile_interrupted_runs(&db).await.unwrap();
+
+        let rows: Vec<(String, String, Option<String>, i64, Option<String>)> = sqlx::query_as(
+            "SELECT id, status, end_reason, interrupted_pending, finished_at FROM runs ORDER BY id",
+        )
+        .fetch_all(&db)
+        .await
+        .unwrap();
+        let (a, rest) = rows.split_first().unwrap();
+        assert_eq!((a.1.as_str(), a.2.as_deref(), a.3), ("cancelled", Some("app_closed"), 1));
+        assert!(a.4.is_some(), "an interrupted run gets a finish time");
+        assert_eq!(
+            rest,
+            &[
+                ("b".into(), "cancelled".into(), None, 0, Some("stopped".into())),
+                ("d".into(), "done".into(), None, 0, Some("done".into())),
+            ]
+        );
+
+        let listed = crate::commands::github::list_runs_inner(&db, "p1").await.unwrap();
+        let reason = |id: &str| listed.iter().find(|r| r.id == id).unwrap().end_reason.clone();
+        assert_eq!(reason("a").as_deref(), Some("app_closed"));
+        assert_eq!((reason("b"), reason("d")), (None, None));
+    }
+
+    /// HD-04: a run that runs a turn again loses its "interrupted" mark. Every
+    /// write that moves a run to `running` is in a start / resume path that needs
+    /// an AppHandle, so the source is checked: each one must clear the mark.
+    #[test]
+    fn every_switch_to_running_clears_the_interrupted_mark() {
+        fn sources(dir: &Path, out: &mut Vec<(String, String)>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    sources(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push((path.display().to_string(), std::fs::read_to_string(&path).unwrap()));
+                }
+            }
+        }
+        let mut files = Vec::new();
+        sources(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        // Split so this test does not find itself. Test fixtures that only set
+        // the status (`... = 'running' WHERE`) are not run starts, and
+        // `conductor_sessions` rows are not runs.
+        let needle = concat!("UPDATE runs SET status = 'running'", ", ");
+        let mut found = 0;
+        for (file, src) in &files {
+            for (at, _) in src.match_indices(needle) {
+                found += 1;
+                let rest = &src[at + needle.len()..];
+                assert!(rest.starts_with("end_reason = NULL, interrupted_pending = 0,"), "{file}: {}", rest.chars().take(80).collect::<String>());
+            }
+        }
+        // start_run_inner, and resume_run_with's two variants.
+        assert_eq!(found, 3);
     }
 }

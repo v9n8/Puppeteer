@@ -7,9 +7,11 @@
 //! is stored on the worker's run row (`runs.worktree_path`); start and resume
 //! run the worker in it.
 //!
-//! Cleanup happens at the next startup ([`sweep`]): a cancelled worker
-//! (stopped, or cut off by the app quitting, see
-//! `db::reconcile_interrupted_runs`) and a deleted one lose their worktree.
+//! Cleanup happens at the next startup ([`sweep`]): a cancelled worker and a
+//! deleted one lose their worktree. A worker cut off by the app quitting (see
+//! `db::reconcile_interrupted_runs`) keeps it, uncommitted edits included,
+//! until the user resumes or dismisses it; once dismissed it goes like any
+//! cancelled worker.
 //! Its branch is deleted only when merged, so committed work is never lost.
 //! A cancelled worker that is resumed later gets its worktree back
 //! ([`launch_dir`]).
@@ -198,10 +200,13 @@ fn remove(root: &Path, worktree: &Path) {
 
 /// Startup cleanup: remove every worktree under `root` that no live worker
 /// owns. Runs after `db::reconcile_interrupted_runs`, so a worker cut off by
-/// the app quitting is already `cancelled`. Returns how many were removed.
+/// the app quitting is already `cancelled`, but still `interrupted_pending`:
+/// its worktree is kept until the user resumes or dismisses it. Returns how
+/// many were removed.
 pub async fn sweep(db: &Db, root: &Path) -> usize {
     let kept: HashSet<PathBuf> = match sqlx::query_scalar::<_, String>(
-        "SELECT worktree_path FROM runs WHERE worktree_path IS NOT NULL AND status != 'cancelled'",
+        "SELECT worktree_path FROM runs \
+         WHERE worktree_path IS NOT NULL AND (status != 'cancelled' OR interrupted_pending = 1)",
     )
     .fetch_all(db)
     .await
@@ -657,6 +662,52 @@ mod tests {
         let db = db_with_workers(&[]).await;
         assert_eq!(sweep(&db, &f.root).await, 1);
         assert!(!wt.exists());
+    }
+
+    /// HD-AC-07 (worktree part): workers cut off by the app keep their worktree
+    /// and uncommitted edits through the next startup, until dismissed.
+    #[tokio::test]
+    async fn sweep_keeps_the_worktrees_of_workers_cut_off_by_the_app() {
+        let f = fixture();
+        let w1 = create(&f.project, &f.root, "w1").unwrap().unwrap();
+        let w2 = create(&f.project, &f.root, "w2").unwrap().unwrap();
+        let stopped = create(&f.project, &f.root, "stopped").unwrap().unwrap();
+        let dismissed = create(&f.project, &f.root, "dismissed").unwrap().unwrap();
+        for wt in [&w1, &w2] {
+            std::fs::write(wt.join("app").join("a.txt"), "edited").unwrap();
+            std::fs::write(wt.join("new.txt"), "new").unwrap();
+        }
+        let db = db_with_workers(&[
+            ("w1", "running", &w1),
+            ("w2", "running", &w2),
+            // Stopped by the user before the app went down.
+            ("stopped", "cancelled", &stopped),
+            // Cut off earlier, then dismissed by the user.
+            ("dismissed", "cancelled", &dismissed),
+        ])
+        .await;
+        for sql in [
+            "INSERT INTO runs (id, project_id, type, status, created_at, role) VALUES ('c', 'p1', 'session', 'running', 'c', 'conductor')",
+            "UPDATE runs SET conductor_run_id = 'c' WHERE role = 'worker'",
+            "UPDATE runs SET end_reason = 'app_closed' WHERE id = 'dismissed'",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+
+        crate::db::reconcile_interrupted_runs(&db).await.unwrap();
+        assert_eq!(sweep(&db, &f.root).await, 2);
+        assert!(!stopped.exists() && !dismissed.exists());
+        for wt in [&w1, &w2] {
+            assert_eq!(read(&wt.join("app").join("a.txt")), "edited");
+            assert_eq!(read(&wt.join("new.txt")), "new");
+        }
+        let b = branches(&f.project);
+        assert!(b.contains("worker-w1") && b.contains("worker-w2"), "{b}");
+
+        // Dismissed: the next startup drops it like any cancelled worker.
+        sqlx::query("UPDATE runs SET interrupted_pending = 0 WHERE id = 'w1'").execute(&db).await.unwrap();
+        assert_eq!(sweep(&db, &f.root).await, 1);
+        assert!(!w1.exists() && w2.is_dir());
     }
 
     fn read(path: &Path) -> String {

@@ -260,7 +260,8 @@ pub fn run() {
             let db = tauri::async_runtime::block_on(db::init_db(&db_path))
                 .expect("Failed to initialize database");
             // Conductor workers' worktrees: drop those of cancelled or deleted
-            // workers (init_db has just marked interrupted runs cancelled).
+            // workers, but keep those init_db has just marked interrupted
+            // (cancelled + interrupted_pending) for the user to resume.
             // Before anything can start or resume a worker.
             conductor::worktree::set_root(app_data_dir.join("worktrees"));
             let swept = tauri::async_runtime::block_on(conductor::worktree::sweep(

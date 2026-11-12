@@ -79,6 +79,11 @@ pub struct RunRecord {
     /// and `fork_run` fill it; the session header links back to it.
     #[serde(default)]
     pub forked_from_run_id: Option<String>,
+    /// Why the run ended when the user did not end it (`runs.end_reason`,
+    /// HD-04): `"app_closed"` when the app exited mid-run. None otherwise, and
+    /// again once the run runs a turn. Only `list_runs` fills it.
+    #[serde(default)]
+    pub end_reason: Option<String>,
 }
 
 /// Repo identity loaded from the `repos` row, used to branch fetch by provider
@@ -374,6 +379,7 @@ pub async fn fetch_issue(
         style: None,
         effort: None,
         forked_from_run_id: None,
+        end_reason: None,
     })
 }
 
@@ -751,6 +757,7 @@ pub async fn fetch_pr(
         style: None,
         effort: None,
         forked_from_run_id: None,
+        end_reason: None,
     })
 }
 
@@ -900,6 +907,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
         style: None,
         effort: None,
         forked_from_run_id: None,
+        end_reason: None,
     })
 }
 
@@ -929,7 +937,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // can never disagree. No row cap: the list pages itself (UX-62), and a cap
     // would hide a project's oldest sessions without a word.
     let rows = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id,
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id, end_reason,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC"
@@ -965,6 +973,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
         style: row.get("style"),
         effort: row.get("effort"),
         forked_from_run_id: row.get("forked_from_run_id"),
+        end_reason: row.get("end_reason"),
     }).collect())
 }
 

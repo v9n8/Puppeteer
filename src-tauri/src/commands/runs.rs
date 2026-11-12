@@ -512,7 +512,7 @@ pub(crate) async fn start_run_inner(
     sqlx::query(
         // A fresh start is a fresh Codex thread, re-seeded by its own thread/start
         // developer instructions (the sidecar reports `_puppeteer_framing_seeded`).
-        "UPDATE runs SET status = 'running', engine = ?, model = ?, effort = ?, style = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
+        "UPDATE runs SET status = 'running', end_reason = NULL, interrupted_pending = 0, engine = ?, model = ?, effort = ?, style = ?, started_at = ?, last_activity_at = ?, framing_seeded = 0 WHERE id = ?",
     )
     .bind(&engine)
     .bind(&model)
@@ -3450,6 +3450,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         style: None,
         effort: None,
         forked_from_run_id: None,
+        end_reason: None,
     })
 }
 
@@ -3567,6 +3568,7 @@ pub async fn create_handoff_run(
             style: None,
             effort: None,
             forked_from_run_id: None,
+            end_reason: None,
         },
         context_path,
         summary_lines,
@@ -3628,6 +3630,7 @@ pub async fn create_session_run(
         style: None,
         effort: None,
         forked_from_run_id: None,
+        end_reason: None,
     })
 }
 
@@ -5019,11 +5022,11 @@ pub(crate) async fn resume_run_with(
     };
     let mark_running = if resume_session {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
+            "UPDATE runs SET status = 'running', end_reason = NULL, interrupted_pending = 0, model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity} WHERE id = ?"
         )
     } else {
         format!(
-            "UPDATE runs SET status = 'running', model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
+            "UPDATE runs SET status = 'running', end_reason = NULL, interrupted_pending = 0, model = ?, effort = ?, style = ?, started_at = ?, finished_at = NULL, last_activity_at = {activity}, \
              transcript_path = NULL, transcript_synced_size = NULL, framing_seeded = 0 WHERE id = ?"
         )
     };
