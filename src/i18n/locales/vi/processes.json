@@ -21,6 +21,7 @@
     "focus_ai": "AI Focus",
     "skill_eval": "Skill eval",
     "handoff_summary": "Tóm tắt bàn giao",
+    "mcp_setup": "Thêm MCP bằng AI",
     "probe": "Kiểm tra model",
     "mcp_test": "Kiểm tra MCP",
     "ssh_agent": "ssh-agent",

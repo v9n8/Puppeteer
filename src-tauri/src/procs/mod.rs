@@ -42,6 +42,8 @@ pub enum ProcKind {
     SkillEval,
     /// One-shot handoff summary engine (`runs::handoff`).
     HandoffSummary,
+    /// One-shot "Add with AI" engine of the MCP screen (`commands::mcp_setup`).
+    McpSetup,
     Probe,
     McpTest,
     SshAgent,

@@ -12,6 +12,7 @@ export type ProcKind =
   | 'focus_ai'
   | 'skill_eval'
   | 'handoff_summary'
+  | 'mcp_setup'
   | 'probe'
   | 'mcp_test'
   | 'ssh_agent'

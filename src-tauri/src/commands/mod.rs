@@ -27,6 +27,7 @@ pub mod library_disk;
 pub mod library_items;
 pub mod mcp;
 pub mod mcp_packages;
+pub mod mcp_setup;
 pub mod memory;
 pub mod models;
 pub mod notes;

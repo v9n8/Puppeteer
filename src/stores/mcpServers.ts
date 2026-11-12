@@ -106,6 +106,13 @@ export interface PastedServer {
   headers: PastedValue[]
 }
 
+/** "Add with AI" result — mirrors the Rust `McpSetupDrafts`. */
+export interface McpSetupDrafts {
+  servers: PastedServer[]
+  /** Read by the AI (no known format matched): worth a closer look. */
+  by_ai: boolean
+}
+
 export const useMcpServersStore = defineStore('mcpServers', () => {
   const items = ref<McpServer[]>([])
   const loading = ref(false)
@@ -184,6 +191,11 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     return invoke<PastedServer[]>('parse_mcp_setup_text', { text })
   }
 
+  /** Drafts from pasted text or a README link: a known format first, the AI otherwise. */
+  async function draftServers(text: string): Promise<McpSetupDrafts> {
+    return invoke<McpSetupDrafts>('draft_mcp_servers', { text })
+  }
+
   async function exportServer(id: string, path: string): Promise<void> {
     await invoke('export_mcp_server', { id, path })
   }
@@ -212,6 +224,7 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     setRunOverride,
     testConnection,
     parseSetupText,
+    draftServers,
     exportServer,
     importServer,
   }

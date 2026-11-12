@@ -213,6 +213,7 @@ pub fn run() {
         .manage(commands::focus_ai::FocusAiState::default())
         .manage(commands::skill_eval::SkillEvalState::default())
         .manage(runs::handoff::HandoffState::default())
+        .manage(commands::mcp_setup::McpSetupState::default())
         .setup(|app| {
             use tauri::Manager;
             let app_data_dir = app
@@ -577,6 +578,7 @@ pub fn run() {
             export_mcp_server,
             import_mcp_server,
             parse_mcp_setup_text,
+            commands::mcp_setup::draft_mcp_servers,
             list_google_accounts,
             add_google_account,
             delete_google_account,

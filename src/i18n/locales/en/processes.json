@@ -21,6 +21,7 @@
     "focus_ai": "Focus AI",
     "skill_eval": "Skill eval",
     "handoff_summary": "Handoff summary",
+    "mcp_setup": "Add MCP with AI",
     "probe": "Model probe",
     "mcp_test": "MCP test",
     "ssh_agent": "ssh-agent",
