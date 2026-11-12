@@ -7149,7 +7149,10 @@ mod codex_account_resume_tests {
         add_account(&db, "b", &b, false).await;
         let sid = uuid::Uuid::new_v4().to_string();
         let name = format!("rollout-2026-11-10T10-00-00-{sid}.jsonl");
-        let src = a.join("sessions/2026/11/10").join(&name);
+        // One component per join: a "sessions/2026/11/10" segment keeps its `/`
+        // on Windows, where the code builds the same path with `\`.
+        let day = ["sessions", "2026", "11", "10"].iter().collect::<PathBuf>();
+        let src = a.join(&day).join(&name);
         fs::create_dir_all(src.parent().unwrap()).unwrap();
         fs::write(&src, "turns").unwrap();
         sqlx::query(
@@ -7169,7 +7172,7 @@ mod codex_account_resume_tests {
             .await
             .unwrap()
         };
-        let copy = b.join("sessions/2026/11/10").join(&name);
+        let copy = b.join(&day).join(&name);
 
         // Mid-turn: only the id; the rollout is still being written under `a`.
         set_run_codex_account_inner(&db, "r1".into(), Some("b".into())).await.unwrap();
