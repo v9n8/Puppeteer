@@ -7,7 +7,8 @@
     "stillWaiting": "{project} is still waiting for permission",
     "done": "{project} — session finished",
     "failed": "{project} — session failed",
-    "stopped": "{project} — session stopped"
+    "stopped": "{project} — session stopped",
+    "stuck": "{project} — session may be stuck"
   },
   "body": {
     "question": "{engine} is asking you a question",
@@ -15,6 +16,8 @@
     "wantsToRun": "Wants to run {tool}",
     "done": "{engine} finished responding",
     "failed": "{engine} ended with an error",
-    "stoppedQuota": "Session stopped: quota limit reached"
+    "stoppedQuota": "Session stopped: quota limit reached",
+    "unresponsive": "{engine} has stopped responding. Stop the session if it doesn't recover.",
+    "notStarted": "{engine} has not started. Stop the session and try again if it doesn't come up."
   }
 }

@@ -26,7 +26,7 @@ function translator(lang) {
   }
 }
 
-const KINDS = ['needs_you', 'done', 'failed', 'stopped_quota']
+const KINDS = ['needs_you', 'done', 'failed', 'stopped_quota', 'stuck']
 const ENGINES = ['claude', 'codex']
 const LANGS = ['en', 'vi']
 const QUESTION = { tool_name: 'AskUserQuestion' }
@@ -46,7 +46,7 @@ test('finished turns: done, failed, a quota stop; a turn the user stopped raises
 })
 
 test('each kind follows its switch; a quota stop follows "Failed or stopped"', () => {
-  assert.deepEqual(KINDS.map(notifySwitch), ['needs_you', 'done', 'failed', 'failed'])
+  assert.deepEqual(KINDS.map(notifySwitch), ['needs_you', 'done', 'failed', 'failed', 'stuck'])
   const doneOff = parseDesktopNotify('{"done":false}')
   assert.equal(allowsRunNotification(doneOff, 'done'), false)
   for (const k of ['needs_you', 'failed', 'stopped_quota']) assert.equal(allowsRunNotification(doneOff, k), true, k)
@@ -57,6 +57,9 @@ test('each kind follows its switch; a quota stop follows "Failed or stopped"', (
   assert.equal(allowsRunNotification(failedOff, 'stopped_quota'), false)
   assert.equal(allowsRunNotification(failedOff, 'done'), true)
   for (const k of KINDS) assert.equal(allowsRunNotification(parseDesktopNotify(''), k), true, k)
+  const stuckOff = parseDesktopNotify('{"stuck":false}')
+  assert.equal(allowsRunNotification(stuckOff, 'stuck'), false)
+  for (const k of ['needs_you', 'done', 'failed', 'stopped_quota']) assert.equal(allowsRunNotification(stuckOff, k), true, k)
 })
 
 test('every kind × engine × language has a title and a body; Codex never says Claude', () => {
@@ -129,6 +132,31 @@ test('a turn a limit stopped says why (run:done reason)', () => {
   const reason = 'Stopped: turn limit reached (200 model calls)'
   assert.deepEqual(text('en', 'failed', 'codex', { reason, title: 'Nightly' }), { title: 'Shop — session stopped', body: reason })
   assert.equal(text('vi', 'failed', 'codex', { reason }).title, 'Shop — Session bị dừng')
+})
+
+test('"may be stuck": the title, then why, naming the run\'s engine (HD-11)', () => {
+  const stuck = (lang, engine, alert) => text(lang, 'stuck', engine, { alert, title: 'Fix login' })
+  assert.deepEqual(stuck('en', 'codex', 'unresponsive'), {
+    title: 'Shop — session may be stuck',
+    body: "Codex has stopped responding. Stop the session if it doesn't recover.",
+  })
+  assert.deepEqual(stuck('en', 'claude', 'not_started'), {
+    title: 'Shop — session may be stuck',
+    body: "Claude has not started. Stop the session and try again if it doesn't come up.",
+  })
+  assert.deepEqual(stuck('vi', 'codex', 'unresponsive'), {
+    title: 'Shop — Session có thể bị treo',
+    body: 'Codex đã ngừng phản hồi. Hãy dừng Session nếu nó không tự hồi phục.',
+  })
+  assert.equal(stuck('vi', 'claude', 'not_started').body, 'Claude vẫn chưa khởi động. Hãy dừng Session và chạy lại nếu nó không lên.')
+  for (const lang of LANGS) {
+    for (const alert of ['unresponsive', 'not_started']) {
+      const { body } = stuck(lang, 'codex', alert)
+      assert.ok(body.startsWith('Codex') && !body.includes('Claude'), `${lang}/${alert}: ${body}`)
+      const unknown = stuck(lang, null, alert).body
+      assert.ok(!unknown.includes('Claude') && !unknown.includes('Codex'), unknown)
+    }
+  }
 })
 
 test('en and vi have the same keys', () => {

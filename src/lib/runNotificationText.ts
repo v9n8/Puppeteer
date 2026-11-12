@@ -5,8 +5,8 @@
 import { allows, type DesktopNotify, type DesktopNotifyKind } from './desktopNotify.ts'
 import { engineLabel } from './skillRows.ts'
 
-/** HD-11 adds 'stuck', HD-12 'schedule'. */
-export type RunNotificationKind = 'needs_you' | 'done' | 'failed' | 'stopped_quota'
+/** HD-12 adds 'schedule'. */
+export type RunNotificationKind = 'needs_you' | 'done' | 'failed' | 'stopped_quota' | 'stuck'
 
 /** `runs.end_reason` of a session the quota stop ended (backend `quota_stop::END_REASON`). */
 export const QUOTA_END_REASON = 'quota'
@@ -55,6 +55,8 @@ export interface RunNotificationInput {
   request?: NotificationRequest | null
   /** needs_you: a reminder for a request that has waited a long time. */
   reminder?: boolean
+  /** stuck: the watchdog notice kind ('unresponsive' | 'not_started'). */
+  alert?: string | null
   t: Translate
 }
 
@@ -80,6 +82,11 @@ export function runNotificationText(input: RunNotificationInput): { title: strin
       return {
         title: t(input.reminder ? 'runNotify.title.stillWaiting' : 'runNotify.title.needsYou', { project }),
         body: requestText(input.request, engine, t),
+      }
+    case 'stuck':
+      return {
+        title: t('runNotify.title.stuck', { project }),
+        body: t(input.alert === 'not_started' ? 'runNotify.body.notStarted' : 'runNotify.body.unresponsive', { engine }),
       }
     case 'stopped_quota':
       // No %: the figure stays in the session's log.

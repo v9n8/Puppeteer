@@ -66,6 +66,7 @@
     "review": "Duyệt",
     "stopped": "Đã dừng",
     "stoppedQuota": "Đã dừng: quota",
+    "mayBeStuck": "Session này có thể bị treo: đã ngừng phản hồi hoặc chưa khởi động",
     "failed": "Thất bại",
     "done": "Xong",
     "run": "Run",

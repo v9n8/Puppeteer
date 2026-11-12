@@ -2,12 +2,13 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Activity, ShieldAlert, CheckCircle2, XCircle, Network } from 'lucide-vue-next'
+import { Activity, ShieldAlert, CheckCircle2, XCircle, Network, AlertTriangle } from 'lucide-vue-next'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { QUOTA_END_REASON } from '@/lib/runNotificationText'
+import { hasStuckAlert } from '@/lib/stuckNotify'
 
 /**
  * App-wide dock of all currently-active runs (streaming or awaiting a
@@ -39,6 +40,8 @@ interface DockRow {
   conductorRunId: string | null
   /** Why the run ended when the user did not end it (`run:done.end_reason`). */
   endReason: string | null
+  /** The watchdog says the sidecar stopped responding or never started. */
+  stuck: boolean
 }
 
 const rows = computed<DockRow[]>(() => {
@@ -60,6 +63,7 @@ const rows = computed<DockRow[]>(() => {
         role: meta?.role ?? null,
         conductorRunId: meta?.conductor_run_id ?? null,
         endReason: s.endReason,
+        stuck: hasStuckAlert(s.attention),
       })
     }
   })
@@ -141,6 +145,7 @@ const displayRows = computed<DisplayRow[]>(() => {
         role: 'conductor',
         conductorRunId: null,
         endReason: null,
+        stuck: false,
       },
       workers,
     })
@@ -164,7 +169,7 @@ const displayRows = computed<DisplayRow[]>(() => {
     // Merge the workers' state onto the conductor row so one row conveys the
     // whole group: pending = any worker needs permission; running = the
     // conductor or any worker is still streaming; done = the conductor itself
-    // finished and every worker settled.
+    // finished and every worker settled; stuck = the conductor or any worker.
     const groupPending = top.header.pending + top.workers.reduce((s, w) => s + w.pending, 0)
     const anyRunning =
       top.header.status === 'running' || top.workers.some((w) => w.status === 'running')
@@ -173,6 +178,7 @@ const displayRows = computed<DisplayRow[]>(() => {
       status: anyRunning ? 'running' : top.header.status,
       pending: groupPending,
       done: !anyRunning && groupPending === 0 && top.header.done,
+      stuck: top.header.stuck || top.workers.some((w) => w.stuck),
     }
     out.push({ row: merged, isGroup: true, workerCount: top.workers.length })
   }
@@ -285,6 +291,15 @@ function open(row: DockRow) {
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm leading-tight">{{ label(row) }}</span>
             <span class="block truncate text-2xs text-muted-foreground/70 leading-tight">{{ projectName(row.projectId) }}</span>
+          </span>
+          <span
+            v-if="row.stuck"
+            class="shrink-0 text-warning"
+            role="img"
+            :title="t('misc.activeRuns.mayBeStuck')"
+            :aria-label="t('misc.activeRuns.mayBeStuck')"
+          >
+            <AlertTriangle class="h-3.5 w-3.5" :stroke-width="2" />
           </span>
           <!-- Active-worker count for a conductor. -->
           <span

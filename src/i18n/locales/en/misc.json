@@ -66,6 +66,7 @@
     "review": "Review",
     "stopped": "Stopped",
     "stoppedQuota": "Stopped: quota",
+    "mayBeStuck": "This session may be stuck: it has stopped responding or has not started",
     "failed": "Failed",
     "done": "Done",
     "run": "Run",

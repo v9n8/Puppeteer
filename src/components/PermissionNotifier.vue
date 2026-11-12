@@ -20,6 +20,7 @@ import {
   runNotificationText,
   type RunNotificationKind,
 } from '@/lib/runNotificationText'
+import { newStuckAlerts, type RunAttentionState, type StuckAlert } from '@/lib/stuckNotify'
 
 /**
  * Headless, app-wide notifier for pending permission / question requests on runs
@@ -32,6 +33,11 @@ import {
  * It also fires a native "session finished" notification when a main run (not a
  * conductor worker) completes a turn while the app window is unfocused; clicking
  * it opens that run the same way.
+ *
+ * It also fires a "session may be stuck" notification, once per alert, when the
+ * backend watchdog says a run's sidecar stopped responding or never started
+ * (lib/stuckNotify) — for conductor workers too, since a conductor cannot
+ * revive a dead sidecar. A cleared alert notifies nothing.
  *
  * Every kind obeys its `desktop_notify` switch (Settings → Sessions →
  * Notifications), and the text follows the app's language (lib/runNotificationText).
@@ -105,6 +111,7 @@ let unlistenClick: UnlistenFn | null = null
 let unsubscribeDone: (() => void) | null = null
 let unsubscribeReminder: (() => void) | null = null
 const notified = new Set<string>()
+let stuckNotified = new Set<string>()
 
 // Native "session finished" notification. Skipped when the window is focused
 // (the Active runs dock already shows it), for runs the user stopped (a quota
@@ -187,6 +194,34 @@ async function remindPermission(projectId: string, runId: string, req: Permissio
   await notifyNeedsYou(projectId, runId, req, true)
 }
 
+// "Session may be stuck" notification for one watchdog alert. Unlike a finished
+// turn, a conductor worker is not skipped.
+async function notifyStuck(alert: StuckAlert) {
+  try {
+    const wins = await getAllWebviewWindows()
+    const focused = await Promise.all(wins.map((w) => w.isFocused().catch(() => false)))
+    if (focused.some(Boolean)) return
+  } catch {
+    // Can't tell — fall through and notify.
+  }
+  const meta = await runMetaFor(alert.runId, alert.projectId)
+  const text = runNotificationText({
+    kind: 'stuck',
+    engine: meta?.engine,
+    project: projectName(alert.projectId),
+    alert: alert.kind,
+    t,
+  })
+  invoke('show_run_finished_notification', {
+    ...text,
+    projectId: alert.projectId,
+    runId: alert.runId,
+    openLabel: t('runNotify.open'),
+  }).catch(() => {
+    // ignore — the session banner and the Active runs dock mark still show it
+  })
+}
+
 onMounted(async () => {
   try {
     permissionGranted = await isPermissionGranted()
@@ -261,6 +296,21 @@ watch(
   },
   { deep: true },
 )
+
+const attentionByRun = computed<RunAttentionState[]>(() => {
+  const out: RunAttentionState[] = []
+  live.sessions.forEach((s) => out.push({ runId: s.runId, projectId: s.projectId, attention: s.attention }))
+  return out
+})
+
+// One notification per stuck alert. An alert raised while the window is
+// focused or "May be stuck" is off is still marked, so it never fires later.
+watch(attentionByRun, (runs) => {
+  const { fresh, notified: next } = newStuckAlerts(runs, stuckNotified)
+  stuckNotified = next
+  if (!fresh.length || !permissionGranted || !allowed('stuck')) return
+  for (const alert of fresh) void notifyStuck(alert)
+})
 </script>
 
 <template>

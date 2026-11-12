@@ -7,7 +7,8 @@
     "stillWaiting": "{project} vẫn đang chờ bạn cấp quyền",
     "done": "{project} — Session đã xong",
     "failed": "{project} — Session bị lỗi",
-    "stopped": "{project} — Session bị dừng"
+    "stopped": "{project} — Session bị dừng",
+    "stuck": "{project} — Session có thể bị treo"
   },
   "body": {
     "question": "{engine} đang hỏi bạn một câu",
@@ -15,6 +16,8 @@
     "wantsToRun": "Muốn chạy {tool}",
     "done": "{engine} đã trả lời xong",
     "failed": "{engine} kết thúc với lỗi",
-    "stoppedQuota": "Session bị dừng: đã chạm giới hạn quota"
+    "stoppedQuota": "Session bị dừng: đã chạm giới hạn quota",
+    "unresponsive": "{engine} đã ngừng phản hồi. Hãy dừng Session nếu nó không tự hồi phục.",
+    "notStarted": "{engine} vẫn chưa khởi động. Hãy dừng Session và chạy lại nếu nó không lên."
   }
 }
