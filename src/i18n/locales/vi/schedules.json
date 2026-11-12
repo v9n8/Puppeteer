@@ -22,13 +22,15 @@
   "saveHint": "Lịch mới tạo ra ở trạng thái tắt: bật nó trong danh sách.",
   "remoteSave": "Lưu từ remote desktop sẽ tắt lịch.",
   "mode": {
-    "plan": "Plan (chỉ đọc)",
-    "default": "Hỏi quyền",
-    "acceptEdits": "Tự nhận sửa file",
-    "bypassPermissions": "Bỏ qua mọi quyền"
+    "plan": "Lập kế hoạch",
+    "auto": "Tự động",
+    "default": "Thủ công",
+    "acceptEdits": "Tự nhận sửa",
+    "bypassPermissions": "Bỏ qua quyền"
   },
   "modeHint": {
     "plan": "Agent được đọc và suy nghĩ, không sửa file hay chạy lệnh.",
+    "auto": "Agent tự quyết từng lệnh gọi; lệnh nào nó không tự duyệt được sẽ bị từ chối thay vì hỏi, nên các lượt sau vẫn chạy.",
     "default": "Tool cần duyệt sẽ chờ tới khi có người trả lời; trong lúc đó các lượt sau bị bỏ qua.",
     "acceptEdits": "Agent sửa file không hỏi. Không ai theo dõi lượt chạy theo lịch.",
     "bypassPermissions": "Agent làm mọi thứ không hỏi. Không ai theo dõi lượt chạy theo lịch."

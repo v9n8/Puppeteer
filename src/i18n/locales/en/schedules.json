@@ -22,13 +22,15 @@
   "saveHint": "A new schedule starts off: switch it on in the list.",
   "remoteSave": "Saving from a remote desktop switches the schedule off.",
   "mode": {
-    "plan": "Plan (read only)",
-    "default": "Ask for permission",
+    "plan": "Plan",
+    "auto": "Auto",
+    "default": "Manual",
     "acceptEdits": "Accept edits",
     "bypassPermissions": "Bypass permissions"
   },
   "modeHint": {
     "plan": "The agent can read and think, but not edit files or run commands.",
+    "auto": "The agent decides each call; one it cannot approve on its own is declined instead of asked, so the next runs go on.",
     "default": "A tool that needs approval waits until someone answers; the next runs are skipped meanwhile.",
     "acceptEdits": "The agent edits files without asking. Nobody is watching a scheduled run.",
     "bypassPermissions": "The agent does anything without asking. Nobody is watching a scheduled run."

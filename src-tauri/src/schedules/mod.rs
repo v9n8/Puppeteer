@@ -30,8 +30,9 @@ pub const CHANGED_EVENT: &str = "schedules:changed";
 pub const MAX_INTERVAL_MINUTES: u32 = 7 * 24 * 60;
 /// Modes a schedule may run in. `plan` (read and think, no writes) is the
 /// default and the only one an agent proposes. In `default` a tool that needs
-/// approval waits for someone to answer, which blocks the next firings.
-pub const PERMISSION_MODES: &[&str] = &["plan", "default", "acceptEdits", "bypassPermissions"];
+/// approval waits for someone to answer, which blocks the next firings; `auto`
+/// declines what its classifier cannot approve instead of asking.
+pub const PERMISSION_MODES: &[&str] = &["plan", "auto", "default", "acceptEdits", "bypassPermissions"];
 const ENGINES: &[&str] = &["claude", "codex"];
 const MAX_NAME_CHARS: usize = 200;
 const MAX_PROMPT_CHARS: usize = 20_000;
@@ -497,12 +498,24 @@ pub(crate) mod tests {
         cases.push(ScheduleInput { name: "  ".into(), ..input(None, daily("08:30")) });
         cases.push(ScheduleInput { prompt: String::new(), ..input(None, daily("08:30")) });
         cases.push(ScheduleInput { engine: Some("gpt".into()), ..input(None, daily("08:30")) });
-        cases.push(ScheduleInput { permission_mode: "auto".into(), ..input(None, daily("08:30")) });
+        cases.push(ScheduleInput { permission_mode: "dontAsk".into(), ..input(None, daily("08:30")) });
         cases.push(ScheduleInput { project_id: "nope".into(), ..input(None, daily("08:30")) });
         for case in cases {
             assert!(save(&db, case.clone(), false, &now).await.is_err(), "{case:?}");
         }
         assert!(list(&db).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn every_listed_mode_is_saved() {
+        let db = db().await;
+        let now = at("2026-11-08T08:00:00+07:00");
+        for mode in PERMISSION_MODES {
+            let saved = save(&db, ScheduleInput { permission_mode: mode.to_string(), ..input(None, daily("08:30")) }, false, &now)
+                .await
+                .unwrap();
+            assert_eq!(saved.permission_mode, *mode);
+        }
     }
 
     #[tokio::test]

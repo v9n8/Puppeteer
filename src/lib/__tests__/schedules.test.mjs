@@ -2,7 +2,9 @@
 // Run: node --test src/lib/__tests__/schedules.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
+  PERMISSION_MODES,
   emptyForm,
   formError,
   formFromSchedule,
@@ -118,4 +120,15 @@ test('timingSummary picks a key per kind', () => {
   })
   assert.deepEqual(timingSummary({ kind: 'once', at: '2026-11-09T07:15' }), { key: 'once', params: { at: '2026-11-09 07:15' } })
   assert.deepEqual(timingSummary(null), { key: 'invalid', params: {} })
+})
+
+test('every schedule mode, Auto included, has a label and a hint in en and vi', () => {
+  assert.ok(PERMISSION_MODES.includes('auto'))
+  for (const lang of ['en', 'vi']) {
+    const msgs = JSON.parse(readFileSync(new URL(`../../i18n/locales/${lang}/schedules.json`, import.meta.url), 'utf8'))
+    for (const mode of PERMISSION_MODES) {
+      assert.ok(msgs.mode[mode]?.trim(), `${lang}: ${mode} label`)
+      assert.ok(msgs.modeHint[mode]?.trim(), `${lang}: ${mode} hint`)
+    }
+  }
 })

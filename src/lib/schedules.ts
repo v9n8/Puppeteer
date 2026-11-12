@@ -10,7 +10,7 @@ export const EVT_SCHEDULES_CHANGED = 'schedules:changed'
 
 export const MAX_INTERVAL_MINUTES = 7 * 24 * 60
 /** Same order as `schedules::PERMISSION_MODES`; `plan` is the default. */
-export const PERMISSION_MODES = ['plan', 'default', 'acceptEdits', 'bypassPermissions'] as const
+export const PERMISSION_MODES = ['plan', 'auto', 'default', 'acceptEdits', 'bypassPermissions'] as const
 export const TIMING_KINDS = ['interval', 'daily', 'weekly', 'once'] as const
 
 export type PermissionMode = (typeof PERMISSION_MODES)[number]
