@@ -1,0 +1,20 @@
+{
+  "open": "Mở",
+  "unknownProject": "Project",
+  "someEngine": "Session",
+  "title": {
+    "needsYou": "{project} cần bạn cấp quyền",
+    "stillWaiting": "{project} vẫn đang chờ bạn cấp quyền",
+    "done": "{project} — Session đã xong",
+    "failed": "{project} — Session bị lỗi",
+    "stopped": "{project} — Session bị dừng"
+  },
+  "body": {
+    "question": "{engine} đang hỏi bạn một câu",
+    "planReady": "{engine} đã lập xong kế hoạch — hãy xem lại",
+    "wantsToRun": "Muốn chạy {tool}",
+    "done": "{engine} đã trả lời xong",
+    "failed": "{engine} kết thúc với lỗi",
+    "stoppedQuota": "Session bị dừng: đã chạm giới hạn quota"
+  }
+}

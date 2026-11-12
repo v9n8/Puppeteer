@@ -60,6 +60,35 @@ pub(crate) fn show_clickable_opts(
     raise_main: bool,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
+    show_notification(
+        app,
+        title,
+        body,
+        label,
+        raise_main,
+        open_button_label(None),
+        on_click,
+    )
+}
+
+/// The macOS "Open" button's text: the frontend sends it translated; missing
+/// or blank falls back to English.
+fn open_button_label(label: Option<String>) -> String {
+    label
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .unwrap_or_else(|| "Open".to_string())
+}
+
+fn show_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    label: &'static str,
+    raise_main: bool,
+    open_label: String,
+    on_click: impl FnOnce(&AppHandle) + Send + 'static,
+) {
     // macOS needs a bundle identifier to own the notification via
     // NSUserNotificationCenter. Dev builds aren't bundled, so we borrow
     // Terminal's identity exactly like tauri-plugin-notification does.
@@ -88,8 +117,11 @@ pub(crate) fn show_clickable_opts(
             // notification is sent fire-and-forget and `wait_for_action` returns
             // immediately with no click ever captured. Adding an action makes
             // both the "Open" button AND a plain body click deliver an event.
-            notification.action("open", "Open");
+            notification.action("open", &open_label);
         }
+        // Only macOS shows the button.
+        #[cfg(not(target_os = "macos"))]
+        drop(open_label);
 
         match notification.show() {
             Ok(handle) => {
@@ -118,7 +150,7 @@ pub(crate) fn show_clickable_opts(
 
 /// Show a native notification for a pending permission/question on a run the
 /// user isn't currently viewing. A click emits `NOTIFICATION_CLICKED_EVENT`
-/// with the originating project/run.
+/// with the originating project/run. `open_label`: the translated "Open".
 #[tauri::command]
 pub async fn show_permission_notification(
     app: AppHandle,
@@ -126,19 +158,24 @@ pub async fn show_permission_notification(
     body: String,
     project_id: String,
     run_id: String,
+    open_label: Option<String>,
 ) -> Result<(), String> {
-    show_clickable(app, title, body, "permission notification", move |app| {
-        let _ = app.emit(
-            NOTIFICATION_CLICKED_EVENT,
-            NotificationClick { project_id, run_id },
-        );
-    });
+    show_run_notification(
+        app,
+        title,
+        body,
+        "permission notification",
+        open_label,
+        project_id,
+        run_id,
+    );
     Ok(())
 }
 
 /// Show a native notification that a run finished while the app was in the
 /// background. A click emits `NOTIFICATION_CLICKED_EVENT` with the finished
 /// project/run, so the frontend opens it exactly like a permission click.
+/// `open_label`: the translated "Open".
 #[tauri::command]
 pub async fn show_run_finished_notification(
     app: AppHandle,
@@ -146,14 +183,43 @@ pub async fn show_run_finished_notification(
     body: String,
     project_id: String,
     run_id: String,
+    open_label: Option<String>,
 ) -> Result<(), String> {
-    show_clickable(app, title, body, "run finished notification", move |app| {
-        let _ = app.emit(
-            NOTIFICATION_CLICKED_EVENT,
-            NotificationClick { project_id, run_id },
-        );
-    });
+    show_run_notification(
+        app,
+        title,
+        body,
+        "run finished notification",
+        open_label,
+        project_id,
+        run_id,
+    );
     Ok(())
+}
+
+fn show_run_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    label: &'static str,
+    open_label: Option<String>,
+    project_id: String,
+    run_id: String,
+) {
+    show_notification(
+        app,
+        title,
+        body,
+        label,
+        true,
+        open_button_label(open_label),
+        move |app| {
+            let _ = app.emit(
+                NOTIFICATION_CLICKED_EVENT,
+                NotificationClick { project_id, run_id },
+            );
+        },
+    );
 }
 
 /// Show a native calendar-reminder notification for an upcoming event. A click
@@ -170,4 +236,21 @@ pub async fn show_calendar_reminder(
         let _ = app.emit(CALENDAR_REMINDER_CLICKED_EVENT, ReminderClick { event_id });
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::open_button_label;
+
+    #[test]
+    fn open_button_uses_the_translated_label() {
+        assert_eq!(open_button_label(Some("Mở".into())), "Mở");
+        assert_eq!(open_button_label(Some("  Open  ".into())), "Open");
+    }
+
+    #[test]
+    fn open_button_falls_back_to_english() {
+        assert_eq!(open_button_label(None), "Open");
+        assert_eq!(open_button_label(Some("   ".into())), "Open");
+    }
 }

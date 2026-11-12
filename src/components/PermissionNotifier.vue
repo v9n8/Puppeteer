@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { invoke } from '@tauri-apps/api/core'
@@ -10,7 +11,15 @@ import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
 import { useRunsStore } from '@/stores/runs'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
+import { useAppSettingsStore } from '@/stores/appSettings'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
+import { parseDesktopNotify } from '@/lib/desktopNotify'
+import {
+  allowsRunNotification,
+  finishedRunKind,
+  runNotificationText,
+  type RunNotificationKind,
+} from '@/lib/runNotificationText'
 
 /**
  * Headless, app-wide notifier for pending permission / question requests on runs
@@ -23,6 +32,9 @@ import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
  * It also fires a native "session finished" notification when a main run (not a
  * conductor worker) completes a turn while the app window is unfocused; clicking
  * it opens that run the same way.
+ *
+ * Every kind obeys its `desktop_notify` switch (Settings → Sessions →
+ * Notifications), and the text follows the app's language (lib/runNotificationText).
  */
 
 interface PendingRun {
@@ -33,10 +45,12 @@ interface PendingRun {
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const live = useLiveRunsStore()
 const projectsStore = useProjectsStore()
 const runsStore = useRunsStore()
 const tabsStore = useWorkspaceTabsStore()
+const appSettings = useAppSettingsStore()
 
 // The run currently open in RunView — its request is already shown there.
 const activeRunId = computed(() =>
@@ -54,18 +68,24 @@ const pending = computed<PendingRun[]>(() => {
   return out
 })
 
-function isQuestion(req: PermissionRequest): boolean {
-  return req.tool_name === 'AskUserQuestion'
-}
-
-function label(req: PermissionRequest): string {
-  if (isQuestion(req)) return 'Claude is asking you a question'
-  if (req.tool_name === 'ExitPlanMode') return 'Claude finished planning — review the plan'
-  return req.title || req.display_name || `Wants to run ${req.tool_name}`
-}
-
 function projectName(projectId: string): string {
-  return projectsStore.projects.find((p) => p.id === projectId)?.name ?? 'Project'
+  return projectsStore.projects.find((p) => p.id === projectId)?.name ?? t('runNotify.unknownProject')
+}
+
+// Read at notify time, so a switch flipped in Settings applies to the next one.
+function allowed(kind: RunNotificationKind): boolean {
+  return allowsRunNotification(parseDesktopNotify(appSettings.settings?.desktop_notify), kind)
+}
+
+// The run's metadata (engine, title, conductor). A freshly-spawned run may not
+// be in `runMeta` yet — `list_runs` is the only source of `conductor_run_id`.
+async function runMetaFor(runId: string, projectId: string) {
+  let meta = runsStore.runMeta.get(runId)
+  if (!meta) {
+    await runsStore.refreshMeta(projectId).catch(() => {})
+    meta = runsStore.runMeta.get(runId)
+  }
+  return meta
 }
 
 function navigateToRun(projectId: string, runId: string) {
@@ -87,11 +107,19 @@ let unsubscribeReminder: (() => void) | null = null
 const notified = new Set<string>()
 
 // Native "session finished" notification. Skipped when the window is focused
-// (the Active runs dock already shows it), for cancelled runs (the user stopped
-// it), and for conductor workers (only the main run). A turn a limit stopped
-// (AC-23, `reason`) says why instead of the session title.
-async function notifyRunFinished(runId: string, projectId: string, status: string, reason?: string) {
-  if (!permissionGranted || status === 'cancelled') return
+// (the Active runs dock already shows it), for runs the user stopped (a quota
+// stop, `endReason`, still notifies), and for conductor workers (only the main
+// run). A turn a limit stopped (AC-23, `reason`) says why instead of the
+// session title.
+async function notifyRunFinished(
+  runId: string,
+  projectId: string,
+  status: string,
+  reason?: string,
+  endReason?: string,
+) {
+  const kind = finishedRunKind(status, endReason)
+  if (!permissionGranted || !kind || !allowed(kind)) return
   try {
     // Any app window counts (a popped-out session window, …).
     const wins = await getAllWebviewWindows()
@@ -100,21 +128,47 @@ async function notifyRunFinished(runId: string, projectId: string, status: strin
   } catch {
     // Can't tell — fall through and notify.
   }
-  let meta = runsStore.runMeta.get(runId)
-  if (!meta) {
-    // A freshly-spawned worker may not be in `runMeta` yet — `list_runs` is the
-    // only source of `conductor_run_id`.
-    await runsStore.refreshMeta(projectId).catch(() => {})
-    meta = runsStore.runMeta.get(runId)
-  }
+  const meta = await runMetaFor(runId, projectId)
   if (meta?.conductor_run_id) return
+  const text = runNotificationText({
+    kind,
+    engine: meta?.engine,
+    project: projectName(projectId),
+    title: meta?.title,
+    reason,
+    t,
+  })
   invoke('show_run_finished_notification', {
-    title: `${projectName(projectId)} — ${reason ? 'session stopped' : status === 'failed' ? 'session failed' : 'session finished'}`,
-    body: reason || meta?.title || 'Claude finished responding',
+    ...text,
     projectId,
     runId,
+    openLabel: t('runNotify.open'),
   }).catch(() => {
     // ignore — the Active runs dock still shows it in-app
+  })
+}
+
+// "Needs you" notification for a waiting permission / question. The approval
+// window and the phone push do not depend on it.
+async function notifyNeedsYou(projectId: string, runId: string, req: PermissionRequest, reminder: boolean) {
+  const meta = await runMetaFor(runId, projectId)
+  const text = runNotificationText({
+    kind: 'needs_you',
+    engine: meta?.engine,
+    project: projectName(projectId),
+    request: req,
+    reminder,
+    t,
+  })
+  // Fire via the native Rust command so notification clicks route back to
+  // this run (the plugin's sendNotification has no working desktop click).
+  invoke('show_permission_notification', {
+    ...text,
+    projectId,
+    runId,
+    openLabel: t('runNotify.open'),
+  }).catch(() => {
+    // ignore — the History attention icon and the in-app banner still cover it
   })
 }
 
@@ -122,7 +176,7 @@ async function notifyRunFinished(runId: string, projectId: string, status: strin
 // native notification (unless the app is in front of the user — the in-app
 // banner and window already show it). The prompt itself is never auto-answered.
 async function remindPermission(projectId: string, runId: string, req: PermissionRequest) {
-  if (!permissionGranted) return
+  if (!permissionGranted || !allowed('needs_you')) return
   try {
     const wins = await getAllWebviewWindows()
     const focused = await Promise.all(wins.map((w) => w.isFocused().catch(() => false)))
@@ -130,14 +184,7 @@ async function remindPermission(projectId: string, runId: string, req: Permissio
   } catch {
     // Can't tell — fall through and notify.
   }
-  invoke('show_permission_notification', {
-    title: `${projectName(projectId)} is still waiting for permission`,
-    body: label(req),
-    projectId,
-    runId,
-  }).catch(() => {
-    // ignore — the in-app banner still covers it
-  })
+  await notifyNeedsYou(projectId, runId, req, true)
 }
 
 onMounted(async () => {
@@ -150,8 +197,8 @@ onMounted(async () => {
     permissionGranted = false
   }
 
-  unsubscribeDone = live.onAnyDone((runId, projectId, status, reason) => {
-    void notifyRunFinished(runId, projectId, status, reason)
+  unsubscribeDone = live.onAnyDone((runId, projectId, status, reason, endReason) => {
+    void notifyRunFinished(runId, projectId, status, reason, endReason)
   })
   unsubscribeReminder = live.onPermissionReminder((runId, projectId, req) => {
     void remindPermission(projectId, runId, req)
@@ -189,7 +236,9 @@ onBeforeUnmount(() => {
 
 // Fire a native notification once per new pending request (not on the run the
 // user is already viewing). Prune ids that have left every queue so the same
-// request can re-alert only if it genuinely reappears.
+// request can re-alert only if it genuinely reappears. A request that arrives
+// while "Needs you" is off is still marked, so turning it back on does not
+// replay it.
 watch(
   pending,
   (list) => {
@@ -202,20 +251,12 @@ watch(
     }
 
     if (!permissionGranted) return
-    for (const t of list) {
-      const id = t.request.request_id
+    const on = allowed('needs_you')
+    for (const p of list) {
+      const id = p.request.request_id
       if (notified.has(id)) continue
       notified.add(id)
-      // Fire via the native Rust command so notification clicks route back to
-      // this run (the plugin's sendNotification has no working desktop click).
-      invoke('show_permission_notification', {
-        title: `${projectName(t.projectId)} needs permission`,
-        body: label(t.request),
-        projectId: t.projectId,
-        runId: t.runId,
-      }).catch(() => {
-        // ignore — the History attention icon still covers it in-app
-      })
+      if (on) void notifyNeedsYou(p.projectId, p.runId, p.request, false)
     }
   },
   { deep: true },

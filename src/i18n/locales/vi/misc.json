@@ -65,6 +65,7 @@
     "heading": "Run đang hoạt động",
     "review": "Duyệt",
     "stopped": "Đã dừng",
+    "stoppedQuota": "Đã dừng: quota",
     "failed": "Thất bại",
     "done": "Xong",
     "run": "Run",

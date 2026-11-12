@@ -7,6 +7,7 @@ import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
+import { QUOTA_END_REASON } from '@/lib/runNotificationText'
 
 /**
  * App-wide dock of all currently-active runs (streaming or awaiting a
@@ -36,6 +37,8 @@ interface DockRow {
   role: string | null
   /** Id of the conductor that spawned this run, when it is a worker. */
   conductorRunId: string | null
+  /** Why the run ended when the user did not end it (`run:done.end_reason`). */
+  endReason: string | null
 }
 
 const rows = computed<DockRow[]>(() => {
@@ -56,6 +59,7 @@ const rows = computed<DockRow[]>(() => {
         done: notifyDone && s.status !== 'running',
         role: meta?.role ?? null,
         conductorRunId: meta?.conductor_run_id ?? null,
+        endReason: s.endReason,
       })
     }
   })
@@ -136,6 +140,7 @@ const displayRows = computed<DisplayRow[]>(() => {
         done: false,
         role: 'conductor',
         conductorRunId: null,
+        endReason: null,
       },
       workers,
     })
@@ -176,6 +181,13 @@ const displayRows = computed<DisplayRow[]>(() => {
 
 function isFailure(status: string): boolean {
   return status === 'failed' || status === 'cancelled'
+}
+
+// Only a quota stop is labelled (and translated) here; the other badge labels
+// stay as they were.
+function failureLabel(row: DockRow): string {
+  if (row.status !== 'cancelled') return 'Failed'
+  return row.endReason === QUOTA_END_REASON ? t('misc.activeRuns.stoppedQuota') : 'Stopped'
 }
 
 const activeRunId = computed(() =>
@@ -295,7 +307,7 @@ function open(row: DockRow) {
             class="flex items-center gap-0.5 rounded bg-destructive/15 px-1 py-0.5 text-2xs font-medium text-destructive shrink-0"
           >
             <XCircle class="h-3 w-3" :stroke-width="2" />
-            {{ row.status === 'cancelled' ? 'Stopped' : 'Failed' }}
+            {{ failureLabel(row) }}
           </span>
           <span
             v-else-if="row.done"

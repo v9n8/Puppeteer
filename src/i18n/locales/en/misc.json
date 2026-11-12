@@ -65,6 +65,7 @@
     "heading": "Active runs",
     "review": "Review",
     "stopped": "Stopped",
+    "stoppedQuota": "Stopped: quota",
     "failed": "Failed",
     "done": "Done",
     "run": "Run",

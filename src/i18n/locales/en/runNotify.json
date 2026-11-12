@@ -1,0 +1,20 @@
+{
+  "open": "Open",
+  "unknownProject": "Project",
+  "someEngine": "The session",
+  "title": {
+    "needsYou": "{project} needs permission",
+    "stillWaiting": "{project} is still waiting for permission",
+    "done": "{project} — session finished",
+    "failed": "{project} — session failed",
+    "stopped": "{project} — session stopped"
+  },
+  "body": {
+    "question": "{engine} is asking you a question",
+    "planReady": "{engine} finished planning — review the plan",
+    "wantsToRun": "Wants to run {tool}",
+    "done": "{engine} finished responding",
+    "failed": "{engine} ended with an error",
+    "stoppedQuota": "Session stopped: quota limit reached"
+  }
+}
