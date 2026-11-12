@@ -437,7 +437,25 @@
     "unattendedMaxTurnsHint": "Một lượt không người xem được gọi model tối đa bao nhiêu lần (mỗi bước dùng tool là một lần gọi). 0 = không giới hạn.",
     "unattendedMaxMinutes": "Số phút mỗi lượt",
     "unattendedMaxMinutesHint": "Một lượt không người xem được chạy bao lâu trước khi Puppeteer dừng nó. 0 = không giới hạn.",
-    "unattendedStop": "Lượt chạm giới hạn sẽ bị dừng và đánh dấu thất bại, kèm lý do trong log và trong thông báo. Puppeteer không tự chạy tiếp: nếu cần làm tiếp, bạn tự gửi tiếp. Việc dài (refactor lớn theo lịch) có thể cần nâng giới hạn."
+    "unattendedStop": "Lượt chạm giới hạn sẽ bị dừng và đánh dấu thất bại, kèm lý do trong log và trong thông báo. Puppeteer không tự chạy tiếp: nếu cần làm tiếp, bạn tự gửi tiếp. Việc dài (refactor lớn theo lịch) có thể cần nâng giới hạn.",
+    "notifyTitle": "Thông báo",
+    "notifyHint": "Thông báo hệ thống Puppeteer hiện trên máy này về các Session của bạn. Tất cả đều bật cho tới khi bạn tắt. Chỉ đặt được trên máy này: Remote Control không đổi được.",
+    "notify": {
+      "needs_you": "Cần bạn",
+      "done": "Xong",
+      "failed": "Lỗi hoặc bị dừng",
+      "stuck": "Có thể bị treo",
+      "schedule": "Lịch không chạy được",
+      "sound": "Âm báo"
+    },
+    "notifyDescriptions": {
+      "needs_you": "Có yêu cầu quyền hoặc câu hỏi đang chờ bạn.",
+      "done": "Một Session đã xong lượt.",
+      "failed": "Một Session kết thúc với lỗi, hoặc bị dừng vì chạm mức quota.",
+      "stuck": "Một Session không còn phản hồi, hoặc không khởi động được.",
+      "schedule": "Một lịch không khởi động được Session của nó.",
+      "sound": "Phát âm thanh kèm các thông báo này."
+    }
   },
   "toast": {
     "saved": "Đã lưu"

@@ -5074,6 +5074,35 @@ mod tests {
         assert_eq!(setting(&target, "keymap.config").await.as_deref(), Some(config));
     }
 
+    /// The desktop notification switches travel in a backup, but a remote desktop's import
+    /// leaves this machine's own alone (the bridge may not write them either).
+    #[tokio::test]
+    async fn desktop_notify_travels_but_not_into_a_remote_import() {
+        use crate::commands::settings::set_setting;
+        assert!(is_portable_setting("desktop_notify"));
+
+        let db = test_db().await;
+        let config = r#"{"needs_you":true,"done":false,"failed":true,"stuck":true,"schedule":false,"sound":true}"#;
+        set_setting(&db, "desktop_notify", config).await.unwrap();
+        let exported = collect_settings(&db).await.unwrap();
+        assert_eq!(exported.get("desktop_notify").map(String::as_str), Some(config));
+
+        let target = test_db().await;
+        let mut report = ImportReport::default();
+        import_settings(&target, &settings_bundle(exported.clone()), false, &mut report).await;
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(setting(&target, "desktop_notify").await.as_deref(), Some(config));
+
+        let remote = test_db().await;
+        let mut report = ImportReport::default();
+        import_settings(&remote, &settings_bundle(exported), true, &mut report).await;
+        assert_eq!(setting(&remote, "desktop_notify").await, None);
+        assert_eq!(
+            report.warnings,
+            ["Settings only changeable on this machine were skipped: desktop_notify"]
+        );
+    }
+
     #[tokio::test]
     async fn feature_switches_round_trip_through_a_backup() {
         use crate::commands::settings::set_setting;

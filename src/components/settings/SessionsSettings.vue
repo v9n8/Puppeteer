@@ -5,13 +5,15 @@
 // `budget_week_percent`, enforced by `stats::enforce_budget`), plus the opt-in
 // stop of running sessions at those thresholds (`quota_stop_running`,
 // `runs::quota_stop`) — and the limits on a turn nobody watches
-// (`unattended_max_turns`, `unattended_max_minutes`, `runs::unattended`).
+// (`unattended_max_turns`, `unattended_max_minutes`, `runs::unattended`),
+// and the desktop notification switches (`desktop_notify`, NotificationSettings).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
 import { Card, InfoTip, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
+import NotificationSettings from './NotificationSettings.vue'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
@@ -31,17 +33,19 @@ const hasBlock = computed(() => blocks.value.some((block) => block > 0))
 const stopRunning = computed(() => settings.value.quota_stop_running === 'true')
 
 // Sub-tabs keep this section one screen tall. The choice is not saved.
-type Tab = 'context' | 'quota' | 'unattended'
+type Tab = 'context' | 'quota' | 'unattended' | 'notify'
 const tab = ref<Tab>('context')
 const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
   { value: 'context', label: t('settings.sessions.contextTitle') },
   { value: 'quota', label: t('settings.sessions.quotaTitle') },
   { value: 'unattended', label: t('settings.sessions.unattendedTitle') },
+  { value: 'notify', label: t('settings.sessions.notifyTitle') },
 ])
 const tabHint = computed(() => ({
   context: t('settings.sessions.contextHint'),
   quota: t('settings.sessions.quotaHint'),
   unattended: t('settings.sessions.unattendedHint'),
+  notify: t('settings.sessions.notifyHint'),
 })[tab.value])
 </script>
 
@@ -66,6 +70,9 @@ const tabHint = computed(() => ({
           <Input v-model="settings.context_limit_override" type="number" min="0" :placeholder="t('settings.sessions.limitOverridePlaceholder')" />
         </SettingsRow>
       </template>
+
+      <!-- Desktop notification switches -->
+      <NotificationSettings v-else-if="tab === 'notify'" />
 
       <!-- Limits on a turn nobody watches: a schedule's, or one Remote Control started -->
       <template v-else-if="tab === 'unattended'">

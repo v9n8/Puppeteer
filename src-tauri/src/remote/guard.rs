@@ -163,7 +163,9 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// switch that stops running sessions at the quota block tier (it kills
 /// sessions on this machine mid-turn), and the limits on unattended turns
 /// (`runs::unattended`): a session Remote Control starts is one, so a
-/// controller must not lift its own limits.
+/// controller must not lift its own limits. The desktop notification switches
+/// (`desktop_notify`) too: a controller must not silence what this machine
+/// tells the person at it.
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
@@ -173,6 +175,7 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && key != crate::runs::quota_stop::SETTING
         && key != crate::runs::unattended::MAX_TURNS_SETTING
         && key != crate::runs::unattended::MAX_MINUTES_SETTING
+        && key != "desktop_notify"
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
@@ -1085,6 +1088,8 @@ mod tests {
             // The limits on unattended turns (AC-23), Remote Control starts included.
             "unattended_max_turns",
             "unattended_max_minutes",
+            // The desktop notification switches.
+            "desktop_notify",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

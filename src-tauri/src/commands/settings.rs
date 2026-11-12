@@ -96,6 +96,11 @@ pub struct AppSettings {
     /// `keymap.config` row as JSON ("" = defaults). The UI owns the shape and the
     /// checks (`src/lib/keymap.ts`); the backend only round-trips the string.
     pub keymap_config: String,
+    /// Desktop OS notification switches per kind, stored under the `desktop_notify` row as JSON
+    /// (`{"needs_you":true,"done":true,…}`; "" or a missing field = on). The UI owns the shape
+    /// (`src/lib/desktopNotify.ts`); the backend only round-trips the string. Local-only with
+    /// Remote Control (`remote::guard::remote_may_set_setting`).
+    pub desktop_notify: String,
 }
 
 /// [`AppSettings::claude_fallback_model`] while the key is unset.
@@ -140,6 +145,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "mcp_builtin_puppeteer_enabled",
     "mcp_builtin_google_enabled",
     "quit_background_policy",
+    "desktop_notify",
     // Focus (focus::settings); the calendar choice stays per machine.
     "focus.work_start",
     "focus.work_end",
@@ -209,6 +215,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         whats_new_seen_version: String::new(),
         palette_config: String::new(),
         keymap_config: String::new(),
+        desktop_notify: String::new(),
     };
 
     for row in rows {
@@ -255,6 +262,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "whats_new_seen_version" => settings.whats_new_seen_version = value,
             "palette.config" => settings.palette_config = value,
             "keymap.config" => settings.keymap_config = value,
+            "desktop_notify" => settings.desktop_notify = value,
             _ => {}
         }
     }

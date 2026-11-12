@@ -54,6 +54,8 @@ export interface AppSettings {
   palette_config: string
   /** Menu shortcuts the user changed, as JSON (the `keymap.config` row); parse with `parseKeymap`. */
   keymap_config: string
+  /** Desktop notification switches as JSON ('' = all on); parse with `parseDesktopNotify` (lib/desktopNotify.ts). */
+  desktop_notify: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {

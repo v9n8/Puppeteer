@@ -46,6 +46,7 @@ export interface AppSettings {
   translate_target_lang: string
   translate_style: string
   quit_background_policy: string
+  desktop_notify: string
 }
 
 export interface SettingsForm {
@@ -97,6 +98,7 @@ export function createSettingsForm(): SettingsForm {
     translate_target_lang: 'vi',
     translate_style: 'natural',
     quit_background_policy: 'ask',
+    desktop_notify: '',
   })
   const loading = ref(true)
   // Snapshot of the last persisted settings so the auto-save watcher only

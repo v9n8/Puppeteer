@@ -437,7 +437,25 @@
     "unattendedMaxTurnsHint": "How many times one unattended turn may call the model (each step of tool use is one call). 0 = no limit.",
     "unattendedMaxMinutes": "Minutes per turn",
     "unattendedMaxMinutesHint": "How long one unattended turn may run before Puppeteer stops it. 0 = no limit.",
-    "unattendedStop": "A turn that reaches a limit is stopped and marked failed, with the reason in its log and in the notification. It is not resumed on its own: continue it yourself if the work should go on. A long job (a big refactor on a schedule) may need higher limits."
+    "unattendedStop": "A turn that reaches a limit is stopped and marked failed, with the reason in its log and in the notification. It is not resumed on its own: continue it yourself if the work should go on. A long job (a big refactor on a schedule) may need higher limits.",
+    "notifyTitle": "Notifications",
+    "notifyHint": "System notifications Puppeteer shows on this computer about your sessions. All are on until you turn one off. Set them on this computer only: Remote Control cannot change them.",
+    "notify": {
+      "needs_you": "Needs you",
+      "done": "Finished",
+      "failed": "Failed or stopped",
+      "stuck": "May be stuck",
+      "schedule": "Schedule could not run",
+      "sound": "Sound"
+    },
+    "notifyDescriptions": {
+      "needs_you": "A permission request or a question is waiting for you.",
+      "done": "A session finished its turn.",
+      "failed": "A session ended with an error, or was stopped at a quota limit.",
+      "stuck": "A session stopped responding, or did not start.",
+      "schedule": "A schedule could not start its session.",
+      "sound": "Play a sound with these notifications."
+    }
   },
   "toast": {
     "saved": "Saved"
