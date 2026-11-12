@@ -17,6 +17,7 @@ import { parseDesktopNotify } from '@/lib/desktopNotify'
 import {
   allowsRunNotification,
   finishedRunKind,
+  notificationSound,
   runNotificationText,
   type RunNotificationKind,
 } from '@/lib/runNotificationText'
@@ -48,6 +49,8 @@ import { isRemoteMode } from '@/lib/ipc/remote'
  *
  * Every kind obeys its `desktop_notify` switch (Settings → Sessions →
  * Notifications), and the text follows the app's language (lib/runNotificationText).
+ * On macOS a waiting permission / question plays a different sound from the
+ * other kinds; the "Sound" switch off silences them all.
  */
 
 interface PendingRun {
@@ -88,6 +91,11 @@ function projectName(projectId: string): string {
 // Read at notify time, so a switch flipped in Settings applies to the next one.
 function allowed(kind: RunNotificationKind): boolean {
   return allowsRunNotification(parseDesktopNotify(appSettings.settings?.desktop_notify), kind)
+}
+
+// Which sound `kind` plays (or none, with "Sound" off), read at notify time too.
+function soundFor(kind: RunNotificationKind) {
+  return notificationSound(parseDesktopNotify(appSettings.settings?.desktop_notify), kind)
 }
 
 // The run's metadata (engine, title, conductor). A freshly-spawned run may not
@@ -159,6 +167,7 @@ async function notifyRunFinished(
     projectId,
     runId,
     openLabel: t('runNotify.open'),
+    sound: soundFor(kind),
   }).catch(() => {
     // ignore — the Active runs dock still shows it in-app
   })
@@ -183,6 +192,7 @@ async function notifyNeedsYou(projectId: string, runId: string, req: PermissionR
     projectId,
     runId,
     openLabel: t('runNotify.open'),
+    sound: soundFor('needs_you'),
   }).catch(() => {
     // ignore — the History attention icon and the in-app banner still cover it
   })
@@ -226,6 +236,7 @@ async function notifyStuck(alert: StuckAlert) {
     projectId: alert.projectId,
     runId: alert.runId,
     openLabel: t('runNotify.open'),
+    sound: soundFor('stuck'),
   }).catch(() => {
     // ignore — the session banner and the Active runs dock mark still show it
   })
@@ -236,7 +247,11 @@ async function notifyStuck(alert: StuckAlert) {
 function notifyScheduleFailed(name: string, message: string) {
   if (!permissionGranted || !allowed('schedule')) return
   const text = runNotificationText({ kind: 'schedule', project: '', schedule: name, reason: message, t })
-  invoke('show_schedule_failed_notification', { ...text, openLabel: t('runNotify.open') }).catch(() => {
+  invoke('show_schedule_failed_notification', {
+    ...text,
+    openLabel: t('runNotify.open'),
+    sound: soundFor('schedule'),
+  }).catch(() => {
     // ignore — the Schedules screen still shows the error on the schedule's row
   })
 }

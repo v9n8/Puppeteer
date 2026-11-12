@@ -36,6 +36,18 @@ export function allowsRunNotification(settings: DesktopNotify, kind: RunNotifica
   return allows(settings, notifySwitch(kind))
 }
 
+/** Sound kind the notification commands map to a macOS sound (backend `sound_for`). */
+export type NotificationSound = 'needs_you' | 'done' | 'silent'
+
+/**
+ * The sound of a `kind` notification: a waiting permission / question sounds
+ * different from everything else, and the "Sound" switch off silences them all.
+ */
+export function notificationSound(settings: DesktopNotify, kind: RunNotificationKind): NotificationSound {
+  if (!allows(settings, 'sound')) return 'silent'
+  return kind === 'needs_you' ? 'needs_you' : 'done'
+}
+
 /** The parts of a permission request the text reads. */
 export interface NotificationRequest {
   tool_name: string

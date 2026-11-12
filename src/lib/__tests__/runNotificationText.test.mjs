@@ -1,5 +1,6 @@
 // Unit tests for lib/runNotificationText.ts (HD-09: desktop OS notifications
-// about runs — kind, switch, translated text; HD-12: a schedule that did not start).
+// about runs — kind, switch, translated text; HD-12: a schedule that did not start;
+// HD-15: which sound each kind plays).
 // Run: node --test src/lib/__tests__/runNotificationText.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -8,6 +9,7 @@ import {
   QUOTA_END_REASON,
   allowsRunNotification,
   finishedRunKind,
+  notificationSound,
   notifySwitch,
   runNotificationText,
 } from '../runNotificationText.ts'
@@ -180,6 +182,18 @@ test('"Schedule could not run" governs only the schedule notification', () => {
   assert.equal(allowsRunNotification(parseDesktopNotify('{"failed":false}'), 'schedule'), true)
   // A profile from before the switch: on.
   assert.equal(allowsRunNotification(parseDesktopNotify(null), 'schedule'), true)
+})
+
+test('"Needs you" sounds different from done / failed / stopped / stuck / schedule (HD-AC-28)', () => {
+  const on = parseDesktopNotify(null)
+  assert.equal(notificationSound(on, 'needs_you'), 'needs_you')
+  for (const k of ['done', 'failed', 'stopped_quota', 'stuck', 'schedule']) assert.equal(notificationSound(on, k), 'done', k)
+})
+
+test('"Sound" off silences every kind; turning a kind off does not', () => {
+  const off = parseDesktopNotify('{"sound":false}')
+  for (const k of [...KINDS, 'schedule']) assert.equal(notificationSound(off, k), 'silent', k)
+  assert.equal(notificationSound(parseDesktopNotify('{"needs_you":false}'), 'needs_you'), 'needs_you')
 })
 
 test('en and vi have the same keys', () => {

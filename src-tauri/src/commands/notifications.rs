@@ -71,8 +71,27 @@ pub(crate) fn show_clickable_opts(
         label,
         raise_main,
         open_button_label(None),
+        Some(DEFAULT_SOUND),
         on_click,
     )
+}
+
+/// macOS's own notification sound: everything except run notifications.
+const DEFAULT_SOUND: &str = "default";
+
+/// The macOS system sound (`/System/Library/Sounds/`) for a run notification's
+/// sound kind, which the frontend picks: "needs_you" (a permission / question
+/// waits) and "done" (finished, failed, stopped, may be stuck, schedule did not
+/// start) sound different so the user can tell them apart by ear; "silent"
+/// (the "Sound" switch is off) plays none. Anything else, a missing kind
+/// included, keeps the default sound.
+fn sound_for(kind: &str) -> Option<&'static str> {
+    match kind {
+        "needs_you" => Some("Glass"),
+        "done" => Some("Ping"),
+        "silent" => None,
+        _ => Some(DEFAULT_SOUND),
+    }
 }
 
 /// The macOS "Open" button's text: the frontend sends it translated; missing
@@ -91,6 +110,7 @@ fn show_notification(
     label: &'static str,
     raise_main: bool,
     open_label: String,
+    sound: Option<&'static str>,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
     // macOS needs a bundle identifier to own the notification via
@@ -114,7 +134,10 @@ fn show_notification(
         notification.summary(&title).body(&body);
         #[cfg(target_os = "macos")]
         {
-            notification.sound_name("default");
+            // No sound name = a silent notification.
+            if let Some(name) = sound {
+                notification.sound_name(name);
+            }
             // Critical: NSUserNotificationCenter only *waits for* (and thus
             // reports) a click when the notification "needs a response" — i.e.
             // it has at least one action/close button. Without this, the
@@ -123,9 +146,10 @@ fn show_notification(
             // both the "Open" button AND a plain body click deliver an event.
             notification.action("open", &open_label);
         }
-        // Only macOS shows the button.
+        // Only macOS shows the button and plays the chosen sound; other
+        // systems keep their own default.
         #[cfg(not(target_os = "macos"))]
-        drop(open_label);
+        drop((open_label, sound));
 
         match notification.show() {
             Ok(handle) => {
@@ -154,7 +178,8 @@ fn show_notification(
 
 /// Show a native notification for a pending permission/question on a run the
 /// user isn't currently viewing. A click emits `NOTIFICATION_CLICKED_EVENT`
-/// with the originating project/run. `open_label`: the translated "Open".
+/// with the originating project/run. `open_label`: the translated "Open";
+/// `sound`: the sound kind (`sound_for`).
 #[tauri::command]
 pub async fn show_permission_notification(
     app: AppHandle,
@@ -163,6 +188,7 @@ pub async fn show_permission_notification(
     project_id: String,
     run_id: String,
     open_label: Option<String>,
+    sound: Option<String>,
 ) -> Result<(), String> {
     show_run_notification(
         app,
@@ -170,6 +196,7 @@ pub async fn show_permission_notification(
         body,
         "permission notification",
         open_label,
+        sound,
         project_id,
         run_id,
     );
@@ -179,7 +206,7 @@ pub async fn show_permission_notification(
 /// Show a native notification that a run finished while the app was in the
 /// background. A click emits `NOTIFICATION_CLICKED_EVENT` with the finished
 /// project/run, so the frontend opens it exactly like a permission click.
-/// `open_label`: the translated "Open".
+/// `open_label`: the translated "Open"; `sound`: the sound kind (`sound_for`).
 #[tauri::command]
 pub async fn show_run_finished_notification(
     app: AppHandle,
@@ -188,6 +215,7 @@ pub async fn show_run_finished_notification(
     project_id: String,
     run_id: String,
     open_label: Option<String>,
+    sound: Option<String>,
 ) -> Result<(), String> {
     show_run_notification(
         app,
@@ -195,6 +223,7 @@ pub async fn show_run_finished_notification(
         body,
         "run finished notification",
         open_label,
+        sound,
         project_id,
         run_id,
     );
@@ -207,6 +236,7 @@ fn show_run_notification(
     body: String,
     label: &'static str,
     open_label: Option<String>,
+    sound: Option<String>,
     project_id: String,
     run_id: String,
 ) {
@@ -217,6 +247,7 @@ fn show_run_notification(
         label,
         true,
         open_button_label(open_label),
+        sound_for(sound.as_deref().unwrap_or_default()),
         move |app| {
             let _ = app.emit(
                 NOTIFICATION_CLICKED_EVENT,
@@ -245,13 +276,15 @@ pub async fn show_calendar_reminder(
 /// Show a native notification that a schedule came due but could not start
 /// its session (`schedules::runner::FAILED_EVENT`). There is no run to open,
 /// so a click emits `SCHEDULE_FAILED_CLICKED_EVENT` and the frontend opens the
-/// Schedules screen. `open_label`: the translated "Open".
+/// Schedules screen. `open_label`: the translated "Open"; `sound`: the sound
+/// kind (`sound_for`).
 #[tauri::command]
 pub async fn show_schedule_failed_notification(
     app: AppHandle,
     title: String,
     body: String,
     open_label: Option<String>,
+    sound: Option<String>,
 ) -> Result<(), String> {
     show_notification(
         app,
@@ -260,6 +293,7 @@ pub async fn show_schedule_failed_notification(
         "schedule failed notification",
         true,
         open_button_label(open_label),
+        sound_for(sound.as_deref().unwrap_or_default()),
         |app| {
             let _ = app.emit(SCHEDULE_FAILED_CLICKED_EVENT, ());
         },
@@ -269,7 +303,7 @@ pub async fn show_schedule_failed_notification(
 
 #[cfg(test)]
 mod tests {
-    use super::open_button_label;
+    use super::{open_button_label, sound_for};
 
     #[test]
     fn open_button_uses_the_translated_label() {
@@ -281,5 +315,23 @@ mod tests {
     fn open_button_falls_back_to_english() {
         assert_eq!(open_button_label(None), "Open");
         assert_eq!(open_button_label(Some("   ".into())), "Open");
+    }
+
+    #[test]
+    fn needs_you_and_done_play_different_sounds() {
+        assert_eq!(sound_for("needs_you"), Some("Glass"));
+        assert_eq!(sound_for("done"), Some("Ping"));
+        assert_ne!(sound_for("needs_you"), sound_for("done"));
+    }
+
+    #[test]
+    fn silent_plays_no_sound() {
+        assert_eq!(sound_for("silent"), None);
+    }
+
+    #[test]
+    fn a_missing_or_unknown_kind_keeps_the_default_sound() {
+        assert_eq!(sound_for(""), Some("default"));
+        assert_eq!(sound_for("loud"), Some("default"));
     }
 }
