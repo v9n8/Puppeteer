@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // MCP servers, Notes-style master-detail:
 //
-//   ┌ sidebar: search · AI · import · ↻    │ detail: name / transport · enabled │
-//   │ + New, All | Enabled | Disabled      │ · added           [Test][Save][⋯]  │
+//   ┌ sidebar: search · import · refresh   │ detail: name / transport · enabled │
+//   │ + New ▾ (by hand / with AI)          │ · added           [Test][Save][⋯]  │
 //   │ Built-in · stdio · http · sse ·      │ General / Process+Environment or   │
 //   │ Recommended folders                  │ Endpoint+Headers                   │
 //   └──────────────────────────────────────┴────────────────────────────────────┘
@@ -19,13 +19,14 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { Import, Plus, RotateCw, Server, Sparkles, Upload } from 'lucide-vue-next'
+import { Import, RotateCw, Server, Upload } from 'lucide-vue-next'
 import { AppSelect, Button } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import McpServerDetail from '@/components/mcp/McpServerDetail.vue'
 import McpInfoDetail from '@/components/mcp/McpInfoDetail.vue'
 import McpAiAddDialog from '@/components/mcp/McpAiAddDialog.vue'
+import McpNewMenu from '@/components/mcp/McpNewMenu.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useConfirm } from '@/composables/useConfirm'
@@ -487,20 +488,9 @@ function dotClass(row: McpRow): string {
       :error="store.error"
       :flat-when-single="false"
       @select="select"
-      @add="startNew()"
       @retry="refresh"
     >
       <template #toolbar>
-        <Button
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :title="t('mcp.aiAdd.title')"
-          :aria-label="t('mcp.aiAdd.title')"
-          @click="aiAddOpen = true"
-        >
-          <Sparkles class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
         <Button
           variant="outline"
           size="icon"
@@ -538,6 +528,10 @@ function dotClass(row: McpRow): string {
 
       <template #controls>
         <AppSelect v-model="typeFilter" :options="typeOptions" :title="t('mcp.list.filterByType')" />
+      </template>
+
+      <template #add>
+        <McpNewMenu @manual="startNew()" @ai="aiAddOpen = true" />
       </template>
 
       <template #row="{ row }">
@@ -615,15 +609,8 @@ function dotClass(row: McpRow): string {
     >
       <template v-if="store.items.length === 0 && !store.loading">
         <p class="mx-auto mt-1 max-w-60 text-2xs text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
-        <div class="mt-4 flex justify-center gap-2">
-          <Button @click="startNew()">
-            <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-            {{ t('common.new') }}
-          </Button>
-          <Button variant="outline" @click="aiAddOpen = true">
-            <Sparkles class="h-3.5 w-3.5" :stroke-width="1.75" />
-            {{ t('mcp.aiAdd.title') }}
-          </Button>
+        <div class="mt-4 flex justify-center">
+          <McpNewMenu align="left" @manual="startNew()" @ai="aiAddOpen = true" />
         </div>
       </template>
     </DetailEmpty>

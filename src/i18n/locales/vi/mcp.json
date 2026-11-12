@@ -45,7 +45,10 @@
     },
     "noSelection": "Chọn một MCP server, hoặc tạo server mới",
     "allTypes": "Tất cả loại",
-    "filterByType": "Lọc theo loại"
+    "filterByType": "Lọc theo loại",
+    "newManual": "Thêm thủ công",
+    "newManualHint": "Tự điền từng trường của form",
+    "newAiHint": "Dán hướng dẫn cài đặt hoặc link README"
   },
   "editor": {
     "newTitle": "MCP Server mới",

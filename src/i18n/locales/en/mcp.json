@@ -45,7 +45,10 @@
     },
     "noSelection": "Select an MCP server, or create a new one",
     "allTypes": "All types",
-    "filterByType": "Filter by type"
+    "filterByType": "Filter by type",
+    "newManual": "Add manually",
+    "newManualHint": "Fill in the form field by field",
+    "newAiHint": "Paste setup instructions or a README link"
   },
   "editor": {
     "newTitle": "New MCP Server",
