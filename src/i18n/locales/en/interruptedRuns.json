@@ -1,0 +1,15 @@
+{
+  "title": "{n} session was cut off when the app closed | {n} sessions were cut off when the app closed",
+  "message": "Nothing resumes until you choose: a session may have stopped half-way through writing a file.",
+  "resumeAll": "Resume all",
+  "choose": "Choose…",
+  "dismiss": "Dismiss",
+  "workers": "{n} worker | {n} workers",
+  "mode": "resumes in mode {mode}",
+  "resumeFailed": "Could not resume",
+  "failed": "Something went wrong: {error}",
+  "pick": {
+    "title": "Choose sessions to resume",
+    "resume": "Resume ({n})"
+  }
+}

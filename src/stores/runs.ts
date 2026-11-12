@@ -166,6 +166,13 @@ export interface RunRecord {
    * session was deleted since. `list_runs` and `fork_run` fill it.
    */
   forked_from_run_id?: string | null
+  /**
+   * Why the run ended when the user did not end it (HD-04 / HD-07):
+   * 'app_closed' when the app exited mid-run, 'quota' when it was stopped at
+   * the quota limit; null otherwise, and again once it runs a turn. Only
+   * `list_runs` fills it; History labels the status with it.
+   */
+  end_reason?: string | null
 }
 
 /**

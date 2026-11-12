@@ -16,6 +16,7 @@ import { setLocale } from '@/i18n'
 import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
 import { EVT_TRASH_CHANGED } from '@/lib/trash'
 import PermissionNotifier from '@/components/PermissionNotifier.vue'
+import InterruptedRunsBanner from '@/components/InterruptedRunsBanner.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
 import UpdateNotifier from '@/components/UpdateNotifier.vue'
@@ -1155,6 +1156,11 @@ onMounted(async () => {
     <!-- Headless: fires native OS notifications for runs awaiting input while the
          app is backgrounded; the in-app signal is the History attention icon. -->
     <PermissionNotifier />
+
+    <!-- Sessions cut off when the app last closed: resume / choose / dismiss.
+         Only a click resumes one. A remote-desktop window drives another
+         machine, whose own window shows them. -->
+    <InterruptedRunsBanner v-if="!isRemoteMode()" />
 
     <!-- Headless: opens one standalone permission window per run that is asking
          (viewed, popped-out, or background) and owns the resolve logic. -->

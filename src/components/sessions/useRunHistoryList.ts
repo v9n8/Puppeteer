@@ -12,6 +12,7 @@ import {
 } from '@/lib/runDisplay'
 import { openFileWindow } from '@/lib/fileWindow'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
+import { runStatusKey } from '@/lib/interruptedRuns'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -86,11 +87,11 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     return runStatusIcon(run.status)
   }
 
-  // Tooltip for the History-row status icon.
+  // Tooltip for the History-row status icon. A run cut off by the app or
+  // stopped at the quota limit reads differently from one the user stopped.
   function runStatusTitle(run: RunRecord): string {
     if (runIsRunning(run)) return t('common.status.running')
-    if (run.status === 'fetched' && run.run_type === 'session') return t('common.status.draft')
-    return t(`common.status.${run.status}`)
+    return t(runStatusKey(run))
   }
 
   // Worker count per conductor, from the flat run list (workers carry

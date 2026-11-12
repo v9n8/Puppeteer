@@ -28,6 +28,8 @@
     "failed": "Failed",
     "cancelled": "Cancelled",
     "fetched": "Fetched",
-    "draft": "Draft"
+    "draft": "Draft",
+    "appClosed": "Interrupted when the app closed",
+    "quotaStopped": "Stopped: quota limit"
   }
 }

@@ -1,0 +1,15 @@
+{
+  "title": "{n} Session bị ngắt khi app tắt | {n} Session bị ngắt khi app tắt",
+  "message": "Không có gì tự tiếp tục khi bạn chưa chọn: Session có thể đã dừng giữa lúc đang ghi file.",
+  "resumeAll": "Tiếp tục tất cả",
+  "choose": "Chọn…",
+  "dismiss": "Bỏ qua",
+  "workers": "{n} worker | {n} worker",
+  "mode": "sẽ tiếp tục ở mode {mode}",
+  "resumeFailed": "Không tiếp tục được",
+  "failed": "Có lỗi: {error}",
+  "pick": {
+    "title": "Chọn Session để tiếp tục",
+    "resume": "Tiếp tục ({n})"
+  }
+}

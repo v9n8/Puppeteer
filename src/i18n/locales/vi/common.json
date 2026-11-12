@@ -28,6 +28,8 @@
     "failed": "Lỗi",
     "cancelled": "Đã hủy",
     "fetched": "Đã tải",
-    "draft": "Nháp"
+    "draft": "Nháp",
+    "appClosed": "Bị ngắt khi app tắt",
+    "quotaStopped": "Bị dừng vì quota"
   }
 }
