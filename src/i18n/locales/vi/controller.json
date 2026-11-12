@@ -255,6 +255,7 @@
     "kinds": {
       "pending": "việc cần duyệt",
       "done": "run đã xong",
+      "stuck": "Session có thể bị treo",
       "failed": "run bị lỗi"
     },
     "sends": "Máy tính đang gửi: {kinds}",

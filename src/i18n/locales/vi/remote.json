@@ -146,11 +146,13 @@
     "kinds": {
       "pending": "Cần duyệt",
       "done": "Run đã xong",
+      "stuck": "Có thể bị treo",
       "failed": "Run bị lỗi"
     },
     "kindHints": {
       "pending": "Có permission, câu hỏi hoặc yêu cầu dùng credential đang chờ.",
       "done": "Một run đã xong, hoặc Session đã xong lượt và đang chờ bạn.",
+      "stuck": "Một Session không phản hồi 3 phút, hoặc không khởi động được sau 90 giây.",
       "failed": "Một run kết thúc với lỗi."
     },
     "devices": "Thiết bị",

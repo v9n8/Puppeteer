@@ -104,13 +104,34 @@ test('the service worker words counts in the phone language', () => {
   })
   assert.deepEqual(compose({ v: 1, t: 'summary', pending: 1, done: 0, failed: 2 }, 'en-US'), {
     title: 'Puppeteer',
-    body: '1 request waiting for you · 2 runs failed',
+    body: '1 request waiting for you · 2 runs ended with an error or were stopped',
     badge: 1,
   })
   assert.equal(compose({ v: 1, t: 'test' }, 'vi').body, 'Thông báo thử — thông báo đã hoạt động.')
   // Unreadable payloads still show something (iOS drops silent pushers).
   assert.equal(compose(null, 'en').body, 'Something needs your attention.')
   assert.equal(compose({ pending: -3, done: 'x' }, 'en').body, 'Something needs your attention.')
+})
+
+test('the service worker words stuck sessions and stopped runs', () => {
+  const { compose } = loadServiceWorker()
+  const summary = (c) => ({ v: 1, t: 'summary', pending: 0, done: 0, failed: 0, ...c })
+  assert.equal(compose(summary({ stuck: 1 }), 'en-US').body, '1 session may be stuck')
+  assert.equal(compose(summary({ stuck: 2 }), 'en-US').body, '2 sessions may be stuck')
+  assert.equal(compose(summary({ stuck: 1 }), 'vi-VN').body, '1 phiên có thể bị treo')
+  assert.equal(compose(summary({ stuck: 2 }), 'vi').body, '2 phiên có thể bị treo')
+  // Quota stops count as failed, so the line says "stopped" too.
+  assert.equal(compose(summary({ failed: 1 }), 'en').body, '1 run ended with an error or was stopped')
+  assert.equal(compose(summary({ failed: 1 }), 'vi').body, '1 phiên lỗi hoặc bị dừng')
+  assert.deepEqual(compose(summary({ pending: 1, stuck: 2, failed: 1, done: 3 }), 'en'), {
+    title: 'Puppeteer',
+    body: '1 request waiting for you · 2 sessions may be stuck · 1 run ended with an error or was stopped · 3 runs finished',
+    badge: 1,
+  })
+  // A field this worker does not know yet (as `stuck` was to the worker
+  // before it) leaves only zero counts: the generic line, never an empty body.
+  assert.equal(compose(summary({ later: 4 }), 'en').body, 'Something needs your attention.')
+  assert.equal(compose(summary({ later: 4 }), 'vi').body, 'Có việc cần bạn xem.')
 })
 
 test('the service worker caches nothing', () => {

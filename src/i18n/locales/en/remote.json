@@ -146,11 +146,13 @@
     "kinds": {
       "pending": "Waiting for approval",
       "done": "Run finished",
+      "stuck": "May be stuck",
       "failed": "Run failed"
     },
     "kindHints": {
       "pending": "A permission prompt, question or credential approval is waiting.",
       "done": "A run finished, or a session finished its turn and waits for you.",
+      "stuck": "A session stopped responding for 3 minutes, or did not start within 90 seconds.",
       "failed": "A run ended with an error."
     },
     "devices": "Devices",

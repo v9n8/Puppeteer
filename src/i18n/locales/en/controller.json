@@ -255,6 +255,7 @@
     "kinds": {
       "pending": "approvals",
       "done": "finished runs",
+      "stuck": "sessions that may be stuck",
       "failed": "failed runs"
     },
     "sends": "The desktop sends: {kinds}",

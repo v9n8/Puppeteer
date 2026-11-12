@@ -6,7 +6,8 @@
  * It deliberately caches NOTHING and has no fetch handler: every request goes
  * to the network as if there were no worker, so a redeploy of the relay is
  * picked up on the next load. Its only jobs are Web Push:
- *   - `push`: the Host's payload carries counts only ({pending, done, failed});
+ *   - `push`: the Host's payload carries counts only ({pending, done, failed,
+ *     stuck?});
  *     the text is composed here in the phone's language, so nothing about a
  *     run (tool, command, project, title) ever leaves the Host.
  *   - `notificationclick`: focus the open controller (or open one) on the Inbox.
@@ -23,7 +24,10 @@ const TEXT = {
     title: 'Puppeteer',
     pending: (n) => (n === 1 ? '1 request waiting for you' : `${n} requests waiting for you`),
     done: (n) => (n === 1 ? '1 run finished' : `${n} runs finished`),
-    failed: (n) => (n === 1 ? '1 run failed' : `${n} runs failed`),
+    // Since quota stops count as `failed`, the line covers "stopped" too.
+    failed: (n) =>
+      n === 1 ? '1 run ended with an error or was stopped' : `${n} runs ended with an error or were stopped`,
+    stuck: (n) => (n === 1 ? '1 session may be stuck' : `${n} sessions may be stuck`),
     test: 'Test notification — notifications are working.',
     generic: 'Something needs your attention.',
   },
@@ -31,7 +35,8 @@ const TEXT = {
     title: 'Puppeteer',
     pending: (n) => `${n} việc cần duyệt`,
     done: (n) => `${n} phiên đã xong`,
-    failed: (n) => `${n} phiên bị lỗi`,
+    failed: (n) => `${n} phiên lỗi hoặc bị dừng`,
+    stuck: (n) => `${n} phiên có thể bị treo`,
     test: 'Thông báo thử — thông báo đã hoạt động.',
     generic: 'Có việc cần bạn xem.',
   },
@@ -53,8 +58,10 @@ function composeNotification(data, language) {
   const pending = count(data && data.pending)
   const done = count(data && data.done)
   const failed = count(data && data.failed)
+  const stuck = count(data && data.stuck)
   const parts = []
   if (pending) parts.push(t.pending(pending))
+  if (stuck) parts.push(t.stuck(stuck))
   if (failed) parts.push(t.failed(failed))
   if (done) parts.push(t.done(done))
   return { title: t.title, body: parts.length ? parts.join(' · ') : t.generic, badge: pending }

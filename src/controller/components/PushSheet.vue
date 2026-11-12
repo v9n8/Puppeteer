@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui'
 import { Loader2, Share } from 'lucide-vue-next'
 import type { PushStore } from '../pushStore'
+import type { PushEventsWire } from '../protocol'
 
 const props = defineProps<{ push: PushStore }>()
 const emit = defineEmits<{ close: [] }>()
@@ -20,9 +21,10 @@ const ui = computed(() => props.push.ui())
 
 /** What the desktop sends at all (its switches). */
 const kinds = computed(() => {
-  const e = s.value.events
+  // A desktop older than the `stuck` push does not send that switch.
+  const e: (PushEventsWire & { stuck?: boolean }) | null = s.value.events
   if (!e) return ''
-  return (['pending', 'done', 'failed'] as const)
+  return (['pending', 'done', 'failed', 'stuck'] as const)
     .filter((k) => e[k])
     .map((k) => t(`controller.push.kinds.${k}`))
     .join(' · ')
