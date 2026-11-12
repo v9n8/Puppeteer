@@ -410,6 +410,7 @@ mod tests {
         set_override(&db, "r1", "server:m2", Some(true)).await.unwrap();
         assert!(run_uses_server(&db, "p1", "r1", "m2").await.unwrap());
 
+        crate::commands::settings::set_setting(&db, "mcp_builtin_google_enabled", "true").await.unwrap();
         crate::commands::mcp::set_project_builtin_mcp(&db, "p1", "google", false).await.unwrap();
         assert!(!run_uses_builtin(&db, "p1", "r1", "google").await.unwrap());
         set_override(&db, "r1", "builtin:google", Some(true)).await.unwrap();

@@ -79,7 +79,7 @@ pub struct AppSettings {
     /// context + VPS) into every run. "true" (default) | "false".
     pub mcp_builtin_puppeteer_enabled: String,
     /// Inject the built-in `google` MCP server when an account is connected.
-    /// "true" (default) | "false".
+    /// "true" | "false" (default).
     pub mcp_builtin_google_enabled: String,
     /// What quitting does while sessions or leftover background processes are
     /// still running: "ask" (default) | "stop_all" | "keep_leftovers". Read by
@@ -204,7 +204,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         translate_target_lang: "vi".to_string(),
         translate_style: "natural".to_string(),
         mcp_builtin_puppeteer_enabled: "true".to_string(),
-        mcp_builtin_google_enabled: "true".to_string(),
+        mcp_builtin_google_enabled: "false".to_string(),
         quit_background_policy: "ask".to_string(),
         whats_new_seen_version: String::new(),
         palette_config: String::new(),

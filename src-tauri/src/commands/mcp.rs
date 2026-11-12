@@ -1355,8 +1355,13 @@ fn validate_builtin_name(name: &str) -> Result<(), String> {
     }
 }
 
+/// Built-ins that stay off until switched on: `google` reads and sends the
+/// user's mail and files, so it waits for an explicit yes.
+const BUILTIN_MCP_OFF_BY_DEFAULT: &[&str] = &["google"];
+
 /// Whether built-in `name` is on app-wide. Reads `mcp_builtin_<name>_enabled`;
-/// defaults to `true` when unset (only an explicit `"false"` disables it).
+/// once set, only `"false"` disables it. Unset, it is on unless listed in
+/// [`BUILTIN_MCP_OFF_BY_DEFAULT`].
 pub async fn builtin_mcp_globally_enabled(db: &Db, name: &str) -> bool {
     let v = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
         .bind(format!("mcp_builtin_{name}_enabled"))
@@ -1364,7 +1369,10 @@ pub async fn builtin_mcp_globally_enabled(db: &Db, name: &str) -> bool {
         .await
         .ok()
         .flatten();
-    !matches!(v.as_deref(), Some("false"))
+    match v.as_deref() {
+        Some(v) => v != "false",
+        None => !BUILTIN_MCP_OFF_BY_DEFAULT.contains(&name),
+    }
 }
 
 pub async fn builtin_mcp_disabled_for_project(db: &Db, name: &str, project_id: &str) -> bool {
@@ -1871,8 +1879,12 @@ mod tests {
                 .unwrap();
         }
 
-        // On by default everywhere.
+        // Puppeteer is on by default everywhere; Google waits to be switched on.
         assert!(builtin_mcp_enabled(&db, "puppeteer", "p1").await);
+        assert!(!builtin_mcp_enabled(&db, "google", "p1").await);
+        crate::commands::settings::set_setting(&db, "mcp_builtin_google_enabled", "true")
+            .await
+            .unwrap();
         assert!(builtin_mcp_enabled(&db, "google", "p1").await);
 
         // Off for p1 only, idempotently.

@@ -398,4 +398,32 @@ mod tests {
         sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
         assert!(perms::list(&db, None).await.unwrap().is_empty());
     }
+
+    #[tokio::test]
+    async fn google_mcp_stays_on_only_where_an_account_is_connected() {
+        use crate::commands::mcp::builtin_mcp_globally_enabled;
+        let fresh = db_at_0001().await;
+        sqlx::migrate!("./migrations").run(&fresh).await.unwrap();
+        assert!(!builtin_mcp_globally_enabled(&fresh, "google").await);
+        assert!(builtin_mcp_globally_enabled(&fresh, "puppeteer").await);
+
+        let connected = db_at_0001().await;
+        sqlx::query("INSERT INTO google_accounts (id, label, created_at) VALUES ('g1', 'work', 'c')")
+            .execute(&connected)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&connected).await.unwrap();
+        assert!(builtin_mcp_globally_enabled(&connected, "google").await);
+
+        // A switch the user already turned off stays off.
+        let switched_off = db_at_0001().await;
+        for sql in [
+            "INSERT INTO google_accounts (id, label, created_at) VALUES ('g1', 'work', 'c')",
+            "INSERT INTO settings (key, value) VALUES ('mcp_builtin_google_enabled', 'false')",
+        ] {
+            sqlx::query(sql).execute(&switched_off).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&switched_off).await.unwrap();
+        assert!(!builtin_mcp_globally_enabled(&switched_off, "google").await);
+    }
 }
