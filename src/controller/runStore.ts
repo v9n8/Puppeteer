@@ -24,12 +24,14 @@ import {
 } from '@/lib/streamEvents'
 import type { RateLimitWindows } from '@/stores/liveRuns'
 import {
+  applyAttention,
   createSyncGate,
   dequeuePending,
   dropRun,
   enqueuePending,
   headOf,
   retainPending,
+  type StuckNotices,
 } from '@/lib/remoteInbox'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import type {
@@ -172,6 +174,9 @@ export interface RunStoreState {
   pendingQueues: Record<string, PermissionRequest[]>
   /** request id → when this Controller first saw it (ms), for Inbox order. */
   pendingSeenAt: Record<string, number>
+  /** Runs the watchdog says may be stuck (open notices per run), for the
+   * Inbox. Only notices seen while connected: the Host does not replay them. */
+  stuck: StuckNotices
   /** Transient advisory from the Host (e.g. "already handled"). */
   notice: string | null
   /** Slash commands the Host advertises for the bound run (composer palette). */
@@ -212,6 +217,7 @@ export function createRunStore() {
     pendingByRun: {},
     pendingQueues: {},
     pendingSeenAt: {},
+    stuck: {},
     notice: null,
     slashCommands: [],
     engineModelOptions: [],
@@ -308,11 +314,14 @@ export function createRunStore() {
         break
       case 'done':
         ensureRun(payload.run_id).status = payload.status
+        // An ended run is not stuck, whatever notice it left open.
+        state.stuck = dropRun(state.stuck, payload.run_id)
         // Reflect the new status in the browse list too, if present.
         {
           const info = state.runList.find((r) => r.id === payload.run_id)
           if (info) {
             info.status = payload.status
+            info.end_reason = payload.end_reason ?? null
             // Stamp it so the Inbox's "since last visit" sees it finish now.
             info.updated_at = new Date().toISOString()
           }
@@ -321,6 +330,9 @@ export function createRunStore() {
             setQueues(dropRun(state.pendingQueues, payload.run_id))
           }
         }
+        break
+      case 'attention':
+        state.stuck = applyAttention(state.stuck, payload)
         break
       case 'slash_command_list':
         state.slashCommands = payload.commands
@@ -546,6 +558,7 @@ export function createRunStore() {
     state.pendingByRun = {}
     state.pendingQueues = {}
     state.pendingSeenAt = {}
+    state.stuck = {}
     resent = null
     syncGate.reset()
     state.notice = null

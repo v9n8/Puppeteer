@@ -92,7 +92,16 @@ fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
             cwd,
             once_only,
         },
-        RemoteRunEvent::Done { run_id, status, .. } => StreamPayload::Done { run_id, status },
+        RemoteRunEvent::Done {
+            run_id,
+            status,
+            end_reason,
+            ..
+        } => StreamPayload::Done {
+            run_id,
+            status,
+            end_reason,
+        },
         RemoteRunEvent::Attention {
             run_id,
             key,
@@ -398,7 +407,9 @@ pub async fn build_run_list(db: &Db, only_run_id: Option<&str>) -> Vec<RunInfo> 
                 r.title AS title, r.type AS run_type, r.ref_number AS ref_number,
                 r.status AS status, r.engine AS engine, r.created_at AS created_at,
                 COALESCE(r.last_activity_at, r.finished_at, r.started_at, r.created_at) AS updated_at,
-                r.finished_at AS finished_at
+                r.finished_at AS finished_at,
+                (IFNULL(r.role, '') = 'worker' OR TRIM(IFNULL(r.conductor_run_id, '')) != '') AS worker,
+                r.end_reason AS end_reason
          FROM runs r JOIN projects p ON p.id = r.project_id";
     let rows = match only_run_id {
         Some(run_id) => sqlx::query(&format!("{COLUMNS} WHERE r.id = ?"))
@@ -426,6 +437,8 @@ pub async fn build_run_list(db: &Db, only_run_id: Option<&str>) -> Vec<RunInfo> 
             created_at: r.get("created_at"),
             updated_at: r.get("updated_at"),
             finished_at: r.get("finished_at"),
+            worker: r.get::<i64, _>("worker") != 0,
+            end_reason: r.get("end_reason"),
         })
         .collect()
 }
@@ -947,6 +960,73 @@ mod tests {
             serde_json::to_value(&cleared).unwrap(),
             serde_json::json!({ "kind": "attention", "run_id": "r_1", "key": "unresponsive", "active": false })
         );
+    }
+
+    #[test]
+    fn a_done_frame_names_its_end_reason_only_when_there_is_one() {
+        let done = |end_reason: Option<&str>| {
+            serde_json::to_value(
+                to_payload(RemoteRunEvent::Done {
+                    run_id: "r_1".to_string(),
+                    status: "cancelled".to_string(),
+                    worker: false,
+                    end_reason: end_reason.map(str::to_string),
+                })
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            done(Some("quota")),
+            serde_json::json!({ "kind": "done", "run_id": "r_1", "status": "cancelled", "end_reason": "quota" })
+        );
+        // A user Stop: the same frame an older Controller always got.
+        assert_eq!(
+            done(None),
+            serde_json::json!({ "kind": "done", "run_id": "r_1", "status": "cancelled" })
+        );
+    }
+
+    /// The Inbox needs to drop workers and tell a cut-off or quota-stopped run
+    /// from a Stop; both ride on the run list.
+    #[tokio::test]
+    async fn the_run_list_flags_workers_and_carries_end_reason() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, status, engine, created_at, role, conductor_run_id, end_reason) VALUES \
+             ('cond', 'p1', 'session', 'done', 'claude', '1', 'conductor', NULL, NULL), \
+             ('w_role', 'p1', 'session', 'done', 'codex', '2', 'worker', 'cond', NULL), \
+             ('w_parent', 'p1', 'session', 'failed', 'codex', '3', NULL, 'cond', NULL), \
+             ('cut', 'p1', 'session', 'cancelled', 'claude', '4', NULL, '  ', 'app_closed'), \
+             ('quota', 'p1', 'session', 'cancelled', 'claude', '5', NULL, NULL, 'quota'), \
+             ('stop', 'p1', 'session', 'cancelled', 'claude', '6', NULL, NULL, NULL)",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        let runs = build_run_list(&db, None).await;
+        let flags = |id: &str| {
+            let r = runs.iter().find(|r| r.id == id).unwrap();
+            (r.worker, r.end_reason.clone())
+        };
+        assert_eq!(flags("cond"), (false, None));
+        assert_eq!(flags("w_role"), (true, None));
+        assert_eq!(flags("w_parent"), (true, None));
+        assert_eq!(flags("cut"), (false, Some("app_closed".to_string())));
+        assert_eq!(flags("quota"), (false, Some("quota".to_string())));
+        assert_eq!(flags("stop"), (false, None));
+
+        let json = |id: &str| serde_json::to_value(runs.iter().find(|r| r.id == id).unwrap()).unwrap();
+        assert_eq!(json("w_role")["worker"], true);
+        assert_eq!(json("quota")["end_reason"], "quota");
+        // Both fields stay off the wire when unset, as before this change.
+        let stop = json("stop");
+        assert!(stop.get("worker").is_none() && stop.get("end_reason").is_none(), "{stop}");
     }
 
     #[tokio::test]

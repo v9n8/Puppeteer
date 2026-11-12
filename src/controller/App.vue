@@ -902,6 +902,7 @@ function onRequestFiles(): void {
         :projects="store.state.projectList"
         :since-ms="sinceMs"
         :read-ids="visit.read"
+        :stuck="store.state.stuck"
         :allow-always="hasRemember"
         @decide="respond"
         @answer="(req, answers) => respond(req, 'allow_once', answers)"

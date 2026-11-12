@@ -204,8 +204,15 @@ pub enum StreamPayload {
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         once_only: bool,
     },
-    /// The run finished (`run:done`).
-    Done { run_id: String, status: String },
+    /// The run finished (`run:done`). `end_reason` is `runs.end_reason`
+    /// (`app_closed`, `quota`), absent when the run ended on its own or the user
+    /// stopped it, so an older Controller sees the frame it always did.
+    Done {
+        run_id: String,
+        status: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_reason: Option<String>,
+    },
     /// A watchdog notice was shown (`active`) or cleared (`run:attention`).
     /// `attention_kind` is the notice's kind (`unresponsive`, `not_started`,
     /// `quiet`…), absent on a clear; it cannot be `kind`, the payload's tag.
@@ -663,6 +670,14 @@ pub struct RunInfo {
     /// last visit" keys on this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finished_at: Option<String>,
+    /// A Conductor worker (`role = 'worker'` or a `conductor_run_id`). The
+    /// Inbox leaves its finished turns out, like the desktop does.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub worker: bool,
+    /// Why the run ended when the user did not end it (`runs.end_reason`):
+    /// `app_closed` or `quota`. Lets the Inbox tell those apart from a Stop.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_reason: Option<String>,
 }
 
 /// A command from the Controller (SRS §5.2). `action` is validated against the

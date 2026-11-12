@@ -185,6 +185,19 @@ export interface DoneKind {
   kind: 'done'
   run_id: string
   status: string
+  /** Why the run ended when the user did not end it (`app_closed`, `quota`);
+   * absent from an older Host and for a user Stop. */
+  end_reason?: string | null
+}
+/** A watchdog notice was shown (`active`) or cleared (`run:attention`).
+ * `attention_kind` (`unresponsive`, `not_started`, `quiet`…) is absent on a
+ * clear, which only knows the notice's `key`. */
+export interface AttentionKind {
+  kind: 'attention'
+  run_id: string
+  key: string
+  attention_kind?: string | null
+  active: boolean
 }
 /** A batch of replayed history lines (FR-005); `done` marks the last batch. */
 export interface HistoryKind {
@@ -364,6 +377,10 @@ export interface RunInfo {
   updated_at?: string | null
   /** When the last turn ended (a multi-turn session finishes every turn). */
   finished_at?: string | null
+  /** A Conductor worker; absent (not a worker) from an older Host. */
+  worker?: boolean
+  /** Why the run ended when the user did not end it (`app_closed`, `quota`). */
+  end_reason?: string | null
 }
 
 /** A snapshot of every run the Controller may browse/control (FR-004+). */
@@ -531,6 +548,7 @@ export type StreamPayload =
   | OutputBatchKind
   | PermissionRequestKind
   | DoneKind
+  | AttentionKind
   | HistoryKind
   | NoticeKind
   | CommandAckKind
@@ -596,7 +614,22 @@ export function parseStreamPayload(json: unknown): StreamPayload | null {
         : null
     case 'done':
       return typeof o.run_id === 'string' && typeof o.status === 'string'
-        ? { kind: 'done', run_id: o.run_id, status: o.status }
+        ? {
+            kind: 'done',
+            run_id: o.run_id,
+            status: o.status,
+            end_reason: typeof o.end_reason === 'string' ? o.end_reason : null,
+          }
+        : null
+    case 'attention':
+      return typeof o.run_id === 'string' && typeof o.key === 'string' && typeof o.active === 'boolean'
+        ? {
+            kind: 'attention',
+            run_id: o.run_id,
+            key: o.key,
+            attention_kind: typeof o.attention_kind === 'string' ? o.attention_kind : null,
+            active: o.active,
+          }
         : null
     case 'history':
       return typeof o.run_id === 'string' && Array.isArray(o.lines)

@@ -18,6 +18,10 @@ export interface RunLike {
   created_at?: string | null
   /** When the last turn ended (a multi-turn session finishes every turn). */
   finished_at?: string | null
+  /** A Conductor worker: its turns are its conductor's business, not a row. */
+  worker?: boolean
+  /** Why the run ended when the user did not end it (`app_closed`, `quota`). */
+  end_reason?: string | null
 }
 
 /** Add `req` to its run's queue (arrival order), replacing a same-id entry. */
@@ -47,8 +51,9 @@ export function dequeuePending<T extends PendingLike>(
   return out
 }
 
-/** Drop every prompt of one run (it finished, or the Host said handled). */
-export function dropRun<T extends PendingLike>(
+/** Drop every prompt (or stuck notice) of one run: it finished, or the Host
+ * said handled. */
+export function dropRun<T>(
   queues: Record<string, T[]>,
   runId: string,
 ): Record<string, T[]> {
@@ -115,16 +120,26 @@ export function parseHostTime(ts: string | null | undefined): number | null {
 
 const SUCCESS = new Set(['done', 'completed'])
 const FAILURE = new Set(['failed', 'error'])
+/** `end_reason`s of a run the system stopped: cut off by the app closing, or
+ * stopped at the quota threshold. A `cancelled` run without one is a Stop. */
+const STOP_REASONS = new Set(['app_closed', 'quota'])
 
-/** `success` / `failure` for a finished run, null for anything else. */
-export function finishedKind(status: string): 'success' | 'failure' | null {
+export type FinishedKind = 'success' | 'failure' | 'stopped'
+
+/**
+ * `success` / `failure` for a finished run, `stopped` for one the system
+ * stopped (see `STOP_REASONS`), null for anything else — a user Stop included.
+ */
+export function finishedKind(status: string, endReason?: string | null): FinishedKind | null {
   if (SUCCESS.has(status)) return 'success'
   if (FAILURE.has(status)) return 'failure'
+  if (status === 'cancelled' && endReason && STOP_REASONS.has(endReason)) return 'stopped'
   return null
 }
 
 /**
- * Runs that finished (done / failed) after `sinceMs`, newest first — including
+ * Runs that finished (done / failed / stopped) after `sinceMs`, newest first.
+ * Conductor workers are left out, like on the desktop. Includes
  * a multi-turn session that finished a turn and now waits for the next message
  * (its sidecar exits per turn, so it reads `done`). Keyed on `finished_at`:
  * `updated_at` stays on the last user activity, before the turn ended. A run
@@ -134,12 +149,54 @@ export function finishedSince<T extends RunLike>(runs: T[], sinceMs: number): T[
   const at = (r: T) =>
     parseHostTime(r.finished_at) ?? parseHostTime(r.updated_at) ?? parseHostTime(r.created_at)
   return runs
-    .filter((r) => finishedKind(r.status) !== null)
+    .filter((r) => !r.worker && finishedKind(r.status, r.end_reason) !== null)
     .filter((r) => {
       const t = at(r)
       return t !== null && t > sinceMs
     })
     .sort((a, b) => (at(b) ?? 0) - (at(a) ?? 0))
+}
+
+/** Watchdog notice kinds meaning the sidecar itself is gone — the ones the
+ * desktop pushes as `stuck`. `quiet` / `long_tool` may just be a long job. */
+const STUCK_KINDS = new Set(['unresponsive', 'not_started'])
+
+/** The fields of a watchdog notice (`attention` payload) this module needs. */
+export interface AttentionLike {
+  run_id: string
+  key: string
+  attention_kind?: string | null
+  active: boolean
+}
+
+/** run id → keys of its open "may be stuck" notices; a run with none is absent. */
+export type StuckNotices = Record<string, string[]>
+
+/**
+ * Fold one watchdog notice in. Shown with a stuck kind opens its key; a clear
+ * (which carries no kind) or a notice of another kind closes it.
+ */
+export function applyAttention(stuck: StuckNotices, notice: AttentionLike): StuckNotices {
+  const keys = stuck[notice.run_id] ?? []
+  const open =
+    notice.active && !!notice.attention_kind && STUCK_KINDS.has(notice.attention_kind)
+  if (open === keys.includes(notice.key)) return stuck
+  const next = open ? [...keys, notice.key] : keys.filter((k) => k !== notice.key)
+  const out = { ...stuck }
+  if (next.length) out[notice.run_id] = next
+  else delete out[notice.run_id]
+  return out
+}
+
+/**
+ * The Inbox's run rows: runs that may be stuck first (they need a look now,
+ * however long ago they started), then {@link finishedSince}. A stuck worker
+ * gets a row: unlike its finished turns, it was pushed to the phone.
+ */
+export function inboxRuns<T extends RunLike>(runs: T[], sinceMs: number, stuck: StuckNotices): T[] {
+  const finished = finishedSince(runs, sinceMs)
+  const listed = new Set(finished.map((r) => r.id))
+  return [...runs.filter((r) => r.id in stuck && !listed.has(r.id)), ...finished]
 }
 
 /** How far back the very first visit looks when nothing is stored yet. */

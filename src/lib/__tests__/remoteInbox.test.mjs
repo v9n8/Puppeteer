@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   aggregatePending,
+  applyAttention,
   dequeuePending,
   dropRun,
   enqueuePending,
@@ -14,6 +15,7 @@ import {
   createSyncGate,
   finishedSince,
   headOf,
+  inboxRuns,
   leaveVisit,
   markRead,
   parseHostTime,
@@ -24,6 +26,7 @@ import {
   startVisit,
   VISIT_GAP_MS,
 } from '../remoteInbox.ts'
+import { parseStreamPayload } from '../../controller/protocol.ts'
 
 const req = (run_id, request_id, tool_name = 'Bash') => ({ run_id, request_id, tool_name })
 
@@ -115,6 +118,93 @@ test('finishedSince counts a session whose later turn ended after the anchor', (
     { id: 'stale', status: 'done', updated_at: '2026-10-31T09:40:00Z', finished_at: '2026-10-31T08:00:00Z' },
   ]
   assert.deepEqual(finishedSince(runs, since).map((r) => r.id), ['turn'])
+})
+
+test('finishedKind: a run the system stopped is `stopped`; a user Stop stays out', () => {
+  assert.equal(finishedKind('cancelled', 'app_closed'), 'stopped')
+  assert.equal(finishedKind('cancelled', 'quota'), 'stopped')
+  assert.equal(finishedKind('cancelled', null), null)
+  assert.equal(finishedKind('cancelled', undefined), null)
+  assert.equal(finishedKind('cancelled', 'something_new'), null)
+  // A reason left on a run that later finished does not change its kind.
+  assert.equal(finishedKind('done', 'quota'), 'success')
+})
+
+test('finishedSince drops workers and lists cut-off / quota-stopped runs', () => {
+  const since = Date.UTC(2026, 10, 12, 9)
+  const at = '2026-11-12T10:00:00Z'
+  const runs = [
+    { id: 'conductor', status: 'done', finished_at: at },
+    { id: 'w_done', status: 'done', finished_at: at, worker: true },
+    { id: 'w_failed', status: 'failed', finished_at: at, worker: true },
+    { id: 'cut', status: 'cancelled', finished_at: at, end_reason: 'app_closed' },
+    { id: 'quota', status: 'cancelled', finished_at: at, end_reason: 'quota' },
+    { id: 'stop', status: 'cancelled', finished_at: at },
+    // An older Host sends neither field: the list is what it always was.
+    { id: 'old_host', status: 'failed', finished_at: at },
+  ]
+  assert.deepEqual(
+    finishedSince(runs, since).map((r) => r.id).sort(),
+    ['conductor', 'cut', 'old_host', 'quota'],
+  )
+})
+
+test('applyAttention: only unresponsive / not_started open; a clear closes by key', () => {
+  const shown = (run_id, key, attention_kind) => ({ run_id, key, attention_kind, active: true })
+  const cleared = (run_id, key) => ({ run_id, key, active: false })
+  let s = {}
+  s = applyAttention(s, shown('r1', 'unresponsive', 'unresponsive'))
+  s = applyAttention(s, shown('r2', 'not_started', 'not_started'))
+  s = applyAttention(s, shown('r3', 'quiet', 'quiet'))
+  assert.deepEqual(s, { r1: ['unresponsive'], r2: ['not_started'] })
+  // Shown twice: still one key, same object back.
+  assert.equal(applyAttention(s, shown('r1', 'unresponsive', 'unresponsive')), s)
+  // A clear of a notice never opened is a no-op.
+  assert.equal(applyAttention(s, cleared('r3', 'quiet')), s)
+  s = applyAttention(s, cleared('r1', 'unresponsive'))
+  assert.deepEqual(s, { r2: ['not_started'] })
+  // A finished run drops whatever it left open.
+  assert.deepEqual(dropRun(s, 'r2'), {})
+})
+
+test('inboxRuns: stuck runs first (workers included), then the finished ones', () => {
+  const since = Date.UTC(2026, 10, 12, 9)
+  const runs = [
+    { id: 'hung', status: 'running', updated_at: '2026-11-11T08:00:00Z' },
+    { id: 'hung_worker', status: 'running', updated_at: '2026-11-12T09:30:00Z', worker: true },
+    { id: 'busy', status: 'running', updated_at: '2026-11-12T09:30:00Z' },
+    { id: 'done', status: 'done', finished_at: '2026-11-12T10:00:00Z' },
+  ]
+  const stuck = { hung: ['unresponsive'], hung_worker: ['not_started'] }
+  assert.deepEqual(inboxRuns(runs, since, stuck).map((r) => r.id), ['hung', 'hung_worker', 'done'])
+  // A stuck run that is also in the finished list is listed once.
+  assert.deepEqual(inboxRuns(runs, since, { done: ['unresponsive'] }).map((r) => r.id), ['done'])
+  // Cleared: the row goes away with its mark.
+  assert.deepEqual(inboxRuns(runs, since, {}).map((r) => r.id), ['done'])
+})
+
+test('the controller reads attention frames and done.end_reason; extras stay optional', () => {
+  assert.deepEqual(
+    parseStreamPayload({ kind: 'attention', run_id: 'r', key: 'unresponsive', attention_kind: 'unresponsive', active: true }),
+    { kind: 'attention', run_id: 'r', key: 'unresponsive', attention_kind: 'unresponsive', active: true },
+  )
+  assert.deepEqual(
+    parseStreamPayload({ kind: 'attention', run_id: 'r', key: 'unresponsive', active: false }),
+    { kind: 'attention', run_id: 'r', key: 'unresponsive', attention_kind: null, active: false },
+  )
+  assert.equal(parseStreamPayload({ kind: 'attention', run_id: 'r', key: 'k' }), null)
+  assert.deepEqual(parseStreamPayload({ kind: 'done', run_id: 'r', status: 'cancelled', end_reason: 'quota' }), {
+    kind: 'done',
+    run_id: 'r',
+    status: 'cancelled',
+    end_reason: 'quota',
+  })
+  assert.equal(parseStreamPayload({ kind: 'done', run_id: 'r', status: 'done' }).end_reason, null)
+  const list = parseStreamPayload({
+    kind: 'run_list',
+    runs: [{ id: 'w', project_id: 'p', project_name: 'P', type: 'session', status: 'done', engine: 'codex', created_at: 'c', worker: true }],
+  })
+  assert.equal(list.runs[0].worker, true)
 })
 
 test('parseVisitState tolerates junk', () => {
