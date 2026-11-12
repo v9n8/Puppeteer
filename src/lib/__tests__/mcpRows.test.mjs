@@ -24,6 +24,7 @@ import {
   serverRow,
   toSecretEntries,
   validateForm,
+  validateHintedValues,
   validateTarget,
 } from '../mcpRows.ts'
 
@@ -210,4 +211,21 @@ test('formFromPasted keeps values and hints, and renames a taken name', () => {
   const stdio = formFromPasted({ ...pasted, transport: 'stdio', command: 'npx', args: ['-y', 'pkg'], url: null, headers: [] }, [])
   assert.equal(stdio.name, 'pms')
   assert.equal(stdio.argsText, '-y\npkg')
+})
+
+test('a blank value with a hint blocks Save and Test until filled', () => {
+  const form = {
+    ...blankForm(),
+    name: 'pms',
+    transport: 'http',
+    url: 'https://pms.example.com/mcp',
+    headerRows: [{ key: 'Authorization', value: '', existing: false, hint: 'Bearer …' }],
+  }
+  const want = { key: 'valueRequired', params: { key: 'Authorization', hint: 'Bearer …' } }
+  assert.deepEqual(validateHintedValues(form), want)
+  assert.deepEqual(validateForm(form), want)
+  form.headerRows[0].value = 'Bearer t0k'
+  assert.equal(validateForm(form), null)
+  // Only the transport's own rows count, as in the payload.
+  assert.equal(validateHintedValues({ ...form, transport: 'stdio', envRows: [] }), null)
 })

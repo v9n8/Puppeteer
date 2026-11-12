@@ -33,6 +33,7 @@ import {
   formSnapshot,
   isRemote,
   validateForm,
+  validateHintedValues,
   validateTarget,
   type FormError,
   type McpForm,
@@ -121,7 +122,7 @@ function addHeaderRow() {
 
 // Tests the form as currently filled in — no save needed, new or existing.
 async function handleTest() {
-  const err = validateTarget(form.value)
+  const err = validateTarget(form.value) ?? validateHintedValues(form.value)
   if (err) {
     testResult.value = { ok: false, message: errorText(err) }
     return

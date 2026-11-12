@@ -84,7 +84,8 @@
       "commandRequired": "Transport stdio cần một lệnh",
       "urlRequired": "Transport {transport} cần một url",
       "keyEmpty": "Khóa secret không được để trống",
-      "duplicateKey": "Khóa trùng \"{key}\""
+      "duplicateKey": "Khóa trùng \"{key}\"",
+      "valueRequired": "Hãy điền giá trị cho \"{key}\", dạng: {hint}"
     },
     "toast": {
       "saved": "Đã lưu"

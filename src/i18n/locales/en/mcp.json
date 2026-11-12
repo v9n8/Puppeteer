@@ -84,7 +84,8 @@
       "commandRequired": "stdio transport requires a command",
       "urlRequired": "{transport} transport requires a url",
       "keyEmpty": "Secret key cannot be empty",
-      "duplicateKey": "Duplicate key \"{key}\""
+      "duplicateKey": "Duplicate key \"{key}\"",
+      "valueRequired": "Fill in the value of \"{key}\", like: {hint}"
     },
     "toast": {
       "saved": "Saved"

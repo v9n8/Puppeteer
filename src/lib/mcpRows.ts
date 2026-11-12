@@ -345,7 +345,17 @@ export function validateForm(form: McpForm): FormError | null {
     if (seen.has(k)) return { key: 'duplicateKey', params: { key: k } }
     seen.add(k)
   }
-  return null
+  return validateHintedValues(form)
+}
+
+/**
+ * A row from pasted setup text whose value is still blank: it has a hint, so the
+ * server needs it (a missing token would only fail later, at the first run).
+ */
+export function validateHintedValues(form: Pick<McpForm, 'transport' | 'envRows' | 'headerRows'>): FormError | null {
+  const rows = isRemote(form.transport) ? form.headerRows : form.envRows
+  const blank = rows.find((r) => r.hint && !r.value.trim())
+  return blank ? { key: 'valueRequired', params: { key: blank.key.trim(), hint: blank.hint ?? '' } } : null
 }
 
 /**
