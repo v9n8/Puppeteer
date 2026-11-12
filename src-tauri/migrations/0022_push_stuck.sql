@@ -1,0 +1,11 @@
+-- New push kind 'stuck' (HD-10): the watchdog says a run's sidecar went silent
+-- or never started. A device's `events` list is only written when it
+-- subscribes, so phones that subscribed before this would never get it; this
+-- turns it on for them and leaves every kind the device already had as it was.
+--
+-- NOT LIKE keeps a re-run (or a row that already has it) from adding it twice.
+-- The column DEFAULT stays 'pending,done,failed' (changing it means rebuilding
+-- the table): new rows are written with the full list by push::store::upsert.
+-- The desktop's switches (settings 'remote_push_events', JSON) need no change:
+-- a missing "stuck" reads as on there (PushEvents).
+UPDATE remote_push_subscriptions SET events = events || ',stuck' WHERE events NOT LIKE '%stuck%';

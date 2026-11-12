@@ -93,6 +93,17 @@ fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
             once_only,
         },
         RemoteRunEvent::Done { run_id, status, .. } => StreamPayload::Done { run_id, status },
+        RemoteRunEvent::Attention {
+            run_id,
+            key,
+            kind,
+            active,
+        } => StreamPayload::Attention {
+            run_id,
+            key,
+            attention_kind: kind,
+            active,
+        },
         RemoteRunEvent::Meta {
             run_id,
             engine,
@@ -907,6 +918,35 @@ mod tests {
         assert_eq!((run_id.as_str(), request_id.as_str()), ("r_1", "p_1"));
         assert!(accepted, "the Controller only drops accepted resolutions");
         assert_eq!(reason.as_deref(), Some("resolved_on_host"));
+    }
+
+    #[test]
+    fn a_watchdog_notice_reaches_the_controller_shown_and_cleared() {
+        let shown = to_payload(RemoteRunEvent::Attention {
+            run_id: "r_1".to_string(),
+            key: "unresponsive".to_string(),
+            kind: Some("unresponsive".to_string()),
+            active: true,
+        })
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&shown).unwrap(),
+            serde_json::json!({
+                "kind": "attention", "run_id": "r_1", "key": "unresponsive",
+                "attention_kind": "unresponsive", "active": true
+            })
+        );
+        let cleared = to_payload(RemoteRunEvent::Attention {
+            run_id: "r_1".to_string(),
+            key: "unresponsive".to_string(),
+            kind: None,
+            active: false,
+        })
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&cleared).unwrap(),
+            serde_json::json!({ "kind": "attention", "run_id": "r_1", "key": "unresponsive", "active": false })
+        );
     }
 
     #[tokio::test]

@@ -206,6 +206,16 @@ pub enum StreamPayload {
     },
     /// The run finished (`run:done`).
     Done { run_id: String, status: String },
+    /// A watchdog notice was shown (`active`) or cleared (`run:attention`).
+    /// `attention_kind` is the notice's kind (`unresponsive`, `not_started`,
+    /// `quiet`…), absent on a clear; it cannot be `kind`, the payload's tag.
+    Attention {
+        run_id: String,
+        key: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        attention_kind: Option<String>,
+        active: bool,
+    },
     /// A batch of replayed history lines (FR-005). `done` marks the last batch.
     History {
         run_id: String,
@@ -843,7 +853,7 @@ mod tests {
             v,
             serde_json::json!({
                 "kind": "push_config", "vapid_public_key": "BPk", "subscribed": true,
-                "events": { "pending": true, "done": true, "failed": true }
+                "events": { "pending": true, "done": true, "failed": true, "stuck": true }
             })
         );
     }

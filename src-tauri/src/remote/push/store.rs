@@ -359,8 +359,26 @@ pub(crate) mod tests {
     async fn event_switches_default_on_and_persist() {
         let db = mem_db().await;
         assert_eq!(events(&db).await, PushEvents::default());
-        let off = PushEvents { pending: true, done: false, failed: true };
+        let off = PushEvents { pending: true, done: false, failed: true, stuck: false };
         set_events(&db, off).await.unwrap();
         assert_eq!(events(&db).await, off);
+    }
+
+    /// Switches saved before `stuck` existed must not read as "all on": that
+    /// would turn back on what the user switched off.
+    #[tokio::test]
+    async fn switches_saved_before_stuck_keep_what_was_off() {
+        let db = mem_db().await;
+        crate::remote::set_setting(&db, KEY_PUSH_EVENTS, r#"{"pending":false,"done":true,"failed":false}"#)
+            .await
+            .unwrap();
+        assert_eq!(events(&db).await, PushEvents { pending: false, done: true, failed: false, stuck: true });
+    }
+
+    #[tokio::test]
+    async fn a_new_device_gets_stuck() {
+        let db = mem_db().await;
+        upsert(&db, row("https://fcm.googleapis.com/x"), "t").await.unwrap();
+        assert!(list(&db).await.unwrap()[0].events.stuck);
     }
 }

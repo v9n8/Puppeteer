@@ -699,7 +699,8 @@ pub async fn drain_sidecar(
     }
 
     // Carry out the liveness decisions: notices go to the UI as a banner with a
-    // stop action (plus a log line); reminders re-alert about an open prompt.
+    // stop action (plus a log line) and to the remote bus (phone, push `stuck`);
+    // reminders re-alert about an open prompt.
     async fn apply_liveness(
         actions: Vec<LivenessAction>,
         app: &AppHandle,
@@ -712,6 +713,14 @@ pub async fn drain_sidecar(
                 LivenessAction::Notice(notice) => {
                     let msg = notice.message();
                     watchdog_line(app, buf, bus, run_id, "warn", &format!("⚠ {}", msg)).await;
+                    if let Some(bus) = bus {
+                        bus.publish(crate::remote::RemoteRunEvent::Attention {
+                            run_id: run_id.to_string(),
+                            key: notice.key(),
+                            kind: Some(notice.kind().to_string()),
+                            active: true,
+                        });
+                    }
                     let _ = app.emit(
                         &format!("run:attention:{}", run_id),
                         serde_json::json!({
@@ -721,6 +730,14 @@ pub async fn drain_sidecar(
                     );
                 }
                 LivenessAction::Clear { key } => {
+                    if let Some(bus) = bus {
+                        bus.publish(crate::remote::RemoteRunEvent::Attention {
+                            run_id: run_id.to_string(),
+                            key: key.clone(),
+                            kind: None,
+                            active: false,
+                        });
+                    }
                     let _ = app.emit(
                         &format!("run:attention:{}", run_id),
                         serde_json::json!({ "run_id": run_id, "key": key, "active": false }),

@@ -17,6 +17,8 @@ pub enum PushKind {
     Done,
     /// A run failed.
     Failed,
+    /// The watchdog says a run may be stuck (sidecar silent or never started).
+    Stuck,
 }
 
 impl PushKind {
@@ -25,6 +27,7 @@ impl PushKind {
             PushKind::Pending => "pending",
             PushKind::Done => "done",
             PushKind::Failed => "failed",
+            PushKind::Stuck => "stuck",
         }
     }
 }
@@ -41,17 +44,37 @@ pub fn kind_of_done(status: &str, end_reason: Option<&str>) -> Option<PushKind> 
     }
 }
 
+/// Map a watchdog notice (`run:attention`) to a kind. Only the two strong
+/// signals that the sidecar itself is gone count; `quiet`, `long_tool` and
+/// `unmonitored` may just be a long job, so they stay a banner. A cleared notice
+/// sends no "recovered" push. Workers count too: a dead sidecar is something
+/// their conductor cannot clear by itself.
+pub fn kind_of_attention(kind: Option<&str>, active: bool) -> Option<PushKind> {
+    match kind {
+        Some("unresponsive" | "not_started") if active => Some(PushKind::Stuck),
+        _ => None,
+    }
+}
+
 /// Which kinds are switched on (desktop toggles, and per device).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PushEvents {
     pub pending: bool,
     pub done: bool,
     pub failed: bool,
+    /// Missing from switches saved before it existed: those must still read
+    /// (a JSON that fails to read turns every kind back on), with `stuck` on.
+    #[serde(default = "on")]
+    pub stuck: bool,
+}
+
+fn on() -> bool {
+    true
 }
 
 impl Default for PushEvents {
     fn default() -> Self {
-        PushEvents { pending: true, done: true, failed: true }
+        PushEvents { pending: true, done: true, failed: true, stuck: true }
     }
 }
 
@@ -61,6 +84,7 @@ impl PushEvents {
             PushKind::Pending => self.pending,
             PushKind::Done => self.done,
             PushKind::Failed => self.failed,
+            PushKind::Stuck => self.stuck,
         }
     }
 
@@ -70,17 +94,18 @@ impl PushEvents {
             pending: self.pending && other.pending,
             done: self.done && other.done,
             failed: self.failed && other.failed,
+            stuck: self.stuck && other.stuck,
         }
     }
 
     /// From the `events` column: a comma list of kind names.
     pub fn from_list(list: &str) -> PushEvents {
         let has = |k: &str| list.split(',').any(|x| x.trim() == k);
-        PushEvents { pending: has("pending"), done: has("done"), failed: has("failed") }
+        PushEvents { pending: has("pending"), done: has("done"), failed: has("failed"), stuck: has("stuck") }
     }
 
     pub fn to_list(self) -> String {
-        [PushKind::Pending, PushKind::Done, PushKind::Failed]
+        [PushKind::Pending, PushKind::Done, PushKind::Failed, PushKind::Stuck]
             .into_iter()
             .filter(|k| self.has(*k))
             .map(PushKind::as_str)
@@ -96,6 +121,7 @@ pub struct BurstCounts {
     pub new_pending: u32,
     pub done: u32,
     pub failed: u32,
+    pub stuck: u32,
 }
 
 impl BurstCounts {
@@ -104,6 +130,7 @@ impl BurstCounts {
             new_pending: self.new_pending.saturating_add(other.new_pending),
             done: self.done.saturating_add(other.done),
             failed: self.failed.saturating_add(other.failed),
+            stuck: self.stuck.saturating_add(other.stuck),
         }
     }
 }
@@ -162,6 +189,7 @@ impl Coalescer {
             PushKind::Pending => c.new_pending += 1,
             PushKind::Done => c.done += 1,
             PushKind::Failed => c.failed += 1,
+            PushKind::Stuck => c.stuck += 1,
         }
     }
 
@@ -194,11 +222,15 @@ pub struct PushMessage {
     pub done: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed: Option<u32>,
+    /// Only when something is stuck. A service worker that predates it ignores
+    /// the field, and shows its generic line when nothing else is counted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stuck: Option<u32>,
 }
 
 impl PushMessage {
     pub fn test() -> Self {
-        PushMessage { v: 1, t: "test", pending: None, done: None, failed: None }
+        PushMessage { v: 1, t: "test", pending: None, done: None, failed: None, stuck: None }
     }
 }
 
@@ -209,11 +241,19 @@ pub fn compose(counts: BurstCounts, open_pending: u32, events: PushEvents) -> Op
     let pending = if events.pending { open_pending } else { 0 };
     let done = if events.done { counts.done } else { 0 };
     let failed = if events.failed { counts.failed } else { 0 };
-    let triggered = (counts.new_pending > 0 && pending > 0) || done > 0 || failed > 0;
+    let stuck = if events.stuck { counts.stuck } else { 0 };
+    let triggered = (counts.new_pending > 0 && pending > 0) || done > 0 || failed > 0 || stuck > 0;
     if !triggered {
         return None;
     }
-    Some(PushMessage { v: 1, t: "summary", pending: Some(pending), done: Some(done), failed: Some(failed) })
+    Some(PushMessage {
+        v: 1,
+        t: "summary",
+        pending: Some(pending),
+        done: Some(done),
+        failed: Some(failed),
+        stuck: (stuck > 0).then_some(stuck),
+    })
 }
 
 /// How long "on screen" holds without hearing from the phone. iOS can freeze
@@ -233,7 +273,7 @@ pub fn suppressed(phone_connected: bool, phone_visible: bool, since_heard: Durat
 mod tests {
     use super::*;
 
-    const ALL: PushEvents = PushEvents { pending: true, done: true, failed: true };
+    const ALL: PushEvents = PushEvents { pending: true, done: true, failed: true, stuck: true };
 
     #[test]
     fn a_burst_waits_for_the_window_then_closes() {
@@ -248,7 +288,7 @@ mod tests {
         assert_eq!(c.take_due(t0 + Duration::from_secs(9)), None);
         assert_eq!(
             c.take_due(t0 + COALESCE_WINDOW),
-            Some(BurstCounts { new_pending: 2, done: 1, failed: 0 })
+            Some(BurstCounts { new_pending: 2, done: 1, failed: 0, stuck: 0 })
         );
         assert_eq!(c.deadline(), None, "one notification per burst");
         assert_eq!(c.take_due(t0 + Duration::from_secs(60)), None);
@@ -266,8 +306,49 @@ mod tests {
     }
 
     #[test]
+    fn only_an_active_unresponsive_or_not_started_notice_is_stuck() {
+        assert_eq!(kind_of_attention(Some("unresponsive"), true), Some(PushKind::Stuck));
+        assert_eq!(kind_of_attention(Some("not_started"), true), Some(PushKind::Stuck));
+        for weak in ["quiet", "long_tool", "unmonitored", "permission_waiting"] {
+            assert_eq!(kind_of_attention(Some(weak), true), None, "{weak} stays a banner");
+        }
+        // Cleared: no "recovered" push.
+        assert_eq!(kind_of_attention(Some("unresponsive"), false), None);
+        assert_eq!(kind_of_attention(None, false), None);
+    }
+
+    #[test]
+    fn switches_saved_before_stuck_existed_keep_their_choices() {
+        let old: PushEvents = serde_json::from_str(r#"{"pending":true,"done":false,"failed":true}"#).unwrap();
+        assert_eq!(old, PushEvents { pending: true, done: false, failed: true, stuck: true });
+        let off: PushEvents =
+            serde_json::from_str(r#"{"pending":true,"done":true,"failed":true,"stuck":false}"#).unwrap();
+        assert!(!off.stuck);
+        assert_eq!(
+            serde_json::to_value(PushEvents::default()).unwrap(),
+            serde_json::json!({ "pending": true, "done": true, "failed": true, "stuck": true })
+        );
+    }
+
+    #[test]
+    fn compose_mentions_stuck_only_when_some_are() {
+        let m = compose(BurstCounts { stuck: 2, ..Default::default() }, 0, ALL).unwrap();
+        assert_eq!(
+            serde_json::to_value(&m).unwrap(),
+            serde_json::json!({ "v": 1, "t": "summary", "pending": 0, "done": 0, "failed": 0, "stuck": 2 })
+        );
+        let m = compose(BurstCounts { done: 1, ..Default::default() }, 0, ALL).unwrap();
+        assert!(serde_json::to_value(&m).unwrap().get("stuck").is_none());
+        // Switched off on the desktop or the device: neither sent nor shown.
+        let no_stuck = PushEvents { stuck: false, ..ALL };
+        assert_eq!(compose(BurstCounts { stuck: 1, ..Default::default() }, 0, no_stuck), None);
+        let m = compose(BurstCounts { failed: 1, stuck: 1, ..Default::default() }, 0, no_stuck).unwrap();
+        assert_eq!(m.stuck, None);
+    }
+
+    #[test]
     fn compose_reports_counts_only() {
-        let m = compose(BurstCounts { new_pending: 1, done: 2, failed: 0 }, 3, ALL).unwrap();
+        let m = compose(BurstCounts { new_pending: 1, done: 2, failed: 0, stuck: 0 }, 3, ALL).unwrap();
         assert_eq!(
             serde_json::to_value(&m).unwrap(),
             serde_json::json!({ "v": 1, "t": "summary", "pending": 3, "done": 2, "failed": 0 })
@@ -276,30 +357,33 @@ mod tests {
 
     #[test]
     fn prompts_answered_before_the_window_closed_send_nothing() {
-        assert_eq!(compose(BurstCounts { new_pending: 2, done: 0, failed: 0 }, 0, ALL), None);
+        assert_eq!(compose(BurstCounts { new_pending: 2, done: 0, failed: 0, stuck: 0 }, 0, ALL), None);
     }
 
     #[test]
     fn a_done_burst_still_mentions_open_prompts() {
-        let m = compose(BurstCounts { new_pending: 0, done: 1, failed: 0 }, 2, ALL).unwrap();
+        let m = compose(BurstCounts { new_pending: 0, done: 1, failed: 0, stuck: 0 }, 2, ALL).unwrap();
         assert_eq!((m.pending, m.done), (Some(2), Some(1)));
     }
 
     #[test]
     fn switched_off_kinds_neither_trigger_nor_show() {
-        let only_failed = PushEvents { pending: false, done: false, failed: true };
-        assert_eq!(compose(BurstCounts { new_pending: 1, done: 3, failed: 0 }, 1, only_failed), None);
-        let m = compose(BurstCounts { new_pending: 1, done: 3, failed: 1 }, 1, only_failed).unwrap();
+        let only_failed = PushEvents { pending: false, done: false, failed: true, stuck: false };
+        assert_eq!(compose(BurstCounts { new_pending: 1, done: 3, failed: 0, stuck: 0 }, 1, only_failed), None);
+        let m = compose(BurstCounts { new_pending: 1, done: 3, failed: 1, stuck: 0 }, 1, only_failed).unwrap();
         assert_eq!((m.pending, m.done, m.failed), (Some(0), Some(0), Some(1)));
     }
 
     #[test]
     fn device_and_desktop_switches_combine() {
         let device = PushEvents::from_list("pending,failed");
-        let desktop = PushEvents { pending: true, done: true, failed: false };
-        assert_eq!(device.and(desktop), PushEvents { pending: true, done: false, failed: false });
-        assert_eq!(PushEvents::default().to_list(), "pending,done,failed");
-        assert_eq!(PushEvents::from_list(" done ,bogus"), PushEvents { pending: false, done: true, failed: false });
+        let desktop = PushEvents { pending: true, done: true, failed: false, stuck: true };
+        assert_eq!(device.and(desktop), PushEvents { pending: true, done: false, failed: false, stuck: false });
+        assert_eq!(PushEvents::default().to_list(), "pending,done,failed,stuck");
+        assert_eq!(PushEvents::from_list(" done ,bogus"), PushEvents { pending: false, done: true, failed: false, stuck: false });
+        // A device row without `stuck` (before 0022) has it off; a stray empty item is ignored.
+        assert!(!PushEvents::from_list("pending,done,failed").stuck);
+        assert!(PushEvents::from_list(",stuck").stuck);
     }
 
     #[test]
@@ -320,6 +404,7 @@ mod tests {
                 PushKind::Pending => c.new_pending = 1,
                 PushKind::Done => c.done = 1,
                 PushKind::Failed => c.failed = 1,
+                PushKind::Stuck => c.stuck = 1,
             }
             c
         };
@@ -328,12 +413,12 @@ mod tests {
         assert_eq!(h.on_due(one(PushKind::Done), true), None);
         assert!(h.is_holding());
         assert_eq!(h.release(true), None, "still on screen");
-        assert_eq!(h.release(false), Some(BurstCounts { new_pending: 1, done: 1, failed: 0 }));
+        assert_eq!(h.release(false), Some(BurstCounts { new_pending: 1, done: 1, failed: 0, stuck: 0 }));
         assert!(!h.is_holding());
         assert_eq!(h.release(false), None, "released once");
         // Held counts ride along with the next burst that is sent.
         h.on_due(one(PushKind::Failed), true);
-        assert_eq!(h.on_due(one(PushKind::Done), false), Some(BurstCounts { new_pending: 0, done: 1, failed: 1 }));
+        assert_eq!(h.on_due(one(PushKind::Done), false), Some(BurstCounts { new_pending: 0, done: 1, failed: 1, stuck: 0 }));
     }
 
     #[test]

@@ -454,6 +454,42 @@ mod tests {
         assert_eq!(rows, vec![("r1".into(), None, 0), ("r2".into(), None, 0)]);
     }
 
+    /// HD-10: phones subscribed before 0022 get `stuck` switched on, once, and
+    /// keep every kind they already had on or off.
+    #[tokio::test]
+    async fn push_devices_from_before_stuck_get_it_once_and_keep_their_choices() {
+        use crate::remote::push::coalesce::PushEvents;
+        let db = db_at_0001().await;
+        sqlx::query(
+            "INSERT INTO remote_push_subscriptions (id, endpoint, p256dh, auth, events, created_at) VALUES
+                ('all', 'https://e/1', 'k', 'a', 'pending,done,failed', 'c'),
+                ('no_done', 'https://e/2', 'k', 'a', 'pending,failed', 'c'),
+                ('has', 'https://e/3', 'k', 'a', 'pending,stuck', 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let events = || async {
+            sqlx::query_as::<_, (String, String)>("SELECT id, events FROM remote_push_subscriptions ORDER BY id")
+                .fetch_all(&db)
+                .await
+                .unwrap()
+        };
+        let want = vec![
+            ("all".to_string(), "pending,done,failed,stuck".to_string()),
+            ("has".to_string(), "pending,stuck".to_string()),
+            ("no_done".to_string(), "pending,failed,stuck".to_string()),
+        ];
+        assert_eq!(events().await, want);
+        let no_done = PushEvents::from_list(&want[2].1);
+        assert_eq!(no_done, PushEvents { pending: true, done: false, failed: true, stuck: true });
+
+        // Run again: nothing is added twice.
+        sqlx::raw_sql(include_str!("../migrations/0022_push_stuck.sql")).execute(&db).await.unwrap();
+        assert_eq!(events().await, want);
+    }
+
     /// HD-AC-01 (data): a run still `running` when the app exited is told apart
     /// from one the user stopped, and History gets the reason.
     #[tokio::test]
