@@ -26,7 +26,7 @@ import type { RunSessionCore } from './useRunSessionCore'
 export function useComposerChips(core: RunSessionCore) {
   const {
     t, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
-    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode, claudeStore, codexStore, appSettings,
+    effectiveEngine, sessionDefaults: defaults, modelOverride, permissionMode, modePicks, claudeStore, codexStore, appSettings,
   } = core
   const stylesStore = useResponseStylesStore()
 
@@ -67,6 +67,7 @@ export function useComposerChips(core: RunSessionCore) {
     if (fromRunId === toRunId) return
     effortPicks.value = { ...effortPicks.value, [toRunId]: effortPicks.value[fromRunId] ?? '' }
     stylePicks.value = { ...stylePicks.value, [toRunId]: stylePicks.value[fromRunId] ?? '' }
+    modePicks.value = { ...modePicks.value, [toRunId]: modePicks.value[fromRunId] ?? '' }
   }
 
   const started = computed(() => !!currentRunId.value && currentStatus.value !== 'fetched')
@@ -94,15 +95,14 @@ export function useComposerChips(core: RunSessionCore) {
   const effortValue = computed(() => effectiveEffort(effortPick.value, effortLevelsNow.value, effortDefault.value))
   const effortLabel = (level: string) =>
     (EFFORT_LEVELS as readonly string[]).includes(level) ? t(`settings.ai.effort.${level}`) : level
+  // The levels alone: the chip ticks the level in force, the default included.
   const effortOptions = computed<SelectOption[]>(() =>
-    defaultEffortChoices(effortLevelsNow.value, effortPick.value).map((c) => {
-      if (!c.value) {
-        const d = effectiveEffort('', effortLevelsNow.value, effortDefault.value)
-        return { value: '', label: d ? t('run.chipEffortDefaultWith', { level: effortLabel(d) }) : t('settings.ai.effortEngineDefault') }
-      }
-      const label = effortLabel(c.value)
-      return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
-    }),
+    defaultEffortChoices(effortLevelsNow.value, effortPick.value)
+      .filter((c) => c.value)
+      .map((c) => {
+        const label = effortLabel(c.value)
+        return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
+      }),
   )
   const effortChipLabel = computed(() => (effortValue.value ? effortLabel(effortValue.value) : t('run.chipEffortEngine')))
   const effortChipTitle = computed(() =>
@@ -225,7 +225,7 @@ export function useComposerChips(core: RunSessionCore) {
     accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
     accountUsage, usageSnapshots, usageThresholds, loadUsage,
     modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle,
-    effortPick, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
+    effortPick, effortValue, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   }
 }

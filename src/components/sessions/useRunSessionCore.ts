@@ -89,7 +89,6 @@ export function useRunSessionCore() {
   }
   // Effective engine for the next start/handoff (selector value, else default).
   const effectiveEngine = computed(() => resolveEngineChoice(engineOverride.value))
-  const permissionMode = ref('')
 
   // ── Run selectors: the defaults, or a per-session pick ──────────────────────
   // An empty selector value means "follow the defaults" (the project's, else the
@@ -99,6 +98,15 @@ export function useRunSessionCore() {
   // never leaks into another session.
 
   const currentRunId = ref<string | null>(null)
+  // Mode picks per run, like the effort and style picks: a session without a
+  // pick of its own shows and runs the defaults, not the last session's pick.
+  const modePicks = ref<Record<string, string>>({})
+  const permissionMode = computed({
+    get: () => modePicks.value[currentRunId.value ?? ''] ?? '',
+    set: (value: string) => {
+      modePicks.value = { ...modePicks.value, [currentRunId.value ?? '']: value }
+    },
+  })
 
   // ── Remote meta sync ────────────────────────────────────────────────────────
   // The composer's engine / model / permission-mode selection is the single source
@@ -197,7 +205,7 @@ export function useRunSessionCore() {
     glStore, serversStore, awsStore, azureStore, claudeStore, codexStore, appSettings, features,
     modelCatalog, uiLayout, confirm, prompt, toast, projectId, project, isSessionWindow, activeRunId,
     engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine, sessionDefaults,
-    permissionMode, currentRunId, currentRun, currentIsSession, session, liveEntries,
+    permissionMode, modePicks, currentRunId, currentRun, currentIsSession, session, liveEntries,
     liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
   }
 }

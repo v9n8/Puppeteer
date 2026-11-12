@@ -12,7 +12,7 @@ import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const {
-  permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortLevelsNow, effortOptions,
+  permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortValue, effortLevelsNow, effortOptions,
   effortChipLabel, effortChipTitle, stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, accountUsage,
   accountModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
@@ -176,7 +176,7 @@ function pickAccount(value: string) {
   </AppSelect>
   <AppSelect
     v-if="effortLevelsNow.length"
-    v-model="effortPick"
+    :model-value="effortValue"
     size="xs"
     variant="ghost"
     class="shrink-0"
@@ -184,6 +184,7 @@ function pickAccount(value: string) {
     :trigger-label="effortChipLabel"
     :aria-label="effortChipTitle"
     :title="effortChipTitle"
+    @update:model-value="effortPick = $event"
   >
     <template #leading>
       <Gauge class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />

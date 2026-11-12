@@ -247,7 +247,6 @@
   },
   "chipEffort": "Effort",
   "chipEffortEngine": "Default",
-  "chipEffortDefaultWith": "Default · {level}",
   "chipStyle": "Response style",
   "chipStyleProject": "This project",
   "chipTitle": "{name}: {value}",

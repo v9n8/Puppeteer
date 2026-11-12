@@ -247,7 +247,6 @@
   },
   "chipEffort": "Effort",
   "chipEffortEngine": "Mặc định",
-  "chipEffortDefaultWith": "Mặc định · {level}",
   "chipStyle": "Phong cách trả lời",
   "chipStyleProject": "Project này",
   "chipTitle": "{name}: {value}",
