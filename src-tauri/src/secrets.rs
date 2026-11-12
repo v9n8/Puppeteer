@@ -129,14 +129,25 @@ enum Provider {
 }
 
 fn store_entry() -> Result<Entry> {
-    Ok(Entry::new(STORE_SERVICE, STORE_KEY)?)
+    Ok(os_item(STORE_KEY)?)
 }
 
 /// Opens one item of a store: the main item (`STORE_KEY`) or a chunk.
 type Open<'a> = &'a dyn Fn(&str) -> keyring::Result<Entry>;
 
+#[cfg(not(test))]
 fn os_item(user: &str) -> keyring::Result<Entry> {
     Entry::new(STORE_SERVICE, user)
+}
+
+/// Tests get an empty in-memory item, never the machine's store: every
+/// rebuilt test binary has a new code signature, so on macOS each `cargo test`
+/// that reaches a secret would ask for the login keychain password again.
+#[cfg(test)]
+fn os_item(user: &str) -> keyring::Result<Entry> {
+    use keyring::credential::CredentialBuilderApi;
+    let credential = keyring::mock::MockCredentialBuilder {}.build(None, STORE_SERVICE, user)?;
+    Ok(Entry::new_with_credential(credential))
 }
 
 fn chunk_user(gen: u8, i: usize) -> String {
@@ -945,6 +956,14 @@ mod tests {
         let mut v: Vec<String> = items.lock().unwrap().keys().cloned().collect();
         v.sort();
         v
+    }
+
+    #[test]
+    fn tests_never_open_the_os_store() {
+        // A test that reaches a secret (the broker's gh round trip does) must not prompt.
+        for entry in [store_entry().unwrap(), os_item(&chunk_user(0, 0)).unwrap()] {
+            assert!(entry.get_credential().downcast_ref::<keyring::mock::MockCredential>().is_some());
+        }
     }
 
     #[test]
