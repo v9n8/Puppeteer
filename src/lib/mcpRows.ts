@@ -42,6 +42,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
   { name: 'figma', description: 'Design context from Figma Desktop (enable the MCP server in Dev Mode).', transport: 'http', url: 'http://127.0.0.1:3845/mcp' },
   { name: 'chrome-devtools', description: 'Inspect console, network & performance in a live Chrome.', transport: 'stdio', command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
   { name: 'playwright', description: 'Drive a real browser for testing & scraping.', transport: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp@latest'] },
+  { name: 'telegram', description: 'Read & send Telegram as your user account (api_id/api_hash from my.telegram.org; sign in once via the login tool).', transport: 'stdio', command: 'npx', args: ['-y', 'mcp-telegram@latest'], env: ['TELEGRAM_API_ID', 'TELEGRAM_API_HASH'] },
 ]
 
 /** Catalog entries whose name is not taken yet (server names are unique). */
