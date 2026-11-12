@@ -25,6 +25,7 @@ pub mod commands;
 pub mod craft;
 pub mod cursor;
 pub mod gemini;
+pub mod paste;
 pub mod vscode;
 pub mod windsurf;
 

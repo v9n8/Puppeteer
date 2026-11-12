@@ -65,7 +65,7 @@ use commands::gitlab_accounts::{
 };
 use commands::health::health_check;
 use commands::mcp::{
-    create_mcp_server, delete_mcp_server, export_mcp_server, get_mcp_server, import_mcp_server,
+    create_mcp_server, delete_mcp_server, export_mcp_server, get_mcp_server, import_mcp_server, parse_mcp_setup_text,
     list_mcp_servers, list_project_builtin_mcp, list_project_mcp_servers, set_builtin_mcp_enabled,
     set_project_builtin_mcp_enabled, set_project_mcp_servers, test_mcp_connection, update_mcp_server,
 };
@@ -576,6 +576,7 @@ pub fn run() {
             test_mcp_connection,
             export_mcp_server,
             import_mcp_server,
+            parse_mcp_setup_text,
             list_google_accounts,
             add_google_account,
             delete_google_account,

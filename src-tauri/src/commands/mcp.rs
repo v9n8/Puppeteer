@@ -565,6 +565,16 @@ pub async fn set_project_mcp_server_enabled(
 
 // ---- Import / export -------------------------------------------------------
 
+/// Drafts for the MCP form from pasted setup text (a config block or an install command); none
+/// when no known format matches. Reads nothing but `text`.
+#[tauri::command]
+pub fn parse_mcp_setup_text(text: String) -> Result<Vec<crate::import::paste::PastedServer>, String> {
+    if text.len() > crate::import::paste::MAX_TEXT_BYTES {
+        return Err("The pasted text is too long".to_string());
+    }
+    Ok(crate::import::paste::parse(&text))
+}
+
 #[tauri::command]
 pub async fn export_mcp_server(webview: tauri::Webview, db: State<'_, Db>, id: String, path: String) -> Result<(), String> {
     // A remote desktop writes only where it may.

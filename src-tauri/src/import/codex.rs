@@ -147,7 +147,7 @@ fn toml_error(e: &toml::de::Error, raw: &str) -> String {
 }
 
 /// One `[mcp_servers.<name>]` table. Errors name the field, never its value.
-fn mcp_export(name: &str, value: &Toml) -> Result<McpServerExport, String> {
+pub(super) fn mcp_export(name: &str, value: &Toml) -> Result<McpServerExport, String> {
     let table = value.as_table().ok_or("not a table")?;
     // Puppeteer keeps the VALUE of a header or env var itself; these only name a variable of the
     // shell Codex runs in, which an import cannot read.

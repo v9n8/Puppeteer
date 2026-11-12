@@ -86,6 +86,26 @@ export interface TestConnectionResult {
   message: string
 }
 
+/** One env var / header of a pasted draft — mirrors the Rust `PastedValue`. */
+export interface PastedValue {
+  key: string
+  /** Empty when the text only had a placeholder. */
+  value: string
+  /** The value with the part to fill in as `…` (`Bearer …`). */
+  hint: string | null
+}
+
+/** A server read from pasted setup text — mirrors the Rust `PastedServer`. */
+export interface PastedServer {
+  name: string
+  transport: McpTransport
+  command: string | null
+  args: string[]
+  url: string | null
+  env: PastedValue[]
+  headers: PastedValue[]
+}
+
 export const useMcpServersStore = defineStore('mcpServers', () => {
   const items = ref<McpServer[]>([])
   const loading = ref(false)
@@ -159,6 +179,11 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     return invoke<TestConnectionResult>('test_mcp_connection', { payload })
   }
 
+  /** Drafts from pasted setup text (a config block or an install command); [] when none matches. */
+  async function parseSetupText(text: string): Promise<PastedServer[]> {
+    return invoke<PastedServer[]>('parse_mcp_setup_text', { text })
+  }
+
   async function exportServer(id: string, path: string): Promise<void> {
     await invoke('export_mcp_server', { id, path })
   }
@@ -186,6 +211,7 @@ export const useMcpServersStore = defineStore('mcpServers', () => {
     listForRun,
     setRunOverride,
     testConnection,
+    parseSetupText,
     exportServer,
     importServer,
   }
