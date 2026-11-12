@@ -236,6 +236,41 @@ const tests = {
     assert.equal(o.resumeSessionAt, undefined)
   },
 
+  // Auto mode: a call the classifier could not approve is declined with a
+  // reason Claude can act on, and no prompt reaches the user.
+  async 'auto mode declines an escalated call without a prompt'() {
+    const { messages, code } = await runSidecar('permission', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') {
+        ctl.send({ type: 'prompt', text: 'go', options: { permissionMode: 'auto' } })
+        ctl.closeInput()
+      }
+    })
+    assert.equal(of(messages, '_puppeteer_permission_request').length, 0)
+    const result = of(messages, 'result')[0]
+    assert.equal(result.mock_tool, 'Write')
+    assert.equal(result.mock_behavior, 'deny')
+    assert.match(result.mock_message, /Auto mode could not approve/)
+    assert.match(result.mock_message, /switch the session to Manual/)
+    assert.ok(of(messages, '_puppeteer_log').some((m) => /Write was declined/.test(m.text)))
+    assert.equal(code, 0)
+  },
+
+  // Auto mode still asks where a person must answer: a question, a plan, or a
+  // call the user's own permissions.ask rule covers.
+  async 'auto mode still asks for questions, plans and ask rules'() {
+    for (const [tool, env] of [['AskUserQuestion', {}], ['ExitPlanMode', {}], ['Bash', { MOCK_ASK_RULE: '1' }]]) {
+      const { messages } = await runSidecar('permission', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', options: { permissionMode: 'auto' } })
+        if (msg.type === '_puppeteer_permission_request') {
+          ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+          ctl.closeInput()
+        }
+      }, 10_000, { MOCK_ASK_TOOL: tool, ...env })
+      assert.equal(of(messages, '_puppeteer_permission_request').length, 1, tool)
+      assert.equal(of(messages, 'result')[0].mock_behavior, 'allow', tool)
+    }
+  },
+
   // Rewind: a resumed session goes on from the entry the broker names.
   async 'resume after a rewind continues from the given entry'() {
     const rewound = await runSidecar('permission', (msg, ctl) => {

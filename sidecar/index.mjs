@@ -327,6 +327,15 @@ function cancelPermission(requestId, reason, level, text) {
   send({ type: '_puppeteer_permission_cancelled', requestId, level, text })
 }
 const NO_TOOLS_REASON = 'This session has no tool access.'
+// Auto mode promises that Claude, not the user, decides each call. The SDK asks
+// the host only when its classifier could not approve a call, so the call is
+// declined with a reason Claude can act on instead of opening a prompt.
+const AUTO_DECLINED_REASON =
+  'Auto mode could not approve this call on its own, and the user is not asked in Auto mode. ' +
+  'Try another way to reach the goal. If no other way works, tell the user what you need and that they can switch the session to Manual to approve it.'
+// Tools whose prompt is the interaction itself (the user answers a question or
+// approves a plan), so they reach the user in every mode.
+const USER_INTERACTION_TOOLS = ['AskUserQuestion', 'ExitPlanMode']
 // System prompt of a tool-less side task; each task's own instructions come in
 // the user message.
 const SIDE_TASK_SYSTEM_PROMPT = "You are a text-processing engine inside the Puppeteer app. Follow the user's instruction exactly and return only the requested output."
@@ -535,8 +544,14 @@ function startQuery(firstText, opts = {}, firstImages) {
   const isAutoAllowed = (toolName) =>
     autoAllowNames.some((n) => toolName === n || (n.startsWith('mcp__') && toolName.startsWith(n + '__')))
 
+  const permissionMode = opts.permissionMode || process.env.PUPPETEER_PERMISSION_MODE || 'default'
   const canUseTool = async (toolName, input, options) => {
     if (isAutoAllowed(toolName)) return { behavior: 'allow', updatedInput: input }
+    // A user's own ask rule (permissions.ask) still asks: a person chose to be asked.
+    if (permissionMode === 'auto' && !USER_INTERACTION_TOOLS.includes(toolName) && !options?.matchedAskRule) {
+      send({ type: '_puppeteer_log', level: 'info', text: `${toolName} was declined: Auto mode could not approve it on its own, and Auto mode does not ask.` })
+      return { behavior: 'deny', message: AUTO_DECLINED_REASON }
+    }
     if (inputClosed) {
       send({ type: '_puppeteer_log', level: 'warn', text: `⚠ ${toolName} was denied: the session can no longer receive permission answers.` })
       return { behavior: 'deny', message: INPUT_CLOSED_REASON }
@@ -581,7 +596,6 @@ function startQuery(firstText, opts = {}, firstImages) {
     return { behavior: 'deny', message: decision.reason || 'Denied by user' }
   }
 
-  const permissionMode = opts.permissionMode || process.env.PUPPETEER_PERMISSION_MODE || 'default'
   const options = {
     permissionMode,
     // Per-turn option wins; else the broker's env default (session runs stream

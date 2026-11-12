@@ -2,7 +2,8 @@
 // MOCK_SCENARIO. Like the real SDK, it keeps the turn running after the input
 // stream ends, so a tool can still ask for permission once stdin is closed.
 //
-//   permission  — one turn whose tool asks permission; reports the decision.
+//   permission  — one turn whose tool (MOCK_ASK_TOOL, default Write) asks
+//                 permission; reports the decision.
 //   abort       — the CLI withdraws the request (signal aborts) after 200ms.
 //   after-close — waits for the input to end, THEN a tool asks permission.
 //   throw       — the session loop fails (like a CLI crash).
@@ -28,7 +29,9 @@ export function query({ prompt, options }) {
   async function ask(toolName) {
     const ac = new AbortController()
     if (scenario === 'abort') setTimeout(() => ac.abort(), 200)
-    const res = await options.canUseTool(toolName, { file_path: 'out.txt' }, { signal: ac.signal, toolUseID: 'toolu_mock' })
+    // MOCK_ASK_RULE: the ask comes from a user's permissions.ask rule.
+    const askRule = process.env.MOCK_ASK_RULE ? { matchedAskRule: { source: 'userSettings', toolName } } : {}
+    const res = await options.canUseTool(toolName, { file_path: 'out.txt' }, { signal: ac.signal, toolUseID: 'toolu_mock', ...askRule })
     return { type: 'result', subtype: 'success', mock_tool: toolName, mock_behavior: res.behavior, mock_message: res.message ?? null }
   }
 
@@ -108,7 +111,7 @@ export function query({ prompt, options }) {
       yield await ask('Edit')
       return
     }
-    yield await ask('Write')
+    yield await ask(process.env.MOCK_ASK_TOOL || 'Write')
     // Keep serving turns until the input stream ends.
     while (!(await input.next()).done) {
       yield { type: 'result', subtype: 'success' }
