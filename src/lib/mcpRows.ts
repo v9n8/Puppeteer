@@ -181,6 +181,8 @@ export interface SecretRow {
   key: string
   value: string
   existing: boolean
+  /** What to type when the value is blank (`Bearer …`), from pasted setup text. */
+  hint?: string
 }
 
 /** Mirrors the store's SecretEntry: omitted `value` = keep the stored one. */
@@ -239,6 +241,36 @@ export function formFromServer(
 export function duplicateForm(form: McpForm, name: string): McpForm {
   const fresh = (rows: SecretRow[]) => rows.map((r) => ({ key: r.key, value: '', existing: false }))
   return { ...form, name, envRows: fresh(form.envRows), headerRows: fresh(form.headerRows) }
+}
+
+/** The store's PastedServer: a server read from pasted setup text, values blank when to fill in. */
+export interface PastedServerLike {
+  name: string
+  transport: McpTransport
+  command: string | null
+  args: string[]
+  url: string | null
+  env: { key: string; value: string; hint: string | null }[]
+  headers: { key: string; value: string; hint: string | null }[]
+}
+
+/** A new draft from pasted setup text, renamed `<name>-2`, `-3`, … when the name is taken. */
+export function formFromPasted(server: PastedServerLike, taken: readonly string[]): McpForm {
+  const used = new Set(taken)
+  let name = server.name
+  for (let i = 2; used.has(name); i++) name = `${server.name}-${i}`
+  const rows = (values: PastedServerLike['env']): SecretRow[] =>
+    values.map((v) => ({ key: v.key, value: v.value, existing: false, ...(v.hint ? { hint: v.hint } : {}) }))
+  return {
+    ...blankForm(),
+    name,
+    transport: server.transport,
+    command: server.command ?? '',
+    argsText: server.args.join('\n'),
+    url: server.url ?? '',
+    envRows: rows(server.env),
+    headerRows: rows(server.headers),
+  }
 }
 
 /** `<name>-copy`, `<name>-copy-2`, … — the first one not taken. */

@@ -123,5 +123,17 @@
     "enabledHintDraft": "Whether the server starts enabled once saved.",
     "testHint": "Checks the server with the current settings — no need to save first.",
     "saveHint": "Save (⌘/Ctrl+S)"
+  },
+  "aiAdd": {
+    "title": "Add with AI",
+    "hint": "Paste an MCP server's setup instructions: a config block, an install command, or a README link (GitHub, npm). Whichever tool they were written for.",
+    "placeholder": "For example: a JSON config block, an install command, or https://github.com/…/…",
+    "privacy": "Known formats are read right here. Only text they miss goes to the AI, with tokens masked first.",
+    "read": "Create draft",
+    "reading": "Reading…",
+    "none": "No MCP server found. Paste the part with the install command or the config block.",
+    "pick": "Found {count} servers — pick one to open as a draft:",
+    "draftReady": "Form filled in — type the blank values, then Test connection and Save",
+    "draftByAi": "The AI filled in the form — check each field, type the blank values, then Test connection and Save"
   }
 }

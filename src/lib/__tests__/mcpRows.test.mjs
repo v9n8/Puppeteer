@@ -12,6 +12,7 @@ import {
   catalogRow,
   copyName,
   duplicateForm,
+  formFromPasted,
   formFromServer,
   formPayload,
   formSnapshot,
@@ -186,4 +187,27 @@ test('mcpRowType maps rows to their sidebar folder', () => {
   const catalog = { id: 'catalog:x', kind: 'catalog', transport: 'http' }
   const server = { id: 's1', kind: 'server', transport: 'sse' }
   assert.deepEqual([builtin, catalog, server].map(mcpRowType), ['builtin', 'catalog', 'sse'])
+})
+
+test('formFromPasted keeps values and hints, and renames a taken name', () => {
+  const pasted = {
+    name: 'pms',
+    transport: 'http',
+    command: null,
+    args: [],
+    url: 'https://pms.example.com/mcp',
+    env: [],
+    headers: [{ key: 'Authorization', value: '', hint: 'Bearer …' }, { key: 'X-Team', value: 'sora', hint: null }],
+  }
+  const form = formFromPasted(pasted, ['pms', 'pms-2'])
+  assert.equal(form.name, 'pms-3')
+  assert.equal(form.url, 'https://pms.example.com/mcp')
+  assert.deepEqual(form.headerRows, [
+    { key: 'Authorization', value: '', existing: false, hint: 'Bearer …' },
+    { key: 'X-Team', value: 'sora', existing: false },
+  ])
+  assert.deepEqual(formPayload(form).headers, [{ key: 'Authorization', value: '' }, { key: 'X-Team', value: 'sora' }])
+  const stdio = formFromPasted({ ...pasted, transport: 'stdio', command: 'npx', args: ['-y', 'pkg'], url: null, headers: [] }, [])
+  assert.equal(stdio.name, 'pms')
+  assert.equal(stdio.argsText, '-y\npkg')
 })

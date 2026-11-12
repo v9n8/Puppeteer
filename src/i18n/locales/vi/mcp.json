@@ -123,5 +123,17 @@
     "enabledHintDraft": "Server có được bật sẵn sau khi lưu hay không.",
     "testHint": "Kiểm tra server với cấu hình hiện tại — không cần lưu trước.",
     "saveHint": "Lưu (⌘/Ctrl+S)"
+  },
+  "aiAdd": {
+    "title": "Thêm bằng AI",
+    "hint": "Dán hướng dẫn cài đặt MCP server: đoạn cấu hình, lệnh cài đặt, hoặc link README (GitHub, npm). Viết cho công cụ nào cũng được.",
+    "placeholder": "Ví dụ: một khối cấu hình JSON, một lệnh cài đặt, hoặc https://github.com/…/…",
+    "privacy": "Định dạng quen thuộc được đọc ngay trên máy. Chỉ khi không đọc được mới nhờ AI, và token trong nội dung được che trước khi gửi.",
+    "read": "Tạo bản nháp",
+    "reading": "Đang đọc…",
+    "none": "Không tìm thấy MCP server nào. Hãy dán đoạn có lệnh cài đặt hoặc khối cấu hình.",
+    "pick": "Tìm thấy {count} server — chọn một để mở bản nháp:",
+    "draftReady": "Đã điền sẵn form — nhập các giá trị còn trống, bấm Kiểm tra kết nối rồi Lưu",
+    "draftByAi": "AI đã điền sẵn form — xem lại từng trường, nhập các giá trị còn trống, bấm Kiểm tra kết nối rồi Lưu"
   }
 }

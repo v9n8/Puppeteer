@@ -350,7 +350,7 @@ defineExpose({ dirty })
                 size="sm"
                 type="password"
                 autocomplete="off"
-                :placeholder="row.existing ? t('mcp.editor.unchangedPlaceholder') : t('mcp.editor.valuePlaceholder')"
+                :placeholder="row.hint || (row.existing ? t('mcp.editor.unchangedPlaceholder') : t('mcp.editor.valuePlaceholder'))"
                 class="flex-1 font-mono"
               />
               <Badge v-if="row.existing" tone="neutral" size="xs" class="shrink-0" :title="t('mcp.editor.storedTitle')">
@@ -394,7 +394,7 @@ defineExpose({ dirty })
                 size="sm"
                 type="password"
                 autocomplete="off"
-                :placeholder="row.existing ? t('mcp.editor.unchangedPlaceholder') : t('mcp.editor.valuePlaceholder')"
+                :placeholder="row.hint || (row.existing ? t('mcp.editor.unchangedPlaceholder') : t('mcp.editor.valuePlaceholder'))"
                 class="flex-1 font-mono"
               />
               <Badge v-if="row.existing" tone="neutral" size="xs" class="shrink-0" :title="t('mcp.editor.storedTitle')">
