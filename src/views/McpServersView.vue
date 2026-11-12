@@ -123,13 +123,16 @@ interface Builtin extends BuiltinInfo {
 const PUPPETEER_TOOL_GROUPS = [
   '📝 notes_list / read / search / create / update / append / set_project / reorder / delete',
   '🧠 sessions_recent / search / read',
-  '✅ todos_list / add / done / update / set_project / reorder / delete / clear_done',
+  '✅ todos_list / add / set_due / done / update / set_project / reorder / delete / clear_done',
   '📁 project_info / projects_list / projects_create / repos_list / repos_add / repos_remove / file_tree',
-  '🔀 git_status / git_diff',
-  '🖥️ vps_list / vps_run',
-  '🧩 skills_list / read / create / update / delete',
+  '🔀 git_status / git_diff / git_accounts_list',
+  '🖥️ vps_list / vps_run / cloud_accounts_list',
+  '🧩 skills_list / read / create / update / delete / list_files / read_file / write_file / delete_file',
   '📏 rules_list / read / create / update / delete',
   '💬 slack_threads_list / read / search / rename / set_project / delete',
+  '🗓️ schedule_propose',
+  '🚀 dev_server_list / start / logs / stop',
+  '🔎 code_index',
 ]
 
 const builtins = computed<Builtin[]>(() => {
