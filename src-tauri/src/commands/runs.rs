@@ -4689,9 +4689,10 @@ pub async fn read_run_input(db: State<'_, Db>, run_id: String) -> Result<String,
     fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path, e))
 }
 
-/// Resume a previously completed Claude run by spawning `claude --resume <session_id>`.
-/// Only valid for runs where the engine is `claude` and a session id was captured
-/// from the original run's `system.init` event.
+/// Resume a previously completed Claude or Codex run in a new sidecar, on the
+/// session (Claude) or thread (Codex) the original run captured. Only valid for
+/// runs whose engine is `claude` or `codex` and that captured a session id (or
+/// a fork, which takes its source's).
 #[tauri::command]
 pub async fn resume_run(
     app: AppHandle,
