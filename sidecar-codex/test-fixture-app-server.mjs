@@ -35,6 +35,8 @@ const decisionOut = process.env.PUPPETEER_DECISION_OUT
 // User-input mode: the turn asks the user two questions (request_user_input),
 // one of them an MCP tool approval as codex words it.
 const userInputMode = process.env.PUPPETEER_FIXTURE_USER_INPUT === '1'
+// With it, the turn asks only the MCP tool approval question.
+const approvalOnly = process.env.PUPPETEER_FIXTURE_APPROVAL_ONLY === '1'
 let buffer = ''
 
 function send(message) {
@@ -202,14 +204,14 @@ process.stdin.on('data', (chunk) => {
             turnId: 'fixture-turn',
             itemId: 'fixture-call',
             questions: [
-              {
+              ...(approvalOnly ? [] : [{
                 id: 'color',
                 header: 'Theme',
                 question: 'Which color?',
                 isOther: true,
                 isSecret: false,
                 options: [{ label: 'Red', description: 'Warm' }, { label: 'Blue', description: 'Cool' }],
-              },
+              }]),
               {
                 id: 'mcp_tool_call_approval_call-1',
                 header: 'Approve app tool call?',
@@ -235,7 +237,7 @@ process.stdin.on('data', (chunk) => {
           params: {
             serverName: 'Google Drive',
             ...(mcpOmitToolName ? {} : { toolName: 'list_files' }),
-            mode: 'permission',
+            mode: process.env.PUPPETEER_MCP_ELICITATION_MODE || 'permission',
             message: 'Allow listing Drive files?',
           },
         })
@@ -279,6 +281,7 @@ process.stdin.on('data', (chunk) => {
         params: { turn: { id: 'fixture-turn', status: 'completed' } },
       })
     } else if (message.id === 92 && message.result) {
+      if (decisionOut) writeFileSync(decisionOut, JSON.stringify(message.result))
       send({
         jsonrpc: '2.0',
         method: 'turn/completed',

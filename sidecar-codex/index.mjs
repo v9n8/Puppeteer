@@ -854,6 +854,17 @@ function emitMcpToolResult(toolUseId, accepted, content = accepted ? 'Accepted b
   })
 }
 
+// Bypass and Auto promise no prompts, and policyFor gives Codex no sandbox
+// over MCP tools: an MCP tool approval Codex asks for is accepted in Bypass and
+// declined in Auto, as the Claude sidecar declines what Auto cannot approve on
+// its own. Null: the mode asks the user.
+function mcpApprovalForMode() {
+  if (PERMISSION_MODE === 'bypassPermissions') return true
+  if (PERMISSION_MODE === 'auto') return false
+  return null
+}
+const AUTO_DECLINED_MCP = 'Declined: Auto mode does not ask, and approving this MCP call needs the user.'
+
 function emitMcpElicitation(rpcReqId, params) {
   const server = params?.serverName || 'MCP server'
   if (params?.mode === 'form') {
@@ -878,6 +889,14 @@ function emitMcpElicitation(rpcReqId, params) {
     displayName: mcpDisplayName(params, 'MCP request'),
     input: mcpTranscriptInput(params, server),
   })
+  // A `url` request asks the user to open a page (a sign-in), so it always asks.
+  const decided = params?.mode === 'url' ? null : mcpApprovalForMode()
+  if (decided !== null) {
+    if (!decided) note(`${server} MCP request was declined: Auto mode does not ask.`)
+    emitMcpToolResult(toolUseId, decided, decided ? 'Accepted (Bypass permissions).' : AUTO_DECLINED_MCP)
+    rpcRespond(rpcReqId, { action: decided ? 'accept' : 'decline', content: null, _meta: null })
+    return
+  }
   emitPermission(rpcReqId, {
     tool_name: mcpPermissionToolName(params, server),
     tool_input: {
@@ -914,6 +933,22 @@ function emitUserInput(rpcReqId, params) {
         .filter((o) => o.label),
     })
     answerKeys[question] = q.id
+  }
+  // Only MCP tool approvals: settled by the mode like an MCP elicitation. A
+  // real question among them still asks, and so does an approval without an
+  // `Allow` option to pick in Bypass.
+  const ids = Object.values(answerKeys)
+  const approvalsOnly = ids.length > 0 && ids.every((id) => id.startsWith('mcp_tool_call_approval'))
+  const decided = approvalsOnly ? mcpApprovalForMode() : null
+  const allowable = questions.every((q) => q.options.some((o) => o.label === 'Allow'))
+  if (decided === false) {
+    note('An MCP tool call was declined: Auto mode does not ask.')
+    rpcRespond(rpcReqId, { answers: {} })
+    return
+  }
+  if (decided && allowable) {
+    rpcRespond(rpcReqId, { answers: Object.fromEntries(ids.map((id) => [id, { answers: ['Allow'] }])) })
+    return
   }
   emitPermission(rpcReqId, {
     tool_name: 'AskUserQuestion',
