@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // Right pane of the MCP servers screen for a user server (or a new draft):
 // header with the live name, meta (transport · enabled · added) and actions
-// laid out like SkillDetail (Save · ⋯ with export / duplicate / delete), then a
-// Status section (enabled switch + Test connection) and the form in flat sections.
+// laid out like SkillDetail (Test · Save · ⋯ with export / duplicate / delete),
+// then a Status section (enabled switch) and the form in flat sections. Test sits
+// beside Save because both act on the form as filled in.
 //
 // A saved server's enable/disable applies at once (like the sidebar's power
 // button), so it is not part of the dirty check; on a draft it is a form field.
@@ -213,6 +214,11 @@ defineExpose({ dirty })
         </template>
       </template>
       <template #actions>
+        <Button variant="outline" size="sm" :disabled="testing" :title="t('mcp.detail.testHint')" @click="handleTest">
+          <Loader2 v-if="testing" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
+          <Plug v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ testing ? t('mcp.editor.testing') : t('mcp.editor.testConnection') }}
+        </Button>
         <Button size="sm" :disabled="!dirty || saving" :title="t('mcp.detail.saveHint')" @click="save">
           {{ saving ? t('mcp.editor.saving') : t('common.save') }}
         </Button>
@@ -248,10 +254,30 @@ defineExpose({ dirty })
       <p class="truncate" :title="validationError">{{ validationError }}</p>
     </Banner>
 
+    <!-- Test connection result, under the header so it shows wherever the form is scrolled. -->
+    <Banner
+      v-if="testResult"
+      :tone="testResult.ok ? 'success' : 'destructive'"
+      :icon="testResult.ok ? CheckCircle2 : XCircle"
+      class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs"
+    >
+      {{ testResult.message }}
+      <template #actions>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          :title="t('mcp.detail.dismiss')"
+          :aria-label="t('mcp.detail.dismiss')"
+          @click="testResult = null"
+        >
+          <X class="h-3 w-3" :stroke-width="2" />
+        </Button>
+      </template>
+    </Banner>
+
     <div class="min-h-0 flex-1 overflow-y-auto px-5">
       <div class="max-w-xl">
-        <!-- Status: the enabled switch (a saved server applies at once) and Test
-             connection, which tests the form as filled in. -->
+        <!-- Status: the enabled switch (a saved server applies at once). -->
         <DetailSection :title="t('mcp.detail.status')">
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
@@ -265,36 +291,6 @@ defineExpose({ dirty })
               @toggle="toggleEnabled"
             />
           </div>
-          <div class="flex items-center gap-3">
-            <div class="min-w-0 flex-1">
-              <div class="text-xs font-medium">{{ t('mcp.editor.testConnection') }}</div>
-              <p class="text-2xs text-muted-foreground">{{ t('mcp.detail.testHint') }}</p>
-            </div>
-            <Button variant="outline" size="xs" class="shrink-0" :disabled="testing" @click="handleTest">
-              <Loader2 v-if="testing" class="h-3 w-3 animate-spin" :stroke-width="2" />
-              <Plug v-else class="h-3 w-3" :stroke-width="1.75" />
-              {{ testing ? t('mcp.editor.testing') : t('mcp.detail.test') }}
-            </Button>
-          </div>
-          <!-- Test connection result -->
-          <Banner
-            v-if="testResult"
-            :tone="testResult.ok ? 'success' : 'destructive'"
-            :icon="testResult.ok ? CheckCircle2 : XCircle"
-          >
-            {{ testResult.message }}
-            <template #actions>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                :title="t('mcp.detail.dismiss')"
-                :aria-label="t('mcp.detail.dismiss')"
-                @click="testResult = null"
-              >
-                <X class="h-3 w-3" :stroke-width="2" />
-              </Button>
-            </template>
-          </Banner>
         </DetailSection>
 
         <DetailSection :title="t('mcp.editor.general')" :hint="t('mcp.detail.generalHint')">

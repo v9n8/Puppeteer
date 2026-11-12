@@ -121,8 +121,7 @@
     "status": "Status",
     "enabledHint": "Applies right away; turn it off to keep it out of every new run.",
     "enabledHintDraft": "Whether the server starts enabled once saved.",
-    "test": "Test",
-    "testHint": "Checks the server with the settings above — no need to save first.",
+    "testHint": "Checks the server with the current settings — no need to save first.",
     "saveHint": "Save (⌘/Ctrl+S)"
   }
 }
