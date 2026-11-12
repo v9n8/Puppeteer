@@ -13,7 +13,7 @@ import {
   type PlanUsageSnapshot, type UsageSeverity, type UsageThresholds, type UsageWindow,
 } from '@/lib/usageRing'
 import {
-  EFFORT_LEVELS, PERMISSION_MODE_OPTIONS, effortLevelsFor, resolvePermissionMode, type SelectOption,
+  EFFORT_LEVELS, effortLevelsFor, permissionModeOptions, resolvePermissionMode, type SelectOption,
 } from '@/lib/engineOptions'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { shownStyles } from '@/lib/responseStyles'
@@ -81,8 +81,9 @@ export function useComposerChips(core: RunSessionCore) {
   const modeChipIcon = computed(() =>
     modeValue.value === 'bypassPermissions' ? ShieldAlert : modeValue.value === 'plan' ? ListChecks : ShieldQuestion,
   )
+  const modeOptions = computed(() => permissionModeOptions(t))
   const modeChipTitle = computed(() => {
-    const full = PERMISSION_MODE_OPTIONS.find((o) => o.value === modeValue.value)?.label ?? modeChipLabel.value
+    const full = modeOptions.value.find((o) => o.value === modeValue.value)?.label ?? modeChipLabel.value
     return chipTitle(t('run.chipMode'), full, !permissionMode.value)
   })
 
@@ -223,7 +224,7 @@ export function useComposerChips(core: RunSessionCore) {
     chipOverrides, carryPicks,
     accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
     accountUsage, usageSnapshots, usageThresholds, loadUsage,
-    modeValue, modeChipLabel, modeChipIcon, modeChipTitle,
+    modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   }

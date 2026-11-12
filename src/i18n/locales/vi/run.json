@@ -238,7 +238,7 @@
   },
   "chipMode": "Chế độ quyền",
   "chipModeShort": {
-    "default": "Hỏi",
+    "default": "Thủ công",
     "acceptEdits": "Tự nhận sửa",
     "plan": "Lập kế hoạch",
     "auto": "Tự động",

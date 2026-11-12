@@ -23,7 +23,7 @@ import {
   effectiveModelOptions,
   combinedModelOptions,
   engineForModel,
-  PERMISSION_MODE_OPTIONS,
+  permissionModeOptions,
   type FetchedModel,
   type SelectOption,
 } from '@/lib/engineOptions'
@@ -109,6 +109,12 @@ const modelOptions = computed(() =>
     codexLabel: 'Codex',
   }),
 )
+// The Host reports an empty mode for a run with no pick of its own and does not
+// send the settings default it resolves to, so the Default row stays here.
+const permissionOptions = computed(() => [
+  { value: '', label: t('controller.composer.modelDefault') },
+  ...permissionModeOptions(t),
+])
 // Engine implied by the current pick; falls back to the run's engine (from Host
 // meta) when Default is selected, so Claude-only UI still keys off the right one.
 const selectedEngine = computed(
@@ -745,7 +751,7 @@ function onKeydown(e: KeyboardEvent): void {
                   <AppSelect
                     :model-value="permissionMode"
                     size="sm"
-                    :options="PERMISSION_MODE_OPTIONS"
+                    :options="permissionOptions"
                     :disabled="running"
                     class="h-8 w-full"
                     :title="t('controller.composer.permTitle')"

@@ -7,7 +7,7 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowUpRight, Sparkles } from 'lucide-vue-next'
 import { AppSelect, Button, Card, InfoTip } from '@/components/ui'
-import { EFFORT_LEVELS, effortLevelsFor, type SelectOption } from '@/lib/engineOptions'
+import { EFFORT_LEVELS, effortLevelsFor, permissionModeOptions, type SelectOption } from '@/lib/engineOptions'
 import { shownStyles } from '@/lib/responseStyles'
 import { defaultEffortChoices, defaultStyleChoices } from '@/lib/sessionDefaults'
 import type { SettingsSectionId } from '@/lib/settingsSections'
@@ -109,13 +109,7 @@ const styleOptions = computed(() => {
         <AppSelect
           size="sm"
           v-model="settings.default_permission_mode"
-          :options="[
-            { value: 'default', label: t('settings.ai.permAskUi') },
-            { value: 'acceptEdits', label: t('settings.ai.permAcceptEdits') },
-            { value: 'plan', label: t('settings.ai.permPlan') },
-            { value: 'auto', label: t('settings.ai.permAuto') },
-            { value: 'bypassPermissions', label: t('settings.ai.permBypass') },
-          ]"
+          :options="permissionModeOptions(t)"
         />
       </SettingsRow>
       <SettingsRow :label="t('settings.ai.defaultEffort')" :hint="t('settings.ai.effortHint')">

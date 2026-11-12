@@ -16,7 +16,9 @@ import { useAppSettingsStore } from '@/stores/appSettings'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useResponseStylesStore } from '@/stores/responseStyles'
-import { EFFORT_LEVELS, MODEL_OPTIONS, effortLevelsFor, withCurrentModel, type SelectOption } from '@/lib/engineOptions'
+import {
+  EFFORT_LEVELS, MODEL_OPTIONS, effortLevelsFor, permissionModeOptions, withCurrentModel, type SelectOption,
+} from '@/lib/engineOptions'
 import { composerDefaults, composerStyleChoices, type ProjectSessionDefaults } from '@/lib/composerChips'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
@@ -76,18 +78,11 @@ const codexModelOptions = computed<SelectOption[]>(() => [
 ])
 
 // ── Permission mode ──
-const PERMISSION_LABELS: Record<string, string> = {
-  default: 'settings.ai.permAskUi',
-  acceptEdits: 'settings.ai.permAcceptEdits',
-  plan: 'settings.ai.permPlan',
-  auto: 'settings.ai.permAuto',
-  bypassPermissions: 'settings.ai.permBypass',
-}
-const permissionLabel = (mode: string) => (PERMISSION_LABELS[mode] ? t(PERMISSION_LABELS[mode]) : mode)
-const permissionOptions = computed<SelectOption[]>(() => [
-  { value: '', label: follow(permissionLabel(global.value.permissionMode)) },
-  ...Object.keys(PERMISSION_LABELS).map((mode) => ({ value: mode, label: permissionLabel(mode) })),
-])
+const permissionOptions = computed<SelectOption[]>(() => {
+  const modes = permissionModeOptions(t)
+  const globalMode = global.value.permissionMode
+  return [{ value: '', label: follow(modes.find((o) => o.value === globalMode)?.label ?? globalMode) }, ...modes]
+})
 
 // ── Effort: the levels of this project's engine + default model ──
 const effortLevels = computed(() => {

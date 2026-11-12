@@ -9,6 +9,8 @@ export interface SelectOption {
   label: string
   /** Dimmed second line in the dropdown (AppSelect renders it). */
   description?: string
+  /** Shown on hover instead of as a second line. */
+  tooltip?: string
 }
 
 /** A row in the unified model picker: a concrete model carries the engine it
@@ -88,14 +90,18 @@ export function engineForModel(model: string, opts: CombinedOption[]): string {
   return opts.find((o) => !o.header && o.value === model)?.engine || ''
 }
 
-export const PERMISSION_MODE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Default (from settings)' },
-  { value: 'default', label: 'Ask via UI (default)' },
-  { value: 'acceptEdits', label: 'Auto-accept edits' },
-  { value: 'plan', label: 'Plan only (read-only)' },
-  { value: 'auto', label: 'Auto (classifier)' },
-  { value: 'bypassPermissions', label: 'Bypass all' },
-]
+// The modes a person can pick, in the order Claude's own Permissions menu lists them.
+export const PERMISSION_MODE_CHOICES = ['auto', 'default', 'acceptEdits', 'plan', 'bypassPermissions'] as const
+
+/** The pickable modes, each named alone with its explanation as a tooltip.
+ * Takes `t` so this file stays free of vue-i18n. */
+export function permissionModeOptions(t: (key: string) => string): SelectOption[] {
+  return PERMISSION_MODE_CHOICES.map((mode) => ({
+    value: mode,
+    label: t(`settings.ai.permModes.${mode}.label`),
+    tooltip: t(`settings.ai.permModes.${mode}.hint`),
+  }))
+}
 
 // Permission modes the backend accepts (mirrors is_valid_permission_mode).
 const VALID_PERMISSION_MODES = ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto', 'dontAsk']

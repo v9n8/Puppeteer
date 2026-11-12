@@ -8,12 +8,11 @@ import { useI18n } from 'vue-i18n'
 import { Check, ChevronDown, Gauge, MessageSquareText, Sparkles, UserCircle } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import { Button, SegmentedControl, type SegmentedOption } from '@/components/ui'
-import { PERMISSION_MODE_OPTIONS } from '@/lib/engineOptions'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const {
-  permissionMode, modeValue, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortLevelsNow, effortOptions,
+  permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortLevelsNow, effortOptions,
   effortChipLabel, effortChipTitle, stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, accountUsage,
   accountModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
@@ -154,15 +153,17 @@ function pickAccount(value: string) {
       </div>
     </transition>
   </div>
+  <!-- Bound to the resolved mode, so the menu ticks the mode the run really gets. -->
   <AppSelect
-    v-model="permissionMode"
+    :model-value="modeValue"
     size="xs"
     variant="ghost"
     class="shrink-0"
-    :options="PERMISSION_MODE_OPTIONS"
+    :options="modeOptions"
     :trigger-label="modeChipLabel"
     :aria-label="modeChipTitle"
     :title="modeChipTitle"
+    @update:model-value="permissionMode = $event"
   >
     <template #leading>
       <component

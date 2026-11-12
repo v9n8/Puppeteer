@@ -8,6 +8,8 @@ interface Option {
   label: string
   /** Optional dimmed second line shown under the label in the dropdown. */
   description?: string
+  /** Optional explanation shown on hover, for a menu that names each option alone. */
+  tooltip?: string
   /** A non-selectable section header (e.g. "Claude" / "Codex"). Skipped by
    * keyboard navigation and ignored by selection. */
   header?: boolean
@@ -277,6 +279,7 @@ watch(isOpen, (val) => {
             v-else
             role="option"
             :aria-selected="option.value === modelValue"
+            :title="option.tooltip"
             class="relative flex items-start gap-2 cursor-pointer select-none transition-colors"
             :class="[
               size === 'md' ? controlSize.md : controlSize.sm,

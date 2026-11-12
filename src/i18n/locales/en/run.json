@@ -238,7 +238,7 @@
   },
   "chipMode": "Permission mode",
   "chipModeShort": {
-    "default": "Ask",
+    "default": "Manual",
     "acceptEdits": "Accept edits",
     "plan": "Plan",
     "auto": "Auto",
