@@ -555,6 +555,7 @@ pub(crate) async fn start_run_inner(
             &payload.run_id,
             &project_id,
             &cwd,
+            &permission_mode,
         )
         .await?;
         // Honor a custom claude binary if the user configured one; default uses
@@ -742,6 +743,7 @@ pub(crate) async fn start_run_inner(
         &payload.run_id,
         &project_id,
         &cwd,
+        &permission_mode,
     )
     .await?;
     codex.apply_env(&mut cmd);
@@ -1182,6 +1184,7 @@ async fn wire_broker(
     run_id: &str,
     project_id: &str,
     project_path: &str,
+    permission_mode: &str,
 ) -> Result<(BrokerRunGuard, Option<SshAccessGuard>), String> {
     // The singleton broker (and its socket) were started at app setup and live
     // in managed state. Read its stable socket path.
@@ -1200,6 +1203,7 @@ async fn wire_broker(
         BrokerRunCtx {
             cwd: Some(project_path.to_string()),
             project_id: Some(project_id.to_string()),
+            permission_mode: permission_mode.to_string(),
         },
     );
 
@@ -5069,6 +5073,7 @@ pub(crate) async fn resume_run_with(
         &run_id,
         &project_id,
         &cwd,
+        &permission_mode,
     )
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);

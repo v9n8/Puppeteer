@@ -660,7 +660,8 @@ async fn process_line(
         }
         PolicyDecision::Ask { reason } => {
             // Route the Ask to the issuing run's approver. No live run (ended, or
-            // no run_id) → fail-closed deny; we never auto-approve a write.
+            // no run_id) → fail-closed deny. Only a run the user started in Bypass
+            // permissions has its asks approved without a prompt.
             let approved = match resolver.resolve(req.run_id.as_deref()).await {
                 Some(approver) => approver.approve(&req, reason).await,
                 None => false,
@@ -1077,7 +1078,7 @@ fn credential_username_fallback(host: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::approver::{Approver, DenyAllApprover, FixedApprover};
+    use super::approver::{Approver, BypassApprover, DenyAllApprover, FixedApprover};
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -1548,6 +1549,20 @@ mod tests {
         let resp = round_trip(
             db,
             Arc::new(DenyAllApprover),
+            r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["auth","token"]}"#,
+        )
+        .await;
+        assert_eq!(resp.decision, "deny");
+        assert!(resp.token.is_none());
+    }
+
+    // Bypass permissions answers the asks, never the denylist.
+    #[tokio::test]
+    async fn round_trip_bypass_still_denies_denylist() {
+        let db = mem_db().await;
+        let resp = round_trip(
+            db,
+            Arc::new(BypassApprover),
             r#"{"project_id":"p1","run_id":"r1","tool":"gh","argv":["auth","token"]}"#,
         )
         .await;

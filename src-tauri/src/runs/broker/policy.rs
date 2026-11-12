@@ -6,8 +6,8 @@
 //!
 //! Decision priority (see plan §4.2):
 //!   1. Denylist  -> Deny   (credential-printing / auth-mutating commands)
-//!   2. Read allowlist -> Allow (safe read-only subcommands)
-//!   3. Ask list  -> Ask    (write ops + api/graphql backdoors)
+//!   2. Read allowlist -> Allow (safe read-only subcommands, `api` GETs and GraphQL queries)
+//!   3. Ask list  -> Ask    (write ops + any other api/graphql call)
 //!   4. Default   -> Ask    (any unknown / unlisted subcommand; NEVER silent-Allow)
 
 /// Outcome of policy evaluation for a single `gh`/`glab`/`git` invocation.
@@ -86,6 +86,70 @@ fn evaluate_git(argv: &[String]) -> PolicyDecision {
     }
 }
 
+/// Whether a `gh api` / `glab api` call only reads: a REST call whose method is
+/// GET or HEAD (GET unless `-X` says otherwise or a body field makes it POST),
+/// or a GraphQL call whose `query` fields hold no mutation. Fail-closed: a body
+/// read from a file or stdin, a method override header, an unknown flag or a
+/// second endpoint makes it not a read.
+fn api_call_is_read(argv: &[String]) -> bool {
+    let Some(start) = argv.iter().position(|a| a.eq_ignore_ascii_case("api")) else {
+        return false;
+    };
+    let rest = &argv[start + 1..];
+    let mut endpoint: Option<&str> = None;
+    let mut method: Option<String> = None;
+    let mut fields: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < rest.len() {
+        let token = rest[i].as_str();
+        i += 1;
+        if !token.starts_with('-') {
+            if endpoint.replace(token).is_some() {
+                return false;
+            }
+            continue;
+        }
+        // `--flag=value`, `-Xvalue` or `--flag value`.
+        let (flag, attached) = match token.split_once('=') {
+            Some((f, v)) if token.starts_with("--") => (f, Some(v)),
+            _ if !token.starts_with("--") && token.len() > 2 && token.is_char_boundary(2) => {
+                (&token[..2], Some(&token[2..]))
+            }
+            _ => (token, None),
+        };
+        match flag {
+            "--paginate" | "--slurp" | "-i" | "--include" | "--silent" | "--verbose" => continue,
+            "-X" | "--method" | "-f" | "--raw-field" | "-F" | "--field" | "-H" | "--header" | "-q" | "--jq"
+            | "-t" | "--template" | "--hostname" | "--cache" | "-p" | "--preview" => {}
+            _ => return false,
+        }
+        let value = match attached {
+            Some(v) => v,
+            None if i < rest.len() => {
+                i += 1;
+                rest[i - 1].as_str()
+            }
+            None => return false,
+        };
+        match flag {
+            "-X" | "--method" => method = Some(value.to_ascii_uppercase()),
+            "-F" | "--field" if value.split_once('=').is_some_and(|(_, v)| v.starts_with('@')) => return false,
+            "-f" | "--raw-field" | "-F" | "--field" => fields.push(value),
+            "-H" | "--header" if value.to_ascii_lowercase().contains("method-override") => return false,
+            _ => {}
+        }
+    }
+    let Some(endpoint) = endpoint else { return false };
+    if endpoint.trim_start_matches('/').eq_ignore_ascii_case("graphql") {
+        let queries: Vec<&str> = fields.iter().filter_map(|f| f.strip_prefix("query=")).collect();
+        return matches!(method.as_deref(), None | Some("POST"))
+            && !queries.is_empty()
+            && queries.iter().all(|q| !q.to_ascii_lowercase().contains("mutation"));
+    }
+    let method = method.unwrap_or_else(|| if fields.is_empty() { "GET" } else { "POST" }.to_string());
+    method == "GET" || method == "HEAD"
+}
+
 /// gh / glab share the same (group, action) shape. `is_glab` only tweaks a few
 /// group aliases (`mr` vs `pr`, `project` vs `repo`).
 fn evaluate_gh_like(argv: &[String], is_glab: bool) -> PolicyDecision {
@@ -162,8 +226,13 @@ fn evaluate_gh_like(argv: &[String], is_glab: bool) -> PolicyDecision {
         return PolicyDecision::Allow;
     }
 
+    // A REST GET or a GraphQL query through `api` reads like `pr view` does.
+    if group == "api" && api_call_is_read(argv) {
+        return PolicyDecision::Allow;
+    }
+
     // ---- 3. ASK LIST (write ops + api/graphql backdoors) ----
-    // api / graphql are universal backdoors → always Ask.
+    // Any other api / graphql call is a universal backdoor → Ask.
     if group == "api" || group == "graphql" {
         return ask("api/graphql is an unrestricted backdoor — needs confirmation");
     }
@@ -1237,12 +1306,45 @@ mod tests {
 
     #[test]
     fn ask_gh_api() {
+        for call in [
+            &["graphql", "-f", "query=x"][..],
+            &["api", "repos/o/r/issues/1/comments", "-f", "body=hi"],
+            &["api", "repos/o/r/issues/1/comments", "--raw-field=body=hi"],
+            &["api", "-X", "PATCH", "repos/o/r/issues/1"],
+            &["api", "--method=DELETE", "repos/o/r/issues/comments/9"],
+            &["api", "-XPOST", "repos/o/r/labels"],
+            &["api", "repos/o/r/issues", "--input", "body.json"],
+            &["api", "repos/o/r", "-H", "X-HTTP-Method-Override: DELETE"],
+            &["api", "graphql", "-f", "query=mutation { addComment(input: {}) { clientMutationId } }"],
+            &["api", "graphql", "-F", "query=@q.graphql"],
+            &["api", "graphql", "-X", "GET", "-f", "query=query { viewer { login } }"],
+            &["api", "graphql"],
+            &["api", "repos/o/r", "--some-new-flag"],
+            &["api", "repos/o/r", "repos/o/other"],
+            &["api"],
+            &["api", "repos/o/r", "-ä"],
+        ] {
+            assert!(matches!(evaluate_policy("gh", &argv(call)), PolicyDecision::Ask { .. }), "{call:?}");
+        }
+    }
+
+    #[test]
+    fn allow_gh_api_reads() {
+        for call in [
+            &["api", "/user"][..],
+            &["api", "repos/o/r/issues/1251/comments", "--jq", ".[] | select(.body|contains(\"@q\"))"],
+            &["api", "repos/o/r/issues/948/comments", "--paginate", "-q", ".[].id"],
+            &["api", "-X", "GET", "search/issues", "-f", "q=repo:o/r is:open"],
+            &["api", "--method=head", "repos/o/r"],
+            &["api", "rate_limit", "--jq=.resources.core"],
+            &["api", "graphql", "-f", "query=query { repository(owner: $o, name: $n) { id } }", "-F", "o=me", "-f", "n=r"],
+            &["api", "graphql", "--paginate", "-fquery={ viewer { login } }"],
+        ] {
+            assert_eq!(evaluate_policy("gh", &argv(call)), PolicyDecision::Allow, "{call:?}");
+        }
+        assert_eq!(evaluate_policy("glab", &argv(&["api", "projects/1/issues"])), PolicyDecision::Allow);
         assert!(matches!(
-            evaluate_policy("gh", &argv(&["api", "/user"])),
-            PolicyDecision::Ask { .. }
-        ));
-        assert!(matches!(
-            evaluate_policy("gh", &argv(&["graphql", "-f", "query=x"])),
+            evaluate_policy("glab", &argv(&["api", "-X", "POST", "projects/1/issues"])),
             PolicyDecision::Ask { .. }
         ));
     }

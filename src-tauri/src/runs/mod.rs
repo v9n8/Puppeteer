@@ -124,6 +124,9 @@ pub fn new_registry() -> RunRegistry {
 pub struct BrokerRunCtx {
     pub cwd: Option<String>,
     pub project_id: Option<String>,
+    /// The mode this run's process was started in; `bypassPermissions` lets an
+    /// `Ask` through without the modal (a `Deny` still denies).
+    pub permission_mode: String,
 }
 
 /// Live runs known to the singleton broker, keyed by `run_id`. Presence in this

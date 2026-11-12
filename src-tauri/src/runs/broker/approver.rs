@@ -49,6 +49,22 @@ impl Approver for FixedApprover {
     }
 }
 
+/// Approves every `Ask` of a run the user started in Bypass permissions, which
+/// promises no prompts. Policy `Deny`s (printing a token, changing auth) never
+/// reach an approver, so they still hold.
+pub struct BypassApprover;
+
+#[async_trait]
+impl Approver for BypassApprover {
+    async fn approve(&self, _req: &BrokerRequest, _reason: &str) -> bool {
+        true
+    }
+}
+
+fn asks_skipped(permission_mode: &str) -> bool {
+    permission_mode == "bypassPermissions"
+}
+
 /// GĐ3 modal approver: on `Ask`, emit the existing `PermissionRequestEvent` to
 /// the frontend and await the user's decision. The decision arrives back through
 /// the unchanged `respond_permission` command, which resolves the oneshot we
@@ -214,6 +230,9 @@ impl ApproverResolver for ModalApproverResolver {
         // Copy the run's context out under a short synchronous lock; None (run
         // not registered / already ended) → caller fail-closed denies.
         let ctx = self.runs.lock().ok()?.get(run_id)?.clone();
+        if asks_skipped(&ctx.permission_mode) {
+            return Some(Arc::new(BypassApprover));
+        }
         Some(Arc::new(ModalApprover::new(
             self.app.clone(),
             run_id.to_string(),
@@ -224,5 +243,18 @@ impl ApproverResolver for ModalApproverResolver {
 
     fn run_project(&self, run_id: &str) -> Option<String> {
         self.runs.lock().ok()?.get(run_id)?.project_id.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::asks_skipped;
+
+    #[test]
+    fn only_bypass_skips_the_ask() {
+        assert!(asks_skipped("bypassPermissions"));
+        for mode in ["auto", "default", "acceptEdits", "plan", "dontAsk", ""] {
+            assert!(!asks_skipped(mode), "{mode}");
+        }
     }
 }
