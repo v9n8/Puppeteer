@@ -100,6 +100,11 @@ const oldOk = e.of('thread/resume')[0]?.approvalPolicy === 'untrusted' &&
 const f = await runSidecar('min', { PUPPETEER_RESUME_SESSION: 'thr-old', PUPPETEER_CODEX_VERSION: '0.133.0-alpha.1' }, ['one'])
 const minOk = f.of('turn/start').length === 1 && f.of('turn/start').every(noPolicy)
 
-const pass = !!(freshOk && resumeOk && forkOk && refusedOk && oldOk && minOk)
-console.log(JSON.stringify({ freshOk, resumeOk, forkOk, refusedOk, oldOk, minOk, pass }))
+// Auto: the user is not asked, and the workspace sandbox stays the limit.
+const g = await runSidecar('auto', { PUPPETEER_PERMISSION_MODE: 'auto' }, ['one'])
+const [autoStart] = g.of('thread/start')
+const autoOk = autoStart?.approvalPolicy === 'never' && autoStart?.sandbox === 'workspace-write'
+
+const pass = !!(freshOk && resumeOk && forkOk && refusedOk && oldOk && minOk && autoOk)
+console.log(JSON.stringify({ freshOk, resumeOk, forkOk, refusedOk, oldOk, minOk, autoOk, pass }))
 process.exit(pass ? 0 : 1)

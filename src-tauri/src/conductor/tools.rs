@@ -306,8 +306,9 @@ async fn worker_permission_mode(
 /// How much a mode lets a run do without asking, as each engine applies it:
 /// Claude's `dontAsk` denies what would ask, so it does no more than `default`;
 /// Claude's `auto` also runs commands a classifier passes, more than
-/// `acceptEdits` but less than `bypassPermissions`. Codex runs both with the
-/// `acceptEdits` policy (`policyFor` in sidecar-codex). Any engine but
+/// `acceptEdits` but less than `bypassPermissions`. Codex runs `dontAsk` with
+/// the `acceptEdits` policy and `auto` in the same workspace sandbox without
+/// ever asking (`policyFor` in sidecar-codex). Any engine but
 /// `claude` launches the Codex sidecar. `None` for a mode no engine knows.
 fn permission_rank(mode: &str, engine: &str) -> Option<u8> {
     match mode {

@@ -586,7 +586,11 @@ function policyFor(mode) {
     // `on-request` is in the 0.133.0-alpha.1 app-server schema and at d15bf1d.
     case 'acceptEdits':       base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }; break
     case 'bypassPermissions': base = { approvalPolicy: 'never',      sandbox: 'danger-full-access' }; break
-    // `auto` (classifier) / `dontAsk` / legacy: let Codex decide when to ask.
+    // Auto promises the engine decides and the user is not asked, as Claude's
+    // auto does. `never` keeps the workspace sandbox as the limit: a command that
+    // needs more fails back to Codex instead of asking the user.
+    case 'auto':              base = { approvalPolicy: 'never',      sandbox: 'workspace-write' }; break
+    // `dontAsk` / legacy: let Codex decide when to ask.
     default:                  base = { approvalPolicy: 'on-request', sandbox: 'workspace-write' }
   }
   // Explicit overrides (tuning knob / tests).
