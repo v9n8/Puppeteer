@@ -33,16 +33,18 @@ export interface CatalogEntry {
   env?: string[]
 }
 
+// Listed in this order: day-to-day work channels (chat, browser) first, then
+// docs/issue trackers and design, then coding aids.
 export const MCP_CATALOG: CatalogEntry[] = [
-  { name: 'sequential-thinking', description: 'Structured step-by-step reasoning scratchpad.', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'] },
-  { name: 'context7', description: 'Up-to-date library docs to reduce hallucinated APIs.', transport: 'http', url: 'https://mcp.context7.com/mcp' },
+  { name: 'telegram', description: 'Read & send Telegram as your user account (api_id/api_hash from my.telegram.org; sign in once via the login tool).', transport: 'stdio', command: 'npx', args: ['-y', 'mcp-telegram@latest'], env: ['TELEGRAM_API_ID', 'TELEGRAM_API_HASH'] },
   { name: 'slack', description: 'Read Slack channels & threads (user token, xoxp-).', transport: 'stdio', command: 'npx', args: ['-y', 'slack-mcp-server@latest', '--transport', 'stdio'], env: ['SLACK_MCP_XOXP_TOKEN'] },
+  { name: 'chrome-devtools', description: 'Inspect console, network & performance in a live Chrome.', transport: 'stdio', command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
+  { name: 'playwright', description: 'Drive a real browser for testing & scraping.', transport: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp@latest'] },
   { name: 'notion', description: 'Search & edit Notion pages and databases (integration secret).', transport: 'stdio', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'], env: ['NOTION_TOKEN'] },
   { name: 'atlassian', description: 'Jira issues & Confluence pages. Requires uv (uvx).', transport: 'stdio', command: 'uvx', args: ['mcp-atlassian'], env: ['JIRA_URL', 'JIRA_USERNAME', 'JIRA_API_TOKEN', 'CONFLUENCE_URL', 'CONFLUENCE_USERNAME', 'CONFLUENCE_API_TOKEN'] },
   { name: 'figma', description: 'Design context from Figma Desktop (enable the MCP server in Dev Mode).', transport: 'http', url: 'http://127.0.0.1:3845/mcp' },
-  { name: 'chrome-devtools', description: 'Inspect console, network & performance in a live Chrome.', transport: 'stdio', command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
-  { name: 'playwright', description: 'Drive a real browser for testing & scraping.', transport: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp@latest'] },
-  { name: 'telegram', description: 'Read & send Telegram as your user account (api_id/api_hash from my.telegram.org; sign in once via the login tool).', transport: 'stdio', command: 'npx', args: ['-y', 'mcp-telegram@latest'], env: ['TELEGRAM_API_ID', 'TELEGRAM_API_HASH'] },
+  { name: 'context7', description: 'Up-to-date library docs to reduce hallucinated APIs.', transport: 'http', url: 'https://mcp.context7.com/mcp' },
+  { name: 'sequential-thinking', description: 'Structured step-by-step reasoning scratchpad.', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'] },
 ]
 
 /** Catalog entries whose name is not taken yet (server names are unique). */

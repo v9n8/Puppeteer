@@ -65,6 +65,10 @@ test('availableCatalog hides names already taken', () => {
   assert.ok(!left.some((c) => c.name === 'context7'))
 })
 
+test('MCP_CATALOG lists everyday work channels first', () => {
+  assert.deepEqual(MCP_CATALOG.slice(0, 3).map((c) => c.name), ['telegram', 'slack', 'chrome-devtools'])
+})
+
 test('matchesMcpRow searches name/line/description', () => {
   const on = serverRow(fs)
   const off = serverRow(remote)
@@ -86,7 +90,7 @@ test('builtin rows count as enabled only when active', () => {
 test('groupMcpRows: built-in first, transports in fixed order, catalog last', () => {
   const sse = { ...serverRow(remote), id: 'c3', transport: 'sse' }
   const rows = [
-    catalogRow(MCP_CATALOG[1]),
+    catalogRow(MCP_CATALOG.find((c) => c.name === 'context7')),
     sse,
     serverRow(remote),
     serverRow(fs),
