@@ -13,6 +13,11 @@
 //! 3. fire: open a new session in its project and start it with the prompt
 //!    through `start_run_inner`, as the Start button would.
 //!
+//! A start that fails is announced once for its slot ([`FAILED_EVENT`] for
+//! the desktop notification, `RemoteRunEvent::ScheduleFailed` for the phone
+//! push); a skip is not. The claim in step 1 already moved the slot on, so the
+//! next tick does not try, or announce, the same slot again.
+//!
 //! A slot still ahead is moved when the machine's zone changed since it was
 //! worked out ([`on_this_clock`]).
 
@@ -20,6 +25,7 @@ use super::{next_run, parse_stamp, stamp, Timing, CHANGED_EVENT, FEATURE};
 use crate::db::Db;
 use crate::features::{self, apply::Change};
 use chrono::{DateTime, Local, TimeZone, Utc};
+use serde::Serialize;
 use std::future::Future;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -28,6 +34,9 @@ const TICK: Duration = Duration::from_secs(30);
 const FIRST_TICK: Duration = Duration::from_secs(20);
 /// `last_message` is shown in a list row.
 const MAX_MESSAGE_CHARS: usize = 500;
+/// Emitted per schedule that came due but could not start its session; the
+/// frontend shows the desktop notification (`desktop_notify.schedule`).
+pub const FAILED_EVENT: &str = "schedule:failed";
 
 /// What firing one schedule needs.
 #[derive(Debug, Clone, PartialEq)]
@@ -40,14 +49,24 @@ pub struct Firing {
     pub permission_mode: String,
 }
 
-/// Schedule ids by outcome, for tests and the log.
+/// A schedule whose session did not start: the [`FAILED_EVENT`] payload.
+/// `message` is the reason, as stored in `last_message`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FailedStart {
+    pub schedule_id: String,
+    pub name: String,
+    pub message: String,
+}
+
+/// Schedule ids by outcome, for tests and the log; a failed start also
+/// carries what its notification says.
 #[derive(Debug, Default, PartialEq)]
 pub struct TickResult {
     /// Slots moved to the machine's new zone.
     pub moved: Vec<String>,
     pub fired: Vec<String>,
     pub skipped: Vec<String>,
-    pub failed: Vec<String>,
+    pub failed: Vec<FailedStart>,
 }
 
 impl TickResult {
@@ -122,7 +141,7 @@ where
         let firing = Firing {
             schedule_id: s.id.clone(),
             project_id: s.project_id,
-            name: s.name,
+            name: s.name.clone(),
             prompt: s.prompt,
             engine: s.engine,
             permission_mode: s.permission_mode,
@@ -134,8 +153,9 @@ where
             }
             Err(e) => {
                 tracing::warn!(event = "schedule_fire_failed", schedule_id = %s.id, error = %e);
-                record(db, &s.id, now_utc, "error", None, Some(e)).await?;
-                out.failed.push(s.id);
+                let message = clip_message(e);
+                record(db, &s.id, now_utc, "error", None, Some(message.clone())).await?;
+                out.failed.push(FailedStart { schedule_id: s.id, name: s.name, message });
             }
         }
     }
@@ -169,6 +189,10 @@ async fn still_running(db: &Db, run_id: Option<&str>) -> Result<Option<String>, 
     Ok(running.then(|| run_id.to_string()))
 }
 
+fn clip_message(message: String) -> String {
+    message.chars().take(MAX_MESSAGE_CHARS).collect()
+}
+
 async fn record(
     db: &Db,
     id: &str,
@@ -177,7 +201,7 @@ async fn record(
     run_id: Option<&str>,
     message: Option<String>,
 ) -> Result<(), String> {
-    let message = message.map(|m| m.chars().take(MAX_MESSAGE_CHARS).collect::<String>());
+    let message = message.map(clip_message);
     sqlx::query(
         "UPDATE schedules SET last_run_at = ?, last_status = ?, last_message = ?,
             last_run_id = COALESCE(?, last_run_id)
@@ -295,8 +319,10 @@ pub fn start(app: AppHandle, db: Db) {
         loop {
             match tick(&db, Local::now(), |f| fire(&app, &db, f)).await {
                 Ok(r) if !r.is_empty() => {
-                    tracing::info!(event = "schedules_tick", moved = ?r.moved, fired = ?r.fired, skipped = ?r.skipped, failed = ?r.failed);
+                    let failed: Vec<&str> = r.failed.iter().map(|f| f.schedule_id.as_str()).collect();
+                    tracing::info!(event = "schedules_tick", moved = ?r.moved, fired = ?r.fired, skipped = ?r.skipped, failed = ?failed);
                     let _ = app.emit(CHANGED_EVENT, ());
+                    announce_failed(&app, &r.failed);
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!(event = "schedules_tick_failed", error = %e),
@@ -304,6 +330,17 @@ pub fn start(app: AppHandle, db: Db) {
             tokio::time::sleep(TICK).await;
         }
     });
+}
+
+/// Tell the desktop and a paired phone about each schedule that did not start.
+fn announce_failed(app: &AppHandle, failed: &[FailedStart]) {
+    let bus = app.try_state::<crate::remote::RemoteBus>();
+    for f in failed {
+        let _ = app.emit(FAILED_EVENT, f);
+        if let Some(bus) = &bus {
+            bus.publish(crate::remote::RemoteRunEvent::ScheduleFailed);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -429,7 +466,9 @@ mod tests {
             .unwrap();
         sqlx::query("UPDATE schedules SET last_run_id = 'r1' WHERE id = ?").bind(&id).execute(&db).await.unwrap();
         let (seen, fire) = recorder();
-        assert_eq!(tick(&db, now(), fire).await.unwrap().skipped, [id.clone()]);
+        let r = tick(&db, now(), fire).await.unwrap();
+        assert_eq!(r.skipped, [id.clone()]);
+        assert!(r.failed.is_empty(), "a skip is normal: nothing to announce");
         assert!(seen.lock().unwrap().is_empty());
         let s = get(&db, &id).await.unwrap();
         assert_eq!(s.last_status.as_deref(), Some("skipped"));
@@ -448,10 +487,31 @@ mod tests {
             .await
             .unwrap();
         let r = tick(&db, now(), |_| std::future::ready(Err::<String, _>("over budget".to_string()))).await.unwrap();
-        assert_eq!(r.failed, [id.clone()]);
+        assert_eq!(
+            r.failed,
+            [FailedStart { schedule_id: id.clone(), name: "Review PRs".into(), message: "over budget".into() }]
+        );
         let s = get(&db, &id).await.unwrap();
         assert_eq!((s.last_status.as_deref(), s.last_message.as_deref()), (Some("error"), Some("over budget")));
         assert!(!s.enabled && s.next_run_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_failed_start_is_announced_once_per_slot_with_the_stored_reason() {
+        let db = db().await;
+        switch(&db, true).await;
+        let id = due_schedule(&db, "2020-01-01T00:00:00Z").await;
+        let long = "x".repeat(MAX_MESSAGE_CHARS + 50);
+        let t = now();
+        let mut fail = |_: Firing| std::future::ready(Err::<String, _>(long.clone()));
+        let r = tick(&db, t, &mut fail).await.unwrap();
+        assert_eq!(r.failed.len(), 1);
+        assert!(r.fired.is_empty() && r.skipped.is_empty());
+        let s = get(&db, &id).await.unwrap();
+        assert_eq!(r.failed[0].message.chars().count(), MAX_MESSAGE_CHARS);
+        assert_eq!(s.last_message.as_deref(), Some(r.failed[0].message.as_str()), "the notification says what the screen shows");
+        // The slot was claimed before the start: the next tick neither retries nor re-announces it.
+        assert!(tick(&db, t, &mut fail).await.unwrap().is_empty());
     }
 
     #[tokio::test]

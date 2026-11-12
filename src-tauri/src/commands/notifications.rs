@@ -33,6 +33,10 @@ struct ReminderClick {
 /// Name of the event the frontend listens on for calendar reminders.
 pub const CALENDAR_REMINDER_CLICKED_EVENT: &str = "calendar-reminder-clicked";
 
+/// Emitted when the user clicks a "schedule did not start" notification: the
+/// frontend opens the Schedules screen.
+pub const SCHEDULE_FAILED_CLICKED_EVENT: &str = "schedule-failed-notification-clicked";
+
 #[cfg(target_os = "macos")]
 static SET_APP: std::sync::Once = std::sync::Once::new();
 
@@ -235,6 +239,31 @@ pub async fn show_calendar_reminder(
     show_clickable(app, title, body, "calendar reminder", move |app| {
         let _ = app.emit(CALENDAR_REMINDER_CLICKED_EVENT, ReminderClick { event_id });
     });
+    Ok(())
+}
+
+/// Show a native notification that a schedule came due but could not start
+/// its session (`schedules::runner::FAILED_EVENT`). There is no run to open,
+/// so a click emits `SCHEDULE_FAILED_CLICKED_EVENT` and the frontend opens the
+/// Schedules screen. `open_label`: the translated "Open".
+#[tauri::command]
+pub async fn show_schedule_failed_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    open_label: Option<String>,
+) -> Result<(), String> {
+    show_notification(
+        app,
+        title,
+        body,
+        "schedule failed notification",
+        true,
+        open_button_label(open_label),
+        |app| {
+            let _ = app.emit(SCHEDULE_FAILED_CLICKED_EVENT, ());
+        },
+    );
     Ok(())
 }
 

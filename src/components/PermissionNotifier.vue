@@ -21,6 +21,8 @@ import {
   type RunNotificationKind,
 } from '@/lib/runNotificationText'
 import { newStuckAlerts, type RunAttentionState, type StuckAlert } from '@/lib/stuckNotify'
+import { EVT_SCHEDULE_FAILED } from '@/lib/schedules'
+import { isRemoteMode } from '@/lib/ipc/remote'
 
 /**
  * Headless, app-wide notifier for pending permission / question requests on runs
@@ -38,6 +40,11 @@ import { newStuckAlerts, type RunAttentionState, type StuckAlert } from '@/lib/s
  * backend watchdog says a run's sidecar stopped responding or never started
  * (lib/stuckNotify) — for conductor workers too, since a conductor cannot
  * revive a dead sidecar. A cleared alert notifies nothing.
+ *
+ * It also fires a "<schedule> did not start" notification when a schedule came
+ * due but could not start its session (`schedule:failed`); clicking it opens
+ * the Schedules screen. A schedule skipped because its last session is still
+ * running sends no event.
  *
  * Every kind obeys its `desktop_notify` switch (Settings → Sessions →
  * Notifications), and the text follows the app's language (lib/runNotificationText).
@@ -108,6 +115,8 @@ function navigateToRun(projectId: string, runId: string) {
 
 let permissionGranted = false
 let unlistenClick: UnlistenFn | null = null
+let unlistenScheduleFailed: UnlistenFn | null = null
+let unlistenScheduleClick: UnlistenFn | null = null
 let unsubscribeDone: (() => void) | null = null
 let unsubscribeReminder: (() => void) | null = null
 const notified = new Set<string>()
@@ -222,6 +231,16 @@ async function notifyStuck(alert: StuckAlert) {
   })
 }
 
+// "Schedule did not start" notification. Sent focused or not: a schedule runs
+// while nobody is around, and no window shows this failure.
+function notifyScheduleFailed(name: string, message: string) {
+  if (!permissionGranted || !allowed('schedule')) return
+  const text = runNotificationText({ kind: 'schedule', project: '', schedule: name, reason: message, t })
+  invoke('show_schedule_failed_notification', { ...text, openLabel: t('runNotify.open') }).catch(() => {
+    // ignore — the Schedules screen still shows the error on the schedule's row
+  })
+}
+
 onMounted(async () => {
   try {
     permissionGranted = await isPermissionGranted()
@@ -258,11 +277,31 @@ onMounted(async () => {
   } catch {
     unlistenClick = null
   }
+
+  // A remote-desktop window drives another machine, whose own window notifies.
+  if (isRemoteMode()) return
+  try {
+    unlistenScheduleFailed = await listen<{ name?: string; message?: string }>(EVT_SCHEDULE_FAILED, (e) => {
+      notifyScheduleFailed(e.payload?.name ?? '', e.payload?.message ?? '')
+    })
+    unlistenScheduleClick = await listen('schedule-failed-notification-clicked', () => {
+      getCurrentWindow()
+        .setFocus()
+        .catch(() => {})
+      router.push({ name: 'schedules' }).catch(() => {})
+    })
+  } catch {
+    // Can't listen — the Schedules screen still shows the error.
+  }
 })
 
 onBeforeUnmount(() => {
   unlistenClick?.()
   unlistenClick = null
+  unlistenScheduleFailed?.()
+  unlistenScheduleFailed = null
+  unlistenScheduleClick?.()
+  unlistenScheduleClick = null
   unsubscribeDone?.()
   unsubscribeDone = null
   unsubscribeReminder?.()

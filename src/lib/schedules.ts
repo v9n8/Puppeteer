@@ -7,6 +7,8 @@ export const CMD_DELETE_SCHEDULE = 'delete_schedule'
 /** Local-only: a remote desktop cannot switch a schedule on. */
 export const CMD_SET_SCHEDULE_ENABLED = 'set_schedule_enabled'
 export const EVT_SCHEDULES_CHANGED = 'schedules:changed'
+/** A schedule came due but could not start: `{ schedule_id, name, message }` (backend `runner::FAILED_EVENT`). */
+export const EVT_SCHEDULE_FAILED = 'schedule:failed'
 
 export const MAX_INTERVAL_MINUTES = 7 * 24 * 60
 /** Same order as `schedules::PERMISSION_MODES`; `plan` is the default. */

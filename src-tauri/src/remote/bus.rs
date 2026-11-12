@@ -66,6 +66,10 @@ pub enum RemoteRunEvent {
     /// Runs or projects went to / came back from the Trash: the browse lists
     /// changed. Not tied to one run; the forwarder re-sends its list snapshots.
     ListsChanged,
+    /// A schedule came due but could not start its session, so there is no
+    /// run. Counts as a failed push only (a push carries counts, no names): the
+    /// Controller gets no frame, as it has no row in Needs you.
+    ScheduleFailed,
 }
 
 impl RemoteRunEvent {
@@ -79,7 +83,7 @@ impl RemoteRunEvent {
             | RemoteRunEvent::Meta { run_id, .. }
             | RemoteRunEvent::PermissionResolved { run_id, .. }
             | RemoteRunEvent::Attention { run_id, .. } => run_id,
-            RemoteRunEvent::ListsChanged => "",
+            RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed => "",
         }
     }
 }

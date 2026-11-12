@@ -1,5 +1,5 @@
 // Unit tests for lib/runNotificationText.ts (HD-09: desktop OS notifications
-// about runs — kind, switch, translated text).
+// about runs — kind, switch, translated text; HD-12: a schedule that did not start).
 // Run: node --test src/lib/__tests__/runNotificationText.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -157,6 +157,29 @@ test('"may be stuck": the title, then why, naming the run\'s engine (HD-11)', ()
       assert.ok(!unknown.includes('Claude') && !unknown.includes('Codex'), unknown)
     }
   }
+})
+
+test('a schedule that did not start: its name, then the stored reason (HD-12)', () => {
+  const schedule = (lang, reason) =>
+    runNotificationText({ kind: 'schedule', project: '', schedule: ' Nightly ', reason, t: translator(lang) })
+  assert.deepEqual(schedule('en', 'Over the quota block threshold'), {
+    title: 'Nightly did not start',
+    body: 'Over the quota block threshold',
+  })
+  assert.equal(schedule('vi', 'x').title, 'Nightly không chạy được')
+  // No stored reason: a plain sentence rather than an empty body.
+  assert.equal(schedule('en', '  ').body, 'The schedule could not start its session.')
+  assert.equal(schedule('vi', null).body, 'Lịch không khởi động được Session.')
+})
+
+test('"Schedule could not run" governs only the schedule notification', () => {
+  assert.equal(notifySwitch('schedule'), 'schedule')
+  const off = parseDesktopNotify('{"schedule":false}')
+  assert.equal(allowsRunNotification(off, 'schedule'), false)
+  for (const k of KINDS) assert.equal(allowsRunNotification(off, k), true, k)
+  assert.equal(allowsRunNotification(parseDesktopNotify('{"failed":false}'), 'schedule'), true)
+  // A profile from before the switch: on.
+  assert.equal(allowsRunNotification(parseDesktopNotify(null), 'schedule'), true)
 })
 
 test('en and vi have the same keys', () => {

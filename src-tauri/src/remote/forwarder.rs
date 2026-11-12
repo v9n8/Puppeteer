@@ -64,7 +64,9 @@ pub(crate) fn seal_stream(
 }
 
 /// Map a tapped [`RemoteRunEvent`] to the wire [`StreamPayload`]; `None` for
-/// [`RemoteRunEvent::ListsChanged`], which has no frame of its own.
+/// [`RemoteRunEvent::ListsChanged`], which has no frame of its own, and for
+/// [`RemoteRunEvent::ScheduleFailed`], which is a push only: with no run it
+/// has no row in the Controller's Needs you.
 fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
     Some(match ev {
         RemoteRunEvent::Event { run_id, event } => StreamPayload::Stream { run_id, event },
@@ -136,7 +138,7 @@ fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
                 remembered: None,
             }
         }
-        RemoteRunEvent::ListsChanged => return None,
+        RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed => return None,
     })
 }
 
@@ -960,6 +962,11 @@ mod tests {
             serde_json::to_value(&cleared).unwrap(),
             serde_json::json!({ "kind": "attention", "run_id": "r_1", "key": "unresponsive", "active": false })
         );
+    }
+
+    #[test]
+    fn a_schedule_that_did_not_start_sends_the_controller_nothing() {
+        assert!(to_payload(RemoteRunEvent::ScheduleFailed).is_none());
     }
 
     #[test]

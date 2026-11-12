@@ -85,6 +85,7 @@ use commands::groups::{
 };
 use commands::notifications::{
     show_calendar_reminder, show_permission_notification, show_run_finished_notification,
+    show_schedule_failed_notification,
 };
 use commands::projects::{
     add_project, add_repo, apply_skill, apply_skill_to_all_projects, detect_project_info,
@@ -836,6 +837,7 @@ pub fn run() {
             show_permission_notification,
             show_run_finished_notification,
             show_calendar_reminder,
+            show_schedule_failed_notification,
             remote_set_config,
             remote_enable,
             remote_disable,

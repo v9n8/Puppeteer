@@ -8,7 +8,8 @@
     "done": "{project} — Session đã xong",
     "failed": "{project} — Session bị lỗi",
     "stopped": "{project} — Session bị dừng",
-    "stuck": "{project} — Session có thể bị treo"
+    "stuck": "{project} — Session có thể bị treo",
+    "scheduleFailed": "{name} không chạy được"
   },
   "body": {
     "question": "{engine} đang hỏi bạn một câu",
@@ -18,6 +19,7 @@
     "failed": "{engine} kết thúc với lỗi",
     "stoppedQuota": "Session bị dừng: đã chạm giới hạn quota",
     "unresponsive": "{engine} đã ngừng phản hồi. Hãy dừng Session nếu nó không tự hồi phục.",
-    "notStarted": "{engine} vẫn chưa khởi động. Hãy dừng Session và chạy lại nếu nó không lên."
+    "notStarted": "{engine} vẫn chưa khởi động. Hãy dừng Session và chạy lại nếu nó không lên.",
+    "scheduleFailed": "Lịch không khởi động được Session."
   }
 }

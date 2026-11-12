@@ -8,7 +8,8 @@
     "done": "{project} — session finished",
     "failed": "{project} — session failed",
     "stopped": "{project} — session stopped",
-    "stuck": "{project} — session may be stuck"
+    "stuck": "{project} — session may be stuck",
+    "scheduleFailed": "{name} did not start"
   },
   "body": {
     "question": "{engine} is asking you a question",
@@ -18,6 +19,7 @@
     "failed": "{engine} ended with an error",
     "stoppedQuota": "Session stopped: quota limit reached",
     "unresponsive": "{engine} has stopped responding. Stop the session if it doesn't recover.",
-    "notStarted": "{engine} has not started. Stop the session and try again if it doesn't come up."
+    "notStarted": "{engine} has not started. Stop the session and try again if it doesn't come up.",
+    "scheduleFailed": "The schedule could not start its session."
   }
 }

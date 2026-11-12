@@ -1,12 +1,13 @@
-// Desktop OS notifications about runs (HD-09): which kind a finished turn
-// raises, which `desktop_notify` switch governs it, and the translated title /
-// body. PermissionNotifier decides when to notify; this only names things.
+// Desktop OS notifications about runs (HD-09), and about a schedule that could
+// not start one: which kind a finished turn raises, which `desktop_notify`
+// switch governs it, and the translated title / body. PermissionNotifier
+// decides when to notify; this only names things.
 
 import { allows, type DesktopNotify, type DesktopNotifyKind } from './desktopNotify.ts'
 import { engineLabel } from './skillRows.ts'
 
-/** HD-12 adds 'schedule'. */
-export type RunNotificationKind = 'needs_you' | 'done' | 'failed' | 'stopped_quota' | 'stuck'
+/** `schedule`: a schedule came due but could not start its session (no run yet). */
+export type RunNotificationKind = 'needs_you' | 'done' | 'failed' | 'stopped_quota' | 'stuck' | 'schedule'
 
 /** `runs.end_reason` of a session the quota stop ended (backend `quota_stop::END_REASON`). */
 export const QUOTA_END_REASON = 'quota'
@@ -57,6 +58,8 @@ export interface RunNotificationInput {
   reminder?: boolean
   /** stuck: the watchdog notice kind ('unresponsive' | 'not_started'). */
   alert?: string | null
+  /** schedule: the schedule's name (the title has no project); `reason` is why it did not start (`last_message`). */
+  schedule?: string | null
   t: Translate
 }
 
@@ -87,6 +90,11 @@ export function runNotificationText(input: RunNotificationInput): { title: strin
       return {
         title: t('runNotify.title.stuck', { project }),
         body: t(input.alert === 'not_started' ? 'runNotify.body.notStarted' : 'runNotify.body.unresponsive', { engine }),
+      }
+    case 'schedule':
+      return {
+        title: t('runNotify.title.scheduleFailed', { name: input.schedule?.trim() ?? '' }),
+        body: input.reason?.trim() || t('runNotify.body.scheduleFailed'),
       }
     case 'stopped_quota':
       // No %: the figure stays in the session's log.

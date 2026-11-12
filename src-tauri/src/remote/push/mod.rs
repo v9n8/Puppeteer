@@ -185,13 +185,15 @@ pub async fn forget_session(db: &Db, session_secret: &str) {
 
 /// Which bus events count, and as what. A Conductor worker finishing never
 /// counts, like the desktop notification: only the conductor's own turn does.
-/// A stuck worker does (`kind_of_attention`).
+/// A stuck worker does (`kind_of_attention`). A schedule that did not start
+/// counts as failed.
 fn kind_of(ev: &RemoteRunEvent) -> Option<PushKind> {
     match ev {
         RemoteRunEvent::PermissionRequest { .. } => Some(PushKind::Pending),
         RemoteRunEvent::Done { worker: true, .. } => None,
         RemoteRunEvent::Done { status, end_reason, .. } => kind_of_done(status, end_reason.as_deref()),
         RemoteRunEvent::Attention { kind, active, .. } => kind_of_attention(kind.as_deref(), *active),
+        RemoteRunEvent::ScheduleFailed => Some(PushKind::Failed),
         _ => None,
     }
 }
@@ -398,6 +400,22 @@ mod tests {
             }
         }
         assert_eq!(co.take_due(t0 + COALESCE_WINDOW), Some(BurstCounts { stuck: 1, ..Default::default() }));
+    }
+
+    #[test]
+    fn a_schedule_that_did_not_start_counts_as_failed() {
+        assert_eq!(kind_of(&RemoteRunEvent::ScheduleFailed), Some(PushKind::Failed));
+        let t0 = Instant::now();
+        let mut co = Coalescer::new(COALESCE_WINDOW);
+        for ev in [
+            RemoteRunEvent::ScheduleFailed,
+            RemoteRunEvent::Done { run_id: "r".into(), status: "failed".into(), worker: false, end_reason: None },
+        ] {
+            if let Some(kind) = kind_of(&ev) {
+                co.note(kind, t0);
+            }
+        }
+        assert_eq!(co.take_due(t0 + COALESCE_WINDOW), Some(BurstCounts { failed: 2, ..Default::default() }));
     }
 
     #[test]
