@@ -709,14 +709,9 @@ mod tests {
         assert!(p.contains("do the work yourself, directly"));
         assert!(!p.contains("You do not do the implementation work yourself"));
         assert!(!p.contains("CONDUCTOR"));
-        // …while keeping the full control-plane guidance.
+        // …while keeping the full control-plane guidance. Tool names are checked
+        // against the served list in `mcp_http::tests`.
         for needle in [
-            "session_spawn(",
-            "session_wait(",
-            "session_poll(",
-            "session_read(",
-            "session_send(",
-            "session_cancel(",
             "waited_human",
             "awaiting_permission",
             "AUTOMATICALLY RESUMED",

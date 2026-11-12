@@ -474,9 +474,42 @@ fn tool_specs() -> Value {
     ])
 }
 
+/// Names declared in `specs` that `prompt` never mentions: the conductor only
+/// uses tools its system prompt teaches, so a new tool must be named there.
+/// Matched as `name(` (how the prompt lists them) so `session_read` is not
+/// satisfied by a longer name such as `session_read_all`.
+#[cfg(test)]
+fn tools_missing_from(prompt: &str, specs: &Value) -> Vec<String> {
+    specs
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|spec| spec["name"].as_str())
+        .filter(|name| !prompt.contains(&format!("{name}(")))
+        .map(str::to_string)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conductor::CONDUCTOR_SYSTEM_PROMPT;
+
+    #[test]
+    fn every_tool_is_in_the_conductor_prompt() {
+        let specs = tool_specs();
+        // An empty or reshaped list would make the check below pass vacuously.
+        assert!(specs.as_array().is_some_and(|s| !s.is_empty()));
+        let missing = tools_missing_from(CONDUCTOR_SYSTEM_PROMPT, &specs);
+        assert!(missing.is_empty(), "CONDUCTOR_SYSTEM_PROMPT never names these tools: {missing:?}");
+    }
+
+    #[test]
+    fn missing_tool_is_reported() {
+        let mut specs = tool_specs();
+        specs.as_array_mut().unwrap().push(json!({ "name": "session_x" }));
+        assert_eq!(tools_missing_from(CONDUCTOR_SYSTEM_PROMPT, &specs), ["session_x"]);
+    }
 
     async fn accepts(port: u16) -> bool {
         tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok()
