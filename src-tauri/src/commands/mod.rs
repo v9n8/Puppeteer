@@ -55,6 +55,7 @@ pub mod skills;
 pub mod slack_threads;
 pub mod stats;
 pub mod storage;
+pub mod sync_conflicts;
 pub mod secret_vault;
 pub mod todos;
 pub mod tool_permissions;

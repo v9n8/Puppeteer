@@ -1,7 +1,7 @@
 //! The Skills "Allocation" matrix: every skill × project, one chip per engine in `SKILL_ENGINES`.
 //!
 //! A chip is read from the project's switch (`project_skills.enabled_*`), what sits at the engine's
-//! folder in the project, the open legacy `sync_conflicts`, and whether a skill of the same name in
+//! folder in the project, the open `sync_conflicts` (a scan finds them), and whether a skill of the same name in
 //! the engine's HOME folder wins over the project's.
 //!
 //! With `library.skills_global` on, a Global column comes first: one chip per engine with a HOME

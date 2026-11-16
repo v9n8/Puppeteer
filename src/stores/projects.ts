@@ -164,6 +164,66 @@ export interface RuleSyncConflict {
   resolved: boolean
 }
 
+export type SyncConflictKind = 'skill' | 'rule'
+
+/** An open conflict found on disk, both sides located (`list_project_sync_conflicts`). */
+export interface ProjectSyncConflict {
+  id: string
+  kind: SyncConflictKind
+  project_id: string
+  item_id: string
+  name: string
+  engine: 'claude' | 'codex'
+  /** The project's file (`AGENTS.md` for a block). */
+  project_path: string
+  /** The `AGENTS.md` block holding the project's version. */
+  block: string | null
+  central_path: string
+  /** Milliseconds since the epoch, read when listed; null when unreadable. */
+  project_mtime: number | null
+  central_mtime: number | null
+  detected_at: string
+  local_hash: string
+  source_hash: string
+}
+
+export interface SyncConflictSide {
+  path: string
+  block: string | null
+  /** For a rule's Codex forms, the body without frontmatter. */
+  content: string | null
+  hash: string | null
+  /** Why `content` is missing (too large, not UTF-8, gone…), for this side only. */
+  error: string | null
+}
+
+export interface SyncConflictSides {
+  conflict: ProjectSyncConflict
+  project: SyncConflictSide
+  central: SyncConflictSide
+}
+
+export interface SyncScanEntry {
+  project_id: string
+  kind: SyncConflictKind
+  item_id: string
+  name: string
+  engine: string
+  conflict_id: string | null
+}
+
+export interface SyncScanReport {
+  projects: number
+  checked: number
+  open: SyncScanEntry[]
+  opened: number
+  closed: (Omit<SyncScanEntry, 'conflict_id'> & {
+    conflict_id: string
+    reason: 'in_sync' | 'not_applied' | 'duplicate'
+  })[]
+  errors: { project_id: string; kind: SyncConflictKind | null; name: string | null; engine: string | null; error: string }[]
+}
+
 export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
   const loading = ref(false)
@@ -424,6 +484,19 @@ export const useProjectsStore = defineStore('projects', () => {
     await fetchRuleConflicts()
   }
 
+  /** Compare one project's linked items with the library (or every live project's). Reads files only. */
+  async function scanSyncConflicts(project_id: string | null): Promise<SyncScanReport> {
+    return invoke<SyncScanReport>('scan_sync_conflicts', { projectId: project_id })
+  }
+
+  async function listProjectSyncConflicts(project_id: string): Promise<ProjectSyncConflict[]> {
+    return invoke<ProjectSyncConflict[]>('list_project_sync_conflicts', { projectId: project_id })
+  }
+
+  async function readSyncConflictSides(kind: SyncConflictKind, conflict_id: string): Promise<SyncConflictSides> {
+    return invoke<SyncConflictSides>('read_sync_conflict_sides', { kind, conflictId: conflict_id })
+  }
+
   // ---- Skill / rule groups -------------------------------------------------
 
   async function getProjectGroups(kind: GroupKind, project_id: string): Promise<ProjectGroupState[]> {
@@ -447,6 +520,7 @@ export const useProjectsStore = defineStore('projects', () => {
     openInVscode, openInFolder, openInTerminal,
     getAppliedRules, applyRule, removeRuleFromProject,
     fetchRuleConflicts, resolveRuleConflict, getInstructionWarnings,
+    scanSyncConflicts, listProjectSyncConflicts, readSyncConflictSides,
     getProjectGroups, enableGroup, disableGroup,
   }
 })

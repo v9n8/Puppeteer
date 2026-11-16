@@ -282,7 +282,7 @@ fn open_entry(base: &Path, folder: &Folder, name: &str, secret: &SecretPaths) ->
 }
 
 /// The file's text, refused when too large or not UTF-8 (a save would rewrite it).
-fn read_text(file: &Path) -> Result<String, String> {
+pub(crate) fn read_text(file: &Path) -> Result<String, String> {
     let meta = fs::metadata(file).map_err(|e| format!("{}: {}", file.display(), e))?;
     if meta.len() > MAX_BYTES {
         return Err(format!("{} is too large to edit here ({} bytes, limit {MAX_BYTES})", file.display(), meta.len()));
@@ -291,7 +291,7 @@ fn read_text(file: &Path) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| format!("{} is not UTF-8 text", file.display()))
 }
 
-fn mtime_ms(file: &Path) -> Option<i64> {
+pub(crate) fn mtime_ms(file: &Path) -> Option<i64> {
     let modified = fs::metadata(file).and_then(|m| m.modified()).ok()?;
     Some(modified.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64)
 }

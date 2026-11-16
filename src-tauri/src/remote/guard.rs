@@ -247,6 +247,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Rules: switching one on or off for a project (the Allocation matrix's chips).
     "apply_rule",
     "remove_rule_from_project",
+    // Sync conflicts: "Overwrite" replaces the project's copy every session reads.
+    "resolve_sync_conflict",
+    "resolve_rule_sync_conflict",
     // Conductor: merging a worker's branch commits into the project's repository.
     "conductor_worker_merge",
     // Schedules: what a schedule runs, and in which mode (a remote save switches it off).
@@ -868,6 +871,11 @@ mod tests {
             "trash_project",
             "restore_project",
             "list_trash",
+            "scan_sync_conflicts",
+            "list_project_sync_conflicts",
+            "read_sync_conflict_sides",
+            "resolve_sync_conflict",
+            "resolve_rule_sync_conflict",
         ] {
             assert!(!is_local_only_command(name), "{name}");
         }
@@ -928,6 +936,8 @@ mod tests {
             "set_project_session_defaults",
             "fork_run",
             "set_project_tool_permission",
+            "resolve_sync_conflict",
+            "resolve_rule_sync_conflict",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -963,6 +973,9 @@ mod tests {
             "set_run_flag",
             "get_run_mcp",
             "list_project_tool_permissions",
+            "scan_sync_conflicts",
+            "list_project_sync_conflicts",
+            "read_sync_conflict_sides",
         ] {
             assert!(!audited_command(name), "{name}");
         }

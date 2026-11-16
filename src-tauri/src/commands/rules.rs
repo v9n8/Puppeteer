@@ -95,7 +95,7 @@ pub(crate) fn applies_codex(target: &str) -> bool {
 
 /// Strip YAML frontmatter, returning only the markdown body (for Codex AGENTS.md, which has no
 /// frontmatter / path-scoping support). Claude keeps the whole file as-is.
-fn strip_frontmatter(content: &str) -> String {
+pub(crate) fn strip_frontmatter(content: &str) -> String {
     if content.starts_with("---") {
         let rest = &content[3..];
         if let Some(end) = rest.find("\n---") {
@@ -823,7 +823,7 @@ fn write_rule_artifacts(
     Ok((hash_claude, hash_codex))
 }
 
-fn read_rule_source(source_path: &str) -> Result<String, String> {
+pub(crate) fn read_rule_source(source_path: &str) -> Result<String, String> {
     fs::read_to_string(source_path).map_err(|e| format!("Cannot read rule source {}: {}", source_path, e))
 }
 
@@ -839,7 +839,7 @@ fn claude_copy_known<'a>(source_path: &'a str, prev_claude: Option<&'a str>) -> 
 
 /// Link `.claude/rules/<name>.md` to the source file; returns the source content hash, or None
 /// when git tracks a file there (the repo's own rule — left alone, not installed).
-fn link_claude_rule(
+pub(crate) fn link_claude_rule(
     project_path: &str,
     name: &str,
     source_path: &str,
@@ -866,7 +866,7 @@ fn unlink_claude_rule(project_path: &str, name: &str, source_path: &str, prev_cl
 
 /// Put a rule in front of Codex per its `codex_mode`, clearing the other form; returns the hash
 /// of the body Codex sees, or None when git tracks `.agents/skills/<name>` (skill mode only).
-fn install_codex_rule(
+pub(crate) fn install_codex_rule(
     project_path: &str,
     name: &str,
     description: &str,
@@ -1057,59 +1057,8 @@ pub async fn resolve_rule_sync_conflict(
     conflict_id: String,
     overwrite: bool,
 ) -> Result<(), String> {
-    use sqlx::Row;
-    if overwrite {
-        let row = sqlx::query(
-            "SELECT rc.project_id, rc.rule_id, rc.engine, rc.local_hash, r.name, r.description, r.source_path,
-                    p.path as project_path
-             FROM rule_sync_conflicts rc
-             JOIN rules r ON r.id = rc.rule_id
-             JOIN projects p ON p.id = rc.project_id
-             WHERE rc.id = ?"
-        )
-        .bind(&conflict_id)
-        .fetch_one(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-
-        let project_id: String = row.get("project_id");
-        let rule_id: String = row.get("rule_id");
-        let engine: String = row.get("engine");
-        let local_hash: String = row.get("local_hash");
-        let name: String = row.get("name");
-        let description: String = row.get("description");
-        let source_path: String = row.get("source_path");
-        let project_path: String = row.get("project_path");
-
-        let content = read_rule_source(&source_path)?;
-        if engine == "claude" {
-            // The edited copy's hash counts as known, so it is replaced by the link.
-            let h = link_claude_rule(&project_path, &name, &source_path, &content, Some(&local_hash))?;
-            sqlx::query("UPDATE project_rules SET synced_hash_claude = ? WHERE project_id = ? AND rule_id = ?")
-                .bind(&h)
-                .bind(&project_id)
-                .bind(&rule_id)
-                .execute(db.inner())
-                .await
-                .map_err(|e| e.to_string())?;
-        } else {
-            let h = install_codex_rule(&project_path, &name, &description, &source_path, &content)?;
-            sqlx::query("UPDATE project_rules SET synced_hash_codex = ? WHERE project_id = ? AND rule_id = ?")
-                .bind(&h)
-                .bind(&project_id)
-                .bind(&rule_id)
-                .execute(db.inner())
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-    }
-
-    sqlx::query("UPDATE rule_sync_conflicts SET resolved = 1 WHERE id = ?")
-        .bind(&conflict_id)
-        .execute(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    // Overwrite backs the project's version up first (sync_conflicts/resolve.rs).
+    crate::commands::sync_conflicts::resolve_rule(db.inner(), &conflict_id, overwrite).await
 }
 
 // ---- Auto-sync ----------------------------------------------------------------

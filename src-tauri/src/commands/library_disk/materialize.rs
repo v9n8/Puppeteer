@@ -299,7 +299,10 @@ pub async fn library_materialize(
 ) -> Result<MaterializeOutcome, String> {
     let places = places(&app, db.inner()).await?;
     let secret = SecretPaths::for_app(&app);
-    super::blocking(move || Ok(apply(&places, &secret, &paths))).await
+    let outcome = super::blocking(move || Ok(apply(&places, &secret, &paths))).await?;
+    // What became the user's own file is no longer linked to the project (sync_conflicts).
+    crate::commands::sync_conflicts::detach_materialized(db.inner(), &outcome).await;
+    Ok(outcome)
 }
 
 #[cfg(test)]

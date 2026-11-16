@@ -1,9 +1,6 @@
 use crate::commands::rules::{ApplyAllOutcome, ApplyFailure};
 use crate::commands::session_defaults::ProjectSessionDefaults;
-use crate::commands::skills::{
-    claude_skill_dir, legacy_codex_skill_dir, remove_skill_artifacts, write_skill_artifacts,
-    SkillEngines,
-};
+use crate::commands::skills::{remove_skill_artifacts, write_skill_artifacts, SkillEngines};
 use crate::db::Db;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -1848,81 +1845,8 @@ pub async fn resolve_sync_conflict(
     conflict_id: String,
     overwrite: bool,
 ) -> Result<(), String> {
-    use sqlx::Row;
-    if overwrite {
-        // Legacy conflicts (from the copy era). The user chose the central version, so the edited
-        // copy for that engine goes and the skill is re-linked from source. A conflict whose skill
-        // is no longer applied here has nothing left to overwrite.
-        let row = sqlx::query(
-            "SELECT sc.project_id, sc.skill_id, sc.engine, s.source_path, s.name as skill_name,
-                    ps.enabled_claude, ps.enabled_codex, p.path as project_path,
-                    ps.synced_hash_claude, ps.synced_hash_codex
-             FROM sync_conflicts sc
-             JOIN skills s ON s.id = sc.skill_id
-             JOIN projects p ON p.id = sc.project_id
-             JOIN project_skills ps ON ps.project_id = sc.project_id AND ps.skill_id = sc.skill_id
-             WHERE sc.id = ?",
-        )
-        .bind(&conflict_id)
-        .fetch_optional(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-
-        if let Some(row) = row {
-            let project_path: String = row.get("project_path");
-            let source_path: String = row.get("source_path");
-            let skill_name: String = row.get("skill_name");
-            let engines = SkillEngines::from_row(&row);
-            let project_id: String = row.get("project_id");
-            let skill_id: String = row.get("skill_id");
-            let engine: String = row.get("engine");
-            let prev_claude: Option<String> = row.get("synced_hash_claude");
-            let prev_codex: Option<String> = row.get("synced_hash_codex");
-
-            // Only where the copy era wrote (`.codex/skills` for Codex, `.claude/skills` for
-            // Claude), through the same guard as every other removal so a symlinked parent folder
-            // is never followed. `known = true`: the user chose to discard this copy.
-            let copy = if engine == "codex" {
-                legacy_codex_skill_dir(&project_path, &skill_name)
-            } else {
-                claude_skill_dir(&project_path, &skill_name)
-            };
-            crate::commands::project_links::remove_installed(
-                std::path::Path::new(&project_path),
-                &copy,
-                std::path::Path::new(&source_path),
-                |_: &std::path::Path| true,
-            )?;
-
-            let (hash_claude, hash_codex) = write_skill_artifacts(
-                &project_path,
-                &skill_name,
-                engines,
-                &source_path,
-                prev_claude.as_deref(),
-                prev_codex.as_deref(),
-            )?;
-
-            sqlx::query(
-                "UPDATE project_skills SET synced_hash_claude = ?, synced_hash_codex = ? WHERE project_id = ? AND skill_id = ?",
-            )
-            .bind(&hash_claude)
-            .bind(&hash_codex)
-            .bind(&project_id)
-            .bind(&skill_id)
-            .execute(db.inner())
-            .await
-            .map_err(|e| e.to_string())?;
-        }
-    }
-
-    sqlx::query("UPDATE sync_conflicts SET resolved = 1 WHERE id = ?")
-        .bind(&conflict_id)
-        .execute(db.inner())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    // Overwrite backs the project's copy up first (sync_conflicts/resolve.rs).
+    crate::commands::sync_conflicts::resolve_skill(db.inner(), &conflict_id, overwrite).await
 }
 
 #[cfg(test)]
