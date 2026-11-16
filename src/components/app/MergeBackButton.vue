@@ -10,7 +10,12 @@ import { Button } from '@/components/ui'
 import { mergeScreen } from '@/lib/detachedScreens'
 import type { DetachableScreen } from '@/lib/windowPlacement'
 
-const props = defineProps<{ screen: DetachableScreen; path: string }>()
+const props = defineProps<{
+  screen: DetachableScreen
+  path: string
+  /** Asked before moving; false keeps this window open (e.g. unsaved edits the user keeps). */
+  confirmLeave?: () => Promise<boolean>
+}>()
 
 const { t } = useI18n()
 const busy = ref(false)
@@ -19,6 +24,7 @@ async function merge() {
   if (busy.value) return
   busy.value = true
   try {
+    if (props.confirmLeave && !(await props.confirmLeave())) return
     await mergeScreen({ screen: props.screen, path: props.path })
   } catch (e) {
     console.error(`[MergeBackButton] cannot move ${props.screen} back to the main window`, e)

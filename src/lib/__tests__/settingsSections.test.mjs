@@ -3,7 +3,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SETTINGS_GROUPS, SETTINGS_SECTIONS, groupLabelKey, resolveSettingsPlace, settingsNav } from '../settingsSections.ts'
+import {
+  SETTINGS_GROUPS, SETTINGS_SECTIONS, groupLabelKey, isSettingsSectionId, resolveSettingsPlace, settingsCrumbKeys,
+  settingsHref, settingsLocation, settingsNav, settingsPlaceFromRoute, settingsRedirect,
+} from '../settingsSections.ts'
 
 const prop = (id, effective) => ({
   id, stored: null, effective, locked: false, default: effective, degraded: [], reason_key: null,
@@ -80,4 +83,80 @@ test('resolveSettingsPlace: no section or an unknown one keeps what is open', ()
   assert.equal(resolveSettingsPlace(undefined), null)
   assert.equal(resolveSettingsPlace(['ai']), null)
   assert.equal(resolveSettingsPlace('nope'), null)
+})
+
+test('settingsRedirect: every old id of resolveSettingsPlace lands on its route', () => {
+  const cases = {
+    claude: ['/settings/engines', {}],
+    engine: ['/settings/engines', {}],
+    usage: ['/settings/sessions', {}],
+    remote: ['/settings/devices', { tab: 'remote' }],
+    sync: ['/settings/devices', { tab: 'backup' }],
+    backup: ['/settings/devices', { tab: 'backup' }],
+    github: ['/settings/connections', { type: 'github' }],
+    gitlab: ['/settings/connections', { type: 'gitlab' }],
+    aws: ['/settings/connections', { type: 'aws' }],
+    azure: ['/settings/connections', { type: 'azure' }],
+    google: ['/settings/connections', { type: 'google' }],
+  }
+  for (const [id, [path, query]] of Object.entries(cases)) {
+    assert.deepEqual(settingsRedirect({ section: id }), { path, query }, id)
+  }
+})
+
+test('settingsRedirect: current ids, no id and unknown ids', () => {
+  for (const s of SETTINGS_SECTIONS) {
+    assert.deepEqual(settingsRedirect({ section: s.id }), { path: `/settings/${s.id}`, query: {} }, s.id)
+  }
+  assert.deepEqual(settingsRedirect({}), { path: '/settings/general', query: {} })
+  assert.deepEqual(settingsRedirect({ section: 'nope' }), { path: '/settings/general', query: {} })
+  assert.deepEqual(settingsRedirect({ section: ['ai'] }), { path: '/settings/general', query: {} })
+})
+
+test("settingsRedirect: the link's other query keys are kept", () => {
+  assert.deepEqual(settingsRedirect({ section: 'github', new: '1', junk: ['a'] }), {
+    path: '/settings/connections',
+    query: { new: '1', type: 'github' },
+  })
+})
+
+test('settingsPlaceFromRoute: section, tab and filter from the route', () => {
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'memory' }, {}), { section: 'memory' })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'devices' }, { tab: 'backup' }), { section: 'devices', devicesTab: 'backup' })
+  assert.deepEqual(
+    settingsPlaceFromRoute({ section: 'connections' }, { type: 'google' }),
+    { section: 'connections', connectionsFilter: 'google' },
+  )
+  // Old ids in the path resolve like a deep link; unknown ones show General.
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'github' }, {}), { section: 'connections', connectionsFilter: 'github' })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'nope' }, {}), { section: 'general' })
+  assert.deepEqual(settingsPlaceFromRoute({}, {}), { section: 'general' })
+  // A tab / filter that isn't known or doesn't belong to the section is ignored.
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'devices' }, { tab: 'nope', type: 'github' }), { section: 'devices' })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'general' }, { tab: 'remote' }), { section: 'general' })
+})
+
+test('settingsLocation / settingsHref round-trip through settingsPlaceFromRoute', () => {
+  const places = [
+    { section: 'general' },
+    { section: 'devices', devicesTab: 'remote' },
+    { section: 'connections', connectionsFilter: 'azure' },
+  ]
+  for (const p of places) {
+    const loc = settingsLocation(p)
+    assert.deepEqual(settingsPlaceFromRoute({ section: loc.path.split('/')[2] }, loc.query), p)
+  }
+  assert.equal(settingsHref(settingsLocation({ section: 'memory' })), '/settings/memory')
+  assert.equal(settingsHref(settingsLocation({ section: 'devices', devicesTab: 'backup' })), '/settings/devices?tab=backup')
+})
+
+test('isSettingsSectionId and settingsCrumbKeys', () => {
+  assert.equal(isSettingsSectionId('memory'), true)
+  assert.equal(isSettingsSectionId('github'), false)
+  assert.equal(isSettingsSectionId(undefined), false)
+  assert.deepEqual(settingsCrumbKeys('general'), ['settings.title', 'settings.groups.general', 'settings.sections.general'])
+  assert.deepEqual(
+    settingsCrumbKeys('connections'),
+    ['settings.title', 'settings.groups.connections', 'settings.sections.connections'],
+  )
 })

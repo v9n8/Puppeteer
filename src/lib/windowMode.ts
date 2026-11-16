@@ -27,6 +27,9 @@ export const IS_PR_INBOX_WINDOW = params.get('prInboxWindow') === '1'
 export const IS_CALENDAR_WINDOW = params.get('calendarWindow') === '1'
 export const IS_FOCUS_WINDOW = params.get('focusWindow') === '1'
 export const IS_FILE_TRANSFER_WINDOW = params.get('fileTransferWindow') === '1'
+export const IS_SETTINGS_WINDOW = params.get('settingsWindow') === '1'
+/** The place the Settings window opens on (`section`, `tab`, `type`; see lib/settingsWindow). */
+export const SETTINGS_WINDOW_QUERY: Readonly<Record<string, string>> = IS_SETTINGS_WINDOW ? Object.fromEntries(params) : {}
 // All pop-out kinds only need the theme applied; skip the main app's data work.
 export const IS_POPOUT_WINDOW =
   IS_FILE_WINDOW ||
@@ -39,4 +42,5 @@ export const IS_POPOUT_WINDOW =
   IS_PR_INBOX_WINDOW ||
   IS_CALENDAR_WINDOW ||
   IS_FOCUS_WINDOW ||
-  IS_FILE_TRANSFER_WINDOW
+  IS_FILE_TRANSFER_WINDOW ||
+  IS_SETTINGS_WINDOW

@@ -1,4 +1,5 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router'
+import { emit } from '@tauri-apps/api/event'
 import LibraryView from '../views/LibraryView.vue'
 import McpServersView from '../views/McpServersView.vue'
 import ServersView from '../views/ServersView.vue'
@@ -23,7 +24,40 @@ import TrashView from '../views/TrashView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
-import { useSettingsModal } from '../composables/useSettingsModal'
+import { IS_SESSION_WINDOW } from '../lib/windowMode'
+import { getOpenMode } from '../lib/windowPlacement'
+import { SCREEN_OPEN_ROUTE, screenGuard, type ScreenOpenRoute } from '../lib/detachedScreens'
+import { openSettingsWindow } from '../lib/settingsWindow'
+import {
+  isSettingsSectionId, resolveSettingsPlace, settingsLocation, settingsPlaceFromRoute, settingsRedirect,
+} from '../lib/settingsSections'
+
+/**
+ * Settings opens where the user keeps it (lib/windowPlacement): here, or its own
+ * window, which comes forward on the asked section while this window stays put.
+ * A session pop-out never turns into Settings: it hands the link to the main
+ * window or the Settings window. `/settings` alone names no section, so an open
+ * Settings window keeps its own.
+ */
+async function settingsGuard(to: RouteLocationNormalized, from: RouteLocationNormalized) {
+  const place = to.name === 'settings'
+    ? resolveSettingsPlace(to.query.section)
+    : settingsPlaceFromRoute(to.params, to.query)
+  const openWindow = () => openSettingsWindow(place)
+  if (IS_SESSION_WINDOW) {
+    const asked = getOpenMode('settings') === 'window'
+      ? openWindow()
+      : emit<ScreenOpenRoute>(SCREEN_OPEN_ROUTE, { path: to.fullPath })
+    asked.catch((e) => console.error('[router] cannot open Settings from the session window', e))
+    return false
+  }
+  const verdict = await screenGuard({ screen: 'settings', path: '/settings', openWindow })(to, from)
+  if (verdict !== true) return verdict
+  if (to.name === 'settings') return settingsRedirect(to.query)
+  // An old id (`/settings/github`) or an unknown one in the path: its canonical route.
+  if (!isSettingsSectionId(to.params.section)) return settingsLocation(place!)
+  return true
+}
 
 // MCP / Servers edit in their list's detail pane now; the old
 // editor URLs redirect there so stale links keep working.
@@ -105,18 +139,11 @@ const router = createRouter({
         return from.matched.length > 0 ? false : '/projects'
       },
     },
-    // Settings is a modal over the current screen (components/settings/SettingsModal);
-    // the route only opens it, so `?section=` links, ⌘, and the menu keep working.
-    // SettingsView is never rendered here — the guard always diverts.
-    {
-      path: '/settings',
-      name: 'settings',
-      component: SettingsView,
-      beforeEnter: (to, from) => {
-        useSettingsModal().openSettings(to.query.section)
-        return from.matched.length > 0 ? false : '/projects'
-      },
-    },
+    // Settings is a screen of the main window or of its own window (settingsGuard).
+    // `/settings` and old `/settings?section=` links never render: they land on
+    // `/settings/<section>`, so ⌘, and the menu keep working.
+    { path: '/settings', name: 'settings', component: SettingsView, beforeEnter: settingsGuard },
+    { path: '/settings/:section', name: 'settings-section', component: SettingsView, beforeEnter: settingsGuard },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
   ],

@@ -12,7 +12,7 @@ import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { AppSelect, Button, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
-import { normalizeColorTheme } from '@/lib/colorThemes'
+import { changeAppearance } from '@/lib/appearanceSync'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import {
@@ -144,33 +144,19 @@ onMounted(() => {
   loadLaunchAtLogin()
 })
 
-function applyTheme(theme: string) {
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark')
-  } else if (theme === 'light') {
-    document.documentElement.classList.remove('dark')
-  } else {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    document.documentElement.classList.toggle('dark', dark)
-  }
-}
-
-function applyColorTheme(theme: string) {
-  const t = normalizeColorTheme(theme)
-  if (t !== 'default') document.documentElement.setAttribute('data-theme', t)
-  else document.documentElement.removeAttribute('data-theme')
-}
-
-// Apply theme instantly (don't wait for the debounced save).
+// Apply theme instantly (don't wait for the debounced save), here and in every
+// other window: Settings may sit in its own window (lib/appearanceSync).
 watch(() => settings.value.theme, (v) => {
-  if (!loading.value) applyTheme(v)
+  if (!loading.value) changeAppearance({ theme: v })
 })
 watch(() => settings.value.color_theme, (v) => {
-  if (!loading.value) applyColorTheme(v)
+  if (!loading.value) changeAppearance({ colorTheme: v })
 })
 // Apply language instantly (don't wait for the debounced save).
 watch(() => settings.value.language, (v) => {
-  if (!loading.value) setLocale(v)
+  if (loading.value) return
+  setLocale(v)
+  changeAppearance({ language: v })
 })
 </script>
 

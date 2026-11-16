@@ -10,7 +10,11 @@ import { Button } from '@/components/ui'
 import { detachScreen, type ScreenTarget } from '@/lib/detachedScreens'
 import type { DetachableScreen } from '@/lib/windowPlacement'
 
-const props = defineProps<{ target: ScreenTarget }>()
+const props = defineProps<{
+  target: ScreenTarget
+  /** Asked before moving; false keeps the screen here (e.g. unsaved edits the user keeps). */
+  confirmLeave?: () => Promise<boolean>
+}>()
 
 const NAME_KEYS: Record<DetachableScreen, string> = {
   tasks: 'nav.screenNames.tasks',
@@ -33,6 +37,7 @@ async function detach() {
   if (busy.value) return
   busy.value = true
   try {
+    if (props.confirmLeave && !(await props.confirmLeave())) return
     await detachScreen(props.target, router)
   } catch (e) {
     console.error(`[DetachButton] cannot move ${props.target.screen} to its own window`, e)

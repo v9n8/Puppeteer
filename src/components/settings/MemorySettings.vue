@@ -55,17 +55,22 @@ async function load() {
   }
 }
 
-/** Leaving unsaved edits takes a confirm. */
+/**
+ * Leaving unsaved edits takes a confirm. Confirmed, the edits are dropped, so a
+ * second leave (Settings switching section, then the window closing) asks no more.
+ */
 async function mayDiscard(): Promise<boolean> {
   if (!dirty.value) return true
-  return confirm({
+  const ok = await confirm({
     title: t('memory.discardTitle'),
     message: t('memory.discardMessage'),
     confirmLabel: t('memory.discard'),
   })
+  if (ok && file.value) content.value = file.value.content
+  return ok
 }
 
-// Settings asks before closing over unsaved edits.
+// Settings asks before leaving the section, the screen or its window over unsaved edits.
 defineExpose({ mayDiscard })
 
 async function selectKind(next: GlobalMemoryKind) {

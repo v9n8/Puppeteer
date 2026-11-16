@@ -1,14 +1,13 @@
 <script setup lang="ts">
 // Every window that is not the main one: the bare pop-outs (file viewer,
 // permission prompt, todo / note, lists, Secret notes, Slack, PR Inbox,
-// Calendar, Focus, File Transfer, Gantt) and the session pop-out. App.vue
+// Calendar, Focus, File Transfer, Gantt, Settings) and the session pop-out. App.vue
 // renders this instead of the main window's chrome.
 import { computed } from 'vue'
 import { RouterView } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { PowerOff } from 'lucide-vue-next'
 import { useFeaturesStore } from '@/stores/features'
-import SettingsModal from '@/components/settings/SettingsModal.vue'
 import FileViewerWindow from '@/views/FileViewerWindow.vue'
 import PermissionWindow from '@/views/PermissionWindow.vue'
 import { ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
@@ -21,6 +20,7 @@ import PrInboxWindow from '@/views/PrInboxWindow.vue'
 import CalendarWindow from '@/views/CalendarWindow.vue'
 import FocusWindow from '@/views/FocusWindow.vue'
 import FileTransferWindow from '@/views/FileTransferWindow.vue'
+import SettingsWindow from '@/views/SettingsWindow.vue'
 import IssuesGanttView from '@/views/IssuesGanttView.vue'
 import { popoutFeature } from '@/lib/featureGate'
 import {
@@ -35,6 +35,7 @@ import {
   IS_PR_INBOX_WINDOW as isPrInboxWindow,
   IS_SECRET_NOTES_WINDOW as isSecretNotesWindow,
   IS_SESSION_WINDOW as isSessionWindow,
+  IS_SETTINGS_WINDOW as isSettingsWindow,
   IS_SLACK_WINDOW as isSlackWindow,
 } from '@/lib/windowMode'
 
@@ -93,6 +94,9 @@ const { t } = useI18n()
   <!-- THE File Transfer window (remote desktop only): this machine ⇄ the controlled Puppeteer. -->
   <FileTransferWindow v-else-if="isFileTransferWindow" />
 
+  <!-- THE Settings window: the Settings screen on its own OS window (when the user moved it there). -->
+  <SettingsWindow v-else-if="isSettingsWindow" />
+
   <!-- Pop-out Gantt window: bare Gantt chart on its own OS window. -->
   <!-- Gantt pop-out: the board plus the dialog / toast hosts its row menu
        ("+ Todo") needs, like PrInboxWindow. -->
@@ -118,8 +122,8 @@ const { t } = useI18n()
       </div>
     </main>
     <!-- Overlay hosts the run screen relies on; NOT PermissionNotifier /
-         CalendarReminder — those stay owned by the main window. -->
-    <SettingsModal />
+         CalendarReminder — those stay owned by the main window. Settings opens
+         in the main window or its own, never here (router settingsGuard). -->
     <ConfirmModal />
     <PromptModal />
     <ToastHost />

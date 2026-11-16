@@ -126,6 +126,8 @@ function rawLabelFor(windowLabel: string, osTitle: string): string {
   if (windowLabel === 'pr-inbox') return meaningful || t('prInbox.window.title')
   if (windowLabel === 'calendar') return meaningful || t('calendar.window.title')
   if (windowLabel === 'focus') return meaningful || t('focus.window.title')
+  // Its title is the "Settings › group › section" trail; the switcher just says Settings.
+  if (windowLabel === 'settings') return t('nav.settings')
   // Unknown / future window kind: best effort — its title, else the raw label.
   return meaningful || windowLabel
 }

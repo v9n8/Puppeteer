@@ -1,14 +1,17 @@
 <script setup lang="ts">
-// Settings, shown in the modal of components/settings/SettingsModal.vue: the
-// section nav (deep link and feature gating) and the active section. Each
-// section lives in components/settings/ (or components/ for the older ones);
-// the `settings` table form they share is created here (useSettingsForm) so its
-// auto-save stops when the modal closes.
+// Settings: a screen of the main window (`/settings/<section>`) or, `windowed`,
+// the body of its own window (views/SettingsWindow.vue, lib/settingsWindow) —
+// where the user keeps it (lib/detachedScreens). The section nav (feature
+// gating) and the active section. On the route the section is the URL; in the
+// window, the `place` model. Each section lives in components/settings/ (or
+// components/ for the older ones); the `settings` table form they share is
+// created here (useSettingsForm) so its auto-save stops when the screen goes.
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
-import { X } from 'lucide-vue-next'
-import { Button } from '@/components/ui'
+import DetachButton from '@/components/app/DetachButton.vue'
+import MergeBackButton from '@/components/app/MergeBackButton.vue'
 import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.vue'
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
@@ -31,14 +34,25 @@ import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useFeaturesStore } from '@/stores/features'
-import { SETTINGS_SECTIONS, settingsNav, type SettingsSectionId } from '@/lib/settingsSections'
+import {
+  SETTINGS_SECTIONS, settingsCrumbKeys, settingsHref, settingsLocation, settingsNav, settingsPlaceFromRoute,
+  type SettingsPlace, type SettingsSectionId,
+} from '@/lib/settingsSections'
+import { openSettingsWindow } from '@/lib/settingsWindow'
+import type { ScreenTarget } from '@/lib/detachedScreens'
 import type { ConnectionFilter } from '@/lib/connectionTypes'
 import { useBudgetStore } from '@/stores/budget'
-import { useSettingsModal } from '@/composables/useSettingsModal'
 
-const emit = defineEmits<{ close: [] }>()
+const props = defineProps<{
+  /** Rendered in its own window: no router, the section is the `place` model. */
+  windowed?: boolean
+}>()
+/** The window's section (windowed only; on the route the URL holds it). */
+const windowPlace = defineModel<SettingsPlace>('place', { default: () => ({ section: 'general' }) })
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const budget = useBudgetStore()
 const { loading, load } = createSettingsForm()
@@ -49,20 +63,27 @@ const { loading, load } = createSettingsForm()
 let unlistenPlanUsage: UnlistenFn | null = null
 let unlistenBudgetStatus: UnlistenFn | null = null
 
-const activeSection = ref<SettingsSectionId>('general')
+const place = computed<SettingsPlace>(() =>
+  props.windowed ? windowPlace.value : settingsPlaceFromRoute(route.params, route.query),
+)
+const activeSection = computed<SettingsSectionId>(() => place.value.section)
 
-// A deep link (`/settings?section=google`, e.g. the "Google settings" button on
-// the MCP Servers screen's built-in row) opens on its section, tab or filter.
-const { requested } = useSettingsModal()
+// A link with a tab or filter (`/settings/connections?type=google`, e.g. the
+// "Google settings" button on the MCP Servers screen's built-in row) opens on it.
 const devicesTab = ref<DevicesTab>('remote')
 const connectionsFilter = ref<ConnectionFilter>('all')
-watch(requested, (place) => {
-  if (!place) return
-  if (place.devicesTab) devicesTab.value = place.devicesTab
-  if (place.connectionsFilter) connectionsFilter.value = place.connectionsFilter
-  activeSection.value = place.section
-  requested.value = null
+watch(place, (p) => {
+  if (p.devicesTab) devicesTab.value = p.devicesTab
+  if (p.connectionsFilter) connectionsFilter.value = p.connectionsFilter
 }, { immediate: true })
+
+/** Where the user is now, tab and filter included: what the other window opens on. */
+const currentPlace = computed<SettingsPlace>(() => {
+  const p: SettingsPlace = { section: activeSection.value }
+  if (p.section === 'devices') p.devicesTab = devicesTab.value
+  if (p.section === 'connections' && connectionsFilter.value !== 'all') p.connectionsFilter = connectionsFilter.value
+  return p
+})
 
 // Stores behind Connections (GitHub / GitLab / AWS), Claude and Codex: fetched here, before
 // the skeleton goes, so their lists and the nav badge are filled on first paint.
@@ -105,52 +126,89 @@ const features = useFeaturesStore()
 const nav = computed(() => settingsNav(SETTINGS_SECTIONS, features.tree))
 const visibleSections = computed(() => nav.value.flatMap((g) => g.sections))
 watch([visibleSections, activeSection, () => features.loaded], ([list, active, loaded]) => {
-  if (loaded && !list.some((s) => s.id === active)) activeSection.value = 'general'
+  if (loaded && !list.some((s) => s.id === active)) void openPlace({ section: 'general' }, true)
 }, { immediate: true })
 
-// Closing drops the Memory editor's unsaved edits, so it asks first, like
-// switching its file does.
+// Leaving the Memory section (another section, another screen, the other
+// window, closing the window) drops the editor's unsaved edits, so it asks
+// first, like switching its file does.
 const memory = ref<InstanceType<typeof MemorySettings> | null>(null)
-async function mayClose(): Promise<boolean> {
+async function mayLeave(): Promise<boolean> {
   return memory.value ? memory.value.mayDiscard() : true
 }
-defineExpose({ mayClose })
+if (!props.windowed) {
+  onBeforeRouteUpdate((to, from) => (to.params.section === from.params.section ? true : mayLeave()))
+  onBeforeRouteLeave(() => mayLeave())
+}
+
+/** Shows `next`: a route change here, the model in the window. `replace`: a fallback, nothing to ask. */
+async function openPlace(next: SettingsPlace, replace = false): Promise<void> {
+  if (props.windowed) {
+    if (!replace && next.section !== activeSection.value && !(await mayLeave())) return
+    windowPlace.value = next
+    return
+  }
+  const loc = settingsLocation(next)
+  await (replace ? router.replace(loc) : router.push(loc)).catch(() => {})
+}
+defineExpose({ openPlace, mayLeave })
+
+// Header / title bar: "Settings › group › section".
+const crumb = computed(() => settingsCrumbKeys(activeSection.value).map((k) => t(k)))
+// Main window: "Open in new window" moves Settings there, on the section shown.
+const detachTarget: ScreenTarget = {
+  screen: 'settings',
+  path: '/settings',
+  openWindow: () => openSettingsWindow(currentPlace.value),
+}
+// Own window: "Move back to main window" opens the main window on the section shown.
+const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.value)))
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-background">
-    <!-- Header -->
-    <div class="flex shrink-0 items-center gap-2 border-b border-border bg-card px-4 py-3">
-      <h2 class="flex-1 text-sm font-semibold">{{ t('settings.title') }}</h2>
-      <Button
-        variant="ghost"
-        size="icon"
-        :title="t('common.close')"
-        :aria-label="t('common.close')"
-        @click="emit('close')"
-      >
-        <X class="h-4 w-4" :stroke-width="1.75" />
-      </Button>
+    <!-- Header (main window, 48px) or title bar (own window): "Settings › group › section".
+         No close button: Settings is a screen, left through the sidebar like any other.
+         The space before the button is kept for the settings search (V3-58). -->
+    <div
+      class="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3"
+      :class="windowed ? 'h-10' : 'h-12'"
+    >
+      <div class="flex min-w-0 flex-1 items-center gap-1 whitespace-nowrap">
+        <h1 class="shrink-0 text-sm font-semibold">{{ crumb[0] }}</h1>
+        <span class="text-xs text-muted-foreground" aria-hidden="true">›</span>
+        <span class="shrink-0 text-xs text-muted-foreground">{{ crumb[1] }}</span>
+        <span class="text-xs text-muted-foreground" aria-hidden="true">›</span>
+        <span class="min-w-0 truncate text-xs">{{ crumb[2] }}</span>
+      </div>
+      <MergeBackButton
+        v-if="windowed"
+        screen="settings"
+        :path="mergePath"
+        :confirm-leave="mayLeave"
+      />
+      <DetachButton v-else :target="detachTarget" :confirm-leave="mayLeave" />
     </div>
 
     <!-- Content -->
     <div class="flex-1 flex min-h-0">
-      <!-- Section nav -->
-      <!-- Same layers as the app: nav on the sidebar tone, the open section on the page tone. -->
-      <nav class="w-56 shrink-0 border-r border-border bg-sidebar p-2 overflow-auto">
+      <!-- Section nav: on the card tone, since it sits right beside the app sidebar
+           (sidebar tone); the open section like a sidebar item (accent + primary bar). -->
+      <nav class="w-56 shrink-0 border-r border-border bg-card p-2 overflow-auto">
         <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
-          <div class="px-2.5 pt-1 pb-1 text-xs font-medium text-muted-foreground">
+          <div class="px-2 pt-1 pb-1 text-xs font-medium text-muted-foreground">
             {{ t(g.labelKey) }}
           </div>
           <button
             v-for="s in g.sections"
             :key="s.id"
-            class="relative w-full flex items-center gap-2.5 h-8 px-2.5 mb-0.5 text-xs rounded-md transition-colors cursor-pointer text-left"
+            type="button"
+            class="relative w-full flex items-center gap-2.5 h-8 px-2 mb-0.5 text-sm rounded-md transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :class="activeSection === s.id
-              ? 'bg-primary/12 text-foreground font-medium before:absolute before:left-0 before:inset-y-1.5 before:w-0.5 before:rounded-full before:bg-primary'
+              ? 'bg-accent text-foreground font-medium before:absolute before:left-0 before:inset-y-1.5 before:w-0.5 before:rounded-full before:bg-primary'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
             :aria-current="activeSection === s.id ? 'page' : undefined"
-            @click="activeSection = s.id"
+            @click="openPlace({ section: s.id })"
           >
             <component
               :is="s.icon"
@@ -178,8 +236,8 @@ defineExpose({ mayClose })
 
         <GeneralSettings v-show="activeSection === 'general'" />
         <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />
-        <EnginesSettings v-show="activeSection === 'engines'" @open-section="activeSection = $event" />
-        <SessionDefaultsSettings v-show="activeSection === 'ai'" @open-section="activeSection = $event" />
+        <EnginesSettings v-show="activeSection === 'engines'" @open-section="openPlace({ section: $event })" />
+        <SessionDefaultsSettings v-show="activeSection === 'ai'" @open-section="openPlace({ section: $event })" />
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <SessionsSettings v-show="activeSection === 'sessions'" />
@@ -187,7 +245,7 @@ defineExpose({ mayClose })
         </div>
 
         <!-- Memory: CLAUDE.md / AGENTS.md editor, wider than the forms. Kept mounted (v-show) so
-             switching section doesn't drop unsaved edits. -->
+             coming back doesn't re-read the file; leaving with unsaved edits asks first (mayLeave). -->
         <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-4xl">
           <MemorySettings ref="memory" />
         </div>

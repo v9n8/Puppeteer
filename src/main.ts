@@ -2,13 +2,14 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import router from './router'
-import { i18n } from './i18n'
+import { i18n, setLocale } from './i18n'
 import './assets/main.css'
 import App from './App.vue'
 import { installHomeEndKeys } from './lib/homeEndKeys'
 import { installFontPrefs } from './lib/appFonts'
 import { isRemoteMode } from './lib/ipc/remote'
 import { installQuoteAppend } from './lib/quoteAppend'
+import { installAppearanceSync } from './lib/appearanceSync'
 
 installHomeEndKeys()
 installFontPrefs()
@@ -23,6 +24,9 @@ function mountApp() {
   // A quote from a file window may target a run no screen shows: it then goes
   // to the stored draft, so this can't wait for RunView to mount.
   void installQuoteAppend()
+  // Theme / language changed in any window (Settings may be its own window).
+  // Here, after a remote-desktop boot, so its listen goes on the remote bus.
+  installAppearanceSync(setLocale)
   return app
 }
 

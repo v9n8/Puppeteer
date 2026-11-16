@@ -103,7 +103,7 @@ export function usePaletteItems() {
       detail: `${t('nav.settings')} · ${t(groupLabelKey(s.group))}`,
       icon: s.icon,
       feature: 'feature' in s ? s.feature : undefined,
-      run: () => router.push({ path: '/settings', query: { section: s.id } }).catch(() => {}),
+      run: () => router.push(`/settings/${s.id}`).catch(() => {}),
     }))
 
     return [...nav, ...newSession, ...sessions, ...projectItems, ...settings]

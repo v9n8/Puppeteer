@@ -19,7 +19,6 @@ import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WhatsNewModal from '@/components/WhatsNewModal.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import ProjectQuickView from '@/components/projects/ProjectQuickView.vue'
-import SettingsModal from '@/components/settings/SettingsModal.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
 import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
@@ -594,10 +593,6 @@ onMounted(async () => {
     <!-- A project's quick view, from its titlebar tab menu or the session status
          bar (UX-52). Before ConfirmModal, so "Remove project" asks on top of it. -->
     <ProjectQuickView />
-
-    <!-- Settings (E1): a modal over the current screen; the `/settings` route opens it.
-         Before ConfirmModal, so its confirms show on top of it. -->
-    <SettingsModal />
 
     <!-- App-wide confirm dialog host (see useConfirm) -->
     <ConfirmModal />
