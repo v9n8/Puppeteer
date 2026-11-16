@@ -5,14 +5,14 @@
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, Navigation, Clock, Pencil, Quote,
+  Paperclip, Navigation, Clock, Pencil,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
-import { autoGrowHeight } from '@/lib/autoGrow'
+import ComposerQuoteBlock from './ComposerQuoteBlock.vue'
 import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
 import RunMcpSection from './RunMcpSection.vue'
@@ -34,44 +34,12 @@ const {
   editingMessage, rewindingEdit, cancelEditResend,
 } = useRunSession()
 
-function quoteFileLabel(q: { path: string; lines?: { start: number; end: number } }): string {
-  const l = q.lines
-  if (!l) return q.path
-  return l.end > l.start ? `${q.path}:${l.start}-${l.end}` : `${q.path}:${l.start}`
-}
-
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
-
-// A quote card's note grows with its text (up to 8rem, then scrolls): one typed
-// in the Quote popover may span lines. Its corner drags it taller or shorter
-// (UX-65); that height stays the floor while the text grows. Not measured while
-// hidden (scrollHeight 0), where it keeps one row.
-const NOTE_CAP = 128
-function fitHeight(el: HTMLTextAreaElement) {
-  const manual = Number(el.dataset.manualHeight) || null
-  el.style.height = 'auto'
-  if (el.scrollHeight) el.style.height = `${autoGrowHeight(el.scrollHeight, NOTE_CAP, manual)}px`
-}
-// A press on the field that ends with another height was a drag of its corner.
-function rememberDraggedHeight(e: PointerEvent) {
-  const el = e.currentTarget as HTMLTextAreaElement
-  const before = el.offsetHeight
-  window.addEventListener('pointerup', () => {
-    if (el.offsetHeight !== before) el.dataset.manualHeight = String(el.offsetHeight)
-  }, { once: true })
-}
-const vAutoGrow = {
-  mounted: (el: HTMLTextAreaElement) => {
-    el.addEventListener('pointerdown', rememberDraggedHeight)
-    fitHeight(el)
-  },
-  updated: fitHeight,
-}
 </script>
 
 <template>
-  <div class="border-t border-border bg-card/40 px-3 py-2 shrink-0">
+  <div data-run-composer class="border-t border-border bg-card/40 px-3 py-2 shrink-0">
     <RunAttentionBanner
       v-if="currentStatus === 'running' && session?.attention.length"
       :notices="session.attention"
@@ -204,40 +172,14 @@ const vAutoGrow = {
       </div>
 
       <!-- Quote cards (UX-29): sent ahead of the message as blockquotes, each with an optional note -->
-      <ol v-if="draftQuotes.length" class="mb-2 flex flex-col gap-1.5" :aria-label="t('run.quotes.title')">
-        <li
-          v-for="(q, qi) in draftQuotes"
-          :key="q.id"
-          class="group flex items-start gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs"
-        >
-          <span class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-2xs font-semibold text-primary">{{ qi + 1 }}</span>
-          <div class="min-w-0 flex-1">
-            <p class="line-clamp-2 whitespace-pre-wrap text-foreground/80" :title="q.excerpt">
-              <Quote class="mr-1 inline h-3 w-3 align-[-2px] opacity-50" :stroke-width="2" />{{ q.excerpt }}
-            </p>
-            <p v-if="q.kind === 'file'" class="mt-0.5 truncate font-mono text-2xs text-muted-foreground">{{ quoteFileLabel(q) }}</p>
-            <textarea
-              v-auto-grow
-              :value="q.note ?? ''"
-              rows="1"
-              class="mt-1 block w-full resize-y overflow-y-auto bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-              :placeholder="t('run.quotes.notePlaceholder')"
-              :aria-label="t('run.quotes.notePlaceholder')"
-              :disabled="sendingFollowUp"
-              @input="setDraftQuoteNote(q.id, ($event.target as HTMLTextAreaElement).value)"
-            />
-          </div>
-          <button
-            class="h-5 w-5 shrink-0 rounded flex items-center justify-center text-foreground/50 hover:text-foreground hover:bg-background cursor-pointer"
-            :title="t('run.quotes.remove')"
-            :aria-label="t('run.quotes.remove')"
-            :disabled="sendingFollowUp"
-            @click="removeDraftQuote(q.id)"
-          >
-            <X class="h-3 w-3" :stroke-width="2.5" />
-          </button>
-        </li>
-      </ol>
+      <ComposerQuoteBlock
+        v-if="draftQuotes.length"
+        :quotes="draftQuotes"
+        :run-id="currentRunId"
+        :sending="sendingFollowUp"
+        @remove="removeDraftQuote"
+        @set-note="setDraftQuoteNote"
+      />
 
       <!-- Pasted/attached image thumbnails -->
       <div v-if="pendingImages.length" class="flex flex-wrap gap-2 mb-2">

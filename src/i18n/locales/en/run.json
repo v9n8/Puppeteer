@@ -308,7 +308,19 @@
   "quotes": {
     "title": "Quotes",
     "notePlaceholder": "Add a note on this quote (optional)",
-    "remove": "Remove quote"
+    "remove": "Remove quote",
+    "count": "{n} quote | {n} quotes",
+    "withNotes": "· {n} with notes",
+    "removeAll": "Remove all",
+    "removeAllTitle": "Remove all {n} quotes from the message",
+    "collapse": "Collapse the Quote block",
+    "expand": "Expand the Quote block",
+    "addNote": "Add note",
+    "editNote": "Edit note",
+    "noteTitle": "Note: {note}",
+    "noteKeys": "↵ save · Esc cancel",
+    "listAria": "Quote list, scrolls inside the block",
+    "resize": "Drag to resize the Quote block · double-click to reset"
   },
   "startRunEnter": "Start run (Enter — empty uses the default prompt)",
   "resumeAndSend": "Resume session and send (Enter)",
