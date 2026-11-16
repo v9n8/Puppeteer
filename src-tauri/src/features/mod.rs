@@ -189,7 +189,6 @@ pub static MODULES: &[Module] = &[
         default: true,
         locked: false,
         props: &[
-            Prop { legacy_key: Some("animated_background"), ..on("animated_background") },
             on("auto_update"),
             on("whats_new"),
             on("command_palette"),
@@ -417,7 +416,6 @@ mod tests {
         assert!(prop(&tree, "library.builtin_mcp_puppeteer").effective);
         assert!(prop(&tree, "library.code_index").effective);
         assert!(!prop(&tree, "library.skill_eval").effective);
-        assert!(prop(&tree, "app.animated_background").effective);
         assert!(prop(&tree, "app.auto_update").effective);
         assert!(prop(&tree, "app.whats_new").effective);
         assert!(prop(&tree, "app.command_palette").effective);
@@ -498,14 +496,12 @@ mod tests {
         let tree = resolve(&rows(&[
             ("inbox_api_enabled", "true"),
             ("feature.integrations.inbox_api", "false"),
-            ("animated_background", "false"),
-            ("feature.app.animated_background", "true"),
+            ("feature.library.builtin_mcp_puppeteer", "true"),
             ("mcp_builtin_puppeteer_enabled", "false"),
         ]));
         let inbox = prop(&tree, "integrations.inbox_api");
         assert!(inbox.effective);
         assert_eq!(inbox.stored, Some(true));
-        assert!(!prop(&tree, "app.animated_background").effective);
         assert!(!prop(&tree, "library.builtin_mcp_puppeteer").effective);
         assert!(owner("feature.integrations.inbox_api").is_none());
         // `mcp_builtin_google_enabled` stays the MCP page's switch, not the prop's.
@@ -606,7 +602,6 @@ mod tests {
         // Same switches; only `stored` differs.
         assert!(turned_off(&reset, &fresh).is_empty() && turned_off(&fresh, &reset).is_empty());
         assert_eq!(defaults.get("inbox_api_enabled").map(String::as_str), Some("false"));
-        assert_eq!(defaults.get("animated_background").map(String::as_str), Some("true"));
         assert_eq!(defaults.get("feature.remote").map(String::as_str), Some("false"));
         assert!(!defaults.contains_key("feature.sessions"), "locked module");
         assert!(!defaults.contains_key("feature.code_hosting.issue_pr_runs"), "locked prop");

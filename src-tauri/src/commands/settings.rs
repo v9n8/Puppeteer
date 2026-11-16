@@ -22,9 +22,6 @@ pub struct AppSettings {
     pub language: String,
     /// Named color palette: "default" or an id from `src/lib/colorThemes.ts`.
     pub color_theme: String,
-    /// Enable the animated decorative background for scenic themes (e.g. the
-    /// Full Moon night scene). "true" (default) | "false".
-    pub animated_background: String,
     pub default_permission_mode: String,
     /// Default reasoning effort for new runs: "low" | "medium" | "high" | "xhigh" |
     /// "max", or "" to let the engine decide. A run's own pick wins (`runs::resolve_effort`).
@@ -122,7 +119,6 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "theme",
     "language",
     "color_theme",
-    "animated_background",
     "default_permission_mode",
     "default_effort",
     "default_style",
@@ -189,7 +185,6 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         theme: "system".to_string(),
         language: "en".to_string(),
         color_theme: "default".to_string(),
-        animated_background: "true".to_string(),
         default_permission_mode: "default".to_string(),
         default_effort: String::new(),
         default_style: String::new(),
@@ -232,7 +227,6 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "theme" => settings.theme = value,
             "language" => settings.language = value,
             "color_theme" => settings.color_theme = value,
-            "animated_background" => settings.animated_background = value,
             "default_permission_mode" => settings.default_permission_mode = value,
             "default_effort" => settings.default_effort = value,
             "default_style" => settings.default_style = value,
@@ -298,7 +292,7 @@ pub async fn update_setting(
     if crate::remote::guard::from_remote_bridge(&webview) && !crate::remote::guard::remote_may_set_setting(&key) {
         return Err(crate::remote::guard::DENIED.to_string());
     }
-    // A switch's own key (`animated_background`): tell the windows and services.
+    // A switch's own key (`inbox_api_enabled`): tell the windows and services.
     if crate::features::owner(&key).is_some() {
         return crate::features::commands::write_legacy(&app, db.inner(), set_setting(db.inner(), &key, &value)).await;
     }

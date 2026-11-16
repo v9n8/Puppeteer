@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { type UnlistenFn } from '@tauri-apps/api/event'
 import { useProjectsStore } from '@/stores/projects'
@@ -179,13 +179,6 @@ watch(
 const isRunRoute = computed(
   () => route.name === 'project-run' || route.name === 'project-run-detail',
 )
-
-// Read through the feature tree, so turning the `app` module off stops it too.
-const animatedBgOn = computed(() => features.isOn('app.animated_background'))
-// Exposed on <html> so the ambient CSS can drop its motion too.
-watchEffect(() => {
-  document.documentElement.dataset.animatedBg = animatedBgOn.value ? 'true' : 'false'
-})
 
 // Force a clean RunView remount only when the *project* changes (heavy stream
 // state survives in the liveRuns store); switching runs within a project is

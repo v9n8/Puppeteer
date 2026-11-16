@@ -1111,7 +1111,6 @@ mod tests {
             "feature.not_registered_yet",
             "mcp_builtin_puppeteer_enabled",
             "mcp_builtin_google_enabled",
-            "animated_background",
             // Stopping running sessions at the quota block tier: local-only.
             "quota_stop_running",
             // The limits on unattended turns (AC-23), Remote Control starts included.

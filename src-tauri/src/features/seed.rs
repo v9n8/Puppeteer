@@ -209,13 +209,13 @@ mod tests {
         let db = db().await;
         add_project(&db).await;
         set_setting(&db, crate::inbox_api::ENABLED_SETTING_KEY, "false").await.unwrap();
-        set_setting(&db, "animated_background", "false").await.unwrap();
+        set_setting(&db, "mcp_builtin_puppeteer_enabled", "false").await.unwrap();
         set_setting(&db, "feature.productivity.todos", "false").await.unwrap();
         seed(&db).await.unwrap();
         let r = rows(&db).await;
 
         assert_eq!(r.get(crate::inbox_api::ENABLED_SETTING_KEY).map(String::as_str), Some("false"));
-        assert_eq!(r.get("animated_background").map(String::as_str), Some("false"));
+        assert_eq!(r.get("mcp_builtin_puppeteer_enabled").map(String::as_str), Some("false"));
         assert_eq!(r.get("feature.productivity.todos").map(String::as_str), Some("false"));
         assert_eq!(r.get("feature.productivity.focus").map(String::as_str), Some("true"));
     }

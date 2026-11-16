@@ -150,7 +150,7 @@ Palettes live one per file in `src/assets/themes/<id>.css` (imported at the top 
 
 A theme changes **colors only**: never radius, font, material or motion, so every component has one look. All palettes follow one rule: each declares its surfaces, text, primary and four status colors; secondary text, `--input`, `--popover-border`, `--border` and the tinted surfaces are derived from the text color until secondary text is ≥ 4.5:1 on every surface (≥ 7:1 in `contrast`), `--input` / `--popover-border` ≥ 3:1, and `--border` a quiet ~1.4:1. A removed palette id is mapped to its replacement in `normalizeColorTheme`.
 
-`html[data-agent-state]` (`idle` · `running` · `waiting` · `error` · `done`) drives the app-wide ambient light (`src/assets/agent-ambient.css`); it pauses under `html[data-animated-bg='false']` and `prefers-reduced-motion`.
+`html[data-agent-state]` (`idle` · `running` · `waiting` · `error` · `done`) drives the app-wide ambient light (`src/assets/agent-ambient.css`); it is static (no motion).
 
 ## 7. Checklist for a new screen
 

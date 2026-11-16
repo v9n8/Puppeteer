@@ -18,7 +18,6 @@ export interface AppSettings {
   theme: string
   language: string
   color_theme: string
-  animated_background: string
   default_permission_mode: string
   /** Default reasoning effort for new runs ('' = engine decides); see lib/engineOptions.ts EFFORT_LEVELS. */
   default_effort: string

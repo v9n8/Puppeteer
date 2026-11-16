@@ -5018,7 +5018,6 @@ mod tests {
             "feature.remote",
             "feature.text_tools.selection.translate",
             "inbox_api_enabled",
-            "animated_background",
             "mcp_builtin_google_enabled",
         ] {
             assert!(is_portable_setting(key), "{key}");
@@ -5030,6 +5029,8 @@ mod tests {
             crate::inbox_api::TOKEN_SETTING_KEY,
             "remote_enabled",
             "whats_new_seen_version",
+            // Dropped in V3-03: an old backup that carries it is skipped.
+            "animated_background",
         ] {
             assert!(!is_portable_setting(key), "{key}");
         }
@@ -5148,7 +5149,6 @@ mod tests {
         for (key, value) in [
             ("feature.remote", "false"),
             ("inbox_api_enabled", "false"),
-            ("animated_background", "true"),
             ("mcp_builtin_google_enabled", "true"),
             (SEEDED_KEY, "1"),
         ] {
@@ -5179,15 +5179,17 @@ mod tests {
         assert_eq!(setting(&db, SEEDED_KEY).await.as_deref(), Some("1"));
         // Other settings still go through.
         assert_eq!(setting(&db, "theme").await.as_deref(), Some("light"));
-        // One warning naming the switches that would have changed; an equal one
-        // (`animated_background`) is just unchanged.
+        // A key an older backup carries and the app dropped (`animated_background`)
+        // is skipped without a word.
+        assert_eq!(setting(&db, "animated_background").await, None);
+        // One warning naming the switches that would have changed.
         assert_eq!(
             report.warnings,
             ["Settings only changeable on this machine were skipped: feature.integrations.google, \
               feature.remote, inbox_api_enabled, mcp_builtin_google_enabled, mcp_builtin_puppeteer_enabled"]
         );
         let counts = &report.counts["settings"];
-        assert_eq!((counts.created, counts.updated, counts.unchanged), (0, 1, 1));
+        assert_eq!((counts.created, counts.updated, counts.unchanged), (0, 1, 0));
 
         // The same file imported locally writes them.
         let mut report = ImportReport::default();

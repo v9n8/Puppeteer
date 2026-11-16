@@ -12,10 +12,8 @@
  *   html::before  running — rotating multi-color edge from the palette
  *   html::after   waiting (amber) / error (red) / done (green → cyan)
  * The status colors are registered properties, so waiting ↔ error ↔ done
- * crossfade their colors; entering/leaving any state crossfades opacity.
- * Motion animates `filter` (and the registered angles) so it never fights the
- * opacity transitions. With motion off (prefers-reduced-motion or the
- * animated background disabled) waiting and error still show a static edge.
+ * crossfade their colors. The edge is static: only waiting and error show it
+ * (V3-04 replaces it with a 2px bar).
  * Works over every skin; a skin may still override these pseudos.
  * ------------------------------------------------------------------------- */
 
@@ -93,61 +91,4 @@ html[data-agent-state='done']::after {
 html[data-agent-state='waiting']::after,
 html[data-agent-state='error']::after {
   opacity: 1;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  /* ~600ms crossfade on every state change. */
-  html:not([data-animated-bg='false'])::before,
-  html:not([data-animated-bg='false'])::after {
-    transition:
-      opacity 600ms ease,
-      --agent-edge-a 600ms ease,
-      --agent-edge-b 600ms ease;
-  }
-
-  /* running — the edge slowly rotates and breathes. */
-  html[data-agent-state='running']:not([data-animated-bg='false'])::before {
-    opacity: 1;
-    animation:
-      agent-spin 8s linear infinite,
-      agent-breathe 4s ease-in-out infinite;
-  }
-
-  /* waiting — steady amber, slow deep breath (the human has to act). */
-  html[data-agent-state='waiting']:not([data-animated-bg='false'])::after {
-    animation: agent-breathe-deep 3.2s ease-in-out infinite;
-  }
-
-  /* error — lands with a flare that decays across the 4s flash. */
-  html[data-agent-state='error']:not([data-animated-bg='false'])::after {
-    animation: agent-flare 4s ease-out both;
-  }
-
-  /* done — one green → cyan sweep around the edge while it fades. */
-  html[data-agent-state='done']:not([data-animated-bg='false'])::after {
-    opacity: 1;
-    animation:
-      agent-spin 3s cubic-bezier(0.25, 0.6, 0.3, 1) both,
-      agent-flare 3s ease-out both;
-  }
-}
-
-@keyframes agent-spin {
-  from { --agent-angle: 0deg; }
-  to { --agent-angle: 360deg; }
-}
-/* Breaths start/end at identity, so attaching/removing them never flashes. */
-@keyframes agent-breathe {
-  0%, 100% { filter: none; }
-  50% { filter: opacity(0.6); }
-}
-@keyframes agent-breathe-deep {
-  0%, 100% { filter: none; }
-  50% { filter: opacity(0.45); }
-}
-/* Ends dimmed but non-zero; the 600ms opacity transition finishes the fade. */
-@keyframes agent-flare {
-  0% { filter: brightness(1.8) saturate(1.3); }
-  20% { filter: none; }
-  100% { filter: opacity(0.55); }
 }

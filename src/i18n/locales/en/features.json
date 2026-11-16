@@ -123,7 +123,6 @@
       "budget_guard": "Budget guardrail"
     },
     "app": {
-      "animated_background": "Animated background",
       "auto_update": "Check for updates and install them when you agree",
       "whats_new": "Show what's new after an update",
       "command_palette": "Command palette"

@@ -9,7 +9,6 @@ import { useI18n } from 'vue-i18n'
 import { invoke } from '@/lib/tauri'
 import { useToast } from '@/composables/useToast'
 import { useAppSettingsStore } from '@/stores/appSettings'
-import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { normalizeColorTheme } from '@/lib/colorThemes'
@@ -25,7 +24,6 @@ export interface AppSettings {
   theme: string
   language: string
   color_theme: string
-  animated_background: string
   default_permission_mode: string
   default_effort: string
   default_style: string
@@ -77,7 +75,6 @@ export function createSettingsForm(): SettingsForm {
     theme: 'system',
     language: 'en',
     color_theme: 'default',
-    animated_background: 'true',
     default_permission_mode: 'default',
     default_effort: '',
     default_style: '',
@@ -140,20 +137,6 @@ export function createSettingsForm(): SettingsForm {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(persistChanges, 400)
   }, { deep: true })
-
-  // Settings → Features also writes `animated_background` (prop
-  // `app.animated_background`): follow it here, in the copy auto-save diffs
-  // against too, so the General select neither goes stale nor writes it back.
-  const features = useFeaturesStore()
-  watch(() => features.tree, (tree) => {
-    const prop = tree.find((m) => m.module === 'app')?.props.find((p) => p.id === 'app.animated_background')
-    if (!prop || !lastSaved) return
-    const value = String(prop.stored ?? prop.default)
-    if (lastSaved.animated_background === value) return
-    settings.value.animated_background = value
-    lastSaved.animated_background = value
-    appSettings.refresh().catch(() => {})
-  })
 
   // Deleting the default response style empties `default_style` in the backend
   // (UX-36), and the styles store refreshes the shared settings: follow it the

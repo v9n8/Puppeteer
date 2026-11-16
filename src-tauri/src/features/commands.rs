@@ -37,9 +37,8 @@ async fn set(db: &Db, id: &str, enabled: bool) -> Result<(Vec<ModuleState>, Vec<
 }
 
 /// Run `write`, an older switch's own command writing a key the registry owns
-/// (`inbox_api_enabled`, `mcp_builtin_puppeteer_enabled`,
-/// `animated_background`); returns the trees before and after when the write
-/// changed them.
+/// (`inbox_api_enabled`, `mcp_builtin_puppeteer_enabled`); returns the trees
+/// before and after when the write changed them.
 async fn tracked<F>(db: &Db, write: F) -> Result<Option<(Vec<ModuleState>, Vec<ModuleState>)>, String>
 where
     F: Future<Output = Result<(), String>>,
@@ -164,15 +163,15 @@ mod tests {
         assert_eq!(value(&db, "feature.integrations.inbox_api").await, None);
         assert!(effective(&after, "integrations.inbox_api"));
 
-        set(&db, "app.animated_background", false).await.unwrap();
-        assert_eq!(value(&db, "animated_background").await.as_deref(), Some("false"));
+        set(&db, "library.builtin_mcp_puppeteer", false).await.unwrap();
+        assert_eq!(value(&db, "mcp_builtin_puppeteer_enabled").await.as_deref(), Some("false"));
+        assert_eq!(value(&db, "feature.library.builtin_mcp_puppeteer").await, None);
     }
 
     #[tokio::test]
     async fn older_switches_report_a_change_only_when_the_tree_moves() {
         let db = db().await;
         for (key, id) in [
-            ("animated_background", "app.animated_background"),
             ("mcp_builtin_puppeteer_enabled", "library.builtin_mcp_puppeteer"),
         ] {
             let (before, after) = tracked(&db, set_setting(&db, key, "false")).await.unwrap().unwrap();
@@ -194,7 +193,7 @@ mod tests {
             ("feature.productivity.todos", "true"),
             ("feature.productivity", "false"),
             ("inbox_api_enabled", "true"),
-            ("animated_background", "false"),
+            ("mcp_builtin_puppeteer_enabled", "false"),
             ("theme", "dark"),
         ] {
             set_setting(&db, key, value).await.unwrap();
@@ -216,7 +215,7 @@ mod tests {
         assert_eq!(value(&db, "feature.productivity").await.as_deref(), Some("true"));
         assert_eq!(value(&db, "feature.productivity.todos").await.as_deref(), Some("false"));
         assert_eq!(value(&db, "inbox_api_enabled").await.as_deref(), Some("false"));
-        assert_eq!(value(&db, "animated_background").await.as_deref(), Some("true"));
+        assert_eq!(value(&db, "mcp_builtin_puppeteer_enabled").await.as_deref(), Some("true"));
         assert_eq!(value(&db, "theme").await.as_deref(), Some("dark"), "other settings untouched");
         assert_eq!(value(&db, "feature.sessions").await, None, "locked entries are not written");
     }
