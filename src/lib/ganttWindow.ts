@@ -8,7 +8,7 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
-import { centerOnCurrentMonitor } from '@/lib/windowCascade'
+import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
 
@@ -36,16 +36,16 @@ export async function openGanttWindow(projectId?: string): Promise<WebviewWindow
   const win = new WebviewWindow(popoutLabel(GANTT_WINDOW_LABEL), {
     url: popoutUrl(`index.html?ganttWindow=1${query}`),
     title: 'Gantt — Puppeteer',
-    width: 1200,
-    height: 760,
     minWidth: 720,
     minHeight: 480,
-    // Open on the monitor the user is working on, not the primary screen.
-    ...(await centerOnCurrentMonitor(1200, 760)),
+    // Where it was last left; the first time 1200 × 760 centred on the monitor the
+    // user is working on, not the primary screen.
+    ...(await placementOptions('gantt', { width: 1200, height: 760, minWidth: 720, minHeight: 480 })),
   })
   win.once('tauri://error', (e) => {
     console.error('[ganttWindow] failed to open window', e)
   })
   trackWindowForTray(win)
+  trackWindowBounds(win, 'gantt')
   return win
 }

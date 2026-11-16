@@ -15,6 +15,7 @@ import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { EVT_TRASH_CHANGED } from '@/lib/trash'
 import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
 import { CALENDAR_WINDOW_OPEN_ROUTE, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
+import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute } from '@/lib/detachedScreens'
 import {
   SLACK_API_RECEIVED,
   type SlackApiReceived,
@@ -79,6 +80,8 @@ export function useMainWindowEvents() {
   // Listener for the PR Inbox window asking to navigate (e.g. "Add to puppeteer").
   let unlistenPrInboxRoute: UnlistenFn | null = null
   let unlistenCalendarRoute: UnlistenFn | null = null
+  // Listener for a detachable screen's own window asking for its screen here ("Move back to main window").
+  let unlistenScreenRoute: UnlistenFn | null = null
 
   // Listeners for the Slack / Notes / Todos windows opening a linked session or
   // starting a new one (lib/sessionLinks).
@@ -179,6 +182,8 @@ export function useMainWindowEvents() {
     unlistenPrInboxRoute = null
     unlistenCalendarRoute?.()
     unlistenCalendarRoute = null
+    unlistenScreenRoute?.()
+    unlistenScreenRoute = null
     unlistenWindowRun?.()
     unlistenWindowRun = null
     unlistenWindowNewSession?.()
@@ -307,6 +312,15 @@ export function useMainWindowEvents() {
     // Same for the Calendar window (e.g. "Reconnect" → the Settings screen).
     try {
       unlistenCalendarRoute = await listen<CalendarWindowOpenRoute>(CALENDAR_WINDOW_OPEN_ROUTE, (e) => {
+        void openRouteFromWindow(e.payload?.path)
+      })
+    } catch {
+      // Ignore (e.g. running outside the Tauri shell during dev in a browser).
+    }
+
+    // Any detachable screen's own window (lib/detachedScreens), e.g. "Move back to main window".
+    try {
+      unlistenScreenRoute = await listen<ScreenOpenRoute>(SCREEN_OPEN_ROUTE, (e) => {
         void openRouteFromWindow(e.payload?.path)
       })
     } catch {

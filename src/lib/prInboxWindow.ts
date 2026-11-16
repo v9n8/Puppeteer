@@ -4,7 +4,7 @@
 // opening it again focuses it. Mirrors lib/slackWindow.ts.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { trackWindowForTray } from '@/lib/tray'
-import { centerOnCurrentMonitor } from '@/lib/windowCascade'
+import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
 
@@ -68,20 +68,18 @@ export async function openPrInboxWindow(): Promise<WebviewWindow | null> {
 }
 
 async function createPrInboxWindow(): Promise<WebviewWindow> {
-  const width = 1100
-  const height = 780
   const win = new WebviewWindow(popoutLabel(PR_INBOX_WINDOW_LABEL), {
     url: popoutUrl('index.html?prInboxWindow=1'),
     title: 'PR Inbox — Puppeteer',
-    width,
-    height,
     minWidth: 720,
     minHeight: 480,
-    ...(await centerOnCurrentMonitor(width, height)),
+    // Where it was last left; the first time 1100 × 780 centred on the current monitor.
+    ...(await placementOptions('pr-inbox', { width: 1100, height: 780, minWidth: 720, minHeight: 480 })),
   })
   win.once('tauri://error', (e) => {
     console.error('[prInboxWindow] failed to open window', e)
   })
   trackWindowForTray(win)
+  trackWindowBounds(win, 'pr-inbox')
   return win
 }

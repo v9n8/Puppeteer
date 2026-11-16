@@ -15,5 +15,19 @@
   "about": "About",
   "opensInWindow": "opens in a separate window",
   "processes": "Processes",
-  "trash": "Trash"
+  "trash": "Trash",
+  "detachWindow": "Open in new window",
+  "detachWindowTip": "Open {screen} in its own window",
+  "mergeBack": "Move back to main window",
+  "screenNames": {
+    "tasks": "Todos",
+    "notes": "Notes",
+    "slack": "Slack Threads",
+    "calendar": "Calendar",
+    "gantt": "Gantt",
+    "prInbox": "PR Reviews",
+    "secretNotes": "Secret notes",
+    "settings": "Settings",
+    "fileTransfer": "File Transfer"
+  }
 }

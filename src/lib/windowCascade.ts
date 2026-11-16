@@ -18,7 +18,7 @@ const BASE_X = 160
 const BASE_Y = 120
 
 /** Logical bounds of the monitor the current window is on, or null if unknown. */
-async function currentMonitorBounds(): Promise<{
+export async function currentMonitorBounds(): Promise<{
   x: number
   y: number
   width: number

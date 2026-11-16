@@ -15,5 +15,19 @@
   "about": "Giới thiệu",
   "opensInWindow": "mở trong cửa sổ riêng",
   "processes": "Tiến trình",
-  "trash": "Thùng rác"
+  "trash": "Thùng rác",
+  "detachWindow": "Tách cửa sổ",
+  "detachWindowTip": "Tách cửa sổ: mở {screen} ở cửa sổ riêng",
+  "mergeBack": "Gộp về cửa sổ chính",
+  "screenNames": {
+    "tasks": "Việc cần làm",
+    "notes": "Ghi chú",
+    "slack": "Thread Slack",
+    "calendar": "Lịch",
+    "gantt": "Gantt",
+    "prInbox": "Duyệt PR",
+    "secretNotes": "Ghi chú bí mật",
+    "settings": "Cài đặt",
+    "fileTransfer": "Truyền tệp"
+  }
 }

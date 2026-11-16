@@ -5,7 +5,7 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit, once, type UnlistenFn } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
-import { centerOnCurrentMonitor } from '@/lib/windowCascade'
+import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import type { CalEvent } from '@/stores/googleCalendar'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
@@ -98,20 +98,18 @@ async function createCalendarWindow(): Promise<WebviewWindow> {
     if (ev) void emit(CALENDAR_WINDOW_OPEN_EVENT, ev).catch(() => {})
   })
 
-  const width = 1200
-  const height = 820
   const win = new WebviewWindow(popoutLabel(CALENDAR_WINDOW_LABEL), {
     url: popoutUrl('index.html?calendarWindow=1'),
     title: 'Calendar — Puppeteer',
-    width,
-    height,
     minWidth: 760,
     minHeight: 520,
-    ...(await centerOnCurrentMonitor(width, height)),
+    // Where it was last left; the first time 1200 × 820 centred on the current monitor.
+    ...(await placementOptions('calendar', { width: 1200, height: 820, minWidth: 760, minHeight: 520 })),
   })
   win.once('tauri://error', (e) => {
     console.error('[calendarWindow] failed to open window', e)
   })
   trackWindowForTray(win)
+  trackWindowBounds(win, 'calendar')
   return win
 }
