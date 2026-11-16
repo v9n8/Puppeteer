@@ -78,9 +78,12 @@ function os(role: string, labelKey: string): ItemSpec {
 
 const SEPARATOR: ItemSpec = { kind: 'separator' }
 
-// Both live in the macOS app menu (and Help / File elsewhere), so the Go menu
-// leaves them out rather than listing them twice.
-const GO_MENU_EXCLUDED = new Set(['/settings', '/about'])
+// Settings lives in the macOS app menu (and File elsewhere), so the Go menu
+// leaves it out rather than listing it twice.
+const GO_MENU_EXCLUDED = new Set(['/settings'])
+
+/** Puppeteer › About (Help › About elsewhere): opens Settings › About (App.vue binds it). */
+export const ABOUT_ACTION = 'app.about'
 
 // False while the feature the action opens is switched off.
 function actionAllowed(id: string): boolean {
@@ -108,7 +111,7 @@ function buildSpec(state: MenuState): MenuSpec {
   const submenus: MenuSpec['submenus'] = []
   // ⌘, by default (lib/keymap): a platform convention for Settings.
   const settings: ItemSpec = { kind: 'item', id: 'go./settings', label: t('menu.settings') }
-  const about: ItemSpec = { kind: 'item', id: 'go./about', label: t('menu.about') }
+  const about: ItemSpec = { kind: 'item', id: ABOUT_ACTION, label: t('menu.about') }
 
   // macOS puts app-level items (about / settings / services / hide / quit) in a
   // first submenu named after the app. On Windows/Linux that submenu doesn't

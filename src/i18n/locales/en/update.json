@@ -6,5 +6,14 @@
   "confirmTitle": "Update to Puppeteer {version}?",
   "confirmMessage": "The update is downloaded and installed now. It takes effect the next time you open Puppeteer; running sessions keep going until then.",
   "installed": "Puppeteer {version} is installed. Quit and reopen Puppeteer to use it.",
-  "failed": "Could not update: {error}"
+  "failed": "Could not update: {error}",
+  "card": {
+    "disabled": "Turned off in Settings › Features",
+    "unsupported": "This build can't update itself",
+    "checking": "Checking…",
+    "idle": "Checks by itself every 12 hours.",
+    "idleLast": "Checks by itself every 12 hours · last at {time}.",
+    "upToDate": "You have the latest version · checked at {time}.",
+    "error": "Couldn't check: {error}."
+  }
 }

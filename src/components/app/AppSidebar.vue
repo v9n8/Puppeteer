@@ -194,7 +194,15 @@ function badgeTip(id: string): string | undefined {
         class="flex items-center border-t border-border/50"
         :class="rail ? 'justify-center py-3' : 'justify-between gap-2 px-4 py-3'"
       >
-        <p v-if="appVersion && !rail" class="text-2xs text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
+        <button
+          v-if="appVersion && !rail"
+          type="button"
+          class="-mx-1.5 h-7 rounded-md px-1.5 text-2xs text-muted-foreground/70 font-mono hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :title="t('about.openHint')"
+          @click="router.push('/settings/about').catch(() => {})"
+        >
+          v{{ appVersion }}
+        </button>
         <!-- This machine's Remote Control dot, or (remote-desktop window) the
              link to the controlled Puppeteer; each hides itself elsewhere. -->
         <RemoteIndicator :compact="rail" />

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // App-wide toast stack. Mount once in App.vue; content is driven by useToast.
 import { useToast, type ToastAction, type ToastVariant } from '@/composables/useToast'
-import { CheckCircle2, XCircle, Info } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
+import { CheckCircle2, XCircle, Info, X } from 'lucide-vue-next'
 
+const { t: tr } = useI18n()
 const { state, dismiss } = useToast()
 
 function runAction(id: number, action: ToastAction) {
@@ -50,6 +52,16 @@ const TONES: Record<ToastVariant, string> = {
             @click.stop="runAction(t.id, t.action)"
           >
             {{ t.action.label }}
+          </button>
+          <button
+            v-if="t.action"
+            type="button"
+            class="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="tr('common.close')"
+            :title="tr('common.close')"
+            @click.stop="dismiss(t.id)"
+          >
+            <X class="h-3.5 w-3.5" :stroke-width="2" />
           </button>
         </div>
       </TransitionGroup>

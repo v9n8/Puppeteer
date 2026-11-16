@@ -6,5 +6,14 @@
   "confirmTitle": "Cập nhật lên Puppeteer {version}?",
   "confirmMessage": "Bản cập nhật sẽ được tải và cài ngay bây giờ. Bản mới chạy từ lần mở Puppeteer tiếp theo; các Session đang chạy vẫn tiếp tục cho tới lúc đó.",
   "installed": "Đã cài Puppeteer {version}. Thoát và mở lại Puppeteer để dùng bản mới.",
-  "failed": "Không cập nhật được: {error}"
+  "failed": "Không cập nhật được: {error}",
+  "card": {
+    "disabled": "Đã tắt ở Cài đặt › Tính năng",
+    "unsupported": "Bản này không tự cập nhật được",
+    "checking": "Đang kiểm tra…",
+    "idle": "Tự kiểm tra 12 giờ một lần.",
+    "idleLast": "Tự kiểm tra 12 giờ một lần · lần cuối {time}.",
+    "upToDate": "Đã là bản mới nhất · kiểm tra lúc {time}.",
+    "error": "Không kiểm tra được: {error}."
+  }
 }

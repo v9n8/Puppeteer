@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/whatsNew.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { RELEASES, compareVersions, noteText, whatsNewAtLaunch } from '../whatsNew.ts'
+import { RELEASES, compareVersions, kindCounts, noteText, whatsNewAtLaunch } from '../whatsNew.ts'
 
 const rel = (version) => ({ version, date: '2026-11-08', items: [{ kind: 'added', en: `en ${version}`, vi: `vi ${version}` }] })
 const versions = (r) => r.notes.map((n) => n.version)
@@ -66,15 +66,31 @@ test('noteText picks the UI language, English otherwise', () => {
   assert.equal(noteText(note, 'ja'), 'Fixed')
 })
 
+// Only the newest entry may have no version yet (the release is not cut).
 test('bundled notes: valid versions, newest first, both languages', () => {
   for (const [i, r] of RELEASES.entries()) {
-    assert.notEqual(compareVersions(r.version, '0.0.0'), null, r.version)
+    if (!(i === 0 && r.version === '')) assert.notEqual(compareVersions(r.version, '0.0.0'), null, r.version)
     assert.match(r.date, /^\d{4}-\d{2}-\d{2}$/, r.version)
     assert.ok(r.items.length, r.version)
     for (const item of r.items) {
       assert.ok(['added', 'improved', 'changed', 'fixed'].includes(item.kind), r.version)
       assert.ok(item.en.trim() && item.vi.trim(), r.version)
     }
-    if (i > 0) assert.equal(compareVersions(RELEASES[i - 1].version, r.version), 1, r.version)
+    if (i > 1 || (i === 1 && RELEASES[0].version !== '')) assert.equal(compareVersions(RELEASES[i - 1].version, r.version), 1, r.version)
   }
+})
+
+test('an entry without a version never reaches the launch toast', () => {
+  const r = whatsNewAtLaunch('0.2.0', '0.1.0', [{ ...rel('0.2.0'), version: '' }, rel('0.2.0')])
+  assert.deepEqual(versions(r), ['0.2.0'])
+  assert.equal(r.notes[0].version, '0.2.0')
+})
+
+test('kindCounts: only the kinds present, in summary order', () => {
+  const release = { version: '1.0.0', date: '2026-11-08', items: ['fixed', 'added', 'added', 'changed'].map((kind) => ({ kind, en: 'x', vi: 'x' })) }
+  assert.deepEqual(kindCounts(release), [
+    { kind: 'added', count: 2 },
+    { kind: 'changed', count: 1 },
+    { kind: 'fixed', count: 1 },
+  ])
 })

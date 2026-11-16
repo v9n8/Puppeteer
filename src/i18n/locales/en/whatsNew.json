@@ -1,10 +1,16 @@
 {
-  "title": "What's new in Puppeteer {version}",
-  "close": "Got it",
   "kind": {
     "added": "New",
     "improved": "Improved",
     "changed": "Changed",
     "fixed": "Fixed"
+  },
+  "toast": "Updated to Puppeteer {version}",
+  "open": "See what's new",
+  "count": {
+    "added": "{n} new",
+    "improved": "{n} improved",
+    "changed": "{n} changed",
+    "fixed": "{n} fixed"
   }
 }

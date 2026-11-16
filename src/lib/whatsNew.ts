@@ -1,7 +1,8 @@
-// "What's new" popup (`app.whats_new`, components/WhatsNewModal.vue): the release
-// notes bundled with the app and the pure decision of what to show at launch
-// (tested in __tests__/whatsNew.test.mjs). Notes ship with the build, never
-// fetched, so the popup works offline and opens no network path.
+// "What's new" (`app.whats_new`): the release notes bundled with the app and the
+// pure decision of what to show at launch (tested in __tests__/whatsNew.test.mjs).
+// A launch after an upgrade shows one toast (components/WhatsNewToast.vue); the
+// notes themselves are the "What's new" card of Settings › About. Notes ship with
+// the build, never fetched, so this works offline and opens no network path.
 
 /** Settings row holding the newest version whose notes were offered. Not in a backup. */
 export const SEEN_SETTING_KEY = 'whats_new_seen_version'
@@ -15,7 +16,11 @@ export interface ReleaseNote {
 }
 
 export interface Release {
-  /** Same string as `version` in tauri.conf.json (no leading `v`). */
+  /**
+   * Same string as `version` in tauri.conf.json (no leading `v`). Empty while the
+   * release is not cut: the card shows it as the next release and the launch
+   * toast never does. Fill it in the commit that bumps the version.
+   */
   version: string
   /** `YYYY-MM-DD`. */
   date: string
@@ -24,9 +29,55 @@ export interface Release {
 
 /**
  * Notes per release, newest first. Add the entry in the commit that bumps the
- * version: a release without one shows no popup.
+ * version: a release without one shows no toast. Older releases are not written
+ * back (QĐ-11).
  */
-export const RELEASES: Release[] = []
+export const RELEASES: Release[] = [
+  {
+    version: '',
+    date: '2026-11-16',
+    items: [
+      {
+        kind: 'changed',
+        en: 'Settings is a screen with a page for each section, in four groups: General, AI, Connections and System.',
+        vi: 'Cài đặt là một màn với trang riêng cho từng mục, chia bốn nhóm: Chung, AI, Kết nối và Hệ thống.',
+      },
+      {
+        kind: 'changed',
+        en: 'The sidebar has three groups (Work, My work, Agent), with Stats, Trash and Settings at the bottom.',
+        vi: 'Thanh bên có ba nhóm (Làm việc, Việc của tôi, Agent), với Thống kê, Thùng rác và Cài đặt ở chân.',
+      },
+      {
+        kind: 'added',
+        en: 'A command box in the title bar, and Cmd/Ctrl+Shift+F to search across all sessions.',
+        vi: 'Ô lệnh trên thanh tiêu đề, và Cmd/Ctrl+Shift+F để tìm trong mọi Session.',
+      },
+      {
+        kind: 'added',
+        en: 'Settings › Flag manages the flags your sessions share in one place.',
+        vi: 'Cài đặt › Flag quản lý các flag dùng chung của Session ở một chỗ.',
+      },
+      {
+        kind: 'improved',
+        en: 'Files open as tabs of their Session instead of new windows.',
+        vi: 'Tệp mở thành tab trong Session thay vì cửa sổ mới.',
+      },
+      {
+        kind: 'added',
+        en: 'Settings › About shows the version, checks for updates on demand and lists what is new. Click the version in the sidebar to open it.',
+        vi: 'Cài đặt › Giới thiệu hiện số version, cho kiểm tra cập nhật khi cần và liệt kê điều mới. Bấm số version ở thanh bên để mở.',
+      },
+    ],
+  },
+]
+
+/** How many notes of each kind a release has, in the order of the card's summary. */
+export function kindCounts(release: Release): { kind: ChangeKind; count: number }[] {
+  const order: ChangeKind[] = ['added', 'improved', 'changed', 'fixed']
+  return order
+    .map((kind) => ({ kind, count: release.items.filter((i) => i.kind === kind).length }))
+    .filter((c) => c.count > 0)
+}
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
 

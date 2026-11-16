@@ -1,5 +1,14 @@
 {
-  "title": "Giới thiệu",
   "tagline": "AI coding agent cho lập trình viên",
-  "description": "Quản lý tập trung các AI Skill và tự động phân tích issue, pull request trên GitHub bằng claude hoặc codex — tất cả trong một ứng dụng desktop."
+  "description": "Quản lý tập trung các AI Skill và tự động phân tích issue, pull request trên GitHub bằng claude hoặc codex — tất cả trong một ứng dụng desktop.",
+  "updates": "Cập nhật",
+  "check": "Kiểm tra cập nhật",
+  "checking": "Đang kiểm tra…",
+  "retry": "Thử lại",
+  "whatsNew": "Có gì mới",
+  "noNotes": "Chưa có ghi chú cho bản nào.",
+  "release": "Puppeteer {version}",
+  "nextRelease": "Bản sắp phát hành",
+  "current": "Đang dùng",
+  "openHint": "Giới thiệu và Có gì mới"
 }

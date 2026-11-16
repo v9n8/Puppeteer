@@ -1,10 +1,16 @@
 {
-  "title": "Có gì mới trong Puppeteer {version}",
-  "close": "Đã hiểu",
   "kind": {
     "added": "Mới",
     "improved": "Cải thiện",
     "changed": "Thay đổi",
     "fixed": "Đã sửa"
+  },
+  "toast": "Đã lên Puppeteer {version}",
+  "open": "Xem có gì mới",
+  "count": {
+    "added": "{n} mới",
+    "improved": "{n} cải thiện",
+    "changed": "{n} thay đổi",
+    "fixed": "{n} đã sửa"
   }
 }

@@ -20,7 +20,6 @@ import CalendarView from '../views/CalendarView.vue'
 import FileTransferView from '../views/FileTransferView.vue'
 import FocusView from '../views/FocusView.vue'
 import SecretNotesView from '../views/SecretNotesView.vue'
-import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
 import SchedulesView from '../views/SchedulesView.vue'
@@ -185,7 +184,8 @@ const router = createRouter({
     // Secret notes: a screen here once the user merged it back (secretNotesGuard).
     { path: SECRET_NOTES_PATH, name: 'secret-notes', component: SecretNotesView, beforeEnter: secretNotesGuard },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
-    { path: '/about', name: 'about', component: AboutView },
+    // Settings › About replaced the About screen; old links land there.
+    { path: '/about', redirect: '/settings/about' },
   ],
 })
 

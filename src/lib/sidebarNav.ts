@@ -19,7 +19,7 @@ const ORDER: readonly string[] = [
   '/session', '/projects', '/processes', '/schedules',
   '/focus', 'todos', 'notes', '/calendar', '/gantt', '/pr-inbox', 'slack', 'secret-notes',
   '/library', '/mcp', '/servers',
-  '/stats', '/trash', '/settings', '/about',
+  '/stats', '/trash', '/settings',
 ]
 
 export interface SidebarSource {

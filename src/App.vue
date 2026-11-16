@@ -16,7 +16,7 @@ import InterruptedRunsBanner from '@/components/InterruptedRunsBanner.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
 import CalendarReminder from '@/components/CalendarReminder.vue'
 import UpdateNotifier from '@/components/UpdateNotifier.vue'
-import WhatsNewModal from '@/components/WhatsNewModal.vue'
+import WhatsNewToast from '@/components/WhatsNewToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -40,7 +40,7 @@ import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotes } from '@/lib/secretNotesWindow'
 import {
-  IS_MAC, applyAppMenu, hasNativeMenu, isMenuActionBound, listenMenuActions, menuAccelerator,
+  ABOUT_ACTION, IS_MAC, applyAppMenu, hasNativeMenu, isMenuActionBound, listenMenuActions, menuAccelerator,
   registerMenuAction, runMenuAction,
 } from '@/lib/appMenu'
 import {
@@ -320,6 +320,7 @@ function bindGlobalMenuActions() {
       openSlackWindow({ projectId: routeCaptureContext().projectId }),
     ),
     registerMenuAction(OPEN_WINDOWS_ACTION, () => void openOverlayOnFocusedWindow()),
+    registerMenuAction(ABOUT_ACTION, () => void router.push('/settings/about').catch(() => {})),
     registerMenuAction('view.toggleSidebar', () => uiLayout.toggleSidebar()),
     registerMenuAction('view.toggleFocus', () => uiLayout.toggleFocus()),
     // Windows/Linux only — macOS uses the OS full-screen item (see appMenu.ts).
@@ -572,7 +573,7 @@ onMounted(async () => {
 
     <!-- Notes of THIS app's new version, once; a remote-desktop window runs
          another machine's version. -->
-    <WhatsNewModal v-if="features.isOn('app.whats_new') && !isRemoteMode()" />
+    <WhatsNewToast v-if="features.isOn('app.whats_new') && !isRemoteMode()" />
 
     <!-- ⌘K / Ctrl+K. Main window only: pop-outs (the Secret vault among them)
          and session windows have none. -->

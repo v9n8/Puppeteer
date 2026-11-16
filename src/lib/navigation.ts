@@ -10,7 +10,6 @@ import {
   Target,
   Cpu,
   Settings,
-  Info,
   Search,
   CalendarClock,
   Library,
@@ -72,5 +71,4 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'agent', feature: 'infra_access.vps' },
   { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'foot', feature: 'usage.stats' },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings, group: 'foot', screen: 'settings' },
-  { path: '/about', labelKey: 'nav.about', icon: Info, group: 'foot' },
 ]

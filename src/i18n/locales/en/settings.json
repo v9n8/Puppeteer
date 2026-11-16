@@ -16,7 +16,8 @@
     "features": "Features",
     "palette": "Command Palette",
     "keymap": "Keyboard Shortcuts",
-    "connections": "Connections"
+    "connections": "Connections",
+    "about": "About"
   },
   "groups": {
     "general": "General",

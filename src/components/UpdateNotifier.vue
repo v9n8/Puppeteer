@@ -1,83 +1,23 @@
 <script setup lang="ts">
-// App update notice (main window, `app.auto_update`). Asks the backend whether a
-// newer release exists at launch and then twice a day; installs only when the
-// user agrees. Unmounted (timer cleared) while the prop is off, and the backend
+// App update notice (main window, `app.auto_update`). Starts the shared update
+// check (composables/useUpdateCheck) at launch and then twice a day, and shows
+// the corner toast when a newer release exists; installs only when the user
+// agrees. Unmounted (timer cleared) while the prop is off, and the backend
 // refuses to check then too.
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Download, X } from 'lucide-vue-next'
-import { invoke } from '@/lib/tauri'
 import { Button } from '@/components/ui'
-import { useConfirm } from '@/composables/useConfirm'
-import { useToast } from '@/composables/useToast'
-
-type UpdateCheck =
-  | { status: 'unsupported' | 'up_to_date' }
-  | { status: 'available'; version: string; current_version: string }
-
-const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 const { t } = useI18n()
-const { confirm } = useConfirm()
-const { toast } = useToast()
+const { toastVersion: available, installing, install, later, startAutoCheck } = useUpdateCheck()
 
-const available = ref<string | null>(null)
-const installing = ref(false)
-// "Later" hides this version until the next launch; a newer one shows again.
-let dismissed: string | null = null
-let timer: number | null = null
-
-async function check() {
-  try {
-    const res = await invoke<UpdateCheck>('check_update')
-    if (res.status === 'unsupported') {
-      if (timer) window.clearInterval(timer)
-      timer = null
-      return
-    }
-    available.value = res.status === 'available' && res.version !== dismissed ? res.version : null
-  } catch (e) {
-    // Offline, or the release has no manifest yet: try again at the next check.
-    console.warn('check_update failed', e)
-  }
-}
-
-function later() {
-  dismissed = available.value
-  available.value = null
-}
-
-async function install() {
-  const version = available.value
-  if (!version || installing.value) return
-  const ok = await confirm({
-    title: t('update.confirmTitle', { version }),
-    message: t('update.confirmMessage'),
-    confirmLabel: t('update.install'),
-    variant: 'primary',
-  })
-  if (!ok) return
-  installing.value = true
-  try {
-    const installed = await invoke<string>('install_update')
-    available.value = null
-    dismissed = installed
-    toast.success(t('update.installed', { version: installed }), 8000)
-  } catch (e) {
-    toast.error(t('update.failed', { error: String(e) }))
-  } finally {
-    installing.value = false
-  }
-}
-
+let stop: (() => void) | null = null
 onMounted(() => {
-  timer = window.setInterval(() => void check(), CHECK_INTERVAL_MS)
-  void check()
+  stop = startAutoCheck()
 })
-
-onBeforeUnmount(() => {
-  if (timer) window.clearInterval(timer)
-})
+onBeforeUnmount(() => stop?.())
 </script>
 
 <template>

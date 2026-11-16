@@ -16,7 +16,8 @@
     "features": "Tính năng",
     "palette": "Lệnh nhanh",
     "keymap": "Phím tắt",
-    "connections": "Kết nối"
+    "connections": "Kết nối",
+    "about": "Giới thiệu"
   },
   "groups": {
     "general": "Chung",

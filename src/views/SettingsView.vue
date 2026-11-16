@@ -27,6 +27,7 @@ import SessionsSettings from '@/components/settings/SessionsSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
+import AboutSettings from '@/components/settings/AboutSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -271,6 +272,11 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <!-- Module → prop switches. Mounted only while shown: it re-reads the tree on open. -->
         <div v-if="!loading && activeSection === 'features'" class="max-w-4xl">
           <FeaturesSettings />
+        </div>
+
+        <!-- Version, updates and release notes. Mounted only while shown, so `?release=` scrolls on open. -->
+        <div v-if="!loading && activeSection === 'about'" class="max-w-4xl">
+          <AboutSettings />
         </div>
 
         <!-- Command palette (⌘K): groups, pins, hidden items. -->
