@@ -2,10 +2,11 @@
   "title": "Trash",
   "hint": "Deleted sessions and projects stay here until you delete them permanently. Nothing is removed from disk before that.",
   "remote": "Deleting permanently is only possible on the machine itself. From a remote desktop you can restore.",
-  "sortBy": "Sort sessions by",
   "sort": {
-    "deleted": "Time deleted",
-    "created": "Time created"
+    "deleted-desc": "Newest deleted first",
+    "deleted-asc": "Oldest deleted first",
+    "created-desc": "Newest created first",
+    "created-asc": "Oldest created first"
   },
   "refresh": "Refresh",
   "emptyTrash": "Empty trash",
@@ -33,7 +34,9 @@
     "purgeGroupMessage": "Delete the sessions of \"{name}\" in the Trash permanently? {count} session will be lost, with its log and transcript. This cannot be undone. | Delete the sessions of \"{name}\" in the Trash permanently? {count} sessions will be lost, with their logs and transcripts. This cannot be undone.",
     "emptyMessage": "Delete everything in the Trash permanently? {sessions} and {projects} will be lost. This cannot be undone.",
     "restoreWithProjectTitle": "Restore project too",
-    "restoreWithProjectMessage": "Project \"{name}\" is in the Trash too. Restoring this session restores the project as well, with its sessions that were not deleted on their own."
+    "restoreWithProjectMessage": "Project \"{name}\" is in the Trash too. Restoring this session restores the project as well, with its sessions that were not deleted on their own.",
+    "purgeMatchedMessage": "Delete {count} session matching “{query}” in \"{name}\" permanently? {remaining} other sessions of the project stay in the Trash. This cannot be undone. | Delete {count} sessions matching “{query}” in \"{name}\" permanently? {remaining} other sessions of the project stay in the Trash. This cannot be undone.",
+    "restoreMatchedMessage": "Project \"{name}\" is in the Trash too. Restoring {count} matching session restores the project as well, with {others} other sessions that are in the Trash only because of the project. | Project \"{name}\" is in the Trash too. Restoring {count} matching sessions restores the project as well, with {others} other sessions that are in the Trash only because of the project."
   },
   "toast": {
     "restored": "Session restored",
@@ -43,5 +46,20 @@
     "purged": "Deleted permanently",
     "purgedWithLeftovers": "Deleted permanently, but {count} transcript file(s) could not be removed:\n{paths}",
     "emptied": "Trash emptied"
+  },
+  "sortLabel": "Sort: {sort}",
+  "restoreMatched": "Restore {count} matching session | Restore {count} matching sessions",
+  "purgeMatched": "Delete {count} matching session permanently | Delete {count} matching sessions permanently",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "workersTitle": "Click to see the workers",
+  "withConductor": "goes with the conductor",
+  "unlistedWorkers": "+{count} worker not in the Trash is also deleted on permanent delete | +{count} workers not in the Trash are also deleted on permanent delete",
+  "search": {
+    "placeholder": "Search by session or project name…",
+    "found": "{sessions} matching “{query}” in {projects}.",
+    "hint": "Searches session and project names; blocks with results open by themselves. A block's buttons only act on the matching sessions.",
+    "none": "No session or project matches “{query}”",
+    "scope": "Searches session and project names only."
   }
 }

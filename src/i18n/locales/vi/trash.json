@@ -2,10 +2,11 @@
   "title": "Thùng rác",
   "hint": "Session và Project đã xóa nằm ở đây cho tới khi bạn xóa vĩnh viễn. Trước lúc đó, chưa có gì bị xóa khỏi ổ đĩa.",
   "remote": "Chỉ xóa vĩnh viễn được ngay trên máy đó. Từ remote desktop, bạn chỉ khôi phục được.",
-  "sortBy": "Sắp xếp Session theo",
   "sort": {
-    "deleted": "Thời điểm xóa",
-    "created": "Thời điểm tạo"
+    "deleted-desc": "Mới xóa trước",
+    "deleted-asc": "Cũ xóa trước",
+    "created-desc": "Mới tạo trước",
+    "created-asc": "Cũ tạo trước"
   },
   "refresh": "Làm mới",
   "emptyTrash": "Dọn sạch thùng rác",
@@ -33,7 +34,9 @@
     "purgeGroupMessage": "Xóa vĩnh viễn các Session của \"{name}\" trong Thùng rác? Sẽ mất {count} Session, cùng log và transcript. Không hoàn tác được. | Xóa vĩnh viễn các Session của \"{name}\" trong Thùng rác? Sẽ mất {count} Session, cùng log và transcript. Không hoàn tác được.",
     "emptyMessage": "Xóa vĩnh viễn mọi thứ trong Thùng rác? Sẽ mất {sessions} và {projects}. Không hoàn tác được.",
     "restoreWithProjectTitle": "Khôi phục luôn Project",
-    "restoreWithProjectMessage": "Project \"{name}\" cũng đang trong Thùng rác. Khôi phục Session này sẽ khôi phục luôn Project, kèm các Session của nó chưa bị xóa riêng."
+    "restoreWithProjectMessage": "Project \"{name}\" cũng đang trong Thùng rác. Khôi phục Session này sẽ khôi phục luôn Project, kèm các Session của nó chưa bị xóa riêng.",
+    "purgeMatchedMessage": "Xóa vĩnh viễn {count} Session khớp “{query}” trong \"{name}\"? {remaining} Session khác của Project vẫn ở Thùng rác. Không hoàn tác được. | Xóa vĩnh viễn {count} Session khớp “{query}” trong \"{name}\"? {remaining} Session khác của Project vẫn ở Thùng rác. Không hoàn tác được.",
+    "restoreMatchedMessage": "Project \"{name}\" cũng đang trong Thùng rác. Khôi phục {count} Session khớp sẽ khôi phục luôn Project, cùng {others} Session khác chỉ nằm trong Thùng rác vì Project. | Project \"{name}\" cũng đang trong Thùng rác. Khôi phục {count} Session khớp sẽ khôi phục luôn Project, cùng {others} Session khác chỉ nằm trong Thùng rác vì Project."
   },
   "toast": {
     "restored": "Đã khôi phục Session",
@@ -43,5 +46,20 @@
     "purged": "Đã xóa vĩnh viễn",
     "purgedWithLeftovers": "Đã xóa vĩnh viễn, nhưng không xóa được {count} file transcript:\n{paths}",
     "emptied": "Đã dọn sạch thùng rác"
+  },
+  "sortLabel": "Sắp xếp: {sort}",
+  "restoreMatched": "Khôi phục {count} Session khớp | Khôi phục {count} Session khớp",
+  "purgeMatched": "Xóa vĩnh viễn {count} Session khớp | Xóa vĩnh viễn {count} Session khớp",
+  "collapse": "Thu gọn",
+  "expand": "Mở",
+  "workersTitle": "Bấm để xem worker",
+  "withConductor": "đi cùng conductor",
+  "unlistedWorkers": "+{count} worker không ở Thùng rác cũng bị xóa khi xóa vĩnh viễn | +{count} worker không ở Thùng rác cũng bị xóa khi xóa vĩnh viễn",
+  "search": {
+    "placeholder": "Tìm theo tên Session, Project…",
+    "found": "{sessions} khớp “{query}” trong {projects}.",
+    "hint": "Tìm theo tên Session và tên Project; khối có kết quả tự mở. Nút của khối chỉ áp cho Session khớp.",
+    "none": "Không có Session hay Project nào khớp “{query}”",
+    "scope": "Chỉ tìm theo tên Session và tên Project."
   }
 }

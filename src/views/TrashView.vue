@@ -3,24 +3,27 @@
 // project (lib/trash). Restore brings them back; a permanent delete (purge)
 // removes logs, transcripts and links for good. Purging is local-only, so a
 // remote desktop sees restore buttons only.
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { ArchiveRestore, FolderX, RotateCw, Trash2 } from 'lucide-vue-next'
-import { Badge, Banner, Button, PageHeader, SegmentedControl } from '@/components/ui'
+import { RotateCw, Trash2 } from 'lucide-vue-next'
+import { Banner, Button, PageHeader } from '@/components/ui'
+import TrashGroupCard from '@/components/trash/TrashGroupCard.vue'
+import TrashToolbar from '@/components/trash/TrashToolbar.vue'
 import { invoke } from '@/lib/tauri'
 import { isRemoteMode } from '@/lib/ipc/remote'
-import { formatRunTimestamp, runStatusColorClass, runStatusIcon, shortModelId } from '@/lib/runDisplay'
 import {
   CMD_LIST_TRASH,
   EVT_TRASH_CHANGED,
-  TRASH_SORTS,
+  filterTrash,
+  groupActionTargets,
   groupTrash,
+  initialOpenGroups,
   parseTrashSort,
   sessionsLost,
   trashTotals,
-  type TrashGroup,
+  type TrashEntry,
   type TrashListing,
   type TrashRun,
   type TrashSession,
@@ -49,7 +52,7 @@ function loadSort(): TrashSort {
   try {
     return parseTrashSort(localStorage.getItem(SORT_KEY))
   } catch {
-    return 'deleted'
+    return 'deleted-desc'
   }
 }
 const sort = ref<TrashSort>(loadSort())
@@ -61,10 +64,48 @@ function setSort(value: TrashSort) {
     /* storage unavailable: the choice lasts for this view only */
   }
 }
-const sortOptions = computed(() => TRASH_SORTS.map((value) => ({ value, label: t(`trash.sort.${value}`) })))
 
 const groups = computed(() => groupTrash(listing.value, sort.value))
 const totals = computed(() => trashTotals(groups.value))
+
+const query = ref('')
+const searching = computed(() => query.value.trim() !== '')
+const entries = computed(() => filterTrash(groups.value, query.value, runLabel))
+const matchedSessions = computed(() => entries.value.reduce((n, e) => n + e.group.sessions.length, 0))
+
+// Which blocks are open is a per-viewer convenience too: by project id, the
+// first block open until the viewer chooses.
+const OPEN_KEY = 'puppeteer.trashOpenGroups'
+function loadOpen(): Record<string, boolean> | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OPEN_KEY) ?? 'null')
+    return raw && typeof raw === 'object' ? raw : null
+  } catch {
+    return null
+  }
+}
+const storedOpen = ref<Record<string, boolean> | null>(loadOpen())
+const openIds = computed(() => initialOpenGroups(groups.value, storedOpen.value))
+/** While searching every block with a result is open; the chevron can still fold one until the text changes. */
+const foldedWhileSearching = ref(new Set<string>())
+watch(query, () => (foldedWhileSearching.value = new Set()))
+function isOpen(id: string): boolean {
+  return searching.value ? !foldedWhileSearching.value.has(id) : openIds.value.has(id)
+}
+function toggleGroup(id: string) {
+  if (searching.value) {
+    const next = new Set(foldedWhileSearching.value)
+    if (!next.delete(id)) next.add(id)
+    foldedWhileSearching.value = next
+    return
+  }
+  storedOpen.value = { ...storedOpen.value, [id]: !openIds.value.has(id) }
+  try {
+    localStorage.setItem(OPEN_KEY, JSON.stringify(storedOpen.value))
+  } catch {
+    /* storage unavailable: the choice lasts for this view only */
+  }
+}
 
 async function load() {
   loading.value = true
@@ -134,7 +175,7 @@ function toastPurged(leftover: string[], done: string) {
   }
 }
 
-function restoreSession(group: TrashGroup, session: TrashSession) {
+function restoreSession(group: TrashEntry['full'], session: TrashSession) {
   void act(async () => {
     if (group.projectTrashed && !(await confirm({
       title: t('trash.confirm.restoreWithProjectTitle'),
@@ -159,31 +200,55 @@ function purgeSession(session: TrashSession) {
   })
 }
 
-function restoreGroup(group: TrashGroup) {
+function restoreGroup(entry: TrashEntry) {
   void act(async () => {
-    if (group.projectTrashed) {
+    const group = entry.full
+    const targets = groupActionTargets(group, entry.matched)
+    if (targets.wholeProject) {
       await invoke('restore_project', { id: group.project.id })
       toast.success(t('trash.toast.projectRestored', { name: group.project.name }))
       return
     }
-    for (const s of group.sessions) await invoke('restore_run', { runId: s.run.id })
-    toast.success(t('trash.toast.groupRestored', { count: group.sessions.length }, group.sessions.length))
+    // Restoring a session of a trashed project restores the project too (restore_run).
+    if (targets.partial && group.projectTrashed && !(await confirm({
+      title: t('trash.confirm.restoreWithProjectTitle'),
+      message: t('trash.confirm.restoreMatchedMessage', {
+        count: targets.sessions.length,
+        name: group.project.name,
+        others: targets.restoredWithProject,
+      }, targets.sessions.length),
+      confirmLabel: t('trash.restore'),
+      variant: 'primary',
+    }))) return
+    for (const s of targets.sessions) await invoke('restore_run', { runId: s.run.id })
+    toast.success(t('trash.toast.groupRestored', { count: targets.sessions.length }, targets.sessions.length))
   })
 }
 
-function purgeGroup(group: TrashGroup) {
+function purgeGroup(entry: TrashEntry) {
   void act(async () => {
-    const count = group.purgeCount
+    const group = entry.full
+    const targets = groupActionTargets(group, entry.matched)
+    const count = targets.purgeCount
+    const name = group.project.name
+    const message = targets.partial
+      ? t('trash.confirm.purgeMatchedMessage', {
+          count: targets.sessions.length,
+          query: query.value.trim(),
+          name,
+          remaining: targets.remaining,
+        }, targets.sessions.length)
+      : group.projectTrashed
+        ? t('trash.confirm.purgeProjectMessage', { name, count }, count)
+        : t('trash.confirm.purgeGroupMessage', { name, count }, count)
     if (!(await confirm({
       title: t('trash.confirm.purgeTitle'),
-      message: group.projectTrashed
-        ? t('trash.confirm.purgeProjectMessage', { name: group.project.name, count }, count)
-        : t('trash.confirm.purgeGroupMessage', { name: group.project.name, count }, count),
+      message,
       confirmLabel: t('trash.purge'),
     }))) return
-    const leftover = group.projectTrashed
+    const leftover = targets.wholeProject
       ? await invoke<string[]>('purge_project', { id: group.project.id })
-      : await purgeRuns(group.sessions.map((s) => s.run.id))
+      : await purgeRuns(targets.sessions.map((s) => s.run.id))
     toastPurged(leftover, t('trash.toast.purged'))
   })
 }
@@ -208,7 +273,7 @@ function emptyTrash() {
   })
 }
 
-function openProject(group: TrashGroup) {
+function openProject(group: TrashEntry['full']) {
   if (!group.projectTrashed) void router.push(`/projects/${group.project.id}`)
 }
 </script>
@@ -217,13 +282,6 @@ function openProject(group: TrashGroup) {
   <div class="flex flex-col h-full">
     <PageHeader :title="t('trash.title')" :count="totals.sessions || null" :count-title="sessionCount(totals.sessions)">
       <template #actions>
-        <SegmentedControl
-          :model-value="sort"
-          :options="sortOptions"
-          :stretch="false"
-          :title="t('trash.sortBy')"
-          @update:model-value="setSort"
-        />
         <Button variant="ghost" size="xs" :disabled="loading" @click="load">
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
           {{ t('trash.refresh') }}
@@ -234,6 +292,7 @@ function openProject(group: TrashGroup) {
         </Button>
       </template>
     </PageHeader>
+    <TrashToolbar v-model:query="query" :sort="sort" @update:sort="setSort" />
 
     <div class="flex-1 overflow-auto p-6">
       <div
@@ -252,93 +311,33 @@ function openProject(group: TrashGroup) {
         <Banner v-if="remote" tone="info">{{ t('trash.remote') }}</Banner>
         <Banner v-if="error" tone="destructive">{{ error }}</Banner>
 
-        <section
-          v-for="group in groups"
-          :key="group.project.id"
-          class="rounded-lg border border-border bg-card"
-        >
-          <header class="flex items-center gap-2 border-b border-border/60 px-3 py-2">
-            <FolderX v-if="group.projectTrashed" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
-            <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  class="truncate text-sm font-semibold"
-                  :class="group.projectTrashed ? 'cursor-default' : 'hover:underline'"
-                  :disabled="group.projectTrashed"
-                  @click="openProject(group)"
-                >
-                  {{ group.project.name }}
-                </button>
-                <Badge v-if="group.projectTrashed" tone="warning" size="xs">{{ t('trash.projectDeleted') }}</Badge>
-                <span class="text-2xs text-muted-foreground">{{ sessionCount(group.sessions.length) }}</span>
-              </div>
-              <p class="truncate text-2xs text-muted-foreground" :title="group.project.path">
-                {{ group.project.path }}<template v-if="group.project.deleted_at"> · {{ t('trash.deletedAt', { at: formatRunTimestamp(group.project.deleted_at) }) }}</template>
-              </p>
-            </div>
-            <Button variant="ghost" size="xs" :disabled="busy" @click="restoreGroup(group)">
-              <ArchiveRestore class="h-3 w-3" :stroke-width="2" />
-              {{ group.projectTrashed ? t('trash.restoreProject') : t('trash.restoreAll') }}
-            </Button>
-            <Button
-              v-if="!remote"
-              variant="destructive-ghost"
-              size="xs"
-              :disabled="busy"
-              @click="purgeGroup(group)"
-            >
-              <Trash2 class="h-3 w-3" :stroke-width="2" />
-              {{ group.projectTrashed ? t('trash.purgeProject') : t('trash.purgeAll') }}
-            </Button>
-          </header>
+        <p v-if="searching" class="text-sm text-muted-foreground" role="status">
+          <template v-if="entries.length === 0">
+            {{ t('trash.search.none', { query: query.trim() }) }}
+            <span class="block text-xs">{{ t('trash.search.scope') }}</span>
+          </template>
+          <template v-else>
+            {{ t('trash.search.found', { sessions: sessionCount(matchedSessions), projects: t('trash.projectCount', { count: entries.length }, entries.length), query: query.trim() }) }}
+            <span class="block text-xs">{{ t('trash.search.hint') }}</span>
+          </template>
+        </p>
 
-          <p v-if="group.sessions.length === 0" class="px-3 py-2.5 text-2xs text-muted-foreground">
-            {{ t('trash.noSessions') }}
-          </p>
-          <div v-else class="divide-y divide-border/40">
-            <div v-for="s in group.sessions" :key="s.run.id" class="flex items-center gap-3 px-3 py-2 text-xs">
-              <component
-                :is="runStatusIcon(s.run.status)"
-                class="h-3.5 w-3.5 shrink-0"
-                :class="runStatusColorClass(s.run.status)"
-                :stroke-width="1.75"
-              />
-              <div class="min-w-0 flex-1 space-y-0.5">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="truncate font-medium">{{ runLabel(s.run) }}</span>
-                  <Badge size="xs">{{ s.run.engine }}</Badge>
-                  <span v-if="s.run.model" class="text-2xs text-muted-foreground" :title="s.run.model">{{ shortModelId(s.run.model) }}</span>
-                  <Badge v-if="s.workers.length" size="xs">{{ t('trash.workers', { count: s.workers.length }, s.workers.length) }}</Badge>
-                </div>
-                <p class="text-2xs text-muted-foreground">
-                  {{ t('trash.deletedAt', { at: formatRunTimestamp(s.deletedAt) }) }} · {{ t('trash.createdAt', { at: formatRunTimestamp(s.run.created_at) }) }}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                :disabled="busy"
-                :title="t('trash.restore')"
-                :aria-label="t('trash.restore')"
-                @click="restoreSession(group, s)"
-              >
-                <ArchiveRestore class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-              <Button
-                v-if="!remote"
-                variant="destructive-ghost"
-                size="icon-sm"
-                :disabled="busy"
-                :title="t('trash.purge')"
-                :aria-label="t('trash.purge')"
-                @click="purgeSession(s)"
-              >
-                <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
-              </Button>
-            </div>
-          </div>
-        </section>
+        <TrashGroupCard
+          v-for="entry in entries"
+          :key="entry.full.project.id"
+          :entry="entry"
+          :query="query"
+          :open="isOpen(entry.full.project.id)"
+          :remote="remote"
+          :busy="busy"
+          :label-of="runLabel"
+          @toggle="toggleGroup(entry.full.project.id)"
+          @open-project="openProject(entry.full)"
+          @restore-group="restoreGroup(entry)"
+          @purge-group="purgeGroup(entry)"
+          @restore-session="restoreSession(entry.full, $event)"
+          @purge-session="purgeSession($event)"
+        />
       </div>
     </div>
   </div>
