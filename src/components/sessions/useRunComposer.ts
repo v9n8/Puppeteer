@@ -1731,9 +1731,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
   watch(currentRunId, () => { editingQueuedId.value = null })
 
-  // Permission / question prompts no longer live in this view at all: the global
+  // Permission / question prompts are not handled in this composer: the global
   // PermissionWindowManager opens one standalone window per run that is asking (this
-  // run, a popped-out session, or a background run) and owns the resolve logic.
+  // run, a popped-out session, or a background run) and owns the resolve logic. The
+  // same request is also shown under the conversation (InlinePermissionBlock in
+  // RunLogPane), which answers through the same writer (lib/permissionDecision).
 
   // A file menu anywhere (including another webview) asking for an @mention here.
   let mentionUnlisten: UnlistenFn | null = null

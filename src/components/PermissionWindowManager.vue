@@ -1,11 +1,14 @@
 <script setup lang="ts">
 // Global owner of the per-run permission windows (mounted once, in the main
-// window). It is the SINGLE writer for permission decisions: it watches the shared
-// liveRuns store, opens one standalone window per run that has a pending request —
-// the run being viewed, a popped-out session, or any run streaming in the
-// background — mirrors each run's head request to its window, and runs the real
-// resolve logic when a window forwards the user's choice. Closing a window while a
-// request is still pending counts as cancelling (denying) it.
+// window). It is the SINGLE writer for permission decisions, running in the main
+// window: it watches the shared liveRuns store, opens one standalone window per run
+// that has a pending request — the run being viewed, a popped-out session, or any
+// run streaming in the background — mirrors each run's head request to its window
+// and to the in-conversation block of a popped-out session (permission:sync), and
+// runs the real resolve logic (lib/permissionDecision) when one of them forwards
+// the user's choice. The in-conversation block of the main window calls the same
+// function directly. Closing a window while a request is still pending counts as
+// cancelling (denying) it.
 //
 // Headless (like PermissionNotifier): it renders nothing.
 import { computed, onBeforeUnmount, watch } from 'vue'
@@ -19,12 +22,12 @@ import {
 } from '@/lib/permissionWindow'
 import { runDisplayName } from '@/lib/tray'
 import { permissionPurpose } from '@/lib/permissionImpact'
+import { decidePermission, answerPermission } from '@/lib/permissionDecision'
 
 const live = useLiveRunsStore()
 
 interface Tracked {
   win: WebviewWindow
-  unlisteners: UnlistenFn[]
   // True while WE are closing the window (queue emptied / teardown), so the
   // destroyed handler can tell an app-driven close apart from a user cancel.
   closingProgrammatically: boolean
@@ -75,47 +78,54 @@ function sync(runId: string) {
 
 // The request leaves the queue (and the window moves on) only once the answer
 // reached the backend; on failure it stays as the head so the user can retry.
-function decide(runId: string, decision: 'allow' | 'deny' | 'ask', remember: boolean) {
-  const req = headOf(runId)
-  if (!req) return
-  if (remember && decision === 'allow') live.rememberAllowedTool(runId, req.tool_name)
-  else if (remember && decision === 'deny') live.rememberDeniedTool(runId, req.tool_name)
-  void live.respondPermission(runId, req, decision, { remember }).then((ok) => {
+function decide(runId: string, requestId: string, decision: 'allow' | 'deny', remember: boolean) {
+  void decidePermission(live, runId, requestId, decision, remember).then((ok) => {
     if (!ok) sync(runId)
   })
 }
 
-function answerQuestion(runId: string, answers: Record<string, string>) {
-  const req = headOf(runId)
-  if (!req) return
-  void live.respondPermission(runId, req, 'allow', { answers }).then((ok) => {
+function answerQuestion(runId: string, requestId: string, answers: Record<string, string>) {
+  void answerPermission(live, runId, requestId, answers).then((ok) => {
     if (!ok) sync(runId)
   })
+}
+
+// Per-run listeners for everything a window (permission window or popped-out
+// session) sends back. They live as long as the run has a pending request — not as
+// long as the permission window — so a popped-out session's in-conversation block
+// is heard even before (or without) the permission window opening.
+const runListeners = new Map<string, Promise<UnlistenFn[]>>()
+
+function listenRun(runId: string): Promise<UnlistenFn[]> {
+  let p = runListeners.get(runId)
+  if (!p) {
+    // Stale decisions (not the head request any more) are dropped by decidePermission.
+    p = Promise.all([
+      listen(`permission:window-ready:${runId}`, () => sync(runId)),
+      listen<{ request_id: string; decision: 'allow' | 'deny'; remember: boolean }>(
+        `permission:decide:${runId}`,
+        (e) => decide(runId, e.payload.request_id, e.payload.decision, e.payload.remember),
+      ),
+      listen<{ request_id: string; answers: Record<string, string> }>(
+        `permission:answer:${runId}`,
+        (e) => answerQuestion(runId, e.payload.request_id, e.payload.answers),
+      ),
+    ])
+    runListeners.set(runId, p)
+  }
+  return p
+}
+
+function unlistenRun(runId: string) {
+  const p = runListeners.get(runId)
+  runListeners.delete(runId)
+  void p?.then((offs) => offs.forEach((off) => off()))
 }
 
 async function openFor(runId: string, indexFromRight: number) {
   const win = await openPermissionWindow(runId, indexFromRight)
-  const entry: Tracked = { win, unlisteners: [], closingProgrammatically: false }
+  const entry: Tracked = { win, closingProgrammatically: false }
   tracked.set(runId, entry)
-
-  entry.unlisteners.push(
-    await listen(`permission:window-ready:${runId}`, () => sync(runId)),
-    await listen<{ request_id: string; decision: 'allow' | 'deny'; remember: boolean }>(
-      `permission:decide:${runId}`,
-      (e) => {
-        // Ignore stale decisions that don't match the current head request.
-        if (e.payload?.request_id !== headOf(runId)?.request_id) return
-        decide(runId, e.payload.decision, e.payload.remember)
-      },
-    ),
-    await listen<{ request_id: string; answers: Record<string, string> }>(
-      `permission:answer:${runId}`,
-      (e) => {
-        if (e.payload?.request_id !== headOf(runId)?.request_id) return
-        answerQuestion(runId, e.payload.answers)
-      },
-    ),
-  )
 
   // User closing the window while a request is still pending = cancel (deny it).
   // An app-driven close flags itself first, so it's skipped here.
@@ -130,8 +140,8 @@ async function openFor(runId: string, indexFromRight: number) {
     // Stale handler of a window no longer tracked — nothing to do.
     if (tracked.get(runId) !== entry) return
     tracked.delete(runId)
-    entry.unlisteners.forEach((off) => off())
-    if (headOf(runId)) decide(runId, 'deny', false)
+    const head = headOf(runId)
+    if (head) decide(runId, head.request_id, 'deny', false)
   })
 
   // The window failed to open: drop the dead entry (otherwise reconcile keeps
@@ -139,7 +149,6 @@ async function openFor(runId: string, indexFromRight: number) {
   win.once('tauri://error', () => {
     if (tracked.get(runId) !== entry) return
     tracked.delete(runId)
-    entry.unlisteners.forEach((off) => off())
     setTimeout(() => void reconcile(), 2000)
   })
 
@@ -155,7 +164,6 @@ function closeFor(runId: string) {
   // window, not a sync to the dying one.
   entry.closingProgrammatically = true
   tracked.delete(runId)
-  entry.unlisteners.forEach((off) => off())
   closing.add(runId)
   void closePermissionWindow(runId).finally(() => {
     // Safety net: if the window vanished without a destroyed event reaching us,
@@ -190,11 +198,20 @@ async function reconcile() {
       for (const runId of [...tracked.keys()]) {
         if (!map.has(runId)) closeFor(runId)
       }
+      // A run whose queue just emptied tells its popped-out session to hide the
+      // in-conversation block (request: null), then stops listening.
+      for (const runId of [...runListeners.keys()]) {
+        if (!map.has(runId)) {
+          sync(runId)
+          unlistenRun(runId)
+        }
+      }
       let index = tracked.size
       for (const runId of map.keys()) {
-        if (tracked.has(runId)) {
+        await listenRun(runId)
+        if (tracked.has(runId) || closing.has(runId)) {
           sync(runId)
-        } else if (!closing.has(runId)) {
+        } else {
           // One run failing to open must not stop the others from being shown.
           try {
             await openFor(runId, index)
@@ -220,7 +237,7 @@ watch(
     return `${runId}\u0000${name}\u0000${project}`
   }).join('\u0001'),
   () => {
-    for (const runId of tracked.keys()) sync(runId)
+    for (const runId of runListeners.keys()) sync(runId)
   },
 )
 
@@ -229,18 +246,18 @@ watch(
 watch(
   () => [...live.sessions].map(([runId, s]) => `${runId}:${s.permissionQueue.map((r) => r.request_id).join(',')}`).join('|'),
   () => {
-    for (const runId of tracked.keys()) sync(runId)
+    for (const runId of runListeners.keys()) sync(runId)
   },
 )
 
 onBeforeUnmount(() => {
   for (const [runId, entry] of tracked) {
     entry.closingProgrammatically = true
-    entry.unlisteners.forEach((off) => off())
     void closePermissionWindow(runId)
   }
   tracked.clear()
   closing.clear()
+  for (const runId of [...runListeners.keys()]) unlistenRun(runId)
 })
 </script>
 

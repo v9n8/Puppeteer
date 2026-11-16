@@ -32,6 +32,7 @@
   "nextRequest": "Yêu cầu sau",
   "backToPending": "Về yêu cầu đang chờ",
   "viewOnly": "Chỉ xem. Quyết định luôn trả lời yêu cầu đầu hàng.",
+  "inline": { "aria": "Yêu cầu quyền trong hội thoại" },
   "risk": {
     "read": "Đọc",
     "write": "Ghi",

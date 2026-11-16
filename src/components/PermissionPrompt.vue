@@ -262,6 +262,9 @@ function isEditableTarget(e: KeyboardEvent): boolean {
 function onKeydown(e: KeyboardEvent) {
   if (e.isComposing || e.keyCode === 229) return // mid-IME composition
   const editable = isEditableTarget(e)
+  // Enter on a focused button (reached with Tab) presses that button; it must not
+  // also count as "Allow", or Tab → "Deny" → Enter would allow.
+  if (e.key === 'Enter' && !isQuestions.value && (e.target as HTMLElement | null)?.tagName === 'BUTTON') return
 
   if (isQuestions.value) {
     switch (e.key) {

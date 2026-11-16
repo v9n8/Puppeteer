@@ -32,6 +32,7 @@
   "nextRequest": "Next request",
   "backToPending": "Back to the waiting request",
   "viewOnly": "Viewing only. Decisions answer the first waiting request.",
+  "inline": { "aria": "Permission request in the conversation" },
   "risk": {
     "read": "Read",
     "write": "Write",

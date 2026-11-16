@@ -11,6 +11,7 @@ import {
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
+import InlinePermissionBlock from '@/components/permission/InlinePermissionBlock.vue'
 import { Button, DropdownMenu, DropdownItem } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
 import { forkSource } from '@/lib/runFork'
@@ -408,6 +409,10 @@ function onOpenUrl(url: string) {
           </p>
         </div>
       </div>
+
+      <!-- The pending permission request / question, answerable without leaving
+           the conversation (the permission window stays open too). -->
+      <InlinePermissionBlock v-if="currentRunId" :run-id="currentRunId" />
 
       <!-- Floating column at the bottom right (after AWOG's SessionTranscript):
            the prompt navigator — previous prompt · n/N (opens the prompt list) ·
