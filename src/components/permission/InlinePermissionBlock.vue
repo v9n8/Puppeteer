@@ -117,6 +117,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     v-if="request"
+    data-inline-permission
     class="flex max-h-[55%] min-h-0 shrink-0 flex-col overflow-hidden border-t border-border"
     role="region"
     :aria-label="t('permission.inline.aria')"

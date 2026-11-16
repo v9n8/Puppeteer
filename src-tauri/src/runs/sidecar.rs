@@ -1329,6 +1329,10 @@ pub async fn drain_sidecar(
                                     });
                                 }
                                 let _ = app.emit(&format!("run:event:{}", run_id), v.clone());
+                                if let Some(m) = super::step_marks::step_mark(v, chrono::Utc::now().timestamp_millis()) {
+                                    append_log(&log_buf, &format!("{}\n", m)).await;
+                                    let _ = app.emit(&format!("run:event:{}", run_id), m);
+                                }
                             }
                             // ---- non-JSON line (rare) ---------------------------
                             (None, _) => {

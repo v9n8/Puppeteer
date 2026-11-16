@@ -347,6 +347,41 @@
     "compact": "Compact context",
     "projectTitle": "Project — view and edit this project"
   },
+  "turnStatus": {
+    "label": "Turn status",
+    "tooltip": "Click to see the turn's steps and todo",
+    "done": "Turn {n} done",
+    "tokens": "{n} tokens",
+    "running": "Running {tool}",
+    "thinking": "Thinking…",
+    "retry": "retrying {attempt}/{max} in {secs} s",
+    "todo": "todo {done}/{total}",
+    "permission": "Waiting for your permission:",
+    "permissionTitle": "Click to open the permission window",
+    "asking": "{engine} is asking:",
+    "askingTitle": "Click to jump to the question",
+    "failed": "Turn failed",
+    "cancelled": "Stopped turn {n}",
+    "cancelledAt": "Stopped turn {n} at {time}",
+    "stepsTitle": "Steps of turn {n} · {count}",
+    "todoTitle": "Todo of the turn · {done}/{total}",
+    "noSteps": "This turn has no steps.",
+    "noTodo": "This turn has no todo.",
+    "todoDone": "Done",
+    "todoDoing": "In progress",
+    "todoPending": "Not started",
+    "kind": {
+      "read": "Read",
+      "edit": "Edit",
+      "write": "Create",
+      "bash": "Bash",
+      "search": "Search",
+      "web": "Web",
+      "agent": "Agent",
+      "todo": "Todo",
+      "ask": "Question"
+    }
+  },
   "infoBar": {
     "context": {
       "title": "Context {used} / {limit} ({pct}%) — click to compact",

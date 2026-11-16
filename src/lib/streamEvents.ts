@@ -1,4 +1,5 @@
 import { estimateCost } from './pricing'
+import { STEP_MARK_TYPE, applyStepMark } from './stepMarks'
 import { carriesOver, parseModelUsage, turnTotals, type ModelUsageMap } from './modelUsage'
 
 /** A pasted/attached image carried on a user message. `data` is raw base64. */
@@ -215,6 +216,9 @@ export type StreamEntry =
       result?: { content: string; is_error: boolean }
       /** How long the call has run, from the engine's `tool_progress` (Claude). */
       elapsedSecs?: number
+      /** Epoch ms the call started / its result came back, from `_puppeteer_step_at` log records. */
+      startedAt?: number
+      endedAt?: number
       /** The subagent / background task this call started (`task_progress`). */
       task?: TaskProgress
     }
@@ -494,6 +498,11 @@ export function applyStreamEvent(
     const str = (v: unknown) => (typeof v === 'string' ? v : '')
     const fallback = str(e.fallback_model) || str(e.fallbackModel)
     if (fallback) state.entries.push({ kind: 'model-fallback', model: str(e.original_model) || str(e.originalModel), fallback })
+    return
+  }
+
+  if (type === STEP_MARK_TYPE) {
+    applyStepMark(state, e)
     return
   }
 

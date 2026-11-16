@@ -347,6 +347,41 @@
     "compact": "Compact context",
     "projectTitle": "Project — xem và sửa Project này"
   },
+  "turnStatus": {
+    "label": "Trạng thái lượt",
+    "tooltip": "Bấm để xem các bước và todo của lượt",
+    "done": "Xong lượt {n}",
+    "tokens": "{n} token",
+    "running": "Đang chạy {tool}",
+    "thinking": "Đang suy nghĩ…",
+    "retry": "thử lại {attempt}/{max} sau {secs} giây",
+    "todo": "todo {done}/{total}",
+    "permission": "Chờ bạn cấp quyền:",
+    "permissionTitle": "Bấm để mở cửa sổ Duyệt quyền",
+    "asking": "{engine} đang hỏi:",
+    "askingTitle": "Bấm để cuộn tới câu hỏi",
+    "failed": "Lượt lỗi",
+    "cancelled": "Đã dừng lượt {n}",
+    "cancelledAt": "Đã dừng lượt {n} lúc {time}",
+    "stepsTitle": "Các bước của lượt {n} · {count}",
+    "todoTitle": "Todo của lượt · {done}/{total}",
+    "noSteps": "Lượt này không có bước nào.",
+    "noTodo": "Lượt này không có todo.",
+    "todoDone": "Xong",
+    "todoDoing": "Đang làm",
+    "todoPending": "Chưa làm",
+    "kind": {
+      "read": "Đọc",
+      "edit": "Sửa",
+      "write": "Tạo",
+      "bash": "Bash",
+      "search": "Tìm",
+      "web": "Web",
+      "agent": "Agent",
+      "todo": "Todo",
+      "ask": "Hỏi"
+    }
+  },
   "infoBar": {
     "context": {
       "title": "Context {used} / {limit} ({pct}%) — bấm để compact",

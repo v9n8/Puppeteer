@@ -7,6 +7,7 @@ import RunHeader from '@/components/sessions/RunHeader.vue'
 import RunSessionRail from '@/components/sessions/RunSessionRail.vue'
 import RunLogPane from '@/components/sessions/RunLogPane.vue'
 import RunComposer from '@/components/sessions/RunComposer.vue'
+import TurnStatusBar from '@/components/sessions/TurnStatusBar.vue'
 import RunWorkerSidebar from '@/components/sessions/RunWorkerSidebar.vue'
 import RunEngineSwitchDialog from '@/components/sessions/RunEngineSwitchDialog.vue'
 import RunStatusBar from '@/components/sessions/RunStatusBar.vue'
@@ -29,6 +30,9 @@ const {
         <!-- Header: this session's name, bookmarks, find; as wide as the session column. -->
         <RunHeader />
         <RunLogPane />
+
+        <!-- Turn status bar (V3-17): what the last turn is doing; opens its steps and todo. -->
+        <TurnStatusBar v-if="composerVisible" />
 
         <!-- Composer: prompt input on top, run controls in the footer below -->
         <RunComposer v-if="composerVisible" />
