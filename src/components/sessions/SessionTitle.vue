@@ -3,11 +3,12 @@
 // ✕ / Esc cancels). A session that has not sent a prompt yet only reads
 // "New session". Saving goes through the History list's applyRename, so the
 // toast and the History row stay the same as renaming there.
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { useRunSession } from './useRunSession'
+import { titleEditRequest } from './titleEditRequest'
 
 const { t } = useI18n()
 const { currentRun, runLabel, applyRename } = useRunSession()
@@ -35,6 +36,8 @@ function start() {
     inputEl.value?.select()
   })
 }
+// The ⋯ menu's Rename (session window, no History row) asks for the same field.
+watch(titleEditRequest, start)
 function cancel() {
   editing.value = false
 }

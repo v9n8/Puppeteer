@@ -5,6 +5,7 @@ import { ref, computed, nextTick, watch, type ComponentPublicInstance } from 'vu
 import type { Repo } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { GitPullRequest, Bug, Loader2, CircleDashed } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 import {
@@ -575,10 +576,15 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       tabsStore.forgetRun(runId)
       scrollMemory.forget(runId)
       sessionTabs.forget([runId])
+      toast.success(t('run.runDeleted'))
+      // A session's own window has nothing else to show: close it.
+      if (isSessionWindow && activeRunId.value === runId) {
+        await getCurrentWebviewWindow().close()
+        return
+      }
       if (activeRunId.value === runId) {
         router.replace(`/projects/${projectId.value}`)
       }
-      toast.success(t('run.runDeleted'))
     } catch (err) {
       toast.error(String(err))
     } finally {

@@ -64,6 +64,8 @@ export const WINDOW_NEW_SESSION = 'window:new-session'
 export interface WindowOpenRun {
   projectId: string
   runId: string
+  /** Show it in the main window even when it has its own window ("Back to main window"). */
+  preferMain?: boolean
 }
 
 export interface WindowNewSession {

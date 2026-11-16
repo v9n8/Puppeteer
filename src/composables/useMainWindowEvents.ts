@@ -101,8 +101,8 @@ export function useMainWindowEvents() {
   // Notes / Todos windows) was clicked: show the run where it lives — its own
   // pop-out if it has one, otherwise this window. `projectHint` covers runs this
   // window never loaded.
-  async function openRunFromTray(runId: string, projectHint?: string) {
-    if (await focusSessionWindow(runId)) return
+  async function openRunFromTray(runId: string, projectHint?: string, preferMain = false) {
+    if (!preferMain && (await focusSessionWindow(runId))) return
     const projectId =
       live.sessions.get(runId)?.projectId ?? runsStore.runMeta.get(runId)?.project_id ?? projectHint
     if (!projectId) return
@@ -339,8 +339,8 @@ export function useMainWindowEvents() {
     // windows (no router of this app there).
     try {
       unlistenWindowRun = await listen<WindowOpenRun>(WINDOW_OPEN_RUN, (e) => {
-        const { projectId, runId } = e.payload ?? {}
-        if (projectId && runId) void openRunFromTray(runId, projectId)
+        const { projectId, runId, preferMain } = e.payload ?? {}
+        if (projectId && runId) void openRunFromTray(runId, projectId, preferMain)
       })
       unlistenWindowNewSession = await listen<WindowNewSession>(WINDOW_NEW_SESSION, (e) => {
         const p = e.payload

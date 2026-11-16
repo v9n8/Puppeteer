@@ -16,10 +16,12 @@
 // keeps streaming and the main window (or another popout) stays in sync via the
 // per-run events. Closing the MAIN window still tears every popout down and kills
 // the sidecars (see src-tauri/src/lib.rs).
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { emit } from '@tauri-apps/api/event'
+import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
 
 // Small deterministic string hash (djb2) → a stable, label-safe window id per run.
 function hashLabel(s: string): string {
@@ -91,4 +93,14 @@ export async function openSessionWindow(
   // tray again once that lands — this just covers the open/close edges.
   trackWindowForTray(win, { projectId, runId })
   return win
+}
+
+/**
+ * "Back to main window" in a session's own window: the main window comes forward
+ * on this session (`preferMain`, so it does not raise this very window), then this
+ * window closes.
+ */
+export async function dockSessionToMain(runId: string, projectId: string): Promise<void> {
+  await emit<WindowOpenRun>(WINDOW_OPEN_RUN, { projectId, runId, preferMain: true })
+  await getCurrentWebviewWindow().close()
 }
