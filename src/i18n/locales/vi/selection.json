@@ -3,7 +3,8 @@
   "quoteTitle": "Quote đoạn đã chọn vào {target}",
   "quoteNote": {
     "notePlaceholder": "Thêm ghi chú (không bắt buộc)",
-    "keys": "Enter để lưu · Shift+Enter để xuống dòng",
+    "keysSave": "lưu",
+    "keysNewline": "xuống dòng",
     "move": "Kéo để di chuyển",
     "resize": "Kéo để đổi kích thước"
   },

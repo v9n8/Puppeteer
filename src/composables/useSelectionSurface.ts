@@ -36,7 +36,7 @@ export interface TurnEditResend {
   /** The message sent as turn `turn` can be edited now (Send rewinds to it). */
   available: (turn: number) => boolean
   /** Put the message (entry `promptAt` of the shown log) into the composer to edit. */
-  start: (turn: number, promptAt: number, sent: SentMessage) => void
+  start: (turn: number, promptAt: number, sent: SentMessage, opts?: { autoSend?: boolean }) => void
 }
 
 /** Forking the session shown on a surface after one of its turns (UX-28). */

@@ -7,7 +7,7 @@
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Bookmark, BookmarkCheck, Check, Copy, GitFork, History, Layers, Maximize2, MoreHorizontal, Pencil, Quote, StickyNote,
+  Bookmark, BookmarkCheck, Check, Copy, GitFork, History, Layers, Maximize2, MoreHorizontal, Pencil, Quote, RotateCcw, StickyNote,
 } from 'lucide-vue-next'
 import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { turnActions, type TurnAction, type TurnSide } from '@/lib/turnActions'
@@ -80,7 +80,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer))
 
 const ICONS = {
   copy: Copy, quote: Quote, bookmark: Bookmark, fullscreen: Maximize2, fullscreenTurn: Layers, saveNote: StickyNote, fork: GitFork,
-  editResend: Pencil, rewind: History,
+  editResend: Pencil, resend: RotateCcw, rewind: History,
 } as const
 
 function icon(action: TurnAction) {

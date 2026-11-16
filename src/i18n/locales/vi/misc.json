@@ -47,8 +47,10 @@
     "close": "Đóng",
     "translating": "Đang dịch…",
     "retry": "Thử lại",
+    "failed": "Không dịch được: {error}",
+    "empty": "Chưa có bản dịch.",
     "copied": "Đã copy",
-    "copy": "Copy"
+    "copy": "Sao chép bản dịch"
   },
   "mentionedFiles": {
     "edit": "sửa",

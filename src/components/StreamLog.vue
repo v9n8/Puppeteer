@@ -996,14 +996,14 @@ async function runTurnAction(i: number, action: TurnAction, from: DOMRect): Prom
       owner.value?.fork?.()?.start(turnPromptAt(f))
       break
     case 'editResend':
-      // The prompt as sent (quotes as blockquotes first) and its saved quotes:
-      // the composer splits them back into text and cards.
+    case 'resend':
+      // The prompt as sent and its saved quotes; the composer splits them.
       if (f.rewindTurn !== null && e.kind === 'user') {
         owner.value?.editResend?.()?.start(f.rewindTurn, i, {
           text: e.text,
           quotes: quoteSetOf(e)?.cards.map((c) => c.quote) ?? [],
           images: e.images,
-        })
+        }, { autoSend: action === 'resend' })
       }
       break
     case 'bookmark':

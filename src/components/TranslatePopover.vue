@@ -95,6 +95,8 @@ function onError(turn: number, error: string) {
   phase.value = 'error'
 }
 
+const failedText = computed(() => t('misc.translate.failed', { error: errorMsg.value }))
+
 function setLang(next: string) {
   if (next === lang.value) return
   lang.value = next
@@ -165,7 +167,22 @@ watch(() => props.text, () => runTranslate())
       <div class="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/40">
         <Languages class="h-3.5 w-3.5 text-primary/80 shrink-0" :stroke-width="1.75" />
         <span class="text-2xs font-semibold text-foreground/80">{{ t('misc.translate.heading') }}</span>
-        <div class="ml-auto flex items-center gap-0.5">
+        <!-- State of the translation: the body only ever holds the translated text. -->
+        <div class="ml-2 flex min-w-0 flex-1 items-center justify-end gap-1.5 text-2xs" aria-live="polite">
+          <span v-if="phase === 'loading'" class="flex items-center gap-1 text-foreground/50">
+            <Loader2 class="h-3 w-3 animate-spin" :stroke-width="2" />{{ t('misc.translate.translating') }}
+          </span>
+          <template v-else-if="phase === 'error'">
+            <span class="min-w-0 truncate text-destructive" :title="failedText">{{ failedText }}</span>
+            <button
+              class="inline-flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-primary hover:bg-primary/10 cursor-pointer"
+              @click="runTranslate"
+            >
+              <RefreshCw class="h-3 w-3" :stroke-width="2" />{{ t('misc.translate.retry') }}
+            </button>
+          </template>
+        </div>
+        <div class="flex items-center gap-0.5">
           <button
             v-for="opt in LANG_OPTIONS"
             :key="opt.value"
@@ -177,7 +194,16 @@ watch(() => props.text, () => runTranslate())
           >{{ opt.label }}</button>
         </div>
         <button
-          class="ml-1 shrink-0 text-foreground/40 hover:text-foreground/80 transition-colors cursor-pointer"
+          v-if="phase === 'done'"
+          class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-foreground/50 hover:bg-foreground/5 hover:text-foreground cursor-pointer"
+          :title="copied ? t('misc.translate.copied') : t('misc.translate.copy')"
+          :aria-label="t('misc.translate.copy')"
+          @click="copyResult"
+        >
+          <component :is="copied ? Check : Copy" class="h-3.5 w-3.5" :stroke-width="1.75" />
+        </button>
+        <button
+          class="shrink-0 text-foreground/40 hover:text-foreground/80 transition-colors cursor-pointer"
           :title="t('misc.translate.close')"
           @click="emit('close')"
         >
@@ -187,35 +213,17 @@ watch(() => props.text, () => runTranslate())
 
       <!-- Body -->
       <div class="px-3 py-2.5 max-h-[50vh] overflow-auto">
-        <div v-if="phase === 'loading'" class="flex items-center gap-2 text-xs text-foreground/50 py-2">
-          <Loader2 class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
-          {{ t('misc.translate.translating') }}
+        <div v-if="phase === 'loading'" class="space-y-2 py-1" aria-hidden="true">
+          <div class="h-3 w-full animate-pulse rounded bg-foreground/10" />
+          <div class="h-3 w-5/6 animate-pulse rounded bg-foreground/10" />
+          <div class="h-3 w-2/3 animate-pulse rounded bg-foreground/10" />
         </div>
-        <div v-else-if="phase === 'error'" class="text-xs text-destructive space-y-2">
-          <p class="whitespace-pre-wrap break-words">{{ errorMsg }}</p>
-          <button
-            class="inline-flex items-center gap-1 text-2xs text-primary hover:underline cursor-pointer"
-            @click="runTranslate"
-          >
-            <RefreshCw class="h-3 w-3" :stroke-width="2" />{{ t('misc.translate.retry') }}
-          </button>
-        </div>
+        <p v-else-if="phase === 'error'" class="py-2 text-xs text-foreground/50">{{ t('misc.translate.empty') }}</p>
         <div
           v-else
           v-html="renderedHtml"
           class="markdown-output text-sm leading-relaxed text-foreground"
         />
-      </div>
-
-      <!-- Footer -->
-      <div v-if="phase === 'done'" class="flex items-center justify-end px-3 py-1.5 border-t border-border bg-muted/20">
-        <button
-          class="inline-flex items-center gap-1 text-2xs text-foreground/60 hover:text-foreground transition-colors cursor-pointer"
-          @click="copyResult"
-        >
-          <component :is="copied ? Check : Copy" class="h-3 w-3" :stroke-width="1.75" />
-          {{ copied ? t('misc.translate.copied') : t('misc.translate.copy') }}
-        </button>
       </div>
     </div>
   </Teleport>

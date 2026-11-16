@@ -24,6 +24,7 @@ import {
 } from '@/lib/todoChecklist'
 import { mergeContextModel } from '@/lib/contextLimits'
 import type { TurnSide } from '@/lib/turnActions'
+import { resendEdit } from './useAutoSendEdit'
 import { canForkRun } from '@/lib/runFork'
 import {
   beginEdit, canEditResend, editDraftOf, endEdit, rewindErrorKey, rewindStep, type EditSession, type SentMessage,
@@ -702,15 +703,17 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         },
       }
     },
-    // "Edit and resend" under a question: where Rewind takes the conversation
-    // back (lib/editResend), to a message whose snapshot is still kept.
+    // "Edit and resend" / "Resend" under a question.
     editResend: () => {
       const run = currentRun.value
       const busy = { running: currentStatus.value === 'running', sending: sendingFollowUp.value || rewindingEdit.value }
       if (!run || !canEditResend(run, busy)) return null
       return {
         available: (turn: number) => snapshotTurns.value.has(turn),
-        start: (turn: number, promptAt: number, sent: SentMessage) => startEditResend(run.id, turn, promptAt, sent),
+        start: (turn: number, promptAt: number, sent: SentMessage, opts?: { autoSend?: boolean }) => {
+          startEditResend(run.id, turn, promptAt, sent)
+          if (opts?.autoSend) void resendEdit(editingMessage, sendEditResend, cancelEditResend)
+        },
       }
     },
     // "Fork from here" under an answer: a stopped session the engine can fork
@@ -1403,11 +1406,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
 
   // ── Edit and resend (UX-30) ───────────────────────────────────────────────
-  // The message's text, quotes (as cards again) and images go into the
-  // composer; the draft that was there waits in the store. Send rewinds to just
-  // before the message, as "Rewind to here" does (asking first when files would
-  // be restored), then sends the edit as a follow-up. A failed or declined
-  // rewind sends nothing and keeps the edit; Cancel puts the old draft back.
+  // The message goes into the composer; the draft waits in the store. Send
+  // rewinds to just before it (asking first when files would be restored), then
+  // sends the edit. A failed or declined rewind sends nothing and keeps the
+  // edit; Cancel puts the old draft back.
   function startEditResend(runId: string, turn: number, promptAt: number, sent: SentMessage) {
     if (currentRunId.value !== runId || sendingFollowUp.value || rewindingEdit.value) return
     if (!editingMessage.value) draftsStore.set(runId, composerDraft())

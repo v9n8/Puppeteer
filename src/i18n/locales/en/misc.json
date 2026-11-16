@@ -47,8 +47,10 @@
     "close": "Close",
     "translating": "Translating…",
     "retry": "Retry",
+    "failed": "Couldn't translate: {error}",
+    "empty": "No translation yet.",
     "copied": "Copied",
-    "copy": "Copy"
+    "copy": "Copy translation"
   },
   "mentionedFiles": {
     "edit": "edit",

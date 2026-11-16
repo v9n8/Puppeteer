@@ -6,7 +6,7 @@
 export type TurnSide = 'question' | 'answer'
 
 export type TurnAction =
-  | 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'fork' | 'editResend' | 'rewind'
+  | 'copy' | 'quote' | 'bookmark' | 'fullscreen' | 'fullscreenTurn' | 'saveNote' | 'fork' | 'editResend' | 'resend' | 'rewind'
 
 /** Features a gated button needs on; the others are always offered. */
 export const TURN_ACTION_FEATURES = {
@@ -14,6 +14,7 @@ export const TURN_ACTION_FEATURES = {
   saveNote: 'productivity.notes',
   rewind: 'sessions.rewind',
   editResend: 'sessions.rewind',
+  resend: 'sessions.rewind',
 } as const
 
 /** A row, keyed in `turnFooters` by the entry it is rendered under. */
@@ -130,7 +131,8 @@ export interface TurnActionContext {
  * last, below a divider. Bookmark sits inline on both sides, as in AWOG. Fork
  * is on the answer only: the fork keeps the whole turn. Edit and resend sits
  * inline on the question: clicking only fills the composer, the rewind waits
- * for its Send.
+ * for its Send. Resend sits behind `⋯` of the question, above Rewind: same
+ * conditions, but it rewinds and sends the old text at once.
  */
 export function turnActions(
   side: TurnSide,
@@ -143,7 +145,8 @@ export function turnActions(
     const primary: TurnAction[] = ctx.hasText ? ['copy'] : []
     if (ctx.canEditResend && isOn(TURN_ACTION_FEATURES.editResend)) primary.push('editResend')
     if (ctx.hasText) primary.push('fullscreen')
-    return { primary: [...primary, ...bookmark], overflow: rewind }
+    const resend: TurnAction[] = ctx.canEditResend && isOn(TURN_ACTION_FEATURES.resend) ? ['resend'] : []
+    return { primary: [...primary, ...bookmark], overflow: [...resend, ...rewind] }
   }
   const primary: TurnAction[] = []
   if (ctx.hasText) {

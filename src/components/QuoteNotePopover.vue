@@ -111,8 +111,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
           @keydown="onNoteKeydown"
         />
         <div class="flex shrink-0 items-center gap-1.5 pr-2">
-          <span class="min-w-0 flex-1 truncate text-2xs text-muted-foreground" :title="t('selection.quoteNote.keys')">
-            {{ t('selection.quoteNote.keys') }}
+          <span class="flex min-w-0 flex-1 items-center gap-1 truncate text-2xs text-muted-foreground">
+            <span><kbd class="font-sans">↵</kbd> {{ t('selection.quoteNote.keysSave') }}</span>
+            <span aria-hidden="true">·</span>
+            <span><kbd class="font-sans">⇧↵</kbd> {{ t('selection.quoteNote.keysNewline') }}</span>
           </span>
           <Button variant="ghost" size="xs" @click="emit('close')">{{ t('common.close') }}</Button>
           <Button size="xs" @click="save">{{ t('common.save') }}</Button>
