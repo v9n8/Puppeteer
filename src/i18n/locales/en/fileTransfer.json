@@ -58,5 +58,13 @@
     "tooMany": "too many items in this folder (more than 10,000)",
     "planFailed": "Could not copy {name}: {error}",
     "unsafeName": "an invalid name (empty, “.”, “..”, or with a separator or control character) — refused"
+  },
+  "screenTitle": "File Transfer · {device}",
+  "busyLocked": "Copying: wait for it to finish or cancel it first",
+  "mergeTip": "Move into the remote desktop window",
+  "leave": {
+    "title": "Leave File Transfer?",
+    "message": "Copying {n} file. Leaving this screen will stop the copying. Leave? | Copying {n} files. Leaving this screen will stop the copying. Leave?",
+    "confirm": "Leave"
   }
 }

@@ -13,17 +13,19 @@
  */
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isRemoteMode, remoteIpc } from '@/lib/ipc/remote'
 import { REMOTE_OWNER_LABEL } from '@/lib/ipc/windows'
 import { clearRemoteDesktopSession, loadRemoteDesktopSession } from '@/lib/remoteDesktopSession'
-import { openFileTransferWindow } from '@/lib/fileTransferWindow'
+import { openFileTransfer } from '@/lib/fileTransferWindow'
 import { DESKTOP_LINK_DOT_CLASS, desktopLinkTone } from '@/lib/remoteIndicator'
 
 const STUCK_MS = 60_000
 
 export function useRemoteDesktopLink() {
   const { t } = useI18n()
+  const router = useRouter()
   const client = isRemoteMode() && getCurrentWindow().label === REMOTE_OWNER_LABEL ? remoteIpc() : null
   const enabled = client !== null
   const device = loadRemoteDesktopSession()?.device ?? ''
@@ -84,7 +86,7 @@ export function useRemoteDesktopLink() {
   }
 
   function openFiles(): void {
-    void openFileTransferWindow().catch((e) => console.error('[remoteDesktop] file transfer window failed', e))
+    void openFileTransfer(router).catch((e) => console.error('[remoteDesktop] file transfer failed to open', e))
   }
 
   function signOut(): void {

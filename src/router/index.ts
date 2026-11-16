@@ -7,6 +7,8 @@ import ProjectsView from '../views/ProjectsView.vue'
 import PrInboxView from '../views/PrInboxView.vue'
 import { openPrInboxWindow } from '../lib/prInboxWindow'
 import { openCalendarWindow } from '../lib/calendarWindow'
+import { fileTransferTarget } from '../lib/fileTransferWindow'
+import { isRemoteMode } from '../lib/ipc/remote'
 import { openGanttWindow } from '../lib/ganttWindow'
 import { openFocusWindow } from '../lib/focusWindow'
 import { projectPageQuery } from '../lib/projectSections'
@@ -15,6 +17,7 @@ import RunView from '../views/RunView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import StatsView from '../views/StatsView.vue'
 import CalendarView from '../views/CalendarView.vue'
+import FileTransferView from '../views/FileTransferView.vue'
 import FocusView from '../views/FocusView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
@@ -158,6 +161,14 @@ const router = createRouter({
     // `/settings/<section>`, so ⌘, and the menu keep working.
     { path: '/settings', name: 'settings', component: SettingsView, beforeEnter: settingsGuard },
     { path: '/settings/:section', name: 'settings-section', component: SettingsView, beforeEnter: settingsGuard },
+    // File Transfer exists only while controlling another Puppeteer (the remote-desktop
+    // window): there it is a screen of that window or of its own, per the saved choice.
+    {
+      path: '/file-transfer',
+      name: 'file-transfer',
+      component: FileTransferView,
+      beforeEnter: (to, from) => (isRemoteMode() ? screenGuard(fileTransferTarget)(to, from) : '/projects'),
+    },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
   ],

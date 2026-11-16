@@ -58,5 +58,13 @@
     "tooMany": "thư mục có quá nhiều mục (hơn 10.000)",
     "planFailed": "Không chép được {name}: {error}",
     "unsafeName": "tên không hợp lệ (rỗng, “.”, “..”, hoặc chứa dấu phân cách / ký tự điều khiển) — bị từ chối"
+  },
+  "screenTitle": "Truyền tệp · {device}",
+  "busyLocked": "Đang chép: chờ xong hoặc hủy rồi mới chuyển được",
+  "mergeTip": "Gộp vào cửa sổ remote desktop",
+  "leave": {
+    "title": "Rời Truyền tệp?",
+    "message": "Đang chép {n} tệp. Rời màn này sẽ dừng việc chép. Rời đi?",
+    "confirm": "Rời đi"
   }
 }

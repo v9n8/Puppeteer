@@ -14,6 +14,8 @@ const props = defineProps<{
   target: ScreenTarget
   /** Asked before moving; false keeps the screen here (e.g. unsaved edits the user keeps). */
   confirmLeave?: () => Promise<boolean>
+  /** Set while moving is not possible (e.g. a copy under way): the button is locked and this is its tooltip. */
+  lockedTip?: string
 }>()
 
 const NAME_KEYS: Record<DetachableScreen, string> = {
@@ -31,7 +33,9 @@ const NAME_KEYS: Record<DetachableScreen, string> = {
 const router = useRouter()
 const { t } = useI18n()
 const busy = ref(false)
-const tip = computed(() => t('nav.detachWindowTip', { screen: t(NAME_KEYS[props.target.screen]) }))
+const tip = computed(
+  () => props.lockedTip || t('nav.detachWindowTip', { screen: t(NAME_KEYS[props.target.screen]) }),
+)
 
 async function detach() {
   if (busy.value) return
@@ -48,7 +52,7 @@ async function detach() {
 </script>
 
 <template>
-  <Button variant="ghost" size="sm" :title="tip" :aria-label="tip" :disabled="busy" @click="detach">
+  <Button variant="ghost" size="sm" :title="tip" :aria-label="tip" :disabled="busy || !!lockedTip" @click="detach">
     <SquareArrowOutUpRight class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
     <span class="max-[900px]:hidden">{{ t('nav.detachWindow') }}</span>
   </Button>

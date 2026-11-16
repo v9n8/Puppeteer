@@ -1,12 +1,16 @@
-// Opens THE File Transfer window (views/FileTransferWindow.vue,
-// `?fileTransferWindow=1`): copy files and folders between this machine and
-// the Puppeteer a remote-desktop window controls. Only exists in the remote set —
-// its label is `remote-file-transfer` and it talks to the controlled Puppeteer
-// through the main remote-desktop window (lib/ipc/muxTransport.ts) — so it is
-// offered only from a remote-desktop window. Opening it again focuses it.
+// File Transfer: copy files and folders between this machine and the Puppeteer a
+// remote-desktop window controls. It has two homes (lib/windowPlacement keeps the
+// choice, its own window by default): its own window (views/FileTransferWindow.vue,
+// `?fileTransferWindow=1`, label `remote-file-transfer`, talking to the controlled
+// Puppeteer through the remote-desktop window, lib/ipc/muxTransport.ts), or the
+// `/file-transfer` screen inside the remote-desktop window itself. Only offered
+// from a remote-desktop window. Opening the window again focuses it.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { trackWindowForTray } from '@/lib/tray'
-import { centerOnCurrentMonitor } from '@/lib/windowCascade'
+import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
+import type { ScreenTarget } from '@/lib/detachedScreens'
+import { getOpenMode } from '@/lib/windowPlacement'
+import type { Router } from 'vue-router'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 
@@ -16,6 +20,25 @@ const FILE_TRANSFER_WINDOW_LABEL = 'file-transfer'
 /** File transfer is between two machines: only offered while controlling another Puppeteer. */
 export function canOpenFileTransfer(): boolean {
   return isRemoteMode()
+}
+
+/** The screen's route in the remote-desktop window, and how to open its own window. */
+export const FILE_TRANSFER_PATH = '/file-transfer'
+
+export const fileTransferTarget: ScreenTarget = {
+  screen: 'file-transfer',
+  path: FILE_TRANSFER_PATH,
+  openWindow: () => openFileTransferWindow(),
+}
+
+/** "Files" in the device popover: where the user last left File Transfer (the route guard decides). */
+export async function openFileTransfer(router: Router): Promise<void> {
+  if (!canOpenFileTransfer()) return
+  if (getOpenMode('file-transfer') === 'main') {
+    await router.push(FILE_TRANSFER_PATH)
+    return
+  }
+  await openFileTransferWindow()
 }
 
 // In-flight creation guard (like lib/remoteDesktopWindow.ts).
@@ -54,20 +77,18 @@ export async function openFileTransferWindow(): Promise<WebviewWindow | null> {
 }
 
 async function createFileTransferWindow(label: string): Promise<WebviewWindow> {
-  const width = 1100
-  const height = 760
   const win = new WebviewWindow(label, {
     url: popoutUrl('index.html?fileTransferWindow=1'),
     title: 'File Transfer — Puppeteer',
-    width,
-    height,
     minWidth: 820,
     minHeight: 520,
-    ...(await centerOnCurrentMonitor(width, height)),
+    // Where it was last left; the first time 1100 × 760 centred on the current monitor.
+    ...(await placementOptions('file-transfer', { width: 1100, height: 760, minWidth: 820, minHeight: 520 })),
   })
   win.once('tauri://error', (e) => {
     console.error('[fileTransferWindow] failed to open window', e)
   })
   trackWindowForTray(win)
+  trackWindowBounds(win, 'file-transfer')
   return win
 }
