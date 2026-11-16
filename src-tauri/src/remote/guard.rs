@@ -123,6 +123,7 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "rd_download_create",
     "rd_download_append",
     "rd_copy_secret",
+    "snapshot_windows",
     "start_file_drag",
     // Secret notes auto-lock time: a controller must not make the vault stay open longer.
     "secret_vault_set_auto_lock",
@@ -802,6 +803,7 @@ mod tests {
             "install_update",
             "purge_run",
             "purge_project",
+            "snapshot_windows",
         ] {
             assert!(is_local_only_command(name), "{name}");
         }

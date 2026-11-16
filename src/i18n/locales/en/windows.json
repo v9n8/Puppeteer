@@ -23,6 +23,11 @@
     "error": "Error",
     "minimized": "Minimized"
   },
+  "thumb": {
+    "loading": "Taking a picture of the window",
+    "failed": "Couldn't capture window thumbnails. You can still switch and close windows.",
+    "retry": "Try again"
+  },
   "gone": "That window is already closed.",
   "here": "This window",
   "open": "Open",

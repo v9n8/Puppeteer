@@ -63,3 +63,4 @@ pub mod translate;
 pub mod tray;
 pub mod updates;
 pub mod vps_servers;
+pub mod window_snapshot;

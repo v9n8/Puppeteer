@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// One private window in the "Open windows" overlay: a big icon of its kind (the
-// thumbnail replaces it later), its name, a second line and, for a session, what it
+// One private window in the "Open windows" overlay: a thumbnail of the window (macOS) or
+// else a big icon of its kind, its name, a second line and, for a session, what it
 // is doing. The vault's card is the lock icon and nothing else (see cardsFrom).
 import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -8,10 +8,12 @@ import {
   AppWindow, ArrowLeftRight, CalendarDays, FileText, GanttChartSquare, GitPullRequest, ListTodo,
   LockKeyhole, MessageSquare, Monitor, Settings, Slack, StickyNote, Target, X,
 } from 'lucide-vue-next'
+import type { Thumb } from '@/lib/windowThumbs'
 import type { WindowCard } from '@/lib/windowsOverlay'
 
 const props = defineProps<{
   card: WindowCard
+  thumb: Thumb
   selected: boolean
   /** The close button's tooltip, with the key. */
   closeTip: string
@@ -74,13 +76,22 @@ const badge = computed(() => {
     @click="emit('activate')"
     @contextmenu.prevent="emit('select'); emit('menu', $event)"
   >
-    <div class="relative flex h-24 items-center justify-center rounded-md bg-muted text-muted-foreground">
-      <component :is="icon" class="h-10 w-10" :stroke-width="1.25" aria-hidden="true" />
-      <span
-        v-if="badge"
-        class="absolute bottom-1.5 left-1.5 inline-flex h-[22px] items-center rounded-full px-2 text-[13px] font-medium"
-        :class="badge.cls"
-      >{{ badge.text }}</span>
+    <div class="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
+      <img
+        v-if="thumb.kind === 'image'"
+        :src="thumb.src"
+        alt=""
+        class="absolute inset-0 h-full w-full object-cover object-top"
+        draggable="false"
+      />
+      <span v-else-if="thumb.kind === 'loading'" class="absolute inset-0 animate-pulse bg-muted" :aria-label="t('windows.thumb.loading')" />
+      <component :is="icon" v-else class="h-10 w-10" :stroke-width="1.25" aria-hidden="true" />
+      <span v-if="badge" class="absolute bottom-1.5 left-1.5 rounded-full bg-card">
+        <span
+          class="inline-flex h-[22px] items-center rounded-full px-2 text-[13px] font-medium"
+          :class="badge.cls"
+        >{{ badge.text }}</span>
+      </span>
       <span
         v-if="card.isHere"
         class="absolute left-1.5 top-1.5 inline-flex h-[22px] items-center rounded-full bg-primary/12 px-2 text-[13px] font-medium text-primary"

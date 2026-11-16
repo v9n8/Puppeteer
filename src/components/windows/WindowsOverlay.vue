@@ -8,7 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { Minus, Search, SquareArrowDownLeft, SquareArrowOutUpRight, X } from 'lucide-vue-next'
+import { Minus, Search, SquareArrowDownLeft, SquareArrowOutUpRight, TriangleAlert, X } from 'lucide-vue-next'
 import { Button, ContextMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import WindowCard from '@/components/windows/WindowCard.vue'
 import { useToast } from '@/composables/useToast'
@@ -19,6 +19,7 @@ import { OPEN_WINDOWS_ACTION, formatAccelerator, matchesAccelerator } from '@/li
 import { closeWindow, minimizeWindow, raiseWindow, requestMergeBack } from '@/lib/openWindowsActions'
 import type { DetachableScreen } from '@/lib/windowPlacement'
 import { loadRecentWindows } from '@/lib/windowRegistry'
+import { thumbFor } from '@/lib/windowThumbs'
 import {
   GROUP_STORAGE_KEY, MERGE_BACK_SCREENS, WINDOWS_OVERLAY_OPEN, WINDOW_MERGE_REQUEST,
   canMergeBack, cycleSelection, filterCards, flattenGroups, groupCards, initialSelection,
@@ -82,6 +83,8 @@ watch(
       menu.value = null
       confirmAll.value = false
       await store.refresh()
+      // Not awaited: the cards are usable (Enter included) while the pictures come in.
+      void store.refreshThumbs()
       selected.value = initialSelection(store.cards, store.here, loadRecentWindows())
       await nextTick()
       filterInput.value?.focus()
@@ -308,6 +311,16 @@ onBeforeUnmount(() => {
         </Button>
       </header>
 
+      <div
+        v-if="store.thumbsFailed"
+        class="flex flex-wrap items-center gap-2 border-b border-border bg-muted px-4 py-2 text-[13px] text-muted-foreground"
+        role="status"
+      >
+        <TriangleAlert class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+        <span class="min-w-0 flex-1">{{ t('windows.thumb.failed') }}</span>
+        <Button variant="outline" size="sm" class="text-[13px]" @click="store.refreshThumbs()">{{ t('windows.thumb.retry') }}</Button>
+      </div>
+
       <div class="min-h-[160px] flex-1 overflow-y-auto px-4 py-3">
         <p v-if="total === 0" class="py-10 text-center text-sm text-muted-foreground">{{ t('windows.empty') }}</p>
         <p v-else-if="flat.length === 0" class="py-10 text-center text-sm text-muted-foreground">
@@ -326,6 +339,7 @@ onBeforeUnmount(() => {
               v-for="card in g.cards"
               :key="card.label"
               :card="card"
+              :thumb="thumbFor(card, store.thumbs, store.thumbStatus[card.label])"
               :selected="card.label === selected"
               :close-tip="closeTip"
               @activate="activate(card.label)"

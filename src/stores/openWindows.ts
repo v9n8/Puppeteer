@@ -2,8 +2,19 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { getAllWebviewWindows, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { invoke as localInvoke } from '@tauri-real/core'
 import { i18n } from '@/i18n'
+import { IS_MAC } from '@/lib/appMenu'
 import { isRemoteMode } from '@/lib/ipc/remote'
+import {
+  THUMB_WIDTH,
+  isSnapshotAllowed,
+  shouldShowBanner,
+  type SnapshotResult,
+  type ThumbEntry,
+  type ThumbStatus,
+} from '@/lib/windowThumbs'
+import { invoke } from '@/lib/tauri'
 import { labelFor } from '@/lib/tray'
 import {
   loadRunStatuses,
@@ -40,6 +51,11 @@ export const useOpenWindowsStore = defineStore('openWindows', () => {
   const open = ref(false)
   /** Bumped by "open" while already open: the overlay selects the next card. */
   const cycleTick = ref(0)
+  // Thumbnails (macOS): kept between openings so a card never blinks; shots are re-taken each time.
+  const thumbs = ref<Record<string, ThumbEntry>>({})
+  const thumbStatus = ref<Record<string, ThumbStatus>>({})
+  const thumbsFailed = ref(false)
+  let shooting = false
 
   const projects = useProjectsStore()
   const t = (key: string) => i18n.global.t(key)
@@ -82,6 +98,43 @@ export const useOpenWindowsStore = defineStore('openWindows', () => {
     }
   }
 
+  /**
+   * Takes a thumbnail of each window, one after the other, so the cards fill in turn and the
+   * keyboard is never waiting on them. Windows / Linux: nothing to shoot, the cards keep their icons.
+   */
+  async function refreshThumbs(): Promise<void> {
+    if (!IS_MAC || shooting) return
+    shooting = true
+    const labels = cards.value.map((c) => c.label).filter(isSnapshotAllowed)
+    // A closed window's picture goes; the others stay until replaced.
+    thumbs.value = Object.fromEntries(Object.entries(thumbs.value).filter(([l]) => labels.includes(l)))
+    thumbStatus.value = Object.fromEntries(labels.map((l) => [l, 'loading' as const]))
+    const run = isRemoteMode() ? localInvoke : invoke
+    const results: SnapshotResult[] = []
+    try {
+      for (const label of labels) {
+        if (!open.value) break
+        let res: SnapshotResult
+        try {
+          const [first] = await run<SnapshotResult[]>('snapshot_windows', { labels: [label], width: THUMB_WIDTH })
+          res = first ?? { label, error: 'empty' }
+        } catch (e) {
+          res = { label, error: String(e) }
+        }
+        results.push(res)
+        if (res.image) thumbs.value = { ...thumbs.value, [label]: { src: res.image, at: Date.now() } }
+        thumbStatus.value = { ...thumbStatus.value, [label]: res.image ? undefined : 'failed' }
+      }
+      thumbsFailed.value = shouldShowBanner(results)
+    } finally {
+      // The overlay closed mid-way: nothing is "loading" any more.
+      thumbStatus.value = Object.fromEntries(
+        Object.entries(thumbStatus.value).map(([l, s]) => [l, s === 'loading' ? undefined : s]),
+      )
+      shooting = false
+    }
+  }
+
   /** The Open-windows command: opens the overlay here, or selects the next card when it is open. */
   function openOrCycle(): void {
     if (open.value) cycleTick.value++
@@ -110,5 +163,8 @@ export const useOpenWindowsStore = defineStore('openWindows', () => {
     void refresh()
   }
 
-  return { windows, here, open, cycleTick, cards, count, refresh, openOrCycle, start }
+  return {
+    windows, here, open, cycleTick, cards, count, thumbs, thumbStatus, thumbsFailed,
+    refresh, refreshThumbs, openOrCycle, start,
+  }
 })

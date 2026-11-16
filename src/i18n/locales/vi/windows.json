@@ -23,6 +23,11 @@
     "error": "Lỗi",
     "minimized": "Đang thu nhỏ"
   },
+  "thumb": {
+    "loading": "Đang chụp ảnh cửa sổ",
+    "failed": "Không chụp được ảnh thu nhỏ của các cửa sổ. Vẫn chuyển và đóng được bình thường.",
+    "retry": "Thử lại"
+  },
   "gone": "Cửa sổ đó đã đóng.",
   "here": "Cửa sổ này",
   "open": "Mở",

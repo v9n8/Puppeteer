@@ -901,6 +901,7 @@ pub fn run() {
             schedules::commands::set_schedule_enabled,
             schedules::commands::run_schedule_now,
             runs::rewind::list_snapshots,
+            commands::window_snapshot::snapshot_windows,
             runs::rewind::preview_rewind,
             runs::rewind::rewind_run,
             runs::fork::fork_run,
