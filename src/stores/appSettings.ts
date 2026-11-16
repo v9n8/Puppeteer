@@ -55,6 +55,8 @@ export interface AppSettings {
   keymap_config: string
   /** Desktop notification switches as JSON ('' = all on); parse with `parseDesktopNotify` (lib/desktopNotify.ts). */
   desktop_notify: string
+  /** Models that are on per engine, as JSON (V3-62); parse with `parseEnabledModels` (lib/enabledModels.ts). */
+  enabled_models: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {

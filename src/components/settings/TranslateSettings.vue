@@ -11,13 +11,10 @@ import SettingsRow from './SettingsRow.vue'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
-const { claudeModelOptions, codexModelOptions } = useModelOptions()
-
 // Translation model choices follow the chosen translation engine, reusing the
-// same option tables (with cached models merged in) as the default-model selects.
-const translateModelOptions = computed(() =>
-  settings.value.translate_engine === 'codex' ? codexModelOptions.value : claudeModelOptions.value,
-)
+// same option tables (with cached models merged in, models turned off left out)
+// as the default-model selects.
+const { translateModelOptions } = useModelOptions()
 
 // Reset the translation model when switching to an engine that doesn't offer it.
 watch(

@@ -4,6 +4,8 @@
 // (which must stay Tauri-free) can import the same option lists. Keep this file
 // dependency-free: no Tauri, no Pinia, no Vue — just data + tiny helpers.
 
+import { isModelOff, type EnabledModels } from './enabledModels.ts'
+
 export interface SelectOption {
   value: string
   label: string
@@ -163,6 +165,27 @@ export function withCurrentModel(
   const id = current?.trim()
   if (!id || options.some((o) => o.value === id)) return options
   return [...options, { value: id, label: id, description: tr('misc.modelOptions.noLongerOffered', 'No longer offered') }]
+}
+
+/**
+ * Only the models that are on (Settings › Model, V3-63). "Default" and a Claude
+ * family alias (`sonnet`) always stay. The id the select holds (`current`) stays
+ * even when it is off, marked "turned off", so opening a picker never rewrites a
+ * stored choice (like `withCurrentModel`). `enabled` null = no filtering.
+ */
+export function filterEnabledOptions<T extends SelectOption>(
+  options: T[],
+  enabled: EnabledModels | null,
+  engine: string,
+  current?: string | null,
+): T[] {
+  const cur = current?.trim() ?? ''
+  const out: T[] = []
+  for (const o of options) {
+    if (!isModelOff(engine, o.value, enabled)) out.push(o)
+    else if (o.value === cur) out.push({ ...o, label: `${o.label} · ${tr('settings.model.turnedOff', 'turned off')}` })
+  }
+  return out
 }
 
 /** A model discovered from the account (`codex debug models`). Claude's list is

@@ -982,6 +982,7 @@ function onRequestFiles(): void {
     :slash-commands="store.state.slashCommands"
     :project-files="store.state.projectFiles"
     :discovered-models="store.state.discoveredModels"
+    :enabled-models="store.state.enabledModels"
     :claude-account-choices="store.state.claudeAccountChoices"
     :claude-account-id="store.state.runMeta.claudeAccountId"
     :engine="engine"

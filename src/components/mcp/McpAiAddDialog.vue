@@ -75,7 +75,9 @@ const modelOptions = computed<SelectOption[]>(() => {
   const base = engine === 'codex'
     ? modelCatalog.codexOptions(MODEL_OPTIONS.codex)
     : modelCatalog.withValidation(MODEL_OPTIONS.claude)
-  return withCurrentModel(base, model).map((o) => (o.value ? o : { ...o, label: t('settings.ai.modelDefault') }))
+  return modelCatalog
+    .enabledOnly(engine, withCurrentModel(base, model), model)
+    .map((o) => (o.value ? o : { ...o, label: t('settings.ai.modelDefault') }))
 })
 // Without a default account the engine's own login runs; it is offered as the empty choice.
 const accountOptions = computed<SelectOption[]>(() => {

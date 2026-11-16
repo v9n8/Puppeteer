@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Settings → "Defaults for new sessions": engine, the model of each engine,
 // permission mode, effort and response style a new session starts with. The one
-// place these keys are edited; the engine cards keep the model lists (validate /
-// refresh) and link here. Translation has its own section (TranslateSettings).
+// place these keys are edited; Settings › Model scans the model lists and picks
+// the models offered here. Translation has its own section (TranslateSettings).
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowUpRight, Sparkles } from 'lucide-vue-next'
@@ -91,15 +91,15 @@ const styleOptions = computed(() => {
       <SettingsRow :label="t('settings.ai.claudeFallbackModel')" :hint="t('settings.ai.fallbackHint')">
         <AppSelect size="sm" v-model="settings.claude_fallback_model" :options="claudeFallbackOptions" />
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultCodexModel')" :hint="`${t('settings.ai.modelListsHint')} ${t('settings.sections.engines')}.`">
+      <SettingsRow :label="t('settings.ai.defaultCodexModel')" :hint="`${t('settings.ai.modelListsHint')} ${t('settings.sections.model')}.`">
         <div class="flex items-center gap-1">
           <AppSelect size="sm" class="flex-1" v-model="settings.codex_model" :options="codexModelOptions" />
           <Button
             variant="ghost"
             size="icon"
-            :title="t('settings.ai.openSection', { section: t('settings.sections.engines') })"
-            :aria-label="t('settings.ai.openSection', { section: t('settings.sections.engines') })"
-            @click="emit('openSection', 'engines')"
+            :title="t('settings.ai.openSection', { section: t('settings.sections.model') })"
+            :aria-label="t('settings.ai.openSection', { section: t('settings.sections.model') })"
+            @click="emit('openSection', 'model')"
           >
             <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>

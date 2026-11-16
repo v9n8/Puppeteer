@@ -1,15 +1,13 @@
 <script setup lang="ts">
 // Settings → "Engines & accounts": the Claude and Codex accounts in one card,
-// then one card per engine (CLI path, model list) and the extra CLI args under
+// then one card per engine (CLI path, default model) and the extra CLI args under
 // "Advanced". The default model of each engine is set in "Defaults for new
-// sessions"; the cards link there.
-import { onMounted, ref } from 'vue'
+// sessions" and the model lists in Settings › Model; the cards link there.
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronRight, Cpu, Loader2, RefreshCw } from 'lucide-vue-next'
-import { Card, InfoTip, Input } from '@/components/ui'
-import { useModelCatalogStore } from '@/stores/modelCatalog'
+import { ChevronRight, Cpu } from 'lucide-vue-next'
+import { Card, Input } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
-import { fmtRefreshed } from './useModelOptions'
 import type { SettingsSectionId } from '@/lib/settingsSections'
 import ClaudeEngineCard from './ClaudeEngineCard.vue'
 import EngineAccountsCard from './EngineAccountsCard.vue'
@@ -18,13 +16,7 @@ import SettingsRow from './SettingsRow.vue'
 const emit = defineEmits<{ openSection: [id: SettingsSectionId] }>()
 
 const { t } = useI18n()
-const modelCatalog = useModelCatalogStore()
 const { settings } = useSettingsForm()
-
-// The cached Codex list and the Claude validation report shown on the cards.
-onMounted(() => {
-  modelCatalog.ensureLoaded().catch(() => {})
-})
 
 // Collapsed by default, but open when extra args are set: they apply to every
 // run, so they should not sit out of sight.
@@ -35,7 +27,7 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
   <div class="space-y-4">
     <EngineAccountsCard />
 
-    <ClaudeEngineCard @open-defaults="emit('openSection', 'ai')" />
+    <ClaudeEngineCard @open-defaults="emit('openSection', 'ai')" @open-models="emit('openSection', 'model')" />
 
     <Card body-class="p-4 space-y-4">
       <template #header>
@@ -51,29 +43,13 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
         />
       </SettingsRow>
       <div class="space-y-1.5">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-medium text-foreground">{{ t('settings.engines.models') }}</span>
-            <InfoTip
-              v-if="!modelCatalog.codexRefreshedAt && !modelCatalog.codexLoading && !modelCatalog.codexError"
-              :text="t('settings.ai.codexRefreshHint')"
-            />
-          </div>
-          <button
-            class="inline-flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
-            :disabled="modelCatalog.codexLoading"
-            :title="t('settings.ai.reloadCodexModelsTitle')"
-            @click="modelCatalog.refreshCodex()"
-          >
-            <component :is="modelCatalog.codexLoading ? Loader2 : RefreshCw" class="h-3 w-3" :class="{ 'animate-spin': modelCatalog.codexLoading }" :stroke-width="1.75" />
-            {{ modelCatalog.codexLoading ? t('settings.ai.loading') : t('settings.ai.reload') }}
-          </button>
-        </div>
-        <p v-if="modelCatalog.codexError" class="text-2xs text-warning">{{ t('settings.ai.modelsRefreshError') }}</p>
-        <p v-else-if="modelCatalog.codexRefreshedAt" class="text-2xs text-muted-foreground">{{ t('settings.ai.modelsCached', { count: modelCatalog.codexModels.length, when: fmtRefreshed(modelCatalog.codexRefreshedAt) }) }}</p>
+        <span class="text-xs font-medium text-foreground">{{ t('settings.engines.models') }}</span>
         <p class="text-2xs text-muted-foreground">
           {{ t('settings.engines.newSessionsUse', { model: settings.codex_model || t('settings.ai.modelDefault') }) }}
           <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openSection', 'ai')">{{ t('settings.engines.change') }}</button>
+        </p>
+        <p class="text-2xs text-muted-foreground">
+          <button type="button" class="text-primary hover:underline cursor-pointer" @click="emit('openSection', 'model')">{{ t('settings.engines.manageModels') }}</button>
         </p>
       </div>
     </Card>

@@ -4,7 +4,7 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
-import { MODEL_OPTIONS, withCurrentModel } from '@/lib/engineOptions'
+import { MODEL_OPTIONS, withCurrentModel, type SelectOption } from '@/lib/engineOptions'
 import { useSettingsForm } from './useSettingsForm'
 
 export function useModelOptions() {
@@ -12,57 +12,62 @@ export function useModelOptions() {
   const modelCatalog = useModelCatalogStore()
   const { settings } = useSettingsForm()
 
-  // The pinned Claude table, shared with the composer and the remote controller.
-  // Only the leading "Default" placeholder is translated; the rest are model ids.
-  const CLAUDE_MODEL_OPTIONS = MODEL_OPTIONS.claude.map((o) =>
-    o.value === '' ? { ...o, label: t('settings.ai.modelDefault') } : o,
-  )
-  const CODEX_MODEL_OPTIONS = [
-    { value: '', label: t('settings.ai.modelDefault') },
-    { value: 'gpt-5.5', label: 'gpt-5.5' },
-    { value: 'gpt-5.4', label: 'gpt-5.4' },
-    { value: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
-    { value: 'gpt-5.2-codex', label: 'gpt-5.2-codex' },
-    { value: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
-  ]
+  // The pinned Claude and Codex tables, shared with the composer and the remote
+  // controller. Only the leading "Default" placeholder is translated.
+  const withDefaultLabel = (opts: SelectOption[]) =>
+    opts.map((o) => (o.value === '' ? { ...o, label: t('settings.ai.modelDefault') } : o))
+  const CLAUDE_MODEL_OPTIONS = withDefaultLabel(MODEL_OPTIONS.claude)
+  const CODEX_MODEL_OPTIONS = withDefaultLabel(MODEL_OPTIONS.codex)
 
   // Claude model choices = the pinned table, annotated with the last validation
   // sweep, plus whatever is already saved (so an id dropped from the table — or a
-  // family alias from an older build — is never silently rewritten).
-  const claudeModelOptions = computed(() =>
-    modelCatalog.withValidation(
-      withCurrentModel(CLAUDE_MODEL_OPTIONS, settings.value.claude_model),
-    ),
-  )
+  // family alias from an older build — is never silently rewritten), without the
+  // models turned off in Settings › Model (the saved one stays, marked).
+  function claudeOptionsFor(current: string) {
+    return modelCatalog.enabledOnly(
+      'claude',
+      modelCatalog.withValidation(withCurrentModel(CLAUDE_MODEL_OPTIONS, current)),
+      current,
+    )
+  }
+  // Codex model choices = curated fallback, replaced by the CLI-refreshed cache
+  // (`codex debug models`) once the user scans in Settings › Model.
+  function codexOptionsFor(current: string) {
+    return modelCatalog.enabledOnly('codex', modelCatalog.codexOptions(CODEX_MODEL_OPTIONS), current)
+  }
+
+  const claudeModelOptions = computed(() => claudeOptionsFor(settings.value.claude_model))
   // Fallback model choices (AC-17): off, the `sonnet` alias (the default, so it
   // follows the current Sonnet), then the same pinned table and the saved pick.
-  const claudeFallbackOptions = computed(() =>
-    modelCatalog.withValidation(
-      withCurrentModel(
-        [
-          { value: '', label: t('settings.ai.fallbackOff') },
-          { value: 'sonnet', label: 'sonnet', description: t('settings.ai.fallbackSonnetAlias') },
-          ...CLAUDE_MODEL_OPTIONS.filter((o) => o.value !== ''),
-        ],
-        settings.value.claude_fallback_model,
+  const claudeFallbackOptions = computed(() => {
+    const current = settings.value.claude_fallback_model
+    return modelCatalog.enabledOnly(
+      'claude',
+      modelCatalog.withValidation(
+        withCurrentModel(
+          [
+            { value: '', label: t('settings.ai.fallbackOff') },
+            { value: 'sonnet', label: 'sonnet', description: t('settings.ai.fallbackSonnetAlias') },
+            ...CLAUDE_MODEL_OPTIONS.filter((o) => o.value !== ''),
+          ],
+          current,
+        ),
       ),
-    ),
+      current,
+    )
+  })
+  const codexModelOptions = computed(() => codexOptionsFor(settings.value.codex_model))
+  // The translate model follows the translate engine.
+  const translateModelOptions = computed(() =>
+    settings.value.translate_engine === 'codex'
+      ? codexOptionsFor(settings.value.translate_model)
+      : claudeOptionsFor(settings.value.translate_model),
   )
-  // Codex model choices = curated fallback, replaced by the CLI-refreshed cache
-  // (`codex debug models`) once the user refreshes in Settings.
-  const codexModelOptions = computed(() => modelCatalog.codexOptions(CODEX_MODEL_OPTIONS))
 
   onMounted(() => {
     // Hydrate the persisted model caches (no discovery — refresh is manual).
     modelCatalog.ensureLoaded().catch(() => {})
   })
 
-  return { claudeModelOptions, claudeFallbackOptions, codexModelOptions }
-}
-
-/** Format a model-cache timestamp for the "last refreshed" hint. */
-export function fmtRefreshed(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return isNaN(d.getTime()) ? '' : d.toLocaleString()
+  return { claudeModelOptions, claudeFallbackOptions, codexModelOptions, translateModelOptions }
 }

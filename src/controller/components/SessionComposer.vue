@@ -21,6 +21,7 @@ import HeaderButton from './HeaderButton.vue'
 const { t } = useI18n()
 import {
   effectiveModelOptions,
+  filterEnabledOptions,
   combinedModelOptions,
   engineForModel,
   permissionModeOptions,
@@ -28,6 +29,7 @@ import {
   type SelectOption,
 } from '@/lib/engineOptions'
 import type { ClaudeAccountChoice } from '../protocol'
+import type { EnabledModels } from '@/lib/enabledModels'
 import type { CmdAttachment, SlashCommand } from '../protocol'
 
 /** One outbound turn assembled by the composer. */
@@ -48,6 +50,8 @@ const props = withDefaults(
     /** Models the Host discovered from the account (merged into the curated
      * model table, mirroring the desktop composer). */
     discoveredModels?: { codex: FetchedModel[] }
+    /** Models that are on per engine on the Host (null = all on). */
+    enabledModels?: EnabledModels | null
     /** Managed Claude accounts a run may be switched to. */
     claudeAccounts?: ClaudeAccountChoice[]
     /** The account the run currently executes with; `''` = global `~/.claude`. */
@@ -67,6 +71,7 @@ const props = withDefaults(
     slashCommands: () => [],
     projectFiles: () => [],
     discoveredModels: () => ({ codex: [] }),
+    enabledModels: null,
     claudeAccounts: () => [],
     claudeAccountId: '',
     engine: '',
@@ -100,10 +105,12 @@ const fileInputEl = ref<HTMLInputElement | null>(null)
 // One grouped list of Claude + Codex models (the engine is implied by the pick),
 // mirroring the desktop composer so the two never disagree. The leading Default
 // entry follows the Host's settings.
+// Models turned off on the Host (Settings › Model) are left out; the run's own
+// pick stays, marked "turned off".
 const modelOptions = computed(() =>
   combinedModelOptions({
-    claude: effectiveModelOptions('claude', props.discoveredModels),
-    codex: effectiveModelOptions('codex', props.discoveredModels),
+    claude: filterEnabledOptions(effectiveModelOptions('claude', props.discoveredModels), props.enabledModels, 'claude', props.model),
+    codex: filterEnabledOptions(effectiveModelOptions('codex', props.discoveredModels), props.enabledModels, 'codex', props.model),
     defaultLabel: t('controller.composer.modelDefault'),
     claudeLabel: 'Claude',
     codexLabel: 'Codex',

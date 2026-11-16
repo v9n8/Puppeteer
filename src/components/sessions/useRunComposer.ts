@@ -35,7 +35,7 @@ import { openSessionFile } from './openSessionFile'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
 import type { ImageAttachment } from '@/lib/streamEvents'
 import {
-  MODEL_OPTIONS, withCurrentModel, combinedModelOptions, engineForModel,
+  withCurrentModel, combinedModelOptions, engineForModel,
 } from '@/lib/engineOptions'
 import { inheritedModel } from '@/lib/composerChips'
 import { autoGrowHeight, clampDragHeight } from '@/lib/autoGrow'
@@ -122,8 +122,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // read reactively, so changing a default is reflected here at once.
   const defaultModel = computed(() => inheritedModel(currentRun.value, effectiveEngine.value, sessionDefaults.value))
   const modelOptions = computed(() => {
-    let claude = modelCatalog.withValidation(MODEL_OPTIONS.claude)
-    let codex = modelCatalog.codexOptions(MODEL_OPTIONS.codex)
+    let claude = modelCatalog.offered('claude', modelOverride.value)
+    let codex = modelCatalog.offered('codex', modelOverride.value)
     // Keep an off-table saved pick selectable (a dropped/aliased id) by appending
     // it to the group matching the loaded run's engine.
     const cur = modelOverride.value

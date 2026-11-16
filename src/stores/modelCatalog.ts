@@ -1,12 +1,17 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
 import { i18n } from '@/i18n'
 import {
   CLAUDE_MODEL_IDS,
+  MODEL_OPTIONS,
   codexOptions as mergeCodex,
+  filterEnabledOptions,
   type SelectOption,
 } from '@/lib/engineOptions'
+import { parseEnabledModels } from '@/lib/enabledModels'
+import { useAppSettingsStore } from './appSettings'
 
 /**
  * Model catalog state, persisted by the backend in the `settings` table and
@@ -55,6 +60,13 @@ export interface ModelValidationReport {
   results: ModelValidation[]
 }
 
+/** `claude_models_validate_progress` (commands/models.rs), while a sweep runs. */
+export interface ModelValidationProgress {
+  done: number
+  total: number
+  account_label: string
+}
+
 interface ModelCaches {
   codex: Record<string, ModelCacheEntry>
   codex_active_key: string
@@ -78,6 +90,12 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   const validationActiveKey = ref('default')
   const validating = ref(false)
   const validationThrow = ref<string | null>(null)
+  const validationProgress = ref<ModelValidationProgress | null>(null)
+
+  // Models that are on per engine (Settings › Model, V3-63), from the shared
+  // settings; all on until they load. Every model picker filters through it.
+  const appSettings = useAppSettingsStore()
+  const enabled = computed(() => parseEnabledModels(appSettings.settings?.enabled_models))
 
   const loaded = ref(false)
 
@@ -108,6 +126,7 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
 
   /** Hydrate from the backend (no discovery, no probing). Loads once. */
   async function ensureLoaded(force = false) {
+    appSettings.ensureLoaded().catch(() => {})
     if (loaded.value && !force) return
     try {
       const caches = await invoke<ModelCaches>('get_model_caches')
@@ -130,6 +149,10 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     if (validating.value) return
     validating.value = true
     validationThrow.value = null
+    validationProgress.value = { done: 0, total: CLAUDE_MODEL_IDS.length, account_label: '' }
+    const unlisten = await listen<ModelValidationProgress>('claude_models_validate_progress', (e) => {
+      validationProgress.value = e.payload
+    }).catch(() => null)
     try {
       const report = await invoke<ModelValidationReport>('validate_claude_models', {
         models: CLAUDE_MODEL_IDS,
@@ -143,6 +166,8 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     } catch (e) {
       validationThrow.value = String(e)
     } finally {
+      unlisten?.()
+      validationProgress.value = null
       validating.value = false
     }
   }
@@ -189,12 +214,26 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     })
   }
 
+  /** `options` of `engine` without the models that are off; `current` (the
+   * select's value) stays, marked "turned off" (lib/engineOptions). */
+  function enabledOnly<T extends SelectOption>(engine: string, options: T[], current?: string | null): T[] {
+    return filterEnabledOptions(options, enabled.value, engine, current)
+  }
+
+  /** A picker's group of `engine`: the pinned Claude table with the last sweep's
+   * marks, or the scanned Codex list, without the models that are off. */
+  function offered(engine: 'claude' | 'codex', current?: string | null): SelectOption[] {
+    const base = engine === 'codex' ? codexOptions(MODEL_OPTIONS.codex) : withValidation(MODEL_OPTIONS.claude)
+    return enabledOnly(engine, base, current)
+  }
+
   return {
     // state
     codexByAccount,
     codexActiveKey,
     codexLoading,
     validating,
+    validationProgress,
     loaded,
     // getters
     codexEntry,
@@ -208,11 +247,14 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     validationAccountLabel,
     validationError,
     unsupportedModels,
+    enabled,
     // actions
     ensureLoaded,
     validateClaude,
     refreshCodex,
     codexOptions,
     withValidation,
+    enabledOnly,
+    offered,
   }
 })

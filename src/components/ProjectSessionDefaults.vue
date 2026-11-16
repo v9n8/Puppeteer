@@ -66,15 +66,22 @@ const engineOptions = computed<SelectOption[]>(() => [
   { value: 'codex', label: 'Codex' },
 ])
 const modelLabel = (model: string) => model || t('settings.ai.modelDefault')
+// Models turned off in Settings › Model are left out; the project's own pick stays, marked.
 const claudeModelOptions = computed<SelectOption[]>(() => [
   { value: '', label: follow(modelLabel(global.value.models.claude)) },
-  ...modelCatalog.withValidation(
-    withCurrentModel(MODEL_OPTIONS.claude.filter((o) => o.value), own.value.model_claude),
+  ...modelCatalog.enabledOnly(
+    'claude',
+    modelCatalog.withValidation(withCurrentModel(MODEL_OPTIONS.claude.filter((o) => o.value), own.value.model_claude)),
+    own.value.model_claude,
   ),
 ])
 const codexModelOptions = computed<SelectOption[]>(() => [
   { value: '', label: follow(modelLabel(global.value.models.codex)) },
-  ...withCurrentModel(modelCatalog.codexOptions(MODEL_OPTIONS.codex).filter((o) => o.value), own.value.model_codex),
+  ...modelCatalog.enabledOnly(
+    'codex',
+    withCurrentModel(modelCatalog.codexOptions(MODEL_OPTIONS.codex).filter((o) => o.value), own.value.model_codex),
+    own.value.model_codex,
+  ),
 ])
 
 // ── Permission mode ──

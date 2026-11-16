@@ -25,6 +25,7 @@ import SessionPlanUsageBar from './SessionPlanUsageBar.vue'
 import type { UsageInfo } from '../runStore'
 import type { RateLimitWindows } from '@/stores/liveRuns'
 import type { ConnStatus } from '../connection'
+import type { EnabledModels } from '@/lib/enabledModels'
 import type {
   ClaudeAccountChoice, ClaudeAccountUsage, FetchedModel, PlanBudget, QuestionAnswers,
   RemoteDecision, SlashCommand,
@@ -50,6 +51,8 @@ const props = defineProps<{
   projectFiles: string[]
   /** Models the Host discovered from the account (composer model selector). */
   discoveredModels: { codex: FetchedModel[] }
+  /** Models that are on per engine on the Host (composer model selector). */
+  enabledModels: EnabledModels
   /** Managed Claude accounts a run may be switched to. */
   claudeAccountChoices: ClaudeAccountChoice[]
   /** The account the run executes with; `''` = global `~/.claude`. */
@@ -334,6 +337,7 @@ onUnmounted(() => {
       :slash-commands="slashCommands"
       :project-files="projectFiles"
       :discovered-models="discoveredModels"
+      :enabled-models="enabledModels"
       :claude-accounts="claudeAccountChoices"
       :claude-account-id="claudeAccountId"
       :engine="engine"

@@ -26,7 +26,7 @@ use serde_json::{Map, Value};
 use sqlx::Row;
 use std::collections::HashMap;
 use std::time::Duration;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// A model choice surfaced to the UI (mirrors the frontend SelectOption).
@@ -150,6 +150,17 @@ const VALIDATE_CONCURRENCY: usize = 3;
 
 /// Seconds a single probe may take before it is treated as a failure.
 const VALIDATE_TIMEOUT_SECS: u64 = 120;
+
+/// Emitted as a sweep starts and after each batch of probes, for the
+/// "Scanning 3/8 models" line of Settings › Model (V3-63).
+const VALIDATE_PROGRESS_EVENT: &str = "claude_models_validate_progress";
+
+#[derive(Clone, Serialize)]
+struct ValidateProgress<'a> {
+    done: usize,
+    total: usize,
+    account_label: &'a str,
+}
 
 /// Everything a probe needs to spawn a sidecar, resolved once per sweep.
 #[derive(Clone)]
@@ -315,6 +326,13 @@ pub async fn validate_claude_models(
     }
 
     let mut results: Vec<ModelValidation> = Vec::with_capacity(wanted.len());
+    let progress = |done: usize| {
+        let _ = app.emit(
+            VALIDATE_PROGRESS_EVENT,
+            ValidateProgress { done, total: wanted.len(), account_label: &account_label },
+        );
+    };
+    progress(0);
     for chunk in wanted.chunks(VALIDATE_CONCURRENCY) {
         let mut set = tokio::task::JoinSet::new();
         for (idx, model) in chunk.iter().enumerate() {
@@ -332,6 +350,7 @@ pub async fn validate_claude_models(
         }
         done.sort_by_key(|(idx, _)| *idx);
         results.extend(done.into_iter().map(|(_, v)| v));
+        progress(results.len());
     }
 
     let report = ModelValidationReport {

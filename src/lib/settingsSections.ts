@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain, Flag, Info,
+  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain, Flag, Info, Boxes,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -31,6 +31,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'palette', group: 'general', labelKey: 'settings.sections.palette', icon: Command, feature: 'app.command_palette' },
   { id: 'keymap', group: 'general', labelKey: 'settings.sections.keymap', icon: Keyboard, feature: 'app.command_palette' },
   { id: 'engines', group: 'ai', labelKey: 'settings.sections.engines', icon: Cpu },
+  // Which models each engine may use (V3-63); every model picker filters by it.
+  { id: 'model', group: 'ai', labelKey: 'settings.sections.model', icon: Boxes },
   { id: 'ai', group: 'ai', labelKey: 'settings.sections.ai', icon: Sparkles },
   { id: 'styles', group: 'ai', labelKey: 'settings.sections.styles', icon: MessageSquareText },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },

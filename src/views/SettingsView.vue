@@ -28,6 +28,7 @@ import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings
 import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
 import AboutSettings from '@/components/settings/AboutSettings.vue'
+import ModelSettings from '@/components/settings/ModelSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -272,6 +273,13 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <!-- Module → prop switches. Mounted only while shown: it re-reads the tree on open. -->
         <div v-if="!loading && activeSection === 'features'" class="max-w-4xl">
           <FeaturesSettings />
+        </div>
+
+        <!-- Which models each engine may use. Kept mounted (v-show) so unsaved switches survive
+             a visit to another section (the Save dialog links to them); it re-reads the lists
+             each time it is shown, and ⌘S saves only while it is. -->
+        <div v-if="!loading" v-show="activeSection === 'model'" class="max-w-4xl">
+          <ModelSettings :active="activeSection === 'model'" @open-section="openPlace({ section: $event })" />
         </div>
 
         <!-- Version, updates and release notes. Mounted only while shown, so `?release=` scrolls on open. -->
