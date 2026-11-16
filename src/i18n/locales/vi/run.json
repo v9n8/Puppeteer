@@ -229,14 +229,13 @@
   "codexAccountUpdatedNextTurn": "Đã đổi tài khoản Codex cho run này. Áp dụng từ lượt sau.",
   "codexAccountUpdateFailed": "Đổi tài khoản Codex thất bại: {error}",
   "accountMenu": {
-    "title": "Tài khoản · model",
-    "chipTitle": "Tài khoản · model: {value}",
-    "tabModel": "Model",
-    "tabAccount": "Tài khoản",
+    "heading": "Tài khoản · {engine}",
+    "manage": "Quản lý tài khoản…",
+    "expired": "Đăng nhập đã hết hạn — đăng nhập lại ở Cài đặt › Engine & tài khoản",
+    "followsProject": "Theo tài khoản của Project",
+    "chipTitle": "Tài khoản: {account} — bấm để đổi tài khoản",
     "fiveHour": "5h",
     "week": "Tuần",
-    "nextTurn": "Áp dụng từ lượt sau.",
-    "modelRunning": "Chọn model sau khi lượt này kết thúc.",
     "sharedCodexLogin": "Login Codex chung"
   },
   "quotaSwitch": {
@@ -261,7 +260,6 @@
   "chipStyleProject": "Project này",
   "chipTitle": "{name}: {value}",
   "chipTitleDefault": "{name}: {value} (mặc định)",
-  "chipNextTurn": "Thay đổi áp dụng từ lượt sau.",
   "modelSetting": "Model",
   "modelTitle": "Model cho run này (để trống = mặc định theo engine/cài đặt)",
   "modelDefault": "Mặc định (theo cài đặt)",
@@ -331,11 +329,7 @@
   "currentEngine": "engine hiện tại",
   "handoffIntro": "Bạn đang có một Session với",
   "handoffQuestion": "Bạn muốn làm gì?",
-  "handoffContinueBullet": "Tiếp tục Session hiện tại: tạo Session mới trên {engine} và nạp lại toàn bộ Context đang có.",
-  "handoffNewBullet": "Bắt đầu Session mới: tạo Session mới trên engine đã chọn, không mang Context cũ.",
-  "startNewSession": "Bắt đầu Session mới",
   "summarizingContext": "Đang tóm tắt Context…",
-  "continueCurrentSession": "Tiếp tục Session hiện tại",
   "quickCapture": "Ghi chú",
   "quickCaptureTitle": "Ghi chú / thêm việc nhanh mà không rời Session đang chạy",
   "focusMode": "Chế độ tập trung",
@@ -442,5 +436,15 @@
       "no_log": "Session này không có log để Fork.",
       "fork_point_unknown": "Không tìm thấy lượt này trong log của Session. Hãy Fork cả Session."
     }
+  },
+  "handoff": {
+    "newTitle": "Bắt đầu Session mới với {engine}",
+    "newBody": "Hội thoại mới, không mang Context của Session này.",
+    "continueTitle": "Tiếp tục Session hiện tại",
+    "continueBody": "{from} tóm tắt Context rồi {to} làm tiếp trong Session này."
+  },
+  "runOptions": {
+    "effort": "Effort",
+    "style": "Phong cách"
   }
 }

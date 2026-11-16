@@ -229,14 +229,13 @@
   "codexAccountUpdatedNextTurn": "Codex account changed for this run. Applies from the next turn.",
   "codexAccountUpdateFailed": "Could not change Codex account: {error}",
   "accountMenu": {
-    "title": "Account · model",
-    "chipTitle": "Account · model: {value}",
-    "tabModel": "Model",
-    "tabAccount": "Account",
+    "heading": "Account · {engine}",
+    "manage": "Manage accounts…",
+    "expired": "Sign-in expired — sign in again in Settings › Engines & accounts",
+    "followsProject": "Follows the Project's account",
+    "chipTitle": "Account: {account} — click to switch account",
     "fiveHour": "5h",
     "week": "Week",
-    "nextTurn": "Applies from the next turn.",
-    "modelRunning": "Pick a model once this turn ends.",
     "sharedCodexLogin": "Shared Codex login"
   },
   "quotaSwitch": {
@@ -261,7 +260,6 @@
   "chipStyleProject": "This project",
   "chipTitle": "{name}: {value}",
   "chipTitleDefault": "{name}: {value} (default)",
-  "chipNextTurn": "Changes apply from the next turn.",
   "modelSetting": "Model",
   "modelTitle": "Model for this run (empty = engine/settings default)",
   "modelDefault": "Default (from settings)",
@@ -331,11 +329,7 @@
   "currentEngine": "the current engine",
   "handoffIntro": "You have an active work session with",
   "handoffQuestion": "What would you like to do?",
-  "handoffContinueBullet": "Continue the current session: create a new session on {engine} and reload all the existing context.",
-  "handoffNewBullet": "Start a new session: create a fresh session on the chosen engine, without carrying over the old context.",
-  "startNewSession": "Start a new session",
   "summarizingContext": "Summarizing context…",
-  "continueCurrentSession": "Continue the current session",
   "quickCapture": "Note",
   "quickCaptureTitle": "Quick capture a note / todo without leaving this session",
   "focusMode": "Focus mode",
@@ -442,5 +436,15 @@
       "no_log": "This session has no log to fork.",
       "fork_point_unknown": "This turn was not found in the session log. Fork the whole session instead."
     }
+  },
+  "handoff": {
+    "newTitle": "Start a new Session with {engine}",
+    "newBody": "A fresh conversation, without this Session's context.",
+    "continueTitle": "Continue this Session",
+    "continueBody": "{from} summarizes the Context, then {to} carries on in this Session."
+  },
+  "runOptions": {
+    "effort": "Effort",
+    "style": "Response style"
   }
 }

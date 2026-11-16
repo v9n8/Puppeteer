@@ -2,16 +2,18 @@
 // The composer under the AI result: palettes, attachments, prompt input and
 // the run controls. RunView shows it once a run is open; the usage row that
 // sat above the input is now RunStatusBar. State lives in useRunSession.
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, Navigation, Clock, Pencil,
+  Paperclip, Navigation, Clock, Pencil, Gauge, MessageSquareText,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
+import { WIDE_CHIPS_FROM as WIDE_FALLBACK, hideOptionalChips } from '@/lib/composerChipLayout'
 import ComposerQuoteBlock from './ComposerQuoteBlock.vue'
 import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
@@ -20,7 +22,7 @@ import RunMcpSection from './RunMcpSection.vue'
 const { t } = useI18n()
 const {
   features, projectId, modelOverride, session, currentStatus, runSettingsOpen,
-  runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle, toggleRunSettingsMenu,
+  runSettingsRoot, engineBadgeLabel, engineBadgeIcon, toggleRunSettingsMenu,
   closeRunSettingsMenu, modelOptions, onModelSelect, composerModelLabel, followUpInput,
   sendingFollowUp, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
@@ -32,14 +34,36 @@ const {
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
   editingMessage, rewindingEdit, cancelEditResend,
+  effortPick, effortValue, effortLevelsNow, effortOptions, stylePick, styleValue, styleOptions,
 } = useRunSession()
+
+// Effort and Response style fold into Run options when the Session pane is
+// narrow (V3-34). The composer spans the pane, so its own width is the pane's,
+// whatever the sidebar or a split view takes.
+const composerRoot = ref<HTMLElement | null>(null)
+const paneWidth = ref(WIDE_FALLBACK)
+let paneObserver: ResizeObserver | null = null
+onMounted(() => {
+  const el = composerRoot.value
+  if (!el || typeof ResizeObserver === 'undefined') return
+  paneWidth.value = el.clientWidth
+  paneObserver = new ResizeObserver(() => { paneWidth.value = el.clientWidth })
+  paneObserver.observe(el)
+})
+onBeforeUnmount(() => paneObserver?.disconnect())
+const runSettingsTitle = computed(() =>
+  t('run.runSettingsTitle', { engine: [engineBadgeLabel.value, composerModelLabel.value].filter(Boolean).join(' · ') }),
+)
+const compactChips = computed(() =>
+  hideOptionalChips(paneWidth.value, { hasRunActions: currentStatus.value === 'running' || !!editingMessage.value }),
+)
 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
 </script>
 
 <template>
-  <div data-run-composer class="border-t border-border bg-card/40 px-3 py-2 shrink-0">
+  <div ref="composerRoot" data-run-composer class="border-t border-border bg-card/40 px-3 py-2 shrink-0">
     <RunAttentionBanner
       v-if="currentStatus === 'running' && session?.attention.length"
       :notices="session.attention"
@@ -349,6 +373,34 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                       </template>
                     </AppSelect>
                   </div>
+                  <div v-if="compactChips && effortLevelsNow.length" class="space-y-1.5">
+                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
+                      <Gauge class="h-3 w-3 shrink-0" :stroke-width="1.5" />
+                      <span>{{ t('run.runOptions.effort') }}</span>
+                    </div>
+                    <AppSelect
+                      :model-value="effortValue"
+                      size="sm"
+                      :options="effortOptions"
+                      class="w-full"
+                      :aria-label="t('run.runOptions.effort')"
+                      @update:model-value="effortPick = $event"
+                    />
+                  </div>
+                  <div v-if="compactChips" class="space-y-1.5">
+                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
+                      <MessageSquareText class="h-3 w-3 shrink-0" :stroke-width="1.5" />
+                      <span>{{ t('run.runOptions.style') }}</span>
+                    </div>
+                    <AppSelect
+                      :model-value="styleValue"
+                      size="sm"
+                      :options="styleOptions"
+                      class="w-full"
+                      :aria-label="t('run.runOptions.style')"
+                      @update:model-value="stylePick = $event"
+                    />
+                  </div>
                   <RunMcpSection
                     v-if="currentRunId"
                     :run-id="currentRunId"
@@ -358,7 +410,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               </div>
             </transition>
           </div>
-          <RunComposerChips />
+          <RunComposerChips :compact="compactChips" />
 
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
             <Button

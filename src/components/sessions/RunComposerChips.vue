@@ -1,37 +1,45 @@
 <script setup lang="ts">
-// The composer toolbar's always-visible chips (UX-26): account · model with its
-// Model | Account menu (UX-47), permission mode, effort (only when the next
-// turn's engine + model take one) and response style. State and defaults:
+// The composer toolbar's always-visible chips (UX-26): account (its menu lists
+// the accounts and their plan usage, UX-47), permission mode, effort (only when
+// the next turn's engine + model take one) and response style. Effort and style
+// fold into Run options when `compact` (V3-34). State and defaults:
 // useComposerChips; the menu's rows: useRunComposer.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, ChevronDown, Gauge, MessageSquareText, Sparkles, UserCircle } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Check, ChevronDown, Gauge, Lock, MessageSquareText, Settings, UserCircle } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
-import { Button, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { useRunSession } from './useRunSession'
 
+defineProps<{ compact?: boolean }>()
+
 const { t } = useI18n()
+const router = useRouter()
 const {
   permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortValue, effortLevelsNow, effortOptions,
   effortChipLabel, effortChipTitle, stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
-  accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, accountUsage,
-  accountModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
-  modelOptions, modelOverride, onModelSelect, currentStatus,
+  accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, accountUsage, accountExpired,
+  accountModelLabel, composerModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
+  effectiveEngine,
 } = useRunSession()
 
-const tabs = computed<SegmentedOption<'model' | 'account'>[]>(() => [
-  { value: 'model', label: t('run.accountMenu.tabModel'), icon: Sparkles },
-  { value: 'account', label: t('run.accountMenu.tabAccount'), icon: UserCircle },
-])
-const accountChipTitle = computed(() => t('run.accountMenu.chipTitle', { value: accountModelLabel.value }))
+const engineName = computed(() => (effectiveEngine.value === 'codex' ? 'Codex' : 'Claude'))
+// The account's name alone: the model is in Run options.
+const accountChipLabel = computed(() => {
+  const suffix = composerModelLabel.value ? ` · ${composerModelLabel.value}` : ''
+  return suffix && accountModelLabel.value.endsWith(suffix) ? accountModelLabel.value.slice(0, -suffix.length) : accountModelLabel.value
+})
+const accountChipTitle = computed(() => t('run.accountMenu.chipTitle', { account: accountChipLabel.value }))
 
-function pickModel(value: string) {
-  closeAccountMenu()
-  onModelSelect(value)
-}
 function pickAccount(value: string) {
   closeAccountMenu()
   void handleAccountChange(value)
+}
+// The engine's card in Settings is the one place to add, sign in or remove accounts.
+function manageAccounts() {
+  closeAccountMenu()
+  router.push({ path: '/settings', query: { section: 'engines' } }).catch(() => {})
 }
 </script>
 
@@ -48,7 +56,7 @@ function pickAccount(value: string) {
       @click="toggleAccountMenu"
     >
       <UserCircle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-      <span class="max-w-[14rem] truncate text-foreground" :title="accountChipTitle">{{ accountModelLabel }}</span>
+      <span class="max-w-[10rem] truncate text-foreground">{{ accountChipLabel }}</span>
       <ChevronDown
         class="h-3 w-3 shrink-0 transition-transform duration-200"
         :class="{ 'rotate-180': accountMenuOpen }"
@@ -64,92 +72,76 @@ function pickAccount(value: string) {
       <div
         v-if="accountMenuOpen"
         role="dialog"
-        class="absolute bottom-full left-0 z-30 mb-2 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-2 shadow-lg shadow-black/20"
-        :aria-label="t('run.accountMenu.title')"
+        class="absolute bottom-full left-0 z-30 mb-2 w-[380px] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-2 shadow-lg shadow-black/20"
+        :aria-label="t('run.accountMenu.heading', { engine: engineName })"
       >
-        <SegmentedControl v-model="accountTab" :options="tabs" class="mb-2" />
-
-        <template v-if="accountTab === 'model'">
-          <ul class="max-h-72 overflow-y-auto text-xs">
-            <template v-for="o in modelOptions" :key="o.value">
-              <li
-                v-if="o.header"
-                class="px-2 pt-2 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground select-none"
-              >{{ o.label }}</li>
-              <li v-else>
-                <button
-                  type="button"
-                  class="flex w-full cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
-                  :disabled="currentStatus === 'running'"
-                  @click="pickModel(o.value)"
+        <h4 class="px-2 pb-1 pt-0.5 text-xs font-semibold">{{ t('run.accountMenu.heading', { engine: engineName }) }}</h4>
+        <ul class="max-h-72 overflow-y-auto text-xs">
+          <li v-for="a in accountChoices" :key="a.value ?? a.label">
+            <component
+              :is="a.value === null ? 'div' : 'button'"
+              :type="a.value === null ? undefined : 'button'"
+              class="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left"
+              :class="a.value === null
+                ? ''
+                : accountExpired(a.usageKey)
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent'"
+              :disabled="a.value === null ? undefined : accountSelectDisabled"
+              :aria-current="a.value === null || a.value === selectedAccountId ? 'true' : undefined"
+              :aria-disabled="accountExpired(a.usageKey) ? 'true' : undefined"
+              @click="a.value !== null && !accountExpired(a.usageKey) && pickAccount(a.value)"
+            >
+              <Lock v-if="accountExpired(a.usageKey)" class="mt-0.5 h-3 w-3 shrink-0 text-warning" :stroke-width="2" />
+              <Check
+                v-else
+                class="mt-0.5 h-3 w-3 shrink-0 text-primary"
+                :class="a.value === null || a.value === selectedAccountId ? 'opacity-100' : 'opacity-0'"
+                :stroke-width="2.5"
+              />
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate" :title="a.label">{{ a.label }}</span>
+                <span
+                  v-if="accountExpired(a.usageKey)"
+                  class="text-2xs leading-tight text-warning"
+                >{{ t('run.accountMenu.expired') }}</span>
+                <span
+                  v-else-if="a.detail"
+                  class="truncate text-2xs leading-tight text-muted-foreground"
+                  :title="a.detail"
+                >{{ a.detail }}</span>
+                <span
+                  v-else-if="a.value === '' && effectiveEngine === 'claude'"
+                  class="text-2xs leading-tight text-muted-foreground"
+                >{{ t('run.accountMenu.followsProject') }}</span>
+              </span>
+              <span class="flex shrink-0 gap-3">
+                <span
+                  v-for="u in accountUsage(a.usageKey)"
+                  :key="u.key"
+                  class="flex flex-col items-end"
+                  :title="u.reset ? `${u.title} · ${u.reset}` : u.title"
                 >
-                  <Check
-                    class="mt-0.5 h-3 w-3 shrink-0 text-primary"
-                    :class="o.value === modelOverride ? 'opacity-100' : 'opacity-0'"
-                    :stroke-width="2.5"
-                  />
-                  <span class="flex min-w-0 flex-col">
-                    <span class="truncate" :title="o.label">{{ o.label }}</span>
-                    <span
-                      v-if="o.description"
-                      class="truncate text-2xs leading-tight text-muted-foreground"
-                      :title="o.description"
-                    >{{ o.description }}</span>
+                  <span class="tabular-nums">
+                    <span class="text-muted-foreground">{{ u.label }}</span>
+                    <span class="ml-1 font-medium" :class="u.color">{{ u.percent }}%</span>
                   </span>
-                </button>
-              </li>
-            </template>
-          </ul>
-          <p v-if="currentStatus === 'running'" class="mt-1 px-2 text-2xs text-muted-foreground">
-            {{ t('run.accountMenu.modelRunning') }}
-          </p>
-        </template>
-
-        <template v-else>
-          <ul class="max-h-72 overflow-y-auto text-xs">
-            <li v-for="a in accountChoices" :key="a.value ?? a.label">
-              <component
-                :is="a.value === null ? 'div' : 'button'"
-                :type="a.value === null ? undefined : 'button'"
-                class="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left"
-                :class="a.value === null ? '' : 'cursor-pointer hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent'"
-                :disabled="a.value === null ? undefined : accountSelectDisabled"
-                @click="a.value !== null && pickAccount(a.value)"
-              >
-                <Check
-                  class="mt-0.5 h-3 w-3 shrink-0 text-primary"
-                  :class="a.value === null || a.value === selectedAccountId ? 'opacity-100' : 'opacity-0'"
-                  :stroke-width="2.5"
-                />
-                <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate" :title="a.label">{{ a.label }}</span>
-                  <span
-                    v-if="a.detail"
-                    class="truncate text-2xs leading-tight text-muted-foreground"
-                    :title="a.detail"
-                  >{{ a.detail }}</span>
+                  <span v-if="u.reset" class="text-2xs leading-tight text-muted-foreground">{{ u.reset }}</span>
                 </span>
-                <span class="flex shrink-0 gap-3">
-                  <span
-                    v-for="u in accountUsage(a.usageKey)"
-                    :key="u.key"
-                    class="flex flex-col items-end"
-                    :title="u.reset ? `${u.title} · ${u.reset}` : u.title"
-                  >
-                    <span class="tabular-nums">
-                      <span class="text-muted-foreground">{{ u.label }}</span>
-                      <span class="ml-1 font-medium" :class="u.color">{{ u.percent }}%</span>
-                    </span>
-                    <span v-if="u.reset" class="text-2xs leading-tight text-muted-foreground">{{ u.reset }}</span>
-                  </span>
-                </span>
-              </component>
-            </li>
-          </ul>
-          <p v-if="currentStatus === 'running'" class="mt-1 px-2 text-2xs text-muted-foreground">
-            {{ t('run.accountMenu.nextTurn') }}
-          </p>
-        </template>
+              </span>
+            </component>
+          </li>
+        </ul>
+        <div class="mt-1 border-t border-border pt-1">
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground/80 hover:bg-muted"
+            @click="manageAccounts"
+          >
+            <Settings class="h-3 w-3 shrink-0" :stroke-width="1.75" />
+            {{ t('run.accountMenu.manage') }}
+          </button>
+        </div>
       </div>
     </transition>
   </div>
@@ -175,7 +167,7 @@ function pickAccount(value: string) {
     </template>
   </AppSelect>
   <AppSelect
-    v-if="effortLevelsNow.length"
+    v-if="!compact && effortLevelsNow.length"
     :model-value="effortValue"
     size="xs"
     variant="ghost"
@@ -191,6 +183,7 @@ function pickAccount(value: string) {
     </template>
   </AppSelect>
   <AppSelect
+    v-if="!compact"
     :model-value="styleValue"
     size="xs"
     variant="ghost"

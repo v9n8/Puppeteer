@@ -4,7 +4,7 @@
 // session runs applies from the next turn. Defaults and choices:
 // lib/composerChips. Permission mode keeps its shared, remote-synced selector
 // (useRunSessionCore); effort and style picks live here, per session. The
-// account · model chip's menu (UX-47) opens here; its rows: useRunComposer.
+// account chip's menu (UX-47) opens here; its rows: useRunComposer.
 import { ref, computed, watch } from 'vue'
 import { ShieldQuestion, ShieldAlert, ListChecks } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
@@ -70,10 +70,8 @@ export function useComposerChips(core: RunSessionCore) {
     modePicks.value = { ...modePicks.value, [toRunId]: modePicks.value[fromRunId] ?? '' }
   }
 
-  const started = computed(() => !!currentRunId.value && currentStatus.value !== 'fetched')
   function chipTitle(name: string, value: string, fromDefault: boolean) {
-    const base = t(fromDefault ? 'run.chipTitleDefault' : 'run.chipTitle', { name, value })
-    return started.value ? `${base} ${t('run.chipNextTurn')}` : base
+    return t(fromDefault ? 'run.chipTitleDefault' : 'run.chipTitle', { name, value })
   }
 
   // ── Permission mode ──
@@ -147,13 +145,12 @@ export function useComposerChips(core: RunSessionCore) {
   const styleChipLabel = computed(() => styleOptions.value.find((o) => !o.header && o.value === styleValue.value)?.label ?? '')
   const styleChipTitle = computed(() => chipTitle(t('run.chipStyle'), styleChipLabel.value, !stylePick.value))
 
-  // ── Account · model (UX-47) ──
-  // One menu, two tabs. The status bar's account · model chip opens it too
-  // (data-account-menu-trigger keeps the outside-click below from closing it
-  // before that chip's click toggles it).
+  // ── Account (UX-47, V3-34) ──
+  // The menu lists accounts only; the model lives in Run options. The
+  // data-account-menu-trigger attribute keeps the outside-click below from
+  // closing it before another trigger's click toggles it.
   const accountMenuOpen = ref(false)
   const accountMenuRoot = ref<HTMLElement | null>(null)
-  const accountTab = ref<'model' | 'account'>('account')
   function toggleAccountMenu() {
     accountMenuOpen.value = !accountMenuOpen.value
   }
@@ -192,6 +189,13 @@ export function useComposerChips(core: RunSessionCore) {
     ]
     void Promise.all(keys.map(loadUsage))
   })
+  // A login that needs signing in again (the accounts' stored check result).
+  function accountExpired(usageKey: string | null) {
+    const [engine, id] = (usageKey ?? '').split(':')
+    if (!id) return false
+    const accounts = engine === 'codex' ? codexStore.accounts : claudeStore.accounts
+    return accounts.find((a) => a.id === id)?.status === 'needs_login'
+  }
   const usageThresholds = computed<UsageThresholds>(() => ({
     warnPercent: parsePercentSetting(appSettings.settings?.quota_warn_percent),
     block5hPercent: parsePercentSetting(appSettings.settings?.budget_5h_percent),
@@ -222,8 +226,8 @@ export function useComposerChips(core: RunSessionCore) {
 
   return {
     chipOverrides, carryPicks,
-    accountMenuOpen, accountMenuRoot, accountTab, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
-    accountUsage, usageSnapshots, usageThresholds, loadUsage,
+    accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
+    accountUsage, accountExpired, usageSnapshots, usageThresholds, loadUsage,
     modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortValue, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
