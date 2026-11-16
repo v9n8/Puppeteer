@@ -34,7 +34,7 @@ const {
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
   editingMessage, rewindingEdit, cancelEditResend,
-  effortPick, effortValue, effortLevelsNow, effortOptions, stylePick, styleValue, styleOptions,
+  effortPick, effortValue, effortLevelsNow, effortOptions, pickStyle, styleValue, styleOptions,
 } = useRunSession()
 
 // Effort and Response style fold into Run options when the Session pane is
@@ -398,7 +398,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                       :options="styleOptions"
                       class="w-full"
                       :aria-label="t('run.runOptions.style')"
-                      @update:model-value="stylePick = $event"
+                      @update:model-value="pickStyle"
                     />
                   </div>
                   <RunMcpSection

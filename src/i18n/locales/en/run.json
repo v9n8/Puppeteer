@@ -269,6 +269,7 @@
   "chipEffortEngine": "Default",
   "chipStyle": "Response style",
   "chipStyleProject": "This project",
+  "styleCreateForProject": "+ Style for this project",
   "chipTitle": "{name}: {value}",
   "chipTitleDefault": "{name}: {value} (default)",
   "modelSetting": "Model",

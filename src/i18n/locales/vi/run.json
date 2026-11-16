@@ -269,6 +269,7 @@
   "chipEffortEngine": "Mặc định",
   "chipStyle": "Phong cách trả lời",
   "chipStyleProject": "Project này",
+  "styleCreateForProject": "+ Phong cách cho Project này",
   "chipTitle": "{name}: {value}",
   "chipTitleDefault": "{name}: {value} (mặc định)",
   "modelSetting": "Model",

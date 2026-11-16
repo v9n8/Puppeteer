@@ -23,6 +23,9 @@ import {
 import { useResponseStylesStore } from '@/stores/responseStyles'
 import type { RunSessionCore } from './useRunSessionCore'
 
+// The style menu's last row is an action, not a style id.
+const NEW_STYLE_ACTION = '__action:new-style'
+
 export function useComposerChips(core: RunSessionCore) {
   const {
     t, modelCatalog, projectId, currentRunId, currentRun, currentStatus, loadedRunEngine,
@@ -122,7 +125,7 @@ export function useComposerChips(core: RunSessionCore) {
   )
   // The global styles and this project's under their own headings.
   const styleOptions = computed(() => {
-    const out: (SelectOption & { header?: boolean })[] = []
+    const out: (SelectOption & { header?: boolean; separator?: boolean })[] = []
     let group = ''
     const heading = (id: string, label: string) => {
       if (group === id) return
@@ -140,8 +143,19 @@ export function useComposerChips(core: RunSessionCore) {
         out.push({ value: c.value, label: stylesStore.loaded ? t('settings.ai.styleMissing') : '…' })
       }
     }
+    // Last row: not a style but an action (see pickStyle).
+    if (projectId.value) out.push({ value: NEW_STYLE_ACTION, label: t('run.styleCreateForProject'), separator: true })
     return out
   })
+  // "+ Style for this project" opens the dialog; the style it saves is picked.
+  const styleDialogOpen = ref(false)
+  function pickStyle(value: string) {
+    if (value === NEW_STYLE_ACTION) styleDialogOpen.value = true
+    else stylePick.value = value
+  }
+  function onStyleSaved(style: { id: string }) {
+    stylePick.value = style.id
+  }
   const styleChipLabel = computed(() => styleOptions.value.find((o) => !o.header && o.value === styleValue.value)?.label ?? '')
   const styleChipTitle = computed(() => chipTitle(t('run.chipStyle'), styleChipLabel.value, !stylePick.value))
 
@@ -231,6 +245,7 @@ export function useComposerChips(core: RunSessionCore) {
     modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortValue, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
+    styleDialogOpen, pickStyle, onStyleSaved,
   }
 }
 

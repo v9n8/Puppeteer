@@ -10,6 +10,7 @@ import { useRouter } from 'vue-router'
 import { Check, ChevronDown, Gauge, Lock, MessageSquareText, Settings, UserCircle } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import { Button } from '@/components/ui'
+import ResponseStyleModal from '@/components/settings/ResponseStyleModal.vue'
 import { useRunSession } from './useRunSession'
 
 defineProps<{ compact?: boolean }>()
@@ -18,10 +19,10 @@ const { t } = useI18n()
 const router = useRouter()
 const {
   permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortValue, effortLevelsNow, effortOptions,
-  effortChipLabel, effortChipTitle, stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
+  effortChipLabel, effortChipTitle, styleValue, styleOptions, styleChipLabel, styleChipTitle,
   accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, accountUsage, accountExpired,
   accountModelLabel, composerModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
-  effectiveEngine,
+  effectiveEngine, projectId, styleDialogOpen, pickStyle, onStyleSaved,
 } = useRunSession()
 
 const engineName = computed(() => (effectiveEngine.value === 'codex' ? 'Codex' : 'Claude'))
@@ -192,10 +193,12 @@ function manageAccounts() {
     :trigger-label="styleChipLabel"
     :aria-label="styleChipTitle"
     :title="styleChipTitle"
-    @update:model-value="stylePick = $event"
+    @update:model-value="pickStyle"
   >
     <template #leading>
       <MessageSquareText class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />
     </template>
   </AppSelect>
+  <!-- Also opened from the Run options select when compact, so it lives here once. -->
+  <ResponseStyleModal v-model:open="styleDialogOpen" :style="null" :project-id="projectId" @saved="onStyleSaved" />
 </template>

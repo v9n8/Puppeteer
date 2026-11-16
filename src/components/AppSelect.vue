@@ -13,6 +13,8 @@ interface Option {
   /** A non-selectable section header (e.g. "Claude" / "Codex"). Skipped by
    * keyboard navigation and ignored by selection. */
   header?: boolean
+  /** Draw a divider above this row (e.g. an action row closing the list). */
+  separator?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -275,8 +277,9 @@ watch(isOpen, (val) => {
             role="presentation"
             class="px-2 pt-2 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground select-none"
           >{{ option.label }}</li>
+          <li v-else-if="option.separator" role="presentation" class="my-1 border-t border-border" />
           <li
-            v-else
+            v-if="!option.header"
             role="option"
             :aria-selected="option.value === modelValue"
             :title="option.tooltip"

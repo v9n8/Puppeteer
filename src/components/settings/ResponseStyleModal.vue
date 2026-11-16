@@ -4,7 +4,7 @@
 // `projectId` is set). A sample opens with its shown (translated) texts; saving
 // one unchanged keeps the stored text, so it goes on following the UI language.
 // A failed save stays in the dialog with the reason.
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button, Input, Modal, Textarea } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
@@ -17,7 +17,8 @@ const props = defineProps<{
   style: ResponseStyle | null
   projectId: string | null
 }>()
-const emit = defineEmits<{ 'update:open': [value: boolean] }>()
+// `saved` carries the stored row, so a caller can pick a style it just created.
+const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [style: ResponseStyle] }>()
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -25,6 +26,7 @@ const store = useResponseStylesStore()
 const projects = useProjectsStore()
 
 const draft = reactive({ name: '', description: '', body: '' })
+const form = ref<HTMLFormElement | null>(null)
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 const formError = computed(() => styleFormError(draft))
@@ -35,6 +37,7 @@ watch(() => props.open, (open) => {
   const text = props.style ? styleText(props.style, t) : { name: '', description: '' }
   Object.assign(draft, { ...text, body: props.style?.body ?? '' })
   saveError.value = null
+  nextTick(() => form.value?.querySelector('input')?.focus())
 })
 
 async function save() {
@@ -48,9 +51,9 @@ async function save() {
       const shown = styleText(editing, t)
       if (editing.stock_name && input.name.trim() === shown.name) input.name = editing.name
       if (editing.stock_description && input.description.trim() === shown.description) input.description = editing.description
-      await store.update(editing.id, input)
+      emit('saved', await store.update(editing.id, input))
     } else {
-      await store.create({ projectId: props.projectId, ...input })
+      emit('saved', await store.create({ projectId: props.projectId, ...input }))
     }
     toast.success(t('responseStyles.saved'))
     emit('update:open', false)
@@ -70,7 +73,7 @@ async function save() {
     :dismiss-on-overlay="false"
     @update:open="emit('update:open', $event)"
   >
-    <form class="p-4 space-y-3" @submit.prevent="save">
+    <form ref="form" class="p-4 space-y-3" @submit.prevent="save" @keydown.meta.enter.prevent="save" @keydown.ctrl.enter.prevent="save">
       <p v-if="projectId" class="text-2xs text-muted-foreground">
         {{ t('responseStyles.projectScope', { project: projectName }) }}
       </p>
