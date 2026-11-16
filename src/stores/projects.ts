@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
-import type { GroupApplyOutcome, GroupDisableOutcome, GroupKind, ProjectGroupState } from '@/stores/groups'
+import type { GroupApplyOutcome, GroupDisableOutcome, GroupKind, ProjectGroupState } from '@/lib/projectGroups'
 import type { ProjectColor, ProjectIcon } from '@/lib/projectAppearance'
 import type { ProjectSessionDefaults } from '@/lib/composerChips'
 

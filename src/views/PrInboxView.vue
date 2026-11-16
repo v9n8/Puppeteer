@@ -479,8 +479,7 @@ async function reviewAll(group: PrGroup) {
       </template>
     </PrInboxSearchBar>
 
-    <!-- Active filters: one removable chip per applied value (chip look of
-         SkillsView's group filter chips). -->
+    <!-- Active filters: one removable chip per applied value. -->
     <div
       v-if="activeFilterChips.length > 0"
       class="flex flex-wrap items-center gap-1.5 px-6 py-2 border-b border-border/60 shrink-0"

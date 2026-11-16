@@ -10,7 +10,6 @@ export type ProcKind =
   | 'translate'
   | 'slack_translate'
   | 'focus_ai'
-  | 'skill_eval'
   | 'handoff_summary'
   | 'mcp_setup'
   | 'probe'

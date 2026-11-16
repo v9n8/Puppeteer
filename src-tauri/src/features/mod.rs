@@ -112,9 +112,6 @@ pub static MODULES: &[Module] = &[
             Prop { legacy_key: Some("mcp_builtin_puppeteer_enabled"), ..on("builtin_mcp_puppeteer") },
             // Writes into HOME, which the CLIs outside Puppeteer read too.
             opt_in("skills_global"),
-            on("skill_doctor"),
-            // Sends prompts to a model and spends quota: opt-in.
-            opt_in("skill_eval"),
             on("import_external"),
             // `code_index` tool of the built-in MCP: reads the project's sources.
             on("code_index"),
@@ -415,7 +412,6 @@ mod tests {
         assert!(!prop(&tree, "integrations.inbox_api").effective);
         assert!(prop(&tree, "library.builtin_mcp_puppeteer").effective);
         assert!(prop(&tree, "library.code_index").effective);
-        assert!(!prop(&tree, "library.skill_eval").effective);
         assert!(prop(&tree, "app.auto_update").effective);
         assert!(prop(&tree, "app.whats_new").effective);
         assert!(prop(&tree, "app.command_palette").effective);
@@ -678,8 +674,6 @@ mod tests {
             crate::commands::library_items::LibraryKind::Command.feature(),
             crate::commands::skill_allocation::GLOBAL_FEATURE,
             crate::conductor::worktree::FEATURE,
-            crate::commands::skill_doctor::FEATURE,
-            crate::commands::skill_eval::FEATURE,
             crate::import::FEATURE,
             github::PR_INBOX_FEATURE,
             github::GANTT_FEATURE,

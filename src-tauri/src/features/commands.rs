@@ -143,6 +143,26 @@ mod tests {
         assert_eq!(count().await.unwrap(), rows, "a refused write leaves no row");
     }
 
+    /// V3-69: the two dropped props may still sit in an old DB or backup. They are no
+    /// switches any more: the tree skips them and a backup does not carry them.
+    #[tokio::test]
+    async fn rows_of_the_dropped_skill_props_are_ignored() {
+        let db = db().await;
+        let before = load(&db).await.unwrap();
+        for key in ["feature.library.skill_doctor", "feature.library.skill_eval"] {
+            sqlx::query("INSERT INTO settings (key, value) VALUES (?, 'true')")
+                .bind(key)
+                .execute(&db)
+                .await
+                .unwrap();
+            assert!(!crate::commands::settings::is_portable_setting(key), "{key}");
+        }
+        assert_eq!(load(&db).await.unwrap(), before);
+        for id in ["library.skill_doctor", "library.skill_eval"] {
+            assert!(set(&db, id, true).await.is_err(), "{id}");
+        }
+    }
+
     #[tokio::test]
     async fn set_writes_the_feature_key_and_returns_both_trees() {
         let db = db().await;

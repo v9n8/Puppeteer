@@ -263,8 +263,6 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Dev servers: start a command the project's repo declares, or stop one.
     "devserver_start",
     "devserver_stop",
-    // Skill eval: sends prompts to a model, spends quota.
-    "run_skill_eval",
     // Trash: sessions and projects moved to or out of it (a purge is local only).
     "trash_run",
     "trash_all_runs",
@@ -845,7 +843,6 @@ mod tests {
             "apply_skill",
             "plan_skill_bulk",
             "apply_skill_bulk",
-            "diagnose_skills",
             "list_effective_skills",
             "library_scan",
             "library_read",
@@ -868,7 +865,6 @@ mod tests {
             "devserver_start",
             "devserver_stop",
             "devserver_logs",
-            "run_skill_eval",
             "trash_run",
             "trash_all_runs",
             "restore_run",
@@ -920,7 +916,6 @@ mod tests {
             "export_run_transcript",
             "devserver_start",
             "devserver_stop",
-            "run_skill_eval",
             "trash_run",
             "trash_all_runs",
             "restore_run",
@@ -950,7 +945,6 @@ mod tests {
             "list_runs",
             "list_skill_allocation",
             "plan_skill_bulk",
-            "diagnose_skills",
             "list_effective_skills",
             "list_github_accounts",
             "secret_vault_touch",

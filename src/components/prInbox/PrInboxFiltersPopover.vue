@@ -3,7 +3,7 @@
 // filters (project / author / account / review status) as checkbox lists in a
 // single panel. Panel + trigger follow CalendarView's display-options popover
 // (onClickOutside, `bg-popover` panel, uppercase section labels); checkbox rows
-// follow GroupManagerModal (sr-only native checkbox + drawn box).
+// use an sr-only native checkbox + drawn box.
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside } from '@vueuse/core'

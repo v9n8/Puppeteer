@@ -170,7 +170,6 @@ mod tests {
             crate::schedules::FEATURE,
             "orchestration.dev_servers",
             "library.skills_global",
-            crate::commands::skill_eval::FEATURE,
         ] {
             let (m, p) = crate::features::entry(id).unwrap();
             assert!(p.unwrap().opt_in, "{id}");
@@ -259,7 +258,6 @@ mod tests {
             "sessions.steer",
             "library.agents",
             "library.commands",
-            "library.skill_doctor",
             "library.import_external",
             "library.code_index",
             "app.auto_update",
@@ -284,7 +282,7 @@ mod tests {
         set_setting(&db, "feature.library", "true").await.unwrap();
         seed(&db).await.unwrap();
         let r = rows(&db).await;
-        for id in [crate::schedules::FEATURE, "orchestration.dev_servers", crate::commands::skill_eval::FEATURE] {
+        for id in [crate::schedules::FEATURE, "orchestration.dev_servers"] {
             assert!(!r.contains_key(&format!("feature.{id}")), "{id}");
             assert!(!crate::features::is_on(&db, id).await, "{id}");
         }

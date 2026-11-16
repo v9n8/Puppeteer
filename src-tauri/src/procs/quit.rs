@@ -263,9 +263,6 @@ pub fn stop_app_sidecars(app: &AppHandle) {
     let focus_ai = app
         .try_state::<crate::commands::focus_ai::FocusAiState>()
         .map(|s| s.inner().clone());
-    let skill_eval = app
-        .try_state::<crate::commands::skill_eval::SkillEvalState>()
-        .map(|s| s.inner().clone());
     let handoff = app
         .try_state::<crate::runs::handoff::HandoffState>()
         .map(|s| s.inner().clone());
@@ -277,9 +274,6 @@ pub fn stop_app_sidecars(app: &AppHandle) {
         slack.0.shutdown().await;
         if let Some(focus_ai) = focus_ai {
             focus_ai.shutdown().await;
-        }
-        if let Some(skill_eval) = skill_eval {
-            skill_eval.shutdown().await;
         }
         if let Some(handoff) = handoff {
             handoff.shutdown().await;

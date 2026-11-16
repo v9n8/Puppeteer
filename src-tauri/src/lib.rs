@@ -114,8 +114,6 @@ use commands::settings_backup::{
 };
 use commands::skill_allocation::{list_skill_allocation, set_skill_global};
 use commands::skill_bulk::{apply_skill_bulk, plan_skill_bulk};
-use commands::skill_doctor::diagnose_skills;
-use commands::skill_eval::run_skill_eval;
 use commands::skill_effective::list_effective_skills;
 use commands::skills::{
     create_skill, delete_skill, export_skill_zip, get_skill, import_skill_zip, list_skills,
@@ -213,7 +211,6 @@ pub fn run() {
         .on_menu_event(commands::app_menu::on_menu_event)
         .manage(commands::app_menu::AppMenuState::default())
         .manage(commands::focus_ai::FocusAiState::default())
-        .manage(commands::skill_eval::SkillEvalState::default())
         .manage(runs::handoff::HandoffState::default())
         .manage(commands::mcp_setup::McpSetupState::default())
         .setup(|app| {
@@ -516,8 +513,6 @@ pub fn run() {
             set_skill_global,
             plan_skill_bulk,
             apply_skill_bulk,
-            diagnose_skills,
-            run_skill_eval,
             list_effective_skills,
             list_rules,
             get_rule,

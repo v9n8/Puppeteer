@@ -5,8 +5,7 @@
 //!
 //! [`resolve`] is pure: what was found in the two folders in, the list with shadowing marked out.
 //! [`effective_skills`] reads the folders and calls it. Read-only, so a remote desktop may call it.
-//! `library.skills` is a locked prop, always on, so nothing is gated here; the Doctor badges come
-//! from `diagnose_skills` on the screen's side.
+//! `library.skills` is a locked prop, always on, so nothing is gated here.
 
 use crate::commands::skills::{SkillEngineDecl, SKILL_ENGINES};
 use crate::db::Db;

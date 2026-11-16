@@ -38,8 +38,6 @@ pub enum ProcKind {
     /// One-shot Focus AI engine (P3); was the Pulse digest engine.
     #[serde(alias = "pulse_digest")]
     FocusAi,
-    /// One-shot Skill eval engine (`skill_eval`).
-    SkillEval,
     /// One-shot handoff summary engine (`runs::handoff`).
     HandoffSummary,
     /// One-shot "Add with AI" engine of the MCP screen (`commands::mcp_setup`).

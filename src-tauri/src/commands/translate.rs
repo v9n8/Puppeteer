@@ -606,7 +606,6 @@ fn proc_label(kind: crate::procs::ProcKind, is_codex: bool) -> String {
     let what = match kind {
         ProcKind::SlackTranslate => "Slack translation session",
         ProcKind::FocusAi => "Focus AI session",
-        ProcKind::SkillEval => "Skill eval session",
         ProcKind::HandoffSummary => "Handoff summary session",
         ProcKind::McpSetup => "MCP setup session",
         _ => "Translation session",
@@ -892,37 +891,6 @@ pub async fn submit_prompt(
     }
     let settings = load_settings(db).await?;
     submit_with(app, state, &settings, prompt, want_events, None).await
-}
-
-/// [`submit_prompt`] with an event channel plus the turn's raw `result`
-/// message (usage, and `total_cost_usd` on Claude), for callers that meter
-/// what they spend. The result receiver errors when the turn fails before it.
-pub async fn submit_prompt_metered(
-    app: &AppHandle,
-    db: &Db,
-    state: &TranslateState,
-    prompt: String,
-) -> Result<(u64, UnboundedReceiver<TurnEvent>, oneshot::Receiver<Value>), String> {
-    if prompt.trim().is_empty() {
-        return Err(ERR_NOTHING_TO_TRANSLATE.to_string());
-    }
-    let settings = load_settings(db).await?;
-    let (sink, result) = oneshot::channel();
-    let (turn, rx) = submit_with(app, state, &settings, prompt, true, Some(sink)).await?;
-    Ok((turn, rx.ok_or("no result channel")?, result))
-}
-
-/// Engine (`claude` | `codex`) and model the translate settings run on; an
-/// empty model is the engine's default (`haiku` for claude, see
-/// `session_options`; Codex's own default, unknown here, stays empty).
-pub async fn engine_and_model(db: &Db) -> Result<(String, String), String> {
-    let s = load_settings(db).await?;
-    let engine = s.engine.trim().to_lowercase();
-    let model = match s.model.trim() {
-        "" if engine != "codex" => DEFAULT_CLAUDE_MODEL.to_string(),
-        m => m.to_string(),
-    };
-    Ok((engine, model))
 }
 
 /// [`submit_prompt`] with the engine / model swapped for `engine` / `model`
