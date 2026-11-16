@@ -499,7 +499,7 @@ function dotClass(row: McpRow): string {
 </script>
 
 <template>
-  <div ref="root" class="flex h-full min-h-0">
+  <div ref="root" class="flex h-full min-h-0" data-settings-id="mcp-servers">
     <ListDetailSidebar
       v-show="!narrow || !showDetail"
       :class="narrow && '!w-full border-r-0'"

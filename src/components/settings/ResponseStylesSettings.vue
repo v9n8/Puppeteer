@@ -79,7 +79,7 @@ async function restoreSamples() {
       </Button>
     </template>
 
-    <div v-if="!scope" class="flex flex-wrap items-center justify-between gap-2">
+    <div v-if="!scope" class="flex flex-wrap items-center justify-between gap-2" data-settings-id="styles-mine">
       <div class="flex min-w-0 items-center gap-1.5">
         <h3 class="text-xs font-semibold text-foreground">{{ t('responseStyles.mineTitle') }}</h3>
         <InfoTip :text="t('responseStyles.mineHint')" />

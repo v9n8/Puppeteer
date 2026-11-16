@@ -708,5 +708,44 @@
   },
   "mcp": {
     "description": "Cấu hình chung của app: định nghĩa server một lần ở đây. Bật / tắt cho từng Project ở Project › Kết nối."
+  },
+  "search": {
+    "placeholder": "Tìm cài đặt",
+    "label": "Tìm cài đặt",
+    "count": "{n} dòng khớp “{q}”",
+    "footer": "↑ ↓ chọn · Enter mở đúng dòng · Esc đóng",
+    "none": "Không có kết quả phù hợp",
+    "noneHint": "Thử từ khác, ví dụ “theme”, “MCP”, “phím”.",
+    "clear": "Xoá chữ (Esc)",
+    "section": "Mục",
+    "rows": {
+      "modelAllowed": "Model mỗi engine được dùng",
+      "mcpServers": "Máy chủ MCP",
+      "version": "Phiên bản"
+    }
+  },
+  "searchKeywords": {
+    "theme": "theme, giao diện tối, giao diện sáng, chế độ tối, màu",
+    "font": "font, phông chữ, phông, font chữ, cỡ chữ, kích thước chữ",
+    "language": "ngôn ngữ, language, dịch",
+    "flags": "flag, cờ, tham số, đối số, flag session",
+    "features": "tính năng, module, bật, tắt, công tắc",
+    "palette": "bảng lệnh, lệnh nhanh, cmd k, tìm",
+    "keymap": "phím, phím tắt, bàn phím, shortcut, ghim, ghim tab",
+    "enginePath": "engine, đường dẫn, claude, codex, cli",
+    "model": "model, engine, claude, codex, dự phòng",
+    "translate": "dịch, bản dịch, translate, ngôn ngữ",
+    "memory": "bộ nhớ, memory, CLAUDE.md, AGENTS.md, hướng dẫn",
+    "limits": "giới hạn, lượt, phút, context, cảnh báo",
+    "quota": "quota, hạn mức, ngân sách, 5 giờ, tuần, chặn, dừng",
+    "notify": "thông báo, âm thanh, cảnh báo, máy tính",
+    "connections": "kết nối, tài khoản, github, gitlab, aws, azure, google, xác thực, kiểm tra",
+    "mcp": "mcp, máy chủ, công cụ",
+    "inbox": "hộp thư, api, tiện ích chrome, slack, cổng, token",
+    "relay": "relay, điều khiển từ xa, remote, url, token, kiểm tra relay, máy chủ",
+    "backup": "sao lưu, backup, khôi phục, xuất, nhập, đồng bộ, bí mật",
+    "version": "phiên bản, version, bản dựng, về ứng dụng",
+    "updates": "cập nhật, nâng cấp, kiểm tra cập nhật, cài đặt, mới nhất",
+    "whatsNew": "có gì mới, ghi chú phát hành, nhật ký thay đổi, tin mới"
   }
 }

@@ -222,7 +222,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <div class="space-y-4">
-    <div>
+    <div data-settings-id="model-allowed">
       <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.model') }}</h2>
       <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.model.description') }}</p>
     </div>

@@ -35,6 +35,7 @@ async function onKey(e: KeyboardEvent) {
         v-for="id in TABS"
         :key="id"
         ref="buttons"
+        :data-settings-id="id === 'palette' ? 'shortcuts-palette' : 'shortcuts-keymap'"
         type="button"
         role="tab"
         :aria-selected="tab === id"

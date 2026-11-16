@@ -6,7 +6,7 @@
 // window, the `place` model. Each section lives in components/settings/ (or
 // components/ for the older ones); the `settings` table form they share is
 // created here (useSettingsForm) so its auto-save stops when the screen goes.
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
@@ -21,7 +21,9 @@ import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
-import LimitsSettings from '@/components/settings/LimitsSettings.vue'
+import LimitsSettings, { type LimitsTab } from '@/components/settings/LimitsSettings.vue'
+import SettingsSearch from '@/components/settings/SettingsSearch.vue'
+import { revealSettingsRow } from '@/components/settings/revealSettingsRow'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
@@ -44,6 +46,7 @@ import {
 import { openSettingsWindow } from '@/lib/settingsWindow'
 import type { ScreenTarget } from '@/lib/detachedScreens'
 import type { ConnectionFilter } from '@/lib/connectionTypes'
+import type { SearchEntry } from '@/lib/settingsSearch'
 import { useBudgetStore } from '@/stores/budget'
 
 const props = defineProps<{
@@ -76,6 +79,8 @@ const activeSection = computed<SettingsSectionId>(() => place.value.section)
 const devicesTab = ref<DevicesTab>('remote')
 const shortcutsTab = ref<ShortcutsTab>('palette')
 const connectionsFilter = ref<ConnectionFilter>('all')
+// The Limits tab is not in the URL: the search sets it before it opens the section.
+const limitsTab = ref<LimitsTab>('context')
 watch(place, (p) => {
   if (p.devicesTab) devicesTab.value = p.devicesTab
   if (p.shortcutsTab) shortcutsTab.value = p.shortcutsTab
@@ -168,6 +173,21 @@ async function openPlace(next: SettingsPlace, replace = false): Promise<void> {
 }
 defineExpose({ openPlace, mayLeave })
 
+/** A search result: open its section (and tab), then scroll to and light the row. */
+async function openSearchResult(entry: SearchEntry): Promise<void> {
+  const next: SettingsPlace = { section: entry.section }
+  if (entry.tab) {
+    if (entry.section === 'devices') next.devicesTab = entry.tab as 'remote' | 'backup'
+    if (entry.section === 'shortcuts') next.shortcutsTab = entry.tab as 'palette' | 'keymap'
+    if (entry.section === 'limits') limitsTab.value = entry.tab as LimitsTab
+  }
+  await openPlace(next)
+  if (!entry.isSection && activeSection.value === entry.section) {
+    await nextTick()
+    revealSettingsRow(entry.id)
+  }
+}
+
 // Header / title bar: "Settings › group › section".
 const crumb = computed(() => settingsCrumbKeys(activeSection.value).map((k) => t(k)))
 // Main window: "Open in new window" moves Settings there, on the section shown.
@@ -184,7 +204,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
   <div class="flex flex-col h-full bg-background">
     <!-- Header (main window, 48px) or title bar (own window): "Settings › group › section".
          No close button: Settings is a screen, left through the sidebar like any other.
-         The space before the button is kept for the settings search (V3-58). -->
+         The settings search (V3-58) sits before the button, in both. -->
     <div
       class="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3"
       :class="windowed ? 'h-10' : 'h-12'"
@@ -196,6 +216,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <span class="text-xs text-muted-foreground" aria-hidden="true">›</span>
         <span class="min-w-0 truncate text-xs">{{ crumb[2] }}</span>
       </div>
+      <SettingsSearch @pick="openSearchResult" />
       <MergeBackButton
         v-if="windowed"
         screen="settings"
@@ -256,7 +277,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <FlagsSettings v-if="activeSection === 'flags'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
-        <LimitsSettings v-show="activeSection === 'limits'" />
+        <LimitsSettings v-show="activeSection === 'limits'" v-model:tab="limitsTab" />
 
         </div>
 

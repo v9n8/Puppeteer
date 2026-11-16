@@ -172,15 +172,15 @@ watch(() => settings.value.language, (v) => {
         <Palette class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
         <span class="text-sm font-semibold">{{ t('settings.general.sectionAppearance') }}</span>
       </template>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.mode')" :description="t('settings.general.modeDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-mode" :label="t('settings.general.mode')" :description="t('settings.general.modeDesc')">
         <div class="flex justify-end">
           <SegmentedControl v-model="settings.theme" :options="modeOptions" :stretch="false" />
         </div>
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.colorTheme')" :description="t('settings.general.colorThemeHint')" stacked>
+      <SettingsRow class="px-4 py-3" search-id="general-colorTheme" :label="t('settings.general.colorTheme')" :description="t('settings.general.colorThemeHint')" stacked>
         <ColorThemePicker v-model="settings.color_theme" class="mt-1.5" />
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.rowDensity')" :description="t('settings.general.rowDensityHint')">
+      <SettingsRow class="px-4 py-3" search-id="general-rowDensity" :label="t('settings.general.rowDensity')" :description="t('settings.general.rowDensityHint')">
         <div class="flex justify-end">
           <SegmentedControl
             :model-value="uiLayout.listDensity"
@@ -206,7 +206,7 @@ watch(() => settings.value.language, (v) => {
       <div class="p-4">
         <TypographyPreview :summary="previewSummary" />
       </div>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.font')" :description="t('settings.general.fontDesc')" stacked>
+      <SettingsRow class="px-4 py-3" search-id="general-font" :label="t('settings.general.font')" :description="t('settings.general.fontDesc')" stacked>
         <FontFamilyPicker :model-value="fonts.family" class="mt-1.5" @update:model-value="setFamily" />
         <div v-if="fonts.family === 'custom'" class="mt-3 flex flex-wrap items-center gap-2">
           <Input
@@ -221,7 +221,7 @@ watch(() => settings.value.language, (v) => {
       </SettingsRow>
       <SettingsRow
         class="px-4 py-3"
-        :label="t('settings.general.weight')"
+        search-id="general-weight" :label="t('settings.general.weight')"
         :description="supportsWeight(fonts.family, 450) ? t('settings.general.weightDesc') : t('settings.general.weightStaticDesc')"
       >
         <div class="flex justify-end">
@@ -235,7 +235,7 @@ watch(() => settings.value.language, (v) => {
       </SettingsRow>
       <SettingsRow
         class="px-4 py-3"
-        :label="t('settings.general.smoothing')"
+        search-id="general-smoothing" :label="t('settings.general.smoothing')"
         :description="fonts.smoothing === 'auto'
           ? `${t('settings.general.smoothingDesc')} ${smoothingNow}`
           : t('settings.general.smoothingDesc')"
@@ -249,7 +249,7 @@ watch(() => settings.value.language, (v) => {
           />
         </div>
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.appFontSize')" :description="t('settings.general.appFontSizeDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-appFontSize" :label="t('settings.general.appFontSize')" :description="t('settings.general.appFontSizeDesc')">
         <div class="flex justify-end">
           <SizeStepper
             :model-value="fonts.appSize"
@@ -258,7 +258,7 @@ watch(() => settings.value.language, (v) => {
           />
         </div>
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.chatFontSize')" :description="t('settings.general.chatFontSizeDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-chatFontSize" :label="t('settings.general.chatFontSize')" :description="t('settings.general.chatFontSizeDesc')">
         <div class="flex justify-end">
           <SizeStepper
             :model-value="fonts.chatSize"
@@ -267,7 +267,7 @@ watch(() => settings.value.language, (v) => {
           />
         </div>
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.monoFont')" :description="t('settings.general.monoFontDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-monoFont" :label="t('settings.general.monoFont')" :description="t('settings.general.monoFontDesc')">
         <div class="flex justify-end">
           <SegmentedControl
             :model-value="fonts.mono"
@@ -284,21 +284,21 @@ watch(() => settings.value.language, (v) => {
         <AppWindow class="h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
         <span class="text-sm font-semibold">{{ t('settings.general.sectionApp') }}</span>
       </template>
-      <SettingsRow class="px-4 py-3" :label="t('settings.language')">
+      <SettingsRow class="px-4 py-3" search-id="general-language" :label="t('settings.language')">
         <AppSelect
           size="sm"
           v-model="settings.language"
           :options="SUPPORTED_LOCALES.map((l) => ({ value: l.value, label: l.label }))"
         />
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.terminalApp')" :description="t('settings.general.terminalAppDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-terminalApp" :label="t('settings.general.terminalApp')" :description="t('settings.general.terminalAppDesc')">
         <AppSelect
           size="sm"
           v-model="settings.terminal_app"
           :options="terminalAppOptions"
         />
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.launchAtLogin')" :description="t('settings.general.launchAtLoginHint')">
+      <SettingsRow class="px-4 py-3" search-id="general-launchAtLogin" :label="t('settings.general.launchAtLogin')" :description="t('settings.general.launchAtLoginHint')">
         <AppSelect
           size="sm"
           :model-value="launchAtLogin"
@@ -306,7 +306,7 @@ watch(() => settings.value.language, (v) => {
           @update:model-value="(v) => setLaunchAtLogin(v as LaunchAtLogin)"
         />
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" :label="t('settings.general.quitPolicy')" :description="t('settings.general.quitPolicyHint')">
+      <SettingsRow class="px-4 py-3" search-id="general-quitPolicy" :label="t('settings.general.quitPolicy')" :description="t('settings.general.quitPolicyHint')">
         <AppSelect
           size="sm"
           v-model="settings.quit_background_policy"

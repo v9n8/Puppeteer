@@ -72,7 +72,7 @@ function summary(r: Release): string {
 <template>
   <div class="space-y-4">
     <!-- The app -->
-    <Card body-class="flex flex-col items-center text-center p-6">
+    <Card body-class="flex flex-col items-center text-center p-6" data-settings-id="about-version">
       <img src="/logo.png" alt="Puppeteer" class="h-14 w-14 rounded-2xl mb-4" />
       <h2 class="text-xl font-bold tracking-tight">Puppeteer</h2>
       <p class="text-sm text-muted-foreground mt-1">{{ t('about.tagline') }}</p>
@@ -91,7 +91,7 @@ function summary(r: Release): string {
     </Card>
 
     <!-- Updates -->
-    <Card v-if="showUpdates" body-class="flex items-center gap-3 p-4">
+    <Card v-if="showUpdates" body-class="flex items-center gap-3 p-4" data-settings-id="about-updates">
       <template #header>
         <RefreshCw class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('about.updates') }}</span>
@@ -111,7 +111,7 @@ function summary(r: Release): string {
     </Card>
 
     <!-- What's new -->
-    <Card id="about-whats-new" body-class="divide-y divide-border/60">
+    <Card id="about-whats-new" body-class="divide-y divide-border/60" data-settings-id="about-whatsNew">
       <template #header>
         <Sparkles class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('about.whatsNew') }}</span>

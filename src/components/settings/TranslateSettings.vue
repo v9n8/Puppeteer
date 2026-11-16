@@ -50,7 +50,7 @@ const TRANSLATE_STYLE_OPTIONS = computed(() => [
       <InfoTip :text="t('settings.translate.hint')" />
     </template>
 
-      <SettingsRow :label="t('settings.translate.engine')">
+      <SettingsRow search-id="translate-engine" :label="t('settings.translate.engine')">
         <AppSelect
           size="sm"
           v-model="settings.translate_engine"
@@ -60,13 +60,13 @@ const TRANSLATE_STYLE_OPTIONS = computed(() => [
           ]"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.translate.model')" :hint="t('settings.translate.modelHint')">
+      <SettingsRow search-id="translate-model" :label="t('settings.translate.model')" :hint="t('settings.translate.modelHint')">
         <AppSelect size="sm" v-model="settings.translate_model" :options="translateModelOptions" />
       </SettingsRow>
-      <SettingsRow :label="t('settings.translate.targetLanguage')">
+      <SettingsRow search-id="translate-targetLanguage" :label="t('settings.translate.targetLanguage')">
         <AppSelect size="sm" v-model="settings.translate_target_lang" :options="TRANSLATE_TARGET_OPTIONS" />
       </SettingsRow>
-      <SettingsRow :label="t('settings.translate.style')">
+      <SettingsRow search-id="translate-style" :label="t('settings.translate.style')">
         <AppSelect size="sm" v-model="settings.translate_style" :options="TRANSLATE_STYLE_OPTIONS" />
       </SettingsRow>
   </Card>

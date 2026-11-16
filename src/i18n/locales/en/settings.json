@@ -708,5 +708,44 @@
   },
   "mcp": {
     "description": "App-wide setup: define a server once here. Turn it on or off for each Project under Project › Connections."
+  },
+  "search": {
+    "placeholder": "Search settings",
+    "label": "Search settings",
+    "count": "{n} rows match “{q}”",
+    "footer": "↑ ↓ choose · Enter opens the row · Esc closes",
+    "none": "No matching results",
+    "noneHint": "Try another word, for example “theme”, “MCP”, “shortcut”.",
+    "clear": "Clear text (Esc)",
+    "section": "Section",
+    "rows": {
+      "modelAllowed": "Models each engine may use",
+      "mcpServers": "MCP servers",
+      "version": "Version"
+    }
+  },
+  "searchKeywords": {
+    "theme": "theme, dark mode, light mode, appearance, color",
+    "font": "font, typeface, text size, font size, type",
+    "language": "language, locale, translation",
+    "flags": "flag, flags, CLI flag, argument, session flag",
+    "features": "feature, module, toggle, switch on, switch off",
+    "palette": "command palette, quick command, cmd k, search",
+    "keymap": "shortcut, shortcuts, keyboard, keybinding, hotkey, pin, pin tab",
+    "enginePath": "engine, path, binary, claude, codex, cli",
+    "model": "model, models, engine, claude, codex, fallback",
+    "translate": "translate, translation, translator, language",
+    "memory": "memory, CLAUDE.md, AGENTS.md, instructions",
+    "limits": "limit, limits, turns, minutes, context, warning",
+    "quota": "quota, usage, budget, 5 hour, weekly, block, stop",
+    "notify": "notification, notify, sound, alert, desktop",
+    "connections": "connection, account, github, gitlab, aws, azure, google, validate, check, verify",
+    "mcp": "mcp, server, tool, context protocol",
+    "inbox": "inbox, api, chrome extension, slack, port, token",
+    "relay": "relay, remote, remote control, url, token, check relay, server",
+    "backup": "backup, restore, export, import, sync, secrets",
+    "version": "version, app version, build, release, about",
+    "updates": "update, upgrade, check for updates, install, latest",
+    "whatsNew": "what's new, release notes, changelog, news"
   }
 }

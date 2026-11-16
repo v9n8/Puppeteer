@@ -74,8 +74,9 @@ onMounted(async () => {
 onUnmounted(() => { if (clock) clearInterval(clock) })
 
 // Sub-tabs keep this section one screen tall. The choice is not saved.
-type Tab = 'context' | 'quota' | 'unattended' | 'notify'
-const tab = ref<Tab>('context')
+export type LimitsTab = 'context' | 'quota' | 'unattended' | 'notify'
+type Tab = LimitsTab
+const tab = defineModel<Tab>('tab', { default: 'context' })
 const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
   { value: 'context', label: t('settings.sessions.contextTitle') },
   { value: 'quota', label: t('settings.sessions.quotaTitle') },
@@ -104,23 +105,25 @@ const tabHint = computed(() => ({
 
       <!-- Context window meter -->
       <template v-if="tab === 'context'">
-        <SettingsRow :label="t('settings.sessions.warnAt')">
+        <SettingsRow search-id="limits-warnAt" :label="t('settings.sessions.warnAt')">
           <Input v-model="settings.context_warn_percent" type="number" min="1" max="100" placeholder="80" />
         </SettingsRow>
-        <SettingsRow :label="t('settings.sessions.limitOverride')" :hint="t('settings.sessions.limitOverrideHint')">
+        <SettingsRow search-id="limits-limitOverride" :label="t('settings.sessions.limitOverride')" :hint="t('settings.sessions.limitOverrideHint')">
           <Input v-model="settings.context_limit_override" type="number" min="0" :placeholder="t('settings.sessions.limitOverridePlaceholder')" />
         </SettingsRow>
       </template>
 
       <!-- Desktop notification switches -->
-      <NotificationSettings v-else-if="tab === 'notify'" />
+      <div v-else-if="tab === 'notify'" class="space-y-4" data-settings-id="limits-notify">
+        <NotificationSettings />
+      </div>
 
       <!-- Limits on a turn nobody watches: a schedule's, or one Remote Control started -->
       <template v-else-if="tab === 'unattended'">
-        <SettingsRow :label="t('settings.sessions.unattendedMaxTurns')" :hint="t('settings.sessions.unattendedMaxTurnsHint')">
+        <SettingsRow search-id="limits-unattendedMaxTurns" :label="t('settings.sessions.unattendedMaxTurns')" :hint="t('settings.sessions.unattendedMaxTurnsHint')">
           <Input v-model="settings.unattended_max_turns" type="number" min="0" placeholder="200" />
         </SettingsRow>
-        <SettingsRow :label="t('settings.sessions.unattendedMaxMinutes')" :hint="t('settings.sessions.unattendedMaxMinutesHint')">
+        <SettingsRow search-id="limits-unattendedMaxMinutes" :label="t('settings.sessions.unattendedMaxMinutes')" :hint="t('settings.sessions.unattendedMaxMinutesHint')">
           <Input v-model="settings.unattended_max_minutes" type="number" min="0" placeholder="60" />
         </SettingsRow>
         <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.sessions.unattendedStop') }}</p>
@@ -129,12 +132,12 @@ const tabHint = computed(() => ({
       <!-- Usage quota: a warning tier, then the blocks on new sessions / follow-ups -->
       <template v-else>
         <SettingsRow
-          :label="t('settings.sessions.quotaWarnAt')"
+          search-id="limits-quotaWarnAt" :label="t('settings.sessions.quotaWarnAt')"
           :hint="`${t('settings.sessions.quotaWarnHint')}\n\n${t('settings.sessions.orderHint')}`"
         >
           <Input v-model="settings.quota_warn_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
         </SettingsRow>
-        <SettingsRow :label="t('settings.sessions.block5h')" :hint="t('settings.sessions.blockHint')">
+        <SettingsRow search-id="limits-block5h" :label="t('settings.sessions.block5h')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_5h_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
           <p v-if="now5h.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
             {{ t('settings.sessions.nowPrefix') }}
@@ -144,7 +147,7 @@ const tabHint = computed(() => ({
             </template>
           </p>
         </SettingsRow>
-        <SettingsRow :label="t('settings.sessions.blockWeekly')" :hint="t('settings.sessions.blockHint')">
+        <SettingsRow search-id="limits-blockWeekly" :label="t('settings.sessions.blockWeekly')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_week_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
           <p v-if="nowWeek.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
             {{ t('settings.sessions.nowPrefix') }}
@@ -158,7 +161,7 @@ const tabHint = computed(() => ({
           {{ t('settings.sessions.warnNotBelowBlock') }}
         </p>
         <div class="space-y-1.5">
-          <SettingsRow :label="t('settings.sessions.stopRunning')" :hint="t('settings.sessions.stopRunningHint')">
+          <SettingsRow search-id="limits-stopRunning" :label="t('settings.sessions.stopRunning')" :hint="t('settings.sessions.stopRunningHint')">
             <div class="flex min-[900px]:justify-end">
               <ToggleSwitch
                 size="md"

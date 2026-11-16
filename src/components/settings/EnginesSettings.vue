@@ -34,7 +34,7 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
         <Cpu class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('settings.engines.codex') }}</span>
       </template>
-      <SettingsRow :label="t('settings.engine.codexPath')">
+      <SettingsRow search-id="engines-codexPath" :label="t('settings.engine.codexPath')">
         <Input
           v-model="settings.codex_path"
           size="sm"

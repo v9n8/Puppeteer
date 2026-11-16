@@ -14,15 +14,19 @@ withDefaults(defineProps<{
   /** Short explanation always shown under the label. */
   description?: string
   stacked?: boolean
+  /** Id the Settings search scrolls to (lib/settingsSearchRows); rendered as `data-settings-id`. */
+  searchId?: string
 }>(), {
   hint: undefined,
   description: undefined,
   stacked: false,
+  searchId: undefined,
 })
 </script>
 
 <template>
   <div
+    :data-settings-id="searchId"
     class="flex flex-col gap-1.5"
     :class="!stacked && 'min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between min-[900px]:gap-6'"
   >

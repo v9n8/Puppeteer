@@ -84,7 +84,7 @@ async function resetDefaults() {
 </script>
 
 <template>
-  <Card body-class="p-4 space-y-4">
+  <Card body-class="p-4 space-y-4" data-settings-id="features-modules">
     <template #header>
       <ToggleRight class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('features.settings.title') }}</span>

@@ -21,7 +21,7 @@ const emit = defineEmits<{ openDefaults: []; openModels: [] }>()
       <Cpu class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.engines.claude') }}</span>
     </template>
-    <SettingsRow :label="t('settings.engine.claudePath')">
+    <SettingsRow search-id="engines-claudePath" :label="t('settings.engine.claudePath')">
       <Input
         v-model="settings.claude_path"
         size="sm"

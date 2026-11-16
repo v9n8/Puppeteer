@@ -112,7 +112,7 @@ function cancelImport() {
 </script>
 
 <template>
-  <Card body-class="p-4 space-y-5">
+  <Card body-class="p-4 space-y-5" data-settings-id="devices-backup">
     <template #header>
       <ArchiveRestore class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.backup.title') }}</span>

@@ -136,7 +136,7 @@ async function clearMasterPassword() {
       <InfoTip :text="t('remote.settings.identity.intro')" />
     </template>
     <div class="p-4 space-y-4">
-      <SettingsRow :label="t('remote.settings.relayUrl')">
+      <SettingsRow search-id="devices-relayUrl" :label="t('remote.settings.relayUrl')">
         <Input
           v-model="relayUrl"
           :placeholder="t('remote.settings.relayUrlPlaceholder')"
@@ -144,7 +144,7 @@ async function clearMasterPassword() {
         />
       </SettingsRow>
 
-      <SettingsRow :label="t('remote.settings.authToken')" :hint="t('remote.settings.authTokenHint')">
+      <SettingsRow search-id="devices-authToken" :label="t('remote.settings.authToken')" :hint="t('remote.settings.authTokenHint')">
         <div class="flex items-center gap-2">
           <Input
             v-model="authToken"
@@ -159,7 +159,7 @@ async function clearMasterPassword() {
 
       <!-- Device name: picks this host's password-login code, so several
            Puppeteer hosts can share one relay (and one master password). -->
-      <SettingsRow :label="t('remote.settings.deviceName')" :hint="t('remote.settings.deviceNameHint')">
+      <SettingsRow search-id="devices-deviceName" :label="t('remote.settings.deviceName')" :hint="t('remote.settings.deviceNameHint')">
         <Input
           v-model="deviceAlias"
           autocomplete="off"
@@ -173,7 +173,7 @@ async function clearMasterPassword() {
 
       <!-- Master password: an optional stable code that replaces the per-join
            OTP for a single owner (falls back to OTP when unset). -->
-      <SettingsRow :label="t('remote.settings.masterPassword')" :hint="t('remote.settings.masterPasswordHint')">
+      <SettingsRow search-id="devices-masterPassword" :label="t('remote.settings.masterPassword')" :hint="t('remote.settings.masterPasswordHint')">
         <div class="flex items-center gap-2">
           <Input
             v-model="masterPassword"
@@ -203,7 +203,7 @@ async function clearMasterPassword() {
         <Button variant="outline" :disabled="savingConfig" @click="saveConfig">
           {{ t('remote.settings.saveSettings') }}
         </Button>
-        <Button v-if="!remoteMode" variant="outline" :disabled="savingConfig || checkingRelay || !relayUrl.trim()" @click="checkRelay">
+        <Button v-if="!remoteMode" variant="outline" data-settings-id="devices-checkRelay" :disabled="savingConfig || checkingRelay || !relayUrl.trim()" @click="checkRelay">
           {{ checkingRelay ? t('remote.settings.checkingRelay') : t('remote.settings.checkRelay') }}
         </Button>
         <span v-if="status?.device_id" class="ml-auto text-2xs text-muted-foreground/60 font-mono">

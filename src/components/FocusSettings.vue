@@ -167,7 +167,7 @@ async function save() {
     </div>
 
     <!-- Working hours -->
-    <SettingsRow :label="t('focus.settings.workHours')">
+    <SettingsRow search-id="focus-workHours" :label="t('focus.settings.workHours')">
       <div class="flex items-center gap-2">
         <Input v-model="form.work_start" type="time" size="sm" class="w-28" :disabled="loading" :aria-label="t('focus.settings.workStart')" />
         <span class="text-muted-foreground">–</span>
@@ -176,7 +176,7 @@ async function save() {
     </SettingsRow>
 
     <!-- w-9 so the seven days fit the row's control column on one line. -->
-    <SettingsRow :label="t('focus.settings.workDays')">
+    <SettingsRow search-id="focus-workDays" :label="t('focus.settings.workDays')">
       <div class="flex flex-wrap gap-1">
         <button
           v-for="d in DAYS"

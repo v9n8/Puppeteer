@@ -125,7 +125,7 @@ onMounted(load)
       <InfoTip :text="t('memory.hint')" />
     </template>
 
-    <SettingsRow :label="t('memory.file')">
+    <SettingsRow search-id="memory-file" :label="t('memory.file')">
       <SegmentedControl :model-value="kind" :options="kindOptions" @update:model-value="selectKind" />
     </SettingsRow>
 

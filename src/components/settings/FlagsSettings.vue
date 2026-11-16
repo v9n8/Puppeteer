@@ -166,7 +166,7 @@ async function restoreDefaults() {
       </template>
     </Banner>
 
-    <Card v-else class="overflow-visible">
+    <Card v-else class="overflow-visible" data-settings-id="flags-list">
       <template #header>
         <Flag class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('sessionFlags.settings.title') }}</span>

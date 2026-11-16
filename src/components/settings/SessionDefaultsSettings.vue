@@ -75,7 +75,7 @@ const styleOptions = computed(() => {
       <span class="text-xs font-semibold">{{ t('settings.ai.sessionDefaults') }}</span>
       <InfoTip :text="t('settings.ai.sessionDefaultsHint')" />
     </template>
-      <SettingsRow :label="t('settings.ai.defaultEngine')">
+      <SettingsRow search-id="ai-defaultEngine" :label="t('settings.ai.defaultEngine')">
         <AppSelect
           size="sm"
           v-model="settings.default_engine"
@@ -85,13 +85,13 @@ const styleOptions = computed(() => {
           ]"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultClaudeModel')">
+      <SettingsRow search-id="ai-defaultClaudeModel" :label="t('settings.ai.defaultClaudeModel')">
         <AppSelect size="sm" v-model="settings.claude_model" :options="claudeModelOptions" />
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.claudeFallbackModel')" :hint="t('settings.ai.fallbackHint')">
+      <SettingsRow search-id="ai-claudeFallbackModel" :label="t('settings.ai.claudeFallbackModel')" :hint="t('settings.ai.fallbackHint')">
         <AppSelect size="sm" v-model="settings.claude_fallback_model" :options="claudeFallbackOptions" />
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultCodexModel')" :hint="`${t('settings.ai.modelListsHint')} ${t('settings.sections.model')}.`">
+      <SettingsRow search-id="ai-defaultCodexModel" :label="t('settings.ai.defaultCodexModel')" :hint="`${t('settings.ai.modelListsHint')} ${t('settings.sections.model')}.`">
         <div class="flex items-center gap-1">
           <AppSelect size="sm" class="flex-1" v-model="settings.codex_model" :options="codexModelOptions" />
           <Button
@@ -105,18 +105,18 @@ const styleOptions = computed(() => {
           </Button>
         </div>
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultPermissionMode')" :hint="t('settings.ai.permissionHint')">
+      <SettingsRow search-id="ai-defaultPermissionMode" :label="t('settings.ai.defaultPermissionMode')" :hint="t('settings.ai.permissionHint')">
         <AppSelect
           size="sm"
           v-model="settings.default_permission_mode"
           :options="permissionModeOptions(t)"
         />
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultEffort')" :hint="t('settings.ai.effortHint')">
+      <SettingsRow search-id="ai-defaultEffort" :label="t('settings.ai.defaultEffort')" :hint="t('settings.ai.effortHint')">
         <AppSelect v-if="effortLevels.length" size="sm" v-model="settings.default_effort" :options="effortOptions" />
         <p v-else class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.effortNotTaken') }}</p>
       </SettingsRow>
-      <SettingsRow :label="t('settings.ai.defaultStyle')" :hint="`${t('settings.ai.styleHint')} ${t('settings.sections.styles')}.`">
+      <SettingsRow search-id="ai-defaultStyle" :label="t('settings.ai.defaultStyle')" :hint="`${t('settings.ai.styleHint')} ${t('settings.sections.styles')}.`">
         <div class="flex items-center gap-1">
           <AppSelect size="sm" class="flex-1" v-model="settings.default_style" :options="styleOptions" />
           <Button

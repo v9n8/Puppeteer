@@ -146,7 +146,7 @@ watch([rows, types], () => {
 
 <template>
   <div>
-  <Card body-class="p-4 space-y-4">
+  <Card body-class="p-4 space-y-4" data-settings-id="connections-list">
     <template #header>
       <Plug class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.connections.title') }}</span>
@@ -155,6 +155,7 @@ watch([rows, types], () => {
         size="xs"
         variant="outline"
         class="ml-auto"
+        data-settings-id="connections-validateAll"
         :disabled="!visibleRows.length || !!validatingAll"
         @click="validateAll"
       >

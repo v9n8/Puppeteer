@@ -138,7 +138,7 @@ onMounted(load)
       </div>
 
       <!-- Status -->
-      <SettingsRow :label="t('settings.inboxApi.status')">
+      <SettingsRow search-id="inbox-status" :label="t('settings.inboxApi.status')">
         <div class="flex items-center gap-2 text-xs">
           <span
             class="h-2 w-2 shrink-0 rounded-full"
