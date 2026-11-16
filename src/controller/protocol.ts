@@ -13,6 +13,7 @@
  */
 
 import type { FetchedModel } from '@/lib/engineOptions'
+import { parseEnabledModels, type EnabledModels } from '../lib/enabledModels.ts'
 
 /** Re-exported so controller modules import wire types from one place. */
 export type { FetchedModel }
@@ -295,6 +296,8 @@ export interface EngineModelOptionsKind {
   codex_models: FetchedModel[]
   /** Managed Claude accounts a run may be switched to (desktop parity). */
   claude_accounts: ClaudeAccountChoice[]
+  /** Models that are on per engine (V3-62); absent = all on, or an older Host. */
+  enabled_models?: EnabledModels
 }
 
 /** One managed Claude account offered in the run-settings menu. */
@@ -729,6 +732,7 @@ export function parseStreamPayload(json: unknown): StreamPayload | null {
         claude_models: models(o.claude_models),
         codex_models: models(o.codex_models),
         claude_accounts: accounts,
+        ...(o.enabled_models ? { enabled_models: parseEnabledModels(o.enabled_models) } : {}),
       }
     }
     case 'project_file_list':

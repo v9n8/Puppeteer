@@ -345,6 +345,10 @@ pub enum StreamPayload {
         /// the desktop run-settings menu. Empty when none are configured.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         claude_accounts: Vec<ClaudeAccountChoice>,
+        /// The models that are on per engine (Settings › Model, V3-62); left out
+        /// while every model is on. An older controller ignores it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        enabled_models: Option<EnabledModelsWire>,
     },
     /// A bounded listing of files under the bound run's project path (for
     /// @mention completion in the controller composer).
@@ -537,6 +541,14 @@ pub struct DiscoveredModel {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+/// The `enabled_models` setting on the wire: per engine the ids that are on,
+/// `null` = every model of that engine. Mirrors `src/lib/enabledModels.ts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnabledModelsWire {
+    pub claude: Option<Vec<String>>,
+    pub codex: Option<Vec<String>>,
 }
 
 /// One managed Claude account's plan utilization, mirroring a desktop
@@ -854,6 +866,29 @@ mod tests {
         })
         .unwrap();
         assert_eq!(v["host_features"], serde_json::json!(["data", "inbox", "remember", "push"]));
+    }
+
+    #[test]
+    fn engine_model_options_carry_enabled_models_only_when_set() {
+        let frame = |enabled_models| StreamPayload::EngineModelOptions {
+            engines: Vec::new(),
+            claude_models: Vec::new(),
+            codex_models: Vec::new(),
+            claude_accounts: Vec::new(),
+            enabled_models,
+        };
+        let all_on = serde_json::to_value(frame(None)).unwrap();
+        assert!(all_on.get("enabled_models").is_none(), "{all_on}");
+        let some = serde_json::to_value(frame(Some(EnabledModelsWire {
+            claude: Some(vec!["claude-sonnet-4-6".into()]),
+            codex: None,
+        })))
+        .unwrap();
+        assert_eq!(some["enabled_models"], serde_json::json!({ "claude": ["claude-sonnet-4-6"], "codex": null }));
+        // A frame from an older host, without the field, still reads.
+        let old: StreamPayload =
+            serde_json::from_value(serde_json::json!({ "kind": "engine_model_options", "engines": [] })).unwrap();
+        assert!(matches!(old, StreamPayload::EngineModelOptions { enabled_models: None, .. }));
     }
 
     #[test]

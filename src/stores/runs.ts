@@ -5,6 +5,8 @@ import type { ImageAttachment } from '@/lib/streamEvents'
 import type { BookmarkSide, RunBookmark } from '@/lib/bookmarks'
 import type { QuoteInput, RunQuote } from '@/lib/quote'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
+import { i18n } from '@/i18n'
+import { modelBlockedError } from '@/lib/enabledModels'
 
 /**
  * Fingerprint of the file(s) backing a run's log, from `get_run_log_revision`.
@@ -235,6 +237,12 @@ export interface ForkOutcome {
   conversation: boolean
 }
 
+/** A start refused because its model is off in Settings › Model comes back
+ * coded (`model_policy`); show it in the UI language. Other errors pass as is. */
+function localizedStartError(e: unknown): unknown {
+  const blocked = modelBlockedError(e)
+  return blocked ? i18n.global.t(`run.errors.${blocked.code}`, { model: blocked.model }) : e
+}
 
 export const useRunsStore = defineStore('runs', () => {
   const runs = ref<RunRecord[]>([])
@@ -375,6 +383,8 @@ export const useRunsStore = defineStore('runs', () => {
         images: images ?? [],
         override_budget: override_budget ?? false,
       },
+    }).catch((e) => {
+      throw localizedStartError(e)
     })
     touchRun(run_id)
   }
@@ -595,6 +605,8 @@ export const useRunsStore = defineStore('runs', () => {
       effortOverride: effort_override ?? null,
       styleOverride: style_override ?? null,
       overrideBudget: override_budget ?? false,
+    }).catch((e) => {
+      throw localizedStartError(e)
     })
     touchRun(run_id)
   }

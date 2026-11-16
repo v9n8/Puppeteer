@@ -292,6 +292,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     // Standing tool permissions: "Always allow" lets a tool run without asking in every
     // session of the project (audited with its decision, like a phone's `allow_always`).
     "set_project_tool_permission",
+    // Models that are on: saving moves the defaults (global and per project) off a model now off.
+    "save_enabled_models",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle
@@ -938,6 +940,7 @@ mod tests {
             "set_project_tool_permission",
             "resolve_sync_conflict",
             "resolve_rule_sync_conflict",
+            "save_enabled_models",
         ] {
             assert!(audited_command(name), "{name}");
         }
@@ -1093,6 +1096,8 @@ mod tests {
             // Menu shortcuts: a UI preference too; a system key written there never
             // reaches the menu (`src/lib/keymap.ts` drops it).
             "keymap.config",
+            // Models that are on (V3-62): a user setting; `update_setting` audits it with its key.
+            "enabled_models",
         ] {
             assert!(remote_may_set_setting(key), "{key}");
         }

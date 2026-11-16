@@ -70,6 +70,9 @@ pub enum RemoteRunEvent {
     /// run. Counts as a failed push only (a push carries counts, no names): the
     /// Controller gets no frame, as it has no row in Needs you.
     ScheduleFailed,
+    /// The models that are on changed (V3-62): the forwarder re-sends its
+    /// `engine_model_options` frame. Not tied to one run.
+    ModelOptionsChanged,
 }
 
 impl RemoteRunEvent {
@@ -83,7 +86,7 @@ impl RemoteRunEvent {
             | RemoteRunEvent::Meta { run_id, .. }
             | RemoteRunEvent::PermissionResolved { run_id, .. }
             | RemoteRunEvent::Attention { run_id, .. } => run_id,
-            RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed => "",
+            RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed | RemoteRunEvent::ModelOptionsChanged => "",
         }
     }
 }

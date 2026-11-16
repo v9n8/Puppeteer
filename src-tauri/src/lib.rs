@@ -10,6 +10,7 @@ mod gitlab;
 mod import;
 mod inbox_api;
 mod item_links;
+mod model_policy;
 mod procs;
 mod remote;
 mod runs;
@@ -496,6 +497,7 @@ pub fn run() {
             commands::updates::install_update,
             get_settings,
             update_setting,
+            model_policy::save::save_enabled_models,
             features::commands::get_features,
             features::commands::set_feature,
             features::commands::reset_features,

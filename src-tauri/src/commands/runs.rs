@@ -432,7 +432,7 @@ pub(crate) async fn start_run_inner(
     };
     let model = resolve_model_for_engine(
         &engine,
-        payload.model_override,
+        payload.model_override.clone(),
         fallback_model(
             &engine,
             existing_model.as_deref(),
@@ -440,6 +440,7 @@ pub(crate) async fn start_run_inner(
             engine_default_model,
         ),
     );
+    crate::model_policy::ensure_allowed(db, &project_id, &engine, model.as_deref(), existing_model.as_deref(), payload.model_override.as_deref()).await?;
     let effort = resolve_effort(
         payload.effort_override,
         fallback_effort(existing_effort.as_deref(), project_defaults.effort.as_deref(), &default_effort),
@@ -4890,7 +4891,7 @@ pub(crate) async fn resume_run_with(
     };
     let model = resolve_model_for_engine(
         &engine,
-        model_override,
+        model_override.clone(),
         fallback_model(
             &engine,
             previous_model.as_deref(),
@@ -4898,6 +4899,7 @@ pub(crate) async fn resume_run_with(
             engine_default_model,
         ),
     );
+    crate::model_policy::ensure_allowed(db.inner(), &project_id, &engine, model.as_deref(), previous_model.as_deref(), model_override.as_deref()).await?;
     let effort = resolve_effort(
         effort_override,
         fallback_effort(previous_effort.as_deref(), project_defaults.effort.as_deref(), &default_effort),

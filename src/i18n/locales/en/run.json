@@ -446,5 +446,9 @@
   "runOptions": {
     "effort": "Effort",
     "style": "Response style"
+  },
+  "errors": {
+    "modelDisabled": "Model {model} is turned off in Settings › Model. Turn it on or pick another model.",
+    "modelDefaultDisabled": "Model {model} is the default model for new sessions but is turned off in Settings › Model. Change it in Settings › Defaults for new sessions."
   }
 }

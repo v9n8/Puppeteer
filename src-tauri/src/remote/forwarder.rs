@@ -138,7 +138,7 @@ fn to_payload(ev: RemoteRunEvent) -> Option<StreamPayload> {
                 remembered: None,
             }
         }
-        RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed => return None,
+        RemoteRunEvent::ListsChanged | RemoteRunEvent::ScheduleFailed | RemoteRunEvent::ModelOptionsChanged => return None,
     })
 }
 
@@ -232,6 +232,7 @@ pub async fn forward_loop(
                 send_run_list(&db, &session, &room_id, &out, &seq, scope.list_filter()).await;
                 send_project_list(&db, &session, &room_id, &out, &seq).await;
             }
+            Ok(RemoteRunEvent::ModelOptionsChanged) => send_engine_model_options(&db, &session, &room_id, &out, &seq).await,
             Ok(ev) => {
                 let run_id = ev.run_id().to_string();
                 let streaming = scope.streams(&run_id).await;
@@ -626,6 +627,7 @@ pub async fn send_engine_model_options(
         claude_models: Vec::new(),
         codex_models: codex.into_iter().map(to_wire).collect(),
         claude_accounts,
+        enabled_models: crate::model_policy::wire(db).await,
     };
     if let Some(env) = seal_stream(session, room_id, &payload, seq.next()) {
         let _ = out.send(env);
@@ -967,6 +969,7 @@ mod tests {
     #[test]
     fn a_schedule_that_did_not_start_sends_the_controller_nothing() {
         assert!(to_payload(RemoteRunEvent::ScheduleFailed).is_none());
+        assert!(to_payload(RemoteRunEvent::ModelOptionsChanged).is_none());
     }
 
     #[test]

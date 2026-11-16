@@ -98,6 +98,10 @@ pub struct AppSettings {
     /// (`src/lib/desktopNotify.ts`); the backend only round-trips the string. Local-only with
     /// Remote Control (`remote::guard::remote_may_set_setting`).
     pub desktop_notify: String,
+    /// Models that are on per engine (Settings › Model), the normalized JSON
+    /// `{"claude": [id…] | null, "codex": [id…] | null}`; `null` = all on. See
+    /// `model_policy`. Settings › Model saves it with `save_enabled_models`.
+    pub enabled_models: String,
 }
 
 /// [`AppSettings::claude_fallback_model`] while the key is unset.
@@ -142,6 +146,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "mcp_builtin_google_enabled",
     "quit_background_policy",
     "desktop_notify",
+    "enabled_models",
     // Focus (focus::settings); the calendar choice stays per machine.
     "focus.work_start",
     "focus.work_end",
@@ -211,6 +216,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         palette_config: String::new(),
         keymap_config: String::new(),
         desktop_notify: String::new(),
+        enabled_models: String::new(),
     };
 
     for row in rows {
@@ -257,12 +263,16 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "palette.config" => settings.palette_config = value,
             "keymap.config" => settings.keymap_config = value,
             "desktop_notify" => settings.desktop_notify = value,
+            "enabled_models" => settings.enabled_models = value,
             _ => {}
         }
     }
     // Unset, or saved on another OS (a restored backup): this OS's default.
     settings.terminal_app =
         crate::commands::projects::resolve_terminal_app(std::env::consts::OS, &settings.terminal_app).to_string();
+    // Unset or unreadable: every model is on.
+    settings.enabled_models =
+        crate::model_policy::EnabledModels::parse(Some(&settings.enabled_models)).to_json();
 
     Ok(settings)
 }
@@ -296,7 +306,11 @@ pub async fn update_setting(
     if crate::features::owner(&key).is_some() {
         return crate::features::commands::write_legacy(&app, db.inner(), set_setting(db.inner(), &key, &value)).await;
     }
-    set_setting(db.inner(), &key, &value).await
+    set_setting(db.inner(), &key, &value).await?;
+    if key == crate::model_policy::SETTING {
+        crate::model_policy::notify_changed(&app);
+    }
+    Ok(())
 }
 
 pub async fn set_setting(db: &Db, key: &str, value: &str) -> Result<(), String> {
