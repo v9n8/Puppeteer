@@ -16,8 +16,6 @@ import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.v
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
 import FeaturesSettings from '@/components/FeaturesSettings.vue'
-import CommandPaletteSettings from '@/components/CommandPaletteSettings.vue'
-import KeymapSettings from '@/components/KeymapSettings.vue'
 import GeneralSettings from '@/components/settings/GeneralSettings.vue'
 import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
@@ -29,6 +27,7 @@ import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
 import AboutSettings from '@/components/settings/AboutSettings.vue'
 import ModelSettings from '@/components/settings/ModelSettings.vue'
+import ShortcutsSettings, { type ShortcutsTab } from '@/components/settings/ShortcutsSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -74,9 +73,11 @@ const activeSection = computed<SettingsSectionId>(() => place.value.section)
 // A link with a tab or filter (`/settings/connections?type=google`, e.g. the
 // "Google settings" button on the MCP Servers screen's built-in row) opens on it.
 const devicesTab = ref<DevicesTab>('remote')
+const shortcutsTab = ref<ShortcutsTab>('palette')
 const connectionsFilter = ref<ConnectionFilter>('all')
 watch(place, (p) => {
   if (p.devicesTab) devicesTab.value = p.devicesTab
+  if (p.shortcutsTab) shortcutsTab.value = p.shortcutsTab
   if (p.connectionsFilter) connectionsFilter.value = p.connectionsFilter
 }, { immediate: true })
 
@@ -84,8 +85,15 @@ watch(place, (p) => {
 const currentPlace = computed<SettingsPlace>(() => {
   const p: SettingsPlace = { section: activeSection.value }
   if (p.section === 'devices') p.devicesTab = devicesTab.value
+  if (p.section === 'shortcuts') p.shortcutsTab = shortcutsTab.value
   if (p.section === 'connections' && connectionsFilter.value !== 'all') p.connectionsFilter = connectionsFilter.value
   return p
+})
+
+// The Shortcuts tab is in the URL (`?tab=`), so a reload or a shared link keeps it.
+watch(shortcutsTab, (tab) => {
+  if (props.windowed || activeSection.value !== 'shortcuts' || route.query.tab === tab) return
+  void router.replace(settingsLocation({ section: 'shortcuts', shortcutsTab: tab })).catch(() => {})
 })
 
 // Stores behind Connections (GitHub / GitLab / AWS), Claude and Codex: fetched here, before
@@ -287,14 +295,9 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
           <AboutSettings />
         </div>
 
-        <!-- Command palette (⌘K): groups, pins, hidden items. -->
-        <div v-if="!loading && activeSection === 'palette'" class="max-w-4xl">
-          <CommandPaletteSettings />
-        </div>
-
-        <!-- Shortcuts of the native menu's actions (lib/keymap). -->
-        <div v-if="!loading && activeSection === 'keymap'" class="max-w-4xl">
-          <KeymapSettings />
+        <!-- Command palette (⌘K) and the menu's shortcuts, as two tabs. -->
+        <div v-if="!loading && activeSection === 'shortcuts'" class="max-w-4xl">
+          <ShortcutsSettings v-model:tab="shortcutsTab" />
         </div>
       </div>
     </div>

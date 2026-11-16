@@ -17,16 +17,25 @@
     "search": "Search in content"
   },
   "settings": {
-    "title": "Command palette",
+    "title": "Quick commands",
     "help": "Open it with {shortcut}. Pin or hide an item from the palette itself; it is remembered by its id, so renaming it keeps the choice.",
     "groups": "Groups",
     "pinned": "Pinned items",
-    "pinnedEmpty": "Nothing pinned yet.",
+    "pinnedEmpty": "Nothing pinned yet. Pin with the pin button at the end of a row in the palette.",
     "hidden": "Hidden items",
     "hiddenEmpty": "Nothing hidden.",
     "unhide": "Show again",
     "moveUp": "Move up",
     "moveDown": "Move down",
-    "reset": "Restore defaults"
+    "intro": "Pin and hide right in the ⌘K palette.",
+    "groupsHelp": "The order of the groups in the palette. Turning a group off hides all its items, pinned ones too. The “Pinned” group is always on top.",
+    "pinnedHelp": "Shown in the “Pinned” group at the top of the palette, in pin order. Unpin an item and it goes back to its own group.",
+    "hiddenHelp": "Not shown in the palette, even when you search. Hiding a pinned item also unpins it. Show it again to use it again.",
+    "resetOrder": "Default order",
+    "resetOrderTitle": "Back to the original order and turn every group on again",
+    "unpinAll": "Unpin all",
+    "unpinAllAsk": "Unpin {n} items?",
+    "unhideAll": "Show all again",
+    "unhideAllAsk": "Show {n} hidden items again?"
   }
 }

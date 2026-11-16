@@ -7,6 +7,7 @@ import { allowsFeature, filterByFeature, menuActionFeature, startsGroup } from '
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { PALETTE_FEATURE } from '@/lib/commandPalette'
+import { groupMenuActions, type MenuActionGroup } from '@/lib/menuGroups'
 import type { SidebarMode } from '@/lib/sidebarMode'
 import {
   NEW_SESSION_ACTION, OPEN_WINDOWS_ACTION, PALETTE_ACTION, PREVIOUS_PROJECT_ACTION, parseKeymap, resolveKeymap, type Keymap,
@@ -281,6 +282,12 @@ export function menuActions(): { id: string; label: string }[] {
   return [...actionItems(buildSpec(lastState).submenus.flatMap((s) => s.items)), ...keyOnlyActions()]
     .filter((item) => !seen.has(item.id) && seen.add(item.id))
     .map(({ id, label }) => ({ id, label }))
+}
+
+/** `menuActions()` by top-level menu (File, Edit, …), in menu order. Reactive. */
+export function menuActionGroups(): MenuActionGroup[] {
+  const extra = keyOnlyActions().map(({ id, label }) => ({ menu: t('menu.window'), action: { id, label } }))
+  return groupMenuActions(buildSpec(lastState).submenus, extra)
 }
 
 /** The shortcut of each menu action, as the menu has them (lib/keymap `resolveKeymap`). Reactive. */

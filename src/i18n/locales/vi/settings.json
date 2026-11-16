@@ -15,10 +15,9 @@
     "inbox": "Inbox API",
     "focus": "Focus",
     "features": "Tính năng",
-    "palette": "Lệnh nhanh",
-    "keymap": "Phím tắt",
     "connections": "Kết nối",
-    "about": "Giới thiệu"
+    "about": "Giới thiệu",
+    "shortcuts": "Phím tắt & lệnh nhanh"
   },
   "groups": {
     "general": "Chung",
@@ -360,11 +359,26 @@
     "codexStaticHint": "Codex không hỗ trợ liệt kê model động — danh sách này cố định.",
     "defaultPermissionMode": "Chế độ quyền",
     "permModes": {
-      "auto": { "label": "Tự động", "hint": "Claude tự quyết định việc cấp quyền" },
-      "default": { "label": "Thủ công", "hint": "Luôn hỏi trước khi thay đổi" },
-      "acceptEdits": { "label": "Tự nhận sửa", "hint": "Tự động chấp nhận mọi chỉnh sửa file" },
-      "plan": { "label": "Lập kế hoạch", "hint": "Lập kế hoạch trước khi thay đổi" },
-      "bypassPermissions": { "label": "Bỏ qua quyền", "hint": "Claude có thể sửa hoặc xoá file mà không hỏi" }
+      "auto": {
+        "label": "Tự động",
+        "hint": "Claude tự quyết định việc cấp quyền"
+      },
+      "default": {
+        "label": "Thủ công",
+        "hint": "Luôn hỏi trước khi thay đổi"
+      },
+      "acceptEdits": {
+        "label": "Tự nhận sửa",
+        "hint": "Tự động chấp nhận mọi chỉnh sửa file"
+      },
+      "plan": {
+        "label": "Lập kế hoạch",
+        "hint": "Lập kế hoạch trước khi thay đổi"
+      },
+      "bypassPermissions": {
+        "label": "Bỏ qua quyền",
+        "hint": "Claude có thể sửa hoặc xoá file mà không hỏi"
+      }
     },
     "permissionHint": "Cách các lệnh gọi tool được kiểm soát (Claude & Codex). \"Thủ công\" hiển thị mỗi yêu cầu trong một modal; \"Bỏ qua quyền\" bỏ modal — nhanh, nhưng không an toàn ngoài thư mục tin cậy. Bạn vẫn có thể ghi đè engine, model và chế độ quyền cho từng lần chạy ở màn Run.",
     "defaultEffort": "Effort",
@@ -675,6 +689,13 @@
       "open": "Mở {place}",
       "confirm": "Lưu",
       "saving": "Đang lưu…"
+    }
+  },
+  "shortcuts": {
+    "intro": "Hai cách gọi nhanh: bảng lệnh ⌘K và phím tắt của thanh menu. Đổi là áp ngay, không cần bấm lưu.",
+    "tabs": {
+      "palette": "Lệnh nhanh",
+      "keymap": "Phím tắt"
     }
   }
 }

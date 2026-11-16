@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Settings → Keyboard shortcuts: the native menu's actions and their keys
+// Settings → Shortcuts & quick commands → Shortcuts: the native menu's actions, by menu, and their keys
 // (lib/keymap). A change goes straight onto the menu, which shows and fires it.
 // While a new shortcut is being recorded the menu has none, so the keys reach
 // this page — and a taken one can be reported — instead of running an action.
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Keyboard, RotateCcw, X } from 'lucide-vue-next'
-import { Button, Card, InfoTip } from '@/components/ui'
+import { Button, Card } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
-import { IS_MAC, effectiveKeymap, menuActions, suspendAccelerators } from '@/lib/appMenu'
+import { IS_MAC, effectiveKeymap, menuActionGroups, menuActions, suspendAccelerators } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
 import {
   KEYMAP_SETTING_KEY,
@@ -30,6 +30,7 @@ const appSettings = useAppSettingsStore()
 const { toast } = useToast()
 
 const actions = computed(() => menuActions())
+const groups = computed(() => menuActionGroups())
 const changes = computed(() => parseKeymap(appSettings.settings?.keymap_config))
 const resolved = computed(() => effectiveKeymap())
 const labelOf = computed(() => new Map(actions.value.map((a) => [a.id, a.label])))
@@ -126,52 +127,56 @@ onBeforeUnmount(stopRecording)
     <template #header>
       <Keyboard class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('keymap.title') }}</span>
-      <InfoTip :text="t('keymap.help', systemKeys)" />
       <Button variant="outline" size="xs" class="ml-auto" :disabled="!Object.keys(changes).length" @click="resetAll">
         <RotateCcw class="h-3 w-3" :stroke-width="1.75" />
         {{ t('keymap.resetAll') }}
       </Button>
     </template>
 
-    <div class="divide-y divide-border/60 rounded-lg border border-border/60">
-      <div v-for="action in actions" :key="action.id" class="px-3 py-1.5">
-        <div class="flex items-center gap-2">
-          <span class="min-w-0 flex-1 truncate text-sm text-foreground">{{ action.label }}</span>
-          <template v-if="recording === action.id">
-            <span class="text-2xs text-primary">{{ t('keymap.recording') }}</span>
-            <Button variant="ghost" size="xs" @click="stopRecording">{{ t('keymap.cancel') }}</Button>
-          </template>
-          <template v-else>
-            <span
-              v-if="resolved.get(action.id)"
-              class="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-2xs text-foreground"
-            >{{ keys(resolved.get(action.id)!) }}</span>
-            <span v-else class="text-2xs text-muted-foreground">{{ t('keymap.none') }}</span>
-            <Button variant="ghost" size="xs" @click="startRecording(action.id)">{{ t('keymap.change') }}</Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              :disabled="!resolved.get(action.id)"
-              :title="t('keymap.remove')"
-              :aria-label="t('keymap.remove')"
-              @click="remove(action.id)"
-            >
-              <X class="h-3.5 w-3.5" :stroke-width="1.75" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              :disabled="!isChanged(action.id)"
-              :title="t('keymap.reset')"
-              :aria-label="t('keymap.reset')"
-              @click="reset(action.id)"
-            >
-              <RotateCcw class="h-3.5 w-3.5" :stroke-width="1.75" />
-            </Button>
-          </template>
+    <p class="text-xs text-muted-foreground">{{ t('keymap.help', systemKeys) }}</p>
+
+    <section v-for="group in groups" :key="group.menu" class="space-y-1.5">
+      <h3 class="text-xs font-semibold text-foreground">{{ group.menu }}</h3>
+      <div class="divide-y divide-border/60 rounded-lg border border-border/60">
+        <div v-for="action in group.actions" :key="action.id" class="px-3 py-1.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="min-w-0 flex-1 basis-40 truncate text-sm text-foreground">{{ action.label }}</span>
+            <template v-if="recording === action.id">
+              <span class="text-2xs text-primary">{{ t('keymap.recording') }}</span>
+              <Button variant="ghost" size="xs" @click="stopRecording">{{ t('keymap.cancel') }}</Button>
+            </template>
+            <template v-else>
+              <span
+                v-if="resolved.get(action.id)"
+                class="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-2xs text-foreground"
+              >{{ keys(resolved.get(action.id)!) }}</span>
+              <span v-else class="text-2xs text-muted-foreground">{{ t('keymap.none') }}</span>
+              <Button variant="ghost" size="xs" @click="startRecording(action.id)">{{ t('keymap.change') }}</Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                :disabled="!resolved.get(action.id)"
+                :title="t('keymap.remove')"
+                :aria-label="t('keymap.remove')"
+                @click="remove(action.id)"
+              >
+                <X class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                :disabled="!isChanged(action.id)"
+                :title="t('keymap.reset')"
+                :aria-label="t('keymap.reset')"
+                @click="reset(action.id)"
+              >
+                <RotateCcw class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+            </template>
+          </div>
+          <p v-if="problem?.id === action.id" class="mt-1 text-2xs text-destructive">{{ problem.text }}</p>
         </div>
-        <p v-if="problem?.id === action.id" class="mt-1 text-2xs text-destructive">{{ problem.text }}</p>
       </div>
-    </div>
+    </section>
   </Card>
 </template>

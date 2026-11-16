@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain, Flag, Info, Boxes,
+  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -28,8 +28,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'flags', group: 'general', labelKey: 'settings.sections.flags', icon: Flag },
   { id: 'features', group: 'general', labelKey: 'settings.sections.features', icon: ToggleRight },
   { id: 'focus', group: 'general', labelKey: 'settings.sections.focus', icon: Target, feature: 'productivity.focus' },
-  { id: 'palette', group: 'general', labelKey: 'settings.sections.palette', icon: Command, feature: 'app.command_palette' },
-  { id: 'keymap', group: 'general', labelKey: 'settings.sections.keymap', icon: Keyboard, feature: 'app.command_palette' },
+  // The ⌘K palette and the menu's shortcuts: two tabs (`?tab=palette|keymap`).
+  { id: 'shortcuts', group: 'general', labelKey: 'settings.sections.shortcuts', icon: Keyboard, feature: 'app.command_palette' },
   { id: 'engines', group: 'ai', labelKey: 'settings.sections.engines', icon: Cpu },
   // Which models each engine may use (V3-63); every model picker filters by it.
   { id: 'model', group: 'ai', labelKey: 'settings.sections.model', icon: Boxes },
@@ -78,11 +78,14 @@ export function settingsNav<S extends { group: SettingsGroupId; feature?: string
 export interface SettingsPlace {
   section: SettingsSectionId
   devicesTab?: 'remote' | 'backup'
+  shortcutsTab?: 'palette' | 'keymap'
   connectionsFilter?: ConnectionTypeId
 }
 
 // Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
 const DEVICES_TAB_OF: Record<string, 'remote' | 'backup'> = { remote: 'remote', sync: 'backup', backup: 'backup' }
+// The command palette and Keyboard shortcuts were sections of their own: now tabs of `shortcuts`.
+const SHORTCUTS_TAB_OF: Record<string, 'palette' | 'keymap'> = { palette: 'palette', keymap: 'keymap' }
 // Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
 // Usage & Budget is now AI › Sessions.
 const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines', usage: 'sessions' }
@@ -96,6 +99,7 @@ export function resolveSettingsPlace(target: unknown): SettingsPlace | null {
   if (typeof target !== 'string') return null
   const id = MERGED_INTO[target] ?? target
   if (DEVICES_TAB_OF[id]) return { section: 'devices', devicesTab: DEVICES_TAB_OF[id] }
+  if (SHORTCUTS_TAB_OF[id]) return { section: 'shortcuts', shortcutsTab: SHORTCUTS_TAB_OF[id] }
   if (isConnectionTypeId(id)) return { section: 'connections', connectionsFilter: id }
   return isSettingsSectionId(id) ? { section: id } : null
 }
@@ -115,6 +119,7 @@ export interface SettingsLocation {
 export function settingsLocation(place: SettingsPlace, extra: Record<string, string> = {}): SettingsLocation {
   const query = { ...extra }
   if (place.devicesTab) query.tab = place.devicesTab
+  if (place.shortcutsTab) query.tab = place.shortcutsTab
   if (place.connectionsFilter) query.type = place.connectionsFilter
   return { path: `/settings/${place.section}`, query }
 }
@@ -140,12 +145,13 @@ export function settingsRedirect(query: Record<string, unknown>): SettingsLocati
 
 /**
  * The place `/settings/:section` shows. An old id in the path resolves like a
- * deep link; an unknown one shows General. `?tab=` / `?type=` pick the Devices
- * tab or the Connections filter.
+ * deep link; an unknown one shows General. `?tab=` / `?type=` pick the Devices or
+ * Shortcuts tab, or the Connections filter.
  */
 export function settingsPlaceFromRoute(params: Record<string, unknown>, query: Record<string, unknown>): SettingsPlace {
   const place: SettingsPlace = { ...(resolveSettingsPlace(params.section) ?? { section: 'general' }) }
   if (place.section === 'devices' && (query.tab === 'remote' || query.tab === 'backup')) place.devicesTab = query.tab
+  if (place.section === 'shortcuts' && (query.tab === 'palette' || query.tab === 'keymap')) place.shortcutsTab = query.tab
   if (place.section === 'connections' && isConnectionTypeId(query.type)) place.connectionsFilter = query.type
   return place
 }

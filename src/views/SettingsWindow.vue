@@ -52,7 +52,7 @@ onMounted(async () => {
       await listen<Partial<SettingsPlace>>(SETTINGS_WINDOW_OPEN_SECTION, (e) => {
         // Re-checked: the payload crossed a window boundary.
         const p = e.payload ?? {}
-        void view.value?.openPlace(settingsPlaceFromRoute({ section: p.section }, { tab: p.devicesTab, type: p.connectionsFilter }))
+        void view.value?.openPlace(settingsPlaceFromRoute({ section: p.section }, { tab: p.devicesTab ?? p.shortcutsTab, type: p.connectionsFilter }))
       }),
     )
     // Closing with unsaved Memory edits asks first (the red button, ⌘W). Unless

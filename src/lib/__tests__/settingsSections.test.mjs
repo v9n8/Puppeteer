@@ -28,7 +28,7 @@ test('every section belongs to a known group, ids are unique', () => {
 
 test('settingsNav: all features on → four groups in order, every section listed', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(true))), [
-    ['general', ['general', 'flags', 'features', 'focus', 'palette', 'keymap']],
+    ['general', ['general', 'flags', 'features', 'focus', 'shortcuts']],
     ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'sessions']],
     ['connections', ['connections', 'inbox']],
     ['system', ['devices', 'about']],
@@ -77,6 +77,9 @@ test('resolveSettingsPlace: current ids, merged old ids, tabs and connection fil
   assert.deepEqual(resolveSettingsPlace('usage'), { section: 'sessions' })
   assert.deepEqual(resolveSettingsPlace('remote'), { section: 'devices', devicesTab: 'remote' })
   assert.deepEqual(resolveSettingsPlace('sync'), { section: 'devices', devicesTab: 'backup' })
+  assert.deepEqual(resolveSettingsPlace('palette'), { section: 'shortcuts', shortcutsTab: 'palette' })
+  assert.deepEqual(resolveSettingsPlace('keymap'), { section: 'shortcuts', shortcutsTab: 'keymap' })
+  assert.deepEqual(resolveSettingsPlace('shortcuts'), { section: 'shortcuts' })
   assert.deepEqual(resolveSettingsPlace('google'), { section: 'connections', connectionsFilter: 'google' })
 })
 
@@ -94,6 +97,8 @@ test('settingsRedirect: every old id of resolveSettingsPlace lands on its route'
     remote: ['/settings/devices', { tab: 'remote' }],
     sync: ['/settings/devices', { tab: 'backup' }],
     backup: ['/settings/devices', { tab: 'backup' }],
+    palette: ['/settings/shortcuts', { tab: 'palette' }],
+    keymap: ['/settings/shortcuts', { tab: 'keymap' }],
     github: ['/settings/connections', { type: 'github' }],
     gitlab: ['/settings/connections', { type: 'gitlab' }],
     aws: ['/settings/connections', { type: 'aws' }],
@@ -128,6 +133,9 @@ test('settingsPlaceFromRoute: section, tab and filter from the route', () => {
     settingsPlaceFromRoute({ section: 'connections' }, { type: 'google' }),
     { section: 'connections', connectionsFilter: 'google' },
   )
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'shortcuts' }, { tab: 'keymap' }), { section: 'shortcuts', shortcutsTab: 'keymap' })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'keymap' }, {}), { section: 'shortcuts', shortcutsTab: 'keymap' })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'shortcuts' }, { tab: 'nope' }), { section: 'shortcuts' })
   // Old ids in the path resolve like a deep link; unknown ones show General.
   assert.deepEqual(settingsPlaceFromRoute({ section: 'github' }, {}), { section: 'connections', connectionsFilter: 'github' })
   assert.deepEqual(settingsPlaceFromRoute({ section: 'nope' }, {}), { section: 'general' })
@@ -141,6 +149,7 @@ test('settingsLocation / settingsHref round-trip through settingsPlaceFromRoute'
   const places = [
     { section: 'general' },
     { section: 'devices', devicesTab: 'remote' },
+    { section: 'shortcuts', shortcutsTab: 'keymap' },
     { section: 'connections', connectionsFilter: 'azure' },
   ]
   for (const p of places) {

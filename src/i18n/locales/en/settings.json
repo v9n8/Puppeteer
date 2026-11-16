@@ -15,10 +15,9 @@
     "inbox": "Inbox API",
     "focus": "Focus",
     "features": "Features",
-    "palette": "Command Palette",
-    "keymap": "Keyboard Shortcuts",
     "connections": "Connections",
-    "about": "About"
+    "about": "About",
+    "shortcuts": "Shortcuts & quick commands"
   },
   "groups": {
     "general": "General",
@@ -360,11 +359,26 @@
     "codexStaticHint": "Codex does not support dynamic model listing — this list is fixed.",
     "defaultPermissionMode": "Permission mode",
     "permModes": {
-      "auto": { "label": "Auto", "hint": "Claude handles permission decisions" },
-      "default": { "label": "Manual", "hint": "Always ask before making changes" },
-      "acceptEdits": { "label": "Accept edits", "hint": "Automatically accept all file edits" },
-      "plan": { "label": "Plan", "hint": "Create a plan before making changes" },
-      "bypassPermissions": { "label": "Bypass permissions", "hint": "Claude can modify or delete files without asking" }
+      "auto": {
+        "label": "Auto",
+        "hint": "Claude handles permission decisions"
+      },
+      "default": {
+        "label": "Manual",
+        "hint": "Always ask before making changes"
+      },
+      "acceptEdits": {
+        "label": "Accept edits",
+        "hint": "Automatically accept all file edits"
+      },
+      "plan": {
+        "label": "Plan",
+        "hint": "Create a plan before making changes"
+      },
+      "bypassPermissions": {
+        "label": "Bypass permissions",
+        "hint": "Claude can modify or delete files without asking"
+      }
     },
     "permissionHint": "How tool calls are gated (Claude & Codex). \"Manual\" surfaces each request in a modal; \"Bypass permissions\" skips the modal — fast, but unsafe outside trusted directories. You can still override engine, model and permission mode per run on the Run screen.",
     "defaultEffort": "Effort",
@@ -675,6 +689,13 @@
       "open": "Open {place}",
       "confirm": "Save",
       "saving": "Saving…"
+    }
+  },
+  "shortcuts": {
+    "intro": "Two ways to call things fast: the ⌘K palette and the menu bar’s shortcuts. A change applies at once, no need to save.",
+    "tabs": {
+      "palette": "Quick commands",
+      "keymap": "Shortcuts"
     }
   }
 }
