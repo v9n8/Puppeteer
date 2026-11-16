@@ -1,0 +1,16 @@
+{
+  "tooltip": {
+    "githubReview": "Session duyệt — GitHub chạy bằng {name}",
+    "githubDefault": "Tài khoản GitHub: {name} (mặc định)",
+    "gitlabDefault": "Tài khoản GitLab: {who} (mặc định)",
+    "onHost": " trên {host}",
+    "alsoEnabled": "Đã bật thêm: {list}",
+    "awsDefault": "AWS: {label} (mặc định)",
+    "azureDefault": "Azure: {label} (mặc định)",
+    "account": "tài khoản {id}",
+    "region": "vùng {region}",
+    "subscription": "subscription {name}",
+    "tenant": "tenant {id}",
+    "serverAuth": "xác thực {auth}"
+  }
+}

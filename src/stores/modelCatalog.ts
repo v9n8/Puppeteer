@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { invoke } from '@/lib/tauri'
+import { i18n } from '@/i18n'
 import {
   CLAUDE_MODEL_IDS,
   codexOptions as mergeCodex,
@@ -179,7 +180,12 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     return options.map((o) => {
       const v = verdicts[o.value]
       if (!v || v.ok) return o
-      return { ...o, description: `⚠ Not available · ${v.error ?? 'check failed'}` }
+      return {
+        ...o,
+        description: i18n.global.t('misc.modelOptions.notAvailable', {
+          error: v.error ?? i18n.global.t('misc.modelOptions.checkFailed'),
+        }),
+      }
     })
   }
 

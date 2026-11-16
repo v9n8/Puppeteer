@@ -2,6 +2,7 @@
 // cloud accounts, the session's linked items, quick capture and "open the
 // project in …". Part of the RunView split (see useRunSession.ts).
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ProjectServer } from '@/stores/servers'
 import { invoke } from '@/lib/tauri'
 import { Github, Gitlab } from 'lucide-vue-next'
@@ -15,6 +16,7 @@ type ServerTone = 'success' | 'error' | 'neutral'
 type ServerChip = { key: string; label: string; tone: ServerTone; title: string }
 
 export function useRunHeaderInfo(core: RunSessionCore) {
+  const { t } = useI18n()
   const {
     projectStore, runsStore, ghStore, glStore, serversStore, awsStore, azureStore, toast, projectId,
     project, currentRunId,
@@ -60,8 +62,8 @@ export function useRunHeaderInfo(core: RunSessionCore) {
         .filter(id => id !== ghId)
         .map(ghLabel)
         .filter((n): n is string => !!n)
-      const lines = [runGithubAccounts.value?.pinned ? `Review session — GitHub runs as ${ghName}` : `GitHub account: ${ghName} (default)`]
-      if (others.length) lines.push(`Also enabled: ${others.join(', ')}`)
+      const lines = [runGithubAccounts.value?.pinned ? t('runHeader.tooltip.githubReview', { name: ghName }) : t('runHeader.tooltip.githubDefault', { name: ghName })]
+      if (others.length) lines.push(t('runHeader.tooltip.alsoEnabled', { list: others.join(', ') }))
       badges.push({
         key: 'github',
         icon: Github,
@@ -80,8 +82,9 @@ export function useRunHeaderInfo(core: RunSessionCore) {
           .map(id => glStore.accounts.find(a => a.id === id))
           .filter((a): a is NonNullable<typeof a> => !!a)
           .map(a => (a.username ? `@${a.username}` : a.label))
-        const lines = [`GitLab account: ${acc.label}${acc.username ? ` (@${acc.username})` : ''}${acc.host ? ` on ${acc.host}` : ''} (default)`]
-        if (others.length) lines.push(`Also enabled: ${others.join(', ')}`)
+        const who = `${acc.label}${acc.username ? ` (@${acc.username})` : ''}${acc.host ? t('runHeader.tooltip.onHost', { host: acc.host }) : ''}`
+        const lines = [t('runHeader.tooltip.gitlabDefault', { who })]
+        if (others.length) lines.push(t('runHeader.tooltip.alsoEnabled', { list: others.join(', ') }))
         badges.push({
           key: 'gitlab',
           icon: Gitlab,
@@ -114,13 +117,13 @@ export function useRunHeaderInfo(core: RunSessionCore) {
   const serverChips = computed<ServerChip[]>(() =>
     projectServers.value.map((s) => {
       const tone: ServerTone = s.status === 'online' ? 'success' : s.status === 'offline' ? 'error' : 'neutral'
-      const auth = s.auth_method === 'key' ? 'key' : 'ssh-agent'
+      const auth = t('runHeader.tooltip.serverAuth', { auth: s.auth_method === 'key' ? 'key' : 'ssh-agent' })
       const status = s.status ? ` · ${s.status}` : ''
       return {
         key: `${s.id}-${s.role}`,
         label: s.label,
         tone,
-        title: `${s.role}: ${s.username}@${s.host}:${s.port} · auth ${auth}${status}`,
+        title: `${s.role}: ${s.username}@${s.host}:${s.port} · ${auth}${status}`,
       }
     }),
   )
@@ -146,12 +149,12 @@ export function useRunHeaderInfo(core: RunSessionCore) {
     if (!id) return null
     const acc = awsStore.accounts.find((a) => a.id === id)
     if (!acc) return null
-    const parts = [`AWS: ${acc.label} (default)`]
-    if (acc.account_id) parts.push(`account ${acc.account_id}`)
-    parts.push(`region ${acc.region}`)
+    const parts = [t('runHeader.tooltip.awsDefault', { label: acc.label })]
+    if (acc.account_id) parts.push(t('runHeader.tooltip.account', { id: acc.account_id }))
+    parts.push(t('runHeader.tooltip.region', { region: acc.region }))
     const others = otherCloudLabels(project.value?.aws_account_ids, id, awsStore.accounts)
     const title = parts.join(' · ') + (acc.arn ? `\n${acc.arn}` : '')
-      + (others.length ? `\nAlso enabled: ${others.join(', ')}` : '')
+      + (others.length ? `\n${t('runHeader.tooltip.alsoEnabled', { list: others.join(', ') })}` : '')
     return { label: acc.label, region: acc.region, title, tag: others.length ? `+${others.length}` : undefined }
   })
 
@@ -163,13 +166,13 @@ export function useRunHeaderInfo(core: RunSessionCore) {
     if (!id) return null
     const acc = azureStore.accounts.find((a) => a.id === id)
     if (!acc) return null
-    const parts = [`Azure: ${acc.label} (default)`]
-    if (acc.subscription_name) parts.push(`subscription ${acc.subscription_name}`)
+    const parts = [t('runHeader.tooltip.azureDefault', { label: acc.label })]
+    if (acc.subscription_name) parts.push(t('runHeader.tooltip.subscription', { name: acc.subscription_name }))
     if (acc.subscription_id) parts.push(acc.subscription_id)
-    if (acc.tenant_id) parts.push(`tenant ${acc.tenant_id}`)
+    if (acc.tenant_id) parts.push(t('runHeader.tooltip.tenant', { id: acc.tenant_id }))
     const others = otherCloudLabels(project.value?.azure_account_ids, id, azureStore.accounts)
     const title = parts.join(' · ') + (acc.user_name ? `\n${acc.user_name}` : '')
-      + (others.length ? `\nAlso enabled: ${others.join(', ')}` : '')
+      + (others.length ? `\n${t('runHeader.tooltip.alsoEnabled', { list: others.join(', ') })}` : '')
     return { label: acc.label, subscription: acc.subscription_name ?? '', title, tag: others.length ? `+${others.length}` : undefined }
   })
 

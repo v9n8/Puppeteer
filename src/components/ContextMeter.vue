@@ -50,7 +50,9 @@ const fiveHourText = computed(() => {
     const ms = new Date(w.resetsAt).getTime() - Date.now()
     if (ms > 0) {
       const h = ms / 3_600_000
-      s += h >= 1 ? ` · resets ${Math.round(h)}h` : ` · resets ${Math.max(1, Math.round(ms / 60_000))}m`
+      s += ' · ' + (h >= 1
+        ? t('misc.context.resetsInHours', { n: Math.round(h) })
+        : t('misc.context.resetsInMinutes', { n: Math.max(1, Math.round(ms / 60_000)) }))
     }
   }
   return s

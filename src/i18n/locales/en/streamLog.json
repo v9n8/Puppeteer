@@ -12,6 +12,7 @@
     "session": "Worker finished a turn",
     "system": "System message"
   },
+  "bgBadge": "bg",
   "thinking": "thinking",
   "openFile": "Open {path}",
   "moreFiles": "+{count} more",

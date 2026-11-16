@@ -189,11 +189,9 @@ function isFailure(status: string): boolean {
   return status === 'failed' || status === 'cancelled'
 }
 
-// Only a quota stop is labelled (and translated) here; the other badge labels
-// stay as they were.
 function failureLabel(row: DockRow): string {
-  if (row.status !== 'cancelled') return 'Failed'
-  return row.endReason === QUOTA_END_REASON ? t('misc.activeRuns.stoppedQuota') : 'Stopped'
+  if (row.status !== 'cancelled') return t('misc.activeRuns.failed')
+  return row.endReason === QUOTA_END_REASON ? t('misc.activeRuns.stoppedQuota') : t('misc.activeRuns.stopped')
 }
 
 const activeRunId = computed(() =>
@@ -245,7 +243,7 @@ function open(row: DockRow) {
     <div class="flex items-center gap-1.5 px-2 mb-1">
       <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
       <span class="text-2xs font-semibold uppercase tracking-wider text-muted-foreground flex-1">
-        Active runs
+        {{ t('misc.activeRuns.heading') }}
       </span>
       <span
         v-if="waitingCount > 0"
@@ -315,7 +313,7 @@ function open(row: DockRow) {
             class="flex items-center gap-0.5 rounded bg-warning/15 px-1 py-0.5 text-2xs font-medium text-warning shrink-0"
           >
             <ShieldAlert class="h-3 w-3" :stroke-width="2" />
-            Review
+            {{ t('misc.activeRuns.review') }}
           </span>
           <span
             v-else-if="row.done && isFailure(row.status)"
@@ -329,7 +327,7 @@ function open(row: DockRow) {
             class="flex items-center gap-0.5 rounded bg-success/15 px-1 py-0.5 text-2xs font-medium text-success shrink-0"
           >
             <CheckCircle2 class="h-3 w-3" :stroke-width="2" />
-            Done
+            {{ t('misc.activeRuns.done') }}
           </span>
         </button>
       </div>

@@ -1,4 +1,5 @@
 import { createI18n } from 'vue-i18n'
+import { setEngineOptionsTranslator } from '@/lib/engineOptions'
 
 /**
  * App-wide i18n. Messages are split one JSON file per namespace (usually one
@@ -48,6 +49,8 @@ export const i18n = createI18n({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages: { en, vi } as any,
 })
+
+setEngineOptionsTranslator((key) => i18n.global.t(key))
 
 /** Switch the active language app-wide. Safe to call with any string. */
 export function setLocale(locale: string) {

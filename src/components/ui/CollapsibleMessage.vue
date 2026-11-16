@@ -5,7 +5,10 @@
 // with a ResizeObserver so it keeps working while content streams in (markdown,
 // mermaid, images all change height after mount).
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   /** Clamp height in px; content taller than this collapses. */
@@ -106,7 +109,7 @@ onBeforeUnmount(() => ro?.disconnect())
         @click="onToggle"
       >
         <ChevronDown class="h-3.5 w-3.5 transition-transform" :class="expanded ? 'rotate-180' : ''" :stroke-width="2" />
-        {{ expanded ? 'Show less' : 'Show more' }}
+        {{ expanded ? t('common.showLess') : t('common.showMore') }}
       </button>
     </div>
   </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { FileCode, TextSelect } from 'lucide-vue-next'
 import type { IdeContextItem } from '@/lib/streamEvents'
 
@@ -9,6 +10,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ (e: 'open-file', path: string): void }>()
+const { t } = useI18n()
 
 // Trailing path segment for the compact chip label.
 function baseName(path: string): string {
@@ -29,7 +31,7 @@ function baseName(path: string): string {
           ? 'text-foreground/55 hover:text-foreground/80'
           : 'text-foreground/45 hover:text-foreground/70',
       ]"
-      :title="item.path ? 'Open ' + item.path : undefined"
+      :title="item.path ? t('misc.ide.openFile', { path: item.path }) : undefined"
       :disabled="!item.path"
       @click="item.path && emit('open-file', item.path)"
     >
@@ -39,7 +41,7 @@ function baseName(path: string): string {
         :stroke-width="1.75"
       />
       <span class="uppercase tracking-wide text-2xs font-semibold opacity-70">{{
-        item.kind === 'selection' ? 'Selected' : 'Opened'
+        item.kind === 'selection' ? t('misc.ide.selected') : t('misc.ide.opened')
       }}</span>
       <span
         v-if="item.path"

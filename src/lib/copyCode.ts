@@ -12,6 +12,7 @@
 // on each v-html change, decorations are simply re-applied to the fresh DOM.
 
 import type { Directive } from 'vue'
+import { i18n } from '@/i18n'
 
 // lucide-style inline icons (stroke = currentColor) so they match the app.
 const COPY_ICON =
@@ -23,8 +24,9 @@ function makeCopyButton(text: string): HTMLButtonElement {
   const btn = document.createElement('button')
   btn.type = 'button'
   btn.className = 'code-copy-btn'
-  btn.title = 'Copy'
-  btn.setAttribute('aria-label', 'Copy to clipboard')
+  // Read `t` on each use, not at load: the language can change after the app opens.
+  btn.title = i18n.global.t('common.copy')
+  btn.setAttribute('aria-label', i18n.global.t('common.copyToClipboard'))
   btn.innerHTML = COPY_ICON
   btn.addEventListener('click', async (e) => {
     // Don't let the click bubble to the markdown container's prose handler.
@@ -33,11 +35,11 @@ function makeCopyButton(text: string): HTMLButtonElement {
     try {
       await navigator.clipboard.writeText(text)
       btn.classList.add('copied')
-      btn.title = 'Copied'
+      btn.title = i18n.global.t('common.copied')
       btn.innerHTML = CHECK_ICON
       window.setTimeout(() => {
         btn.classList.remove('copied')
-        btn.title = 'Copy'
+        btn.title = i18n.global.t('common.copy')
         btn.innerHTML = COPY_ICON
       }, 1500)
     } catch {

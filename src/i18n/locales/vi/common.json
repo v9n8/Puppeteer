@@ -14,6 +14,11 @@
   "refresh": "Làm mới",
   "remove": "Gỡ bỏ",
   "active": "Đang hoạt động",
+  "copy": "Chép",
+  "copied": "Đã chép",
+  "copyToClipboard": "Chép vào clipboard",
+  "showMore": "Xem thêm",
+  "showLess": "Thu gọn",
   "back": "Quay lại",
   "moreInfo": "Thêm thông tin",
   "date": {

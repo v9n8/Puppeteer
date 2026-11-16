@@ -20,6 +20,25 @@ export interface CombinedOption extends SelectOption {
   header?: boolean
 }
 
+// This file stays free of vue-i18n (the node tests import it directly), so
+// `src/i18n/index.ts` hands it the translator once the i18n instance exists.
+// Until then, or in a bare node run, the English text below is used.
+let translate: ((key: string) => string) | null = null
+export function setEngineOptionsTranslator(fn: (key: string) => string): void {
+  translate = fn
+}
+function tr(key: string, fallback: string): string {
+  return translate ? translate(key) : fallback
+}
+
+// A getter, not a string: the label follows the language chosen after load.
+function defaultModelOption(): SelectOption {
+  return {
+    value: '',
+    get label() { return tr('misc.modelOptions.defaultFromSettings', 'Default (from settings)') },
+  }
+}
+
 // Model choices depend on the engine. Empty value = let the engine/setting decide.
 //
 // The Claude list is PINNED to exact wire ids rather than family aliases
@@ -32,7 +51,7 @@ export interface CombinedOption extends SelectOption {
 // button is how you confirm the account still serves each entry.
 export const MODEL_OPTIONS: Record<string, SelectOption[]> = {
   claude: [
-    { value: '', label: 'Default (from settings)' },
+    defaultModelOption(),
     { value: 'claude-opus-5-5', label: 'claude-opus-5-5', description: 'Opus 5.5 · 200K context' },
     { value: 'claude-opus-5-5[1m]', label: 'claude-opus-5-5[1m]', description: 'Opus 5.5 · 1M context' },
     { value: 'claude-opus-4-8', label: 'claude-opus-4-8', description: 'Opus 4.8 · 200K context' },
@@ -44,7 +63,7 @@ export const MODEL_OPTIONS: Record<string, SelectOption[]> = {
     { value: 'claude-haiku-4-5', label: 'claude-haiku-4-5', description: 'Haiku 4.5 · 200K context' },
   ],
   codex: [
-    { value: '', label: 'Default (from settings)' },
+    defaultModelOption(),
     { value: 'gpt-5.5', label: 'gpt-5.5' },
     { value: 'gpt-5.4', label: 'gpt-5.4' },
     { value: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
@@ -143,7 +162,7 @@ export function withCurrentModel(
 ): SelectOption[] {
   const id = current?.trim()
   if (!id || options.some((o) => o.value === id)) return options
-  return [...options, { value: id, label: id, description: 'No longer offered' }]
+  return [...options, { value: id, label: id, description: tr('misc.modelOptions.noLongerOffered', 'No longer offered') }]
 }
 
 /** A model discovered from the account (`codex debug models`). Claude's list is

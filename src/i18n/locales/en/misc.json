@@ -57,9 +57,17 @@
     "countTitle": "{count} files changed in this session",
     "filesInSession": "Files changed ({count})"
   },
+  "modelOptions": {
+    "defaultFromSettings": "Default (from settings)",
+    "noLongerOffered": "No longer offered",
+    "notAvailable": "⚠ Not available · {error}",
+    "checkFailed": "check failed"
+  },
   "context": {
     "compactTitle": "Compact the conversation to free up context (sends /compact)",
-    "fiveHourTitle": "claude.ai subscription 5-hour usage window"
+    "fiveHourTitle": "claude.ai subscription 5-hour usage window",
+    "resetsInHours": "resets {n}h",
+    "resetsInMinutes": "resets {n}m"
   },
   "activeRuns": {
     "heading": "Active runs",

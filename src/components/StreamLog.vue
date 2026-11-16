@@ -1372,7 +1372,7 @@ function toolResult(e: StreamEntry): unknown {
           <span
             v-if="bashInfo(entry.input).background"
             class="text-2xs uppercase tracking-wider text-foreground/40 border border-border rounded px-1 shrink-0"
-          >bg</span>
+          >{{ t('streamLog.bgBadge') }}</span>
           <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5">
             <XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.error') }}
           </span>
@@ -1670,9 +1670,9 @@ function toolResult(e: StreamEntry): unknown {
           </span>
           <span class="text-xs text-foreground/80 truncate">{{ mcpActionLabel(entry) }}</span>
           <span v-if="mcpSummary(entry)" class="text-2xs text-foreground/45 truncate">{{ mcpSummary(entry) }}</span>
-          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />denied</span>
+          <span v-if="entry.result?.is_error" class="ml-auto text-2xs text-destructive shrink-0 flex items-center gap-0.5"><XCircle class="h-3 w-3" :stroke-width="1.75" />{{ t('streamLog.denied') }}</span>
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5"><CheckCircle2 class="h-3 w-3" :stroke-width="1.75" /></span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, 'waiting…') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.waiting')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2 bg-black/20 dark:bg-black/25 text-2xs">
@@ -1690,7 +1690,7 @@ function toolResult(e: StreamEntry): unknown {
             <pre class="text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-auto">{{ prettyInput(entry.input) }}</pre>
           </div>
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
-            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? 'status' : 'output' }}</div>
+            <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ entry.result.is_error ? t('streamLog.status') : t('streamLog.output') }}</div>
             <pre
               class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
               :class="entry.result.is_error ? 'text-destructive' : 'text-foreground/70'"
@@ -1727,7 +1727,7 @@ function toolResult(e: StreamEntry): unknown {
           <span
             v-if="fileTarget(entry.input)"
             class="text-2xs font-mono text-info/90 truncate underline decoration-dotted underline-offset-2 hover:text-info cursor-pointer"
-            :title="'Open ' + fileTarget(entry.input)"
+            :title="t('misc.ide.openFile', { path: fileTarget(entry.input) })"
             role="button"
             @click.stop="emit('open-file', fileTarget(entry.input)!)"
           >{{ fileTarget(entry.input) }}</span>
@@ -1738,7 +1738,7 @@ function toolResult(e: StreamEntry): unknown {
           <span v-else-if="entry.result" class="ml-auto text-2xs text-success/80 shrink-0 flex items-center gap-0.5">
             <CheckCircle2 class="h-3 w-3" :stroke-width="1.75" />
           </span>
-          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, 'running…') }}</span>
+          <span v-else class="ml-auto text-2xs text-warning/80 animate-pulse shrink-0">{{ runningText(entry, t('streamLog.running')) }}</span>
         </button>
         <div v-if="expanded[i]" class="border-t border-border">
           <div class="px-3 py-2 bg-black/20 dark:bg-black/25">
@@ -1747,7 +1747,7 @@ function toolResult(e: StreamEntry): unknown {
           </div>
           <div v-if="entry.result" class="px-3 py-2 border-t border-border">
             <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">
-              {{ entry.result.is_error ? 'error' : 'output' }}
+              {{ entry.result.is_error ? t('streamLog.error') : t('streamLog.output') }}
             </div>
             <pre
               class="text-2xs font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto"
@@ -1769,12 +1769,12 @@ function toolResult(e: StreamEntry): unknown {
       >
         <div v-if="entry.is_error" class="flex items-center gap-2 mb-2">
           <component :is="XCircle" class="h-4 w-4 text-destructive" :stroke-width="2" />
-          <span class="text-xs font-medium text-destructive">Failed</span>
+          <span class="text-xs font-medium text-destructive">{{ t('streamLog.failed') }}</span>
           <div class="ml-auto flex items-center gap-3 text-2xs font-mono text-foreground/40">
             <span v-if="entry.duration_ms">{{ formatDuration(entry.duration_ms) }}</span>
-            <span v-if="entry.num_turns">{{ entry.num_turns }} turns</span>
-            <span v-if="entry.total_tokens">{{ formatTokens(entry.total_tokens) }} tok</span>
-            <span v-if="entry.cost_usd" :title="entry.cost_estimated ? 'Estimated (subscription run)' : undefined">{{ entry.cost_estimated ? '~' : '' }}${{ entry.cost_usd.toFixed(4) }}</span>
+            <span v-if="entry.num_turns">{{ t('streamLog.turns', { count: entry.num_turns }) }}</span>
+            <span v-if="entry.total_tokens">{{ t('streamLog.tokensSuffix', { tokens: formatTokens(entry.total_tokens) }) }}</span>
+            <span v-if="entry.cost_usd" :title="entry.cost_estimated ? t('streamLog.estimatedCost') : undefined">{{ entry.cost_estimated ? '~' : '' }}${{ entry.cost_usd.toFixed(4) }}</span>
           </div>
         </div>
         <div
@@ -1861,7 +1861,7 @@ function toolResult(e: StreamEntry): unknown {
         <Sparkles class="h-3 w-3 text-emerald-400" :stroke-width="1.75" />
       </span>
       <span v-if="liveStatusText" :class="liveStatus?.kind === 'retry' ? 'text-warning' : 'text-foreground/60'">{{ liveStatusText }}</span>
-      <span v-else class="thinking-text">thinking</span>
+      <span v-else class="thinking-text">{{ t('streamLog.thinking') }}</span>
       <span class="thinking-dots" aria-hidden="true">
         <span class="thinking-dot"></span>
         <span class="thinking-dot"></span>
