@@ -91,5 +91,16 @@
   },
   "tabEmpty": "No {kind} here yet.",
   "tabNoMatch": "No {kind} matches “{query}”. Search only filters inside the selected tab.",
-  "globalNoMemory": "Global has no Memory tab: global memory is edited in Settings › AI › Memory."
+  "globalNoMemory": "Global has no Memory tab: global memory is edited in Settings › AI › Memory.",
+  "new": "New",
+  "newIn": "Create in {place}",
+  "newTitle": "New {kind}",
+  "newName": "Name",
+  "newEngine": "Engine",
+  "newCreate": "Create",
+  "newNameInvalid": "Use a plain name: no / or \\, no .., and not starting with a dot.",
+  "newExists": "A {kind} with this name already exists.",
+  "viewDiff": "View diff",
+  "diffDisk": "On disk",
+  "diffBuffer": "Being edited"
 }

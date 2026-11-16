@@ -91,5 +91,16 @@
   },
   "tabEmpty": "Chưa có {kind} nào ở đây.",
   "tabNoMatch": "Không có {kind} nào khớp “{query}”. Tìm chỉ lọc trong tab đang chọn.",
-  "globalNoMemory": "Global không có tab Memory: memory global sửa ở Cài đặt › AI › Memory."
+  "globalNoMemory": "Global không có tab Memory: memory global sửa ở Cài đặt › AI › Memory.",
+  "new": "Mới",
+  "newIn": "Tạo trong {place}",
+  "newTitle": "{kind} mới",
+  "newName": "Tên",
+  "newEngine": "Engine",
+  "newCreate": "Tạo",
+  "newNameInvalid": "Dùng tên đơn giản: không có / hoặc \\, không có .., không bắt đầu bằng dấu chấm.",
+  "newExists": "Đã có {kind} tên này.",
+  "viewDiff": "Xem khác biệt",
+  "diffDisk": "Bản trên đĩa",
+  "diffBuffer": "Bản đang sửa"
 }

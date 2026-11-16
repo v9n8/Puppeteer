@@ -13,6 +13,8 @@ export const CMD_LIBRARY_READ = 'library_read'
 export const CMD_LIBRARY_WRITE = 'library_write'
 export const CMD_LIBRARY_DELETE = 'library_delete'
 export const CMD_LIBRARY_DUPLICATE = 'library_duplicate_to_global'
+/** V3-50: a new item from a template. Local-only. */
+export const CMD_LIBRARY_CREATE = 'library_create'
 /** UX-58: turning Puppeteer's links into files. Both local-only. */
 export const CMD_LIBRARY_MATERIALIZE_PREVIEW = 'library_materialize_preview'
 export const CMD_LIBRARY_MATERIALIZE = 'library_materialize'
@@ -222,4 +224,36 @@ export function materializeCounts(plan: readonly PlannedPlace[]): { changes: num
     changes: all.filter((x) => !x.error).length,
     inGit: all.filter((x) => !x.error && x.git_tracked).length,
   }
+}
+
+/** One row of the New menu: a kind and the engines that have a folder for it in this scope. */
+export interface CreateTarget {
+  kind: DiskItemKind
+  engines: ('claude' | 'codex')[]
+  /** The engine the name box starts on. */
+  engine: 'claude' | 'codex'
+}
+
+// Mirrors FOLDERS in commands/library_disk.rs: Codex keeps commands in HOME only.
+const CREATE_ENGINES: Record<DiskItemKind, { global: ('claude' | 'codex')[]; project: ('claude' | 'codex')[] }> = {
+  skill: { global: ['claude', 'codex'], project: ['claude', 'codex'] },
+  rule: { global: ['claude'], project: ['claude'] },
+  command: { global: ['claude', 'codex'], project: ['claude'] },
+  agent: { global: ['claude'], project: ['claude'] },
+}
+
+/** The kinds the New menu offers in `scope`, with their engines. A kind with no folder is left out. */
+export function createTargets(scope: LibraryScope, defaultEngine?: string | null): CreateTarget[] {
+  return DISK_ITEM_KINDS.flatMap((kind) => {
+    const engines = CREATE_ENGINES[kind][scope]
+    if (engines.length === 0) return []
+    const engine = engines.find((e) => e === defaultEngine) ?? engines[0]
+    return [{ kind, engines, engine }]
+  })
+}
+
+/** Same rule as the backend: one path part, not hidden, no `..`. */
+export function validItemName(name: string): boolean {
+  const n = name.trim()
+  return n !== '' && !n.startsWith('.') && !/[/\\]/.test(n) && !n.includes('..')
 }

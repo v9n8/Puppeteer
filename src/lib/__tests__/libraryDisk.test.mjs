@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PROJECT_ITEM_KINDS, deletesLink, isLibraryConflict, isLibraryExists, kindGroups, libraryPlace, libraryQuery,
+  createTargets, validItemName, PROJECT_ITEM_KINDS, deletesLink, isLibraryConflict, isLibraryExists, kindGroups, libraryPlace, libraryQuery,
   materializeCounts, materializePaths, memoryItem, memoryKindOf,
 } from '../libraryDisk.ts'
 
@@ -122,4 +122,21 @@ test('materializePaths: every link and AGENTS.md that can change, in order; bloc
 
 test('materializeCounts: what changes and how much of it git tracks, blocked ones left out', () => {
   assert.deepEqual(materializeCounts(plan), { changes: 3, inGit: 2 })
+})
+
+test('createTargets: Codex commands only in Global; the default engine leads', () => {
+  const global = createTargets('global', 'codex')
+  assert.deepEqual(global.map((t) => t.kind), ['skill', 'rule', 'command', 'agent'])
+  assert.deepEqual(global.find((t) => t.kind === 'command').engines, ['claude', 'codex'])
+  assert.equal(global.find((t) => t.kind === 'skill').engine, 'codex')
+  assert.equal(global.find((t) => t.kind === 'rule').engine, 'claude')
+  const project = createTargets('project', 'codex')
+  assert.deepEqual(project.find((t) => t.kind === 'command').engines, ['claude'])
+  assert.deepEqual(project.find((t) => t.kind === 'skill').engines, ['claude', 'codex'])
+  assert.equal(createTargets('project', null).find((t) => t.kind === 'skill').engine, 'claude')
+})
+
+test('validItemName: one plain path part', () => {
+  for (const ok of ['tmp-skill', 'a b', 'x.y']) assert.equal(validItemName(ok), true, ok)
+  for (const bad of ['', '  ', '.hidden', 'a/b', 'a\\b', '..', 'a..b']) assert.equal(validItemName(bad), false, bad)
 })

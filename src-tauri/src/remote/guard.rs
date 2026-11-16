@@ -88,6 +88,7 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "library_write",
     "library_delete",
     "library_duplicate_to_global",
+    "library_create",
     // Turning Puppeteer's links into files across HOME and every project (UX-58), and its preview.
     "library_materialize_preview",
     "library_materialize",
@@ -784,6 +785,7 @@ mod tests {
             "library_write",
             "library_delete",
             "library_duplicate_to_global",
+            "library_create",
             "library_materialize_preview",
             "library_materialize",
             "list_import_sources",

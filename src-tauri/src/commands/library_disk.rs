@@ -27,6 +27,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Manager, State};
 
+pub mod create;
 pub mod materialize;
 
 /// Error prefix of a write refused because the file changed on disk since it was read.

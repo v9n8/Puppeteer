@@ -12,6 +12,7 @@ import { CopyPlus, Eye, Link2, Pencil, Trash2 } from 'lucide-vue-next'
 import { Badge, Banner, Button, SegmentedControl } from '@/components/ui'
 import SkillEditor from '@/components/SkillEditor.vue'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
+import SyncDiffModal, { type SyncDiffSide } from '@/components/SyncDiffModal.vue'
 import { invoke } from '@/lib/tauri'
 import { useMarkdown } from '@/lib/markdown'
 import { vMermaid } from '@/lib/mermaid'
@@ -32,6 +33,8 @@ const props = defineProps<{
   canDuplicate: boolean
   deleting: boolean
   duplicating: boolean
+  /** Just created: open in the Editor (not remembered as the preferred mode). */
+  editOnOpen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -100,7 +103,7 @@ async function load() {
     content.value = read.content
     loadError.value = null
     // Nothing to preview yet: open the editor (not remembered as the preferred mode).
-    if (missing.value) mode.value = 'edit'
+    if (missing.value || props.editOnOpen) mode.value = 'edit'
   } catch (e) {
     file.value = null
     loadError.value = String(e)
@@ -154,6 +157,38 @@ async function overwrite() {
   } catch (e) {
     toast.error(String(e))
   }
+}
+
+// --- View diff (V3-50): the file on disk now against this buffer, before choosing a side ---
+const diffOpen = ref(false)
+const diffLoading = ref(false)
+const diskSide = ref<SyncDiffSide | null>(null)
+const bufferSide = computed<SyncDiffSide>(() => ({
+  label: t('library.diffBuffer'), path: props.item.path, content: content.value, error: null,
+}))
+
+async function openDiff() {
+  diffOpen.value = true
+  diffLoading.value = true
+  const label = t('library.diffDisk')
+  try {
+    const current = await readFile()
+    diskSide.value = { label, path: props.item.path, content: current.content, error: null }
+  } catch (e) {
+    diskSide.value = { label, path: props.item.path, content: null, error: String(e) }
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+function reloadFromDiff() {
+  diffOpen.value = false
+  void load()
+}
+
+function overwriteFromDiff() {
+  diffOpen.value = false
+  void overwrite()
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -250,6 +285,7 @@ defineExpose({ dirty })
       <Banner v-if="conflict" tone="warning" live class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
         {{ t('library.conflict') }}
         <template #actions>
+          <Button variant="outline" size="xs" @click="openDiff">{{ t('library.viewDiff') }}</Button>
           <Button variant="outline" size="xs" @click="load">{{ t('library.reloadDiscard') }}</Button>
           <Button variant="destructive" size="xs" :disabled="saving" @click="overwrite">{{ t('library.overwrite') }}</Button>
         </template>
@@ -267,5 +303,20 @@ defineExpose({ dirty })
         </div>
       </template>
     </template>
+
+    <SyncDiffModal
+      v-if="diskSide"
+      :open="diffOpen"
+      :title="item.name"
+      :left="diskSide"
+      :right="bufferSide"
+      :loading="diffLoading"
+      @close="diffOpen = false"
+    >
+      <template #footer>
+        <Button variant="outline" size="sm" @click="reloadFromDiff">{{ t('library.reloadDiscard') }}</Button>
+        <Button variant="destructive" size="sm" :disabled="saving" @click="overwriteFromDiff">{{ t('library.overwrite') }}</Button>
+      </template>
+    </SyncDiffModal>
   </section>
 </template>

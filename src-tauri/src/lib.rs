@@ -551,6 +551,7 @@ pub fn run() {
             commands::library_disk::library_write,
             commands::library_disk::library_delete,
             commands::library_disk::library_duplicate_to_global,
+            commands::library_disk::create::library_create,
             commands::library_disk::materialize::library_materialize_preview,
             commands::library_disk::materialize::library_materialize,
             import::commands::list_import_sources,

@@ -2,7 +2,7 @@
 // Library (UX-54, D1/D8/D9): the skills, rules, commands and agents the CLIs
 // read, straight from the disk (commands/library_disk.rs) — Global is HOME's
 // folders, a project's tab its own. Replaces the Skills, Rules, Agents,
-// Commands and Import screens; nothing is created here, only listed, edited,
+// Commands and Import screens; listed, created from a template (V3-50), edited,
 // deleted, duplicated from a project to Global, or imported from another AI
 // tool as files into the tab's `.claude/` folders (UX-56), or the links
 // Puppeteer made into its old library turned into files (UX-58). A project's tab
@@ -25,6 +25,7 @@ import LibraryProjectList from '@/components/library/LibraryProjectList.vue'
 import LibraryEntryDetail from '@/components/library/LibraryEntryDetail.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import LibraryMaterializeDialog from '@/components/library/LibraryMaterializeDialog.vue'
+import LibraryNewMenu from '@/components/library/LibraryNewMenu.vue'
 import { invoke } from '@/lib/tauri'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -315,6 +316,21 @@ async function duplicate(item: DiskItem) {
   }
 }
 
+// ── New item (V3-50) ────────────────────────────────────────────────────────
+
+// Writes a file every session reads: local-only.
+const canCreate = computed(() => !isRemoteMode() && (scope.value === 'global' || !!activeProjectId.value))
+const activeProject = computed(() => projectsStore.projects.find((p) => p.id === activeProjectId.value) ?? null)
+const newPlace = computed(() => (scope.value === 'global' ? t('library.tabGlobal') : (activeProject.value?.name ?? '')))
+/** The item just created: its pane opens in the Editor. */
+const createdPath = ref<string | null>(null)
+
+async function onCreated(created: DiskItem) {
+  await scan()
+  createdPath.value = created.path
+  await go({ path: created.path })
+}
+
 // ── Import (UX-56) ──────────────────────────────────────────────────────────
 
 const features = useFeaturesStore()
@@ -411,10 +427,19 @@ const emptyTitle = computed(() => {
           :empty-store="!loading && !error && (items.length === 0 || rows.length === 0)"
           :empty-title="emptyTitle"
           :empty-hint="items.length === 0 && (activeProjectId || scope === 'global') ? t('library.emptyHint') : ''"
-          :addable="false"
+          :addable="canCreate"
           @select="selectItem"
           @retry="refresh"
         >
+          <template #add>
+            <LibraryNewMenu
+              :scope="scope"
+              :project-id="activeProjectId"
+              :place="newPlace"
+              :default-engine="activeProject?.session_defaults?.engine"
+              @created="onCreated"
+            />
+          </template>
           <template #row="{ row, selected }">
             <span class="flex min-w-0 items-center gap-1.5">
               <span
@@ -461,6 +486,7 @@ const emptyTitle = computed(() => {
         :can-duplicate="scope === 'project'"
         :deleting="deleting"
         :duplicating="duplicating"
+        :edit-on-open="selectedPath === createdPath"
         @saved="onSaved"
         @delete="selectedItem && remove(selectedItem)"
         @duplicate="selectedItem && duplicate(selectedItem)"
