@@ -78,7 +78,15 @@
     "failed": "Thất bại",
     "done": "Xong",
     "run": "Run",
-    "project": "Project"
+    "project": "Project",
+    "collapse": "Thu gọn dock",
+    "expand": "Mở rộng dock",
+    "compactLabel": "{n} run đang chạy | {n} run đang chạy",
+    "popupSummary": "{n} · {w} chờ bạn",
+    "seeAll": "Xem tất cả",
+    "seeAllCount": "Xem tất cả ({n})",
+    "strayProcesses": "{n} tiến trình nền vẫn chạy sau khi Session kết thúc | {n} tiến trình nền vẫn chạy sau khi Session kết thúc",
+    "closeEsc": "Đóng (Esc)"
   },
   "activeRemote": {
     "heading": "Remote đang hoạt động",

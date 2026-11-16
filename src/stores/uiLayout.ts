@@ -2,6 +2,14 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { applyFontPrefs, loadFontPrefs, saveFontPrefs, type FontPrefs } from '@/lib/appFonts'
 import {
+  SHORT_HEIGHT,
+  dockModeFor,
+  parseDockPrefs,
+  toggledDockPrefs,
+  type DockMode,
+  type DockPrefs,
+} from '@/lib/dockMode'
+import {
   NARROW_WIDTH,
   parseSidebarPrefs,
   sidebarModeFor,
@@ -27,6 +35,17 @@ import {
 const SIDEBAR_STORAGE_KEY = 'puppeteer.sidebar'
 // Pre-rail key: the sidebar was hidden outright. Read once, then removed.
 const LEGACY_SIDEBAR_HIDDEN_KEY = 'puppeteer.sidebarHidden'
+
+/** Active runs dock: expanded or one line, kept per window height (lib/dockMode). */
+const DOCK_STORAGE_KEY = 'puppeteer.dock'
+
+function loadDockPrefs(): DockPrefs {
+  try {
+    return parseDockPrefs(localStorage.getItem(DOCK_STORAGE_KEY))
+  } catch {
+    return parseDockPrefs(null)
+  }
+}
 
 /**
  * Row density shared by the session lists — the History list (RunView's left
@@ -145,6 +164,25 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
   }
   const sidebarMode = computed<SidebarMode>(() => sidebarModeFor(sidebarPrefs.value, windowWidth.value))
 
+  const dockPrefs = ref<DockPrefs>(loadDockPrefs())
+  // Same idea for the height: only the side of SHORT_HEIGHT matters.
+  const windowHeight = ref(typeof window === 'undefined' ? SHORT_HEIGHT : window.innerHeight)
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    window
+      .matchMedia(`(max-height: ${SHORT_HEIGHT - 1}px)`)
+      .addEventListener('change', () => (windowHeight.value = window.innerHeight))
+  }
+  const dockMode = computed<DockMode>(() => dockModeFor(dockPrefs.value, windowHeight.value))
+
+  function toggleDock() {
+    dockPrefs.value = toggledDockPrefs(dockPrefs.value, windowHeight.value)
+    try {
+      localStorage.setItem(DOCK_STORAGE_KEY, JSON.stringify(dockPrefs.value))
+    } catch {
+      /* storage unavailable — the in-memory choice still works for this session */
+    }
+  }
+
   function toggleFocus() {
     focusMode.value = !focusMode.value
   }
@@ -240,6 +278,8 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     sidebarMode,
     toggleSidebar,
     expandSidebar,
+    dockMode,
+    toggleDock,
     listDensity,
     setListDensity,
     timelineOpen,

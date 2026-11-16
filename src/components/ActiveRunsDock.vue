@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
-import { Activity, ShieldAlert, CheckCircle2, XCircle, Network, AlertTriangle } from 'lucide-vue-next'
-import { useLiveRunsStore } from '@/stores/liveRuns'
-import { useRunsStore } from '@/stores/runs'
-import { useProjectsStore } from '@/stores/projects'
-import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
-import { QUOTA_END_REASON } from '@/lib/runNotificationText'
-import { hasStuckAlert } from '@/lib/stuckNotify'
+import { useRouter } from 'vue-router'
+import { Activity, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import ActiveRunRow from '@/components/activeRuns/ActiveRunRow.vue'
+import ActiveRunsPopup from '@/components/activeRuns/ActiveRunsPopup.vue'
+import { useActiveRunRows } from '@/composables/useActiveRunRows'
+import { DOCK_MAX_ROWS, type DockMode } from '@/lib/dockMode'
 
 /**
  * App-wide dock of all currently-active runs (streaming or awaiting a
@@ -17,320 +14,105 @@ import { hasStuckAlert } from '@/lib/stuckNotify'
  * the app. It doubles as a permission center: a run blocked on input shows an
  * amber "needs permission" affordance that deep-links to its full modal in
  * RunView (we deliberately don't approve diffs blind from this narrow panel).
+ *
+ * `full` lists the runs (4 rows, then it scrolls); `compact` is one line whose
+ * text opens the same list as a popup. The parent keeps the choice.
  */
 
-const route = useRoute()
+defineProps<{ mode: DockMode }>()
+defineEmits<{ toggle: [] }>()
+
 const router = useRouter()
 const { t } = useI18n()
-const live = useLiveRunsStore()
-const runsStore = useRunsStore()
-const projectsStore = useProjectsStore()
-const tabsStore = useWorkspaceTabsStore()
+const { displayRows, waitingCount, doneCount, activeRunId, isFailure, failureLabel, label, projectName, open } =
+  useActiveRunRows()
 
-interface DockRow {
-  runId: string
-  projectId: string
-  status: string
-  pending: number
-  /** Finished run the user hasn't opened yet — shows a "done" notification. */
-  done: boolean
-  /** Orchestration role from the run metadata ('conductor' | null). */
-  role: string | null
-  /** Id of the conductor that spawned this run, when it is a worker. */
-  conductorRunId: string | null
-  /** Why the run ended when the user did not end it (`run:done.end_reason`). */
-  endReason: string | null
-  /** The watchdog says the sidecar stopped responding or never started. */
-  stuck: boolean
-}
-
-const rows = computed<DockRow[]>(() => {
-  const out: DockRow[] = []
-  live.sessions.forEach((s) => {
-    const pending = s.permissionQueue.length
-    // Keep a row while running, while blocked on a permission, OR while a
-    // finished run still has an unseen "done" notification.
-    // Workers never keep a "done" row — only their conductor notifies.
-    const meta = runsStore.runMeta.get(s.runId)
-    const notifyDone = s.notifyDone && !meta?.conductor_run_id
-    if (s.status === 'running' || pending > 0 || notifyDone) {
-      out.push({
-        runId: s.runId,
-        projectId: s.projectId,
-        status: s.status,
-        pending,
-        done: notifyDone && s.status !== 'running',
-        role: meta?.role ?? null,
-        conductorRunId: meta?.conductor_run_id ?? null,
-        endReason: s.endReason,
-        stuck: hasStuckAlert(s.attention),
-      })
-    }
-  })
-  // Order: awaiting permission first, then finished notifications, then running.
-  return out.sort(
-    (a, b) => Number(b.pending > 0) - Number(a.pending > 0) || Number(b.done) - Number(a.done),
-  )
-})
-
-const waitingCount = computed(() => rows.value.filter((r) => r.pending > 0).length)
-const doneCount = computed(() => rows.value.filter((r) => r.done).length)
-
-// ── Conductor grouping (conductor → workers) ───────────────────────────────
-// Workers are NEVER listed on their own in the dock: a conductor is the single
-// unit the user tracks here. Every worker spawned by a conductor is folded into
-// that conductor's row, which aggregates the workers' state (a running worker
-// keeps the conductor "running"; a worker awaiting permission floats the
-// conductor and lights its Review badge). A finished worker raises no "done"
-// notification of its own — the conductor's finish is the one that counts.
-// Clicking the conductor opens its session, where the worker sidebar lists the
-// individual workers. Grouping is purely a display concern: the row opens the
-// conductor's own run.id.
-interface DisplayRow {
-  row: DockRow
-  /** True for a conductor that owns at least one active worker. */
-  isGroup: boolean
-  /** Active workers owned by this conductor (badge on the row). */
-  workerCount: number
-}
-
-// Flattened view of `rows`: normal sessions and conductors only. A conductor's
-// workers are merged into its row rather than emitted separately.
-const displayRows = computed<DisplayRow[]>(() => {
-  const base = rows.value
-
-  // Workers grouped by the conductor that spawned them.
-  const workersByParent = new Map<string, DockRow[]>()
-  for (const r of base) {
-    if (r.conductorRunId) {
-      const list = workersByParent.get(r.conductorRunId) ?? []
-      list.push(r)
-      workersByParent.set(r.conductorRunId, list)
-    }
-  }
-  const groupIds = new Set(workersByParent.keys())
-
-  type Top =
-    | { kind: 'group'; id: string; header: DockRow; workers: DockRow[] }
-    | { kind: 'single'; row: DockRow }
-
-  const tops: Top[] = []
-  const seenGroups = new Set<string>()
-  for (const r of base) {
-    // A worker owned by a conductor never appears on its own — it's merged in.
-    if (r.conductorRunId && groupIds.has(r.conductorRunId)) continue
-    if (groupIds.has(r.runId)) {
-      tops.push({ kind: 'group', id: r.runId, header: r, workers: workersByParent.get(r.runId)! })
-      seenGroups.add(r.runId)
-    } else {
-      tops.push({ kind: 'single', row: r })
-    }
-  }
-  // A conductor can finish its own turn while its workers keep running, so it
-  // won't have an active row — synthesize one from the cached metadata so those
-  // workers still report under the conductor instead of vanishing.
-  for (const id of groupIds) {
-    if (seenGroups.has(id)) continue
-    const workers = workersByParent.get(id)!
-    const meta = runsStore.runMeta.get(id)
-    tops.push({
-      kind: 'group',
-      id,
-      header: {
-        runId: id,
-        projectId: meta?.project_id ?? workers[0].projectId,
-        status: meta?.status ?? 'running',
-        pending: 0,
-        done: false,
-        role: 'conductor',
-        conductorRunId: null,
-        endReason: null,
-        stuck: false,
-      },
-      workers,
-    })
-  }
-
-  // Sort key: pending first, then done — a conductor folds in its workers'
-  // urgency so a conductor with a blocked worker floats to the top.
-  const urgency = (t: Top): [number, number] => {
-    if (t.kind === 'single') return [t.row.pending > 0 ? 1 : 0, t.row.done ? 1 : 0]
-    const pending = t.header.pending + t.workers.reduce((s, w) => s + w.pending, 0)
-    return [pending > 0 ? 1 : 0, t.header.done ? 1 : 0]
-  }
-  tops.sort((a, b) => urgency(b)[0] - urgency(a)[0] || urgency(b)[1] - urgency(a)[1])
-
-  const out: DisplayRow[] = []
-  for (const top of tops) {
-    if (top.kind === 'single') {
-      out.push({ row: top.row, isGroup: false, workerCount: 0 })
-      continue
-    }
-    // Merge the workers' state onto the conductor row so one row conveys the
-    // whole group: pending = any worker needs permission; running = the
-    // conductor or any worker is still streaming; done = the conductor itself
-    // finished and every worker settled; stuck = the conductor or any worker.
-    const groupPending = top.header.pending + top.workers.reduce((s, w) => s + w.pending, 0)
-    const anyRunning =
-      top.header.status === 'running' || top.workers.some((w) => w.status === 'running')
-    const merged: DockRow = {
-      ...top.header,
-      status: anyRunning ? 'running' : top.header.status,
-      pending: groupPending,
-      done: !anyRunning && groupPending === 0 && top.header.done,
-      stuck: top.header.stuck || top.workers.some((w) => w.stuck),
-    }
-    out.push({ row: merged, isGroup: true, workerCount: top.workers.length })
-  }
-  return out
-})
-
-function isFailure(status: string): boolean {
-  return status === 'failed' || status === 'cancelled'
-}
-
-function failureLabel(row: DockRow): string {
-  if (row.status !== 'cancelled') return t('misc.activeRuns.failed')
-  return row.endReason === QUOTA_END_REASON ? t('misc.activeRuns.stoppedQuota') : t('misc.activeRuns.stopped')
-}
-
-const activeRunId = computed(() =>
-  typeof route.params.runId === 'string' ? route.params.runId : null,
-)
-
-function label(row: DockRow): string {
-  // Read from the session-wide metadata cache, not `runsStore.runs` — that
-  // array only holds the foreground project's runs and is replaced on every tab
-  // switch, so a background project's active run would otherwise fall back to
-  // the project name (the "title changes on tab switch" bug).
-  const run = runsStore.runMeta.get(row.runId)
-  if (run?.title?.trim()) return run.title.trim()
-  if (run && run.run_type !== 'session' && run.ref_number != null) {
-    return `${run.run_type === 'analyze_issue' ? 'Issue' : 'PR'} #${run.ref_number}`
-  }
-  return projectsStore.projects.find((p) => p.id === row.projectId)?.name ?? 'Run'
-}
-
-function projectName(projectId: string): string {
-  return projectsStore.projects.find((p) => p.id === projectId)?.name ?? 'Project'
-}
-
-function open(row: DockRow) {
-  // Opening the run counts as viewing it — clear its finished notification.
-  live.markSeen(row.runId)
-  // A conductor row stands in for its workers, so opening it acknowledges their
-  // finished notifications too — no need to visit each worker. Pending
-  // permissions are left alone; those still need an explicit answer.
-  if (row.role === 'conductor') {
-    const finishedWorkers: string[] = []
-    live.sessions.forEach((s) => {
-      if (s.notifyDone && runsStore.runMeta.get(s.runId)?.conductor_run_id === row.runId) {
-        finishedWorkers.push(s.runId)
-      }
-    })
-    finishedWorkers.forEach((id) => live.markSeen(id))
-  }
-  tabsStore.open(row.projectId, row.runId)
-  if (row.runId === activeRunId.value) return
-  router
-    .push({ name: 'project-run-detail', params: { projectId: row.projectId, runId: row.runId } })
-    .catch(() => {})
+function seeAll() {
+  router.push('/processes').catch(() => {})
 }
 </script>
 
 <template>
-  <div v-if="rows.length > 0" class="px-2 pb-2 border-t border-border/50 pt-2">
-    <div class="flex items-center gap-1.5 px-2 mb-1">
-      <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
-      <span class="text-2xs font-semibold uppercase tracking-wider text-muted-foreground flex-1">
-        {{ t('misc.activeRuns.heading') }}
-      </span>
-      <span
-        v-if="waitingCount > 0"
-        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
-      >{{ waitingCount }}</span>
-      <span
-        v-else-if="doneCount > 0"
-        class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-2xs font-medium text-success-foreground leading-none"
-      >{{ doneCount }}</span>
-    </div>
-
-    <div class="space-y-0.5 max-h-[210px] overflow-y-auto">
-      <div
-        v-for="{ row, isGroup, workerCount } in displayRows"
-        :key="row.runId"
-        class="relative"
-      >
+  <div v-if="displayRows.length > 0" class="px-2 pb-2 border-t border-border/50 pt-2">
+    <!-- One line: the text opens the popup, the chevron expands the dock. -->
+    <div v-if="mode === 'compact'" class="flex h-8 items-center gap-1">
+      <ActiveRunsPopup side="top">
         <button
           type="button"
-          class="w-full flex items-center gap-2 py-1.5 px-2 rounded-md text-left transition-colors cursor-pointer select-none"
-          :class="row.runId === activeRunId
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"
-          :title="projectName(row.projectId) + ' — ' + label(row)"
-          @click="open(row)"
+          class="flex h-8 min-w-0 flex-1 cursor-pointer select-none items-center gap-2 rounded-md px-2 text-left text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span class="relative flex h-2 w-2 shrink-0">
-            <span
-              v-if="row.status === 'running'"
-              class="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping"
-            />
-            <span
-              class="relative inline-flex h-2 w-2 rounded-full"
-              :class="row.pending > 0
-                ? 'bg-warning'
-                : row.status === 'running'
-                  ? 'bg-primary'
-                  : row.done
-                    ? (isFailure(row.status) ? 'bg-destructive' : 'bg-success')
-                    : 'bg-muted-foreground/40'"
-            />
-          </span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm leading-tight">{{ label(row) }}</span>
-            <span class="block truncate text-2xs text-muted-foreground/70 leading-tight">{{ projectName(row.projectId) }}</span>
+          <Activity class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+          <span class="min-w-0 flex-1 truncate text-xs">
+            {{ t('misc.activeRuns.compactLabel', { n: displayRows.length }, displayRows.length) }}
           </span>
           <span
-            v-if="row.stuck"
-            class="shrink-0 text-warning"
-            role="img"
-            :title="t('misc.activeRuns.mayBeStuck')"
-            :aria-label="t('misc.activeRuns.mayBeStuck')"
-          >
-            <AlertTriangle class="h-3.5 w-3.5" :stroke-width="2" />
-          </span>
-          <!-- Active-worker count for a conductor. -->
+            v-if="waitingCount > 0"
+            class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
+          >{{ waitingCount }}</span>
           <span
-            v-if="isGroup"
-            class="shrink-0 flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary"
-            :title="t('conductor.workerCountShort', { n: workerCount })"
-          >
-            <Network class="h-2.5 w-2.5" :stroke-width="2" />
-            {{ workerCount }}
-          </span>
-          <span
-            v-if="row.pending > 0"
-            class="flex items-center gap-0.5 rounded bg-warning/15 px-1 py-0.5 text-2xs font-medium text-warning shrink-0"
-          >
-            <ShieldAlert class="h-3 w-3" :stroke-width="2" />
-            {{ t('misc.activeRuns.review') }}
-          </span>
-          <span
-            v-else-if="row.done && isFailure(row.status)"
-            class="flex items-center gap-0.5 rounded bg-destructive/15 px-1 py-0.5 text-2xs font-medium text-destructive shrink-0"
-          >
-            <XCircle class="h-3 w-3" :stroke-width="2" />
-            {{ failureLabel(row) }}
-          </span>
-          <span
-            v-else-if="row.done"
-            class="flex items-center gap-0.5 rounded bg-success/15 px-1 py-0.5 text-2xs font-medium text-success shrink-0"
-          >
-            <CheckCircle2 class="h-3 w-3" :stroke-width="2" />
-            {{ t('misc.activeRuns.done') }}
-          </span>
+            v-else-if="doneCount > 0"
+            class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-2xs font-medium text-success-foreground leading-none"
+          >{{ doneCount }}</span>
+        </button>
+      </ActiveRunsPopup>
+      <button
+        type="button"
+        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        :title="t('misc.activeRuns.expand')"
+        :aria-label="t('misc.activeRuns.expand')"
+        @click="$emit('toggle')"
+      >
+        <ChevronUp class="h-3.5 w-3.5" :stroke-width="2" />
+      </button>
+    </div>
+
+    <template v-else>
+      <div class="flex items-center gap-1.5 pl-2 mb-1">
+        <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
+        <span class="text-2xs font-semibold uppercase tracking-wider text-muted-foreground flex-1">
+          {{ t('misc.activeRuns.heading') }}
+        </span>
+        <span
+          v-if="waitingCount > 0"
+          class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
+        >{{ waitingCount }}</span>
+        <span
+          v-else-if="doneCount > 0"
+          class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-success px-1 text-2xs font-medium text-success-foreground leading-none"
+        >{{ doneCount }}</span>
+        <button
+          type="button"
+          class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :title="t('misc.activeRuns.collapse')"
+          :aria-label="t('misc.activeRuns.collapse')"
+          @click="$emit('toggle')"
+        >
+          <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
         </button>
       </div>
-    </div>
+
+      <!-- 4 rows tall (about 44px each), then it scrolls. -->
+      <div class="space-y-0.5 max-h-[176px] overflow-y-auto">
+        <ActiveRunRow
+          v-for="item in displayRows"
+          :key="item.row.runId"
+          :item="item"
+          :active="item.row.runId === activeRunId"
+          :label="label(item.row)"
+          :project="projectName(item.row.projectId)"
+          :failure-text="failureLabel(item.row)"
+          :failed="isFailure(item.row.status)"
+          @open="open(item.row)"
+        />
+      </div>
+      <button
+        v-if="displayRows.length > DOCK_MAX_ROWS"
+        type="button"
+        class="mt-0.5 w-full cursor-pointer select-none rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        @click="seeAll"
+      >
+        {{ t('misc.activeRuns.seeAllCount', { n: displayRows.length }) }}
+      </button>
+    </template>
   </div>
 </template>

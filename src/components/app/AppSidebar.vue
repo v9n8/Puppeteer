@@ -11,6 +11,7 @@ import { ListTodo, LockKeyhole, Slack, StickyNote, Trash2 } from 'lucide-vue-nex
 import { useProjectsStore } from '@/stores/projects'
 import { useFocusStore } from '@/stores/focus'
 import { useFeaturesStore } from '@/stores/features'
+import { useUILayoutStore } from '@/stores/uiLayout'
 import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import BackgroundProcessesDock from '@/components/processes/BackgroundProcessesDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
@@ -39,6 +40,7 @@ const projectsStore = useProjectsStore()
 // Focus board for the sidebar badge (number of overdue todos).
 const focusStore = useFocusStore()
 const features = useFeaturesStore()
+const uiLayout = useUILayoutStore()
 const { t } = useI18n()
 const routeCaptureContext = useRouteCaptureContext()
 const { isInOwnWindow } = useOpenModes()
@@ -165,7 +167,7 @@ function badgeTip(id: string): string | undefined {
       </div>
       <template v-else>
         <!-- App-wide monitor of concurrent runs + permission center -->
-        <ActiveRunsDock />
+        <ActiveRunsDock :mode="uiLayout.dockMode" @toggle="uiLayout.toggleDock()" />
 
         <!-- Warning row while processes outlive their session -->
         <BackgroundProcessesDock />
