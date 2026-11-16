@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The run screen: header, left rail, AI result pane, composer, conductor
-// sidebar and status bar. Each part lives in components/sessions and shares
+// The run screen: left rail, then the session column (header, AI result pane,
+// composer), conductor sidebar and status bar. Each part lives in components/sessions and shares
 // this view's state through createRunSession / useRunSession (UX-03).
 import RewindDialog from '@/components/sessions/RewindDialog.vue'
 import RunHeader from '@/components/sessions/RunHeader.vue'
@@ -19,9 +19,6 @@ const {
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Header -->
-    <RunHeader />
-
     <div class="flex flex-1 overflow-hidden">
       <!-- Left panel: controls + history (hidden in focus mode, and in a session
            pop-out — that window is locked to its one run, no switcher). -->
@@ -29,6 +26,8 @@ const {
 
       <!-- Terminal panel (split-pane: Content | AI Result) -->
       <div class="flex-1 flex flex-col overflow-hidden bg-background">
+        <!-- Header: this session's name, bookmarks, find; as wide as the session column. -->
+        <RunHeader />
         <RunLogPane />
 
         <!-- Composer: prompt input on top, run controls in the footer below -->

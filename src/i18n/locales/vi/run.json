@@ -130,10 +130,20 @@
   "nextPrompt": "Prompt sau (⌘/Ctrl+⌥+↓)",
   "promptList": "Nhảy tới một prompt của bạn",
   "promptNoText": "(không có chữ)",
+  "sessionTitle": {
+    "renameHint": "bấm để đổi tên",
+    "save": "Lưu tên",
+    "cancel": "Hủy đổi tên"
+  },
+  "findInSession": "Tìm trong Session (⌘F)",
   "bookmarks": {
     "title": "Đánh dấu",
     "question": "Câu hỏi",
     "answer": "Câu trả lời",
+    "count": "Đánh dấu · {n}",
+    "buttonTitle": "Đánh dấu ({n})",
+    "today": "hôm nay",
+    "yesterday": "hôm qua",
     "unavailable": "Không đánh dấu được lượt này: không tìm thấy prompt của nó trong log của Session."
   },
   "detachQuestion": "Tách câu hỏi ra cửa sổ riêng (kéo sang màn hình khác)",

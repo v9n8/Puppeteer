@@ -669,7 +669,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
     runTimestamp, sessionSearch, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
     runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId,
-    renameDraft, setRenameInputRef, cancelRename, commitRename, renameViaPrompt, runActionProps,
+    renameDraft, setRenameInputRef, cancelRename, commitRename, applyRename, renameViaPrompt, runActionProps,
     runActionHandlers, handleClearAllRuns, handleRefInput,
   }
 }

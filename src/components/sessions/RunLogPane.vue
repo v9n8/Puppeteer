@@ -1,12 +1,11 @@
 <script setup lang="ts">
 // The run screen's main pane: the issue/PR Content column and the AI result
-// (title row with the prompt navigator and bookmarks, ⌘F bar, history log or
-// live output, jump buttons). State lives in useRunSession.
+// (tool row, ⌘F bar, history log or live output, jump buttons). State lives in useRunSession.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
-  Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus, Bookmark,
+  Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus,
   ChevronsDownUp, ChevronsUpDown, ChevronsUp, ChevronsDown, GitFork,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
@@ -33,7 +32,7 @@ const {
   onOutputScroll, navTurns, showTurnNav, activeTurnSeq, onTurnMenuToggle, turnPositionTracked,
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
-  placedBookmarks, runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
+  runFind, findOpen, logHits, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
   jumpToQuote, runsStore, loadRunLog, isSessionWindow, session, project,
 } = useRunSession()
@@ -203,15 +202,36 @@ function onOpenUrl(url: string) {
            space the moment the question panel appears/disappears — no
            intermediate frame where the column is stuck at a fixed width). -->
       <div class="relative flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
+      <!-- ⌘F bar, right under the header; on the history pane, with the hits of
+           the whole log. -->
+      <div v-if="findOpen" class="shrink-0 border-b border-border bg-card px-3 py-2">
+        <FindBar :find="runFind" />
+        <div v-if="logSearchActive" class="mt-2 rounded-md border border-border bg-background text-xs">
+          <div
+            v-if="logSearching || !logHits.length"
+            class="px-2.5 py-1.5 text-2xs text-foreground/50"
+          >
+            <template v-if="logSearching">{{ t('find.searchingSession') }}</template>
+            <template v-else>{{ t('find.noSessionMatches') }}</template>
+          </div>
+          <div v-else class="max-h-64 overflow-y-auto py-1">
+            <button
+              v-for="hit in logHits"
+              :key="hit.offset"
+              type="button"
+              class="w-full px-2.5 py-1 text-left text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+              @click="jumpToLogHit(hit)"
+            >
+              {{ hit.snippet }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="bg-card border-b border-border shrink-0">
-        <!-- Title row: shows the current run / session title. Fixed h-8
-             (= rail tab bar height) so the header never grows when the
-             mentioned-files / re-dock controls appear. -->
+        <!-- Tool row (the title lives in RunHeader). Fixed h-8 so it never
+             grows when the mentioned-files / re-dock controls appear. -->
         <div class="flex items-center gap-2 px-3 h-8">
-          <MessageSquare class="h-3.5 w-3.5 text-foreground/40 shrink-0" :stroke-width="1.5" />
-          <span class="text-xs font-medium text-foreground/90 truncate">
-            {{ currentRun ? runLabel(currentRun) : t('run.noRunSelected') }}
-          </span>
           <component
             :is="forkLinkable ? 'button' : 'span'"
             v-if="forkedFrom"
@@ -225,41 +245,6 @@ function onOpenUrl(url: string) {
             <span class="truncate">{{ forkedFromLabel }}</span>
           </component>
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
-            <!-- Bookmarked turns of this session; picking one jumps there
-                 like the prompt list does (a window read at its offset). -->
-            <DropdownMenu
-              v-if="placedBookmarks.length && (isViewingHistory ? historyHasStream : liveHasStream)"
-              align="right"
-            >
-              <template #trigger>
-                <button
-                  type="button"
-                  class="flex items-center gap-1 h-6 rounded border border-border px-1.5 text-2xs font-mono text-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-                  :title="t('run.bookmarks.title')"
-                >
-                  <Bookmark class="h-3.5 w-3.5" :stroke-width="1.75" />
-                  <span class="tabular-nums">{{ placedBookmarks.length }}</span>
-                </button>
-              </template>
-              <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
-                <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
-                  {{ t('run.bookmarks.title') }}
-                </div>
-                <DropdownItem
-                  v-for="placed in placedBookmarks"
-                  :key="placed.bookmark.id"
-                  class="!items-start"
-                  @click="jumpToSessionTurn(placed.seq, true)"
-                >
-                  <span class="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-muted px-1 text-2xs font-mono tabular-nums text-foreground/45">{{ placed.seq + 1 }}</span>
-                  <span
-                    class="min-w-0 flex-1 whitespace-normal break-words leading-snug line-clamp-2"
-                    :class="placed.bookmark.label ? '' : 'italic text-foreground/40'"
-                  >{{ placed.bookmark.label || t('run.promptNoText') }}</span>
-                  <span class="mt-px shrink-0 text-2xs text-foreground/45">{{ t(`run.bookmarks.${placed.bookmark.side}`) }}</span>
-                </DropdownItem>
-              </div>
-            </DropdownMenu>
             <!-- Show the steps of every turn, or fold finished turns (the
                  default). Remembered for this viewer. -->
             <button
@@ -288,36 +273,6 @@ function onOpenUrl(url: string) {
               {{ t('run.content') }}
             </button>
             <MentionedFiles :entries="mentionedFileEntries" @open-file="openFile" />
-          </div>
-        </div>
-      </div>
-
-      <!-- ⌘F bar; on the history pane, with the hits of the whole log. -->
-      <div
-        v-if="findOpen"
-        class="absolute top-10 right-4 z-20 flex w-80 max-w-[calc(100%-2rem)] flex-col items-end gap-1"
-      >
-        <FindBar :find="runFind" />
-        <div
-          v-if="logSearchActive"
-          class="w-full rounded-md border border-border bg-card text-xs shadow-lg shadow-black/30"
-        >
-          <div class="border-b border-border px-2.5 py-1.5 text-2xs text-foreground/50">
-            <template v-if="logSearching">{{ t('find.searchingSession') }}</template>
-            <template v-else-if="!logHits.length">{{ t('find.noSessionMatches') }}</template>
-            <template v-else-if="logHitsTruncated">{{ t('find.sessionMatchesFirst', { count: logHits.length }) }}</template>
-            <template v-else>{{ t('find.sessionMatches', logHits.length) }}</template>
-          </div>
-          <div v-if="logHits.length" class="max-h-64 overflow-y-auto py-1">
-            <button
-              v-for="hit in logHits"
-              :key="hit.offset"
-              type="button"
-              class="w-full px-2.5 py-1 text-left text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-              @click="jumpToLogHit(hit)"
-            >
-              {{ hit.snippet }}
-            </button>
           </div>
         </div>
       </div>

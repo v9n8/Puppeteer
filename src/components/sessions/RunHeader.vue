@@ -1,14 +1,16 @@
 <script setup lang="ts">
-// The run screen's header: project name, the account / server / cloud chips,
-// the linked-item menus and the ⋯ menu. State lives in useRunSession.
+// The run screen's header: the session's name (click to rename), project name, the account / server / cloud chips,
+// the Bookmarks and Find buttons, the linked-item menus and the ⋯ menu. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
 import {
   Terminal, Settings, Code2, FolderOpen, Maximize2, Minimize2, Check, HardDrive, Cloud, CloudCog,
-  MoreHorizontal,
+  MoreHorizontal, Search,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
 import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
 import { Button, Badge, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
+import SessionTitle from '@/components/sessions/SessionTitle.vue'
+import SessionBookmarksMenu from '@/components/sessions/SessionBookmarksMenu.vue'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useRunSession } from './useRunSession'
 import { projectPageQuery } from '@/lib/projectSections'
@@ -18,14 +20,15 @@ const {
   router, features, uiLayout, projectId, project, isSessionWindow, currentRun, activeAccounts,
   visibleServerChips, hiddenServerChips, hiddenServerTitle, awsChip, azureChip, openQuickCapture,
   linked, handleOpenInVscode, handleOpenInFolder, handleOpenInTerminal, runGithubUrl,
-  renameViaPrompt, runActionProps, runActionHandlers,
+  renameViaPrompt, runActionProps, runActionHandlers, runFind,
 } = useRunSession()
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-3 px-6 h-13 border-b border-border/60 shrink-0">
+  <div class="flex items-center justify-between gap-3 px-4 h-12 border-b border-border/60 shrink-0">
     <div class="flex items-center gap-2 min-w-0">
-      <h1 class="text-sm font-semibold truncate">{{ project?.name ?? t('run.projectFallback') }}</h1>
+      <SessionTitle />
+      <span class="truncate text-sm text-muted-foreground">{{ project?.name ?? t('run.projectFallback') }}</span>
       <Badge
         v-for="acc in activeAccounts"
         :key="acc.key"
@@ -90,9 +93,24 @@ const {
     <!-- Icon-only actions: the linked Slack / todo / note menus, then one ⋯
          menu for the rest. Labels live in the tooltips so the header stays
          short no matter how narrow the pane gets.
-         Hidden entirely in a session pop-out for now — that window is a bare
-         conversation view. -->
-    <div v-if="!isSessionWindow" class="flex items-center gap-1 shrink-0">
+         Bookmarks and Find stay in a session pop-out; the rest is hidden there
+         for now (that window is a bare conversation view). -->
+    <div class="flex items-center gap-1 shrink-0">
+      <SessionBookmarksMenu />
+      <!-- ⌘F opens the same bar (App.vue dispatches the key); this is its button. -->
+      <Button
+        v-if="runFind.enabled.value"
+        variant="outline"
+        size="icon-xs"
+        :title="t('run.findInSession')"
+        :aria-label="t('run.findInSession')"
+        :aria-pressed="runFind.open.value"
+        :class="{ 'bg-primary/15 text-primary border-primary/30': runFind.open.value }"
+        @click="runFind.open.value ? runFind.closeFind() : runFind.openFind()"
+      >
+        <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
+      </Button>
+    <template v-if="!isSessionWindow">
       <!-- What this session is linked to: Slack threads (only when there are
            some), todos, notes. The todo / note menus end with "+ New …", the
            capture filed under this run. -->
@@ -187,6 +205,7 @@ const {
           />
         </div>
       </DropdownMenu>
+    </template>
     </div>
   </div>
 </template>
