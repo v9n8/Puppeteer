@@ -245,3 +245,51 @@ export function highlightParts(text: string, query: string): { text: string; hit
     { text: text.slice(at + needle.length), hit: false },
   ].filter((p) => p.text)
 }
+
+// ── Content search ──────────────────────────────────────────────────────────
+
+/** Snippets shown per session row; `count` is every matching message. */
+export const CONTENT_SNIPPETS_SHOWN = 2
+
+export interface TrashContentHit {
+  /** The first snippets of the row (at most {@link CONTENT_SNIPPETS_SHOWN}). */
+  snippets: string[]
+  /** Messages that matched, the row's workers' included. */
+  count: number
+}
+
+/** Where the search box runs: by name (as you type) or in the log text (on Enter). */
+export type TrashSearchMode = 'name' | 'content'
+
+/** The stored search mode, or the default (name). */
+export function parseTrashSearchMode(value: string | null | undefined): TrashSearchMode {
+  return value === 'content' ? 'content' : 'name'
+}
+
+/**
+ * Narrows the blocks to the sessions `hitGroups` (the Trash-scope hits of
+ * `search_sessions`, grouped per run) matched. A worker's hits count for its
+ * conductor's row when that is listed with it; a run that is not in the list
+ * is ignored. Every block keeps `matched` set, so its buttons act on the
+ * matching rows only (`groupActionTargets`).
+ */
+export function contentFilter(
+  groups: TrashGroup[],
+  hitGroups: readonly { runId: string; hits: readonly { snippet: string }[] }[],
+): { entries: TrashEntry[]; hits: Map<string, TrashContentHit> } {
+  const byRun = new Map(hitGroups.map((g) => [g.runId, g.hits]))
+  const hits = new Map<string, TrashContentHit>()
+  const entries: TrashEntry[] = []
+  for (const full of groups) {
+    const sessions: TrashSession[] = []
+    for (const s of full.sessions) {
+      const snippets = [s.run, ...s.workers].flatMap((r) => (byRun.get(r.id) ?? []).map((h) => h.snippet))
+      if (snippets.length === 0) continue
+      sessions.push(s)
+      hits.set(s.run.id, { snippets: snippets.slice(0, CONTENT_SNIPPETS_SHOWN), count: snippets.length })
+    }
+    if (sessions.length === 0) continue
+    entries.push({ group: { ...full, sessions }, full, matched: new Set(sessions.map((s) => s.run.id)) })
+  }
+  return { entries, hits }
+}

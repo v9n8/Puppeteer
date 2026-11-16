@@ -3,11 +3,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  contentFilter,
   filterTrash,
   groupActionTargets,
   groupTrash,
   highlightParts,
   initialOpenGroups,
+  parseTrashSearchMode,
   parseTrashSort,
   sessionsLost,
   trashTotals,
@@ -230,4 +232,37 @@ test('highlightParts flags the first match and keeps the original text', () => {
   ])
   assert.deepEqual(highlightParts('Plan', 'zzz'), [{ text: 'Plan', hit: false }])
   assert.deepEqual(highlightParts('Plan', ''), [{ text: 'Plan', hit: false }])
+})
+
+test('content search keeps only sessions with hits, a worker counts for its conductor', () => {
+  const groups = groupTrash(LISTING, 'deleted-desc')
+  const { entries, hits } = contentFilter(groups, [
+    { runId: 'w', hits: [{ snippet: 'from worker' }] },
+    { runId: 'c', hits: [{ snippet: 'one' }, { snippet: 'two' }] },
+    { runId: 'g2', hits: [{ snippet: 'in gone' }] },
+    { runId: 'not-listed', hits: [{ snippet: 'live run' }] },
+  ])
+  assert.deepEqual(entries.map((e) => e.full.project.id), ['gone', 'live'])
+  const [gone, live] = entries
+  // A session of a trashed project: its row only, so the block's buttons are partial.
+  assert.deepEqual(ids(gone.group), ['g2'])
+  assert.equal(groupActionTargets(gone.full, gone.matched).partial, true)
+  assert.equal(groupActionTargets(gone.full, gone.matched).wholeProject, false)
+  assert.deepEqual(ids(live.group), ['c'])
+  // Three messages in all, only the first two shown (the conductor's own first).
+  assert.deepEqual(hits.get('c'), { snippets: ['one', 'two'], count: 3 })
+  assert.deepEqual(hits.get('g2'), { snippets: ['in gone'], count: 1 })
+  assert.equal(hits.has('a'), false)
+})
+
+test('content search with no hit lists nothing', () => {
+  const groups = groupTrash(LISTING, 'deleted-desc')
+  assert.deepEqual(contentFilter(groups, []), { entries: [], hits: new Map() })
+})
+
+test('the stored search mode falls back to name', () => {
+  assert.equal(parseTrashSearchMode('content'), 'content')
+  assert.equal(parseTrashSearchMode('name'), 'name')
+  assert.equal(parseTrashSearchMode('x'), 'name')
+  assert.equal(parseTrashSearchMode(null), 'name')
 })

@@ -60,6 +60,26 @@
     "found": "{sessions} matching “{query}” in {projects}.",
     "hint": "Searches session and project names; blocks with results open by themselves. A block's buttons only act on the matching sessions.",
     "none": "No session or project matches “{query}”",
-    "scope": "Searches session and project names only."
+    "scope": "Searches session and project names only.",
+    "by": "Search by",
+    "mode": { "name": "Name", "content": "Content" },
+    "placeholderContent": "Search in the content of sessions… (Enter to search)",
+    "submit": "Search",
+    "submitTitle": "Search (Enter)",
+    "searching": "Searching…"
+  },
+  "content": {
+    "locked": "Searching content needs “Search across sessions” turned on in Settings › Features",
+    "typing": "Typing in Content mode: the list is not filtered yet. Press Enter or “Search” to search.",
+    "searching": "Searching “{query}” in {count} session of the Trash… | Searching “{query}” in {count} sessions of the Trash…",
+    "found": "{sessions} matching “{query}” in {projects}.",
+    "hint": "Searches prompts and answers (not tools or thinking), like Session search. Blocks with results open by themselves. A block's buttons only act on the matching sessions.",
+    "truncated": "Only the first {count} matches are shown.",
+    "none": "No session in the Trash contains “{query}”",
+    "noneHint": "Searches prompts and answers. Try another keyword, or switch to “Name”.",
+    "error": "Could not search the content: {error}. The list below is not filtered.",
+    "retry": "Try again",
+    "matches": "{count} match | {count} matches",
+    "firstShown": "first {count} shown"
   }
 }

@@ -9,23 +9,36 @@ import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { RotateCw, Trash2 } from 'lucide-vue-next'
 import { Banner, Button, PageHeader } from '@/components/ui'
+import { useFeaturesStore } from '@/stores/features'
 import TrashGroupCard from '@/components/trash/TrashGroupCard.vue'
 import TrashToolbar from '@/components/trash/TrashToolbar.vue'
 import { invoke } from '@/lib/tauri'
 import { isRemoteMode } from '@/lib/ipc/remote'
+import { errorText } from '@/lib/featureGate'
+import {
+  CMD_SEARCH_SESSIONS,
+  groupSessionHits,
+  SESSION_SEARCH_FEATURE,
+  type SessionHitGroup,
+  type SessionSearch,
+} from '@/lib/sessionSearch'
 import {
   CMD_LIST_TRASH,
+  contentFilter,
   EVT_TRASH_CHANGED,
   filterTrash,
   groupActionTargets,
   groupTrash,
   initialOpenGroups,
+  parseTrashSearchMode,
   parseTrashSort,
   sessionsLost,
   trashTotals,
+  type TrashContentHit,
   type TrashEntry,
   type TrashListing,
   type TrashRun,
+  type TrashSearchMode,
   type TrashSession,
   type TrashSort,
 } from '@/lib/trash'
@@ -39,6 +52,7 @@ const router = useRouter()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const remote = isRemoteMode()
+const features = useFeaturesStore()
 
 const listing = shallowRef<TrashListing>({ projects: [], runs: [] })
 const loading = ref(false)
@@ -69,9 +83,77 @@ const groups = computed(() => groupTrash(listing.value, sort.value))
 const totals = computed(() => trashTotals(groups.value))
 
 const query = ref('')
-const searching = computed(() => query.value.trim() !== '')
-const entries = computed(() => filterTrash(groups.value, query.value, runLabel))
+
+// Name search filters as you type; Content search runs on Enter against the
+// session index (search_sessions, scope trash). The mode is a per-viewer
+// convenience; it falls back to Name while the index is switched off.
+const MODE_KEY = 'puppeteer.trashSearchMode'
+function loadMode(): TrashSearchMode {
+  try {
+    return parseTrashSearchMode(localStorage.getItem(MODE_KEY))
+  } catch {
+    return 'name'
+  }
+}
+const storedMode = ref<TrashSearchMode>(loadMode())
+const contentLocked = computed(() => features.loaded && !features.isOn(SESSION_SEARCH_FEATURE))
+const mode = computed<TrashSearchMode>(() => (storedMode.value === 'content' && !contentLocked.value ? 'content' : 'name'))
+function setMode(value: TrashSearchMode) {
+  storedMode.value = value
+  try {
+    localStorage.setItem(MODE_KEY, value)
+  } catch {
+    /* storage unavailable: the choice lasts for this view only */
+  }
+  resetContent()
+}
+
+type ContentState = 'idle' | 'searching' | 'done' | 'error'
+const contentState = ref<ContentState>('idle')
+const contentGroups = shallowRef<SessionHitGroup[]>([])
+const contentTruncated = ref(false)
+const contentError = ref('')
+/** The text of the last content search: what the results and their highlights are for. */
+const searchedQuery = ref('')
+let contentSeq = 0
+function resetContent() {
+  contentSeq++
+  contentState.value = 'idle'
+  contentGroups.value = []
+  contentTruncated.value = false
+  contentError.value = ''
+}
+watch(query, resetContent)
+
+async function runContentSearch() {
+  const q = query.value.trim()
+  if (!q || contentState.value === 'searching') return
+  const mine = ++contentSeq
+  contentState.value = 'searching'
+  searchedQuery.value = q
+  try {
+    const r = await invoke<SessionSearch>(CMD_SEARCH_SESSIONS, { query: q, projectId: null, scope: 'trash' })
+    if (mine !== contentSeq) return
+    contentGroups.value = groupSessionHits(r.hits)
+    contentTruncated.value = r.truncated
+    contentState.value = 'done'
+  } catch (e) {
+    if (mine !== contentSeq) return
+    contentError.value = errorText(e, t)
+    contentState.value = 'error'
+  }
+}
+
+const contentDone = computed(() => mode.value === 'content' && contentState.value === 'done')
+const nameSearching = computed(() => mode.value === 'name' && query.value.trim() !== '')
+/** A search narrows the list: every block with a result is open. */
+const searching = computed(() => nameSearching.value || contentDone.value)
+const contentResult = computed(() => (contentDone.value ? contentFilter(groups.value, contentGroups.value) : null))
+const entries = computed(() => contentResult.value?.entries ?? filterTrash(groups.value, nameSearching.value ? query.value : '', runLabel))
 const matchedSessions = computed(() => entries.value.reduce((n, e) => n + e.group.sessions.length, 0))
+const contentHits = computed<ReadonlyMap<string, TrashContentHit> | undefined>(() => contentResult.value?.hits)
+/** Name-search highlights belong to the Name mode only. */
+const nameQuery = computed(() => (mode.value === 'name' ? query.value : ''))
 
 // Which blocks are open is a per-viewer convenience too: by project id, the
 // first block open until the viewer chooses.
@@ -88,7 +170,7 @@ const storedOpen = ref<Record<string, boolean> | null>(loadOpen())
 const openIds = computed(() => initialOpenGroups(groups.value, storedOpen.value))
 /** While searching every block with a result is open; the chevron can still fold one until the text changes. */
 const foldedWhileSearching = ref(new Set<string>())
-watch(query, () => (foldedWhileSearching.value = new Set()))
+watch([query, contentGroups], () => (foldedWhileSearching.value = new Set()))
 function isOpen(id: string): boolean {
   return searching.value ? !foldedWhileSearching.value.has(id) : openIds.value.has(id)
 }
@@ -234,7 +316,7 @@ function purgeGroup(entry: TrashEntry) {
     const message = targets.partial
       ? t('trash.confirm.purgeMatchedMessage', {
           count: targets.sessions.length,
-          query: query.value.trim(),
+          query: (contentDone.value ? searchedQuery.value : query.value).trim(),
           name,
           remaining: targets.remaining,
         }, targets.sessions.length)
@@ -292,7 +374,16 @@ function openProject(group: TrashEntry['full']) {
         </Button>
       </template>
     </PageHeader>
-    <TrashToolbar v-model:query="query" :sort="sort" @update:sort="setSort" />
+    <TrashToolbar
+      v-model:query="query"
+      :sort="sort"
+      :mode="mode"
+      :content-locked="contentLocked"
+      :searching="contentState === 'searching'"
+      @update:sort="setSort"
+      @update:mode="setMode"
+      @submit="runContentSearch"
+    />
 
     <div class="flex-1 overflow-auto p-6">
       <div
@@ -310,8 +401,14 @@ function openProject(group: TrashEntry['full']) {
         <p class="text-xs text-muted-foreground">{{ t('trash.hint') }}</p>
         <Banner v-if="remote" tone="info">{{ t('trash.remote') }}</Banner>
         <Banner v-if="error" tone="destructive">{{ error }}</Banner>
+        <Banner v-if="mode === 'content' && contentState === 'error'" tone="destructive" live>
+          {{ t('trash.content.error', { error: contentError }) }}
+          <template #actions>
+            <Button variant="ghost" size="xs" @click="runContentSearch">{{ t('trash.content.retry') }}</Button>
+          </template>
+        </Banner>
 
-        <p v-if="searching" class="text-sm text-muted-foreground" role="status">
+        <p v-if="nameSearching" class="text-sm text-muted-foreground" role="status">
           <template v-if="entries.length === 0">
             {{ t('trash.search.none', { query: query.trim() }) }}
             <span class="block text-xs">{{ t('trash.search.scope') }}</span>
@@ -321,12 +418,31 @@ function openProject(group: TrashEntry['full']) {
             <span class="block text-xs">{{ t('trash.search.hint') }}</span>
           </template>
         </p>
+        <p v-else-if="mode === 'content' && contentState === 'idle' && query.trim()" class="text-sm text-muted-foreground" role="status">
+          {{ t('trash.content.typing') }}
+        </p>
+        <p v-else-if="mode === 'content' && contentState === 'searching'" class="text-sm text-muted-foreground" role="status">
+          {{ t('trash.content.searching', { query: searchedQuery, count: listing.runs.length }, listing.runs.length) }}
+        </p>
+        <p v-else-if="contentDone" class="text-sm text-muted-foreground" role="status">
+          <template v-if="entries.length === 0">
+            {{ t('trash.content.none', { query: searchedQuery }) }}
+            <span class="block text-xs">{{ t('trash.content.noneHint') }}</span>
+          </template>
+          <template v-else>
+            {{ t('trash.content.found', { sessions: sessionCount(matchedSessions), projects: t('trash.projectCount', { count: entries.length }, entries.length), query: searchedQuery }) }}
+            <span class="block text-xs">{{ t('trash.content.hint') }}</span>
+            <span v-if="contentTruncated" class="block text-xs">{{ t('trash.content.truncated', { count: 200 }) }}</span>
+          </template>
+        </p>
 
         <TrashGroupCard
           v-for="entry in entries"
           :key="entry.full.project.id"
           :entry="entry"
-          :query="query"
+          :query="nameQuery"
+          :content-hits="contentHits"
+          :content-query="searchedQuery"
           :open="isOpen(entry.full.project.id)"
           :remote="remote"
           :busy="busy"

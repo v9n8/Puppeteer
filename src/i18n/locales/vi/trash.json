@@ -60,6 +60,26 @@
     "found": "{sessions} khớp “{query}” trong {projects}.",
     "hint": "Tìm theo tên Session và tên Project; khối có kết quả tự mở. Nút của khối chỉ áp cho Session khớp.",
     "none": "Không có Session hay Project nào khớp “{query}”",
-    "scope": "Chỉ tìm theo tên Session và tên Project."
+    "scope": "Chỉ tìm theo tên Session và tên Project.",
+    "by": "Tìm theo",
+    "mode": { "name": "Tên", "content": "Nội dung" },
+    "placeholderContent": "Tìm trong nội dung Session… (Enter để tìm)",
+    "submit": "Tìm",
+    "submitTitle": "Tìm (Enter)",
+    "searching": "Đang tìm…"
+  },
+  "content": {
+    "locked": "Tìm trong nội dung cần bật “Tìm xuyên các Session” ở Cài đặt › Tính năng",
+    "typing": "Đang gõ ở chế độ Nội dung: danh sách chưa lọc. Bấm Enter hoặc “Tìm” để tìm.",
+    "searching": "Đang tìm “{query}” trong {count} Session của Thùng rác…",
+    "found": "{sessions} khớp “{query}” trong {projects}.",
+    "hint": "Tìm trong prompt và câu trả lời (không gồm tool, thinking), như màn Tìm Session. Khối có kết quả tự mở. Nút của khối chỉ áp cho Session khớp.",
+    "truncated": "Chỉ hiện {count} chỗ khớp đầu tiên.",
+    "none": "Không Session nào trong Thùng rác chứa “{query}”",
+    "noneHint": "Tìm trong prompt và câu trả lời. Thử từ khoá khác, hoặc chuyển sang “Tên”.",
+    "error": "Không tìm được trong nội dung: {error}. Danh sách bên dưới chưa lọc.",
+    "retry": "Thử lại",
+    "matches": "{count} chỗ khớp",
+    "firstShown": "hiện {count} đoạn đầu"
   }
 }

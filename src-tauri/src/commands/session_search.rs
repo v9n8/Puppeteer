@@ -56,17 +56,47 @@ pub struct SessionSearch {
     pub truncated: bool,
 }
 
+/// Which runs a search looks in. The index keeps runs in the Trash, so the
+/// scope only changes the row filter.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum Scope {
+    /// Runs that are not in the Trash (History, Search).
+    #[default]
+    Live,
+    /// Runs in the Trash: their own stamp or their project's (Trash screen).
+    Trash,
+}
+
+impl Scope {
+    fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("live") => Ok(Self::Live),
+            Some("trash") => Ok(Self::Trash),
+            Some(other) => Err(format!("unknown search scope: {other}")),
+        }
+    }
+
+    fn condition(self) -> &'static str {
+        match self {
+            Self::Live => "r.deleted_at IS NULL AND p.deleted_at IS NULL",
+            Self::Trash => "(r.deleted_at IS NOT NULL OR p.deleted_at IS NOT NULL)",
+        }
+    }
+}
+
 /// Find `query` (a literal substring, case-insensitive) in every indexed run,
-/// most recently active runs first. Read-only, like `list_runs`, so a remote
-/// Controller may call it too.
+/// most recently active runs first. `scope` is `live` (default) or `trash`.
+/// Read-only, like `list_runs`, so a remote Controller may call it too.
 #[tauri::command]
 pub async fn search_sessions(
     db: State<'_, Db>,
     query: String,
     project_id: Option<String>,
+    scope: Option<String>,
 ) -> Result<SessionSearch, String> {
     features::require(db.inner(), FEATURE).await?;
-    search(db.inner(), &query, project_id.as_deref(), MAX_HITS)
+    let scope = Scope::parse(scope.as_deref())?;
+    search(db.inner(), &query, project_id.as_deref(), scope, MAX_HITS)
         .await
         .map_err(|e| e.to_string())
 }
@@ -75,6 +105,7 @@ async fn search(
     db: &Db,
     query: &str,
     project_id: Option<&str>,
+    scope: Scope,
     max_hits: usize,
 ) -> Result<SessionSearch, sqlx::Error> {
     use sqlx::Row;
@@ -93,6 +124,7 @@ async fn search(
         let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
         ("s.body LIKE ?1 ESCAPE '\\'", format!("%{escaped}%"))
     };
+    let scope_cond = scope.condition();
     let sql = format!(
         "SELECT s.run_id, s.log_offset, s.body, r.project_id, p.name AS project_name, r.title,
                 r.engine, r.type AS run_type, COALESCE(r.last_activity_at, r.created_at) AS activity_at
@@ -100,7 +132,7 @@ async fn search(
          JOIN runs r ON r.id = s.run_id
          JOIN projects p ON p.id = r.project_id
          WHERE {cond} AND (?2 IS NULL OR r.project_id = ?2)
-           AND r.deleted_at IS NULL AND p.deleted_at IS NULL
+           AND {scope_cond}
          ORDER BY activity_at DESC, s.run_id, s.log_offset
          LIMIT ?3"
     );
@@ -357,7 +389,7 @@ mod tests {
     }
 
     async fn find(db: &Db, query: &str) -> Vec<(String, u64, String)> {
-        search(db, query, None, MAX_HITS)
+        search(db, query, None, Scope::Live, MAX_HITS)
             .await
             .unwrap()
             .hits
@@ -443,7 +475,7 @@ mod tests {
         assert!(find(&db, "\"review\" OR x*").await.is_empty());
         assert_eq!(find(&db, "_").await, vec![], "LIKE wildcards are escaped");
 
-        let hit = &search(&db, "approval", None, MAX_HITS).await.unwrap().hits[0];
+        let hit = &search(&db, "approval", None, Scope::Live, MAX_HITS).await.unwrap().hits[0];
         assert_eq!(
             (hit.project_id.as_str(), hit.project_name.as_str(), hit.title.as_deref(), hit.engine.as_str()),
             ("p1", "p1-name", Some("new title"), "claude")
@@ -461,11 +493,11 @@ mod tests {
         write_log(&b, "rb", &user("needle three"));
         catch_up(&db).await;
 
-        let only_a = search(&db, "needle", Some("pa"), MAX_HITS).await.unwrap();
+        let only_a = search(&db, "needle", Some("pa"), Scope::Live, MAX_HITS).await.unwrap();
         assert_eq!(only_a.hits.iter().map(|h| h.run_id.as_str()).collect::<Vec<_>>(), ["ra", "ra"]);
-        let capped = search(&db, "needle", None, 2).await.unwrap();
+        let capped = search(&db, "needle", None, Scope::Live, 2).await.unwrap();
         assert_eq!((capped.hits.len(), capped.truncated), (2, true));
-        assert!(!search(&db, "needle", None, 3).await.unwrap().truncated);
+        assert!(!search(&db, "needle", None, Scope::Live, 3).await.unwrap().truncated);
         let _ = fs::remove_dir_all(&a);
         let _ = fs::remove_dir_all(&b);
     }
@@ -523,6 +555,33 @@ mod tests {
         sqlx::query("UPDATE runs SET deleted_at = NULL").execute(&db).await.unwrap();
         sqlx::query("UPDATE projects SET deleted_at = NULL").execute(&db).await.unwrap();
         assert_eq!(find(&db, "needle").await.len(), 3);
+        let _ = fs::remove_dir_all(&one);
+        let _ = fs::remove_dir_all(&two);
+    }
+
+    #[tokio::test]
+    async fn trash_scope_finds_only_trashed_runs() {
+        let db = db().await;
+        let one = project(&db, "p1", &[("r1", "2026-01-01"), ("r2", "2026-01-02")]).await;
+        let two = project(&db, "p2", &[("r3", "2026-01-03")]).await;
+        for (dir, run) in [(&one, "r1"), (&one, "r2"), (&two, "r3")] {
+            write_log(dir, run, &user(&format!("needle in {run}")));
+        }
+        catch_up(&db).await;
+        sqlx::query("UPDATE runs SET deleted_at = 'd' WHERE id = 'r1'").execute(&db).await.unwrap();
+        sqlx::query("UPDATE projects SET deleted_at = 'd' WHERE id = 'p2'").execute(&db).await.unwrap();
+        // Both paths: the trigram index and the short-query scan.
+        for query in ["needle", "ne"] {
+            let hits = search(&db, query, None, Scope::Trash, MAX_HITS).await.unwrap().hits;
+            let mut runs: Vec<_> = hits.iter().map(|h| h.run_id.as_str()).collect();
+            runs.sort();
+            assert_eq!(runs, ["r1", "r3"], "{query}");
+            assert_eq!(find(&db, query).await.len(), 1, "{query}: live scope is unchanged");
+        }
+        assert_eq!(Scope::parse(None), Ok(Scope::Live));
+        assert_eq!(Scope::parse(Some("live")), Ok(Scope::Live));
+        assert_eq!(Scope::parse(Some("trash")), Ok(Scope::Trash));
+        assert!(Scope::parse(Some("all")).is_err());
         let _ = fs::remove_dir_all(&one);
         let _ = fs::remove_dir_all(&two);
     }

@@ -7,7 +7,8 @@ import { useI18n } from 'vue-i18n'
 import { ArchiveRestore, ChevronRight, FolderX, Trash2 } from 'lucide-vue-next'
 import { Badge, Button } from '@/components/ui'
 import { formatRunTimestamp, runStatusColorClass, runStatusIcon, shortModelId } from '@/lib/runDisplay'
-import { groupActionTargets, highlightParts, type TrashEntry, type TrashRun, type TrashSession } from '@/lib/trash'
+import TrashSnippets from '@/components/trash/TrashSnippets.vue'
+import { groupActionTargets, highlightParts, type TrashContentHit, type TrashEntry, type TrashRun, type TrashSession } from '@/lib/trash'
 
 const props = defineProps<{
   entry: TrashEntry
@@ -16,6 +17,10 @@ const props = defineProps<{
   remote: boolean
   busy: boolean
   labelOf: (run: TrashRun) => string
+  /** Content-search result per session row (by run id), shown under the row. */
+  contentHits?: ReadonlyMap<string, TrashContentHit>
+  /** The text the content hits are highlighted for. */
+  contentQuery?: string
 }>()
 const emit = defineEmits<{
   toggle: []
@@ -136,6 +141,7 @@ function unlistedWorkers(s: TrashSession): number {
               <p class="text-xs text-muted-foreground">
                 {{ t('trash.deletedAt', { at: formatRunTimestamp(s.deletedAt) }) }} · {{ t('trash.createdAt', { at: formatRunTimestamp(s.run.created_at) }) }}
               </p>
+              <TrashSnippets v-if="contentHits?.get(s.run.id)" :hit="contentHits.get(s.run.id)!" :query="contentQuery ?? ''" />
             </div>
             <Button
               variant="ghost"
