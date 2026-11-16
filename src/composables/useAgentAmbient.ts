@@ -1,6 +1,6 @@
-// Mirrors the app-wide agent state onto `<html data-agent-state>` so the aurora
-// background reacts (src/assets/agent-ambient.css). Main window only — call it
-// once from App.vue's setup.
+// App-wide agent state (idle / running / waiting / error / done) for the 2px
+// status strip under the title bar (components/app/AgentStatusStrip.vue). Main
+// window only.
 //
 // Cheap by construction: the snapshot reads only `status` and the length of
 // `permissionQueue` per live session (never `entries`), so high-frequency stream
@@ -49,17 +49,8 @@ export function useAgentAmbient() {
 
   const state = computed(() => resolveAgentState(steadyAgentState(snapshots.value), transient.value))
 
-  watch(
-    state,
-    (s) => {
-      document.documentElement.dataset.agentState = s
-    },
-    { immediate: true },
-  )
-
   onScopeDispose(() => {
     if (timer) clearTimeout(timer)
-    delete document.documentElement.dataset.agentState
   })
 
   return { state }

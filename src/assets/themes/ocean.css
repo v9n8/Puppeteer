@@ -29,8 +29,6 @@
     --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --info: 202.7 85.2% 29.2%; /* #0b5a8a */
     --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
-    --aurora-1: 214.0 90.1% 39.6%;
-    --aurora-2: 202.7 85.2% 29.2%;
   }
   [data-theme='ocean'].dark {
     --background: 215.3 24.6% 13.5%; /* #1a212b */
@@ -60,7 +58,5 @@
     --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
     --info: 201.5 87.3% 69.2%; /* #6cc4f5 */
     --info-foreground: 201.6 39.7% 12.4%; /* #13232c */
-    --aurora-1: 211.8 100.0% 71.2%;
-    --aurora-2: 201.5 87.3% 69.2%;
   }
 }

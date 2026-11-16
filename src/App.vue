@@ -28,12 +28,12 @@ import ImageCompareHost from '@/components/ImageCompareHost.vue'
 import SelectionToolbar from '@/components/SelectionToolbar.vue'
 import AppPopoutHost from '@/components/app/AppPopoutHost.vue'
 import AppTitlebar from '@/components/app/AppTitlebar.vue'
+import AgentStatusStrip from '@/components/app/AgentStatusStrip.vue'
 import AppSidebar from '@/components/app/AppSidebar.vue'
 import { openSlackWindow } from '@/lib/slackWindow'
 import { useToast } from '@/composables/useToast'
 import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
 import { useMainWindowEvents } from '@/composables/useMainWindowEvents'
-import { useAgentAmbient } from '@/composables/useAgentAmbient'
 import { useFindShortcut } from '@/composables/usePageFind'
 import { normalizeColorTheme } from '@/lib/colorThemes'
 import { openItemCreateWindow } from '@/lib/itemWindow'
@@ -87,8 +87,6 @@ const live = useLiveRunsStore()
 const runsStore = useRunsStore()
 const bgProcs = useBackgroundProcessesStore()
 const features = useFeaturesStore()
-// Agent-reactive aurora (`<html data-agent-state>`) — main window only.
-if (!isPopoutWindow && !isSessionWindow) useAgentAmbient()
 const { toast } = useToast()
 const { t, locale } = useI18n()
 
@@ -516,6 +514,7 @@ onMounted(async () => {
          line, and the run screen gains back ~52px of height for the conversation.
          Hidden in focus mode, where the point is no chrome at all. -->
     <AppTitlebar v-if="!(uiLayout.focusMode && isRunRoute)" />
+    <AgentStatusStrip />
 
     <div class="flex flex-1 min-h-0">
     <!-- Sidebar. Hidden either by the title-bar toggle (all routes, persisted) or

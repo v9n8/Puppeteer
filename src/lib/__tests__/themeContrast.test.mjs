@@ -7,7 +7,6 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  AURORA_TOKENS,
   REQUIRED_TOKENS,
   checkTheme,
   contrastRatio,
@@ -120,7 +119,7 @@ for (const { file, blocks } of themeFiles) {
     assert.ok(ids.length > 0, `${file} has no [data-theme] blocks`)
     for (const id of ids) {
       for (const mode of ['light', 'dark']) {
-        const missing = missingTokens(blocks.themes[id][mode], REQUIRED_TOKENS.concat(AURORA_TOKENS))
+        const missing = missingTokens(blocks.themes[id][mode], REQUIRED_TOKENS)
         assert.deepEqual(missing, [], `${id} ${mode}`)
       }
     }

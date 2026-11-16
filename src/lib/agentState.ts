@@ -1,7 +1,6 @@
-// App-wide "what are the agents doing" state, mirrored onto
-// `<html data-agent-state>` so the aurora background can react (see
-// src/assets/agent-ambient.css and DESIGN_SYSTEM.md §6). Pure logic — the
-// Vue side lives in composables/useAgentAmbient.ts.
+// App-wide "what are the agents doing" state, shown by the 2px status strip
+// under the title bar (see DESIGN_SYSTEM.md §6). Pure logic — the Vue side
+// lives in composables/useAgentAmbient.ts.
 
 export type AgentSteadyState = 'idle' | 'running' | 'waiting'
 export type AgentTransient = 'error' | 'done'
@@ -67,7 +66,7 @@ export function mergeAgentTransient(
 }
 
 /**
- * Final state for `data-agent-state`. A pending prompt is actionable, so
+ * Final state shown by the status strip. A pending prompt is actionable, so
  * waiting outranks a flash; otherwise the flash shows over running/idle.
  */
 export function resolveAgentState(

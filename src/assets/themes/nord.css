@@ -29,8 +29,6 @@
     --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --info: 189.6 50.3% 29.2%; /* #256470 */
     --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
-    --aurora-1: 214.3 42.0% 39.2%;
-    --aurora-2: 189.6 50.3% 29.2%;
   }
   [data-theme='nord'].dark {
     --background: 220.0 16.4% 21.6%; /* #2e3440 */
@@ -60,7 +58,5 @@
     --warning-foreground: 42.4 25.4% 13.1%; /* #2a2519 */
     --info: 218.7 50.6% 82.5%; /* #bccce9 */
     --info-foreground: 217.5 10.5% 14.9%; /* #22252a */
-    --aurora-1: 195.7 51.3% 76.7%;
-    --aurora-2: 218.7 50.6% 82.5%;
   }
 }

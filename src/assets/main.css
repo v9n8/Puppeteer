@@ -8,8 +8,6 @@
 @import "./themes/forest.css";
 @import "./themes/nord.css";
 @import "./themes/tokyonight.css";
-/* Aurora reacting to html[data-agent-state] (running / waiting / error / done). */
-@import "./agent-ambient.css";
 /* The other fonts Settings › General offers (lib/appFonts). */
 @import "./fonts.css";
 
@@ -149,9 +147,6 @@
     --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
-    /* Non-primary tints of the aurora background; themes may override. */
-    --aurora-1: 280 85% 60%;
-    --aurora-2: 200 90% 60%;
     /* UI font stack; Settings › General may swap it (lib/appFonts). */
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
@@ -185,8 +180,6 @@
     --success-foreground: 154.3 38.2% 10.8%; /* #11261d */
     --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
     --info-foreground: 201.6 39.7% 12.4%; /* #13232c */
-    --aurora-1: 280 90% 62%;
-    --aurora-2: 200 90% 60%;
   }
 
   /* Named color themes live in ./themes/<id>.css (imported at the top). The

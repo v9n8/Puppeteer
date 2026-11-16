@@ -118,5 +118,11 @@
   "modal": {
     "close": "Đóng",
     "closeEsc": "Đóng (Esc)"
+  },
+  "agentStrip": {
+    "running": "Agent đang chạy",
+    "waiting": "Agent đang chờ bạn",
+    "error": "Agent bị lỗi",
+    "done": "Agent vừa xong"
   }
 }

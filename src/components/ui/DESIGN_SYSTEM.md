@@ -146,11 +146,11 @@ buttons, ≥ 44px for a standalone primary action.
 
 ## 6. Themes
 
-Palettes live one per file in `src/assets/themes/<id>.css` (imported at the top of `main.css`) and are registered in `src/lib/colorThemes.ts`. Every file defines a `[data-theme='<id>']:not(.dark)` and a `[data-theme='<id>'].dark` block with the full token set plus `--aurora-1/2`; `src/lib/__tests__/themeContrast.test.mjs` enforces WCAG AA on every pair.
+Palettes live one per file in `src/assets/themes/<id>.css` (imported at the top of `main.css`) and are registered in `src/lib/colorThemes.ts`. Every file defines a `[data-theme='<id>']:not(.dark)` and a `[data-theme='<id>'].dark` block with the full token set; `src/lib/__tests__/themeContrast.test.mjs` enforces WCAG AA on every pair.
 
 A theme changes **colors only**: never radius, font, material or motion, so every component has one look. All palettes follow one rule: each declares its surfaces, text, primary and four status colors; secondary text, `--input`, `--popover-border`, `--border` and the tinted surfaces are derived from the text color until secondary text is ≥ 4.5:1 on every surface (≥ 7:1 in `contrast`), `--input` / `--popover-border` ≥ 3:1, and `--border` a quiet ~1.4:1. A removed palette id is mapped to its replacement in `normalizeColorTheme`.
 
-`html[data-agent-state]` (`idle` · `running` · `waiting` · `error` · `done`) drives the app-wide ambient light (`src/assets/agent-ambient.css`); it is static (no motion).
+The agent state (`idle` · `running` · `waiting` · `error` · `done`) shows as a 2px solid strip under the title bar (`components/app/AgentStatusStrip.vue`): transparent / `--info` / `--warning` / `--destructive` / `--success`. It never animates or transitions.
 
 ## 7. Checklist for a new screen
 

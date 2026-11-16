@@ -118,5 +118,11 @@
   "modal": {
     "close": "Close",
     "closeEsc": "Close (Esc)"
+  },
+  "agentStrip": {
+    "running": "An agent is running",
+    "waiting": "An agent is waiting for you",
+    "error": "An agent failed",
+    "done": "An agent finished"
   }
 }

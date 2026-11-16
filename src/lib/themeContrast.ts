@@ -67,9 +67,6 @@ export const REQUIRED_TOKENS = [
   'sidebar',
 ]
 
-/** Additionally required in the standalone theme files (src/assets/themes/*.css). */
-export const AURORA_TOKENS = ['aurora-1', 'aurora-2']
-
 /** Bare HSL triplet `"243 76% 59%"` (optionally `/ alpha`, ignored) → sRGB 0–255. */
 export function parseHsl(value: string): Rgb {
   const m = value
