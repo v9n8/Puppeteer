@@ -192,9 +192,12 @@
     "noProject": "Không có Project",
     "overdue": "{n} quá hạn"
   },
+  "keysHint": "↑↓ chọn · Space xong · E sửa · S hoãn · Enter mở",
   "week": {
     "overloaded": "Quá tải",
-    "estimateHint": "Tổng estimate các todo có hạn trong ngày"
+    "estimateHint": "Tổng estimate các todo có hạn trong ngày",
+    "movedTo": "Đã dời sang {date}",
+    "dragHint": "Kéo thẻ sang ngày khác để đổi hạn"
   },
   "settings": {
     "title": "Focus",

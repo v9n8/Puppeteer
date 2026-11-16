@@ -22,3 +22,8 @@ export function removeModal(id: symbol): void {
 export function isTopModal(id: symbol): boolean {
   return stack[stack.length - 1] === id
 }
+
+/** Any dialog is open: the keys of the screen behind it stay quiet. */
+export function hasOpenModal(): boolean {
+  return stack.length > 0
+}

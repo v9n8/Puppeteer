@@ -30,8 +30,10 @@ const props = withDefaults(
     rank?: number
     /** Hide the project chip (the column already says it). */
     hideProject?: boolean
+    /** The row the keys act on (V3-39). */
+    selected?: boolean
   }>(),
-  { layout: 'row', rank: undefined, hideProject: false },
+  { layout: 'row', rank: undefined, hideProject: false, selected: false },
 )
 
 const emit = defineEmits<{ open: [id: string] }>()
@@ -84,7 +86,9 @@ const DUE_TONE = {
     :class="[
       layout === 'row' ? 'items-center gap-2 px-2 py-1.5' : 'flex-col gap-1 border border-border/60 bg-card px-2.5 py-2',
       doing && layout === 'card' ? 'border-l-2 border-l-primary' : '',
+      selected ? 'before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary' : '',
     ]"
+    :data-selected="selected || undefined"
     :title="why"
     role="button"
     tabindex="0"
@@ -179,7 +183,7 @@ const DUE_TONE = {
       >
         <Undo2 class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
-      <FocusSnoozeMenu :todo="todo" />
+      <FocusSnoozeMenu :todo="todo" data-snooze-trigger />
       <Button
         variant="ghost"
         size="icon-sm"

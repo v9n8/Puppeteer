@@ -2,7 +2,7 @@
 // ⏸ Snooze menu of a todo (spec §3.2): 1 hour · this afternoon 14:00 (before 2 pm
 // only) · tomorrow / next Monday at the start of the working day · pick a time.
 // A snoozed todo also gets "Wake up now".
-import { computed } from 'vue'
+import { computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlarmClockOff, CalendarClock, Pause } from 'lucide-vue-next'
 import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
@@ -28,13 +28,22 @@ function pickCustom() {
   customSnooze.value = props.todo
 }
 
+// Closed with the keyboard (Esc, Enter on a mark): focus goes back to the row, so ↑ ↓ carry on.
+function onOpenChange(open: boolean) {
+  if (open) return
+  void nextTick(() => {
+    if (document.activeElement && document.activeElement !== document.body) return
+    document.querySelector<HTMLElement>(`[data-focus-row="${CSS.escape(props.todo.id)}"]`)?.focus({ preventScroll: true })
+  })
+}
+
 function label(preset: string): string {
   return t(`focus.snooze.${preset}`, { time: workStart.value })
 }
 </script>
 
 <template>
-  <DropdownMenu align="right">
+  <DropdownMenu align="right" @update:open="onOpenChange">
     <template #trigger>
       <Button variant="ghost" :size="size" :title="t('focus.actions.snooze')" :aria-label="t('focus.actions.snooze')">
         <Pause class="h-3.5 w-3.5" :stroke-width="1.75" />

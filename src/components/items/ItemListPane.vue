@@ -31,6 +31,7 @@ import ItemHeader from '@/components/items/ItemHeader.vue'
 import ItemBody from '@/components/items/ItemBody.vue'
 import ItemFields from '@/components/items/ItemFields.vue'
 import TaskDetailPanel from '@/components/tasks/TaskDetailPanel.vue'
+import { useTaskKeyboard } from '@/components/tasks/useTaskKeyboard'
 import FindBar from '@/components/FindBar.vue'
 import { noteRow, todoRow, type ItemRow } from '@/components/items/itemRow'
 import { useConfirm } from '@/composables/useConfirm'
@@ -540,6 +541,41 @@ function setScope(projectId: string | null | undefined) {
   projectFilter.value = projectId ?? ''
 }
 
+// ── Keys of the todo list (V3-39): ↑ ↓ pick, Space done, E edit, Enter open ──
+const sidebarRef = ref<InstanceType<typeof ItemSidebar> | null>(null)
+const rowButton = (id: string) =>
+  (sidebarRef.value?.$el as HTMLElement | undefined)?.querySelector<HTMLElement>(`[data-task-row="${CSS.escape(id)}"]`) ?? null
+
+async function pickRow(id: string) {
+  await select(id)
+  if (selectedId.value !== id) return
+  await nextTick()
+  const el = rowButton(id)
+  el?.focus({ preventScroll: true })
+  el?.scrollIntoView({ block: 'nearest' })
+}
+async function editRow(id: string) {
+  await pickRow(id)
+  if (selectedId.value === id) panelRef.value?.startEdit()
+}
+const keyboard = useTaskKeyboard({
+  columns: () => [
+    [...((sidebarRef.value?.$el as HTMLElement | undefined)?.querySelectorAll<HTMLElement>('[data-task-row]') ?? [])].map(
+      (el) => el.dataset.taskRow as string,
+    ),
+  ],
+  week: () => false,
+  selectedId,
+  todoOf: (id) => (kind === 'todo' ? ((todos.todos.find((x) => x.id === id) as FocusTodo | undefined) ?? null) : null),
+  select: pickRow,
+  open: pickRow,
+  edit: editRow,
+  changed: onPanelChanged,
+})
+function onSidebarKeydown(e: KeyboardEvent) {
+  if (kind === 'todo') keyboard.onKeydown(e)
+}
+
 defineExpose({
   select,
   selectFresh,
@@ -560,6 +596,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-full min-h-0 w-full overflow-hidden bg-background text-foreground">
     <ItemSidebar
+      ref="sidebarRef"
       v-model:search="search"
       v-model:project="projectFilter"
       v-model:filter="filter"
@@ -577,6 +614,7 @@ onBeforeUnmount(() => {
       :open-count="openCount"
       :loading="!ready"
       @select="select"
+      @keydown="onSidebarKeydown"
       @add="openCreate"
       @toggle-done="toggleDone"
       @delete-group="removeGroup"

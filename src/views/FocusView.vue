@@ -15,10 +15,14 @@ import FocusDialogs from '@/components/focus/FocusDialogs.vue'
 import FocusAiDialogs from '@/components/focus/FocusAiDialogs.vue'
 import TaskDetailPanel from '@/components/tasks/TaskDetailPanel.vue'
 import FocusTodoRow from '@/components/focus/FocusTodoRow.vue'
+import { useTaskKeyboard } from '@/components/tasks/useTaskKeyboard'
+import { useWeekDrag } from '@/components/tasks/useWeekDrag'
+import { useToast } from '@/composables/useToast'
 import { useFocusText } from '@/components/focus/useFocusText'
 import { useFeaturesStore } from '@/stores/features'
 import { useFocusStore } from '@/stores/focus'
 import { useProjectsStore } from '@/stores/projects'
+import { moveDueDate } from '@/lib/taskKeys'
 import {
   CAPACITY_LOADING,
   CAPACITY_NO_ACCOUNT,
@@ -44,6 +48,7 @@ const { t, locale } = useI18n()
 const store = useFocusStore()
 const projects = useProjectsStore()
 const { span } = useFocusText()
+const { toast } = useToast()
 
 // ── View + filters (remembered) ──
 const VIEW_KEY = 'puppeteer:focusView'
@@ -164,6 +169,78 @@ async function showTodo(id: string | null | undefined): Promise<boolean> {
   return true
 }
 
+// ── Keys (V3-39): the selected row, ↑ ↓ ← → Space E S Enter ──
+const boardEl = ref<HTMLElement | null>(null)
+const selectedId = ref<string | null>(null)
+const rowEl = (id: string) => boardEl.value?.querySelector<HTMLElement>(`[data-focus-row="${CSS.escape(id)}"]`) ?? null
+
+/** Ids on screen in reading order, a list per day in the week (a todo shown twice counts once). */
+function boardColumns(): string[][] {
+  const root = boardEl.value
+  if (!root) return []
+  const frames = view.value === 'week' ? [...root.querySelectorAll('[data-week-date]')] : [root]
+  return frames.map((f) => [...new Set([...f.querySelectorAll<HTMLElement>('[data-focus-row]')].map((el) => el.dataset.focusRow as string))])
+}
+
+async function selectRow(id: string) {
+  selectedId.value = id
+  await nextTick()
+  const el = rowEl(id)
+  el?.focus({ preventScroll: true })
+  el?.scrollIntoView({ block: 'nearest' })
+}
+/** Focus (Tab, a click) on a row selects it. */
+function onFocusIn(e: FocusEvent) {
+  const id = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-focus-row]')?.dataset.focusRow
+  if (id) selectedId.value = id
+}
+
+async function editTodo(id: string) {
+  await openTodo(id)
+  if (openId.value !== id) return
+  await nextTick()
+  panelRef.value?.startEdit()
+}
+
+async function snoozeTodo(id: string) {
+  rowEl(id)?.querySelector<HTMLElement>('[data-snooze-trigger] button')?.click()
+  await nextTick()
+  await nextTick()
+  document.querySelector<HTMLElement>('.ui-popover button:not(:disabled)')?.focus()
+}
+
+const keyboard = useTaskKeyboard({
+  columns: boardColumns,
+  week: () => view.value === 'week',
+  selectedId,
+  todoOf: (id) => store.items.find((it) => it.todo.id === id)?.todo ?? null,
+  select: selectRow,
+  open: openTodo,
+  edit: editTodo,
+  snooze: snoozeTodo,
+})
+
+// ── Week: drag a card to another day (V3-39) ──
+function dayLabel(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'numeric' })
+}
+async function moveToDay(id: string, date: string) {
+  const todo = store.items.find((it) => it.todo.id === id)?.todo
+  const patch = todo ? moveDueDate(todo, date) : null
+  if (!patch) return
+  try {
+    await store.update(id, patch)
+    toast.success(t('focus.week.movedTo', { date: dayLabel(date) }))
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+const weekDrag = useWeekDrag({
+  canDrag: (id) => store.items.some((it) => it.todo.id === id && !it.todo.done),
+  onDrop: moveToDay,
+})
+
 onBeforeUnmount(() => {
   if (flashTimer) clearTimeout(flashTimer)
 })
@@ -173,7 +250,7 @@ defineExpose({ showTodo, openTodo })
 
 <template>
   <div class="relative flex h-full min-h-0">
-  <div class="flex min-w-0 flex-1 flex-col">
+  <div ref="boardEl" class="flex min-w-0 flex-1 flex-col" @keydown="keyboard.onKeydown" @focusin="onFocusIn">
     <!-- Today's load (BR-08) — only once the backend has Calendar data -->
     <div v-if="capacity" class="flex shrink-0 items-center gap-3 border-b border-border/60 px-6 py-2 text-xs">
       <span class="shrink-0">{{ t('focus.capacity.summary', { need: formatEstimate(capacity.need_min), free: formatEstimate(Math.max(0, capacity.free_min)) }) }}</span>
@@ -276,6 +353,7 @@ defineExpose({ showTodo, openTodo })
           :item="it"
           :now="now"
           :rank="i + 1"
+          :selected="selectedId === it.todo.id"
           @open="openTodo($event)"
         />
       </Card>
@@ -296,7 +374,7 @@ defineExpose({ showTodo, openTodo })
         <div v-if="openBuckets.has(g.bucket)" class="mt-0.5">
           <FocusTodoRow
           :data-focus-row="it.todo.id"
-          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in g.items" :key="it.todo.id" :item="it" :now="now" @open="openTodo($event)" />
+          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in g.items" :key="it.todo.id" :item="it" :now="now" :selected="selectedId === it.todo.id" @open="openTodo($event)" />
         </div>
       </section>
     </div>
@@ -326,6 +404,7 @@ defineExpose({ showTodo, openTodo })
             :now="now"
             layout="card"
             hide-project
+            :selected="selectedId === it.todo.id"
             @open="openTodo($event)"
           />
         </div>
@@ -338,9 +417,12 @@ defineExpose({ showTodo, openTodo })
         <div
           v-for="col in weekColumns"
           :key="col.date"
+          :data-week-date="col.date"
           class="flex min-w-0 flex-col rounded-lg border"
           :class="[
-            dayOverloaded(col.date) ? 'border-destructive/50 bg-destructive/5' : 'border-border/60 bg-muted/20',
+            weekDrag.overDate.value === col.date && weekDrag.dragId.value
+              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+              : dayOverloaded(col.date) ? 'border-destructive/50 bg-destructive/5' : 'border-border/60 bg-muted/20',
             col.date === today ? 'ring-1 ring-primary/40' : '',
           ]"
         >
@@ -355,13 +437,30 @@ defineExpose({ showTodo, openTodo })
           </p>
           <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
             <FocusTodoRow
-          :data-focus-row="it.todo.id"
-          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in col.items" :key="it.todo.id" :item="it" :now="now" layout="card" @open="openTodo($event)" />
+              v-for="it in col.items"
+              :key="it.todo.id"
+              :data-focus-row="it.todo.id"
+              :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''"
+              :style="weekDrag.cardStyle(it.todo.id)"
+              :item="it"
+              :now="now"
+              layout="card"
+              :selected="selectedId === it.todo.id"
+              @pointerdown="weekDrag.start(it.todo.id, $event)"
+              @click.capture="weekDrag.swallowDragClick"
+              @open="openTodo($event)"
+            />
           </div>
         </div>
       </div>
     </div>
 
+    <p
+      v-if="store.loaded && visible.length > 0"
+      class="shrink-0 border-t border-border/60 px-6 py-1.5 text-2xs text-muted-foreground"
+    >
+      {{ t('focus.keysHint') }}<template v-if="view === 'week'"> · {{ t('focus.week.dragHint') }}</template>
+    </p>
   </div>
 
   <!-- The todo's panel: beside the board (it stays visible and clickable); under 900px it floats over it. -->

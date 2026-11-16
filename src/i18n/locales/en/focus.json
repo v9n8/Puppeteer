@@ -192,9 +192,12 @@
     "noProject": "No project",
     "overdue": "{n} overdue"
   },
+  "keysHint": "↑↓ select · Space done · E edit · S snooze · Enter open",
   "week": {
     "overloaded": "Over capacity",
-    "estimateHint": "Total estimate of the todos due this day"
+    "estimateHint": "Total estimate of the todos due this day",
+    "movedTo": "Moved to {date}",
+    "dragHint": "Drag a card to another day to move its due date"
   },
   "settings": {
     "title": "Focus",

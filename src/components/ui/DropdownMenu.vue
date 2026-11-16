@@ -110,8 +110,11 @@ function moveFocus(step: 1 | -1) {
 }
 function onKey(e: Event) {
   const pressed = (e as KeyboardEvent).key
-  if (pressed === 'Escape') close()
-  else if ((pressed === 'ArrowDown' || pressed === 'ArrowUp') && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+  // Esc is taken here: a panel behind the menu must not close with it.
+  if (pressed === 'Escape') {
+    e.preventDefault()
+    close()
+  } else if ((pressed === 'ArrowDown' || pressed === 'ArrowUp') && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
     e.preventDefault()
     moveFocus(pressed === 'ArrowDown' ? 1 : -1)
   }

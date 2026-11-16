@@ -316,6 +316,7 @@ const groups = computed(() => {
               </button>
               <button
                 type="button"
+                :data-task-row="kind === 'todo' ? row.id : undefined"
                 class="flex min-w-0 flex-1 cursor-pointer flex-col text-left"
                 :title="row.title"
                 @click="emit('select', row.id)"
