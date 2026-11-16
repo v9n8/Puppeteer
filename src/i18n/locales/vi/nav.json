@@ -22,7 +22,7 @@
   "screenNames": {
     "tasks": "Việc",
     "notes": "Ghi chú",
-    "slack": "Thread Slack",
+    "slack": "Slack",
     "calendar": "Lịch",
     "gantt": "Gantt",
     "prInbox": "Duyệt PR",

@@ -21,6 +21,8 @@ import PrInboxFiltersPopover, { type PrFilterDimension } from '@/components/prIn
 import PrInboxDisplayPopover from '@/components/prInbox/PrInboxDisplayPopover.vue'
 import PrInboxSearchBar from '@/components/prInbox/PrInboxSearchBar.vue'
 import PrInboxBotAccountsModal from '@/components/prInbox/PrInboxBotAccountsModal.vue'
+import DetachButton from '@/components/app/DetachButton.vue'
+import MergeBackButton from '@/components/app/MergeBackButton.vue'
 import {
   groupPrInbox,
   isGroupCollapsedByDefault,
@@ -52,7 +54,7 @@ import { usePrInboxSearchShortcut } from '@/composables/usePrInboxSearchShortcut
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { SCREEN_SELECTION } from '@/lib/selectionScreens'
 import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
-import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
+import { PR_INBOX_PATH, PR_INBOX_WINDOW_OPEN_ROUTE, prInboxTarget, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
 import {
   GitPullRequest, RefreshCw, Sparkles, User, Bot, ChevronRight, Folder, BookMarked,
   CircleDashed, EyeOff, KeyRound, ExternalLink, SearchX, X, Pin, PinOff,
@@ -450,6 +452,8 @@ async function reviewAll(group: PrGroup) {
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': store.loading }" :stroke-width="1.75" />
           {{ t('common.refresh') }}
         </Button>
+        <MergeBackButton v-if="standalone" screen="pr-inbox" :path="PR_INBOX_PATH" />
+        <DetachButton v-else :target="prInboxTarget" />
       </template>
     </PageHeader>
 

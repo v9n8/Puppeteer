@@ -14,10 +14,9 @@ import {
   CalendarClock,
   Library,
   MessageSquare,
+  Slack,
+  StickyNote,
 } from 'lucide-vue-next'
-import { openPrInboxWindow } from '@/lib/prInboxWindow'
-import { openCalendarWindow } from '@/lib/calendarWindow'
-import { openGanttWindow } from '@/lib/ganttWindow'
 import { TASKS_FEATURE } from '@/lib/featureGate'
 import type { DetachableScreen } from '@/lib/windowPlacementCore'
 import type { SidebarGroupId } from '@/lib/sidebarNav'
@@ -39,12 +38,6 @@ export interface NavRoute {
   icon: Component
   group: NavGroup
   /**
-   * Set for destinations that live in their own OS window (like the Slack
-   * threads window): the sidebar entry and the Go menu item call this instead
-   * of routing, and the route itself diverts to it.
-   */
-  openWindow?: () => unknown
-  /**
    * Module or prop id (lib/featureGate) the destination belongs to: while it is
    * off, the sidebar and Go menu drop the entry and the router turns the path away.
    */
@@ -62,11 +55,13 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/processes', labelKey: 'nav.processes', icon: Cpu, group: 'work' },
   { path: '/schedules', labelKey: 'nav.schedules', icon: CalendarClock, group: 'work', feature: 'orchestration.schedules' },
   { path: '/search', labelKey: 'nav.search', icon: Search, group: 'work', sidebar: false, feature: 'sessions.cross_session_search' },
-  // The screen guard (router) sends it to its own window when that is where the user keeps it.
+    // The router's screen guard sends a screen to its own window when that is where the user keeps it.
   { path: '/tasks', labelKey: 'nav.tasks', icon: Target, group: 'mine', feature: TASKS_FEATURE, screen: 'tasks' },
-  { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'mine', openWindow: () => openCalendarWindow(), feature: 'productivity.calendar', screen: 'calendar' },
-  { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'mine', openWindow: () => openGanttWindow(), feature: 'code_hosting.gantt', screen: 'gantt' },
-  { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'mine', openWindow: openPrInboxWindow, feature: 'code_hosting.pr_inbox', screen: 'pr-inbox' },
+  { path: '/notes', labelKey: 'item.navNotes', icon: StickyNote, group: 'mine', feature: 'productivity.notes', screen: 'notes' },
+  { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'mine', feature: 'productivity.calendar', screen: 'calendar' },
+  { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'mine', feature: 'code_hosting.gantt', screen: 'gantt' },
+  { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'mine', feature: 'code_hosting.pr_inbox', screen: 'pr-inbox' },
+  { path: '/slack', labelKey: 'slackThread.nav', icon: Slack, group: 'mine', feature: 'integrations.slack', screen: 'slack' },
   { path: '/library', labelKey: 'nav.library', icon: Library, group: 'agent' },
   { path: '/mcp', labelKey: 'nav.mcp', icon: Server, group: 'agent' },
   { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'agent', feature: 'infra_access.vps' },

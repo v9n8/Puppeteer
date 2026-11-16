@@ -77,6 +77,8 @@ const props = defineProps<{
   source?: string
   sourceOf?: (todoId: string) => string | null | undefined
   pinned?: boolean
+  /** The main window's Notes screen: no pin button. */
+  hidePin?: boolean
 }>()
 
 const emit_ = defineEmits<{
@@ -568,6 +570,7 @@ onBeforeUnmount(() => {
       :project-names="projectNames"
       :error="loadError"
       :pinned="!!pinned"
+      :hide-pin="hidePin"
       :reloading="reloading"
       :embedded="embedded"
       :open-count="openCount"

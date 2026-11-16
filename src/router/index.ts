@@ -5,15 +5,20 @@ import McpServersView from '../views/McpServersView.vue'
 import ServersView from '../views/ServersView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
 import PrInboxView from '../views/PrInboxView.vue'
-import { openPrInboxWindow } from '../lib/prInboxWindow'
-import { openCalendarWindow } from '../lib/calendarWindow'
+import { prInboxTarget } from '../lib/prInboxWindow'
+import { calendarTarget } from '../lib/calendarWindow'
+import { notesTarget, openNotesWindow } from '../lib/itemListWindow'
+import { slackTarget, openSlackThreadsWindow } from '../lib/slackWindow'
+import { NOTES_PATH, SLACK_PATH, parseItemQuery, parseSlackQuery } from '../lib/screenRoutes'
 import { fileTransferTarget } from '../lib/fileTransferWindow'
 import { isRemoteMode } from '../lib/ipc/remote'
-import { openGanttWindow } from '../lib/ganttWindow'
+import { ganttTarget, openGanttWindow } from '../lib/ganttWindow'
 import { openFocusWindow, tasksTarget } from '../lib/focusWindow'
 import { focusRedirect, parseTasksQuery } from '../lib/tasksRoute'
 import { projectPageQuery } from '../lib/projectSections'
 import IssuesGanttView from '../views/IssuesGanttView.vue'
+import NotesView from '../views/NotesView.vue'
+import SlackView from '../views/SlackView.vue'
 import RunView from '../views/RunView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import StatsView from '../views/StatsView.vue'
@@ -116,28 +121,40 @@ const router = createRouter({
     { path: '/search', name: 'session-search', component: SessionSearchView },
     { path: '/schedules', name: 'schedules', component: SchedulesView },
     { path: '/trash', name: 'trash', component: TrashView },
-    // The PR Inbox lives in its own window (lib/prInboxWindow), like the Slack
-    // threads window; the route only stays so old links / navigation open it.
-    // PrInboxView is never rendered here — the guard always diverts.
+    // PR Inbox, Gantt, Calendar, Notes and Slack are screens of the main window or of
+    // their own window (the saved choice, the main window by default; lib/windowPlacement).
+    // `?project=` / `?id=` carry over to the window when that is where they live.
     {
       path: '/pr-inbox',
       name: 'pr-inbox',
       component: PrInboxView,
-      beforeEnter: (_to, from) => {
-        void openPrInboxWindow()
-        // Stay where we are; on a cold start (nothing matched yet) land on the default screen.
-        return from.matched.length > 0 ? false : '/projects'
-      },
+      beforeEnter: screenGuard(prInboxTarget),
     },
-    // The Gantt too (lib/ganttWindow). `?project=` deep
-    // links (Projects screen) carry over to the Gantt window.
     {
       path: '/gantt',
       name: 'gantt',
       component: IssuesGanttView,
       beforeEnter: (to, from) => {
-        void openGanttWindow(typeof to.query.project === 'string' ? to.query.project : undefined)
-        return from.matched.length > 0 ? false : '/projects'
+        const project = typeof to.query.project === 'string' ? to.query.project : undefined
+        return screenGuard({ ...ganttTarget, openWindow: () => openGanttWindow(project) })(to, from)
+      },
+    },
+    {
+      path: NOTES_PATH,
+      name: 'notes',
+      component: NotesView,
+      beforeEnter: (to, from) => {
+        const loc = parseItemQuery(to.query)
+        return screenGuard({ ...notesTarget, openWindow: () => openNotesWindow(loc) })(to, from)
+      },
+    },
+    {
+      path: SLACK_PATH,
+      name: 'slack',
+      component: SlackView,
+      beforeEnter: (to, from) => {
+        const { projectId, id, add } = parseSlackQuery(to.query)
+        return screenGuard({ ...slackTarget, openWindow: () => openSlackThreadsWindow({ projectId, id: id ?? undefined, add }) })(to, from)
       },
     },
     // Tasks (Focus board + todo list) is a screen of the main window or of its own
@@ -161,17 +178,7 @@ const router = createRouter({
       redirect: (to) => ({ path: '/projects', query: projectPageQuery(String(to.params.projectId), to.query.section) }),
     },
     { path: '/stats', name: 'stats', component: StatsView },
-    // Same for the Calendar (lib/calendarWindow): CalendarView is rendered only
-    // in that window; the route diverts to it.
-    {
-      path: '/calendar',
-      name: 'calendar',
-      component: CalendarView,
-      beforeEnter: (_to, from) => {
-        void openCalendarWindow()
-        return from.matched.length > 0 ? false : '/projects'
-      },
-    },
+    { path: '/calendar', name: 'calendar', component: CalendarView, beforeEnter: screenGuard(calendarTarget) },
     // Settings is a screen of the main window or of its own window (settingsGuard).
     // `/settings` and old `/settings?section=` links never render: they land on
     // `/settings/<section>`, so ⌘, and the menu keep working.

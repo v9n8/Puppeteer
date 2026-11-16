@@ -7,7 +7,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getVersion } from '@tauri-apps/api/app'
-import { LockKeyhole, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
+import { LockKeyhole, Trash2 } from 'lucide-vue-next'
 import { useProjectsStore } from '@/stores/projects'
 import { useFocusStore } from '@/stores/focus'
 import { useFeaturesStore } from '@/stores/features'
@@ -19,8 +19,6 @@ import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.v
 import SidebarNavItem from '@/components/app/SidebarNavItem.vue'
 import SidebarRailRuns from '@/components/app/SidebarRailRuns.vue'
 import type { NavBadge } from '@/components/app/SidebarBadge.vue'
-import { openSlackWindow } from '@/lib/slackWindow'
-import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotes } from '@/lib/secretNotesWindow'
 import { NAV_ROUTES, type NavRoute } from '@/lib/navigation'
 import type { SidebarMode } from '@/lib/sidebarMode'
@@ -67,21 +65,12 @@ interface Entry extends SidebarSource {
   screen?: NavRoute['screen']
 }
 
-// Notes, Secret notes and Slack threads are overlays, not destinations:
-// each opens its own window so whatever screen (or running session) is
-// underneath survives untouched. Trash is reached from here and the palette.
+// Secret notes is a window button (its own window by default, or the main
+// window's screen: the router decides). Trash is reached from here and the palette.
 const extras = computed<Entry[]>(() => [
-  {
-    id: 'notes', group: 'mine', feature: 'productivity.notes', label: t('item.navNotes'), icon: StickyNote, screen: 'notes',
-    action: () => openItemListWindow('note', { projectId: routeCaptureContext().projectId }),
-  },
   {
     id: 'secret-notes', group: 'mine', feature: 'security.secret_vault', label: t('secretNotes.nav'), icon: LockKeyhole, screen: 'secret-notes',
     action: () => openSecretNotes(router, { projectId: routeCaptureContext().projectId }),
-  },
-  {
-    id: 'slack', group: 'mine', feature: 'integrations.slack', label: t('slackThread.nav'), icon: Slack, screen: 'slack',
-    action: () => openSlackWindow({ projectId: routeCaptureContext().projectId }),
   },
   { id: '/trash', group: 'foot', label: t('nav.trash'), icon: Trash2, to: '/trash' },
 ])
@@ -97,7 +86,6 @@ const groups = computed(() => {
     label: t(r.labelKey),
     icon: r.icon,
     to: r.path,
-    action: r.openWindow,
     screen: r.screen,
   }))
   return sidebarGroups([...routes, ...extras.value], features.loaded ? features.tree : [])

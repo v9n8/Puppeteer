@@ -40,6 +40,8 @@ const props = defineProps<{
   error: string | null
   /** Window pinned above other apps (useFloatingWindow). */
   pinned: boolean
+  /** The main window's Slack screen: no pin (that belongs to the window). */
+  hidePin?: boolean
   /** A full reload is in flight. */
   reloading: boolean
 }>()
@@ -124,6 +126,7 @@ function rowAgeTitle(th: SlackThreadSummary): string {
           </button>
         </div>
         <Button
+          v-if="!hidePin"
           :variant="pinned ? 'primary' : 'outline'"
           size="icon"
           class="shrink-0"

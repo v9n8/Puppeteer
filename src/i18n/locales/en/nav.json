@@ -22,7 +22,7 @@
   "screenNames": {
     "tasks": "Tasks",
     "notes": "Notes",
-    "slack": "Slack Threads",
+    "slack": "Slack",
     "calendar": "Calendar",
     "gantt": "Gantt",
     "prInbox": "PR Reviews",

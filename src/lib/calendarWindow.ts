@@ -4,6 +4,9 @@
 // opening it again focuses it. Mirrors lib/prInboxWindow.ts.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit, once, type UnlistenFn } from '@tauri-apps/api/event'
+import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/lib/detachedScreens'
+import { getOpenMode } from '@/lib/windowPlacement'
+import { useGoogleCalendarStore } from '@/stores/googleCalendar'
 import { trackWindowForTray } from '@/lib/tray'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import type { CalEvent } from '@/stores/googleCalendar'
@@ -12,6 +15,19 @@ import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const CALENDAR_WINDOW_LABEL = 'calendar'
+
+/** The screen's route in the main window. */
+export const CALENDAR_PATH = '/calendar'
+
+/**
+ * The Calendar has two homes (lib/windowPlacement keeps the choice, the main
+ * window by default): the `/calendar` screen of the main window, or this window.
+ */
+export const calendarTarget: ScreenTarget = {
+  screen: 'calendar',
+  path: CALENDAR_PATH,
+  openWindow: () => openCalendarWindow(),
+}
 
 /**
  * Emitted by the Calendar window; the main window focuses itself and navigates
@@ -50,6 +66,20 @@ async function focusWindow(win: WebviewWindow) {
   } catch {
     /* window may be mid-teardown */
   }
+}
+
+/**
+ * Show the Calendar where the user keeps it, optionally on an event (a reminder
+ * click). Main window only: it hands the event to its own store.
+ */
+export async function openCalendar(opts: OpenCalendarWindowOptions = {}): Promise<void> {
+  if (getOpenMode('calendar') === 'window') {
+    await openCalendarWindow(opts)
+    return
+  }
+  if (!(await useFeaturesStore().isOnAfterLoad('productivity.calendar'))) return
+  if (opts.event) useGoogleCalendarStore().requestOpenEvent(opts.event)
+  await emit<ScreenOpenRoute>(SCREEN_OPEN_ROUTE, { path: CALENDAR_PATH })
 }
 
 export async function openCalendarWindow(

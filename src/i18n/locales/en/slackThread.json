@@ -3,7 +3,7 @@
     "title": "Slack threads",
     "titleWith": "Slack: {name}"
   },
-  "nav": "Slack threads",
+  "nav": "Slack",
   "untitled": "Slack thread",
   "sidebar": {
     "search": "Search threads…",

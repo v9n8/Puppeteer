@@ -7,12 +7,35 @@
 // and switches it to the requested project.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit } from '@tauri-apps/api/event'
+import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/lib/detachedScreens'
+import { getOpenMode } from '@/lib/windowPlacement'
+import { GANTT_PATH, ganttPath } from '@/lib/screenRoutes'
 import { trackWindowForTray } from '@/lib/tray'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
 
 const GANTT_WINDOW_LABEL = 'gantt'
+
+/**
+ * The Gantt has two homes (lib/windowPlacement keeps the choice, the main window
+ * by default): the `/gantt` screen of the main window, or this window.
+ */
+export const ganttTarget: ScreenTarget = {
+  screen: 'gantt',
+  path: GANTT_PATH,
+  openWindow: () => openGanttWindow(),
+}
+
+/** Show the Gantt where the user keeps it, optionally on a project. Works from any webview. */
+export async function openGantt(projectId?: string): Promise<void> {
+  if (getOpenMode('gantt') === 'window') {
+    await openGanttWindow(projectId)
+    return
+  }
+  if (!(await useFeaturesStore().isOnAfterLoad('code_hosting.gantt'))) return
+  await emit<ScreenOpenRoute>(SCREEN_OPEN_ROUTE, { path: ganttPath(projectId) })
+}
 
 /** Open (or focus) the standalone Gantt window, optionally on a given project. */
 export async function openGanttWindow(projectId?: string): Promise<WebviewWindow | null> {

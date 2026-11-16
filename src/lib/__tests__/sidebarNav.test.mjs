@@ -13,7 +13,7 @@ const items = [
   { id: '/projects', group: 'work' },
   { id: '/search', group: 'work', sidebar: false },
   { id: '/session', group: 'work' },
-  { id: 'notes', group: 'mine', feature: 'productivity.notes' },
+  { id: '/notes', group: 'mine', feature: 'productivity.notes' },
   { id: '/tasks', group: 'mine', feature: 'productivity.focus|productivity.todos' },
   { id: '/library', group: 'agent' },
   { id: '/trash', group: 'foot' },
@@ -24,7 +24,7 @@ test('sidebarGroups: four groups in order, entries in table order', () => {
   const groups = sidebarGroups(items, allOn)
   assert.deepEqual(groups.map((g) => g.id), ['work', 'mine', 'agent', 'foot'])
   assert.deepEqual(groups[0].items.map((i) => i.id), ['/session', '/projects'])
-  assert.deepEqual(groups[1].items.map((i) => i.id), ['/tasks', 'notes'])
+  assert.deepEqual(groups[1].items.map((i) => i.id), ['/tasks', '/notes'])
   assert.deepEqual(groups[3].items.map((i) => i.id), ['/stats', '/trash', '/settings'])
   assert.equal(groups[0].labelKey, 'nav.groups.work')
   assert.equal(groups[3].labelKey, null)

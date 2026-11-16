@@ -342,7 +342,7 @@ function bindGlobalMenuActions() {
     }),
     registerMenuAction('help.reload', () => window.location.reload()),
     ...NAV_ROUTES.map((r) =>
-      registerMenuAction(`go.${r.path}`, () => (r.openWindow ? r.openWindow() : router.push(r.path))),
+      registerMenuAction(`go.${r.path}`, () => router.push(r.path)),
     ),
   ]
   return () => unbinds.forEach((off) => off())

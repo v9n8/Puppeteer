@@ -7,6 +7,10 @@ import { useProjectsStore } from '@/stores/projects'
 import { useProjectIssuesStore, type MilestoneGroup } from '@/stores/projectIssues'
 import { Button, Card, AppSelect, Skeleton, Input, PageHeader, SegmentedControl, Banner } from '@/components/ui'
 import GanttChart from '@/components/GanttChart.vue'
+import DetachButton from '@/components/app/DetachButton.vue'
+import MergeBackButton from '@/components/app/MergeBackButton.vue'
+import { ganttPath } from '@/lib/screenRoutes'
+import { ganttTarget, openGanttWindow } from '@/lib/ganttWindow'
 import { projectPageQuery } from '@/lib/projectSections'
 import { RefreshCw, CircleDot, GanttChartSquare, FolderOpen } from 'lucide-vue-next'
 
@@ -16,8 +20,8 @@ const store = useProjectIssuesStore()
 const { t } = useI18n()
 
 // True when this view is rendered as the standalone pop-out window (App.vue
-// renders it directly for `?ganttWindow=1`) — the only place it renders now:
-// the window responds to project-switch events instead of the router query.
+// renders it directly for `?ganttWindow=1`): that window responds to project-switch
+// events and reads its URL; in the main window the project comes from the route query.
 const isGanttWindow = new URLSearchParams(window.location.search).get('ganttWindow') === '1'
 
 const DAY = 86_400_000
@@ -38,6 +42,12 @@ function isBoardProject(id: string | null | undefined): boolean {
   return !!id && boardProjects.value.some((p) => p.id === id)
 }
 
+// "Open in new window" carries the project being viewed along.
+const detachTarget = computed(() => ({
+  ...ganttTarget,
+  openWindow: () => openGanttWindow(selectedProjectId.value || undefined),
+}))
+
 let setProjectUnlisten: UnlistenFn | null = null
 
 onMounted(async () => {
@@ -55,7 +65,7 @@ onMounted(async () => {
   // Priority: explicit ?project= (deep link from Run AI / project card, or the
   // pop-out window URL) → persisted choice → last-loaded in the Gantt store →
   // most recent board project.
-  const urlProject = new URLSearchParams(window.location.search).get('project')
+  const urlProject = isGanttWindow ? new URLSearchParams(window.location.search).get('project') : null
   const queried =
     (typeof route.query.project === 'string' ? route.query.project : null) ?? urlProject
   const remembered = localStorage.getItem(LAST_KEY)
@@ -291,6 +301,8 @@ function relativeTime(iso: string | null): string {
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': store.loading }" :stroke-width="1.75" />
           {{ t('common.refresh') }}
         </Button>
+        <MergeBackButton v-if="isGanttWindow" screen="gantt" :path="ganttPath(selectedProjectId)" />
+        <DetachButton v-else :target="detachTarget" />
       </template>
     </PageHeader>
 

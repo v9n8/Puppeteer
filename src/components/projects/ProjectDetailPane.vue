@@ -17,7 +17,7 @@ import ProjectLibrary from '@/components/projects/ProjectLibrary.vue'
 import ProjectServers from '@/components/projects/ProjectServers.vue'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
-import { openGanttWindow } from '@/lib/ganttWindow'
+import { openGantt } from '@/lib/ganttWindow'
 import { projectIcon, projectTileClass } from '@/lib/projectAppearance'
 import { PROJECT_TABS, type ProjectPlace } from '@/lib/projectList'
 import {
@@ -121,7 +121,7 @@ async function toggleHidden() {
           size="icon"
           :title="t('projects.gantt')"
           :aria-label="t('projects.gantt')"
-          @click="openGanttWindow(project.id)"
+          @click="openGantt(project.id)"
         >
           <GanttChartSquare class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>

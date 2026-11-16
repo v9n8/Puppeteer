@@ -5,7 +5,7 @@ import { invoke } from '@/lib/tauri'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useGoogleCalendarStore, CALENDAR_EVENTS_CHANGED, type CalEvent } from '@/stores/googleCalendar'
-import { openCalendarWindow } from '@/lib/calendarWindow'
+import { openCalendar } from '@/lib/calendarWindow'
 import { parseEventTime } from '@/lib/calendar'
 
 /**
@@ -142,7 +142,7 @@ onMounted(async () => {
         return
       }
       const ev: CalEvent | undefined = store.reminderEvents.find(x => x.id === id)
-      void openCalendarWindow({ event: ev })
+      void openCalendar({ event: ev })
     })
   } catch {
     unlistenClick = null

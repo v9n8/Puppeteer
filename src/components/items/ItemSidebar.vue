@@ -52,6 +52,8 @@ const props = defineProps<{
   error: string | null
   pinned: boolean
   reloading: boolean
+  /** The main window's Notes screen: no pin (that belongs to the window). */
+  hidePin?: boolean
   /** Inside the Tasks screen: no pin, project filter or "New"; todos show a count line. */
   embedded?: boolean
   /** Todos not done under the current filters (the count line). */
@@ -183,7 +185,7 @@ const groups = computed(() => {
           </button>
         </div>
         <Button
-          v-if="!embedded"
+          v-if="!embedded && !hidePin"
           :variant="pinned ? 'primary' : 'outline'"
           size="icon"
           class="shrink-0"

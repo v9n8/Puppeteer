@@ -14,7 +14,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { emit as emitEvent } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
-import { CALENDAR_WINDOW_OPEN_ROUTE, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
+import { CALENDAR_PATH, CALENDAR_WINDOW_OPEN_ROUTE, calendarTarget, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
 import { translateText } from '@/lib/translate'
 import { Button, Badge, Drawer, AppSelect, Modal, PageHeader } from '@/components/ui'
 import { useGoogleCalendarStore, type CalEvent } from '@/stores/googleCalendar'
@@ -29,6 +29,8 @@ import CalendarMonthGrid from '@/components/calendar/CalendarMonthGrid.vue'
 import EventEditorModal from '@/components/calendar/EventEditorModal.vue'
 import CalendarHeaderControls from '@/components/calendar/CalendarHeaderControls.vue'
 import CalendarErrorBanner from '@/components/calendar/CalendarErrorBanner.vue'
+import DetachButton from '@/components/app/DetachButton.vue'
+import MergeBackButton from '@/components/app/MergeBackButton.vue'
 import { useCalendarKeys } from '@/composables/useCalendarKeys'
 import { useMinuteClock } from '@/composables/useMinuteClock'
 import { isOngoing, minutesLeft } from '@/lib/calendarNow'
@@ -445,6 +447,9 @@ function openForAccount(url: string) {
         >
           <component :is="floating.pinned.value ? Pin : PinOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
+
+        <MergeBackButton v-if="standalone" screen="calendar" :path="CALENDAR_PATH" />
+        <DetachButton v-else :target="calendarTarget" />
 
         <!-- Settings popover -->
         <div v-if="store.accounts.length" ref="settingsWrap" class="relative">

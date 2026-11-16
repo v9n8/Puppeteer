@@ -4,12 +4,26 @@
 // opening it again focuses it. Mirrors lib/slackWindow.ts.
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { trackWindowForTray } from '@/lib/tray'
+import type { ScreenTarget } from '@/lib/detachedScreens'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const PR_INBOX_WINDOW_LABEL = 'pr-inbox'
+
+/** The screen's route in the main window. */
+export const PR_INBOX_PATH = '/pr-inbox'
+
+/**
+ * The PR Inbox has two homes (lib/windowPlacement keeps the choice, the main
+ * window by default): the `/pr-inbox` screen of the main window, or this window.
+ */
+export const prInboxTarget: ScreenTarget = {
+  screen: 'pr-inbox',
+  path: PR_INBOX_PATH,
+  openWindow: () => openPrInboxWindow(),
+}
 
 /**
  * Emitted by the PR Inbox window; the main window focuses itself and navigates

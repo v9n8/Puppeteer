@@ -6,12 +6,25 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
-import { centerOnCurrentMonitor } from '@/lib/windowCascade'
+import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
+import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/lib/detachedScreens'
+import { getOpenMode } from '@/lib/windowPlacement'
+import { SLACK_PATH, slackPath } from '@/lib/screenRoutes'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const SLACK_WINDOW_LABEL = 'slack-threads'
+
+/**
+ * Slack has two homes (lib/windowPlacement keeps the choice, the main window by
+ * default): the `/slack` screen of the main window, or this window.
+ */
+export const slackTarget: ScreenTarget = {
+  screen: 'slack',
+  path: SLACK_PATH,
+  openWindow: () => openSlackThreadsWindow(),
+}
 
 /** Sent to the already-open window: select this thread. */
 export const SLACK_WINDOW_SELECT = 'slack-window:select'
@@ -69,7 +82,22 @@ export interface OpenSlackWindowOptions {
   projectId?: string | null
 }
 
+/**
+ * Open Slack where the user keeps it: the `/slack` screen of the main window
+ * (which comes forward) or the Slack window. Works from any webview.
+ */
 export async function openSlackWindow(
+  opts: OpenSlackWindowOptions = {},
+): Promise<WebviewWindow | null> {
+  if (getOpenMode('slack') === 'window') return openSlackThreadsWindow(opts)
+  // Off: nothing opens, whichever entry asked.
+  if (!(await useFeaturesStore().isOnAfterLoad('integrations.slack'))) return null
+  await emit<ScreenOpenRoute>(SCREEN_OPEN_ROUTE, { path: slackPath({ projectId: opts.projectId, id: opts.id, add: opts.add }) })
+  return null
+}
+
+/** Open (or focus) THE Slack window, whatever the saved choice says (Open in new window, the route guard). */
+export async function openSlackThreadsWindow(
   opts: OpenSlackWindowOptions = {},
 ): Promise<WebviewWindow | null> {
   // Off: no window, whichever entry asked.
@@ -95,20 +123,18 @@ export async function openSlackWindow(
   if (opts.add) params.set('add', '1')
   if (projectId) params.set('projectId', projectId)
 
-  const width = 1100
-  const height = 760
   const win = new WebviewWindow(popoutLabel(SLACK_WINDOW_LABEL), {
     url: popoutUrl(`index.html?${params.toString()}`),
     title: 'Slack threads — Puppeteer',
-    width,
-    height,
     minWidth: 820,
     minHeight: 520,
-    ...(await centerOnCurrentMonitor(width, height)),
+    // Where it was last left; the first time 1100 × 760 centred on the user's monitor.
+    ...(await placementOptions('slack', { width: 1100, height: 760, minWidth: 820, minHeight: 520 })),
   })
   win.once('tauri://error', (e) => {
     console.error('[slackWindow] failed to open window', e)
   })
   trackWindowForTray(win)
+  trackWindowBounds(win, 'slack')
   return win
 }
