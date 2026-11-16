@@ -66,7 +66,9 @@
     "tokens": "Tokens",
     "cost": "Cost (USD)",
     "byEngine": "By engine",
-    "byProject": "By project"
+    "byProject": "By project",
+    "dailyAria": "Daily tokens and cost chart. Use the left and right arrow keys to step through days, Home and End for the first and last.",
+    "dailySpoken": "{date}: {tokens} tokens, {cost}"
   },
   "table": {
     "project": "Project",

@@ -18,7 +18,8 @@ import {
   CategoryScale,
   LinearScale,
 } from 'chart.js'
-import { Bar, Doughnut } from 'vue-chartjs'
+import { Doughnut } from 'vue-chartjs'
+import KeyboardChart from '@/components/stats/KeyboardChart.vue'
 import {
   Coins, DollarSign, Play, Repeat, RefreshCw, Trash2, Loader2, Info, AlertTriangle, HardDrive, Gauge,
 } from 'lucide-vue-next'
@@ -202,6 +203,11 @@ const dailyChartData = computed((): any => {
     ],
   }
 })
+
+function describeDay(i: number): string {
+  const p = stats.value?.daily[i]
+  return p ? t('stats.charts.dailySpoken', { date: p.date, tokens: fmtNum(p.tokens), cost: fmtCost(p.cost) }) : ''
+}
 
 const dailyChartOptions = {
   responsive: true,
@@ -577,7 +583,12 @@ async function loadStorage() {
         <Card class="border-border/60" body-class="p-4">
           <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.charts.dailyTitle') }}</h2>
           <div class="h-64">
-            <Bar :data="dailyChartData" :options="dailyChartOptions" />
+            <KeyboardChart
+              :data="dailyChartData"
+              :options="dailyChartOptions"
+              :describe="describeDay"
+              :label="t('stats.charts.dailyAria')"
+            />
           </div>
         </Card>
 

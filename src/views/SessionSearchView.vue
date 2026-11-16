@@ -27,6 +27,7 @@ import {
   type SessionHitGroup,
   type SessionSearch,
 } from '@/lib/sessionSearch'
+import { flatHits, moveCursor, type CursorKey } from '@/lib/listCursor'
 
 defineOptions({ name: 'SessionSearchView' })
 
@@ -37,6 +38,7 @@ const projects = useProjectsStore()
 
 const query = ref('')
 const boxEl = ref<HTMLElement | null>(null)
+const resultsEl = ref<HTMLElement | null>(null)
 /** '' = every project. */
 const projectFilter = ref('')
 const projectOptions = computed(() => [
@@ -51,6 +53,22 @@ const searching = ref(false)
 const error = ref<string | null>(null)
 /** The query the results on screen answer, for the highlight and the links. */
 const searched = ref('')
+
+// Keyboard cursor over every hit in on-screen order (-1 = none, focus in the box).
+const cursor = ref(-1)
+const flat = computed(() => flatHits(groups.value))
+// Flat index of each group's first hit, so a hit's cursor index is start + its position.
+const groupStarts = computed(() => {
+  let n = 0
+  return groups.value.map((g) => {
+    const start = n
+    n += g.hits.length
+    return start
+  })
+})
+watch(groups, () => {
+  cursor.value = -1
+})
 
 // The index answers fast, but each keystroke is still a query: wait for a pause.
 const DEBOUNCE_MS = 250
@@ -133,6 +151,24 @@ useActivatedRefresh(() => {
   if (query.value.trim()) return runSearch()
 })
 
+function onResultKey(e: KeyboardEvent) {
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && flat.value.length > 0) {
+    e.preventDefault()
+    cursor.value = moveCursor(cursor.value, flat.value.length, e.key as CursorKey)
+    if (cursor.value < 0) focusBox()
+    void nextTick(() => {
+      const el = resultsEl.value?.querySelector<HTMLElement>(`[data-hit="${cursor.value}"]`)
+      el?.scrollIntoView({ block: 'nearest' })
+      if (e.target instanceof HTMLButtonElement) el?.focus()
+    })
+  } else if (e.key === 'Enter' && cursor.value >= 0 && !(e.target instanceof HTMLButtonElement)) {
+    const h = flat.value[cursor.value]
+    if (!h) return
+    e.preventDefault()
+    openHit(groups.value[h.groupIndex], h.offset)
+  }
+}
+
 function runLabel(g: SessionHitGroup): string {
   if (g.title?.trim()) return g.title.trim()
   if (g.runType === 'session') return t('run.labelSession')
@@ -166,6 +202,7 @@ function openHit(g: SessionHitGroup, offset: number) {
               :aria-label="t('sessionSearch.placeholder')"
               class="pl-8 pr-8"
               @keydown.esc="query = ''"
+              @keydown="onResultKey"
             />
             <Button
               v-if="query"
@@ -192,12 +229,12 @@ function openHit(g: SessionHitGroup, offset: number) {
           {{ searching ? t('sessionSearch.searching') : t('sessionSearch.noMatches', { query: searched }) }}
         </p>
 
-        <template v-else>
+        <div v-else ref="resultsEl" class="space-y-4" @keydown="onResultKey">
           <p v-if="truncated" class="text-xs text-muted-foreground">
             {{ t('sessionSearch.truncated', { count: hitCount }) }}
           </p>
           <div
-            v-for="g in groups"
+            v-for="(g, gi) in groups"
             :key="g.runId"
             class="rounded-lg border border-border bg-card"
             :class="searching && 'opacity-60'"
@@ -213,10 +250,12 @@ function openHit(g: SessionHitGroup, offset: number) {
             </div>
             <div class="py-1">
               <button
-                v-for="hit in g.hits"
+                v-for="(hit, hi) in g.hits"
                 :key="hit.offset"
                 type="button"
-                class="w-full px-3 py-1.5 text-left text-xs text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
+                :data-hit="groupStarts[gi] + hi"
+                class="w-full px-3 py-1.5 text-left text-xs text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                :class="groupStarts[gi] + hi === cursor && 'ring-2 ring-ring ring-inset bg-accent/60 text-foreground'"
                 :title="t('sessionSearch.openHit')"
                 @click="openHit(g, hit.offset)"
               >
@@ -227,7 +266,8 @@ function openHit(g: SessionHitGroup, offset: number) {
               </button>
             </div>
           </div>
-        </template>
+          <p class="text-2xs text-muted-foreground">{{ t('sessionSearch.keysHint') }}</p>
+        </div>
       </div>
     </div>
   </div>

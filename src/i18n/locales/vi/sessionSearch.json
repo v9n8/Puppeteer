@@ -6,5 +6,6 @@
   "searching": "Đang tìm…",
   "noMatches": "Không Session nào chứa “{query}”",
   "truncated": "Đang hiện {count} tin nhắn khớp đầu tiên. Thu hẹp từ khoá để xem phần còn lại.",
-  "openHit": "Mở Session tại tin nhắn này"
+  "openHit": "Mở Session tại tin nhắn này",
+  "keysHint": "↑ ↓ đi qua kết quả · Enter mở"
 }

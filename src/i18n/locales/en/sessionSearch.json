@@ -6,5 +6,6 @@
   "searching": "Searching…",
   "noMatches": "No session contains “{query}”",
   "truncated": "Showing the first {count} matching messages. Narrow the search to see the rest.",
-  "openHit": "Open the session at this message"
+  "openHit": "Open the session at this message",
+  "keysHint": "↑ ↓ move through results · Enter opens"
 }
