@@ -230,6 +230,8 @@ export const useProjectsStore = defineStore('projects', () => {
   const error = ref<string | null>(null)
   const conflicts = ref<SyncConflict[]>([])
   const ruleConflicts = ref<RuleSyncConflict[]>([])
+  /** Open conflicts found on disk, by project (`checkProjectConflicts`). */
+  const projectConflicts = ref<Record<string, ProjectSyncConflict[]>>({})
 
   async function fetchProjects() {
     loading.value = true
@@ -493,6 +495,18 @@ export const useProjectsStore = defineStore('projects', () => {
     return invoke<ProjectSyncConflict[]>('list_project_sync_conflicts', { projectId: project_id })
   }
 
+  /**
+   * Scan one project, then list what is open: the one source of its conflict count,
+   * banner and cards. The global lists are read again so the sidebar count follows.
+   * The previous answer stays until the new one arrives.
+   */
+  async function checkProjectConflicts(project_id: string): Promise<SyncScanReport> {
+    const report = await scanSyncConflicts(project_id)
+    projectConflicts.value = { ...projectConflicts.value, [project_id]: await listProjectSyncConflicts(project_id) }
+    await Promise.all([fetchConflicts(), fetchRuleConflicts()])
+    return report
+  }
+
   async function readSyncConflictSides(kind: SyncConflictKind, conflict_id: string): Promise<SyncConflictSides> {
     return invoke<SyncConflictSides>('read_sync_conflict_sides', { kind, conflictId: conflict_id })
   }
@@ -512,7 +526,7 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   return {
-    projects, loading, error, conflicts, ruleConflicts,
+    projects, loading, error, conflicts, ruleConflicts, projectConflicts,
     fetchProjects, reorder, detectProjectInfo, addProject, removeProject, updateProject, updateAppearance,
     resolveProjectBoard, listRepos, addRepo, updateRepo, removeRepo,
     getAppliedSkills, applySkill, removeSkillFromProject,
@@ -520,7 +534,7 @@ export const useProjectsStore = defineStore('projects', () => {
     openInVscode, openInFolder, openInTerminal,
     getAppliedRules, applyRule, removeRuleFromProject,
     fetchRuleConflicts, resolveRuleConflict, getInstructionWarnings,
-    scanSyncConflicts, listProjectSyncConflicts, readSyncConflictSides,
+    scanSyncConflicts, listProjectSyncConflicts, checkProjectConflicts, readSyncConflictSides,
     getProjectGroups, enableGroup, disableGroup,
   }
 })

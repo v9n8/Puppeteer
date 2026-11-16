@@ -2,7 +2,7 @@
 // Right column of the Projects page: the selected project's header, its tabs
 // (the five settings groups, UX-50) and, under each tab, a row of its sections.
 // Management only — nothing here opens a session (D3).
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Code2, Eye, EyeOff, FolderOpen, GanttChartSquare, SquareTerminal } from 'lucide-vue-next'
 import { Banner, Button } from '@/components/ui'
@@ -43,18 +43,19 @@ const store = useProjectsStore()
 const features = useFeaturesStore()
 const tabsStore = useWorkspaceTabsStore()
 
-// Sync conflicts of every project; this one's add a Conflicts section to the Library tab.
-store.fetchConflicts().catch(() => {})
-store.fetchRuleConflicts().catch(() => {})
-const totalConflicts = computed(() =>
-  store.conflicts.filter(c => c.project_id === props.project.id).length
-  + store.ruleConflicts.filter(c => c.project_id === props.project.id).length,
-)
+// Opening a project scans it once for sync conflicts; the open ones add a Conflicts
+// section to the Library tab. The last answer stays on screen until the scan ends.
+watch(() => props.project.id, (id) => {
+  store.checkProjectConflicts(id).catch(e => console.warn('sync conflict scan failed', e))
+}, { immediate: true })
+const totalConflicts = computed(() => store.projectConflicts[props.project.id]?.length ?? 0)
+// Resolving the last conflict leaves the section on screen (empty state) until the user moves away.
+const showConflicts = computed(() => totalConflicts.value > 0 || place.value.section === 'conflicts')
 
 const sections = computed(() =>
-  projectNav(PROJECT_SECTIONS, totalConflicts.value > 0).find(g => g.id === place.value.tab)!.sections,
+  projectNav(PROJECT_SECTIONS, showConflicts.value).find(g => g.id === place.value.tab)!.sections,
 )
-const section = computed(() => tabSection(place.value.tab, place.value.section, totalConflicts.value > 0))
+const section = computed(() => tabSection(place.value.tab, place.value.section, showConflicts.value))
 
 function openSection(id: ProjectSectionId) {
   place.value = { tab: sectionGroup(id), section: id }
@@ -154,23 +155,25 @@ async function toggleHidden() {
 
     <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
       <!-- Sections of the tab -->
-      <nav class="flex flex-wrap gap-1 pt-3" :aria-label="t(`projectDetail.groups.${place.tab}`)">
+      <div class="flex flex-wrap gap-x-1 border-b border-border/40" role="tablist" :aria-label="t(`projectDetail.groups.${place.tab}`)">
         <button
           v-for="s in sections"
           :key="s.id"
           type="button"
-          class="flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors"
-          :class="s.id === 'conflicts'
-            ? (section === s.id ? 'bg-warning/15 text-warning font-medium' : 'text-warning hover:bg-warning/10')
-            : (section === s.id ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground')"
-          :aria-current="section === s.id ? 'page' : undefined"
+          role="tab"
+          class="-mb-px flex h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          :class="[
+            section === s.id ? 'border-primary font-medium text-foreground' : 'border-transparent hover:text-foreground',
+            section !== s.id && (s.id === 'conflicts' ? 'text-warning' : 'text-muted-foreground'),
+          ]"
+          :aria-selected="section === s.id"
           @click="place = { tab: place.tab, section: s.id }"
         >
           <component :is="s.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           {{ t('projectDetail.sections.' + s.id) }}
-          <span v-if="s.id === 'conflicts'" class="text-2xs tabular-nums">{{ totalConflicts }}</span>
+          <span v-if="s.id === 'conflicts'" class="text-2xs tabular-nums text-warning">{{ totalConflicts }}</span>
         </button>
-      </nav>
+      </div>
 
       <Banner v-if="totalConflicts > 0 && section !== 'conflicts'" tone="warning" class="mt-3 max-w-lg">
         <p class="text-xs font-medium text-warning">{{ t('projectDetail.conflictBannerTitle') }}</p>
@@ -179,10 +182,10 @@ async function toggleHidden() {
         </p>
         <template #actions>
           <button
-            class="text-xs font-medium text-warning hover:underline cursor-pointer"
+            class="min-h-7 cursor-pointer text-xs font-medium text-warning hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             @click="openSection('conflicts')"
           >
-            {{ t('projectDetail.resolve') }}
+            {{ t('projectDetail.viewConflicts') }}
           </button>
         </template>
       </Banner>

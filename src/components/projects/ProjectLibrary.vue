@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // Library tab of the project detail column: what the project has on disk
 // (skills, rules, commands, agents), read-only with links into the Library
-// screen that edits them (UX-57), and the old library's skill/rule sync conflicts
-// to resolve.
+// screen that edits them (UX-57), and the skill/rule sync conflicts to resolve.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertCircle, GitMerge, Library } from 'lucide-vue-next'
+import { AlertCircle, Library } from 'lucide-vue-next'
 import { Badge, Banner, Button, Card } from '@/components/ui'
 import LibraryKindTabs from '@/components/library/LibraryKindTabs.vue'
+import ProjectConflicts from '@/components/projects/ProjectConflicts.vue'
 import { invoke } from '@/lib/tauri'
 import { CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, libraryQuery, type DiskItem, type LibraryItemKind } from '@/lib/libraryDisk'
 import { kindCounts, pickTab, tabRows } from '@/lib/libraryTabs'
@@ -19,9 +19,6 @@ const { t } = useI18n()
 const projectStore = useProjectsStore()
 
 const projectId = computed(() => props.project.id)
-
-const projectConflicts = computed(() => projectStore.conflicts.filter(c => c.project_id === projectId.value))
-const projectRuleConflicts = computed(() => projectStore.ruleConflicts.filter(c => c.project_id === projectId.value))
 
 // --- Files on disk (the Library screen's project tab, listed only) ---
 const files = ref<DiskItem[]>([])
@@ -180,67 +177,5 @@ watch(projectId, async () => {
   </div>
 
   <!-- Conflicts -->
-  <div v-else class="max-w-lg space-y-3">
-    <!-- Skill conflicts -->
-    <Card
-      v-for="conflict in projectConflicts"
-      :key="conflict.id"
-      class="border-warning/20"
-      bodyClass="p-4"
-    >
-      <div class="flex items-start gap-3 mb-3">
-        <GitMerge class="h-4 w-4 text-warning mt-0.5 shrink-0" :stroke-width="1.75" />
-        <div>
-          <div class="flex items-center gap-1.5">
-            <p class="text-sm font-mono font-medium">{{ conflict.skill_name }}</p>
-            <Badge tone="neutral" size="xs" class="uppercase tracking-wide">
-              {{ t('projectDetail.conflictSkillBadge', { path: conflict.engine === 'codex' ? '.codex/skills' : '.claude/skills' }) }}
-            </Badge>
-          </div>
-          <p class="text-xs text-muted-foreground mt-0.5">
-            {{ t('projectDetail.localChangesDetected', { date: new Date(conflict.detected_at).toLocaleDateString() }) }}
-          </p>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <Button class="flex-1" @click="projectStore.resolveConflict(conflict.id, true); projectStore.fetchConflicts()">
-          {{ t('projectDetail.overwriteWithCentral') }}
-        </Button>
-        <Button variant="outline" class="flex-1" @click="projectStore.resolveConflict(conflict.id, false); projectStore.fetchConflicts()">
-          {{ t('projectDetail.keepLocal') }}
-        </Button>
-      </div>
-    </Card>
-
-    <!-- Rule conflicts -->
-    <Card
-      v-for="conflict in projectRuleConflicts"
-      :key="conflict.id"
-      class="border-warning/20"
-      bodyClass="p-4"
-    >
-      <div class="flex items-start gap-3 mb-3">
-        <GitMerge class="h-4 w-4 text-warning mt-0.5 shrink-0" :stroke-width="1.75" />
-        <div>
-          <div class="flex items-center gap-1.5">
-            <p class="text-sm font-mono font-medium">{{ conflict.rule_name }}</p>
-            <Badge tone="neutral" size="xs" class="uppercase tracking-wide">
-              {{ t('projectDetail.conflictRuleBadge', { path: conflict.engine === 'claude' ? '.claude/rules' : 'AGENTS.md' }) }}
-            </Badge>
-          </div>
-          <p class="text-xs text-muted-foreground mt-0.5">
-            {{ t('projectDetail.localChangesDetected', { date: new Date(conflict.detected_at).toLocaleDateString() }) }}
-          </p>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <Button class="flex-1" @click="projectStore.resolveRuleConflict(conflict.id, true)">
-          {{ t('projectDetail.overwriteWithCentral') }}
-        </Button>
-        <Button variant="outline" class="flex-1" @click="projectStore.resolveRuleConflict(conflict.id, false)">
-          {{ t('projectDetail.keepLocal') }}
-        </Button>
-      </div>
-    </Card>
-  </div>
+  <ProjectConflicts v-else :project="project" />
 </template>
