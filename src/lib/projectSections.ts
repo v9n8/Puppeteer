@@ -1,5 +1,5 @@
 import {
-  Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, Github, Gitlab, Cloud, CloudCog,
+  Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, KeyRound,
   Library, Server, GitMerge, Rocket, ShieldCheck, Flag,
 } from 'lucide-vue-next'
 
@@ -30,13 +30,11 @@ export const PROJECT_SECTIONS = [
   { id: 'styles', group: 'defaults', icon: MessageSquareText },
   // Shared flags this project hides, and its own flags (V3-21).
   { id: 'flags', group: 'defaults', icon: Flag },
-  { id: 'github', group: 'connections', icon: Github },
-  { id: 'gitlab', group: 'connections', icon: Gitlab },
-  { id: 'aws', group: 'connections', icon: Cloud },
-  { id: 'azure', group: 'connections', icon: CloudCog },
+  // One list of the accounts the project may use, filtered by type (V3-44), and its MCP switches.
+  { id: 'accounts', group: 'connections', icon: KeyRound },
+  { id: 'mcp', group: 'connections', icon: Server },
   // What the project has on disk; read-only, edited on the Library screen (UX-57).
   { id: 'files', group: 'library', icon: Library },
-  { id: 'mcp', group: 'library', icon: Server },
   { id: 'conflicts', group: 'library', icon: GitMerge },
   { id: 'deploy', group: 'servers', icon: Rocket },
   { id: 'tools', group: 'servers', icon: ShieldCheck },
@@ -65,7 +63,25 @@ const LEGACY_SECTIONS = new Map<unknown, ProjectSectionId>([
   // The old library's per-project switches gave way to the files on disk (UX-57).
   ['skills', 'files'],
   ['rules', 'files'],
+  // One account list instead of a section per type (V3-44); the type becomes the list's filter.
+  ['github', 'accounts'],
+  ['gitlab', 'accounts'],
+  ['aws', 'accounts'],
+  ['azure', 'accounts'],
 ])
+
+/** Connection types a project binds accounts of: the filter of the Accounts section. */
+export const PROJECT_ACCOUNT_TYPES = ['github', 'gitlab', 'aws', 'azure'] as const
+export type ProjectAccountType = (typeof PROJECT_ACCOUNT_TYPES)[number]
+
+/**
+ * The account type to filter the Accounts section by: the `?type=` query, else
+ * the type an old `?section=github|gitlab|aws|azure` link named. Null: all types.
+ */
+export function accountTypeFromQuery(section: unknown, type?: unknown): ProjectAccountType | null {
+  const find = (v: unknown) => PROJECT_ACCOUNT_TYPES.find((id) => id === v) ?? null
+  return find(type) ?? find(section)
+}
 
 /** The section a `?section=` query names, or null when it names none. */
 export function sectionFromQuery(value: unknown): ProjectSectionId | null {
@@ -93,5 +109,7 @@ export function tabSection(tab: ProjectGroupId, requested: ProjectSectionId | nu
  */
 export function projectPageQuery(projectId: string, section?: unknown): Record<string, string> {
   const target = sectionFromQuery(section)
-  return target ? { id: projectId, tab: sectionGroup(target), section: target } : { id: projectId }
+  if (!target) return { id: projectId }
+  const type = accountTypeFromQuery(section)
+  return { id: projectId, tab: sectionGroup(target), section: target, ...(type && { type }) }
 }

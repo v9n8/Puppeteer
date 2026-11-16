@@ -31,10 +31,10 @@ const SOURCE_OF = {
 // Proof that each declared consumer really reads that type's accounts: [file, text it contains].
 const EVIDENCE = {
   projects: {
-    github: [['src/components/projects/ProjectConnections.vue', 'useGithubAccountsStore'], ['src/stores/projects.ts', 'github_account_ids: string[]']],
-    gitlab: [['src/components/projects/ProjectConnections.vue', 'useGitlabAccountsStore'], ['src/stores/projects.ts', 'gitlab_account_ids: string[]']],
-    aws: [['src/components/projects/ProjectConnections.vue', 'useAwsAccountsStore'], ['src/stores/projects.ts', 'aws_account_ids: string[]']],
-    azure: [['src/components/projects/ProjectConnections.vue', 'useAzureAccountsStore'], ['src/stores/projects.ts', 'azure_account_ids: string[]']],
+    github: [['src/components/projects/ProjectAccounts.vue', 'useConnectionSources'], ['src/components/settings/useConnectionSources.ts', 'useGithubAccountsStore'], ['src/stores/projects.ts', 'github_account_ids: string[]']],
+    gitlab: [['src/components/projects/ProjectAccounts.vue', 'useConnectionSources'], ['src/components/settings/useConnectionSources.ts', 'useGitlabAccountsStore'], ['src/stores/projects.ts', 'gitlab_account_ids: string[]']],
+    aws: [['src/components/projects/ProjectAccounts.vue', 'useConnectionSources'], ['src/components/settings/useConnectionSources.ts', 'useAwsAccountsStore'], ['src/stores/projects.ts', 'aws_account_ids: string[]']],
+    azure: [['src/components/projects/ProjectAccounts.vue', 'useConnectionSources'], ['src/components/settings/useConnectionSources.ts', 'useAzureAccountsStore'], ['src/stores/projects.ts', 'azure_account_ids: string[]']],
   },
   sessionChips: {
     github: [['src/components/sessions/useRunHeaderInfo.ts', 'ghStore.accounts']],

@@ -471,7 +471,7 @@ async function remove() {
 
     <DetailSection :title="t('projectDetail.groups.connections')">
       <template #actions>
-        <Button variant="outline" size="xs" @click="emit('open', 'github')">{{ t('common.edit') }}</Button>
+        <Button variant="outline" size="xs" @click="emit('open', 'accounts')">{{ t('common.edit') }}</Button>
       </template>
       <div v-if="connections.length" class="flex flex-wrap items-center gap-1.5">
         <Badge v-for="chip in connections" :key="chip.key" :tone="chip.tone" class="max-w-[12rem]" :title="chip.title">

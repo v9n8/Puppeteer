@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   PROJECT_GROUPS, PROJECT_SECTIONS, projectNav, sectionFromQuery, sectionGroup, tabSection, projectPageQuery,
+  accountTypeFromQuery,
 } from '../projectSections.ts'
 
 const shape = (nav) => nav.map((g) => [g.id, g.sections.map((s) => s.id)])
@@ -23,27 +24,31 @@ test('every section belongs to a known group, ids are unique', () => {
 
 // UX-19: the Claude account tab became part of `session`; `styles` is new.
 // UX-57: `skills` and `rules` became the read-only `files` list.
-const MOVED = { claude: 'session', skills: 'files', rules: 'files' }
+// V3-44: GitHub / GitLab / AWS / Azure became `accounts`; `mcp` moved to Connections.
+const MOVED = {
+  claude: 'session', skills: 'files', rules: 'files',
+  github: 'accounts', gitlab: 'accounts', aws: 'accounts', azure: 'accounts',
+}
 
 test('no old tab is lost', () => {
   const now = PROJECT_SECTIONS.map((s) => s.id)
   for (const id of OLD_TABS) assert.ok(now.includes(MOVED[id] ?? id), id)
-  assert.deepEqual(now.filter((id) => !OLD_TABS.includes(id)).sort(), ['files', 'flags', 'session', 'styles'])
+  assert.deepEqual(now.filter((id) => !OLD_TABS.includes(id)).sort(), ['accounts', 'files', 'flags', 'session', 'styles'])
 })
 
 test('projectNav: five groups in order, conflicts under Library when present', () => {
   assert.deepEqual(shape(projectNav(PROJECT_SECTIONS, true)), [
     ['overview', ['overview', 'board']],
     ['defaults', ['session', 'styles', 'flags']],
-    ['connections', ['github', 'gitlab', 'aws', 'azure']],
-    ['library', ['files', 'mcp', 'conflicts']],
+    ['connections', ['accounts', 'mcp']],
+    ['library', ['files', 'conflicts']],
     ['servers', ['deploy', 'tools']],
   ])
 })
 
 test('projectNav: no conflicts → no Conflicts entry', () => {
   const library = projectNav(PROJECT_SECTIONS, false).find((g) => g.id === 'library')
-  assert.deepEqual(library.sections.map((s) => s.id), ['files', 'mcp'])
+  assert.deepEqual(library.sections.map((s) => s.id), ['files'])
 })
 
 test('projectNav: an empty group gets no heading, groups follow PROJECT_GROUPS order', () => {
@@ -69,16 +74,17 @@ test('sectionGroup: the tab each section sits in', () => {
   assert.equal(sectionGroup('overview'), 'overview')
   assert.equal(sectionGroup('board'), 'overview')
   assert.equal(sectionGroup('styles'), 'defaults')
-  assert.equal(sectionGroup('azure'), 'connections')
+  assert.equal(sectionGroup('accounts'), 'connections')
+  assert.equal(sectionGroup('mcp'), 'connections')
   assert.equal(sectionGroup('conflicts'), 'library')
   assert.equal(sectionGroup('deploy'), 'servers')
 })
 
 test('tabSection: the requested section while the tab lists it, else the first', () => {
-  assert.equal(tabSection('connections', 'aws', false), 'aws')
-  assert.equal(tabSection('connections', null, false), 'github')
+  assert.equal(tabSection('connections', 'mcp', false), 'mcp')
+  assert.equal(tabSection('connections', null, false), 'accounts')
   // A section of another tab is not shown here.
-  assert.equal(tabSection('connections', 'files', false), 'github')
+  assert.equal(tabSection('connections', 'files', false), 'accounts')
   assert.equal(tabSection('defaults', 'styles', false), 'styles')
   // Conflicts only while there are some.
   assert.equal(tabSection('library', 'conflicts', true), 'conflicts')
@@ -98,6 +104,20 @@ test('projectPageQuery: the old settings link opens the same section on the Proj
     assert.equal(q.section, MOVED[id] ?? id)
     assert.equal(q.tab, sectionGroup(q.section))
   }
+})
+
+test('projectPageQuery: an old account section keeps its type as the list filter', () => {
+  assert.deepEqual(projectPageQuery('p1', 'github'), { id: 'p1', tab: 'connections', section: 'accounts', type: 'github' })
+  assert.deepEqual(projectPageQuery('p1', 'azure'), { id: 'p1', tab: 'connections', section: 'accounts', type: 'azure' })
+  assert.deepEqual(projectPageQuery('p1', 'mcp'), { id: 'p1', tab: 'connections', section: 'mcp' })
+})
+
+test('accountTypeFromQuery: ?type= wins, else the old section id, else all', () => {
+  assert.equal(accountTypeFromQuery('accounts', 'gitlab'), 'gitlab')
+  assert.equal(accountTypeFromQuery('aws'), 'aws')
+  assert.equal(accountTypeFromQuery('azure', 'github'), 'github')
+  for (const bad of [undefined, null, 'google', 'mcp', 'toString', ['aws']]) assert.equal(accountTypeFromQuery('accounts', bad), null, String(bad))
+  assert.equal(accountTypeFromQuery('accounts'), null)
 })
 
 test('every section and group has an en and vi label', () => {

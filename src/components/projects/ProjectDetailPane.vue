@@ -197,7 +197,7 @@ async function toggleHidden() {
           <ResponseStylesSettings :project-id="project.id" />
         </div>
         <ProjectFlags v-else-if="section === 'flags'" :project="project" />
-        <ProjectConnections v-else-if="place.tab === 'connections'" :project="project" :section="section as 'github'" />
+        <ProjectConnections v-else-if="place.tab === 'connections'" :project="project" :section="section as 'accounts'" :account-type="place.type ?? null" />
         <ProjectLibrary v-else-if="place.tab === 'library'" :project="project" :section="section as 'files'" />
         <ProjectServers v-else-if="place.tab === 'servers'" :project="project" :section="section as 'deploy'" />
       </div>

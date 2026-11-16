@@ -2,7 +2,8 @@
 // project the detail column shows, and which of its tabs.
 import { haystack, matchesSearch } from './listGroups.ts'
 import {
-  PROJECT_GROUPS, sectionFromQuery, sectionGroup, type ProjectGroupId, type ProjectSectionId,
+  PROJECT_GROUPS, accountTypeFromQuery, sectionFromQuery, sectionGroup,
+  type ProjectAccountType, type ProjectGroupId, type ProjectSectionId,
 } from './projectSections.ts'
 
 /** Tabs of the project detail column, in display order: the settings groups (UX-50). */
@@ -13,6 +14,8 @@ export type ProjectTab = ProjectGroupId
 export interface ProjectPlace {
   tab: ProjectTab
   section: ProjectSectionId | null
+  /** Account type the Accounts section opens filtered by (`?type=`); null or absent: all. */
+  type?: ProjectAccountType | null
 }
 
 /** The projects whose name or path holds every term of `query`, in list order. */
@@ -41,7 +44,7 @@ export function projectTab(value: unknown, section?: unknown): ProjectTab {
   return target ? sectionGroup(target) : PROJECT_TABS[0]
 }
 
-/** The place a `?tab=` + `?section=` query names. */
-export function projectPlace(tab: unknown, section: unknown): ProjectPlace {
-  return { tab: projectTab(tab, section), section: sectionFromQuery(section) }
+/** The place a `?tab=` + `?section=` (+ `?type=`) query names. */
+export function projectPlace(tab: unknown, section: unknown, type?: unknown): ProjectPlace {
+  return { tab: projectTab(tab, section), section: sectionFromQuery(section), type: accountTypeFromQuery(section, type) }
 }

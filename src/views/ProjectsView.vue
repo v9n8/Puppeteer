@@ -53,8 +53,8 @@ const hiddenCount = computed(() => store.projects.filter(p => p.hidden).length)
 const selectedId = computed(() => selectedProjectId(store.projects, shownProjects.value, route.query.id))
 const selected = computed(() => store.projects.find(p => p.id === selectedId.value) ?? null)
 const place = computed<ProjectPlace>({
-  get: () => projectPlace(route.query.tab, route.query.section),
-  set: ({ tab, section }) => router.replace({ query: { ...route.query, tab, section: section ?? undefined } }),
+  get: () => projectPlace(route.query.tab, route.query.section, route.query.type),
+  set: ({ tab, section, type }) => router.replace({ query: { ...route.query, tab, section: section ?? undefined, type: type ?? undefined } }),
 })
 
 // On a narrow window the list leaves the row and opens as a drawer.

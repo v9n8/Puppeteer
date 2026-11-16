@@ -59,8 +59,11 @@ test('no tab: the tab of the requested section, the old ids included', () => {
 })
 
 test('projectPlace: tab and section from the query', () => {
-  assert.deepEqual(projectPlace('connections', 'gitlab'), { tab: 'connections', section: 'gitlab' })
-  assert.deepEqual(projectPlace(undefined, 'claude'), { tab: 'defaults', section: 'session' })
-  assert.deepEqual(projectPlace('servers', undefined), { tab: 'servers', section: null })
-  assert.deepEqual(projectPlace(undefined, undefined), { tab: 'overview', section: null })
+  // An old `?section=gitlab` opens the Accounts list filtered to that type (V3-44).
+  assert.deepEqual(projectPlace('connections', 'gitlab'), { tab: 'connections', section: 'accounts', type: 'gitlab' })
+  assert.deepEqual(projectPlace('connections', 'accounts', 'aws'), { tab: 'connections', section: 'accounts', type: 'aws' })
+  assert.deepEqual(projectPlace(undefined, 'mcp'), { tab: 'connections', section: 'mcp', type: null })
+  assert.deepEqual(projectPlace(undefined, 'claude'), { tab: 'defaults', section: 'session', type: null })
+  assert.deepEqual(projectPlace('servers', undefined), { tab: 'servers', section: null, type: null })
+  assert.deepEqual(projectPlace(undefined, undefined), { tab: 'overview', section: null, type: null })
 })
