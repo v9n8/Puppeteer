@@ -31,5 +31,45 @@
     "none": "Không flag",
     "tooltip": "Lọc theo flag: {name}",
     "projectFlags": "Flag của Project này…"
+  },
+  "settings": {
+    "title": "Flag chung",
+    "description": "Nhãn màu bạn tự đặt để đánh dấu Session (mỗi Session một flag), hiện trên dòng History và dùng để lọc.",
+    "note": "Project nào cũng dùng được các flag này. Flag riêng của Project và flag chung mà Project ẩn nằm ở {link}.",
+    "projectLink": "Project › Flag",
+    "add": "Thêm flag",
+    "restore": "Khôi phục flag mặc định",
+    "restoreHint": "Thêm lại các flag mặc định đã bị xoá. Flag đang có giữ nguyên tên, màu và Session đang gắn.",
+    "runs": "{n} Session",
+    "unused": "Chưa gắn",
+    "dragTip": "Kéo để đổi thứ tự",
+    "dragLabel": "Đổi thứ tự “{name}”: Space để nhấc, mũi tên để dời, Space để thả, Esc để huỷ",
+    "footer": "Kéo ⋮⋮ để đổi thứ tự: thứ tự này dùng ở menu Gắn flag và dropdown lọc của cột History.",
+    "emptyTitle": "Chưa có flag nào",
+    "emptyBody": "Session vẫn chạy bình thường, chỉ không gắn và lọc theo flag được. Thêm flag mới, hoặc khôi phục 4 flag mặc định.",
+    "loadError": "Không tải được flag.",
+    "retry": "Thử lại",
+    "deleteTitle": "Xóa flag “{name}”?",
+    "deleteMessage": "{n} Session đang gắn flag này sẽ thành “Không flag”. Project nào đang ẩn flag này cũng bỏ luôn dòng ẩn. Không hoàn tác được.",
+    "deleteMessageNone": "Project nào đang ẩn flag này cũng bỏ luôn dòng ẩn. Không hoàn tác được.",
+    "deleteConfirm": "Xóa flag",
+    "deleted": "Đã xóa flag “{name}” · {n} Session thành Không flag",
+    "deletedNone": "Đã xóa flag “{name}”",
+    "restored": "Đã khôi phục {n} flag mặc định"
+  },
+  "color": {
+    "title": "Màu của “{name}”",
+    "footer": "Hai flag trùng màu vẫn được; tên giúp phân biệt."
+  },
+  "editor": {
+    "newTitle": "Flag mới",
+    "editTitle": "Sửa flag",
+    "name": "Tên",
+    "namePlaceholder": "Ví dụ: Chờ khách duyệt",
+    "color": "Màu (bảng màu tab Project)",
+    "preview": "Trên dòng History:",
+    "previewEmpty": "Tên flag",
+    "projectOnly": "Chỉ dùng được trong Project này · {name}",
+    "runsFollow": "{n} Session đang gắn flag này đổi theo ngay."
   }
 }

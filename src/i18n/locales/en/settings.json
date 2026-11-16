@@ -3,6 +3,7 @@
   "title": "Settings",
   "sections": {
     "general": "General",
+    "flags": "Flag",
     "engines": "Engines & accounts",
     "ai": "New sessions",
     "styles": "Response styles",

@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain,
+  Inbox, Target, ToggleRight, Command, Keyboard, Languages, Brain, Flag,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -25,6 +25,7 @@ export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id']
  */
 export const SETTINGS_SECTIONS = [
   { id: 'general', group: 'general', labelKey: 'settings.sections.general', icon: Palette },
+  { id: 'flags', group: 'general', labelKey: 'settings.sections.flags', icon: Flag },
   { id: 'features', group: 'general', labelKey: 'settings.sections.features', icon: ToggleRight },
   { id: 'focus', group: 'general', labelKey: 'settings.sections.focus', icon: Target, feature: 'productivity.focus' },
   { id: 'palette', group: 'general', labelKey: 'settings.sections.palette', icon: Command, feature: 'app.command_palette' },

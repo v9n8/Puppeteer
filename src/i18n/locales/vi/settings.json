@@ -3,6 +3,7 @@
   "title": "Cài đặt",
   "sections": {
     "general": "Chung",
+    "flags": "Flag",
     "engines": "Engine & tài khoản",
     "ai": "Session mới",
     "styles": "Phong cách",

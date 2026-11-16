@@ -31,5 +31,45 @@
     "none": "No flag",
     "tooltip": "Filter by flag: {name}",
     "projectFlags": "This project's flags…"
+  },
+  "settings": {
+    "title": "Shared flags",
+    "description": "Colour labels you set yourself to mark Sessions (one flag per Session). They show on the History row and filter it.",
+    "note": "Every project can use these flags. A project's own flags and the shared flags it hides are in {link}.",
+    "projectLink": "Project › Flag",
+    "add": "Add flag",
+    "restore": "Restore default flags",
+    "restoreHint": "Put back the default flags that were deleted. Flags you have keep their name, colour and attached Sessions.",
+    "runs": "{n} Sessions",
+    "unused": "Not used",
+    "dragTip": "Drag to reorder",
+    "dragLabel": "Reorder “{name}”: Space to lift, arrows to move, Space to drop, Esc to cancel",
+    "footer": "Drag ⋮⋮ to reorder: this order is used in the Set flag menu and in the History column's filter.",
+    "emptyTitle": "No flags yet",
+    "emptyBody": "Sessions run as usual, you just cannot flag or filter them. Add a flag, or restore the 4 default flags.",
+    "loadError": "Could not load flags.",
+    "retry": "Try again",
+    "deleteTitle": "Delete flag “{name}”?",
+    "deleteMessage": "{n} Sessions with this flag will become “No flag”. Any project hiding this flag drops that hidden mark too. This cannot be undone.",
+    "deleteMessageNone": "Any project hiding this flag drops that hidden mark too. This cannot be undone.",
+    "deleteConfirm": "Delete flag",
+    "deleted": "Deleted flag “{name}” · {n} Sessions are now No flag",
+    "deletedNone": "Deleted flag “{name}”",
+    "restored": "Restored {n} default flags"
+  },
+  "color": {
+    "title": "Colour of “{name}”",
+    "footer": "Two flags can share a colour; the name tells them apart."
+  },
+  "editor": {
+    "newTitle": "New flag",
+    "editTitle": "Edit flag",
+    "name": "Name",
+    "namePlaceholder": "E.g. Waiting for client approval",
+    "color": "Colour (project tab palette)",
+    "preview": "On the History row:",
+    "previewEmpty": "Flag name",
+    "projectOnly": "Only usable in this project · {name}",
+    "runsFollow": "{n} Sessions with this flag change right away."
   }
 }

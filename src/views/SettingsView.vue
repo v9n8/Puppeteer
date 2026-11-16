@@ -25,6 +25,7 @@ import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettin
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import SessionsSettings from '@/components/settings/SessionsSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
+import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
@@ -239,6 +240,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <EnginesSettings v-show="activeSection === 'engines'" @open-section="openPlace({ section: $event })" />
         <SessionDefaultsSettings v-show="activeSection === 'ai'" @open-section="openPlace({ section: $event })" />
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
+        <FlagsSettings v-if="activeSection === 'flags'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
         <SessionsSettings v-show="activeSection === 'sessions'" />
 
