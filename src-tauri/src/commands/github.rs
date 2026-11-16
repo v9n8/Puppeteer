@@ -23,9 +23,8 @@ pub struct RunRecord {
     pub ref_number: Option<i64>,
     pub status: String,
     pub engine: String,
-    /// Model the run executes with, resolved at start/resume (per-run override
-    /// else the engine default). `None` until the run has started, or when the
-    /// engine used its own default. Lets History/composer show the applied model.
+    /// Model the run executes with, resolved at start/resume; `None` until it
+    /// has started, or when the engine used its own default.
     #[serde(default)]
     pub model: Option<String>,
     pub input_path: Option<String>,
@@ -39,10 +38,9 @@ pub struct RunRecord {
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
     pub created_at: String,
-    /// Last time this session was worked on — start/resume, a follow-up turn, a
-    /// finished turn, or a transcript touched outside Puppeteer. Drives the History
-    /// order. Null when nothing has happened since the row was created; readers
-    /// fall back to finished_at / started_at / created_at.
+    /// Last time this session was worked on (start/resume, a turn, or a transcript
+    /// touched outside Puppeteer). Drives the History order. Null when nothing has
+    /// happened since creation; readers fall back to finished/started/created_at.
     #[serde(default)]
     pub last_activity_at: Option<String>,
     /// Human label for the run. Null for issue/PR runs (UI derives "Issue #N");
@@ -55,14 +53,11 @@ pub struct RunRecord {
     /// survives a bulk cleanup. Independent of `pinned`.
     #[serde(default)]
     pub protected: bool,
-    /// Orchestration role of the run. `Some("conductor")` marks a session that
-    /// drives worker sessions; `None` for an ordinary session or an issue/PR run.
-    /// Lets the History list flag conductors without a per-row lookup.
+    /// `Some("conductor")` marks a session that drives worker sessions; `None`
+    /// for an ordinary session or an issue/PR run.
     #[serde(default)]
     pub role: Option<String>,
     /// Id of the conductor run that spawned this session, when it is a worker.
-    /// `None` for standalone sessions, conductors, and issue/PR runs. Lets the
-    /// History list nest workers under their conductor without a per-row lookup.
     #[serde(default)]
     pub conductor_run_id: Option<String>,
     /// Response style the run last ran with (`runs.style`, UX-17): a built-in
@@ -88,6 +83,9 @@ pub struct RunRecord {
     /// no flag. Only `list_runs` fills it; a new, rerun or forked run has none.
     #[serde(default)]
     pub flag_id: Option<String>,
+    /// `runs.worktree_path` (V3-23): the worker's worktree; None = Project dir.
+    #[serde(default)]
+    pub worktree_path: Option<String>,
 }
 
 /// Repo identity loaded from the `repos` row, used to branch fetch by provider
@@ -384,7 +382,7 @@ pub async fn fetch_issue(
         effort: None,
         forked_from_run_id: None,
         end_reason: None,
-        flag_id: None,
+        flag_id: None, worktree_path: None,
     })
 }
 
@@ -763,7 +761,7 @@ pub async fn fetch_pr(
         effort: None,
         forked_from_run_id: None,
         end_reason: None,
-        flag_id: None,
+        flag_id: None, worktree_path: None,
     })
 }
 
@@ -914,7 +912,7 @@ pub async fn refetch_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord,
         effort: None,
         forked_from_run_id: None,
         end_reason: None,
-        flag_id: None,
+        flag_id: None, worktree_path: None,
     })
 }
 
@@ -944,7 +942,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
     // can never disagree. No row cap: the list pages itself (UX-62), and a cap
     // would hide a project's oldest sessions without a word.
     let rows = sqlx::query(
-        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id, end_reason, flag_id,
+        "SELECT id, project_id, repo_id, type, ref_number, status, engine, model, input_path, output_path, session_id, claude_account_id, codex_account_id, started_at, finished_at, created_at, title, pinned, protected, role, conductor_run_id, style, effort, forked_from_run_id, end_reason, flag_id, worktree_path,
                 COALESCE(last_activity_at, finished_at, started_at, created_at) AS last_activity_at
          FROM runs WHERE project_id = ? AND deleted_at IS NULL
          ORDER BY pinned DESC, COALESCE(last_activity_at, finished_at, started_at, created_at) DESC"
@@ -982,6 +980,7 @@ pub(crate) async fn list_runs_inner(db: &Db, project_id: &str) -> Result<Vec<Run
         forked_from_run_id: row.get("forked_from_run_id"),
         end_reason: row.get("end_reason"),
         flag_id: row.get("flag_id"),
+        worktree_path: row.get("worktree_path"),
     }).collect())
 }
 

@@ -17,6 +17,7 @@
 import { ref } from 'vue'
 import { emit, listen } from '@tauri-apps/api/event'
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
+import { invoke as localInvoke } from '@tauri-real/core'
 import { invoke } from '@/lib/tauri'
 import { openInDefault, revealIn } from '@/lib/fileActionsCore'
 import { useToast } from '@/composables/useToast'
@@ -115,6 +116,21 @@ export function useFileActions() {
   function revealInFolder(projectPath: string, target: FileTarget) {
     return revealIn({ openPath, revealItemInDir }, absPath(projectPath, target.path))
       .catch(() => { /* opener unavailable */ })
+  }
+
+  /** Show a folder in the OS file manager. Unlike `revealInFolder` it says so when
+   *  the folder is gone (a cleaned-up worktree) or the opener fails. */
+  async function revealDir(absDir: string) {
+    try {
+      const [stat] = await localInvoke<{ error: string | null }[]>('stat_local_files', { paths: [absDir] })
+      if (stat?.error) {
+        toast.error(t('run.workDirNotFound', { path: absDir }))
+        return
+      }
+      await revealIn({ openPath, revealItemInDir }, absDir)
+    } catch (e) {
+      toast.error(String(e))
+    }
   }
 
   function openInDefaultApp(projectPath: string, target: FileTarget) {
@@ -218,6 +234,7 @@ export function useFileActions() {
     copyRelPath,
     copyContent,
     revealInFolder,
+    revealDir,
     openInDefaultApp,
     openInVscode,
     openInChrome,

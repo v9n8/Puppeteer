@@ -3447,11 +3447,8 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         protected: false,
         role: None,
         conductor_run_id: None,
-        style: None,
-        effort: None,
-        forked_from_run_id: None,
-        end_reason: None,
-        flag_id: None,
+        style: None, effort: None,
+        forked_from_run_id: None, end_reason: None, flag_id: None, worktree_path: None,
     })
 }
 
@@ -3566,11 +3563,8 @@ pub async fn create_handoff_run(
             protected: false,
             role: None,
             conductor_run_id: None,
-            style: None,
-            effort: None,
-            forked_from_run_id: None,
-            end_reason: None,
-            flag_id: None,
+            style: None, effort: None,
+            forked_from_run_id: None, end_reason: None, flag_id: None, worktree_path: None,
         },
         context_path,
         summary_lines,
@@ -3629,11 +3623,8 @@ pub async fn create_session_run(
         protected: false,
         role: None,
         conductor_run_id: None,
-        style: None,
-        effort: None,
-        forked_from_run_id: None,
-        end_reason: None,
-        flag_id: None,
+        style: None, effort: None,
+        forked_from_run_id: None, end_reason: None, flag_id: None, worktree_path: None,
     })
 }
 

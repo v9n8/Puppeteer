@@ -180,6 +180,9 @@ export interface RunRecord {
    * `list_runs` fills it; a new, rerun or forked session has none.
    */
   flag_id?: string | null
+  /** The worker's own git worktree (`runs.worktree_path`, V3-23); null / absent =
+   *  it ran in the Project directory. `list_runs` fills it. */
+  worktree_path?: string | null
 }
 
 /**

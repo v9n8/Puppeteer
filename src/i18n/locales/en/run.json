@@ -117,6 +117,14 @@
   "dockToMain": "Back to main window",
   "viewProject": "View project",
   "popOutSession": "Open in new window",
+  "copyWorkDir": "Copy path",
+  "workDirCopied": "Path copied",
+  "workDirNotFound": "Folder not found: {path}",
+  "revealDir": {
+    "mac": "Reveal in Finder",
+    "windows": "Show in Explorer",
+    "linux": "Open containing folder"
+  },
   "questionInOwnWindow": "The question is in its own window — click to dock it back",
   "dockBack": "Dock back",
   "loadingLog": "Loading log…",

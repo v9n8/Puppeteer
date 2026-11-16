@@ -12,7 +12,7 @@ import {
 import RunActionItems from '@/components/RunActionItems.vue'
 import HistoryFlagFilter from '@/components/sessions/HistoryFlagFilter.vue'
 import FileTree from '@/components/FileTree.vue'
-import { Button, Input, DropdownMenu } from '@/components/ui'
+import { Button, Input, DropdownMenu, ContextMenu } from '@/components/ui'
 import { swatchClass } from '@/lib/projectAppearance'
 import { useRunSession } from './useRunSession'
 
@@ -24,10 +24,18 @@ const {
   runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
   runTimestamp, sessionSearch, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
-  handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId, renameDraft,
+  handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId, renameDraft,
   setRenameInputRef, cancelRename, commitRename, runActionProps, runActionHandlers,
   handleClearAllRuns, handleRefInput, creatingSession, handleNewSession, openFile,
 } = useRunSession()
+
+// Shift+F10 / the Menu key on a focused row opens the row menu beside the row.
+function onRowKeydown(ev: KeyboardEvent, runId: string) {
+  if (ev.key !== 'ContextMenu' && !(ev.shiftKey && ev.key === 'F10')) return
+  ev.preventDefault()
+  const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  openRowMenu(runId, rect.left + 24, rect.bottom - 8)
+}
 </script>
 
 <template>
@@ -204,7 +212,7 @@ const {
           </button>
         </div>
       </div>
-      <div ref="sessionListEl" class="flex-1 min-h-0 overflow-auto">
+      <div ref="sessionListEl" class="flex-1 min-h-0 overflow-auto" @contextmenu.prevent>
         <div v-if="runsStore.loading" class="px-4 py-3 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
         <div v-else-if="runsStore.runs.length === 0" class="px-4 py-6 text-center text-xs text-muted-foreground">
           {{ t('run.noSessionsYet') }}
@@ -218,7 +226,8 @@ const {
           :key="run.id"
           :data-run-id="run.id"
           class="group relative border-b border-border/30 transition-colors hover:bg-accent/40 focus-within:bg-accent/40"
-          :class="{ 'bg-accent/60': currentRunId === run.id }"
+          :class="{ 'bg-accent/60': currentRunId === run.id, 'bg-accent/40': contextMenu?.runId === run.id }"
+          @contextmenu.prevent.stop="openRowMenu(run.id, $event.clientX, $event.clientY)"
         >
           <!-- Selected indicator bar -->
           <span
@@ -234,6 +243,7 @@ const {
             :class="historyDensity === 'comfortable' ? 'py-3' : historyDensity === 'compact' ? 'py-2' : 'py-1.5'"
             :title="historyDensity === 'dense' ? runDenseTooltip(run) : undefined"
             @click="loadRunLog(run.id)"
+            @keydown="onRowKeydown($event, run.id)"
           >
             <!-- Title line: status · badges · title · workers · markers · time -->
             <div class="flex items-center" :class="historyDensity === 'comfortable' ? 'gap-2' : 'gap-1.5'">
@@ -479,6 +489,19 @@ const {
         </Button>
       </div>
     </div>
+
+    <!-- Right-click / Shift+F10 menu of a History row: the same items as its ⋯. -->
+    <ContextMenu
+      :open="!!contextMenu && !!contextMenuRun"
+      :x="contextMenu?.x ?? 0"
+      :y="contextMenu?.y ?? 0"
+      @close="closeRowMenu"
+    >
+      <template v-if="contextMenuRun">
+        <RunActionItems v-bind="runActionProps(contextMenuRun)" section="actions" v-on="runActionHandlers(contextMenuRun)" />
+        <RunActionItems v-bind="runActionProps(contextMenuRun)" section="delete" v-on="runActionHandlers(contextMenuRun)" />
+      </template>
+    </ContextMenu>
 
     <!-- Files tab: VSCode-style lazy file tree for this project. -->
     <FileTree

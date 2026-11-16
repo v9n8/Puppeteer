@@ -354,6 +354,7 @@ pub(crate) async fn fork(db: &Db, registry: &RunRegistry, run_id: &str, at_offse
             forked_from_run_id: Some(run_id.to_string()),
             end_reason: None,
             flag_id: None,
+            worktree_path: None,
         },
         conversation,
     })

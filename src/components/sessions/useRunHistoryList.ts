@@ -14,6 +14,8 @@ import {
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
+import { useFileActions } from '@/lib/fileActions'
+import { sessionWorkDir } from '@/lib/sessionPaths'
 import { useRunFlagFilter } from './useRunFlagFilter'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
@@ -44,6 +46,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     loadInputContent, clearHistoryView, forking, forkRun, loadRunLog,
   } = log
   const sessionTabs = useSessionTabsStore()
+  const fileActions = useFileActions()
 
   const repos = ref<Repo[]>([])
 
@@ -369,6 +372,19 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // trigger stays visible even when the pointer leaves the row while open.
   const actionsMenuRunId = ref<string | null>(null)
 
+  // The right-click / Shift+F10 menu of a History row: the same items as its ⋯
+  // menu, but anchored to a point. The row counts as "menu open" meanwhile.
+  const contextMenu = ref<{ runId: string; x: number; y: number } | null>(null)
+  const contextMenuRun = computed(() => runsStore.runs.find(r => r.id === contextMenu.value?.runId) ?? null)
+  function openRowMenu(runId: string, x: number, y: number) {
+    contextMenu.value = { runId, x, y }
+    actionsMenuRunId.value = runId
+  }
+  function closeRowMenu() {
+    if (contextMenu.value && actionsMenuRunId.value === contextMenu.value.runId) actionsMenuRunId.value = null
+    contextMenu.value = null
+  }
+
   // Inline rename state for the History list.
   const renamingRunId = ref<string | null>(null)
   const renameDraft = ref('')
@@ -398,6 +414,23 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     } catch (e) {
       toast.error(String(e))
     }
+  }
+
+  // The folder a session works in: a worker's worktree, else the Project.
+  async function copyWorkDir(run: RunRecord) {
+    const dir = sessionWorkDir(run, project.value?.path)
+    if (!dir) return
+    try {
+      await navigator.clipboard.writeText(dir)
+      toast.success(t('run.workDirCopied'))
+    } catch (e) {
+      toast.error(String(e))
+    }
+  }
+
+  function revealWorkDir(run: RunRecord) {
+    const dir = sessionWorkDir(run, project.value?.path)
+    if (dir) return fileActions.revealDir(dir)
   }
 
   // Copy this run/session's Puppeteer run ID to the clipboard — the id the puppeteer MCP
@@ -503,6 +536,8 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   function runActionHandlers(run: RunRecord, rename: (run: RunRecord) => void = startRename) {
     return {
       popout: () => popoutSession(run.id),
+      copyWorkDir: () => copyWorkDir(run),
+      revealWorkDir: () => revealWorkDir(run),
       openGithub: () => openRunInBrowser(run),
       refetch: () => handleRefetch(run.id),
       copyLogPath: () => copyLogPath(run),
@@ -689,7 +724,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
     runTimestamp, sessionSearch, projectFlags, flagFilter, flagCounts, flagOptions, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
-    runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId,
+    runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId,
     renameDraft, setRenameInputRef, cancelRename, commitRename, applyRename, renameViaPrompt, runActionProps,
     runActionHandlers, handleClearAllRuns, handleRefInput,
   }

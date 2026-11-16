@@ -4,8 +4,8 @@
 // the same rules. RunView owns the handlers (and their busy state); this only
 // renders and emits.
 //
-//   section 'actions'  Pop out · Open on GitHub · Refetch · Copy log path ·
-//                      Copy session ID · View log file · Export transcript |
+//   section 'actions'  Pop out · Copy path · Reveal folder · Open on GitHub · Refetch |
+//                      Copy log path · Copy session ID · View log file · Export transcript |
 //                      Flag ▸ · Fork · Rename · Pin · Protect
 //   section 'delete'   | Delete (hidden while the run is running)
 import { computed } from 'vue'
@@ -13,8 +13,10 @@ import { useI18n } from 'vue-i18n'
 import {
   AppWindow,
   ClipboardCopy,
+  Copy,
   ExternalLink,
   FileDown,
+  FolderOpen,
   Flag,
   GitFork,
   Hash,
@@ -33,6 +35,7 @@ import type { RunRecord } from '@/stores/runs'
 import { useSessionFlagsStore } from '@/stores/sessionFlags'
 import { flagById, flagLabel } from '@/lib/sessionFlags'
 import { canForkRun } from '@/lib/runFork'
+import { platformOf, revealLabelKey } from '@/lib/sessionPaths'
 
 const props = defineProps<{
   run: RunRecord
@@ -47,6 +50,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   popout: []
+  copyWorkDir: []
+  revealWorkDir: []
   openGithub: []
   refetch: []
   copyLogPath: []
@@ -61,6 +66,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const revealKey = revealLabelKey(platformOf(navigator.userAgent))
 const flagsStore = useSessionFlagsStore()
 const currentFlagName = computed(() => {
   const flag = flagById(flagsStore.flagsOf(props.run.project_id), props.run.flag_id)
@@ -76,6 +82,15 @@ const currentFlagName = computed(() => {
       <AppWindow class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.popOutSession') }}
     </DropdownItem>
+    <!-- The folder the session works in (a worker's worktree when it has one). -->
+    <DropdownItem @click="emit('copyWorkDir')">
+      <Copy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+      {{ t('run.copyWorkDir') }}
+    </DropdownItem>
+    <DropdownItem @click="emit('revealWorkDir')">
+      <FolderOpen class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+      {{ t(revealKey) }}
+    </DropdownItem>
     <DropdownItem v-if="githubUrl" @click="emit('openGithub')">
       <ExternalLink class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ run.run_type === 'analyze_issue' ? t('run.openIssueOnGithub') : t('run.openPrOnGithub') }}
@@ -88,6 +103,7 @@ const currentFlagName = computed(() => {
       <RefreshCw class="h-3.5 w-3.5 shrink-0" :class="{ 'animate-spin': busy.refetching }" :stroke-width="1.75" />
       {{ run.run_type === 'analyze_issue' ? t('run.refetchIssue') : t('run.refetchPr') }}
     </DropdownItem>
+    <DropdownSeparator />
     <DropdownItem @click="emit('copyLogPath')">
       <ClipboardCopy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.copyLogPath') }}

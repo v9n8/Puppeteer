@@ -117,6 +117,14 @@
   "dockToMain": "Gộp về cửa sổ chính",
   "viewProject": "Xem Project",
   "popOutSession": "Mở trong cửa sổ mới",
+  "copyWorkDir": "Sao chép đường dẫn",
+  "workDirCopied": "Đã sao chép đường dẫn",
+  "workDirNotFound": "Không tìm thấy thư mục: {path}",
+  "revealDir": {
+    "mac": "Hiện trong Finder",
+    "windows": "Hiện trong Explorer",
+    "linux": "Mở thư mục chứa"
+  },
   "questionInOwnWindow": "Câu hỏi đang ở cửa sổ riêng — bấm để thu về drawer",
   "dockBack": "Thu về",
   "loadingLog": "Đang tải log…",

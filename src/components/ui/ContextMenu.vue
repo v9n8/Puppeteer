@@ -29,6 +29,8 @@ async function place() {
     x: Math.max(EDGE_MARGIN, Math.min(props.x, window.innerWidth - width - EDGE_MARGIN)),
     y: Math.max(EDGE_MARGIN, Math.min(props.y, window.innerHeight - height - EDGE_MARGIN)),
   }
+  // So ↑ ↓ Enter work at once (the keyboard-opened menu has no pointer to aim with).
+  moveFocus(1)
 }
 
 // Dismiss on outside interaction / Escape. Pointerdowns INSIDE the panel are
@@ -38,8 +40,28 @@ function onGlobalPointer(e: PointerEvent) {
   if (panel.value && e.target instanceof Node && panel.value.contains(e.target)) return
   emit('close')
 }
+// ↑ ↓ walk the rows (of the open submenu while focus is in one), wrapping at the
+// ends — the same as the ⋯ DropdownMenu.
+function moveFocus(step: 1 | -1) {
+  const active = document.activeElement
+  const sub = active instanceof Element && panel.value?.contains(active)
+    ? active.closest<HTMLElement>('[data-submenu-panel]')
+    : null
+  const scope = sub ?? panel.value
+  if (!scope) return
+  const rows = [...scope.querySelectorAll<HTMLElement>('button:not(:disabled)')]
+    .filter((el) => el.closest('[data-submenu-panel]') === sub)
+  if (!rows.length) return
+  const at = active instanceof HTMLElement ? rows.indexOf(active) : -1
+  rows[at === -1 ? (step === 1 ? 0 : rows.length - 1) : (at + step + rows.length) % rows.length].focus()
+}
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
+  const pressed = e.key
+  if (pressed === 'Escape') emit('close')
+  else if (pressed === 'ArrowDown' || pressed === 'ArrowUp') {
+    e.preventDefault()
+    moveFocus(pressed === 'ArrowDown' ? 1 : -1)
+  }
 }
 
 function bind(on: boolean) {
