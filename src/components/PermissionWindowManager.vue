@@ -18,6 +18,7 @@ import {
   permissionWindowLabel,
 } from '@/lib/permissionWindow'
 import { runDisplayName } from '@/lib/tray'
+import { permissionPurpose } from '@/lib/permissionImpact'
 
 const live = useLiveRunsStore()
 
@@ -56,9 +57,18 @@ function sessionOf(runId: string) {
 }
 
 function sync(runId: string) {
+  const s = live.get(runId)
+  // Every waiting request with its "why", so the window can page through them
+  // (view only: decisions always answer the head, see decide()).
+  const queue = (s?.permissionQueue ?? []).map((request) => ({
+    request,
+    purpose: permissionPurpose(request, s?.entries),
+  }))
   void emit(`permission:sync:${runId}`, {
     request: headOf(runId),
-    allowedTools: live.get(runId)?.allowedTools ?? [],
+    purpose: queue[0]?.purpose ?? null,
+    queue,
+    allowedTools: s?.allowedTools ?? [],
     session: sessionOf(runId),
   })
 }
@@ -209,6 +219,15 @@ watch(
     const { name, project } = sessionOf(runId)
     return `${runId}\u0000${name}\u0000${project}`
   }).join('\u0001'),
+  () => {
+    for (const runId of tracked.keys()) sync(runId)
+  },
+)
+
+// A request queuing behind the head leaves `pending` unchanged; re-sync so the
+// window's "1/3" count stays right.
+watch(
+  () => [...live.sessions].map(([runId, s]) => `${runId}:${s.permissionQueue.map((r) => r.request_id).join(',')}`).join('|'),
   () => {
     for (const runId of tracked.keys()) sync(runId)
   },

@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { ShieldAlert, Check, X, FileEdit, HelpCircle, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
+import { permissionDiffParts } from '@/lib/permissionImpact'
+import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 
 const { t } = useI18n()
 
@@ -24,13 +26,19 @@ export interface PermissionRequest {
   once_only?: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   request: PermissionRequest
+  /** Why the agent wants this (see permissionPurpose); hidden when empty. */
+  purpose?: string | null
+  /** `window`: fills its host (pop-out window / drawer). `inline`: sized by its content. */
+  layout?: 'window' | 'inline'
+  /** Grab focus on mount so the hotkeys work; an inline host turns this off. */
+  autofocus?: boolean
   /** Names of tools the user already chose "allow always" for, this session. */
   allowedTools?: string[]
   /** Markdown → HTML renderer (used to show the plan for ExitPlanMode). */
   renderText?: (md: string) => string
-}>()
+}>(), { purpose: null, layout: 'window', autofocus: true })
 
 const emit = defineEmits<{
   decide: [decision: 'allow' | 'deny', remember: boolean]
@@ -43,41 +51,7 @@ function asObject(v: unknown): Record<string, unknown> {
 
 const input = computed(() => asObject(props.request.tool_input))
 
-const filePath = computed(() => {
-  const p = input.value['file_path'] ?? input.value['path']
-  return typeof p === 'string' ? p : ''
-})
-
-/** Edit/Write/MultiEdit produce a diff we can show inline, like the extension. */
-interface DiffPart {
-  before: string
-  after: string
-}
-const diffParts = computed<DiffPart[]>(() => {
-  const name = props.request.tool_name
-  const inp = input.value
-  if (name === 'Edit') {
-    const before = typeof inp['old_string'] === 'string' ? (inp['old_string'] as string) : ''
-    const after = typeof inp['new_string'] === 'string' ? (inp['new_string'] as string) : ''
-    if (before || after) return [{ before, after }]
-  }
-  if (name === 'MultiEdit' && Array.isArray(inp['edits'])) {
-    return (inp['edits'] as unknown[])
-      .map((e) => asObject(e))
-      .map((e) => ({
-        before: typeof e['old_string'] === 'string' ? (e['old_string'] as string) : '',
-        after: typeof e['new_string'] === 'string' ? (e['new_string'] as string) : '',
-      }))
-      .filter((d) => d.before || d.after)
-  }
-  if (name === 'Write') {
-    const after = typeof inp['content'] === 'string' ? (inp['content'] as string) : ''
-    if (after) return [{ before: '', after }]
-  }
-  return []
-})
-
-const hasDiff = computed(() => diffParts.value.length > 0)
+const hasDiff = computed(() => permissionDiffParts(props.request).length > 0)
 
 /** AskUserQuestion: render the structured questions as selectable options. */
 const isQuestions = computed(() => props.request.tool_name === 'AskUserQuestion')
@@ -271,35 +245,12 @@ const headerTitle = computed(() => {
   return props.request.title || (isQuestions.value ? t('permission.headerQuestion') : t('permission.headerRequest'))
 })
 
-const commandPreview = computed(() => {
-  const inp = input.value
-  for (const k of ['command', 'url', 'pattern', 'query']) {
-    if (typeof inp[k] === 'string') return inp[k] as string
-  }
-  return ''
-})
-
-const inputPreview = computed(() => {
-  const inp = props.request.tool_input
-  if (inp == null) return ''
-  if (typeof inp === 'string') return inp
-  try {
-    return JSON.stringify(inp, null, 2)
-  } catch {
-    return String(inp)
-  }
-})
-
-function splitLines(s: string): string[] {
-  return s.length ? s.split('\n') : []
-}
-
 // --- Hotkeys ---------------------------------------------------------------
 // The panel grabs focus when it appears so its keydown handler receives keys
 // without stealing them from the composer when the user clicks back into it.
 const rootEl = ref<HTMLElement | null>(null)
 onMounted(() => {
-  rootEl.value?.focus()
+  if (props.autofocus) rootEl.value?.focus()
 })
 
 function isEditableTarget(e: KeyboardEvent): boolean {
@@ -375,8 +326,8 @@ function onKeydown(e: KeyboardEvent) {
   <div
     ref="rootEl"
     tabindex="-1"
-    class="prompt-attention flex h-full min-h-0 flex-col border-t-2 bg-card outline-none"
-    :class="isQuestions || isPlan ? 'border-t-info/70' : 'border-t-warning/70'"
+    class="prompt-attention flex min-h-0 flex-col border-t-2 bg-card outline-none"
+    :class="[layout === 'window' ? 'h-full' : '', isQuestions || isPlan ? 'border-t-info/70' : 'border-t-warning/70']"
     role="dialog"
     :aria-label="headerTitle"
     @keydown="onKeydown"
@@ -488,56 +439,8 @@ function onKeydown(e: KeyboardEvent) {
         >{{ planText || t('permission.noPlanDetails') }}</pre>
       </div>
 
-      <div v-else class="flex-1 min-h-0 px-5 py-4 space-y-3 overflow-auto">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-2xs uppercase tracking-wider text-foreground/40">{{ t('permission.tool') }}</span>
-          <span class="font-mono text-sm text-primary">{{ request.display_name || request.tool_name }}</span>
-          <span v-if="filePath" class="font-mono text-xs text-foreground/50 truncate">{{ filePath }}</span>
-        </div>
-
-        <!-- Diff view for Edit / MultiEdit / Write -->
-        <div v-if="hasDiff" class="space-y-3">
-          <div
-            v-for="(part, i) in diffParts"
-            :key="i"
-            class="rounded-md border border-border overflow-hidden font-mono text-2xs leading-relaxed"
-          >
-            <div v-if="part.before" class="bg-red-500/10 dark:bg-red-500/5">
-              <div
-                v-for="(ln, li) in splitLines(part.before)"
-                :key="'b' + li"
-                class="flex"
-              >
-                <span class="select-none w-5 text-center text-red-600 dark:text-red-400/70 bg-red-500/15 dark:bg-red-500/10 shrink-0">-</span>
-                <span class="px-2 text-red-700 dark:text-red-200/90 whitespace-pre-wrap break-words">{{ ln || ' ' }}</span>
-              </div>
-            </div>
-            <div v-if="part.after" class="bg-emerald-500/10 dark:bg-emerald-500/5">
-              <div
-                v-for="(ln, li) in splitLines(part.after)"
-                :key="'a' + li"
-                class="flex"
-              >
-                <span class="select-none w-5 text-center text-emerald-600 dark:text-emerald-400/70 bg-emerald-500/15 dark:bg-emerald-500/10 shrink-0">+</span>
-                <span class="px-2 text-emerald-700 dark:text-emerald-100/90 whitespace-pre-wrap break-words">{{ ln || ' ' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Command / target for bash, web, etc. -->
-        <div
-          v-else-if="commandPreview"
-          class="rounded-md bg-foreground/5 border border-border px-3 py-2"
-        >
-          <div class="text-2xs uppercase tracking-wider text-foreground/40 mb-1">{{ t('permission.commandTarget') }}</div>
-          <pre class="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{{ commandPreview }}</pre>
-        </div>
-
-        <details class="rounded-md bg-foreground/5 border border-border">
-          <summary class="px-3 py-2 text-xs text-foreground/60 cursor-pointer select-none">{{ t('permission.fullInput') }}</summary>
-          <pre class="px-3 pb-2 text-2xs font-mono text-foreground/70 whitespace-pre-wrap break-words max-h-80 overflow-auto">{{ inputPreview }}</pre>
-        </details>
+      <div v-else class="flex-1 min-h-0 px-5 py-4 overflow-auto">
+        <PermissionRequestBody :request="request" :purpose="purpose" />
       </div>
 
       <div class="@container/footer px-5 py-3 border-t border-border shrink-0">
