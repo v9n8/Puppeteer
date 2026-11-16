@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The sessions linked to a Slack thread / note / todo, in its header next to
 // its project: a "Sessions" button with the linked count (muted at 0) — the
-// mirror of RunView's RunLinkedKindMenu — opening one menu with two sections:
+// mirror of the session info bar's Links menu (SessionLinksMenu) — opening one menu with two sections:
 //
 //   Linked sessions   rows (status dot, name, last activity): click opens the
 //                     session in the main window, × on hover unlinks it

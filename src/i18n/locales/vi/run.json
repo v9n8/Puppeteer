@@ -332,10 +332,46 @@
   "notRunSessionHint": "gõ mục tiêu ở khung chat phía dưới để khởi chạy Session",
   "statusBar": {
     "label": "Thanh trạng thái của Session",
-    "contextTitle": "Context — bấm để compact",
     "compact": "Compact context",
-    "projectTitle": "Project — xem và sửa Project này",
-    "accountModelTitle": "Tài khoản · model — bấm để đổi tài khoản hoặc model"
+    "projectTitle": "Project — xem và sửa Project này"
+  },
+  "infoBar": {
+    "context": {
+      "title": "Context {used} / {limit} ({pct}%) — bấm để compact",
+      "heading": "Context {used} / {limit} · {pct}%",
+      "warnLine": "Cảnh báo từ {pct}% (Cài đặt › Giới hạn).",
+      "compactHint": "Nén hội thoại để giải phóng context (gửi /compact)"
+    },
+    "connections": {
+      "title": "Kết nối của Session: {parts}",
+      "git": "Tài khoản Git",
+      "servers": "Máy chủ",
+      "aws": "AWS",
+      "azure": "Azure",
+      "isDefault": "mặc định",
+      "review": "review",
+      "offline": "ngoại tuyến",
+      "edit": "Sửa ở Project › Kết nối",
+      "parts": {
+        "git": "{n} tài khoản Git | {n} tài khoản Git",
+        "servers": "{n} máy chủ | {n} máy chủ",
+        "aws": "{n} tài khoản AWS | {n} tài khoản AWS",
+        "azure": "{n} tài khoản Azure | {n} tài khoản Azure"
+      }
+    },
+    "links": {
+      "title": "Liên kết: {parts}",
+      "titleNone": "Liên kết của Session — chưa có",
+      "slackGroup": "Thread Slack · {n}",
+      "todoGroup": "Việc của Session này · {n}",
+      "noteGroup": "Ghi chú · {n}",
+      "toggleTodo": "Đánh dấu xong / chưa xong",
+      "parts": {
+        "slack": "{n} thread Slack | {n} thread Slack",
+        "todos": "{n} việc | {n} việc",
+        "notes": "{n} ghi chú | {n} ghi chú"
+      }
+    }
   },
   "fork": {
     "action": "Fork Session",

@@ -1,9 +1,10 @@
 // What a session is linked to — Slack threads, notes, todos — loaded once for
-// RunView's three header menus (RunLinkedKindMenu): one request per source, not
+// the info bar's Links menu (SessionLinksMenu): one request per source, not
 // per menu. Resyncs on `slack-threads://changed` / `item:changed` (links,
 // renames and deletes all emit them), debounced.
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { invoke } from '@/lib/tauri'
 import { ITEM_CHANGED } from '@/lib/itemWindow'
 import { listRunItems, type RunLinkedItem } from '@/lib/sessionLinks'
 import {
@@ -63,5 +64,17 @@ export function useRunLinkedItems(runId: Ref<string | null>) {
     unlisten = []
   })
 
-  return { threads, notes, todos }
+  /** Tick / untick a linked todo; the row flips at once and is reloaded if the call fails. */
+  async function toggleTodo(id: string) {
+    const todo = items.value.find((i) => i.kind === 'todo' && i.id === id)
+    if (!todo) return
+    todo.done = !todo.done
+    try {
+      await invoke('toggle_todo', { id })
+    } catch {
+      await load()
+    }
+  }
+
+  return { threads, notes, todos, toggleTodo }
 }

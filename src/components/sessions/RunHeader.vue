@@ -1,26 +1,21 @@
 <script setup lang="ts">
-// The run screen's header: the session's name (click to rename), project name, the account / server / cloud chips,
-// the Bookmarks and Find buttons, the linked-item menus and the ⋯ menu. State lives in useRunSession.
+// The run screen's header: the session's name (click to rename), the Bookmarks and Find buttons and the ⋯ menu.
+// Connections and links live in the info bar under the composer. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
 import {
-  Terminal, Settings, Code2, FolderOpen, Maximize2, Minimize2, Check, HardDrive, Cloud, CloudCog,
-  MoreHorizontal, Search,
+  Terminal, Settings, Code2, FolderOpen, Maximize2, Minimize2, Check, MoreHorizontal, Search,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
-import RunLinkedKindMenu from '@/components/sessions/RunLinkedKindMenu.vue'
-import { Button, Badge, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
+import { Button, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import SessionTitle from '@/components/sessions/SessionTitle.vue'
 import SessionBookmarksMenu from '@/components/sessions/SessionBookmarksMenu.vue'
-import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import { useRunSession } from './useRunSession'
 import { projectPageQuery } from '@/lib/projectSections'
 
 const { t } = useI18n()
 const {
-  router, features, uiLayout, projectId, project, isSessionWindow, currentRun, activeAccounts,
-  visibleServerChips, hiddenServerChips, hiddenServerTitle, awsChip, azureChip, openQuickCapture,
-  linked, handleOpenInVscode, handleOpenInFolder, handleOpenInTerminal, runGithubUrl,
-  renameViaPrompt, runActionProps, runActionHandlers, runFind,
+  router, uiLayout, projectId, project, isSessionWindow, currentRun, handleOpenInVscode,
+  handleOpenInFolder, handleOpenInTerminal, renameViaPrompt, runActionProps, runActionHandlers, runFind,
 } = useRunSession()
 </script>
 
@@ -28,70 +23,8 @@ const {
   <div class="flex items-center justify-between gap-3 px-4 h-12 border-b border-border/60 shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <SessionTitle />
-      <span class="truncate text-sm text-muted-foreground">{{ project?.name ?? t('run.projectFallback') }}</span>
-      <Badge
-        v-for="acc in activeAccounts"
-        :key="acc.key"
-        :tone="acc.tone"
-        size="sm"
-        class="font-mono shrink-0 inline-flex items-center gap-1"
-        :title="acc.title"
-      >
-        <component :is="acc.icon" class="h-3 w-3" :stroke-width="1.75" />
-        {{ acc.username }}
-        <span v-if="acc.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ acc.tag }}</span>
-      </Badge>
-      <!-- VPS servers wired to this project (transparent SSH per run). -->
-      <Badge
-        v-for="chip in visibleServerChips"
-        :key="chip.key"
-        :tone="chip.tone"
-        size="sm"
-        class="shrink-0 inline-flex items-center gap-1"
-        :title="chip.title"
-      >
-        <HardDrive class="h-3 w-3" :stroke-width="2" />
-        {{ chip.label }}
-      </Badge>
-      <Badge
-        v-if="hiddenServerChips.length"
-        tone="neutral"
-        size="sm"
-        class="shrink-0 inline-flex items-center gap-1"
-        :title="hiddenServerTitle"
-      >
-        <HardDrive class="h-3 w-3" :stroke-width="2" />
-        +{{ hiddenServerChips.length }}
-      </Badge>
-      <!-- Default AWS account (credentials brokered per run); +N other enabled. -->
-      <Badge
-        v-if="awsChip"
-        tone="primary"
-        size="sm"
-        class="shrink-0 inline-flex items-center gap-1"
-        :title="awsChip.title"
-      >
-        <Cloud class="h-3 w-3" :stroke-width="2" />
-        {{ awsChip.label }}
-        <span class="opacity-90 font-mono">{{ awsChip.region }}</span>
-        <span v-if="awsChip.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ awsChip.tag }}</span>
-      </Badge>
-      <!-- Default Azure account (az login isolated per account); +N other enabled. -->
-      <Badge
-        v-if="azureChip"
-        tone="primary"
-        size="sm"
-        class="shrink-0 inline-flex items-center gap-1"
-        :title="azureChip.title"
-      >
-        <CloudCog class="h-3 w-3" :stroke-width="2" />
-        {{ azureChip.label }}
-        <span v-if="azureChip.subscription" class="opacity-90">{{ azureChip.subscription }}</span>
-        <span v-if="azureChip.tag" class="font-sans text-2xs uppercase tracking-wide opacity-70">{{ azureChip.tag }}</span>
-      </Badge>
     </div>
-    <!-- Icon-only actions: the linked Slack / todo / note menus, then one ⋯
-         menu for the rest. Labels live in the tooltips so the header stays
+    <!-- Icon-only actions, then one ⋯ menu for the rest. Labels live in the tooltips so the header stays
          short no matter how narrow the pane gets.
          Bookmarks and Find stay in a session pop-out; the rest is hidden there
          for now (that window is a bare conversation view). -->
@@ -111,35 +44,6 @@ const {
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
     <template v-if="!isSessionWindow">
-      <!-- What this session is linked to: Slack threads (only when there are
-           some), todos, notes. The todo / note menus end with "+ New …", the
-           capture filed under this run. -->
-      <RunLinkedKindMenu v-if="features.allows('run.linkedSlack')" kind="slack" :threads="linked.threads.value" />
-      <RunLinkedKindMenu
-        v-if="features.allows('run.linkedTodos')"
-        kind="todo"
-        :items="linked.todos.value"
-        @create="openQuickCapture('todo')"
-      />
-      <RunLinkedKindMenu
-        v-if="features.allows('run.linkedNotes')"
-        kind="note"
-        :items="linked.notes.value"
-        @create="openQuickCapture('note')"
-      />
-
-      <!-- A run made from an issue: "+ Todo" for that issue, linked to this run (Focus §3.1). -->
-      <AddTodoButton
-        v-if="currentRun?.run_type === 'analyze_issue' && runGithubUrl(currentRun)"
-        :prefill="{
-          text: currentRun.title ?? `#${currentRun.ref_number}`,
-          projectId: currentRun.project_id,
-          runId: currentRun.id,
-          sourceUrl: runGithubUrl(currentRun),
-        }"
-        variant="icon"
-      />
-
       <!-- Everything else lives in one ⋯ menu: open the project elsewhere ·
            this session's actions (the History row's, RunActionItems) ·
            remote / focus mode / project settings · delete. -->

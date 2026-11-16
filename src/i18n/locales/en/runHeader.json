@@ -4,11 +4,9 @@
     "githubDefault": "GitHub account: {name} (default)",
     "gitlabDefault": "GitLab account: {who} (default)",
     "onHost": " on {host}",
-    "alsoEnabled": "Also enabled: {list}",
     "awsDefault": "AWS: {label} (default)",
     "azureDefault": "Azure: {label} (default)",
     "account": "account {id}",
-    "region": "region {region}",
     "subscription": "subscription {name}",
     "tenant": "tenant {id}",
     "serverAuth": "auth {auth}"

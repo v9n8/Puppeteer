@@ -332,10 +332,46 @@
   "notRunSessionHint": "type your goal in the chat box below to launch the session",
   "statusBar": {
     "label": "Session status bar",
-    "contextTitle": "Context — click to compact",
     "compact": "Compact context",
-    "projectTitle": "Project — view and edit this project",
-    "accountModelTitle": "Account · model — click to switch account or model"
+    "projectTitle": "Project — view and edit this project"
+  },
+  "infoBar": {
+    "context": {
+      "title": "Context {used} / {limit} ({pct}%) — click to compact",
+      "heading": "Context {used} / {limit} · {pct}%",
+      "warnLine": "Warns from {pct}% (Settings › Limits).",
+      "compactHint": "Compresses the conversation to free up context (sends /compact)"
+    },
+    "connections": {
+      "title": "Connections of this session: {parts}",
+      "git": "Git accounts",
+      "servers": "Servers",
+      "aws": "AWS",
+      "azure": "Azure",
+      "isDefault": "default",
+      "review": "review",
+      "offline": "offline",
+      "edit": "Edit in Project › Connections",
+      "parts": {
+        "git": "{n} Git account | {n} Git accounts",
+        "servers": "{n} server | {n} servers",
+        "aws": "{n} AWS account | {n} AWS accounts",
+        "azure": "{n} Azure account | {n} Azure accounts"
+      }
+    },
+    "links": {
+      "title": "Links: {parts}",
+      "titleNone": "Links of this session — none yet",
+      "slackGroup": "Slack threads · {n}",
+      "todoGroup": "Todos of this session · {n}",
+      "noteGroup": "Notes · {n}",
+      "toggleTodo": "Mark done / not done",
+      "parts": {
+        "slack": "{n} Slack thread | {n} Slack threads",
+        "todos": "{n} todo | {n} todos",
+        "notes": "{n} note | {n} notes"
+      }
+    }
   },
   "fork": {
     "action": "Fork session",

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The run screen: left rail, then the session column (header, AI result pane,
-// composer), conductor sidebar and status bar. Each part lives in components/sessions and shares
+// composer, info bar) and conductor sidebar. Each part lives in components/sessions and shares
 // this view's state through createRunSession / useRunSession (UX-03).
 import RewindDialog from '@/components/sessions/RewindDialog.vue'
 import RunHeader from '@/components/sessions/RunHeader.vue'
@@ -32,6 +32,9 @@ const {
 
         <!-- Composer: prompt input on top, run controls in the footer below -->
         <RunComposer v-if="composerVisible" />
+
+        <!-- Info bar: usage, context, connections, links. Shown with the composer. -->
+        <RunStatusBar v-if="composerVisible" />
       </div>
 
       <!-- Conductor worker sidebar: for a live conductor, and also for a
@@ -41,10 +44,6 @@ const {
            collapsible to a thin rail. -->
       <RunWorkerSidebar v-if="showWorkerPanel" />
     </div>
-
-    <!-- Status bar: usage, context, project, account · model. Shown with the
-         composer, whose run-options menu its account · model chip opens. -->
-    <RunStatusBar v-if="composerVisible" />
 
     <RewindDialog
       :run-id="rewindTarget?.runId ?? null"

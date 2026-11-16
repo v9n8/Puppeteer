@@ -1,27 +1,30 @@
 <script setup lang="ts">
-// The session status bar at the bottom of the run screen (UX-22): account plan
-// usage on the left, then the context, project and account · model chips.
+// The session info bar under the composer (V3-16), in the session column: plan
+// usage on the left; on the right the context, then Connections and Links. A
+// session not yet started (nothing sent) shows only the usage rings.
 // RunView shows it with the composer. State lives in useRunSession.
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Folder, FoldVertical } from 'lucide-vue-next'
-import ContextMeter from '@/components/ContextMeter.vue'
+import { Folder } from 'lucide-vue-next'
 import UsageRings from '@/components/UsageRings.vue'
-import { DropdownMenu, DropdownItem } from '@/components/ui'
 import { useProjectQuickView } from '@/composables/useProjectQuickView'
+import SessionConnectionsMenu from './SessionConnectionsMenu.vue'
+import SessionContextChip from './SessionContextChip.vue'
+import SessionLinksMenu from './SessionLinksMenu.vue'
+import { INFO_CHIP } from './infoBarStyle'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const quickView = useProjectQuickView()
 const {
-  features, project, isSessionWindow, contextTokens, contextModel,
-  contextRateLimit, sendSlashCommand, sendingFollowUp, accountMenuOpen, toggleAccountMenu,
-  engineBadgeIcon, accountModelLabel,
+  features, project, isSessionWindow, contextTokens, currentStatus, connectionGroups,
 } = useRunSession()
 
-const CHIP =
-  'inline-flex h-5 min-w-0 shrink-0 items-center gap-1.5 rounded px-1.5 text-2xs text-muted-foreground '
-  + 'transition-colors cursor-pointer hover:bg-muted hover:text-foreground '
-  + 'disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
+const started = computed(() => currentStatus.value !== 'fetched')
+const hasMenus = computed(
+  () => connectionGroups.value.length > 0
+    || features.allows('run.linkedSlack') || features.allows('run.linkedTodos') || features.allows('run.linkedNotes'),
+)
 
 // Opens the project's quick view (UX-52) over the session. Only the main window
 // hosts it, so in a session pop-out the chip only shows the name.
@@ -32,7 +35,7 @@ function openProject() {
 
 <template>
   <footer
-    class="flex h-7 shrink-0 items-center gap-1 border-t border-border bg-card/40 px-2 min-w-0"
+    class="flex h-8 shrink-0 items-center gap-1 border-t border-border bg-card/40 px-2 min-w-0"
     :aria-label="t('run.statusBar.label')"
   >
     <!-- Usage slot: one plan usage ring per account (UX-23). Unmounting the
@@ -41,59 +44,24 @@ function openProject() {
       <UsageRings v-if="features.isOn('usage.context_meter')" />
     </div>
 
-    <!-- Context: this run's context window; the menu holds /compact. Hidden
-         until the run has used any context, like the meter itself. -->
-    <template v-if="contextTokens > 0">
-      <DropdownMenu align="right" prefer="above">
-        <template #trigger="{ open }">
-          <button
-            type="button"
-            :class="CHIP"
-            :title="t('run.statusBar.contextTitle')"
-            aria-haspopup="menu"
-            :aria-expanded="open"
-          >
-            <ContextMeter :tokens="contextTokens" :model="contextModel" :rate-limit="contextRateLimit" />
-          </button>
-        </template>
-        <DropdownItem
-          :disabled="sendingFollowUp"
-          :title="t('misc.context.compactTitle')"
-          @click="sendSlashCommand('/compact')"
-        >
-          <FoldVertical class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          {{ t('run.statusBar.compact') }}
-        </DropdownItem>
-      </DropdownMenu>
-      <span class="h-3 w-px shrink-0 bg-border" />
+    <template v-if="started">
+      <SessionContextChip />
+      <span v-if="contextTokens > 0 && hasMenus" class="h-3 w-px shrink-0 bg-border" />
+      <SessionConnectionsMenu />
+      <SessionLinksMenu />
     </template>
 
+    <!-- Project chip: V3-15 moves it out of this bar. -->
+    <span class="h-3 w-px shrink-0 bg-border" />
     <button
       type="button"
-      :class="CHIP"
+      :class="INFO_CHIP"
       :disabled="isSessionWindow"
       :title="isSessionWindow ? undefined : t('run.statusBar.projectTitle')"
       @click="openProject"
     >
       <Folder class="h-3 w-3 shrink-0" :stroke-width="1.75" />
       <span class="max-w-40 truncate">{{ project?.name ?? t('run.projectFallback') }}</span>
-    </button>
-    <span class="h-3 w-px shrink-0 bg-border" />
-
-    <!-- Account · model: opens the composer's account · model menu (the same
-         one as its chip; data-account-menu-trigger keeps that menu's
-         outside-click from closing it before this click toggles it). -->
-    <button
-      type="button"
-      :class="CHIP"
-      data-account-menu-trigger
-      :title="t('run.statusBar.accountModelTitle')"
-      aria-haspopup="dialog"
-      :aria-expanded="accountMenuOpen"
-      @click="toggleAccountMenu"
-    >
-      <component :is="engineBadgeIcon" class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-      <span class="max-w-60 truncate">{{ accountModelLabel }}</span>
     </button>
   </footer>
 </template>
