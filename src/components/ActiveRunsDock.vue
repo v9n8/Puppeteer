@@ -28,7 +28,7 @@ const { displayRows, waitingCount, doneCount, activeRunId, isFailure, failureLab
   useActiveRunRows()
 
 function seeAll() {
-  router.push('/processes').catch(() => {})
+  router.push('/running').catch(() => {})
 }
 </script>
 

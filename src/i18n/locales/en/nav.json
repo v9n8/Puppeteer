@@ -14,7 +14,6 @@
   "calendar": "Calendar",
   "settings": "Settings",
   "opensInWindow": "opens in a separate window",
-  "processes": "Processes",
   "trash": "Trash",
   "detachWindow": "Open in new window",
   "detachWindowTip": "Open {screen} in its own window",
@@ -41,5 +40,6 @@
     "conflicts": "{n} conflict | {n} conflicts",
     "runs": "Active runs · {n}",
     "runsWaiting": "Active runs · {n}, {waiting} waiting for you"
-  }
+  },
+  "running": "Running"
 }

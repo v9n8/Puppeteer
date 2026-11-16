@@ -109,5 +109,86 @@
     "log": "Show log",
     "logEmpty": "(no output yet)",
     "logTruncated": "Only the end of the log is shown."
+  },
+  "running": {
+    "title": "Running",
+    "tabSession": "Session",
+    "tabProcesses": "Background processes",
+    "filter": {
+      "all": "All",
+      "wait": "Waiting for you",
+      "run": "Running",
+      "allProjects": "All Projects",
+      "projectTitle": "Filter by Project",
+      "sort": "Sorted by: waiting for you first, then longest running"
+    },
+    "col": {
+      "status": "Status",
+      "session": "Session",
+      "doing": "Doing",
+      "age": "Running for",
+      "waiting": "Waiting for",
+      "workers": "Workers"
+    },
+    "status": {
+      "wait": "Waiting for you",
+      "run": "Running",
+      "done": "Done",
+      "err": "Failed",
+      "stop": "Stopped"
+    },
+    "doing": {
+      "permission": "Asking permission: {tool}",
+      "workers": "Waiting for {n} worker to finish | Waiting for {n} workers to finish"
+    },
+    "waiting": {
+      "user": "You",
+      "agent": "Agent",
+      "worker": "Worker ({n})"
+    },
+    "action": {
+      "open": "Open",
+      "openTitle": "Open Session",
+      "stop": "Stop Session",
+      "stopTitle": "Stop Session · cancels the running turn",
+      "more": "More actions",
+      "openWorker": "Open worker",
+      "stopWorker": "Stop this worker",
+      "selectAll": "Select all Sessions",
+      "selectRow": "Select “{title}”",
+      "stopAll": "Stop all",
+      "stopAllTitle": "Stop every running Session"
+    },
+    "menu": {
+      "open": "Open Session",
+      "openWindow": "Open in its own window",
+      "viewProcesses": "View the Session's processes",
+      "stop": "Stop Session"
+    },
+    "finished": "Just finished, not seen yet ({n})",
+    "selection": {
+      "count": "{n} Session selected | {n} Sessions selected",
+      "workers": "· {n} of their workers stop too | · {n} of their workers stop too",
+      "clear": "Clear selection",
+      "stop": "Stop {n} Session | Stop {n} Sessions"
+    },
+    "confirm": {
+      "title": "Stop {n} Session? | Stop {n} Sessions?",
+      "message": "The running turn of each is cancelled:\n{names}",
+      "withWorkers": "The running turn of each is cancelled, and so are {w} of their workers:\n{names}",
+      "allTitle": "Stop all Sessions?",
+      "allMessage": "Every running Session shown here is cancelled ({n}):\n{names}",
+      "more": "… and {n} more"
+    },
+    "toast": {
+      "stopped": "Stopped {n} Session | Stopped {n} Sessions",
+      "failed": "Could not stop “{label}”: {error}"
+    },
+    "empty": {
+      "title": "No Session is running",
+      "hint": "Sessions you run in any Project, including ones a schedule starts, show up here until they finish.",
+      "openProjects": "Open Projects"
+    },
+    "stuck": "This Session may be stuck: it has stopped responding or has not started"
   }
 }

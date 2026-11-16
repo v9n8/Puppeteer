@@ -16,7 +16,7 @@ export const GROUP_LABEL_KEYS: Record<SidebarGroupId, string | null> = {
 
 /** Sidebar order. An id missing here sorts last, in the order it came in. */
 const ORDER: readonly string[] = [
-  '/session', '/projects', '/processes', '/schedules',
+  '/session', '/projects', '/running', '/schedules',
   '/tasks', '/notes', '/calendar', '/gantt', '/pr-inbox', '/slack', 'secret-notes',
   '/library', '/mcp', '/servers',
   '/stats', '/trash', '/settings',

@@ -47,7 +47,7 @@ async function stopAll() {
 
 function viewDetails() {
   open.value = false
-  router.push('/processes').catch(() => {})
+  router.push('/running?tab=processes').catch(() => {})
 }
 </script>
 

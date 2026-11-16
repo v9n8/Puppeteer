@@ -14,7 +14,6 @@
   "calendar": "Lịch",
   "settings": "Cài đặt",
   "opensInWindow": "mở trong cửa sổ riêng",
-  "processes": "Tiến trình",
   "trash": "Thùng rác",
   "detachWindow": "Tách cửa sổ",
   "detachWindowTip": "Tách cửa sổ: mở {screen} ở cửa sổ riêng",
@@ -41,5 +40,6 @@
     "conflicts": "{n} xung đột | {n} xung đột",
     "runs": "Run đang hoạt động · {n}",
     "runsWaiting": "Run đang hoạt động · {n}, {waiting} chờ bạn"
-  }
+  },
+  "running": "Đang chạy"
 }

@@ -82,7 +82,7 @@
     "expand": "Expand dock",
     "compactLabel": "{n} run active | {n} runs active",
     "popupSummary": "{n} · {w} waiting for you",
-    "seeAll": "See all",
+    "seeAll": "See all in Running",
     "seeAllCount": "See all ({n})",
     "strayProcesses": "{n} background process is still running after its session ended | {n} background processes are still running after their session ended",
     "closeEsc": "Close (Esc)"

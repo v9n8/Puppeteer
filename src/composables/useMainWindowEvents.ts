@@ -270,7 +270,7 @@ export function useMainWindowEvents() {
     // The tray's "Background processes" row: show the Processes screen here.
     try {
       unlistenTrayProcs = await listen(EVT_TRAY_OPEN, () => {
-        void openRouteFromWindow('/processes')
+        void openRouteFromWindow('/running?tab=processes')
       })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).

@@ -8,7 +8,7 @@ import {
   BarChart3,
   CalendarDays,
   Target,
-  Cpu,
+  Activity,
   Settings,
   Search,
   CalendarClock,
@@ -52,7 +52,7 @@ export const NAV_ROUTES: NavRoute[] = [
   // Virtual: the router sends it to the Session of the tab in use (or asks to add a Project).
   { path: '/session', labelKey: 'nav.session', icon: MessageSquare, group: 'work' },
   { path: '/projects', labelKey: 'nav.projects', icon: FolderOpen, group: 'work' },
-  { path: '/processes', labelKey: 'nav.processes', icon: Cpu, group: 'work' },
+  { path: '/running', labelKey: 'nav.running', icon: Activity, group: 'work' },
   { path: '/schedules', labelKey: 'nav.schedules', icon: CalendarClock, group: 'work', feature: 'orchestration.schedules' },
   { path: '/search', labelKey: 'nav.search', icon: Search, group: 'work', sidebar: false, feature: 'sessions.cross_session_search' },
     // The router's screen guard sends a screen to its own window when that is where the user keeps it.

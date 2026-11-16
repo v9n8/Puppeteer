@@ -1,15 +1,16 @@
 <script setup lang="ts">
-// Background processes manager: every process Puppeteer tracks (sessions, its own
-// helpers, and processes left behind by ended sessions or a previous app run),
-// with graceful stop / force kill per entry or per process and bulk cleanup.
+// "Background processes" tab of the Running screen: every process Puppeteer tracks
+// (sessions, its own helpers, and processes left behind by ended sessions or a
+// previous app run), with graceful stop / force kill per entry or per process and
+// bulk cleanup.
 //
-// Not in App.vue's KeepAlive list: it polls while shown, so the timer must end
-// on unmount.
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+// It polls while shown, so RunningView mounts it only while its tab is selected:
+// the timer ends on unmount.
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChevronRight, Cpu, RefreshCw, Trash2 } from 'lucide-vue-next'
-import { Button, Card, PageHeader, Banner } from '@/components/ui'
+import { Button, Card, Banner } from '@/components/ui'
 import ProcessEntryRow from '@/components/processes/ProcessEntryRow.vue'
 import DevServersCard from '@/components/processes/DevServersCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -23,7 +24,10 @@ import { focusSessionWindow } from '@/lib/sessionWindow'
 import { groupEntries, strayIds, type BgEntry } from '@/lib/backgroundProcesses'
 import { DEV_SERVERS_FEATURE } from '@/lib/devServers'
 
-defineOptions({ name: 'BackgroundProcessesView' })
+const props = defineProps<{
+  /** Scroll to this Session's group ("View processes" in the Session tab's ⋯ menu). */
+  focusRunId?: string | null
+}>()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -51,6 +55,25 @@ const now = ref(Date.now())
 watch(
   () => store.snapshot,
   () => (now.value = Date.now()),
+)
+
+// Scroll to the asked Session once its entry is in the list; the user's own
+// scrolling after that is left alone.
+const content = ref<HTMLElement | null>(null)
+const focusedFor = ref<string | null>(null)
+watch(
+  () => [props.focusRunId, entries.value.length] as const,
+  async ([id]) => {
+    if (!id || focusedFor.value === id) return
+    await nextTick()
+    const el = [...(content.value?.querySelectorAll<HTMLElement>('[data-run-id]') ?? [])].find(
+      (n) => n.dataset.runId === id,
+    )
+    if (!el) return
+    focusedFor.value = id
+    el.scrollIntoView({ block: 'center' })
+  },
+  { immediate: true },
 )
 
 const busy = reactive(new Set<string>())
@@ -167,29 +190,27 @@ const sections = computed(() => [
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Page header -->
-    <PageHeader :title="t('processes.title')" :count="totalProcesses > 0 ? totalProcesses : null">
-      <template #actions>
-        <Button variant="outline" size="icon" :title="t('processes.refresh')" :aria-label="t('processes.refresh')" @click="store.refresh()">
-          <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
-        <Button
-          v-if="strays.length > 0"
-          variant="destructive"
-          :disabled="bulkBusy"
-          @click="stopLeftovers"
-        >
-          <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ t('processes.stopAllLeftovers') }}
-        </Button>
-        <Button v-if="entries.length > 0" variant="outline" :disabled="bulkBusy" @click="stopEverything">
-          {{ t('processes.stopAll') }}
-        </Button>
-      </template>
-    </PageHeader>
+    <!-- Toolbar -->
+    <div class="flex shrink-0 items-center justify-end gap-2 px-6 pt-4">
+      <Button variant="outline" size="icon" :title="t('processes.refresh')" :aria-label="t('processes.refresh')" @click="store.refresh()">
+        <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" />
+      </Button>
+      <Button
+        v-if="strays.length > 0"
+        variant="destructive"
+        :disabled="bulkBusy"
+        @click="stopLeftovers"
+      >
+        <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+        {{ t('processes.stopAllLeftovers') }}
+      </Button>
+      <Button v-if="entries.length > 0" variant="outline" :disabled="bulkBusy" @click="stopEverything">
+        {{ t('processes.stopAll') }}
+      </Button>
+    </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto p-6">
+    <div ref="content" class="flex-1 overflow-auto p-6">
       <DevServersCard v-if="features.isOn(DEV_SERVERS_FEATURE)" class="mb-4 max-w-4xl" />
 
       <!-- Loading skeleton (first snapshot only) -->
@@ -228,17 +249,17 @@ const sections = computed(() => [
               <span class="text-2xs text-muted-foreground">({{ s.items.length }})</span>
               <span v-if="s.hint" class="ml-2 truncate text-2xs text-muted-foreground">{{ s.hint }}</span>
             </template>
-            <ProcessEntryRow
-              v-for="e in s.items"
-              :key="e.id"
-              :entry="e"
-              :now="now"
-              :busy="busy.has(e.id) || bulkBusy"
-              @stop="stopEntry(e)"
-              @force="forceEntry(e)"
-              @open="openSession(e)"
-              @kill-pid="(pid) => killPid(e, pid)"
-            />
+            <div v-for="e in s.items" :key="e.id" :data-run-id="e.run_id ?? undefined">
+              <ProcessEntryRow
+                :entry="e"
+                :now="now"
+                :busy="busy.has(e.id) || bulkBusy"
+                @stop="stopEntry(e)"
+                @force="forceEntry(e)"
+                @open="openSession(e)"
+                @kill-pid="(pid) => killPid(e, pid)"
+              />
+            </div>
           </Card>
         </template>
 

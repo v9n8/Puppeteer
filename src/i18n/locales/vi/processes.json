@@ -109,5 +109,86 @@
     "log": "Xem log",
     "logEmpty": "(chưa có output)",
     "logTruncated": "Chỉ hiện phần cuối của log."
+  },
+  "running": {
+    "title": "Đang chạy",
+    "tabSession": "Session",
+    "tabProcesses": "Tiến trình nền",
+    "filter": {
+      "all": "Tất cả",
+      "wait": "Chờ bạn",
+      "run": "Đang chạy",
+      "allProjects": "Mọi Project",
+      "projectTitle": "Lọc theo Project",
+      "sort": "Sắp theo: việc chờ bạn lên đầu, rồi lâu nhất"
+    },
+    "col": {
+      "status": "Trạng thái",
+      "session": "Session",
+      "doing": "Đang làm",
+      "age": "Đã chạy",
+      "waiting": "Chờ ai",
+      "workers": "Worker"
+    },
+    "status": {
+      "wait": "Chờ bạn",
+      "run": "Đang chạy",
+      "done": "Xong",
+      "err": "Lỗi",
+      "stop": "Đã dừng"
+    },
+    "doing": {
+      "permission": "Xin quyền {tool}",
+      "workers": "Chờ {n} worker chạy xong | Chờ {n} worker chạy xong"
+    },
+    "waiting": {
+      "user": "Bạn",
+      "agent": "Agent",
+      "worker": "Worker ({n})"
+    },
+    "action": {
+      "open": "Mở",
+      "openTitle": "Mở Session",
+      "stop": "Dừng Session",
+      "stopTitle": "Dừng Session · huỷ lượt đang chạy",
+      "more": "Thao tác khác",
+      "openWorker": "Mở worker",
+      "stopWorker": "Dừng worker này",
+      "selectAll": "Chọn mọi Session",
+      "selectRow": "Chọn “{title}”",
+      "stopAll": "Dừng tất cả",
+      "stopAllTitle": "Dừng mọi Session đang chạy"
+    },
+    "menu": {
+      "open": "Mở Session",
+      "openWindow": "Mở ở cửa sổ riêng",
+      "viewProcesses": "Xem tiến trình của Session",
+      "stop": "Dừng Session"
+    },
+    "finished": "Vừa xong, bạn chưa xem ({n})",
+    "selection": {
+      "count": "Đã chọn {n} Session | Đã chọn {n} Session",
+      "workers": "· {n} worker của chúng cũng dừng theo | · {n} worker của chúng cũng dừng theo",
+      "clear": "Bỏ chọn",
+      "stop": "Dừng {n} Session | Dừng {n} Session"
+    },
+    "confirm": {
+      "title": "Dừng {n} Session? | Dừng {n} Session?",
+      "message": "Lượt đang chạy của từng Session sẽ bị huỷ:\n{names}",
+      "withWorkers": "Lượt đang chạy của từng Session sẽ bị huỷ, kèm {w} worker của chúng:\n{names}",
+      "allTitle": "Dừng tất cả Session?",
+      "allMessage": "Mọi Session đang chạy hiện ở đây sẽ bị huỷ ({n}):\n{names}",
+      "more": "… và {n} Session nữa"
+    },
+    "toast": {
+      "stopped": "Đã dừng {n} Session | Đã dừng {n} Session",
+      "failed": "Không dừng được “{label}”: {error}"
+    },
+    "empty": {
+      "title": "Không có Session nào đang chạy",
+      "hint": "Session bạn chạy ở mọi Project, kể cả Session do Lịch chạy mở, hiện ở đây cho tới khi xong.",
+      "openProjects": "Mở Project"
+    },
+    "stuck": "Session này có thể bị kẹt: nó đã ngừng phản hồi hoặc chưa khởi động được"
   }
 }

@@ -52,7 +52,12 @@ function pick(row: DockRow) {
 
 function openProcesses() {
   isOpen.value = false
-  router.push('/processes').catch(() => {})
+  router.push('/running?tab=processes').catch(() => {})
+}
+
+function seeAll() {
+  isOpen.value = false
+  router.push('/running').catch(() => {})
 }
 </script>
 
@@ -116,7 +121,7 @@ function openProcesses() {
             type="button"
             data-run-item
             class="w-full cursor-pointer select-none rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            @click="openProcesses"
+            @click="seeAll"
           >
             {{ t('misc.activeRuns.seeAll') }} →
           </button>
