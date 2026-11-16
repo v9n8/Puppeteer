@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   PERMISSION_MODES,
+  canRunNow,
+  runNowToast,
   emptyForm,
   formError,
   formFromSchedule,
@@ -102,6 +104,18 @@ test('formError names the first field the backend would refuse', () => {
   for (const [patch, want] of cases) assert.equal(formError(filled(patch)), want, JSON.stringify(patch))
   // Fields of another kind do not count.
   assert.equal(formError(filled({ kind: 'interval', time: 'bad', once_at: '' })), null)
+})
+
+test('canRunNow needs this machine and a saved schedule, on or off', () => {
+  assert.equal(canRunNow(schedule(null, { enabled: false }), false), true)
+  assert.equal(canRunNow(schedule(null), false), true)
+  assert.equal(canRunNow(schedule(null, { proposed: true }), false), false)
+  assert.equal(canRunNow(schedule(null), true), false)
+})
+
+test('runNowToast tells a started session from one that is still running', () => {
+  assert.deepEqual(runNowToast({ status: 'started', run_id: 'r' }), { variant: 'success', key: 'started' })
+  assert.deepEqual(runNowToast({ status: 'still_running', run_id: 'r' }), { variant: 'error', key: 'stillRunning' })
 })
 
 test('toggleWeekday adds in order and removes', () => {

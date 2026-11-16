@@ -10,6 +10,13 @@
   "proposedHint": "Open it, review it and save it before it can be switched on.",
   "next": "next {at}",
   "openSession": "Open session",
+  "runNow": {
+    "title": "Run once now, next run unchanged",
+    "lockedRemote": "Only someone at this machine can run a schedule: it starts an unattended session here.",
+    "lockedProposed": "Open it and save it before running it.",
+    "started": "Opened session \"{name}\" in {project}",
+    "stillRunning": "The last session of this schedule is still running"
+  },
   "edit": "Edit",
   "delete": "Delete",
   "deleteTitle": "Delete this schedule?",

@@ -10,6 +10,13 @@
   "proposedHint": "Mở ra, xem lại và lưu thì mới bật được.",
   "next": "lần tới {at}",
   "openSession": "Mở Session",
+  "runNow": {
+    "title": "Chạy ngay một lần, không đổi lần tới",
+    "lockedRemote": "Chỉ người ngồi ở máy này mới chạy được lịch: nó mở một Session không người xem ngay trên máy này.",
+    "lockedProposed": "Mở ra và lưu rồi mới chạy được.",
+    "started": "Đã mở Session “{name}” trong {project}",
+    "stillRunning": "Session lần trước của lịch này vẫn đang chạy"
+  },
   "edit": "Sửa",
   "delete": "Xoá",
   "deleteTitle": "Xoá lịch này?",

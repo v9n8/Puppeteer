@@ -54,3 +54,16 @@ pub async fn set_schedule_enabled(
     changed(&app);
     Ok(saved)
 }
+
+/// Local-only (`remote/guard.rs`): it starts an unattended session on this machine.
+#[tauri::command]
+pub async fn run_schedule_now(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<super::runner::RunNowOutcome, String> {
+    crate::features::require(db.inner(), FEATURE).await?;
+    let outcome = super::runner::run_now(&app, db.inner(), &id).await;
+    changed(&app);
+    outcome
+}

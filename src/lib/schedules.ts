@@ -6,6 +6,8 @@ export const CMD_SAVE_SCHEDULE = 'save_schedule'
 export const CMD_DELETE_SCHEDULE = 'delete_schedule'
 /** Local-only: a remote desktop cannot switch a schedule on. */
 export const CMD_SET_SCHEDULE_ENABLED = 'set_schedule_enabled'
+/** Local-only: opens one unattended session now; `next_run_at` stays. */
+export const CMD_RUN_SCHEDULE_NOW = 'run_schedule_now'
 export const EVT_SCHEDULES_CHANGED = 'schedules:changed'
 /** A schedule came due but could not start: `{ schedule_id, name, message }` (backend `runner::FAILED_EVENT`). */
 export const EVT_SCHEDULE_FAILED = 'schedule:failed'
@@ -150,6 +152,22 @@ export function inputFromForm(f: ScheduleForm): ScheduleInput {
     permission_mode: f.permission_mode,
     timing: timingFromForm(f),
   }
+}
+
+/** What `run_schedule_now` returns (backend `runner::RunNowOutcome`). */
+export interface RunNowOutcome {
+  status: 'started' | 'still_running'
+  run_id: string
+}
+
+/** "Run now" needs this machine and a reviewed schedule (a proposal is not saved yet). */
+export function canRunNow(s: Pick<Schedule, 'proposed'>, remote: boolean): boolean {
+  return !remote && !s.proposed
+}
+
+/** The toast after "Run now": its variant and the i18n key (under `schedules.runNow`). */
+export function runNowToast(o: RunNowOutcome): { variant: 'success' | 'error'; key: 'started' | 'stillRunning' } {
+  return o.status === 'started' ? { variant: 'success', key: 'started' } : { variant: 'error', key: 'stillRunning' }
 }
 
 /** Toggle a day (0 = Sunday) in a weekday list, kept sorted. */

@@ -99,6 +99,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "import_candidates",
     // Schedules: a schedule switched on starts agent runs with nobody at this machine.
     "set_schedule_enabled",
+    // "Run now" opens an unattended session on this machine, the same.
+    "run_schedule_now",
     // Auto-update: replaces this machine's app with a downloaded build.
     "install_update",
     // Purge: deletes a session / project in the Trash for good (logs,
@@ -794,6 +796,7 @@ mod tests {
             "scan_import_source",
             "import_candidates",
             "set_schedule_enabled",
+            "run_schedule_now",
             "install_update",
             "purge_run",
             "purge_project",

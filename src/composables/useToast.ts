@@ -59,8 +59,8 @@ function update(id: number, message: string) {
 const toast = {
   show: (message: string, variant: ToastVariant = 'info', duration = 2500) =>
     show(message, variant, duration),
-  success: (message: string, duration = 2500) => show(message, 'success', duration),
-  error: (message: string, duration = 4000) => show(message, 'error', duration),
+  success: (message: string, duration = 2500, action?: ToastAction) => show(message, 'success', duration, action),
+  error: (message: string, duration = 4000, action?: ToastAction) => show(message, 'error', duration, action),
   info: (message: string, duration = 2500, action?: ToastAction) => show(message, 'info', duration, action),
 }
 

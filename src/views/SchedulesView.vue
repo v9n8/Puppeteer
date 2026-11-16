@@ -8,27 +8,32 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-vue-next'
+import { Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-vue-next'
 import { AppSelect, Badge, Banner, Button, Input, Modal, PageHeader, Textarea, ToggleSwitch } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { useConfirm } from '@/composables/useConfirm'
+import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
 import {
   CMD_DELETE_SCHEDULE,
   CMD_LIST_SCHEDULES,
   CMD_SAVE_SCHEDULE,
+  CMD_RUN_SCHEDULE_NOW,
   CMD_SET_SCHEDULE_ENABLED,
   EVT_SCHEDULES_CHANGED,
   PERMISSION_MODES,
   TIMING_KINDS,
+  canRunNow,
   emptyForm,
   formError,
   formFromSchedule,
   inputFromForm,
+  runNowToast,
   timingSummary,
   toggleWeekday,
+  type RunNowOutcome,
   type Schedule,
   type ScheduleForm,
 } from '@/lib/schedules'
@@ -39,6 +44,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const projects = useProjectsStore()
 const { confirm } = useConfirm()
+const { toast } = useToast()
 const remote = isRemoteMode()
 
 const schedules = shallowRef<Schedule[]>([])
@@ -46,6 +52,8 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 /** Ids whose switch is being written. */
 const toggling = ref(new Set<string>())
+/** Ids whose "Run now" is waiting for the backend. */
+const running = ref(new Set<string>())
 
 const form = ref<ScheduleForm | null>(null)
 const saving = ref(false)
@@ -129,6 +137,34 @@ async function toggle(s: Schedule) {
     const next = new Set(toggling.value)
     next.delete(s.id)
     toggling.value = next
+  }
+}
+
+function runNowTitle(s: Schedule): string {
+  if (remote) return t('schedules.runNow.lockedRemote')
+  return s.proposed ? t('schedules.runNow.lockedProposed') : t('schedules.runNow.title')
+}
+
+async function runNow(s: Schedule) {
+  if (!canRunNow(s, remote) || running.value.has(s.id)) return
+  running.value = new Set(running.value).add(s.id)
+  try {
+    const outcome = await invoke<RunNowOutcome>(CMD_RUN_SCHEDULE_NOW, { id: s.id })
+    const { variant, key } = runNowToast(outcome)
+    const message = t(`schedules.runNow.${key}`, { name: s.name, project: projectName(s.project_id) })
+    const action = {
+      label: t('schedules.openSession'),
+      run: () => void router.push(`/projects/${s.project_id}/run/${outcome.run_id}`),
+    }
+    if (variant === 'success') toast.success(message, 6000, action)
+    else toast.error(message, 6000, action)
+  } catch (e) {
+    toast.error(errorText(e, t))
+  } finally {
+    const next = new Set(running.value)
+    next.delete(s.id)
+    running.value = next
+    await load()
   }
 }
 
@@ -223,6 +259,17 @@ async function remove(s: Schedule) {
                 </button>
               </p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :disabled="!canRunNow(s, remote) || running.has(s.id)"
+              :title="runNowTitle(s)"
+              :aria-label="t('schedules.runNow.title')"
+              @click="runNow(s)"
+            >
+              <RotateCw v-if="running.has(s.id)" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
+              <Play v-else class="h-3.5 w-3.5" :stroke-width="2" />
+            </Button>
             <Button variant="ghost" size="icon-sm" :title="t('schedules.edit')" :aria-label="t('schedules.edit')" @click="openEdit(s)">
               <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
             </Button>

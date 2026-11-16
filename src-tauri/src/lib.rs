@@ -897,6 +897,7 @@ pub fn run() {
             schedules::commands::save_schedule,
             schedules::commands::delete_schedule,
             schedules::commands::set_schedule_enabled,
+            schedules::commands::run_schedule_now,
             runs::rewind::list_snapshots,
             runs::rewind::preview_rewind,
             runs::rewind::rewind_run,

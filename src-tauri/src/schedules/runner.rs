@@ -162,6 +162,58 @@ where
     Ok(out)
 }
 
+/// How a "Run now" press ended. Serialized for the Schedules screen.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum RunNowOutcome {
+    Started { run_id: String },
+    /// The session the schedule opened last time is still going; nothing was started.
+    StillRunning { run_id: String },
+}
+
+/// Fire one saved schedule once, on the person's request: switched on or off,
+/// and `next_run_at` and `enabled` stay as they are. Unlike a tick it records
+/// no `skipped` (the person pressed, not the schedule) and announces no
+/// failure (the person is there to see the error returned).
+pub async fn run_now_with<F, Fut>(db: &Db, id: &str, fire: F) -> Result<RunNowOutcome, String>
+where
+    F: FnOnce(Firing) -> Fut,
+    Fut: Future<Output = Result<String, String>>,
+{
+    let s = super::get(db, id).await?;
+    if s.proposed {
+        return Err("Save the proposed schedule before running it".into());
+    }
+    if let Some(run_id) = still_running(db, s.last_run_id.as_deref()).await? {
+        return Ok(RunNowOutcome::StillRunning { run_id });
+    }
+    let firing = Firing {
+        schedule_id: s.id.clone(),
+        project_id: s.project_id,
+        name: s.name,
+        prompt: s.prompt,
+        engine: s.engine,
+        permission_mode: s.permission_mode,
+    };
+    let now = Utc::now();
+    match fire(firing).await {
+        Ok(run_id) => {
+            record(db, &s.id, now, "started", Some(&run_id), None).await?;
+            Ok(RunNowOutcome::Started { run_id })
+        }
+        Err(e) => {
+            tracing::warn!(event = "schedule_run_now_failed", schedule_id = %s.id, error = %e);
+            record(db, &s.id, now, "error", None, Some(e.clone())).await?;
+            Err(e)
+        }
+    }
+}
+
+/// [`run_now_with`] through the real session start.
+pub async fn run_now(app: &AppHandle, db: &Db, id: &str) -> Result<RunNowOutcome, String> {
+    run_now_with(db, id, |f| fire(app, db, f)).await
+}
+
 /// The slot `stored` stands for on the clock of `now`. A daily, weekly or
 /// once slot is a wall-clock time, stored as an instant worked out with the
 /// machine's zone at the time; after the zone changes (travel, a new zone
@@ -379,6 +431,72 @@ mod tests {
 
     fn now() -> DateTime<Local> {
         Local::now()
+    }
+
+    #[tokio::test]
+    async fn run_now_leaves_the_slot_and_the_switch_alone() {
+        let db = db().await;
+        let id = due_schedule(&db, "2099-01-01T00:00:00+00:00").await;
+        sqlx::query("UPDATE schedules SET enabled = 0 WHERE id = ?").bind(&id).execute(&db).await.unwrap();
+        let before = get(&db, &id).await.unwrap();
+        let (seen, fire) = recorder();
+        let out = run_now_with(&db, &id, fire).await.unwrap();
+        assert_eq!(out, RunNowOutcome::Started { run_id: "run-1".into() });
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        let after = get(&db, &id).await.unwrap();
+        assert_eq!(after.next_run_at, before.next_run_at);
+        assert!(!after.enabled);
+        assert_eq!(after.last_status.as_deref(), Some("started"));
+        assert_eq!(after.last_run_id.as_deref(), Some("run-1"));
+        assert!(after.last_run_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn run_now_does_not_open_a_second_session_while_the_last_one_runs() {
+        let db = db().await;
+        let id = due_schedule(&db, "2099-01-01T00:00:00+00:00").await;
+        let project: String = sqlx::query_scalar("SELECT project_id FROM schedules WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO runs (id, project_id, type, status, created_at) VALUES ('live', ?, 'session', 'running', '2026-01-01')")
+            .bind(&project)
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE schedules SET last_run_id = 'live', last_status = 'started' WHERE id = ?")
+            .bind(&id)
+            .execute(&db)
+            .await
+            .unwrap();
+        let (seen, fire) = recorder();
+        let out = run_now_with(&db, &id, fire).await.unwrap();
+        assert_eq!(out, RunNowOutcome::StillRunning { run_id: "live".into() });
+        assert!(seen.lock().unwrap().is_empty());
+        assert_eq!(get(&db, &id).await.unwrap().last_status.as_deref(), Some("started"));
+    }
+
+    #[tokio::test]
+    async fn run_now_records_a_start_error_and_returns_it() {
+        let db = db().await;
+        let id = due_schedule(&db, "2099-01-01T00:00:00+00:00").await;
+        let err = run_now_with(&db, &id, |_| std::future::ready(Err("over budget".to_string()))).await.unwrap_err();
+        assert_eq!(err, "over budget");
+        let s = get(&db, &id).await.unwrap();
+        assert_eq!(s.last_status.as_deref(), Some("error"));
+        assert_eq!(s.last_message.as_deref(), Some("over budget"));
+        assert!(s.last_run_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn run_now_refuses_a_proposed_schedule() {
+        let db = db().await;
+        let id = due_schedule(&db, "2099-01-01T00:00:00+00:00").await;
+        sqlx::query("UPDATE schedules SET proposed = 1 WHERE id = ?").bind(&id).execute(&db).await.unwrap();
+        let (seen, fire) = recorder();
+        assert!(run_now_with(&db, &id, fire).await.is_err());
+        assert!(seen.lock().unwrap().is_empty());
     }
 
     #[test]
