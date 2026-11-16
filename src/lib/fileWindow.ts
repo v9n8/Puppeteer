@@ -12,6 +12,7 @@ import { nextCascadePosition } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { fileWindowQuery } from '@/lib/fileWindowCore'
 import { composerWindowLabel } from '@/lib/quoteAppend'
+import { useProjectsStore } from '@/stores/projects'
 
 /** Sent to an already-open file window: the run that opened it again. */
 export const FILE_WINDOW_ORIGIN = 'file-window:origin'
@@ -98,5 +99,8 @@ export async function openFileWindow(
   win.once('tauri://error', (e) => {
     console.error('[fileWindow] failed to open viewer window', e)
   })
-  trackWindowForTray(win)
+  // The open-windows overlay shows "Project · folder" under the file's name.
+  const projectId = useProjectsStore().projects.find((p) => p.path === projectPath)?.id
+  const slash = path.lastIndexOf('/')
+  trackWindowForTray(win, { ...(projectId ? { projectId } : {}), folder: slash > 0 ? path.slice(0, slash) : '' })
 }

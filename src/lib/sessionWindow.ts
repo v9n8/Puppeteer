@@ -89,6 +89,6 @@ export async function openSessionWindow(
   // Keep the menu-bar switcher in sync as this window comes and goes. The window
   // also sets its own OS title from the run name (App.vue), which refreshes the
   // tray again once that lands — this just covers the open/close edges.
-  trackWindowForTray(win)
+  trackWindowForTray(win, { projectId, runId })
   return win
 }

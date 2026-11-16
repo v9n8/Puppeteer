@@ -45,6 +45,9 @@ import { useFocusStore } from '@/stores/focus'
 import { TRAY_FOCUS_ID, trayBadge } from '@/lib/focusTray'
 import { useFeaturesStore } from '@/stores/features'
 import { MENU_ACTION_FEATURES, allowsFeature } from '@/lib/featureGate'
+import { emit } from '@tauri-apps/api/event'
+import { forgetWindow, recordWindow } from '@/lib/windowRegistry'
+import { WINDOWS_CHANGED, type WindowMeta } from '@/lib/windowsOverlay'
 
 type TrayItem =
   | { kind: 'item'; id: string; label: string }
@@ -58,12 +61,18 @@ type TrayItem =
  * created and drops out when it's closed. Any window the user can switch to should
  * be tracked (session, file viewer, gantt, item editor, …).
  */
-export function trackWindowForTray(win: WebviewWindow): void {
+export function trackWindowForTray(win: WebviewWindow, meta?: WindowMeta): void {
+  // `meta` is what only the opener knows (project, run…): the open-windows overlay reads it.
+  recordWindow(win.label, meta)
+  const changed = () => void emit(WINDOWS_CHANGED).catch(() => {})
   win.once('tauri://created', () => {
     void refreshTray()
+    changed()
   })
   win.once('tauri://destroyed', () => {
+    forgetWindow(win.label)
     void refreshTray()
+    changed()
   })
 }
 
@@ -101,7 +110,7 @@ const HIDDEN_WINDOW_LABELS = new Set(['permission-prompt', 'remote-bridge'])
 // name keyed off its label prefix. Creation-time placeholders ("Puppeteer",
 // "Task — Puppeteer") never count as meaningful: they only show until the window sets
 // its real title.
-function labelFor(windowLabel: string, osTitle: string): string {
+export function labelFor(windowLabel: string, osTitle: string): string {
   return clip(rawLabelFor(windowLabel, osTitle))
 }
 
@@ -128,6 +137,7 @@ function rawLabelFor(windowLabel: string, osTitle: string): string {
   if (windowLabel === 'focus') return meaningful || t('focus.window.title')
   // Its title is the "Settings › group › section" trail; the switcher just says Settings.
   if (windowLabel === 'settings') return t('nav.settings')
+  if (windowLabel === 'file-transfer') return t('fileTransfer.title')
   // Unknown / future window kind: best effort — its title, else the raw label.
   return meaningful || windowLabel
 }
@@ -305,6 +315,8 @@ export async function refreshTray(): Promise<void> {
   try {
     const wins = await getAllWebviewWindows()
     const items: TrayItem[] = [{ kind: 'header', label: t('tray.windows') }]
+    // Run by the main window (tray.rs) whichever window sent this list.
+    items.push({ kind: 'item', id: menuActionId('window.openWindows'), label: t('windows.openWindows') })
 
     // Main window pinned first; every other Puppeteer window follows (except the
     // hidden ones above), sorted by label so the order stays stable across

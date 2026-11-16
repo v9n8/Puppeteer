@@ -9,7 +9,7 @@ import { useAppSettingsStore } from '@/stores/appSettings'
 import { PALETTE_FEATURE } from '@/lib/commandPalette'
 import type { SidebarMode } from '@/lib/sidebarMode'
 import {
-  NEW_SESSION_ACTION, PALETTE_ACTION, PREVIOUS_PROJECT_ACTION, parseKeymap, resolveKeymap, type Keymap,
+  NEW_SESSION_ACTION, OPEN_WINDOWS_ACTION, PALETTE_ACTION, PREVIOUS_PROJECT_ACTION, parseKeymap, resolveKeymap, type Keymap,
 } from '@/lib/keymap'
 
 /**
@@ -208,9 +208,12 @@ function buildSpec(state: MenuState): MenuSpec {
     { kind: 'item', id: 'window.secretNotes', label: t('menu.secretNotes') },
     { kind: 'item', id: 'window.slackThreads', label: t('menu.slackThreads') },
   ])
+  const openWindows: ItemSpec = { kind: 'item', id: OPEN_WINDOWS_ACTION, label: t('windows.openWindows') }
   submenus.push({
     label: t('menu.window'),
     items: [
+      // Windows / Linux have the shortcut only (QĐ-02): see KEY_ONLY_ACTIONS.
+      ...(IS_MAC ? [openWindows, SEPARATOR] : []),
       os('minimize', 'menu.minimize'),
       os('maximize', IS_MAC ? 'menu.zoom' : 'menu.maximize'),
       SEPARATOR,
@@ -259,6 +262,12 @@ let lastKeymap: ReadonlyMap<string, string> = new Map()
 let nativeMenu = false
 let acceleratorsSuspended = false
 
+// Actions with a shortcut (Settings lists them, the keymap resolves them) but no
+// menu item on this platform: the windows without a menu bar match the key themselves.
+function keyOnlyActions(): ActionItem[] {
+  return IS_MAC ? [] : [{ kind: 'item', id: OPEN_WINDOWS_ACTION, label: t('windows.openWindows') }]
+}
+
 /**
  * The menu's actions, each once, in menu order (those whose feature is off are
  * not in it). Reactive: follows the language, the feature switches and the
@@ -266,7 +275,7 @@ let acceleratorsSuspended = false
  */
 export function menuActions(): { id: string; label: string }[] {
   const seen = new Set<string>()
-  return actionItems(buildSpec(lastState).submenus.flatMap((s) => s.items))
+  return [...actionItems(buildSpec(lastState).submenus.flatMap((s) => s.items)), ...keyOnlyActions()]
     .filter((item) => !seen.has(item.id) && seen.add(item.id))
     .map(({ id, label }) => ({ id, label }))
 }
@@ -301,7 +310,11 @@ export async function applyAppMenu(state: MenuState): Promise<void> {
   lastState = state
   const spec = buildSpec(state)
   const items = actionItems(spec.submenus.flatMap((s) => s.items))
-  lastKeymap = resolveKeymap([...new Set(items.map((item) => item.id))], keymapChanges(), IS_MAC)
+  lastKeymap = resolveKeymap(
+    [...new Set([...items, ...keyOnlyActions()].map((item) => item.id))],
+    keymapChanges(),
+    IS_MAC,
+  )
   if (!acceleratorsSuspended) {
     for (const item of items) item.accelerator = lastKeymap.get(item.id)
   }

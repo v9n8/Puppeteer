@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_KEYMAP,
   NEW_SESSION_ACTION,
+  OPEN_WINDOWS_ACTION,
   PALETTE_ACTION,
   PREVIOUS_PROJECT_ACTION,
   acceleratorFromEvent,
@@ -188,4 +189,17 @@ test('DEFAULT_KEYMAP: Search sessions is ⌘⇧F, usable, and no other default s
   }
   const others = Object.entries(DEFAULT_KEYMAP).filter(([id]) => id !== 'go./search').map(([, a]) => a)
   assert.ok(!others.includes(accel))
+})
+
+test('DEFAULT_KEYMAP: Open windows is ⌘⇧E, usable, no other default shares it, and it can be removed', () => {
+  const accel = DEFAULT_KEYMAP[OPEN_WINDOWS_ACTION]
+  assert.equal(OPEN_WINDOWS_ACTION, 'window.openWindows')
+  assert.equal(accel, 'CmdOrCtrl+Shift+E')
+  for (const isMac of [true, false]) {
+    assert.equal(acceleratorProblem(accel, isMac), null, `reserved on ${isMac}`)
+  }
+  const others = Object.entries(DEFAULT_KEYMAP).filter(([id]) => id !== OPEN_WINDOWS_ACTION).map(([, a]) => a)
+  assert.ok(!others.includes(accel))
+  const removed = setBinding({}, OPEN_WINDOWS_ACTION, '')
+  assert.equal(resolveKeymap([OPEN_WINDOWS_ACTION], removed, true).get(OPEN_WINDOWS_ACTION), undefined)
 })

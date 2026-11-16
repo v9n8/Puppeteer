@@ -6,6 +6,7 @@ import { useUILayoutStore } from '@/stores/uiLayout'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
 import CommandBox from '@/components/app/CommandBox.vue'
+import OpenWindowsButton from '@/components/windows/OpenWindowsButton.vue'
 import { Button } from '@/components/ui'
 
 const uiLayout = useUILayoutStore()
@@ -23,6 +24,8 @@ const { t } = useI18n()
     <ProjectSwitcher />
 
     <CommandBox class="ml-auto" />
+
+    <OpenWindowsButton />
 
     <!-- Sits here rather than inside the sidebar so it stays put when the
          sidebar shrinks to the icon rail. -->

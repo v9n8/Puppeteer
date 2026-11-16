@@ -26,6 +26,9 @@ export const NEW_SESSION_ACTION = 'file.newSession'
 /** Menu action going back to the project used before this one. */
 export const PREVIOUS_PROJECT_ACTION = 'file.previousProject'
 
+/** Menu action opening the "Open windows" overlay on the window in front. */
+export const OPEN_WINDOWS_ACTION = 'window.openWindows'
+
 /** Shortcuts before any change. Every other action starts with none. */
 export const DEFAULT_KEYMAP: Readonly<Record<string, string>> = {
   'go./settings': 'CmdOrCtrl+,',
@@ -36,6 +39,7 @@ export const DEFAULT_KEYMAP: Readonly<Record<string, string>> = {
   [PREVIOUS_PROJECT_ACTION]: 'CmdOrCtrl+Alt+`',
   // Search sessions. Shift keeps it apart from ⌘F (find in page).
   'go./search': 'CmdOrCtrl+Shift+F',
+  [OPEN_WINDOWS_ACTION]: 'CmdOrCtrl+Shift+E',
 }
 
 /** Action id → accelerator (`""`: no shortcut), only where it differs from the default. */

@@ -1,0 +1,51 @@
+{
+  "openWindows": "Cửa sổ riêng đang mở…",
+  "title": "Cửa sổ riêng đang mở",
+  "buttonTip": "Cửa sổ riêng đang mở · {count} ({keys})",
+  "filter": "Lọc theo tên…",
+  "filterLabel": "Lọc cửa sổ theo tên",
+  "by": {
+    "type": "Theo loại",
+    "project": "Theo Project"
+  },
+  "closeAll": "Đóng tất cả cửa sổ riêng",
+  "closeAllTip": "Đóng mọi cửa sổ riêng; cửa sổ chính vẫn mở",
+  "exit": "Thoát (Esc)",
+  "group": {
+    "session": "Session",
+    "remote": "Máy từ xa",
+    "screen": "Màn tách ra",
+    "none": "Không thuộc Project"
+  },
+  "status": {
+    "running": "Đang chạy",
+    "waiting": "Chờ bạn cấp quyền",
+    "error": "Lỗi",
+    "minimized": "Đang thu nhỏ"
+  },
+  "gone": "Cửa sổ đó đã đóng.",
+  "here": "Cửa sổ này",
+  "open": "Mở",
+  "mergeBack": "Gộp về cửa sổ chính",
+  "minimize": "Thu nhỏ",
+  "closeWindow": "Đóng cửa sổ",
+  "closeWindowTip": "Đóng cửa sổ ({keys})",
+  "empty": "Chưa có cửa sổ riêng nào. Bấm “Tách cửa sổ” ở header một màn (Gantt, Lịch, Duyệt PR…) hoặc mở Session ở cửa sổ riêng để nó hiện ở đây.",
+  "noMatch": "Không có cửa sổ riêng nào khớp “{query}”.",
+  "clearFilter": "Xóa lọc",
+  "confirm": {
+    "title": "Đóng tất cả cửa sổ riêng?",
+    "body": "Đóng {count} cửa sổ riêng. Cửa sổ chính vẫn mở. Session đang chạy vẫn chạy tiếp, mở lại được từ dock Run hoặc màn Đang chạy.",
+    "bodyHere": "Đóng {count} cửa sổ riêng. Cửa sổ này cũng đóng; cửa sổ chính vẫn mở và lên trước. Session đang chạy vẫn chạy tiếp, mở lại được từ dock Run hoặc màn Đang chạy.",
+    "action": "Đóng {count} cửa sổ",
+    "cancel": "Hủy"
+  },
+  "closed": "Đã đóng {count} cửa sổ riêng",
+  "foot": {
+    "select": "chọn",
+    "open": "mở",
+    "close": "đóng thẻ đang chọn",
+    "type": "Gõ chữ để lọc",
+    "exit": "thoát"
+  }
+}

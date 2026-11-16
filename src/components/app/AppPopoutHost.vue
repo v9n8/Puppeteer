@@ -12,6 +12,7 @@ import FileViewerWindow from '@/views/FileViewerWindow.vue'
 import PermissionWindow from '@/views/PermissionWindow.vue'
 import { ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
+import WindowsOverlay from '@/components/windows/WindowsOverlay.vue'
 import ItemWindow from '@/views/ItemWindow.vue'
 import ItemListWindow from '@/views/ItemListWindow.vue'
 import SecretNotesWindow from '@/views/SecretNotesWindow.vue'
@@ -129,4 +130,8 @@ const { t } = useI18n()
     <ToastHost />
     <ImageCompareHost />
   </div>
+
+  <!-- "Open windows" over whichever window has the focus (⌘⇧E); not over the
+       transient permission prompt. -->
+  <WindowsOverlay v-if="!isPermissionWindow" />
 </template>

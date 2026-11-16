@@ -1,0 +1,51 @@
+{
+  "openWindows": "Open windows…",
+  "title": "Open windows",
+  "buttonTip": "Open windows · {count} ({keys})",
+  "filter": "Filter by name…",
+  "filterLabel": "Filter windows by name",
+  "by": {
+    "type": "By type",
+    "project": "By project"
+  },
+  "closeAll": "Close all windows",
+  "closeAllTip": "Close every private window; the main window stays open",
+  "exit": "Exit (Esc)",
+  "group": {
+    "session": "Sessions",
+    "remote": "Machines",
+    "screen": "Detached screens",
+    "none": "Not in a project"
+  },
+  "status": {
+    "running": "Running",
+    "waiting": "Waiting for your approval",
+    "error": "Error",
+    "minimized": "Minimized"
+  },
+  "gone": "That window is already closed.",
+  "here": "This window",
+  "open": "Open",
+  "mergeBack": "Move back to main window",
+  "minimize": "Minimize",
+  "closeWindow": "Close window",
+  "closeWindowTip": "Close window ({keys})",
+  "empty": "No private windows yet. Press “Open in new window” in the header of a screen (Gantt, Calendar, PR Inbox…) or open a session in its own window and it shows up here.",
+  "noMatch": "No open window matches “{query}”.",
+  "clearFilter": "Clear filter",
+  "confirm": {
+    "title": "Close all windows?",
+    "body": "Closes {count} window. The main window stays open. Running sessions keep running; reopen them from the Run dock or the Running screen. | Closes {count} windows. The main window stays open. Running sessions keep running; reopen them from the Run dock or the Running screen.",
+    "bodyHere": "Closes {count} window. This window closes too; the main window stays open and comes to the front. Running sessions keep running; reopen them from the Run dock or the Running screen. | Closes {count} windows. This window closes too; the main window stays open and comes to the front. Running sessions keep running; reopen them from the Run dock or the Running screen.",
+    "action": "Close {count} window | Close {count} windows",
+    "cancel": "Cancel"
+  },
+  "closed": "Closed {count} window | Closed {count} windows",
+  "foot": {
+    "select": "select",
+    "open": "open",
+    "close": "close the selected card",
+    "type": "Type to filter",
+    "exit": "exit"
+  }
+}

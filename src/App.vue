@@ -42,7 +42,9 @@ import {
   IS_MAC, applyAppMenu, hasNativeMenu, isMenuActionBound, listenMenuActions, menuAccelerator,
   registerMenuAction, runMenuAction,
 } from '@/lib/appMenu'
-import { NEW_SESSION_ACTION, PREVIOUS_PROJECT_ACTION, matchesAccelerator } from '@/lib/keymap'
+import {
+  NEW_SESSION_ACTION, OPEN_WINDOWS_ACTION, PREVIOUS_PROJECT_ACTION, matchesAccelerator,
+} from '@/lib/keymap'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -59,6 +61,9 @@ import {
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useRunsStore } from '@/stores/runs'
 import { refreshTray, buildSessionItems } from '@/lib/tray'
+import { openOverlayOnFocusedWindow } from '@/lib/openWindowsActions'
+import { useWindowRunStatus } from '@/composables/useWindowRunStatus'
+import WindowsOverlay from '@/components/windows/WindowsOverlay.vue'
 import { useBackgroundProcessesStore } from '@/stores/backgroundProcesses'
 import OrphanProcessesPrompt from '@/components/processes/OrphanProcessesPrompt.vue'
 import QuitProcessesDialog from '@/components/processes/QuitProcessesDialog.vue'
@@ -130,6 +135,7 @@ if (isSessionWindow && SESSION_WINDOW_RUN_ID) {
 // runs that were never popped out into their own window. Debounced: a burst of
 // stream events shouldn't rebuild the native menu on every one.
 if (!isPopoutWindow && !isSessionWindow) {
+  useWindowRunStatus()
   let trayTimer: ReturnType<typeof setTimeout> | null = null
   watch(
     () => `${live.runningIds.length}|${JSON.stringify(buildSessionItems())}`,
@@ -311,6 +317,7 @@ function bindGlobalMenuActions() {
     registerMenuAction('window.slackThreads', () =>
       openSlackWindow({ projectId: routeCaptureContext().projectId }),
     ),
+    registerMenuAction(OPEN_WINDOWS_ACTION, () => void openOverlayOnFocusedWindow()),
     registerMenuAction('view.toggleSidebar', () => uiLayout.toggleSidebar()),
     registerMenuAction('view.toggleFocus', () => uiLayout.toggleFocus()),
     // Windows/Linux only — macOS uses the OS full-screen item (see appMenu.ts).
@@ -568,6 +575,9 @@ onMounted(async () => {
     <!-- ⌘K / Ctrl+K. Main window only: pop-outs (the Secret vault among them)
          and session windows have none. -->
     <CommandPalette v-if="features.isOn('app.command_palette')" />
+
+    <!-- "Open windows" (⌘⇧E): under the title bar, so its button stays in sight. -->
+    <WindowsOverlay :top-offset="uiLayout.focusMode && isRunRoute ? 0 : 40" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />

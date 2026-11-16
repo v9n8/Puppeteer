@@ -7,11 +7,12 @@ import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
-  FolderOpen, ListTodo, LockKeyhole, MessageSquare, Plus, Slack, StickyNote, Trash2,
+  AppWindow, FolderOpen, ListTodo, LockKeyhole, MessageSquare, Plus, Slack, StickyNote, Trash2,
 } from 'lucide-vue-next'
 import { NAV_ROUTES } from '@/lib/navigation'
 import { MENU_ACTION_FEATURES } from '@/lib/featureGate'
 import { isMenuActionBound, runMenuAction } from '@/lib/appMenu'
+import { OPEN_WINDOWS_ACTION } from '@/lib/keymap'
 import { SETTINGS_SECTIONS, groupLabelKey } from '@/lib/settingsSections'
 import { focusSessionWindow } from '@/lib/sessionWindow'
 import type { PaletteItem } from '@/lib/commandPalette'
@@ -29,6 +30,7 @@ const WINDOW_ACTIONS: readonly { id: string; labelKey: string; icon: Component }
   { id: 'window.noteList', labelKey: 'menu.noteList', icon: StickyNote },
   { id: 'window.secretNotes', labelKey: 'menu.secretNotes', icon: LockKeyhole },
   { id: 'window.slackThreads', labelKey: 'menu.slackThreads', icon: Slack },
+  { id: OPEN_WINDOWS_ACTION, labelKey: 'windows.openWindows', icon: AppWindow },
 ]
 
 // Sessions loaded this app session (every project opened so far), newest first.
