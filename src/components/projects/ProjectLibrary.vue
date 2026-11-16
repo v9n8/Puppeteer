@@ -7,8 +7,10 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertCircle, GitMerge, Library } from 'lucide-vue-next'
 import { Badge, Banner, Button, Card } from '@/components/ui'
+import LibraryKindTabs from '@/components/library/LibraryKindTabs.vue'
 import { invoke } from '@/lib/tauri'
-import { CMD_LIBRARY_SCAN, kindGroups, libraryQuery, type DiskItem } from '@/lib/libraryDisk'
+import { CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, libraryQuery, type DiskItem, type LibraryItemKind } from '@/lib/libraryDisk'
+import { kindCounts, pickTab, tabRows } from '@/lib/libraryTabs'
 import { useProjectsStore, type InstructionWarning, type Project } from '@/stores/projects'
 
 const props = defineProps<{ project: Project; section: 'files' | 'conflicts' }>()
@@ -25,10 +27,10 @@ const projectRuleConflicts = computed(() => projectStore.ruleConflicts.filter(c 
 const files = ref<DiskItem[]>([])
 const loadingFiles = ref(false)
 const filesError = ref<string | null>(null)
-// Kinds the project has none of are left out: the list stays short.
-const fileGroups = computed(() =>
-  kindGroups(files.value, '', k => t(`library.kind.${k}`)).filter(g => g.rows.length > 0),
-)
+const kind = ref<LibraryItemKind>('skill')
+const counts = computed(() => kindCounts(files.value, DISK_ITEM_KINDS))
+const rows = computed(() => tabRows(files.value, kind.value, ''))
+watch(files, () => { kind.value = pickTab(files.value, DISK_ITEM_KINDS, null, kind.value) })
 
 async function loadFiles() {
   const id = projectId.value
@@ -122,7 +124,12 @@ watch(projectId, async () => {
         </div>
       </div>
 
-      <div v-else-if="filesError" class="px-4 py-6 text-center text-xs text-destructive break-words">{{ filesError }}</div>
+      <Banner v-else-if="filesError" tone="destructive" class="m-3">
+        <span class="break-words">{{ filesError }}</span>
+        <template #actions>
+          <Button variant="ghost" size="xs" @click="loadFiles">{{ t('projectDetail.libraryRetry') }}</Button>
+        </template>
+      </Banner>
 
       <div
         v-else-if="files.length === 0"
@@ -131,15 +138,17 @@ watch(projectId, async () => {
         {{ t('projectDetail.libraryFilesEmpty') }}
       </div>
 
-      <!-- One block per kind; a row opens that file in the Library -->
-      <div v-else class="divide-y divide-border/60">
-        <section v-for="group in fileGroups" :key="group.key">
-          <h3 class="flex items-center gap-1.5 px-4 pt-3 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-            {{ group.label }}
-            <span class="tabular-nums">{{ group.rows.length }}</span>
-          </h3>
+      <!-- Tabs by kind; a row opens that file in the Library -->
+      <template v-else>
+        <div class="px-4 pt-2">
+          <LibraryKindTabs v-model="kind" :kinds="DISK_ITEM_KINDS" :counts="counts" />
+        </div>
+        <p v-if="rows.length === 0" class="px-4 py-6 text-center text-xs text-muted-foreground">
+          {{ t('projectDetail.libraryKindEmpty', { kind: t(`library.kindOne.${kind}`) }) }}
+        </p>
+        <div v-else class="divide-y divide-border/60">
           <RouterLink
-            v-for="row in group.rows"
+            v-for="row in rows"
             :key="row.id"
             :to="libraryLink(row.item.path)"
             class="block px-4 py-2 transition-colors hover:bg-accent/50"
@@ -165,8 +174,8 @@ watch(projectId, async () => {
               :title="row.item.description"
             >{{ row.item.description }}</span>
           </RouterLink>
-        </section>
-      </div>
+        </div>
+      </template>
     </Card>
   </div>
 

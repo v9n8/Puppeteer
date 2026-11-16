@@ -166,5 +166,7 @@
     "follow": "Follow global ({value})",
     "saved": "Session defaults saved",
     "noAccount": "None (global ~/.claude)"
-  }
+  },
+  "libraryKindEmpty": "This project has no {kind} yet.",
+  "libraryRetry": "Retry"
 }

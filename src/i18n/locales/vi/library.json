@@ -80,5 +80,16 @@
     "failed": "Dừng ở {path}: {error}. Các mục đã đổi trước đó vẫn giữ.",
     "skipped": "{count} mục không còn cần đổi.",
     "libraryKept": "Thư viện cũ giữ nguyên. Mỗi thay đổi đều được ghi log."
-  }
+  },
+  "kindSelect": "Loại mục",
+  "kindOne": {
+    "skill": "Skill",
+    "rule": "Rule",
+    "command": "Command",
+    "agent": "Agent",
+    "memory": "Memory"
+  },
+  "tabEmpty": "Chưa có {kind} nào ở đây.",
+  "tabNoMatch": "Không có {kind} nào khớp “{query}”. Tìm chỉ lọc trong tab đang chọn.",
+  "globalNoMemory": "Global không có tab Memory: memory global sửa ở Cài đặt › AI › Memory."
 }

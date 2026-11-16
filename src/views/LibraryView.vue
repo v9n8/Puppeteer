@@ -13,12 +13,14 @@
 // The place lives in the URL query (lib/libraryDisk `libraryQuery`), so a link
 // can open a project's tab or one file.
 import { computed, onMounted, ref, watch } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { AlertCircle, Import, Library, RotateCw, Unlink } from 'lucide-vue-next'
 import { Badge, Button, PageHeader, SegmentedControl } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
+import LibraryKindTabs from '@/components/library/LibraryKindTabs.vue'
 import LibraryProjectList from '@/components/library/LibraryProjectList.vue'
 import LibraryEntryDetail from '@/components/library/LibraryEntryDetail.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
@@ -33,9 +35,10 @@ import { IMPORT_FEATURE, type ImportDest } from '@/lib/configImport'
 import { selectedProjectId } from '@/lib/projectList'
 import {
   CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, PROJECT_ITEM_KINDS, deletesLink,
-  isLibraryExists, kindGroups, libraryPlace, libraryQuery, memoryItem, memoryKindOf,
-  type DiskItem, type LibraryPlace, type LibraryScope,
+  isLibraryExists, libraryPlace, libraryQuery, memoryItem, memoryKindOf,
+  type DiskItem, type LibraryItemKind, type LibraryPlace, type LibraryScope,
 } from '@/lib/libraryDisk'
+import { LIBRARY_NARROW_QUERY, kindCounts, pickTab, projectListCollapsed, tabRows } from '@/lib/libraryTabs'
 import { CMD_MEMORY_READ, PROJECT_MEMORY_KINDS, type MemoryFile, type MemoryTarget } from '@/lib/memoryFiles'
 
 defineOptions({ name: 'LibraryView' })
@@ -74,6 +77,18 @@ function readCollapsed(): boolean {
   }
 }
 
+// Under 1100px the column folds by itself; opening it by hand holds until the window crosses the mark.
+const narrow = useMediaQuery(LIBRARY_NARROW_QUERY)
+const collapseOverride = ref<boolean | null>(null)
+watch(narrow, () => (collapseOverride.value = null))
+const projectListFolded = computed({
+  get: () => projectListCollapsed(projectsCollapsed.value, narrow.value, collapseOverride.value),
+  set: (v: boolean) => {
+    if (narrow.value) collapseOverride.value = v
+    else projectsCollapsed.value = v
+  },
+})
+
 watch(projectsCollapsed, (v) => {
   try {
     localStorage.setItem(COLLAPSED_KEY, v ? '1' : '0')
@@ -88,17 +103,27 @@ const items = ref<DiskItem[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const search = ref('')
-// None while the first scan runs, so the list shows its skeleton rather than four empty groups.
+const kinds = computed(() => (scope.value === 'project' ? PROJECT_ITEM_KINDS : DISK_ITEM_KINDS))
+const kind = ref<LibraryItemKind>('skill')
+const counts = computed(() => kindCounts(items.value, kinds.value))
+const rows = computed(() => tabRows(items.value, kind.value, search.value))
+// The selected file's kind opens first, then the tab in use while it has items (lib/libraryTabs).
+watch([items, selectedPath, kinds], () => {
+  kind.value = pickTab(items.value, kinds.value, selectedPath.value, kind.value)
+}, { immediate: true })
+/** Set by a link to Global's Memory tab (there is none): says where that memory lives. */
+const globalMemoryLink = ref(false)
+// None while the first scan runs, so the list shows its skeleton rather than an empty tab.
 const groups = computed(() =>
-  loading.value && items.value.length === 0
+  (loading.value && items.value.length === 0) || rows.value.length === 0
     ? []
-    : kindGroups(
-        items.value,
-        search.value,
-        (k) => t(`library.kind.${k}`),
-        scope.value === 'project' ? PROJECT_ITEM_KINDS : DISK_ITEM_KINDS,
-      ),
+    : [{ key: kind.value, label: t(`library.kind.${kind.value}`), rows: rows.value }],
 )
+const tabEmpty = computed(() => {
+  const name = t(`library.kindOne.${kind.value}`)
+  if (search.value.trim()) return t('library.tabNoMatch', { kind: name, query: search.value.trim() })
+  return t('library.tabEmpty', { kind: name })
+})
 const selectedItem = computed(() => items.value.find((i) => i.path === selectedPath.value) ?? null)
 const selectedMemory = computed<MemoryTarget | null>(() =>
   selectedItem.value?.kind === 'memory' && activeProjectId.value
@@ -168,6 +193,7 @@ function current(): LibraryPlace {
 }
 
 function setPlace(next: Partial<LibraryPlace>) {
+  globalMemoryLink.value = false
   if (next.scope !== undefined) scope.value = next.scope
   if (next.projectId !== undefined) projectId.value = next.projectId
   if (next.path !== undefined) selectedPath.value = next.path
@@ -216,6 +242,7 @@ watch(
       void router.replace({ query: libraryQuery(current()) })
       return
     }
+    globalMemoryLink.value = want.scope === 'global' && query.kind === 'memory'
     scope.value = want.scope
     if (want.projectId) projectId.value = want.projectId
     selectedPath.value = want.path
@@ -307,9 +334,10 @@ const importDestLabel = computed(() => {
 const canMaterialize = !isRemoteMode()
 const materializeOpen = ref(false)
 
-const emptyTitle = computed(() =>
-  scope.value === 'project' && !activeProjectId.value ? t('library.noProjects') : t('library.emptyTitle'),
-)
+const emptyTitle = computed(() => {
+  if (scope.value === 'project' && !activeProjectId.value) return t('library.noProjects')
+  return items.value.length === 0 ? t('library.emptyTitle') : tabEmpty.value
+})
 </script>
 
 <template>
@@ -357,64 +385,72 @@ const emptyTitle = computed(() =>
     <div class="flex min-h-0 flex-1 overflow-hidden">
       <LibraryProjectList
         v-if="scope === 'project'"
-        v-model:collapsed="projectsCollapsed"
+        v-model:collapsed="projectListFolded"
         :projects="visibleProjects"
         :selected-id="activeProjectId"
         :loading="projectsStore.loading"
         @select="selectProject"
       />
 
-      <ListDetailSidebar
-        v-model:search="search"
-        :groups="groups"
-        :selected-id="selectedPath"
-        collapse-key="puppeteer.library.collapsed"
-        :search-placeholder="t('library.searchPlaceholder')"
-        :loading="loading"
-        :error="error"
-        :empty-store="!loading && items.length === 0"
-        :empty-title="emptyTitle"
-        :empty-hint="activeProjectId || scope === 'global' ? t('library.emptyHint') : ''"
-        :flat-when-single="false"
-        :addable="false"
-        @select="selectItem"
-        @retry="refresh"
+      <div
+        class="flex shrink-0 flex-col border-r border-border/60 bg-sidebar"
+        :class="narrow ? 'w-[240px]' : 'w-[380px]'"
       >
-        <template #row="{ row, selected }">
-          <span class="flex min-w-0 items-center gap-1.5">
+        <div v-if="scope === 'global' || activeProjectId" class="shrink-0 px-3 pt-2">
+          <LibraryKindTabs v-model="kind" :kinds="kinds" :counts="counts" :compact="narrow" />
+        </div>
+        <ListDetailSidebar
+          v-model:search="search"
+          class="min-h-0 flex-1 !w-full !border-r-0"
+          :groups="groups"
+          :selected-id="selectedPath"
+          collapse-key="puppeteer.library.collapsed"
+          :search-placeholder="t('library.searchPlaceholder')"
+          :loading="loading"
+          :error="error"
+          :empty-store="!loading && !error && (items.length === 0 || rows.length === 0)"
+          :empty-title="emptyTitle"
+          :empty-hint="items.length === 0 && (activeProjectId || scope === 'global') ? t('library.emptyHint') : ''"
+          :addable="false"
+          @select="selectItem"
+          @retry="refresh"
+        >
+          <template #row="{ row, selected }">
+            <span class="flex min-w-0 items-center gap-1.5">
+              <span
+                class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug"
+                :class="selected && 'text-foreground'"
+                :title="row.item.name"
+              >
+                {{ row.item.name }}
+              </span>
+              <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
+                <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </span>
+              <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
+                {{ t('library.missing') }}
+              </Badge>
+              <Badge
+                v-if="row.item.status !== 'file'"
+                size="xs"
+                :tone="row.item.status === 'puppeteer_link' ? 'warning' : 'neutral'"
+                class="shrink-0"
+                :title="t(`library.statusHint.${row.item.status}`)"
+              >
+                {{ t(`library.status.${row.item.status}`) }}
+              </Badge>
+              <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
+            </span>
             <span
-              class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug"
-              :class="selected && 'text-foreground'"
-              :title="row.item.name"
+              v-if="row.item.description"
+              class="mt-1 truncate text-2xs text-muted-foreground/70"
+              :title="row.item.description"
             >
-              {{ row.item.name }}
+              {{ row.item.description }}
             </span>
-            <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
-              <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
-            </span>
-            <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
-              {{ t('library.missing') }}
-            </Badge>
-            <Badge
-              v-if="row.item.status !== 'file'"
-              size="xs"
-              :tone="row.item.status === 'puppeteer_link' ? 'warning' : 'neutral'"
-              class="shrink-0"
-              :title="t(`library.statusHint.${row.item.status}`)"
-            >
-              {{ t(`library.status.${row.item.status}`) }}
-            </Badge>
-            <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
-          </span>
-          <span
-            v-if="row.item.description"
-            class="mt-1 truncate text-2xs text-muted-foreground/70"
-            :title="row.item.description"
-          >
-            {{ row.item.description }}
-          </span>
-        </template>
-      </ListDetailSidebar>
+          </template>
+        </ListDetailSidebar>
+      </div>
 
       <LibraryEntryDetail
         v-if="selectedItem"
@@ -429,7 +465,11 @@ const emptyTitle = computed(() =>
         @delete="selectedItem && remove(selectedItem)"
         @duplicate="selectedItem && duplicate(selectedItem)"
       />
-      <DetailEmpty v-else :icon="Library" :text="t('library.noSelection')" />
+      <DetailEmpty
+        v-else
+        :icon="Library"
+        :text="globalMemoryLink ? t('library.globalNoMemory') : t('library.noSelection')"
+      />
     </div>
 
     <ConfigImportDialog

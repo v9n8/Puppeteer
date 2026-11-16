@@ -80,5 +80,16 @@
     "failed": "Stopped at {path}: {error}. What was converted before it stays converted.",
     "skipped": "{count} needed no change any more.",
     "libraryKept": "The old library stays as it is. Each change is logged."
-  }
+  },
+  "kindSelect": "Item kind",
+  "kindOne": {
+    "skill": "Skill",
+    "rule": "Rule",
+    "command": "Command",
+    "agent": "Agent",
+    "memory": "Memory file"
+  },
+  "tabEmpty": "No {kind} here yet.",
+  "tabNoMatch": "No {kind} matches “{query}”. Search only filters inside the selected tab.",
+  "globalNoMemory": "Global has no Memory tab: global memory is edited in Settings › AI › Memory."
 }

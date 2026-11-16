@@ -166,5 +166,7 @@
     "follow": "Theo cấu hình chung ({value})",
     "saved": "Đã lưu mặc định session",
     "noAccount": "Không có (~/.claude chung)"
-  }
+  },
+  "libraryKindEmpty": "Project này chưa có {kind} nào.",
+  "libraryRetry": "Thử lại"
 }
