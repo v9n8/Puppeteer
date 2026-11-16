@@ -1,0 +1,15 @@
+{
+  "title": "Việc",
+  "countOpenTitle": "Việc đang mở",
+  "viewLabel": "Kiểu xem",
+  "viewFocus": "Focus",
+  "viewList": "Danh sách",
+  "filterProject": "Project",
+  "filterSource": "Nguồn",
+  "countOpen": "{n} việc chưa xong",
+  "pickOne": "Chọn một việc bên trái để xem.",
+  "emptyTitle": "Chưa có việc nào",
+  "window": {
+    "title": "Việc"
+  }
+}

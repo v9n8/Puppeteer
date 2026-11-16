@@ -1,0 +1,15 @@
+{
+  "title": "Tasks",
+  "countOpenTitle": "Open tasks",
+  "viewLabel": "View",
+  "viewFocus": "Focus",
+  "viewList": "List",
+  "filterProject": "Project",
+  "filterSource": "Source",
+  "countOpen": "{n} tasks open",
+  "pickOne": "Pick a task on the left to see it.",
+  "emptyTitle": "No tasks yet",
+  "window": {
+    "title": "Tasks"
+  }
+}

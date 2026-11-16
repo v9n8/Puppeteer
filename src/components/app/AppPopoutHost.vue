@@ -29,6 +29,7 @@ import {
   IS_FILE_TRANSFER_WINDOW as isFileTransferWindow,
   IS_FILE_WINDOW as isFileWindow,
   IS_FOCUS_WINDOW as isFocusWindow,
+  IS_LEGACY_TODO_LIST_WINDOW as isLegacyTodoListWindow,
   IS_GANTT_WINDOW as isGanttWindow,
   IS_ITEM_LIST_WINDOW as isItemListWindow,
   IS_ITEM_WINDOW as isItemWindow,
@@ -75,7 +76,7 @@ const { t } = useI18n()
   <ItemWindow v-else-if="isItemWindow" />
 
   <!-- THE todo / note LIST window: stands beside the main window, replacing the drawer. -->
-  <ItemListWindow v-else-if="isItemListWindow" />
+  <ItemListWindow v-else-if="isItemListWindow && !isLegacyTodoListWindow" />
 
   <!-- THE Secret notes window: the password-sealed vault (local only). -->
   <SecretNotesWindow v-else-if="isSecretNotesWindow" />
@@ -89,8 +90,8 @@ const { t } = useI18n()
   <!-- THE Calendar window: the Calendar screen on its own OS window. -->
   <CalendarWindow v-else-if="isCalendarWindow" />
 
-  <!-- THE Focus window: the Focus board on its own OS window. -->
-  <FocusWindow v-else-if="isFocusWindow" />
+  <!-- THE Tasks window: the Tasks screen on its own OS window (also what an old Todos window loads). -->
+  <FocusWindow v-else-if="isFocusWindow || isLegacyTodoListWindow" />
 
   <!-- THE File Transfer window (remote desktop only): this machine ⇄ the controlled Puppeteer. -->
   <FileTransferWindow v-else-if="isFileTransferWindow" />

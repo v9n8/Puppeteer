@@ -72,11 +72,12 @@ async function push(blockId?: string) {
     variant="outline"
     size="sm"
     :title="t('focus.plan.hint')"
+    :aria-label="t('focus.plan.button')"
     @click="plan || planning ? (open = true) : makePlan()"
   >
     <Loader2 v-if="planning" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
     <Sparkles v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
-    {{ t('focus.plan.button') }}
+    <span class="max-[900px]:hidden">{{ t('focus.plan.button') }}</span>
   </Button>
 
   <Drawer :open="open" side="left" size="md" :title="t('focus.plan.title')" @close="open = false">

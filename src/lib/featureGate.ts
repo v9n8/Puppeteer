@@ -6,6 +6,9 @@
 // reads it. Ids are matched whole, never split on `.`: a prop id may itself
 // contain dots (`text_tools.selection.translate`).
 
+/** The Tasks screen shows Focus and / or the todo list: it stays while either prop is on. */
+export const TASKS_FEATURE = 'productivity.focus|productivity.todos'
+
 export const CMD_GET_FEATURES = 'get_features'
 /** `{ id, enabled }` → the new tree. Local-only. */
 export const CMD_SET_FEATURE = 'set_feature'
@@ -48,6 +51,8 @@ export type FeatureTree = ModuleState[]
  * missing dependency stays on (degraded). An id the tree does not know is off.
  */
 export function isFeatureOn(tree: FeatureTree, id: string): boolean {
+  // `a|b`: on while any of them is (a screen that serves two props, like Tasks).
+  if (id.includes('|')) return id.split('|').some((one) => isFeatureOn(tree, one))
   for (const m of tree) {
     if (m.module === id) return m.enabled
     const prop = m.props.find((p) => p.id === id)
@@ -106,7 +111,7 @@ export function menuActionFeature(id: string, routes: readonly GatedRoute[]): st
 
 // Query flag of each gated pop-out kind (App.vue) → its feature.
 const POPOUT_FEATURES: readonly (readonly [string, string])[] = [
-  ['focusWindow', 'productivity.focus'],
+  ['focusWindow', TASKS_FEATURE],
   ['prInboxWindow', 'code_hosting.pr_inbox'],
   ['calendarWindow', 'productivity.calendar'],
   ['ganttWindow', 'code_hosting.gantt'],

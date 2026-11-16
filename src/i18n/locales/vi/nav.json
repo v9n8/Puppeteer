@@ -6,7 +6,7 @@
   "prInbox": "Duyệt PR",
   "gantt": "Gantt",
   "schedules": "Lịch chạy",
-  "focus": "Focus",
+  "tasks": "Việc",
   "library": "Thư viện",
   "mcp": "MCP",
   "servers": "Máy chủ",
@@ -20,7 +20,7 @@
   "detachWindowTip": "Tách cửa sổ: mở {screen} ở cửa sổ riêng",
   "mergeBack": "Gộp về cửa sổ chính",
   "screenNames": {
-    "tasks": "Việc cần làm",
+    "tasks": "Việc",
     "notes": "Ghi chú",
     "slack": "Thread Slack",
     "calendar": "Lịch",

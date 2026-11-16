@@ -6,6 +6,10 @@
 // collapsible, remembered in localStorage per kind; its 🗑 deletes the whole
 // folder's shown items — those passing the filters — after the host confirms).
 //
+// Embedded in the Tasks screen (`embedded`): the screen's own filter bar holds the
+// project, its header holds "New" and the window holds the pin, so those three
+// go; a line counts the open todos instead.
+//
 // A note row: title, a one-line preview, its age and a link mark with the
 // linked-session count. A todo row: a clickable checkbox, its first line, its
 // deadline (red when overdue, amber when due within a few days), age and the
@@ -27,7 +31,7 @@ import {
   Trash2,
   X,
 } from 'lucide-vue-next'
-import { AppSelect, Banner, Button, Input, SegmentedControl } from '@/components/ui'
+import { AppSelect, Banner, Button, Input, SegmentedControl, Skeleton } from '@/components/ui'
 import { relativeAge } from '@/lib/itemText'
 import { formatDate, ymdToDate } from '@/lib/dateValue'
 import { dueStatus, localYmd } from '@/lib/todoDue'
@@ -48,6 +52,12 @@ const props = defineProps<{
   error: string | null
   pinned: boolean
   reloading: boolean
+  /** Inside the Tasks screen: no pin, project filter or "New"; todos show a count line. */
+  embedded?: boolean
+  /** Todos not done under the current filters (the count line). */
+  openCount?: number
+  /** First load not finished: placeholders instead of the empty notice. */
+  loading?: boolean
 }>()
 
 const search = defineModel<string>('search', { required: true })
@@ -173,6 +183,7 @@ const groups = computed(() => {
           </button>
         </div>
         <Button
+          v-if="!embedded"
           :variant="pinned ? 'primary' : 'outline'"
           size="icon"
           class="shrink-0"
@@ -196,7 +207,7 @@ const groups = computed(() => {
           <RotateCw class="h-3.5 w-3.5" :class="{ 'animate-spin': reloading }" :stroke-width="1.75" />
         </Button>
       </div>
-      <div class="flex items-center gap-1.5">
+      <div v-if="!embedded" class="flex items-center gap-1.5">
         <div class="min-w-0 flex-1">
           <AppSelect v-model="projectFilter" :options="projectOptions" size="sm">
             <template #leading>
@@ -214,6 +225,9 @@ const groups = computed(() => {
         :options="FILTERS"
         :aria-label="kind === 'note' ? t('item.filterLinkedTitle') : t('item.filterStatusTitle')"
       />
+      <p v-if="embedded && kind === 'todo'" class="text-2xs text-muted-foreground">
+        {{ t('tasks.countOpen', { n: openCount ?? 0 }) }}
+      </p>
     </div>
 
     <!-- Groups -->
@@ -232,7 +246,10 @@ const groups = computed(() => {
           </Button>
         </template>
       </Banner>
-      <div v-if="emptyStore && !error" class="px-3 py-8 text-center">
+      <div v-if="loading && !error" class="space-y-2 px-1 py-2">
+        <Skeleton v-for="i in 6" :key="i" class="h-8 w-full rounded" />
+      </div>
+      <div v-else-if="emptyStore && !error" class="px-3 py-8 text-center">
         <p class="text-xs text-muted-foreground">
           {{ kind === 'note' ? t('item.emptyNote') : t('item.emptyTodo') }}
         </p>

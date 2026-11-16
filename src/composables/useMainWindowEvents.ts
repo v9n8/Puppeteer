@@ -8,7 +8,8 @@ import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useProjectsStore } from '@/stores/projects'
-import { openFocusWindow } from '@/lib/focusWindow'
+import { invoke } from '@/lib/tauri'
+import { openTasks } from '@/lib/focusWindow'
 import { FOCUS_OPEN_WINDOW, type FocusOpenTodo } from '@/lib/focus'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
@@ -254,11 +255,13 @@ export function useMainWindowEvents() {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).
     }
 
-    // A Focus reminder click (or the tray's Focus row) while the Focus window is
-    // closed: open it here; it picks the todo up itself (`focus_take_open_todo`).
+    // A Focus reminder click (or the tray's Focus row) while the Tasks window is
+    // closed: show the todo where the user keeps the screen (this window, or a new
+    // Tasks window). The pending id is taken here, so it is not reopened later.
     try {
-      unlistenFocusOpen = await listen<FocusOpenTodo>(FOCUS_OPEN_WINDOW, () => {
-        void openFocusWindow()
+      unlistenFocusOpen = await listen<FocusOpenTodo>(FOCUS_OPEN_WINDOW, (e) => {
+        void invoke('focus_take_open_todo').catch(() => {})
+        void openTasks({ view: 'focus', id: e.payload?.todo_id })
       })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).

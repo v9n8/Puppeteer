@@ -6,7 +6,7 @@
   "prInbox": "PR Reviews",
   "gantt": "Gantt",
   "schedules": "Schedules",
-  "focus": "Focus",
+  "tasks": "Tasks",
   "library": "Library",
   "mcp": "MCP",
   "servers": "Servers",
@@ -20,7 +20,7 @@
   "detachWindowTip": "Open {screen} in its own window",
   "mergeBack": "Move back to main window",
   "screenNames": {
-    "tasks": "Todos",
+    "tasks": "Tasks",
     "notes": "Notes",
     "slack": "Slack Threads",
     "calendar": "Calendar",

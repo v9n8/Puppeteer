@@ -18,7 +18,7 @@ import {
 import { openPrInboxWindow } from '@/lib/prInboxWindow'
 import { openCalendarWindow } from '@/lib/calendarWindow'
 import { openGanttWindow } from '@/lib/ganttWindow'
-import { openFocusWindow } from '@/lib/focusWindow'
+import { TASKS_FEATURE } from '@/lib/featureGate'
 import type { DetachableScreen } from '@/lib/windowPlacementCore'
 import type { SidebarGroupId } from '@/lib/sidebarNav'
 
@@ -62,7 +62,8 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/processes', labelKey: 'nav.processes', icon: Cpu, group: 'work' },
   { path: '/schedules', labelKey: 'nav.schedules', icon: CalendarClock, group: 'work', feature: 'orchestration.schedules' },
   { path: '/search', labelKey: 'nav.search', icon: Search, group: 'work', sidebar: false, feature: 'sessions.cross_session_search' },
-  { path: '/focus', labelKey: 'nav.focus', icon: Target, group: 'mine', openWindow: openFocusWindow, feature: 'productivity.focus' },
+  // The screen guard (router) sends it to its own window when that is where the user keeps it.
+  { path: '/tasks', labelKey: 'nav.tasks', icon: Target, group: 'mine', feature: TASKS_FEATURE, screen: 'tasks' },
   { path: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, group: 'mine', openWindow: () => openCalendarWindow(), feature: 'productivity.calendar', screen: 'calendar' },
   { path: '/gantt', labelKey: 'nav.gantt', icon: GanttChartSquare, group: 'mine', openWindow: () => openGanttWindow(), feature: 'code_hosting.gantt', screen: 'gantt' },
   { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'mine', openWindow: openPrInboxWindow, feature: 'code_hosting.pr_inbox', screen: 'pr-inbox' },

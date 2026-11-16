@@ -10,7 +10,8 @@ import { openCalendarWindow } from '../lib/calendarWindow'
 import { fileTransferTarget } from '../lib/fileTransferWindow'
 import { isRemoteMode } from '../lib/ipc/remote'
 import { openGanttWindow } from '../lib/ganttWindow'
-import { openFocusWindow } from '../lib/focusWindow'
+import { openFocusWindow, tasksTarget } from '../lib/focusWindow'
+import { focusRedirect, parseTasksQuery } from '../lib/tasksRoute'
 import { projectPageQuery } from '../lib/projectSections'
 import IssuesGanttView from '../views/IssuesGanttView.vue'
 import RunView from '../views/RunView.vue'
@@ -18,7 +19,7 @@ import SettingsView from '../views/SettingsView.vue'
 import StatsView from '../views/StatsView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import FileTransferView from '../views/FileTransferView.vue'
-import FocusView from '../views/FocusView.vue'
+import TasksView from '../views/TasksView.vue'
 import SecretNotesView from '../views/SecretNotesView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
@@ -128,7 +129,7 @@ const router = createRouter({
         return from.matched.length > 0 ? false : '/projects'
       },
     },
-    // Gantt and Focus too (lib/ganttWindow, lib/focusWindow). `?project=` deep
+    // The Gantt too (lib/ganttWindow). `?project=` deep
     // links (Projects screen) carry over to the Gantt window.
     {
       path: '/gantt',
@@ -139,15 +140,18 @@ const router = createRouter({
         return from.matched.length > 0 ? false : '/projects'
       },
     },
+    // Tasks (Focus board + todo list) is a screen of the main window or of its own
+    // window (lib/focusWindow, the saved choice). `/focus` and its old links land on it.
     {
-      path: '/focus',
-      name: 'focus',
-      component: FocusView,
-      beforeEnter: (_to, from) => {
-        void openFocusWindow()
-        return from.matched.length > 0 ? false : '/projects'
+      path: '/tasks',
+      name: 'tasks',
+      component: TasksView,
+      beforeEnter: (to, from) => {
+        const { view, projectId, id } = parseTasksQuery(to.query)
+        return screenGuard({ ...tasksTarget, openWindow: () => openFocusWindow({ view, projectId, id }) })(to, from)
       },
     },
+    { path: '/focus', name: 'focus', redirect: (to) => focusRedirect(to.query) },
     { path: '/projects/:projectId', name: 'project-run', component: RunView },
     { path: '/projects/:projectId/run/:runId', name: 'project-run-detail', component: RunView },
     // The project settings page became the tabs of the Projects page (UX-50); old links land there.

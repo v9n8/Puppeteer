@@ -3,19 +3,16 @@
 // ranked by the backend (BR-04/05) — the UI only groups by bucket and sorts by
 // score. Three views: by time ("Do now" top 3 + collapsible buckets), by project
 // (one column each), and the week (Mon → Sun columns by due date). Rows open the
-// detail drawer. Refreshes on `focus:changed` / `item:changed` and every minute.
-// A reminder click (`focus:open-todo`, or the pending id taken on mount when the
-// click created this window) opens that todo's drawer and flashes its row.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+// detail drawer. The screen around it (views/TasksView.vue) owns the header, the
+// project / source filter (`filter`) and the data feed (store start / stop, reminder
+// clicks); it opens a todo here through `showTodo` — drawer open, row flashing.
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { CalendarClock, ChevronDown, ChevronRight, Gauge, RefreshCw, Target, TriangleAlert } from 'lucide-vue-next'
-import { invoke } from '@/lib/tauri'
-import { AppSelect, Banner, Button, Card, PageHeader, SegmentedControl, Skeleton } from '@/components/ui'
+import { CalendarClock, ChevronDown, ChevronRight, RefreshCw, Target, TriangleAlert } from 'lucide-vue-next'
+import { Banner, Button, Card, SegmentedControl, Skeleton } from '@/components/ui'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import FocusDialogs from '@/components/focus/FocusDialogs.vue'
 import FocusAiDialogs from '@/components/focus/FocusAiDialogs.vue'
-import FocusDayPlan from '@/components/focus/FocusDayPlan.vue'
 import FocusTodoDrawer from '@/components/focus/FocusTodoDrawer.vue'
 import FocusTodoRow from '@/components/focus/FocusTodoRow.vue'
 import { useFocusText } from '@/components/focus/useFocusText'
@@ -26,9 +23,6 @@ import {
   CAPACITY_LOADING,
   CAPACITY_NO_ACCOUNT,
   DEFAULT_OPEN_BUCKETS,
-  FOCUS_OPEN_TODO,
-  FILTER_NONE,
-  calibrationHint,
   filterItems,
   formatEstimate,
   groupByBucket,
@@ -39,10 +33,12 @@ import {
   topItems,
   ymdOf,
   type FocusBucket,
-  type FocusOpenTodo,
+  type FocusFilter,
 } from '@/lib/focus'
 
 type FocusViewMode = 'time' | 'project' | 'week'
+
+const props = defineProps<{ filter: FocusFilter }>()
 
 const { t, locale } = useI18n()
 const store = useFocusStore()
@@ -52,7 +48,6 @@ const { span } = useFocusText()
 // ── View + filters (remembered) ──
 const VIEW_KEY = 'puppeteer:focusView'
 const OPEN_KEY = 'puppeteer:focusOpenBuckets'
-const FILTER_KEY = 'puppeteer:focusFilter'
 
 const VIEWS: FocusViewMode[] = ['time', 'project', 'week']
 const view = ref<FocusViewMode>(VIEWS.find((v) => v === localStorage.getItem(VIEW_KEY)) ?? 'time')
@@ -76,33 +71,15 @@ function toggleBucket(b: FocusBucket) {
   localStorage.setItem(OPEN_KEY, JSON.stringify([...next]))
 }
 
-const filter = ref(readJson(FILTER_KEY, { projectId: '', sourceType: '' }))
-watch(filter, (f) => localStorage.setItem(FILTER_KEY, JSON.stringify(f)), { deep: true })
-
-const projectOptions = computed(() => [
-  { value: '', label: t('focus.filters.allProjects') },
-  ...projects.projects.map((p) => ({ value: p.id, label: p.name })),
-  { value: FILTER_NONE, label: t('focus.filters.noProject') },
-])
-const SOURCES = ['slack', 'github', 'gitlab', 'run', 'url'] as const
-const sourceOptions = computed(() => [
-  { value: '', label: t('focus.filters.allSources') },
-  ...SOURCES.map((s) => ({ value: s, label: t(`focus.sources.${s}`) })),
-  { value: FILTER_NONE, label: t('focus.filters.noSource') },
-])
-
 // ── Board ──
 const now = computed(() => store.now)
-const visible = computed(() => filterItems(store.items, filter.value))
-const openCount = computed(() => store.items.filter((it) => isActiveBucket(it.bucket)).length)
+const visible = computed(() => filterItems(store.items, props.filter))
 const top = computed(() => topItems(visible.value, store.board?.top ?? []))
 const buckets = computed(() => groupByBucket(visible.value))
 const projectColumns = computed(() => groupByProject(visible.value))
 const weekColumns = computed(() => groupByWeek(visible.value, now.value))
 const today = computed(() => ymdOf(now.value))
 
-// BR-10: shown only while calibration is on (the backend reports it with the board).
-const calibration = computed(() => calibrationHint(store.board?.calibration))
 const capacity = computed(() => store.board?.capacity ?? null)
 /** Why there is no capacity bar: no Google account → connect hint; other errors → retry. */
 const capacityError = computed(() => (store.board && !store.board.capacity ? store.board.capacity_error ?? null : null))
@@ -160,13 +137,14 @@ watch(openItem, (it) => {
   if (!it && openId.value && store.loaded) openId.value = null
 })
 
-// ── Reminder clicks → open + flash the todo ──
+// ── A reminder click / "open this todo" → open + flash it ──
 const flashId = ref<string | null>(null)
 let flashTimer: ReturnType<typeof setTimeout> | null = null
-async function showTodo(id: string | null | undefined) {
-  if (!id) return
+/** False when the board does not hold it (a done todo): the caller shows it elsewhere. */
+async function showTodo(id: string | null | undefined): Promise<boolean> {
+  if (!id) return false
   if (!store.loaded) await store.load()
-  if (!store.items.some((it) => it.todo.id === id)) return
+  if (!store.items.some((it) => it.todo.id === id)) return false
   openId.value = id
   // Make sure its bucket is visible in the time view, then flash the row.
   const it = store.items.find((x) => x.todo.id === id)
@@ -176,47 +154,18 @@ async function showTodo(id: string | null | undefined) {
   flashTimer = setTimeout(() => (flashId.value = null), 2500)
   await nextTick()
   document.querySelector(`[data-focus-row="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  return true
 }
 
-let unlistenOpen: UnlistenFn | null = null
-onMounted(async () => {
-  void store.start()
-  if (!projects.projects.length) void projects.fetchProjects()
-  try {
-    unlistenOpen = await listen<FocusOpenTodo>(FOCUS_OPEN_TODO, (e) => {
-      // Consume the pending id too, so a later window mount doesn't reopen it.
-      void invoke('focus_take_open_todo').catch(() => {})
-      void showTodo(e.payload?.todo_id)
-    })
-    void showTodo(await invoke<string | null>('focus_take_open_todo'))
-  } catch {
-    /* outside the Tauri shell */
-  }
-})
 onBeforeUnmount(() => {
-  store.stop()
-  unlistenOpen?.()
   if (flashTimer) clearTimeout(flashTimer)
 })
+
+defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <PageHeader :title="t('focus.title')" :count="store.loaded && openCount > 0 ? openCount : null">
-      <template #meta>
-        <span v-if="calibration" class="flex min-w-0 items-center gap-1 truncate text-2xs text-muted-foreground">
-          <Gauge class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          <span class="truncate">
-            {{ calibration > 1 ? t('focus.calibration.slower', { factor: calibration }) : t('focus.calibration.faster', { factor: calibration }) }}
-          </span>
-        </span>
-      </template>
-      <template #actions>
-        <FocusDayPlan @open="openId = $event" />
-        <AddTodoButton button-variant="primary" size="sm" />
-      </template>
-    </PageHeader>
-
     <!-- Today's load (BR-08) — only once the backend has Calendar data -->
     <div v-if="capacity" class="flex shrink-0 items-center gap-3 border-b border-border/60 px-6 py-2 text-xs">
       <span class="shrink-0">{{ t('focus.capacity.summary', { need: formatEstimate(capacity.need_min), free: formatEstimate(Math.max(0, capacity.free_min)) }) }}</span>
@@ -266,7 +215,7 @@ onBeforeUnmount(() => {
       </Button>
     </div>
 
-    <!-- Toolbar: view switcher + filters -->
+    <!-- Toolbar: the three ways to read the board -->
     <div class="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/60 px-6 py-2">
       <SegmentedControl
         v-model="view"
@@ -274,14 +223,6 @@ onBeforeUnmount(() => {
         :stretch="false"
         :aria-label="t('focus.views.label')"
       />
-      <div class="ml-auto flex items-center gap-2">
-        <div class="w-44">
-          <AppSelect v-model="filter.projectId" :options="projectOptions" size="xs" variant="outline" />
-        </div>
-        <div class="w-36">
-          <AppSelect v-model="filter.sourceType" :options="sourceOptions" size="xs" variant="outline" />
-        </div>
-      </div>
     </div>
 
     <!-- First load -->
@@ -307,6 +248,7 @@ onBeforeUnmount(() => {
       </div>
       <p class="text-sm font-medium">{{ t('focus.empty.title') }}</p>
       <p class="mt-1 max-w-96 text-xs text-muted-foreground">{{ t('focus.empty.hint') }}</p>
+      <AddTodoButton class="mt-4" button-variant="primary" size="sm" />
     </div>
 
     <p v-else-if="visible.length === 0" class="py-12 text-center text-sm text-muted-foreground">{{ t('focus.empty.filtered') }}</p>

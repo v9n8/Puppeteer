@@ -183,7 +183,7 @@ test('menuActionFeature: Go items follow their route, others the table', () => {
 })
 
 test('popoutFeature reads the window flag; the list window goes by its kind', () => {
-  assert.equal(popoutFeature('?focusWindow=1'), 'productivity.focus')
+  assert.equal(popoutFeature('?focusWindow=1'), 'productivity.focus|productivity.todos')
   assert.equal(popoutFeature('?prInboxWindow=1'), 'code_hosting.pr_inbox')
   assert.equal(popoutFeature('?calendarWindow=1'), 'productivity.calendar')
   assert.equal(popoutFeature('?ganttWindow=1&project=p1'), 'code_hosting.gantt')
@@ -196,6 +196,11 @@ test('popoutFeature reads the window flag; the list window goes by its kind', ()
   for (const search of ['', '?fileWindow=1', '?permissionWindow=1', '?itemWindow=1', '?focusWindow=0']) {
     assert.equal(popoutFeature(search), undefined, search)
   }
+})
+
+test('an `a|b` id is on while either side is', () => {
+  assert.equal(isFeatureOn(tree, 'productivity.calendar|productivity.todos'), true)
+  assert.equal(isFeatureOn(tree, 'productivity.calendar|code_hosting.pr_inbox'), false)
 })
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -245,7 +250,7 @@ test('gated ids exist in the backend registry', () => {
     }
   }
   assert.ok(used.size >= 10, `found ${used.size} ids`)
-  for (const id of used) assert.ok(registry.has(id), `${id} is not in the registry`)
+  for (const id of [...used].flatMap((one) => one.split('|'))) assert.ok(registry.has(id), `${id} is not in the registry`)
 })
 
 test('featureRows: a prop under a module that is off shows its own value, dimmed', () => {

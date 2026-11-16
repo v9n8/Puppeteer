@@ -7,7 +7,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getVersion } from '@tauri-apps/api/app'
-import { ListTodo, LockKeyhole, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
+import { LockKeyhole, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
 import { useProjectsStore } from '@/stores/projects'
 import { useFocusStore } from '@/stores/focus'
 import { useFeaturesStore } from '@/stores/features'
@@ -67,14 +67,10 @@ interface Entry extends SidebarSource {
   screen?: NavRoute['screen']
 }
 
-// Todos, Notes, Secret notes and Slack threads are overlays, not destinations:
+// Notes, Secret notes and Slack threads are overlays, not destinations:
 // each opens its own window so whatever screen (or running session) is
 // underneath survives untouched. Trash is reached from here and the palette.
 const extras = computed<Entry[]>(() => [
-  {
-    id: 'todos', group: 'mine', feature: 'productivity.todos', label: t('item.navTodos'), icon: ListTodo, screen: 'tasks',
-    action: () => openItemListWindow('todo', { projectId: routeCaptureContext().projectId }),
-  },
   {
     id: 'notes', group: 'mine', feature: 'productivity.notes', label: t('item.navNotes'), icon: StickyNote, screen: 'notes',
     action: () => openItemListWindow('note', { projectId: routeCaptureContext().projectId }),
@@ -110,7 +106,7 @@ const mainGroups = computed(() => groups.value.filter((g) => g.id !== 'foot'))
 const footItems = computed(() => groups.value.find((g) => g.id === 'foot')?.items ?? [])
 
 function badgeFor(id: string): NavBadge | null {
-  if (id === '/focus') return { count: focusStore.overdueCount, tone: 'danger', title: t('focus.buckets.overdue') }
+  if (id === '/tasks') return { count: focusStore.overdueCount, tone: 'danger', title: t('focus.buckets.overdue') }
   if (id === '/projects') {
     return { count: projectsStore.conflicts.length + projectsStore.ruleConflicts.length, tone: 'warning' }
   }
@@ -121,7 +117,7 @@ function badgeFor(id: string): NavBadge | null {
 function badgeTip(id: string): string | undefined {
   const b = badgeFor(id)
   if (!b || b.count <= 0) return undefined
-  return id === '/focus' ? t('nav.rail.overdue', { n: b.count }) : t('nav.rail.conflicts', { n: b.count }, b.count)
+  return id === '/tasks' ? t('nav.rail.overdue', { n: b.count }) : t('nav.rail.conflicts', { n: b.count }, b.count)
 }
 </script>
 

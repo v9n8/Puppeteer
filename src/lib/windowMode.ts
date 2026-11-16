@@ -26,6 +26,16 @@ export const IS_SLACK_WINDOW = params.get('slackWindow') === '1'
 export const IS_PR_INBOX_WINDOW = params.get('prInboxWindow') === '1'
 export const IS_CALENDAR_WINDOW = params.get('calendarWindow') === '1'
 export const IS_FOCUS_WINDOW = params.get('focusWindow') === '1'
+/**
+ * A Todos list window opened before the Tasks screen replaced it
+ * (`?itemListWindow=1&kind=todo`): it loads the Tasks window's screen instead.
+ */
+export const IS_LEGACY_TODO_LIST_WINDOW = params.get('itemListWindow') === '1' && params.get('kind') !== 'note'
+/** What the Tasks window opens on (`view`, `project`, `id`; the old Todos window's `projectId` too). */
+export const TASKS_WINDOW_QUERY: Readonly<Record<string, string>> =
+  IS_FOCUS_WINDOW || IS_LEGACY_TODO_LIST_WINDOW
+    ? { ...Object.fromEntries(params), ...(IS_LEGACY_TODO_LIST_WINDOW ? { view: 'list', project: params.get('projectId') ?? '' } : {}) }
+    : {}
 export const IS_FILE_TRANSFER_WINDOW = params.get('fileTransferWindow') === '1'
 export const IS_SETTINGS_WINDOW = params.get('settingsWindow') === '1'
 /** The place the Settings window opens on (`section`, `tab`, `type`; see lib/settingsWindow). */
