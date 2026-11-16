@@ -17,10 +17,12 @@ export type PrFilterDimension = keyof PrFilters
 
 const props = defineProps<{
   options: PrFilterOptions
-  /** Stored selections (may include values no longer present — ignored). */
+  /** Picked selections, applied on "Search" (may include values no longer present — ignored). */
   modelValue: PrFilters
   /** Number of selected values that currently apply (badge on the button). */
   activeCount: number
+  /** Anything to clear: applied or picked filters, or search text. */
+  canClear: boolean
   /** Display text for an option of a dimension. */
   optionLabel: (dimension: PrFilterDimension, option: PrFilterOption) => string
 }>()
@@ -28,6 +30,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [dimension: PrFilterDimension, values: string[]]
   clear: []
+  /** "Search" in the footer: apply the picked filters (and the typed text). */
+  search: []
 }>()
 
 const { t } = useI18n()
@@ -141,9 +145,13 @@ function toggle(dimension: PrFilterDimension, value: string) {
           </template>
         </section>
       </div>
-      <div class="flex items-center justify-end border-t border-border/60 px-3 py-2">
-        <Button variant="ghost" size="xs" :disabled="activeCount === 0" @click="emit('clear')">
+      <div class="flex items-center gap-2 border-t border-border/60 px-3 py-2">
+        <Button variant="ghost" size="xs" :disabled="!canClear" @click="emit('clear')">
           {{ t('prInbox.filters.clearAll') }}
+        </Button>
+        <span class="ml-auto text-2xs text-muted-foreground">{{ t('prInbox.filters.applyOnSearch') }}</span>
+        <Button variant="outline" size="xs" :title="t('prInbox.searchTitle')" @click="emit('search'); open = false">
+          {{ t('prInbox.searchButton') }}
         </Button>
       </div>
     </div>

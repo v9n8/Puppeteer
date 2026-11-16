@@ -33,6 +33,9 @@
   "unknownGroup": "Unknown",
   "visibleOfTotal": "{visible} of {total} PRs shown",
   "searchPlaceholder": "Search title, #number, repo, author…",
+  "searchButton": "Search",
+  "searchTitle": "Search (Enter): apply the search text and filters",
+  "findHint": "{key}: put the cursor in the search box",
   "filters": {
     "project": "Project",
     "author": "Author",
@@ -45,7 +48,8 @@
     "searchSection": "Search {section}…",
     "noMatchSection": "No matches",
     "remove": "Remove filter {filter}",
-    "clearSearchAndFilters": "Clear search & filters"
+    "clearSearchAndFilters": "Clear search & filters",
+    "applyOnSearch": "Applied on Search"
   },
   "status": {
     "not_reviewed": "Not reviewed",

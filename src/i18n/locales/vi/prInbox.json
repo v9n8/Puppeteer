@@ -33,6 +33,9 @@
   "unknownGroup": "Không rõ",
   "visibleOfTotal": "Đang hiện {visible}/{total} PR",
   "searchPlaceholder": "Tìm theo tiêu đề, #số, repo, tác giả…",
+  "searchButton": "Tìm",
+  "searchTitle": "Tìm (Enter): áp chữ tìm và bộ lọc",
+  "findHint": "{key}: đưa con trỏ vào ô tìm",
   "filters": {
     "project": "Project",
     "author": "Tác giả",
@@ -45,7 +48,8 @@
     "searchSection": "Tìm {section}…",
     "noMatchSection": "Không có kết quả",
     "remove": "Bỏ bộ lọc {filter}",
-    "clearSearchAndFilters": "Xoá tìm kiếm và bộ lọc"
+    "clearSearchAndFilters": "Xoá tìm kiếm và bộ lọc",
+    "applyOnSearch": "Áp khi bấm Tìm"
   },
   "status": {
     "not_reviewed": "Chưa review",

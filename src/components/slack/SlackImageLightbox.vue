@@ -47,6 +47,10 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     e.stopPropagation()
     emit('close')
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    e.stopPropagation()
+    step(e.key === 'ArrowLeft' ? -1 : 1)
   }
 }
 

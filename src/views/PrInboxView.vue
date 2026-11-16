@@ -14,11 +14,12 @@ import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { composerDefaults } from '@/lib/composerChips'
 import { useProjectsStore } from '@/stores/projects'
 import {
-  Button, Skeleton, Input, ContextMenu, DropdownItem, DropdownSeparator, PageHeader, Banner,
+  Button, Skeleton, ContextMenu, DropdownItem, DropdownSeparator, PageHeader, Banner,
 } from '@/components/ui'
 import PrInboxCard from '@/components/prInbox/PrInboxCard.vue'
 import PrInboxFiltersPopover, { type PrFilterDimension } from '@/components/prInbox/PrInboxFiltersPopover.vue'
 import PrInboxDisplayPopover from '@/components/prInbox/PrInboxDisplayPopover.vue'
+import PrInboxSearchBar from '@/components/prInbox/PrInboxSearchBar.vue'
 import PrInboxBotAccountsModal from '@/components/prInbox/PrInboxBotAccountsModal.vue'
 import {
   groupPrInbox,
@@ -41,20 +42,20 @@ import {
   BULK_REVIEW_CAP,
   UNMAPPED_PROJECT_VALUE,
   type PrFilterOption,
+  type PrFilters,
 } from '@/lib/prInboxFilters'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { useRunStatusEvents } from '@/composables/useRunStatusEvents'
-import { usePageFind } from '@/composables/usePageFind'
+import { usePrInboxSearchShortcut } from '@/composables/usePrInboxSearchShortcut'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import { SCREEN_SELECTION } from '@/lib/selectionScreens'
-import FindBar from '@/components/FindBar.vue'
 import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
 import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
 import {
   GitPullRequest, RefreshCw, Sparkles, User, Bot, ChevronRight, Folder, BookMarked,
-  CircleDashed, EyeOff, KeyRound, ExternalLink, SearchX, Search, X, Pin, PinOff,
+  CircleDashed, EyeOff, KeyRound, ExternalLink, SearchX, X, Pin, PinOff,
 } from 'lucide-vue-next'
 
 // Named explicitly (devtools / warnings): an inferred name is a build detail
@@ -176,9 +177,26 @@ function setFilter(dimension: PrFilterDimension, values: string[]) {
   store.setFilters({ ...store.filters, [dimension]: values })
 }
 
+// Filters picked in the popover wait here until "Search"; the chips and the
+// list use the stored (applied) ones.
+const searchBar = ref<InstanceType<typeof PrInboxSearchBar> | null>(null)
+const draftFilters = ref<PrFilters>({ ...store.filters })
+watch(() => store.filters, f => { draftFilters.value = { ...f } })
+
+function draftFilter(dimension: PrFilterDimension, values: string[]) {
+  draftFilters.value = { ...draftFilters.value, [dimension]: values }
+}
+
+function applySearchAndFilters(text: string) {
+  search.value = text
+  store.setFilters(draftFilters.value)
+}
+
 function clearAllFilters() {
   store.clearFilters()
+  draftFilters.value = { ...store.filters }
   search.value = ''
+  searchBar.value?.reset()
 }
 
 function filterOptionLabel(dimension: PrFilterDimension, o: PrFilterOption): string {
@@ -220,12 +238,9 @@ function toggleGroup(group: PrGroup) {
   store.setGroupCollapsed(group.key, !isCollapsed(group))
 }
 
-// ⌘F searches the list; re-filtering or folding a group re-renders it, which
-// detaches the old matches.
+// ⌘F puts the cursor in the search box (no in-page find bar on this screen).
 const contentEl = ref<HTMLElement | null>(null)
-const find = usePageFind(contentEl)
-const findOpen = find.open
-watch([grouped, () => store.collapsedGroups], find.refresh)
+usePrInboxSearchShortcut(contentEl, () => searchBar.value?.focus() ?? false)
 
 // Selected text in the list gets the shared selection toolbar. It renders
 // titles and names as plain text, so Copy MD copies the selection as is.
@@ -438,54 +453,31 @@ async function reviewAll(group: PrGroup) {
       </template>
     </PageHeader>
 
-    <!-- Toolbar: search + Filters / Display popovers (patterned on
-         CalendarView's display-options popover). A size container so the
-         buttons drop to icon-only when the content pane — not the window — is
-         narrow (the sidebar eats into it). `relative z-10`: the size container
-         is its own stacking context, so lift it above the (positioned) cards
-         its popovers overlap. Everything but the search is persisted.
-         The @[30rem]/toolbar icon-only fallback rarely triggers: the window's
-         minWidth is 900px, leaving the content pane at roughly ≥ 680px; it
-         covers a wide sidebar or a future smaller minimum. -->
-    <div v-if="store.items.length > 0" class="@container/toolbar relative z-10 px-6 py-2 border-b border-border/60 shrink-0">
-      <div class="flex min-w-0 items-center gap-2">
-        <!-- Search: same icon + clear pattern as ItemSidebar / SlackSidebar -->
-        <div class="relative min-w-32 max-w-md flex-1">
-          <Search
-            class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-            :stroke-width="1.75"
-          />
-          <Input
-            v-model="search"
-            class="pl-8 pr-7"
-            :placeholder="t('prInbox.searchPlaceholder')"
-            :aria-label="t('prInbox.searchPlaceholder')"
-            @keydown.esc="search = ''"
-          />
-          <button
-            v-if="search"
-            type="button"
-            class="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-            :title="t('prInbox.clearSearch')"
-            :aria-label="t('prInbox.clearSearch')"
-            @click="search = ''"
-          >
-            <X class="h-3.5 w-3.5" :stroke-width="2" />
-          </button>
-        </div>
-        <div class="ml-auto flex shrink-0 items-center gap-2">
-          <PrInboxFiltersPopover
-            :options="filterOptions"
-            :model-value="store.filters"
-            :active-count="activeFilterChips.length"
-            :option-label="filterOptionLabel"
-            @update="setFilter"
-            @clear="store.clearFilters()"
-          />
-          <PrInboxDisplayPopover @manage-bots="botAccountsOpen = true" />
-        </div>
-      </div>
-    </div>
+    <!-- Search row: the text and the filters apply on "Search" / Enter, not
+         while typing. Filters / Display popovers sit in its trailing slot. -->
+    <PrInboxSearchBar
+      v-if="store.items.length > 0"
+      ref="searchBar"
+      :applied="search"
+      :filters="activeFilters"
+      @apply="applySearchAndFilters"
+      @clear="search = ''"
+      @clear-all="clearAllFilters"
+    >
+      <template #trailing>
+        <PrInboxFiltersPopover
+          :options="filterOptions"
+          :model-value="draftFilters"
+          :active-count="activeFilterChips.length"
+          :can-clear="filtering || hasActiveFilters(draftFilters)"
+          :option-label="filterOptionLabel"
+          @update="draftFilter"
+          @search="searchBar?.submit()"
+          @clear="clearAllFilters"
+        />
+        <PrInboxDisplayPopover @manage-bots="botAccountsOpen = true" />
+      </template>
+    </PrInboxSearchBar>
 
     <!-- Active filters: one removable chip per applied value (chip look of
          SkillsView's group filter chips). -->
@@ -513,15 +505,10 @@ async function reviewAll(group: PrGroup) {
       <button
         type="button"
         class="ml-1 text-2xs font-medium text-primary hover:underline cursor-pointer"
-        @click="store.clearFilters()"
+        @click="clearAllFilters"
       >
         {{ t('prInbox.filters.clearAll') }}
       </button>
-    </div>
-
-    <!-- Zero-height anchor: the ⌘F bar floats over the list's top edge. -->
-    <div v-if="findOpen" class="relative z-20 h-0 shrink-0">
-      <FindBar :find="find" class="absolute top-2 right-6" />
     </div>
 
     <!-- Content -->
