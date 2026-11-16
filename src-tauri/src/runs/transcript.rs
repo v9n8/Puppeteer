@@ -194,6 +194,8 @@ const COMPACT_PRELUDE: &str = "This session is being continued from a previous c
 enum Piece {
     Prompt(String),
     Reply(String),
+    /// A `_puppeteer_turn_cut` record: the turn above ended early.
+    Cut,
 }
 
 fn texts(content: Option<&Value>) -> (Vec<&str>, usize, bool) {
@@ -247,6 +249,7 @@ fn piece(v: &Value) -> Option<Piece> {
             let (parts, _, _) = texts(v.pointer("/message/content"));
             (!parts.is_empty()).then(|| Piece::Reply(parts.join("\n\n")))
         }
+        super::turn_cut::MARKER => Some(Piece::Cut),
         _ => None,
     }
 }
@@ -286,6 +289,11 @@ pub fn to_markdown(log: impl BufRead, header: &Header) -> std::io::Result<String
                 turn += 1;
                 replied = false;
                 out.push_str(&format!("\n## Turn {turn}\n\n**You**\n\n{}\n", redact(&text)));
+            }
+            Piece::Cut => {
+                if turn > 0 {
+                    out.push_str("\n_(Stopped mid-turn)_\n");
+                }
             }
             Piece::Reply(text) => {
                 if turn == 0 {
@@ -408,6 +416,21 @@ mod tests {
              \n## Turn 2\n\n**You**\n\nAnd this?\n\n_[image]_\n\
              \n**Assistant**\n\nA screenshot of the form.\n"
         );
+    }
+
+    #[test]
+    fn a_cut_turn_gets_one_line() {
+        let md = to_markdown(
+            log(&[
+                json!({ "type": "user", "message": { "role": "user", "content": "go" } }),
+                assistant(json!([{ "type": "text", "text": "Starting" }])),
+                json!({ "type": "_puppeteer_turn_cut", "reason": "user", "at": "2026-11-16T10:52:03Z" }),
+            ])
+            .as_bytes(),
+            &header(),
+        )
+        .unwrap();
+        assert!(md.ends_with("Starting\n\n_(Stopped mid-turn)_\n"), "{md}");
     }
 
     #[test]

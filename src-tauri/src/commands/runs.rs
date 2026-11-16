@@ -1548,31 +1548,30 @@ pub(crate) async fn finish_stop(
     }
 }
 
-/// Core of [`cancel_run`] over concrete refs so the Remote Control host agent
-/// (FR-009 `cancel_run`) can reuse it without a Tauri `State`. Returns once
+/// [`cancel_run`] over concrete refs, for Remote Control (FR-009). Returns once
 /// the run is no longer live (up to twice [`STOP_GRACE`]).
-///
-/// `stamp_activity`: whether this cancel counts as user activity and floats the
-/// run in History. False when an agent (Conductor) cancels its own worker.
+/// `stamp_activity`: counts as user activity (floats the run in History); false
+/// when the Conductor cancels its own worker.
 pub(crate) async fn cancel_run_inner(
     registry: &RunRegistry,
     db: &sqlx::SqlitePool,
     run_id: &str,
     stamp_activity: bool,
 ) -> Result<(), String> {
+    crate::runs::turn_cut::on_cancel(registry, run_id, stamp_activity).await;
     graceful_stop(registry, run_id, STOP_GRACE).await;
     mark_run_cancelled(db, run_id, stamp_activity).await
 }
 
-/// [`cancel_run_inner`] for a caller that must not wait for the engine: a
-/// run's own drain (the UX-14 quota stop can name that very run) and the
-/// Remote Control command loop. The wait runs in a task of its own.
+/// [`cancel_run_inner`] for a caller that must not wait for the engine (a run's
+/// own drain, Remote Control); the wait runs in its own task.
 pub(crate) async fn cancel_run_detached(
     registry: &RunRegistry,
     db: &sqlx::SqlitePool,
     run_id: &str,
     stamp_activity: bool,
 ) -> Result<(), String> {
+    crate::runs::turn_cut::on_cancel(registry, run_id, stamp_activity).await;
     let StopStart::Waiting(ack) = begin_stop(registry, run_id).await else {
         return mark_run_cancelled(db, run_id, stamp_activity).await;
     };

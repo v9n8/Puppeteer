@@ -100,5 +100,13 @@
     "collapse": "Ẩn các bước của lượt này",
     "expandAll": "Hiện các bước của mọi lượt",
     "collapseAll": "Thu gọn các bước của lượt đã xong"
+  },
+  "turnCut": {
+    "title": "Đã dừng giữa chừng",
+    "user": "· bạn bấm Hủy lúc {time}",
+    "quota": "· chạm quota lúc {time}",
+    "agent": "· conductor dừng lúc {time}",
+    "app_closed": "· app tắt lúc {time}",
+    "appClosedHint": "Thời điểm phát hiện khi mở lại app: {time}"
   }
 }

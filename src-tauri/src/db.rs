@@ -11,6 +11,8 @@ pub async fn init_db(db_path: &Path) -> Result<Db> {
     // Before the startup code reads settings: the Inbox API listener must
     // already see a fresh install's switch off.
     crate::features::seed::seed(&pool).await?;
+    // Before the reconcile turns those `running` rows into `cancelled`.
+    crate::runs::turn_cut::mark_app_closed(&pool).await;
     reconcile_interrupted_runs(&pool).await?;
     // Best effort: a failed ledger repair must not keep the app from starting.
     if let Err(e) = crate::runs::usage_cost::repair_cumulative_costs(&pool).await {

@@ -10,11 +10,13 @@ import {
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
+import TurnCutMark from './TurnCutMark.vue'
 import MentionedFiles from '@/components/MentionedFiles.vue'
 import InlinePermissionBlock from '@/components/permission/InlinePermissionBlock.vue'
 import { Button, DropdownMenu, DropdownItem } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
 import { forkSource } from '@/lib/runFork'
+import { fallbackLastTurnCut } from '@/lib/turnCut'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { hrefFileRef, parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
@@ -49,6 +51,11 @@ function openForkSource() {
   if (forkLinkable.value && forkSourceRun.value) void loadRunLog(forkSourceRun.value.id)
 }
 const uiLayout = useUILayoutStore()
+// A log from before the marks existed: its last turn's cut comes from the run's own record.
+const historyFallbackCut = computed(() =>
+  historyHasMoreBelow.value ? null : fallbackLastTurnCut(historyEntries.value, currentRun.value),
+)
+const liveFallbackCut = computed(() => fallbackLastTurnCut(liveEntries.value, currentRun.value))
 
 // Floating column (E8): round 32px buttons, icons only.
 const NAV_BTN =
@@ -326,6 +333,7 @@ function onOpenUrl(url: string) {
             @open-url="onOpenUrl"
             @quote-jump="jumpToQuote"
           />
+          <TurnCutMark v-if="historyFallbackCut" :cut="historyFallbackCut" />
           <!-- Newer records below the loaded window (only after a jump into
                the middle of the log). Scrolling down loads them too. -->
           <div v-if="historyHasMoreBelow" class="search-skip mt-3 flex justify-center">
@@ -390,6 +398,7 @@ function onOpenUrl(url: string) {
           />
           <div v-if="currentStatus === 'running'" class="text-emerald-500 dark:text-emerald-400 animate-pulse mt-1 select-none font-mono text-xs">▌</div>
         </template>
+        <TurnCutMark v-if="liveHasStream && liveFallbackCut" :cut="liveFallbackCut" />
       </div>
 
       <!-- Empty state -->

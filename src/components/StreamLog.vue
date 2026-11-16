@@ -17,6 +17,7 @@ import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
 import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import TurnActivityHeader from './sessions/TurnActivityHeader.vue'
 import WorkerResultCards from './conductor/WorkerResultCards.vue'
+import TurnCutMark from './sessions/TurnCutMark.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionQuoteNote, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
@@ -1124,7 +1125,7 @@ function toolResult(e: StreamEntry): unknown {
           >
             <IdeContextChip :items="entry.ideContext" variant="inside" @open-file="(p) => emit('open-file', p)" />
           </div>
-          <!-- Its structured quotes (UX-29): numbered cards that lead back to the source. -->
+          <!-- Its structured quotes (UX-29): cards leading to the source. -->
           <ol v-if="quoteSetOf(entry)" class="mb-2 flex flex-col gap-1.5">
             <li v-for="(card, ci) in quoteSetOf(entry)!.cards" :key="card.quote.id">
               <button
@@ -1190,7 +1191,7 @@ function toolResult(e: StreamEntry): unknown {
         <IdeContextChip :items="entry.items" variant="standalone" @open-file="(p) => emit('open-file', p)" />
       </div>
 
-      <!-- Compaction summary — context was condensed; show a divider, expandable to read it -->
+      <!-- Compaction summary: a divider, expandable -->
       <div v-else-if="entry.kind === 'compact'" class="my-3">
         <div class="flex items-center gap-2 text-foreground/40">
           <span class="h-px flex-1 bg-border" />
@@ -1217,7 +1218,7 @@ function toolResult(e: StreamEntry): unknown {
         />
       </div>
 
-      <!-- Local slash command (e.g. /compact) the user ran — a slim marker, not a chat bubble -->
+      <!-- Local slash command the user ran: a slim marker -->
       <div v-else-if="entry.kind === 'command'" class="my-1.5 flex flex-col items-center gap-1">
         <div
           v-if="entry.name"
@@ -1230,9 +1231,9 @@ function toolResult(e: StreamEntry): unknown {
         <div v-if="entry.stdout" class="text-2xs font-mono text-foreground/45">{{ entry.stdout }}</div>
       </div>
 
-      <!-- Harness-injected message (skill body, conductor nudge, meta) — a slim
-           marker the user can expand; it isn't something they typed. -->
       <WorkerResultCards v-else-if="entry.kind === 'worker_results'" :workers="entry.workers" :nudge="entry.nudge" />
+      <TurnCutMark v-else-if="entry.kind === 'turn_cut'" :cut="entry" />
+      <!-- Harness-injected message (skill, nudge, meta): a slim marker the user can expand. -->
       <div v-else-if="entry.kind === 'injected'" class="my-1.5 flex flex-col items-start gap-1">
         <button
           class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-2xs text-foreground/60 hover:text-foreground/80 transition-colors"
@@ -1427,7 +1428,7 @@ function toolResult(e: StreamEntry): unknown {
         </div>
       </div>
 
-      <!-- Sub-agent (Task): subagent + goal in header, its report rendered as markdown. -->
+      <!-- Sub-agent (Task): goal in header, report as markdown. -->
       <div
         v-else-if="entry.kind === 'tool' && isAgentTool(entry.name)"
         class="rounded-lg border border-l-[3px] bg-card/80 shadow-sm shadow-black/20 overflow-hidden"

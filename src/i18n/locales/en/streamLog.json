@@ -100,5 +100,13 @@
     "collapse": "Hide this turn's steps",
     "expandAll": "Show the steps of every turn",
     "collapseAll": "Fold the steps of finished turns"
+  },
+  "turnCut": {
+    "title": "Stopped mid-turn",
+    "user": "· you pressed Cancel at {time}",
+    "quota": "· hit the quota at {time}",
+    "agent": "· the conductor stopped it at {time}",
+    "app_closed": "· the app was closed at {time}",
+    "appClosedHint": "Time the app noticed on reopening: {time}"
   }
 }

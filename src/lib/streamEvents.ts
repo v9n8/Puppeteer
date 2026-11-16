@@ -1,5 +1,6 @@
 import { estimateCost } from './pricing'
 import { STEP_MARK_TYPE, applyStepMark } from './stepMarks'
+import { TURN_CUT_TYPE, parseTurnCut, type TurnCut } from './turnCut'
 import { WORKER_RESULTS_TYPE, parseWorkerResults, attachNudge, type WorkerResult } from './workerResults'
 import { carriesOver, parseModelUsage, turnTotals, type ModelUsageMap } from './modelUsage'
 
@@ -209,6 +210,8 @@ export type StreamEntry =
   | { kind: 'injected'; source: 'skill' | 'session' | 'system'; label?: string; text: string }
   /** The workers that finished a turn, one result card each (V3-30), with the nudge the conductor got after them. */
   | { kind: 'worker_results'; workers: WorkerResult[]; nudge?: string }
+  /** The turn above was cut short (V3-29): a one-line mark, not a message. */
+  | ({ kind: 'turn_cut' } & TurnCut)
   | {
       kind: 'tool'
       id: string
@@ -506,6 +509,11 @@ export function applyStreamEvent(
 
   if (type === STEP_MARK_TYPE) {
     applyStepMark(state, e)
+    return
+  }
+
+  if (type === TURN_CUT_TYPE) {
+    state.entries.push({ kind: 'turn_cut', ...parseTurnCut(e) })
     return
   }
 

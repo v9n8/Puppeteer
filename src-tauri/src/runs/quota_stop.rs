@@ -176,6 +176,7 @@ async fn on_guard_status_with(
         // The drain still holds this buffer and persists it once the sidecar
         // is gone, so the reason lands in the session's log file.
         log_buf.lock().await.push_str(&line);
+        crate::runs::turn_cut::push_live(registry, &id, "quota").await;
         notify(&id, &reason);
         // In the DB before the stop, not a flag in memory: the drain reads it
         // for `run:done` after the stop may have removed the registry entry.
