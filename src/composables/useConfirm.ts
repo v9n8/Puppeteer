@@ -8,7 +8,8 @@
 //   if (!(await confirm('Delete this?'))) return
 //
 // `choose()` adds a second action (`altLabel`) and resolves with which button
-// was pressed, or null on cancel.
+// was pressed, or null on cancel. `notify()` shows a message with a single
+// Close button (nothing to decide).
 import { reactive } from 'vue'
 
 export interface ConfirmOptions {
@@ -35,6 +36,8 @@ interface ConfirmState extends Required<ConfirmOptions> {
   open: boolean
   /** '' = no second action. */
   altLabel: string
+  /** A notice: only the confirm button (labelled Close), no Cancel. */
+  single: boolean
 }
 
 const state = reactive<ConfirmState>({
@@ -45,11 +48,12 @@ const state = reactive<ConfirmState>({
   cancelLabel: 'Cancel',
   variant: 'destructive',
   altLabel: '',
+  single: false,
 })
 
 let resolver: ((value: ConfirmChoice) => void) | null = null
 
-function openDialog(opts: ConfirmOptions, altLabel: string): Promise<ConfirmChoice> {
+function openDialog(opts: ConfirmOptions, altLabel: string, single = false): Promise<ConfirmChoice> {
   // If a dialog is already pending, cancel it before opening the new one.
   resolver?.(null)
 
@@ -59,6 +63,7 @@ function openDialog(opts: ConfirmOptions, altLabel: string): Promise<ConfirmChoi
   state.cancelLabel = opts.cancelLabel ?? 'Cancel'
   state.variant = opts.variant ?? 'destructive'
   state.altLabel = altLabel
+  state.single = single
   state.open = true
 
   return new Promise<ConfirmChoice>((resolve) => {
@@ -75,6 +80,10 @@ function choose(options: ChoiceOptions): Promise<ConfirmChoice> {
   return openDialog(options, options.altLabel)
 }
 
+function notify(options: Omit<ConfirmOptions, 'cancelLabel'> & { closeLabel: string }): Promise<void> {
+  return openDialog({ ...options, confirmLabel: options.closeLabel }, '', true).then(() => undefined)
+}
+
 function respond(value: ConfirmChoice) {
   if (!state.open) return
   state.open = false
@@ -83,5 +92,5 @@ function respond(value: ConfirmChoice) {
 }
 
 export function useConfirm() {
-  return { state, confirm, choose, respond }
+  return { state, confirm, choose, notify, respond }
 }

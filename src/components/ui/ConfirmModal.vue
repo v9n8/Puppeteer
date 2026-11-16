@@ -2,11 +2,23 @@
 // Global confirm-dialog host. Mount once (in App.vue); triggered from anywhere
 // via useConfirm().confirm(). Replaces the browser-native confirm() so dialogs
 // match the app's design system (dark theme, indigo primitives).
+import { nextTick, ref, watch } from 'vue'
 import { Modal, Button } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { AlertTriangle } from 'lucide-vue-next'
 
 const { state, respond } = useConfirm()
+
+// A notice has one button: focus it so Enter closes the dialog.
+const confirmBtn = ref<{ $el?: HTMLElement } | null>(null)
+watch(
+  () => state.open && state.single,
+  async (focusIt) => {
+    if (!focusIt) return
+    await nextTick()
+    confirmBtn.value?.$el?.focus()
+  },
+)
 </script>
 
 <template>
@@ -23,9 +35,9 @@ const { state, respond } = useConfirm()
     <template #footer>
       <!-- Wraps when a second action and a long label don't fit on one line. -->
       <div class="flex w-full flex-wrap justify-end gap-2">
-        <Button variant="outline" @click="respond(null)">{{ state.cancelLabel }}</Button>
+        <Button v-if="!state.single" variant="outline" @click="respond(null)">{{ state.cancelLabel }}</Button>
         <Button v-if="state.altLabel" variant="outline" @click="respond('alt')">{{ state.altLabel }}</Button>
-        <Button :variant="state.variant === 'destructive' ? 'destructive' : 'primary'" @click="respond('confirm')">
+        <Button ref="confirmBtn" :variant="state.variant === 'destructive' ? 'destructive' : 'primary'" @click="respond('confirm')">
           {{ state.confirmLabel }}
         </Button>
       </div>

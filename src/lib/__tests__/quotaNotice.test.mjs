@@ -1,8 +1,8 @@
-// Unit tests for lib/quotaSwitch.ts (accounts offered when a quota blocks a session).
-// Run: node --test src/lib/__tests__/quotaSwitch.test.mjs
+// Unit tests for lib/quotaNotice.ts (quota notice facts and the accounts still usable).
+// Run: node --test src/lib/__tests__/quotaNotice.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { quotaSwitchTargets } from '../quotaSwitch.ts'
+import { quotaAlternatives, quotaNoticeText } from '../quotaNotice.ts'
 
 const NOW = Date.parse('2026-11-10T12:00:00Z')
 const LATER = '2026-11-10T14:30:00Z'
@@ -27,7 +27,7 @@ test('offers the accounts under their block thresholds, lowest usage first', () 
     'claude:c': snap(10, 50), // its weekly window is what counts
     'claude:d': snap(30, 10),
   }
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['d', 'c', 'b'])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['d', 'c', 'b'])
 })
 
 test('skips an account over a block threshold, blocked by the plan, or at 100%', () => {
@@ -38,9 +38,9 @@ test('skips an account over a block threshold, blocked by the plan, or at 100%',
     'claude:d': snap(20, 10, { status: 'blocked' }),
     'claude:e': snap(100, 10), // no 5h threshold set, but the plan is spent
   }
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'claude:a', snapshots, th(80, 90), NOW)), [])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'claude:a', snapshots, th(80, 90), NOW)), [])
   // With no 5h threshold, 85% is fine; a blocked or spent plan still is not.
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'claude:a', snapshots, th(0, 90), NOW)), ['b'])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'claude:a', snapshots, th(0, 90), NOW)), ['b'])
 })
 
 test('a window that already reset counts as 0%', () => {
@@ -49,7 +49,7 @@ test('a window that already reset counts as 0%', () => {
     'claude:b': snap(99, 20, { fiveReset: PAST }),
     'claude:c': snap(30, 30),
   }
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['b', 'c'])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['b', 'c'])
 })
 
 test('accounts with no plan figures come last, in their own order', () => {
@@ -59,14 +59,39 @@ test('accounts with no plan figures come last, in their own order', () => {
     'claude:c': { captured_at: null, rate_limits_available: false, windows: {} }, // API key
     'claude:d': snap(60, 60),
   }
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['d', 'b', 'c'])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'claude:a', snapshots, th(90, 90), NOW)), ['d', 'b', 'c'])
 })
 
 test('never offers the run\'s own account; the shared Codex login is a choice like any other', () => {
   const shared = { value: '', label: 'Shared Codex login', usageKey: 'codex' }
   const accounts = [shared, acc('x', 'codex'), acc('y', 'codex')]
   const snapshots = { codex: snap(5, 5), 'codex:x': snap(95, 50), 'codex:y': snap(20, 20) }
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'codex:x', snapshots, th(90, 90), NOW)), ['', 'y'])
-  assert.deepEqual(ids(quotaSwitchTargets(accounts, 'codex', snapshots, th(90, 90), NOW)), ['y'])
-  assert.deepEqual(ids(quotaSwitchTargets([shared], 'codex', snapshots, th(90, 90), NOW)), [])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'codex:x', snapshots, th(90, 90), NOW)), ['', 'y'])
+  assert.deepEqual(ids(quotaAlternatives(accounts, 'codex', snapshots, th(90, 90), NOW)), ['y'])
+  assert.deepEqual(ids(quotaAlternatives([shared], 'codex', snapshots, th(90, 90), NOW)), [])
+})
+
+const win = (key, period, percent) => ({ key, period, percent, reset: LATER, rolledOver: false, blocked: false })
+
+test('notice names the worst window that is over and the alternative', () => {
+  const current = [win('five_hour', '5h', 96), win('seven_day', 'week', 40)]
+  const other = { account: acc('p'), windows: [win('five_hour', '5h', 18), win('seven_day', 'week', 10)] }
+  assert.deepEqual(quotaNoticeText(current, other, th(95, 0)), {
+    window: '5h', percent: 96, limit: 95, other: { label: 'P', percent: 18 },
+  })
+})
+
+test('notice picks the weekly window when only that one is over', () => {
+  const current = [win('five_hour', '5h', 30), win('seven_day', 'week', 93)]
+  const parts = quotaNoticeText(current, null, th(95, 90))
+  assert.deepEqual(parts, { window: 'week', percent: 93, limit: 90, other: null })
+})
+
+test('notice keeps an alternative without plan figures, and returns null when nothing is over', () => {
+  const current = [win('five_hour', '5h', 100)]
+  const other = { account: acc('p'), windows: [] }
+  assert.deepEqual(quotaNoticeText(current, other, th(0, 0)), {
+    window: '5h', percent: 100, limit: 0, other: { label: 'P', percent: null },
+  })
+  assert.equal(quotaNoticeText([win('five_hour', '5h', 50)], other, th(95, 95)), null)
 })

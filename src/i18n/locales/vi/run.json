@@ -1,5 +1,7 @@
 {
   "budgetConfirmMessage": "Đã vượt ngân sách (plan) cho chu kỳ hiện tại.\nVẫn tiếp tục?",
+  "budgetOverMessage": "Tài khoản {account} đã dùng {percent}% cửa sổ {window}, quá mức chặn {limit}% (Cài đặt › Giới hạn).{alternative} Vẫn gửi?",
+  "budgetOverMessageNoLimit": "Tài khoản {account} đã dùng {percent}% cửa sổ {window} và đang bị chặn.{alternative} Vẫn gửi?",
   "budgetExceededTitle": "Vượt ngân sách",
   "continue": "Tiếp tục",
   "refMustBeUrl": "Dán link đầy đủ của issue hoặc PR (ví dụ https://github.com/owner/repo/pull/123).",
@@ -248,12 +250,11 @@
     "week": "Tuần",
     "sharedCodexLogin": "Login Codex chung"
   },
-  "quotaSwitch": {
-    "message": "Tài khoản của session này đã vượt ngân sách (plan) cho chu kỳ hiện tại.\n{account} vẫn còn dưới giới hạn.",
-    "continueOn": "Chuyển sang {account} và tiếp tục",
-    "switchTo": "Chuyển sang {account}",
-    "stay": "Vẫn dùng tài khoản này",
-    "toast": "Tài khoản của session này đã chạm giới hạn quota. Lượt mới đang bị chặn."
+  "quotaNotice": {
+    "title": "{account} sắp hết gói",
+    "used": "{account} đã dùng {percent}% cửa sổ {window}.",
+    "alternative": "{other} còn dùng được ({percent}%) — đổi ở chip tài khoản ({account}) trên hàng nút của ô soạn.",
+    "alternativeNoFigure": "{other} còn dùng được — đổi ở chip tài khoản ({account}) trên hàng nút của ô soạn."
   },
   "chipMode": "Chế độ quyền",
   "chipModeShort": {
