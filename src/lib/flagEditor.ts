@@ -44,3 +44,8 @@ export function moveId(ids: readonly string[], from: number, to: number): string
 export function restoreDisabled(flags: readonly Pick<SessionFlag, 'builtin_key'>[]): boolean {
   return missingDefaultFlags(flags).length === 0
 }
+
+/** The second line of a shared flag in Project › Flag: how many Sessions carry it, or that it is hidden. */
+export function sharedFlagSubline(flag: Pick<SessionFlag, 'hidden' | 'run_count'>, t: (key: string, params: { n: number }) => string): string {
+  return t(flag.hidden ? 'sessionFlags.project.hiddenSub' : 'sessionFlags.project.inUse', { n: flag.run_count })
+}

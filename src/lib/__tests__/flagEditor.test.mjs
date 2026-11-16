@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { backendNameErrorKey, colorUsers, keyboardMove, moveId, restoreDisabled, validateFlagName } from '../flagEditor.ts'
+import { backendNameErrorKey, colorUsers, keyboardMove, moveId, restoreDisabled, sharedFlagSubline, validateFlagName } from '../flagEditor.ts'
 
 const flag = (id, extra = {}) => ({ id, name: id, color: 'info', builtin_key: null, ...extra })
 
@@ -55,4 +55,10 @@ test('Restore is off only while every default is there', () => {
   assert.equal(restoreDisabled(all), true)
   assert.equal(restoreDisabled(all.slice(2)), false)
   assert.equal(restoreDisabled([]), false)
+})
+
+test('a shared flag line says how many Sessions use it, or that it is hidden', () => {
+  const t = (key, p) => `${key}:${p.n}`
+  assert.equal(sharedFlagSubline({ hidden: false, run_count: 3 }, t), 'sessionFlags.project.inUse:3')
+  assert.equal(sharedFlagSubline({ hidden: true, run_count: 2 }, t), 'sessionFlags.project.hiddenSub:2')
 })

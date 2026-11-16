@@ -9,6 +9,7 @@ import { Banner, Button } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import ProjectSessionDefaults from '@/components/ProjectSessionDefaults.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
+import ProjectFlags from '@/components/projects/ProjectFlags.vue'
 import ProjectOverview from '@/components/projects/ProjectOverview.vue'
 import ProjectBoard from '@/components/projects/ProjectBoard.vue'
 import ProjectConnections from '@/components/projects/ProjectConnections.vue'
@@ -195,6 +196,7 @@ async function toggleHidden() {
         <div v-else-if="section === 'styles'" class="max-w-lg">
           <ResponseStylesSettings :project-id="project.id" />
         </div>
+        <ProjectFlags v-else-if="section === 'flags'" :project="project" />
         <ProjectConnections v-else-if="place.tab === 'connections'" :project="project" :section="section as 'github'" />
         <ProjectLibrary v-else-if="place.tab === 'library'" :project="project" :section="section as 'files'" />
         <ProjectServers v-else-if="place.tab === 'servers'" :project="project" :section="section as 'deploy'" />

@@ -37,7 +37,8 @@ watch(
   async (open) => {
     if (!open) return
     name.value = props.flag ? flagLabel(props.flag, t) : ''
-    color.value = props.flag?.color ?? 'info'
+    // A project's own flag starts Gray; a shared one Blue.
+    color.value = props.flag?.color ?? (props.projectId ? 'neutral' : 'info')
     backendError.value = null
     await nextTick()
     body.value?.querySelector('input')?.focus()

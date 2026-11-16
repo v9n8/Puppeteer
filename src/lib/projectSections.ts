@@ -1,6 +1,6 @@
 import {
   Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, Github, Gitlab, Cloud, CloudCog,
-  Library, Server, GitMerge, Rocket, ShieldCheck,
+  Library, Server, GitMerge, Rocket, ShieldCheck, Flag,
 } from 'lucide-vue-next'
 
 /** Tabs of the project detail column (UX-50), in display order. */
@@ -28,6 +28,8 @@ export const PROJECT_SECTIONS = [
   { id: 'board', group: 'overview', icon: KanbanSquare },
   { id: 'session', group: 'defaults', icon: SlidersHorizontal },
   { id: 'styles', group: 'defaults', icon: MessageSquareText },
+  // Shared flags this project hides, and its own flags (V3-21).
+  { id: 'flags', group: 'defaults', icon: Flag },
   { id: 'github', group: 'connections', icon: Github },
   { id: 'gitlab', group: 'connections', icon: Gitlab },
   { id: 'aws', group: 'connections', icon: Cloud },
