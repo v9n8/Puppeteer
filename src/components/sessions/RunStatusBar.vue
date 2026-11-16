@@ -5,17 +5,18 @@
 // RunView shows it with the composer. State lives in useRunSession.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { Folder } from 'lucide-vue-next'
 import UsageRings from '@/components/UsageRings.vue'
-import { useProjectQuickView } from '@/composables/useProjectQuickView'
 import SessionConnectionsMenu from './SessionConnectionsMenu.vue'
 import SessionContextChip from './SessionContextChip.vue'
 import SessionLinksMenu from './SessionLinksMenu.vue'
+import { projectPageQuery } from '@/lib/projectSections'
 import { INFO_CHIP } from './infoBarStyle'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
-const quickView = useProjectQuickView()
+const router = useRouter()
 const {
   features, project, isSessionWindow, contextTokens, currentStatus, connectionGroups,
 } = useRunSession()
@@ -26,10 +27,10 @@ const hasMenus = computed(
     || features.allows('run.linkedSlack') || features.allows('run.linkedTodos') || features.allows('run.linkedNotes'),
 )
 
-// Opens the project's quick view (UX-52) over the session. Only the main window
-// hosts it, so in a session pop-out the chip only shows the name.
+// Opens the Projects screen on this project. Only the main window can, so in a
+// session pop-out the chip only shows the name.
 function openProject() {
-  if (project.value) quickView.open(project.value.id)
+  if (project.value) router.push({ path: '/projects', query: projectPageQuery(project.value.id) }).catch(() => {})
 }
 </script>
 

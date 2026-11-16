@@ -2,19 +2,19 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Ban, Check, ChevronDown, Eye, FolderOpen, Plus, SlidersHorizontal, X } from 'lucide-vue-next'
+import { Ban, Check, ChevronDown, Eye, FolderOpen, Plus, X } from 'lucide-vue-next'
 import { Button, ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
 import { useDragSort } from '@/composables/useDragSort'
-import { useProjectQuickView } from '@/composables/useProjectQuickView'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useToast } from '@/composables/useToast'
 import {
   PROJECT_COLORS, projectColor, projectIcon, projectTextClass, swatchClass, type ProjectColor,
 } from '@/lib/projectAppearance'
 import { tabsToClose, type TabCloseScope } from '@/lib/projectSwitcher'
+import { projectPageQuery } from '@/lib/projectSections'
 
 /**
  * Horizontal tab bar for fast switching between PROJECTS. One tab per open
@@ -35,7 +35,6 @@ const tabsStore = useWorkspaceTabsStore()
 const live = useLiveRunsStore()
 const projectsStore = useProjectsStore()
 const { newSession } = useProjectSwitcher()
-const quickView = useProjectQuickView()
 
 const activeProjectId = computed(() =>
   typeof route.params.projectId === 'string' ? route.params.projectId : null,
@@ -167,13 +166,9 @@ function openMenu(projectId: string, e: MouseEvent) {
   menu.value = { projectId, x: e.clientX, y: e.clientY }
 }
 
-// Both open the project's quick view (UX-52) over the current screen: on its
-// Overview, or straight on its session defaults.
+// Opens the Projects screen on this project (its Overview tab).
 function viewProject(projectId: string) {
-  quickView.open(projectId)
-}
-function openSessionDefaults(projectId: string) {
-  quickView.open(projectId, { tab: 'defaults', section: 'session' })
+  router.push({ path: '/projects', query: projectPageQuery(projectId) }).catch(() => {})
 }
 
 async function setColor(color: ProjectColor | null) {
@@ -351,10 +346,6 @@ async function jumpTo(projectId: string) {
         <DropdownItem :disabled="!menuProject" @click="viewProject(menu.projectId)">
           <Eye class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           {{ t('misc.tabs.viewProject') }}
-        </DropdownItem>
-        <DropdownItem :disabled="!menuProject" @click="openSessionDefaults(menu.projectId)">
-          <SlidersHorizontal class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          {{ t('misc.tabs.sessionDefaults') }}
         </DropdownItem>
         <template v-if="menuProject">
           <DropdownSeparator />
