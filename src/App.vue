@@ -265,11 +265,9 @@ function onSwitcherShortcut(e: KeyboardEvent) {
 // one of the keys lib/keymap.ts refuses to give an action.
 useFindShortcut()
 
-// The sidebar is gone either because the user hid it (any route, persisted) or
-// because focus mode is collapsing a run down to its conversation.
-const sidebarVisible = computed(
-  () => !uiLayout.sidebarHidden && !(uiLayout.focusMode && isRunRoute.value),
-)
+// The sidebar only disappears while focus mode collapses a run down to its
+// conversation; the user's own toggle shrinks it to an icon rail instead.
+const sidebarVisible = computed(() => !(uiLayout.focusMode && isRunRoute.value))
 
 // ── Native menu bar ─────────────────────────────────────────────────────────
 // Every menu action that isn't screen-specific is bound here, at the app root,
@@ -357,7 +355,7 @@ watch(
   () =>
     [
       locale.value,
-      uiLayout.sidebarHidden,
+      uiLayout.sidebarMode,
       uiLayout.focusMode,
       isMenuActionBound('file.newSession'),
       features.tree,
@@ -365,7 +363,7 @@ watch(
     ] as const,
   () => {
     if (isPopoutWindow || isSessionWindow) return
-    applyAppMenu({ sidebarHidden: uiLayout.sidebarHidden, focusMode: uiLayout.focusMode })
+    applyAppMenu({ sidebarMode: uiLayout.sidebarMode, focusMode: uiLayout.focusMode })
   },
 )
 
@@ -476,7 +474,7 @@ onMounted(async () => {
   } catch {
     // Ignore (e.g. running outside the Tauri shell during dev in a browser).
   }
-  applyAppMenu({ sidebarHidden: uiLayout.sidebarHidden, focusMode: uiLayout.focusMode })
+  applyAppMenu({ sidebarMode: uiLayout.sidebarMode, focusMode: uiLayout.focusMode })
 
   // Populate the menu-bar window switcher (just the main window at first; session
   // pop-outs re-send as they open — see lib/tray.ts / lib/sessionWindow.ts).
@@ -517,15 +515,11 @@ onMounted(async () => {
     <AgentStatusStrip />
 
     <div class="flex flex-1 min-h-0">
-    <!-- Sidebar. Hidden either by the title-bar toggle (all routes, persisted) or
-         by focus mode — the latter only while in the run workspace, so other
-         routes like project settings keep their navigation. Once hidden it is
-         gone entirely; View → Show Sidebar brings it back.
-
-         It collapses by animating its own width to zero while the inner column
-         keeps a fixed 220px, so the nav slides out of view instead of the labels
-         reflowing into a squashed mess on the way. -->
-    <AppSidebar :visible="sidebarVisible" />
+    <!-- Sidebar. The title-bar toggle swaps it between the full column and a
+         52px icon rail (all routes, persisted). Only focus mode hides it, and
+         only while in the run workspace, so other routes like project settings
+         keep their navigation. -->
+    <AppSidebar :visible="sidebarVisible" :mode="uiLayout.sidebarMode" />
 
     <!-- Main content -->
     <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -595,7 +589,7 @@ onMounted(async () => {
     <!-- App-wide toast host (see useToast) -->
     <ToastHost />
 
-    <!-- Sidebar hidden: the Remote Control dot moves to a corner while a
+    <!-- Focus mode hides the sidebar: the Remote Control dot moves to a corner while a
          Controller drives this one, so that warning is never invisible; in a
          remote-desktop window, the link dot does. -->
     <RemoteIndicator v-if="!sidebarVisible" floating />

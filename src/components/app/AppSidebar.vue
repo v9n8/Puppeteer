@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The main window's sidebar: three headed groups (Work / My work / Agent), the
 // docks, and a footer with Stats, Trash, Settings and the version. App.vue
-// decides whether it shows (`visible`); the collapse animation lives here.
+// decides whether it shows (`visible`) and in which form (`mode`): the full
+// 216px column, or a 52px icon rail (same entries, labels as tooltips).
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -15,19 +16,23 @@ import BackgroundProcessesDock from '@/components/processes/BackgroundProcessesD
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
 import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
 import SidebarNavItem from '@/components/app/SidebarNavItem.vue'
+import SidebarRailRuns from '@/components/app/SidebarRailRuns.vue'
 import type { NavBadge } from '@/components/app/SidebarBadge.vue'
 import { openSlackWindow } from '@/lib/slackWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
 import { NAV_ROUTES, type NavRoute } from '@/lib/navigation'
+import type { SidebarMode } from '@/lib/sidebarMode'
 import { navActive, sidebarGroups, type SidebarSource } from '@/lib/sidebarNav'
 import { useOpenModes } from '@/composables/useOpenModes'
 import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
 
-defineProps<{
-  /** Off when the user hid the sidebar, or focus mode collapsed a run. */
+const props = defineProps<{
+  /** Off while focus mode collapses a run down to its conversation. */
   visible: boolean
+  mode: SidebarMode
 }>()
+const rail = computed(() => props.mode === 'rail')
 
 const route = useRoute()
 const projectsStore = useProjectsStore()
@@ -108,46 +113,38 @@ function badgeFor(id: string): NavBadge | null {
   }
   return null
 }
+
+// The rail drops the number from the icon; it moves into the tooltip.
+function badgeTip(id: string): string | undefined {
+  const b = badgeFor(id)
+  if (!b || b.count <= 0) return undefined
+  return id === '/focus' ? t('nav.rail.overdue', { n: b.count }) : t('nav.rail.conflicts', { n: b.count }, b.count)
+}
 </script>
 
 <template>
-  <Transition name="sidebar">
-    <aside
-      v-if="visible"
-      class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border/50"
-    >
-      <div class="w-[220px] h-full flex flex-col">
-        <!-- No brand header: the logo moved to the title bar, so the nav starts
-             at the very top and a view's header owns the first line alone. -->
-        <nav class="flex-1 min-h-0 overflow-y-auto px-2 py-2.5 space-y-3">
-          <section v-for="group in mainGroups" :key="group.id" class="space-y-0.5">
-            <h2 v-if="group.labelKey" class="px-3 pb-1 text-[13px] font-medium text-muted-foreground">
-              {{ t(group.labelKey) }}
-            </h2>
-            <SidebarNavItem
-              v-for="item in group.items"
-              :key="item.id"
-              :label="item.label"
-              :icon="item.icon"
-              :to="item.to"
-              :action="item.action"
-              :active="navActive(item.id, route.path)"
-              :in-own-window="!!item.screen && isInOwnWindow(item.screen)"
-              :badge="badgeFor(item.id)"
-            />
-          </section>
-        </nav>
-
-        <!-- App-wide monitor of concurrent runs + permission center -->
-        <ActiveRunsDock />
-
-        <!-- Warning row while processes outlive their session -->
-        <BackgroundProcessesDock />
-
-        <!-- Stats, Trash, Settings: kept at the bottom whatever the nav scrolls. -->
-        <div class="space-y-0.5 px-2 pb-1.5">
+  <aside
+    v-if="visible"
+    class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border/50"
+    :class="rail ? 'w-[52px]' : 'w-[216px]'"
+  >
+    <div class="h-full flex flex-col" :class="rail ? 'w-[52px]' : 'w-[216px]'">
+      <!-- No brand header: the logo moved to the title bar, so the nav starts
+           at the very top and a view's header owns the first line alone. -->
+      <nav
+        class="flex-1 min-h-0 overflow-y-auto py-2.5"
+        :class="rail ? 'px-2 space-y-1' : 'px-2 space-y-3'"
+      >
+        <section
+          v-for="(group, i) in mainGroups"
+          :key="group.id"
+          :class="rail ? ['space-y-0.5', i > 0 && 'border-t border-border pt-1'] : 'space-y-0.5'"
+        >
+          <h2 v-if="group.labelKey && !rail" class="px-3 pb-1 text-[13px] font-medium text-muted-foreground">
+            {{ t(group.labelKey) }}
+          </h2>
           <SidebarNavItem
-            v-for="item in footItems"
+            v-for="item in group.items"
             :key="item.id"
             :label="item.label"
             :icon="item.icon"
@@ -155,46 +152,51 @@ function badgeFor(id: string): NavBadge | null {
             :action="item.action"
             :active="navActive(item.id, route.path)"
             :in-own-window="!!item.screen && isInOwnWindow(item.screen)"
+            :badge="badgeFor(item.id)"
+            :compact="rail"
+            :badge-tip="badgeTip(item.id)"
           />
-        </div>
+        </section>
+      </nav>
 
-        <!-- Version footer -->
-        <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border/50">
-          <p v-if="appVersion" class="text-2xs text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
-          <!-- This machine's Remote Control dot, or (remote-desktop window) the
-               link to the controlled Puppeteer; each hides itself elsewhere. -->
-          <RemoteIndicator />
-          <RemoteDesktopIndicator />
-        </div>
+      <!-- The rail has no room for the docks: one icon stands in for the runs. -->
+      <div v-if="rail" class="px-2 pb-1">
+        <SidebarRailRuns />
       </div>
-    </aside>
-  </Transition>
+      <template v-else>
+        <!-- App-wide monitor of concurrent runs + permission center -->
+        <ActiveRunsDock />
+
+        <!-- Warning row while processes outlive their session -->
+        <BackgroundProcessesDock />
+      </template>
+
+      <!-- Stats, Trash, Settings: kept at the bottom whatever the nav scrolls. -->
+      <div class="space-y-0.5 px-2 pb-1.5" :class="rail && 'border-t border-border pt-1'">
+        <SidebarNavItem
+          v-for="item in footItems"
+          :key="item.id"
+          :label="item.label"
+          :icon="item.icon"
+          :to="item.to"
+          :action="item.action"
+          :active="navActive(item.id, route.path)"
+          :in-own-window="!!item.screen && isInOwnWindow(item.screen)"
+          :compact="rail"
+        />
+      </div>
+
+      <!-- Version footer; the rail keeps only the Remote dot. -->
+      <div
+        class="flex items-center border-t border-border/50"
+        :class="rail ? 'justify-center py-3' : 'justify-between gap-2 px-4 py-3'"
+      >
+        <p v-if="appVersion && !rail" class="text-2xs text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
+        <!-- This machine's Remote Control dot, or (remote-desktop window) the
+             link to the controlled Puppeteer; each hides itself elsewhere. -->
+        <RemoteIndicator :compact="rail" />
+        <RemoteDesktopIndicator :compact="rail" />
+      </div>
+    </div>
+  </aside>
 </template>
-
-<style scoped>
-/* Sidebar collapse/expand. Width is set here rather than as a Tailwind class so
-   the transition classes below can override it without a specificity fight. */
-.app-sidebar {
-  width: 220px;
-}
-
-.sidebar-enter-active,
-.sidebar-leave-active {
-  transition: width 180ms ease, opacity 180ms ease;
-}
-
-.sidebar-enter-from,
-.sidebar-leave-to {
-  width: 0;
-  /* The border would otherwise linger as a 1px line at the very end. */
-  border-right-width: 0;
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-enter-active,
-  .sidebar-leave-active {
-    transition: none;
-  }
-}
-</style>

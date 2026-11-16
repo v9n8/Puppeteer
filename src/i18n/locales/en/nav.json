@@ -36,5 +36,11 @@
     "mine": "My work",
     "agent": "Agent"
   },
-  "openInWindow": "Open in its own window"
+  "openInWindow": "Open in its own window",
+  "rail": {
+    "overdue": "{n} overdue",
+    "conflicts": "{n} conflict | {n} conflicts",
+    "runs": "Active runs · {n}",
+    "runsWaiting": "Active runs · {n}, {waiting} waiting for you"
+  }
 }

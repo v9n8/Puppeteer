@@ -36,5 +36,11 @@
     "mine": "Việc của tôi",
     "agent": "Agent"
   },
-  "openInWindow": "Đang mở ở cửa sổ riêng"
+  "openInWindow": "Đang mở ở cửa sổ riêng",
+  "rail": {
+    "overdue": "{n} quá hạn",
+    "conflicts": "{n} xung đột | {n} xung đột",
+    "runs": "Run đang hoạt động · {n}",
+    "runsWaiting": "Run đang hoạt động · {n}, {waiting} chờ bạn"
+  }
 }

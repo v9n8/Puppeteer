@@ -5,7 +5,7 @@
  * label = the controlled device. The popover holds the ways out — Files,
  * reconnect after an error, sign in again, sign out.
  *
- * `floating`: the bare dot pinned to a corner while the sidebar is hidden.
+ * `floating`: the bare dot pinned to a corner while focus mode hides the sidebar.
  * Connection problems also raise components/remote/RemoteDesktopAlert.vue, so
  * they are seen without opening this.
  */
@@ -18,7 +18,8 @@ import { popoverContent } from '@/components/ui/calendarStyles'
 import { useEscapeClose } from '@/composables/useEscapeClose'
 import { useRemoteDesktopLink } from '@/composables/useRemoteDesktopLink'
 
-defineProps<{ floating?: boolean }>()
+/** `compact`: just the dot, in the icon rail. */
+defineProps<{ floating?: boolean; compact?: boolean }>()
 
 const { t } = useI18n()
 const link = useRemoteDesktopLink()
@@ -43,12 +44,12 @@ function run(action: () => void) {
         :aria-label="`${t('remote.desktop.banner.controlling', { device: label })} · ${stateText}`"
       >
         <span class="relative inline-flex h-2 w-2 shrink-0 rounded-full" :class="dotClass" />
-        <span v-if="!floating" class="truncate">{{ label }}</span>
+        <span v-if="!floating && !compact" class="truncate">{{ label }}</span>
       </button>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent
-        :side="floating ? 'right' : 'top'"
+        :side="floating || compact ? 'right' : 'top'"
         align="end"
         :side-offset="6"
         :class="[popoverContent, 'w-64 space-y-2.5']"

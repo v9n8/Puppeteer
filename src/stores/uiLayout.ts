@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { applyFontPrefs, loadFontPrefs, saveFontPrefs, type FontPrefs } from '@/lib/appFonts'
+import {
+  NARROW_WIDTH,
+  parseSidebarPrefs,
+  sidebarModeFor,
+  toggledPrefs,
+  withMode,
+  type SidebarMode,
+  type SidebarPrefs,
+} from '@/lib/sidebarMode'
 
 /**
  * App-wide layout visibility state shared between App.vue and RunView.
@@ -10,16 +19,18 @@ import { applyFontPrefs, loadFontPrefs, saveFontPrefs, type FontPrefs } from '@/
  * Claude's output/question area and the composer. It is intentionally a
  * transient, in-memory flag — it resets on reload rather than persisting.
  *
- * `sidebarHidden` is the separate, deliberate "give me the full width on every
- * screen" toggle. Unlike focus mode it applies to ALL routes and IS
- * persisted, because someone who works with the nav hidden expects it to stay
- * hidden across restarts rather than to reappear on every launch.
+ * `sidebarMode` is the separate, deliberate "give me more width" toggle: the
+ * sidebar shrinks to an icon rail (never disappears, so every screen and badge
+ * stays reachable). Unlike focus mode it applies to ALL routes and IS
+ * persisted, once for wide windows and once for narrow ones (lib/sidebarMode).
  */
-const SIDEBAR_STORAGE_KEY = 'puppeteer.sidebarHidden'
+const SIDEBAR_STORAGE_KEY = 'puppeteer.sidebar'
+// Pre-rail key: the sidebar was hidden outright. Read once, then removed.
+const LEGACY_SIDEBAR_HIDDEN_KEY = 'puppeteer.sidebarHidden'
 
 /**
  * Row density shared by the session lists — the History list (RunView's left
- * rail) and the worker panel. Persisted like `sidebarHidden`, since it is a
+ * rail) and the worker panel. Persisted like `sidebarMode`, since it is a
  * lasting reading preference.
  *  - comfortable: the full multi-line row (badges + timestamp line)
  *  - compact:     two lines — title row + "account · model"
@@ -90,11 +101,19 @@ function loadStepsExpanded(): boolean {
   }
 }
 
-function loadSidebarHidden(): boolean {
+function loadSidebarPrefs(): SidebarPrefs {
   try {
-    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
+    const prefs = parseSidebarPrefs(
+      localStorage.getItem(SIDEBAR_STORAGE_KEY),
+      localStorage.getItem(LEGACY_SIDEBAR_HIDDEN_KEY),
+    )
+    if (localStorage.getItem(LEGACY_SIDEBAR_HIDDEN_KEY) != null) {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(prefs))
+      localStorage.removeItem(LEGACY_SIDEBAR_HIDDEN_KEY)
+    }
+    return prefs
   } catch {
-    return false
+    return parseSidebarPrefs(null)
   }
 }
 
@@ -115,24 +134,36 @@ function loadComposerHeight(): number | null {
 
 export const useUILayoutStore = defineStore('uiLayout', () => {
   const focusMode = ref(false)
-  const sidebarHidden = ref(loadSidebarHidden())
+  const sidebarPrefs = ref<SidebarPrefs>(loadSidebarPrefs())
+  // Only the narrow/wide side of NARROW_WIDTH matters, so listen to that one
+  // media query instead of every resize event.
+  const windowWidth = ref(typeof window === 'undefined' ? NARROW_WIDTH : window.innerWidth)
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    window
+      .matchMedia(`(max-width: ${NARROW_WIDTH - 1}px)`)
+      .addEventListener('change', () => (windowWidth.value = window.innerWidth))
+  }
+  const sidebarMode = computed<SidebarMode>(() => sidebarModeFor(sidebarPrefs.value, windowWidth.value))
 
   function toggleFocus() {
     focusMode.value = !focusMode.value
   }
 
-  function setSidebarHidden(hidden: boolean) {
-    sidebarHidden.value = hidden
+  function saveSidebarPrefs(next: SidebarPrefs) {
+    sidebarPrefs.value = next
     try {
-      if (hidden) localStorage.setItem(SIDEBAR_STORAGE_KEY, '1')
-      else localStorage.removeItem(SIDEBAR_STORAGE_KEY)
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(next))
     } catch {
-      /* storage unavailable — the in-memory flag still works for this session */
+      /* storage unavailable — the in-memory choice still works for this session */
     }
   }
 
   function toggleSidebar() {
-    setSidebarHidden(!sidebarHidden.value)
+    saveSidebarPrefs(toggledPrefs(sidebarPrefs.value, windowWidth.value))
+  }
+
+  function expandSidebar() {
+    saveSidebarPrefs(withMode(sidebarPrefs.value, windowWidth.value, 'full'))
   }
 
   const listDensity = ref<ListDensity>(loadListDensity())
@@ -206,9 +237,9 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
   return {
     focusMode,
     toggleFocus,
-    sidebarHidden,
-    setSidebarHidden,
+    sidebarMode,
     toggleSidebar,
+    expandSidebar,
     listDensity,
     setListDensity,
     timelineOpen,

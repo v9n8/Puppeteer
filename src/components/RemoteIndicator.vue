@@ -19,7 +19,7 @@ import RemoteSessionModal from '@/components/remote/RemoteSessionModal.vue'
  * cuts the controller off and rotates its session token away, so it has to sign in
  * again), "Pair a device…" and a Settings link.
  *
- * `floating`: the bare dot pinned to a corner while the sidebar is hidden, shown only
+ * `floating`: the bare dot pinned to a corner while focus mode hides the sidebar, shown only
  * while a Controller (another Puppeteer or a phone / web) drives this one, so that warning
  * is never invisible. The relay admits one Controller at a time, so the popover shows
  * one of the two.
@@ -29,7 +29,8 @@ import RemoteSessionModal from '@/components/remote/RemoteSessionModal.vue'
  * link dot there is components/remote/RemoteDesktopIndicator.vue).
  */
 
-const props = defineProps<{ floating?: boolean }>()
+/** `compact`: just the dot, in the icon rail. */
+const props = defineProps<{ floating?: boolean; compact?: boolean }>()
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -130,12 +131,12 @@ onBeforeUnmount(() => stopWatch?.())
           />
           <span class="relative inline-flex h-2 w-2 rounded-full" :class="REMOTE_DOT_CLASS[tone]" />
         </span>
-        <span v-if="!floating">{{ label }}</span>
+        <span v-if="!floating && !compact">{{ label }}</span>
       </button>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent
-        :side="floating ? 'right' : 'top'"
+        :side="floating || compact ? 'right' : 'top'"
         align="end"
         :side-offset="6"
         :class="[popoverContent, 'w-64 space-y-2.5']"

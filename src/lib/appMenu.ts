@@ -7,6 +7,7 @@ import { allowsFeature, filterByFeature, menuActionFeature, startsGroup } from '
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { PALETTE_FEATURE } from '@/lib/commandPalette'
+import type { SidebarMode } from '@/lib/sidebarMode'
 import {
   NEW_SESSION_ACTION, PALETTE_ACTION, PREVIOUS_PROJECT_ACTION, parseKeymap, resolveKeymap, type Keymap,
 } from '@/lib/keymap'
@@ -58,7 +59,7 @@ interface MenuSpec {
 }
 
 export interface MenuState {
-  sidebarHidden: boolean
+  sidebarMode: SidebarMode
   focusMode: boolean
 }
 
@@ -183,7 +184,7 @@ function buildSpec(state: MenuState): MenuSpec {
       {
         kind: 'item',
         id: 'view.toggleSidebar',
-        label: state.sidebarHidden ? t('menu.showSidebar') : t('menu.hideSidebar'),
+        label: state.sidebarMode === 'rail' ? t('menu.showSidebar') : t('menu.hideSidebar'),
       },
       {
         kind: 'item',
@@ -253,7 +254,7 @@ function keymapChanges(): Keymap {
   return parseKeymap(useAppSettingsStore().settings?.keymap_config)
 }
 
-let lastState: MenuState = { sidebarHidden: false, focusMode: false }
+let lastState: MenuState = { sidebarMode: 'full', focusMode: false }
 let lastKeymap: ReadonlyMap<string, string> = new Map()
 let nativeMenu = false
 let acceleratorsSuspended = false

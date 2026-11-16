@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The main window's title bar. Shown / hidden by App.vue (focus mode hides it).
 import { useI18n } from 'vue-i18n'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { PanelLeft } from 'lucide-vue-next'
 import { useUILayoutStore } from '@/stores/uiLayout'
 import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
 import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
@@ -23,17 +23,17 @@ const { t } = useI18n()
     <!-- Right after the last tab: it adds projects to the strip (UX-09). -->
     <ProjectSwitcher />
 
-    <!-- Sits here rather than inside the sidebar: a "hide" button that
-         disappears along with the thing it hides can't bring it back. -->
+    <!-- Sits here rather than inside the sidebar so it stays put when the
+         sidebar shrinks to the icon rail. -->
     <Button
       variant="ghost"
       size="icon-sm"
       class="shrink-0 ml-auto"
-      :title="uiLayout.sidebarHidden ? t('menu.showSidebar') : t('menu.hideSidebar')"
-      :aria-label="uiLayout.sidebarHidden ? t('menu.showSidebar') : t('menu.hideSidebar')"
+      :title="uiLayout.sidebarMode === 'rail' ? t('menu.showSidebar') : t('menu.hideSidebar')"
+      :aria-label="uiLayout.sidebarMode === 'rail' ? t('menu.showSidebar') : t('menu.hideSidebar')"
       @click="uiLayout.toggleSidebar()"
     >
-      <component :is="uiLayout.sidebarHidden ? PanelLeftOpen : PanelLeftClose" class="h-4 w-4" :stroke-width="1.75" />
+      <PanelLeft class="h-4 w-4" :stroke-width="1.75" />
     </Button>
   </header>
 </template>
