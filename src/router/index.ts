@@ -19,6 +19,7 @@ import StatsView from '../views/StatsView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import FileTransferView from '../views/FileTransferView.vue'
 import FocusView from '../views/FocusView.vue'
+import SecretNotesView from '../views/SecretNotesView.vue'
 import AboutView from '../views/AboutView.vue'
 import BackgroundProcessesView from '../views/BackgroundProcessesView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
@@ -33,6 +34,7 @@ import { IS_SESSION_WINDOW } from '../lib/windowMode'
 import { getOpenMode } from '../lib/windowPlacement'
 import { SCREEN_OPEN_ROUTE, screenGuard, type ScreenOpenRoute } from '../lib/detachedScreens'
 import { openSettingsWindow } from '../lib/settingsWindow'
+import { SECRET_NOTES_PATH, secretNotesTarget } from '../lib/secretNotesWindow'
 import {
   isSettingsSectionId, resolveSettingsPlace, settingsLocation, settingsPlaceFromRoute, settingsRedirect,
 } from '../lib/settingsSections'
@@ -62,6 +64,17 @@ async function settingsGuard(to: RouteLocationNormalized, from: RouteLocationNor
   // An old id (`/settings/github`) or an unknown one in the path: its canonical route.
   if (!isSettingsSectionId(to.params.section)) return settingsLocation(place!)
   return true
+}
+
+/**
+ * Secret notes is a screen of the main window or of its own window (the saved
+ * choice, its own window by default). Only the main window may host it: the
+ * vault commands refuse every other local webview. Off with the vault's prop.
+ */
+async function secretNotesGuard(to: RouteLocationNormalized, from: RouteLocationNormalized) {
+  if (IS_SESSION_WINDOW) return false
+  if (!(await useFeaturesStore().isOnAfterLoad('security.secret_vault'))) return FALLBACK_PATH
+  return screenGuard(secretNotesTarget)(to, from)
 }
 
 // MCP / Servers edit in their list's detail pane now; the old
@@ -169,6 +182,8 @@ const router = createRouter({
       component: FileTransferView,
       beforeEnter: (to, from) => (isRemoteMode() ? screenGuard(fileTransferTarget)(to, from) : '/projects'),
     },
+    // Secret notes: a screen here once the user merged it back (secretNotesGuard).
+    { path: SECRET_NOTES_PATH, name: 'secret-notes', component: SecretNotesView, beforeEnter: secretNotesGuard },
     { path: '/processes', name: 'processes', component: BackgroundProcessesView },
     { path: '/about', name: 'about', component: AboutView },
   ],

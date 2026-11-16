@@ -25,6 +25,7 @@ import { AppSelect, Banner, Button, Input } from '@/components/ui'
 import { relativeAge } from '@/lib/itemText'
 import { formatFullDate } from '@/lib/slackThreadUtils'
 import type { SecretNoteMeta } from '@/lib/secretVault'
+import { AUTO_LOCK_CHOICES } from '@/lib/secretVaultTimers'
 
 const props = defineProps<{
   /** Already filtered. */
@@ -42,6 +43,8 @@ const props = defineProps<{
   pendingCount: number
   merging: boolean
   autoLockMinutes: number
+  /** The always-on-top pin belongs to the window, not to the main window's screen. */
+  showPin: boolean
 }>()
 
 const search = defineModel<string>('search', { required: true })
@@ -55,9 +58,14 @@ const emit = defineEmits<{
   lock: []
   merge: []
   changePassword: []
+  setAutoLock: [minutes: number]
 }>()
 
 const { t } = useI18n()
+
+const autoLockOptions = computed(() =>
+  AUTO_LOCK_CHOICES.map((m) => ({ value: String(m), label: t('secretNotes.autoLockChoice', { n: m }, m) })),
+)
 
 const COLLAPSED_KEY = 'items.secret.collapsed'
 
@@ -106,7 +114,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <aside class="flex w-[280px] shrink-0 flex-col border-r border-border/60 bg-sidebar">
+  <aside class="flex w-[280px] shrink-0 max-[900px]:w-[256px] flex-col border-r border-border/60 bg-sidebar">
     <!-- Search + pin / lock, filter + new -->
     <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
       <div class="flex items-center gap-1.5">
@@ -127,6 +135,7 @@ const groups = computed(() => {
           </button>
         </div>
         <Button
+          v-if="showPin"
           :variant="pinned ? 'primary' : 'outline'"
           size="icon"
           class="shrink-0"
@@ -237,11 +246,22 @@ const groups = computed(() => {
     </div>
 
     <!-- The vault: auto-lock + change password. -->
-    <div class="flex shrink-0 items-center gap-2 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">
-      <span class="min-w-0 flex-1">{{ t('secretNotes.autoLock', { n: autoLockMinutes }) }}</span>
+    <div class="flex shrink-0 flex-col gap-1.5 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">
+      <i18n-t keypath="secretNotes.autoLock" tag="div" class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <template #choice>
+          <AppSelect
+            :model-value="String(autoLockMinutes)"
+            :options="autoLockOptions"
+            size="sm"
+            class="w-28"
+            :aria-label="t('secretNotes.autoLockLabel')"
+            @update:model-value="emit('setAutoLock', Number($event))"
+          />
+        </template>
+      </i18n-t>
       <button
         type="button"
-        class="shrink-0 cursor-pointer underline-offset-2 hover:text-foreground hover:underline"
+        class="cursor-pointer self-start underline-offset-2 hover:text-foreground hover:underline"
         @click="emit('changePassword')"
       >
         {{ t('secretNotes.password.title') }}

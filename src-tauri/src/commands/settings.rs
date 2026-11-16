@@ -147,6 +147,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "quit_background_policy",
     "desktop_notify",
     "enabled_models",
+    // Secret notes auto-lock time (V3-41): applied again on the next vault status read.
+    "secret_vault.auto_lock_minutes",
     // Focus (focus::settings); the calendar choice stays per machine.
     "focus.work_start",
     "focus.work_end",

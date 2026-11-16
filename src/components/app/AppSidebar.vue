@@ -4,7 +4,7 @@
 // decides whether it shows (`visible`) and in which form (`mode`): the full
 // 216px column, or a 52px icon rail (same entries, labels as tooltips).
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getVersion } from '@tauri-apps/api/app'
 import { ListTodo, LockKeyhole, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
@@ -21,7 +21,7 @@ import SidebarRailRuns from '@/components/app/SidebarRailRuns.vue'
 import type { NavBadge } from '@/components/app/SidebarBadge.vue'
 import { openSlackWindow } from '@/lib/slackWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
-import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
+import { openSecretNotes } from '@/lib/secretNotesWindow'
 import { NAV_ROUTES, type NavRoute } from '@/lib/navigation'
 import type { SidebarMode } from '@/lib/sidebarMode'
 import { navActive, sidebarGroups, type SidebarSource } from '@/lib/sidebarNav'
@@ -36,6 +36,7 @@ const props = defineProps<{
 const rail = computed(() => props.mode === 'rail')
 
 const route = useRoute()
+const router = useRouter()
 const projectsStore = useProjectsStore()
 // Focus board for the sidebar badge (number of overdue todos).
 const focusStore = useFocusStore()
@@ -80,7 +81,7 @@ const extras = computed<Entry[]>(() => [
   },
   {
     id: 'secret-notes', group: 'mine', feature: 'security.secret_vault', label: t('secretNotes.nav'), icon: LockKeyhole, screen: 'secret-notes',
-    action: () => openSecretNotesWindow({ projectId: routeCaptureContext().projectId }),
+    action: () => openSecretNotes(router, { projectId: routeCaptureContext().projectId }),
   },
   {
     id: 'slack', group: 'mine', feature: 'integrations.slack', label: t('slackThread.nav'), icon: Slack, screen: 'slack',

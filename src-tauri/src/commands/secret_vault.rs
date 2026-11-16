@@ -1,7 +1,7 @@
 //! Tauri commands of the secret notes vault (`crate::secret_vault`).
 //!
-//! Secret notes window only: every command refuses any other webview —
-//! remote-desktop windows and the windows that render agent output — except the
+//! Secret notes window and the main window only: every command refuses any other
+//! webview — remote-desktop windows and the windows that render agent output — except the
 //! Remote Control bridge, through which a paired remote desktop drives this
 //! vault like the person at the keyboard (its own Secret notes window calls
 //! here; the bridge cannot tell its windows apart). The other exception is
@@ -25,6 +25,35 @@ pub const SECRET_VAULT_EVENT: &str = "secret-vault://changed";
 /// not: the owner can still see and lock a vault left open.
 pub const FEATURE: &str = "security.secret_vault";
 
+/// Setting holding the auto-lock time in minutes (backup-portable, never writable from a remote desktop).
+pub const AUTO_LOCK_SETTING: &str = "secret_vault.auto_lock_minutes";
+/// Menu of the UI: src/lib/secretVaultTimers.ts. The command accepts any value in between.
+const AUTO_LOCK_MIN_MAX: std::ops::RangeInclusive<u32> = 1..=60;
+
+/// Minutes in the setting, else (missing, not a number, out of range) the default.
+fn parse_auto_lock_minutes(raw: Option<&str>) -> u64 {
+    raw.and_then(|v| v.trim().parse::<u32>().ok())
+        .filter(|m| AUTO_LOCK_MIN_MAX.contains(m))
+        .map_or(vault::DEFAULT_AUTO_LOCK_SECS, |m| u64::from(m) * 60)
+}
+
+/// Read the setting and make it the idle time in use. Also run on every status
+/// read, so a restored backup takes effect without a restart.
+async fn apply_auto_lock(db: &Db) -> u64 {
+    let raw: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+        .bind(AUTO_LOCK_SETTING)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten();
+    let secs = parse_auto_lock_minutes(raw.as_deref());
+    vault::set_auto_lock_secs(secs);
+    secs
+}
+
+/// The local main window, where the vault can also be a screen (V3-41). Only this
+/// machine's: a remote desktop's own main window is labelled `remote-main`.
+const MAIN_WINDOW: &str = "main";
 /// The local Secret notes window (`SECRET_NOTES_WINDOW_LABEL` in src/lib/secretNotesWindow.ts).
 const SECRET_NOTES_WINDOW: &str = "secret-notes";
 /// The local Notes window (`itemListWindowLabel('note')` in src/lib/itemListWindow.ts).
@@ -34,7 +63,7 @@ const NOTES_WINDOW: &str = "item-list-note";
 const REMOTE_SECRET_NOTES_WINDOW: &str = "remote-secret-notes";
 
 fn allowed(label: &str, extra: &[&str]) -> bool {
-    label == SECRET_NOTES_WINDOW || label == crate::remote::ipc::BRIDGE_LABEL || extra.contains(&label)
+    label == SECRET_NOTES_WINDOW || label == MAIN_WINDOW || label == crate::remote::ipc::BRIDGE_LABEL || extra.contains(&label)
 }
 
 fn local_only(webview: &Webview) -> Result<(), String> {
@@ -87,8 +116,9 @@ pub struct VaultStatus {
 }
 
 #[tauri::command]
-pub async fn secret_vault_status(webview: Webview) -> Result<VaultStatus, String> {
+pub async fn secret_vault_status(webview: Webview, db: State<'_, Db>) -> Result<VaultStatus, String> {
     local_only(&webview)?;
+    let auto_lock_secs = apply_auto_lock(db.inner()).await;
     with_vault(false, |data| {
         let id = current_id(data);
         Ok(VaultStatus {
@@ -98,9 +128,23 @@ pub async fn secret_vault_status(webview: Webview) -> Result<VaultStatus, String
             legacy_count: data.legacy_count(),
             pending_count: data.pending_count(),
             has_recovery: data.header.as_ref().is_some_and(|h| h.recovery_wrapped.is_some()),
-            auto_lock_secs: vault::AUTO_LOCK.as_secs(),
+            auto_lock_secs,
         })
     })
+}
+
+/// Choose how long an unlocked vault may sit idle before it locks (1 to 60 minutes).
+/// Local only (guard::LOCAL_ONLY_COMMANDS): a remote desktop must not lengthen it.
+#[tauri::command]
+pub async fn secret_vault_set_auto_lock(webview: Webview, db: State<'_, Db>, minutes: u32) -> Result<u64, String> {
+    local_only(&webview)?;
+    if !AUTO_LOCK_MIN_MAX.contains(&minutes) {
+        return Err("invalid_auto_lock".into());
+    }
+    crate::commands::settings::set_setting(db.inner(), AUTO_LOCK_SETTING, &minutes.to_string()).await?;
+    let secs = u64::from(minutes) * 60;
+    vault::set_auto_lock_secs(secs);
+    Ok(secs)
 }
 
 /// Create the vault (unlocked) and return the recovery key, shown once.
@@ -429,7 +473,7 @@ fn should_lock(change: &crate::features::apply::Change<'_>) -> bool {
     !crate::features::effective(change.after, FEATURE)
 }
 
-/// Lock the vault once idle for `AUTO_LOCK`, while the screen is locked, and
+/// Lock the vault once idle for the auto-lock time, while the screen is locked, and
 /// after the machine slept (a tick that comes much later than due, by wall
 /// clock: the monotonic timer stops while asleep).
 pub fn spawn_auto_lock(app: AppHandle) {
@@ -455,12 +499,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_the_secret_notes_window_and_the_bridge_are_allowed() {
+    fn only_the_secret_notes_window_main_and_the_bridge_are_allowed() {
         assert!(allowed(SECRET_NOTES_WINDOW, &[]));
         // A paired remote desktop drives the vault through the bridge.
         assert!(allowed(crate::remote::ipc::BRIDGE_LABEL, &[]));
-        for label in [NOTES_WINDOW, "main", REMOTE_SECRET_NOTES_WINDOW, "remote-bridge-x", "session-1", "item-list-todo"] {
+        // The main window (V3-41) is this machine's own; a remote desktop's is `remote-main`.
+        assert!(allowed(MAIN_WINDOW, &[]));
+        for label in [NOTES_WINDOW, "remote-main", "main-2", "session-main", REMOTE_SECRET_NOTES_WINDOW, "remote-bridge-x", "session-1", "item-list-todo"] {
             assert!(!allowed(label, &[]), "{label} must be refused");
+        }
+    }
+
+    #[test]
+    fn auto_lock_setting_falls_back_to_five_minutes() {
+        assert_eq!(parse_auto_lock_minutes(Some("1")), 60);
+        assert_eq!(parse_auto_lock_minutes(Some(" 30 ")), 30 * 60);
+        for bad in [None, Some(""), Some("0"), Some("61"), Some("-5"), Some("abc"), Some("1.5")] {
+            assert_eq!(parse_auto_lock_minutes(bad), 300, "{bad:?}");
         }
     }
 

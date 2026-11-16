@@ -121,6 +121,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "rd_download_append",
     "rd_copy_secret",
     "start_file_drag",
+    // Secret notes auto-lock time: a controller must not make the vault stay open longer.
+    "secret_vault_set_auto_lock",
     // File Transfer window, this machine's half (remote/transfer.rs).
     "local_fs_home", "local_fs_list", "local_fs_mkdir", "local_fs_rename", "local_fs_delete", "local_fs_walk",
     "local_fs_hash", "local_fs_write_begin", "local_fs_write_chunk", "local_fs_write_finish", "local_fs_write_abort",
@@ -177,6 +179,7 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && key != crate::runs::unattended::MAX_TURNS_SETTING
         && key != crate::runs::unattended::MAX_MINUTES_SETTING
         && key != "desktop_notify"
+        && key != crate::commands::secret_vault::AUTO_LOCK_SETTING
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
@@ -775,6 +778,7 @@ mod tests {
             "rd_download_append",
             "rd_copy_secret",
             "start_file_drag",
+            "secret_vault_set_auto_lock",
             "set_inbox_api_enabled",
             "set_feature",
             "reset_features",
@@ -1120,6 +1124,8 @@ mod tests {
             "unattended_max_minutes",
             // The desktop notification switches.
             "desktop_notify",
+            // The Secret notes auto-lock time (V3-41).
+            "secret_vault.auto_lock_minutes",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

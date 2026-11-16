@@ -151,7 +151,7 @@ use commands::notes::{
 use commands::secret_vault::{
     rd_copy_secret, secret_note_copy, secret_note_create, secret_note_delete, secret_note_from_note, secret_note_reveal, secret_note_set_project,
     secret_note_update, secret_notes_list, secret_notes_reorder, secret_vault_change_password, secret_vault_lock,
-    secret_vault_merge_old, secret_vault_setup, secret_vault_status, secret_vault_touch, secret_vault_unlock, secret_vault_unlock_recovery,
+    secret_vault_merge_old, secret_vault_set_auto_lock, secret_vault_setup, secret_vault_status, secret_vault_touch, secret_vault_unlock, secret_vault_unlock_recovery,
 };
 use commands::todos::{
     add_todo, clear_completed_todos, delete_todo, delete_todos, list_todos, reorder_todos,
@@ -799,6 +799,7 @@ pub fn run() {
             secret_vault_unlock_recovery,
             secret_vault_lock,
             secret_vault_touch,
+            secret_vault_set_auto_lock,
             secret_vault_change_password,
             secret_vault_merge_old,
             secret_notes_list,

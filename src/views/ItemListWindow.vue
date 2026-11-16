@@ -58,7 +58,7 @@ import {
 import { firstLine } from '@/lib/itemText'
 import { refreshTray } from '@/lib/tray'
 import { secretNoteFromNote, vaultError } from '@/lib/secretVault'
-import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
+import { openSecretNotesFromPopout } from '@/lib/secretNotesWindow'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -357,11 +357,11 @@ async function makeSecret() {
     editing.value = false
     await notes.fetchNotes()
     toast.success(t('secretNotes.makeSecret.done'))
-    void openSecretNotesWindow({ id: moved.id })
+    void openSecretNotesFromPopout({ id: moved.id })
   } catch (e) {
     const { code } = vaultError(e)
     if (code === 'vault_locked' || code === 'vault_missing') {
-      void openSecretNotesWindow({ projectId: it.project_id })
+      void openSecretNotesFromPopout({ projectId: it.project_id })
       toast.info(t(`secretNotes.makeSecret.${code === 'vault_locked' ? 'needUnlock' : 'needVault'}`))
     } else {
       toast.error(code ? t(`secretNotes.errors.${code}`) : String(e))

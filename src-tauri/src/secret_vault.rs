@@ -12,7 +12,7 @@
 //!
 //! So reading the Keychain (an agent running `security`, a backup
 //! file) yields ciphertext. The DEK only lives in this process while the vault
-//! is unlocked and is wiped on lock: explicit, after `AUTO_LOCK` idle, or when
+//! is unlocked and is wiped on lock: explicit, after the auto-lock idle time, or when
 //! the header it belongs to is replaced. Idle time is wall-clock, so time
 //! asleep counts.
 //!
@@ -36,6 +36,7 @@ use dryoc::classic::crypto_pwhash::{crypto_pwhash, PasswordHashAlgorithm};
 use dryoc::rng::copy_randombytes;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime};
 use zeroize::Zeroizing;
@@ -51,8 +52,18 @@ pub const MAX_TITLE_LEN: usize = 512;
 pub const MAX_CONTENT_LEN: usize = 64 * 1024;
 /// Old headers a backup import may park: merging runs Argon2id once per header.
 const MAX_OLD_HEADERS: usize = 8;
-/// Idle time after which an unlocked vault locks itself.
-pub const AUTO_LOCK: Duration = Duration::from_secs(5 * 60);
+/// Idle time after which an unlocked vault locks itself, until the user picks another.
+pub const DEFAULT_AUTO_LOCK_SECS: u64 = 5 * 60;
+/// The idle time in use (the `secret_vault.auto_lock_minutes` setting, applied by the commands).
+static AUTO_LOCK_SECS: AtomicU64 = AtomicU64::new(DEFAULT_AUTO_LOCK_SECS);
+
+pub fn auto_lock_secs() -> u64 {
+    AUTO_LOCK_SECS.load(Ordering::Relaxed)
+}
+
+pub fn set_auto_lock_secs(secs: u64) {
+    AUTO_LOCK_SECS.store(secs, Ordering::Relaxed);
+}
 
 // Error codes the UI translates.
 pub const E_LOCKED: &str = "vault_locked";
@@ -582,12 +593,16 @@ pub fn session_dek(vault_id: Option<&str>) -> Result<Zeroizing<Key>, String> {
     }
 }
 
-/// Idle for `AUTO_LOCK` (a clock set back counts as idle).
+/// Idle for the auto-lock time (a clock set back counts as idle).
 fn idle(u: &Unlocked) -> bool {
-    u.last_used.elapsed().map_or(true, |d| d >= AUTO_LOCK)
+    idle_for(u.last_used, Duration::from_secs(auto_lock_secs()))
 }
 
-/// Lock when idle for `AUTO_LOCK`. Returns whether it locked.
+fn idle_for(last_used: SystemTime, limit: Duration) -> bool {
+    last_used.elapsed().map_or(true, |d| d >= limit)
+}
+
+/// Lock when idle for the auto-lock time. Returns whether it locked.
 pub fn lock_if_idle() -> bool {
     let mut s = session();
     if s.as_ref().is_some_and(idle) {
@@ -715,6 +730,17 @@ mod tests {
     fn vault(password: &str) -> (VaultData, Zeroizing<Key>, String) {
         let (h, dek, recovery) = new_header(password, CHEAP).unwrap();
         (VaultData { header: Some(h), ..Default::default() }, dek, recovery)
+    }
+
+    #[test]
+    fn idle_follows_the_chosen_limit() {
+        let ago = |secs| SystemTime::now() - Duration::from_secs(secs);
+        assert!(idle_for(ago(61), Duration::from_secs(60)));
+        assert!(!idle_for(ago(59), Duration::from_secs(60)));
+        assert!(!idle_for(ago(61), Duration::from_secs(30 * 60)));
+        assert!(idle_for(ago(31 * 60), Duration::from_secs(30 * 60)));
+        // A clock set back counts as idle.
+        assert!(idle_for(SystemTime::now() + Duration::from_secs(600), Duration::from_secs(60)));
     }
 
     #[test]

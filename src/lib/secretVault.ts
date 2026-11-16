@@ -1,5 +1,5 @@
 // Typed wrappers for the secret notes vault commands (src-tauri/src/commands/secret_vault.rs).
-// The Secret notes window only (or, from a remote desktop, the controlled Puppeteer's bridge).
+// The Secret notes window and the main window only (or, from a remote desktop, the controlled Puppeteer's bridge).
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke as localInvoke } from '@tauri-real/core'
 import { invoke } from '@/lib/tauri'
@@ -18,6 +18,8 @@ export const vaultUnlock = (password: string) => invoke<void>('secret_vault_unlo
 export const vaultUnlockRecovery = (recoveryKey: string) =>
   invoke<void>('secret_vault_unlock_recovery', { recoveryKey })
 export const vaultLock = () => invoke<void>('secret_vault_lock')
+/** Idle minutes before the vault locks itself (a setting; local only, a remote desktop is refused). */
+export const vaultSetAutoLock = (minutes: number) => invoke<number>('secret_vault_set_auto_lock', { minutes })
 /** Typing in the editor: push the idle auto-lock back (`vault_locked` once it locked). */
 export const vaultTouch = () => invoke<void>('secret_vault_touch')
 /**

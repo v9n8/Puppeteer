@@ -33,11 +33,12 @@ import { openSlackWindow } from '@/lib/slackWindow'
 import { useToast } from '@/composables/useToast'
 import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
 import { useMainWindowEvents } from '@/composables/useMainWindowEvents'
+import { useVaultOpenGuard } from '@/composables/useVaultOpenGuard'
 import { useFindShortcut } from '@/composables/usePageFind'
 import { normalizeColorTheme } from '@/lib/colorThemes'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
-import { openSecretNotesWindow } from '@/lib/secretNotesWindow'
+import { openSecretNotes } from '@/lib/secretNotesWindow'
 import {
   IS_MAC, applyAppMenu, hasNativeMenu, isMenuActionBound, listenMenuActions, menuAccelerator,
   registerMenuAction, runMenuAction,
@@ -81,6 +82,7 @@ const isPopoutWindow = IS_POPOUT_WINDOW
 
 const route = useRoute()
 const router = useRouter()
+const { vaultOpenHere } = useVaultOpenGuard()
 const projectsStore = useProjectsStore()
 // Focus board for the sidebar badge (number of overdue todos).
 const focusStore = useFocusStore()
@@ -312,7 +314,7 @@ function bindGlobalMenuActions() {
       openItemListWindow('note', { projectId: routeCaptureContext().projectId }),
     ),
     registerMenuAction('window.secretNotes', () =>
-      openSecretNotesWindow({ projectId: routeCaptureContext().projectId }),
+      openSecretNotes(router, { projectId: routeCaptureContext().projectId }),
     ),
     registerMenuAction('window.slackThreads', () =>
       openSlackWindow({ projectId: routeCaptureContext().projectId }),
@@ -607,7 +609,7 @@ onMounted(async () => {
   </div>
 
   <!-- The window's one selection toolbar, for whichever screen declared a
-       selection surface. Never in the Secret vault window: its text must not
-       reach Translate or the clipboard shortcuts. -->
-  <SelectionToolbar v-if="!IS_SECRET_NOTES_WINDOW" />
+       selection surface. Never in the Secret vault window, nor while the vault is
+       open in this one: its text must not reach Translate or the clipboard shortcuts. -->
+  <SelectionToolbar v-if="!IS_SECRET_NOTES_WINDOW && !vaultOpenHere" />
 </template>
