@@ -168,6 +168,7 @@ use remote::commands::{
     remote_end_session, remote_get_audit, remote_kick_controller, remote_reveal_otp,
     remote_set_config, remote_set_device_alias, remote_set_master_password, remote_status,
 };
+use remote::relay_check::remote_check_relay;
 use remote::file_proxy::{rd_download_append, rd_download_create, rdfile_register, rdfile_respond};
 use remote::fs_bridge::{
     remote_client_log, remote_fs_home, remote_fs_list, remote_fs_log_dir, remote_fs_read, remote_fs_stat,
@@ -843,6 +844,7 @@ pub fn run() {
             show_calendar_reminder,
             show_schedule_failed_notification,
             remote_set_config,
+            remote_check_relay,
             remote_enable,
             remote_disable,
             remote_create_session_link,

@@ -12,6 +12,9 @@ import { useRemoteControlStore } from '@/stores/remoteControl'
 import { DEVICE_ALIAS_RE } from '@/lib/remoteLogin'
 import { KeyRound } from 'lucide-vue-next'
 import { errorText } from '@/lib/featureGate'
+import { invoke } from '@/lib/tauri'
+import { isRemoteMode } from '@/lib/ipc/remote'
+import { relayCheckLine, type RelayCheck } from '@/lib/relayCheck'
 
 // Must match `MIN_MASTER_PASSWORD_LEN` in `src-tauri/src/secrets.rs`.
 const MIN_MASTER_PASSWORD_LEN = 12
@@ -27,6 +30,10 @@ const savingConfig = ref(false)
 const masterPassword = ref('')
 const savingMasterPw = ref(false)
 const deviceAlias = ref('')
+// "Check relay" runs from the typed values; a remote-controlled app hides it (the backend refuses it too).
+const remoteMode = isRemoteMode()
+const checkingRelay = ref(false)
+const relayResult = ref<string | null>(null)
 
 const status = computed(() => store.status)
 
@@ -78,6 +85,24 @@ async function saveConfig() {
     toast.error(errorText(e, t))
   } finally {
     savingConfig.value = false
+  }
+}
+
+async function checkRelay() {
+  const url = relayUrl.value.trim()
+  if (!url || checkingRelay.value) return
+  checkingRelay.value = true
+  relayResult.value = null
+  try {
+    const r = await invoke<RelayCheck>('remote_check_relay', {
+      relayUrl: url,
+      authToken: authToken.value.trim() || null,
+    })
+    relayResult.value = relayCheckLine(r, t)
+  } catch (e) {
+    relayResult.value = t('remote.settings.relayCheck.failed', { error: errorText(e, t) })
+  } finally {
+    checkingRelay.value = false
   }
 }
 
@@ -178,10 +203,14 @@ async function clearMasterPassword() {
         <Button variant="outline" :disabled="savingConfig" @click="saveConfig">
           {{ t('remote.settings.saveSettings') }}
         </Button>
+        <Button v-if="!remoteMode" variant="outline" :disabled="savingConfig || checkingRelay || !relayUrl.trim()" @click="checkRelay">
+          {{ checkingRelay ? t('remote.settings.checkingRelay') : t('remote.settings.checkRelay') }}
+        </Button>
         <span v-if="status?.device_id" class="ml-auto text-2xs text-muted-foreground/60 font-mono">
           {{ t('remote.settings.hostLabel', { id: status.device_id.slice(0, 8) }) }}
         </span>
       </div>
+      <p aria-live="polite" class="text-2xs text-muted-foreground">{{ relayResult }}</p>
     </div>
   </Card>
 </template>

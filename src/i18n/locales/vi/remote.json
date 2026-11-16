@@ -28,6 +28,16 @@
     "masterPasswordSet": "Đặt mật khẩu để bỏ qua OTP mỗi lần",
     "masterPasswordHint": "Nhập mật khẩu này trên điện thoại hoặc Puppeteer khác thay cho mã OTP. Lưu trong keychain của hệ điều hành. Cố định — chỉ dùng nếu bạn là người dùng duy nhất. Đổi hoặc xoá mật khẩu sẽ đăng xuất mọi thiết bị đã đăng nhập.",
     "saveSettings": "Lưu cài đặt",
+    "checkRelay": "Kiểm tra relay",
+    "checkingRelay": "Đang kiểm tra…",
+    "relayCheck": {
+      "accepted": "Kết nối được ({ms} ms) · token được nhận",
+      "rejected": "Kết nối được ({ms} ms) · relay từ chối token ({code})",
+      "noReply": "Kết nối được ({ms} ms), relay không trả lời trong {s} giây",
+      "noReplyWhy": "Kết nối được ({ms} ms), nhưng chưa có kết luận: {error}",
+      "notChecked": "Kết nối được ({ms} ms) · chưa có token để kiểm",
+      "failed": "Không kết nối được: {error}"
+    },
     "hostLabel": "host: {id}",
     "perRunHint": "Kết nối điều khiển từ xa giờ được tạo theo từng run: mở một run và nhấn nút {remote} trên thanh công cụ để tạo link. Nhập {masterPassword} (nếu đã đặt) hoặc mã OTP trên điện thoại để kết nối.",
     "remote": "Remote",

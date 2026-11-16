@@ -5,9 +5,9 @@
 // editor (edit, delete, sign in again…), and "Add connection" opens that
 // editor's add flow. `filter` is v-model so `?section=github` deep links land
 // on that type.
-import { computed, onMounted, ref, watch, type Component } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, CheckCircle2, KeyRound, LogIn, Plug, Plus } from 'lucide-vue-next'
+import { AlertTriangle, CheckCircle2, KeyRound, LogIn, Plug, Plus, ShieldCheck } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import { Button, Card, DropdownItem, DropdownMenu, InfoTip, Modal, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import GithubAccountsSettings from '@/components/settings/GithubAccountsSettings.vue'
@@ -17,6 +17,8 @@ import AzureAccountsSettings from '@/components/AzureAccountsSettings.vue'
 import GoogleAccountsSettings from '@/components/settings/GoogleAccountsSettings.vue'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useProjectsStore } from '@/stores/projects'
+import { useToast } from '@/composables/useToast'
+import { nextRow, summarizeChecks } from '@/lib/validateAll'
 import {
   buildConnectionRows, checkResult, connectionType, consumerLabelKey, effectiveFilter, filterConnectionRows,
   type CheckResult, type ConnectionFilter, type ConnectionRow, type ConnectionTypeId,
@@ -27,6 +29,7 @@ const filter = defineModel<ConnectionFilter>('filter', { default: 'all' })
 const { t } = useI18n()
 const { sources, fetchers, types } = useConnectionSources()
 const projectsStore = useProjectsStore()
+const { toast } = useToast()
 
 // Each type's editor: its add flow (no `accountId`) and one account's
 // validate / edit / delete / sign-in (with it).
@@ -74,6 +77,26 @@ async function validate(row: ConnectionRow) {
   }
   // Validating stores what it learnt (username, last check, sign-in state).
   await fetchers[row.type]().catch(() => {})
+}
+
+// --- Validate all: the rows on screen, one after another (never in parallel) ---
+const validatingAll = ref<{ index: number; total: number } | null>(null)
+let leaving = false
+onBeforeUnmount(() => { leaving = true })
+
+async function validateAll() {
+  if (validatingAll.value) return
+  const list = [...visibleRows.value]
+  const keys = list.map(rowKey)
+  let i = 0
+  for (let row = nextRow(list, i); row && !leaving; row = nextRow(list, ++i)) {
+    validatingAll.value = { index: i + 1, total: list.length }
+    await validate(row)
+  }
+  validatingAll.value = null
+  if (leaving) return
+  const sum = summarizeChecks(keys.map((k) => checks.value[k]))
+  toast.info(t('settings.connections.validateAllSummary', { a: sum.ok, b: sum.needsLogin, c: sum.failed }), 6000)
 }
 
 // The row's last Validate result as shown: tone + text.
@@ -128,7 +151,19 @@ watch([rows, types], () => {
       <Plug class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.connections.title') }}</span>
       <InfoTip :text="t('settings.connections.intro')" />
-      <DropdownMenu align="right" class="ml-auto">
+      <Button
+        size="xs"
+        variant="outline"
+        class="ml-auto"
+        :disabled="!visibleRows.length || !!validatingAll"
+        @click="validateAll"
+      >
+        <ShieldCheck class="h-3 w-3" :stroke-width="2" />
+        {{ validatingAll
+          ? t('settings.connections.validatingAll', { i: validatingAll.index, n: validatingAll.total })
+          : t('settings.connections.validateAll') }}
+      </Button>
+      <DropdownMenu align="right">
         <template #trigger>
           <Button size="xs">
             <Plus class="h-3 w-3" :stroke-width="2" />

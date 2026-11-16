@@ -28,6 +28,16 @@
     "masterPasswordSet": "Set a password to skip the OTP each time",
     "masterPasswordHint": "Enter it on your phone or another Puppeteer instead of the OTP code. Stored in the OS keychain. Fixed — only use it if you are the sole user. Changing or clearing it signs out every device signed in so far.",
     "saveSettings": "Save settings",
+    "checkRelay": "Check relay",
+    "checkingRelay": "Checking…",
+    "relayCheck": {
+      "accepted": "Reachable ({ms} ms) · token accepted",
+      "rejected": "Reachable ({ms} ms) · relay rejected the token ({code})",
+      "noReply": "Reachable ({ms} ms), but the relay did not answer within {s} s",
+      "noReplyWhy": "Reachable ({ms} ms), but no verdict: {error}",
+      "notChecked": "Reachable ({ms} ms) · no token to check yet",
+      "failed": "Could not connect: {error}"
+    },
     "hostLabel": "host: {id}",
     "perRunHint": "Remote sessions are now created per run: open a run and click the {remote} button in the toolbar to generate a link. Enter your {masterPassword} (if set) or the OTP code on your phone to connect.",
     "remote": "Remote",

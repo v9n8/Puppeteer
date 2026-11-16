@@ -35,6 +35,7 @@ pub mod meta;
 pub mod outbound;
 pub mod protocol;
 pub mod push;
+pub mod relay_check;
 pub mod session;
 pub mod transfer;
 pub mod upload;
