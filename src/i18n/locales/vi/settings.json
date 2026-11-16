@@ -16,6 +16,7 @@
     "focus": "Focus",
     "features": "Tính năng",
     "connections": "Kết nối",
+    "mcp": "MCP",
     "about": "Giới thiệu",
     "shortcuts": "Phím tắt & lệnh nhanh"
   },
@@ -701,5 +702,8 @@
       "palette": "Lệnh nhanh",
       "keymap": "Phím tắt"
     }
+  },
+  "mcp": {
+    "description": "Cấu hình chung của app: định nghĩa server một lần ở đây. Bật / tắt cho từng Project ở Project › Kết nối."
   }
 }

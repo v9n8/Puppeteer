@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   SETTINGS_GROUPS, SETTINGS_SECTIONS, groupLabelKey, isSettingsSectionId, resolveSettingsPlace, settingsCrumbKeys,
-  settingsHref, settingsLocation, settingsNav, settingsPlaceFromRoute, settingsRedirect,
+  settingsHref, settingsLocation, mcpLegacyLocation, settingsNav, settingsPlaceFromRoute, settingsRedirect,
 } from '../settingsSections.ts'
 
 const prop = (id, effective) => ({
@@ -30,7 +30,7 @@ test('settingsNav: all features on → four groups in order, every section liste
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(true))), [
     ['general', ['general', 'flags', 'features', 'focus', 'shortcuts']],
     ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
-    ['connections', ['connections', 'inbox']],
+    ['connections', ['connections', 'mcp', 'inbox']],
     ['system', ['devices', 'about']],
   ])
 })
@@ -39,7 +39,7 @@ test('settingsNav: features off hide their sections, ungated ones stay', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(false))), [
     ['general', ['general', 'flags', 'features']],
     ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
-    ['connections', ['connections', 'inbox']],
+    ['connections', ['connections', 'mcp', 'inbox']],
     ['system', ['devices', 'about']],
   ])
 })
@@ -172,4 +172,21 @@ test('isSettingsSectionId and settingsCrumbKeys', () => {
     settingsCrumbKeys('connections'),
     ['settings.title', 'settings.groups.connections', 'settings.sections.connections'],
   )
+})
+
+test('mcp: a section of the connections group, between Connections and Inbox API', () => {
+  const ids = SETTINGS_SECTIONS.filter((s) => s.group === 'connections').map((s) => s.id)
+  assert.deepEqual(ids, ['connections', 'mcp', 'inbox'])
+  assert.deepEqual(resolveSettingsPlace('mcp'), { section: 'mcp' })
+  assert.deepEqual(settingsRedirect({ section: 'mcp' }), { path: '/settings/mcp', query: {} })
+  assert.deepEqual(settingsPlaceFromRoute({ section: 'mcp' }, { id: 'x' }), { section: 'mcp' })
+})
+
+test('mcpLegacyLocation: /mcp, /mcp/new and /mcp/<id>/edit land on Settings › MCP', () => {
+  assert.deepEqual(mcpLegacyLocation({}), { path: '/settings/mcp', query: {} })
+  assert.deepEqual(mcpLegacyLocation({ id: 'abc' }), { path: '/settings/mcp', query: { id: 'abc' } })
+  assert.deepEqual(mcpLegacyLocation({ id: 'builtin:google' }), { path: '/settings/mcp', query: { id: 'builtin:google' } })
+  assert.deepEqual(mcpLegacyLocation({ new: '1' }), { path: '/settings/mcp', query: { new: '1' } })
+  assert.deepEqual(mcpLegacyLocation({ new: '0', other: 'z' }), { path: '/settings/mcp', query: {} })
+  assert.deepEqual(mcpLegacyLocation({}, 'abc'), { path: '/settings/mcp', query: { id: 'abc' } })
 })

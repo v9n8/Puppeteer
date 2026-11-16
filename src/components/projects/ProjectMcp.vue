@@ -12,8 +12,8 @@ import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 
-/** The MCP management screen (`/settings/mcp` once V3-51 moves it; `/mcp` redirects there). */
-const MCP_ROUTE = '/mcp'
+/** The MCP management screen (Settings › Connections › MCP, V3-51). */
+const MCP_ROUTE = '/settings/mcp'
 
 const props = defineProps<{ project: Project }>()
 

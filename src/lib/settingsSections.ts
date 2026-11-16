@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes,
+  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes, Server,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -42,6 +42,8 @@ export const SETTINGS_SECTIONS = [
   // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
   // is gated inside the screen, and `?section=github` etc. open it filtered.
   { id: 'connections', group: 'connections', labelKey: 'settings.sections.connections', icon: Plug },
+  // MCP servers, defined once for the app (V3-51); per Project they are switched in Project > Connections.
+  { id: 'mcp', group: 'connections', labelKey: 'settings.sections.mcp', icon: Server },
   { id: 'inbox', group: 'connections', labelKey: 'settings.sections.inbox', icon: Inbox },
   { id: 'devices', group: 'system', labelKey: 'settings.sections.devices', icon: Radio },
   { id: 'about', group: 'system', labelKey: 'settings.sections.about', icon: Info },
@@ -131,6 +133,18 @@ export function settingsLocation(place: SettingsPlace, extra: Record<string, str
 export function settingsHref(loc: SettingsLocation): string {
   const qs = new URLSearchParams(loc.query).toString()
   return qs ? `${loc.path}?${qs}` : loc.path
+}
+
+/**
+ * Where an old MCP screen link goes (`/mcp`, `/mcp/new`, `/mcp/<id>/edit`): Settings › MCP,
+ * keeping the selection the link named (`?id=`, `?new=1`).
+ */
+export function mcpLegacyLocation(query: Record<string, unknown>, id?: string): SettingsLocation {
+  const extra: Record<string, string> = {}
+  if (id) extra.id = id
+  else if (typeof query.id === 'string' && query.id) extra.id = query.id
+  else if (query.new === '1') extra.new = '1'
+  return settingsLocation({ section: 'mcp' }, extra)
 }
 
 /**

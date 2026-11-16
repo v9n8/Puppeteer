@@ -18,7 +18,7 @@ export const GROUP_LABEL_KEYS: Record<SidebarGroupId, string | null> = {
 const ORDER: readonly string[] = [
   '/session', '/projects', '/running', '/schedules',
   '/tasks', '/notes', '/calendar', '/gantt', '/pr-inbox', '/slack', 'secret-notes',
-  '/library', '/mcp', '/servers',
+  '/library', '/servers',
   '/stats', '/trash', '/settings',
 ]
 

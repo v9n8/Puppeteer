@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// MCP servers, Notes-style master-detail:
+// Settings › Connections › MCP (V3-51; was the `/mcp` screen): MCP servers, Notes-style master-detail:
 //
 //   ┌ sidebar: search · import · refresh   │ detail: name / transport · enabled │
 //   │ + New ▾ (by hand / with AI)          │ · added           [Test][Save][⋯]  │
@@ -12,14 +12,17 @@
 // the type dropdown narrows to one folder. The built-in native
 // servers and the not-yet-added catalog are rows too, with a read-only pane.
 //
-// Selection lives in the URL (`?id=` a server or a `builtin:` / `catalog:`
-// row, `?new=1` a blank draft) — never anything secret.
+// Selection lives in the URL (`/settings/mcp?id=` a server or a `builtin:` /
+// `catalog:` row, `?new=1` a blank draft) — never anything secret. In the
+// Settings window (no route of the app) it is kept in memory only.
+// Narrow (one column): the list, or the open server with a "back to the list" bar.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useElementSize } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { Import, RotateCw, Server, Upload } from 'lucide-vue-next'
+import { ChevronLeft, Import, RotateCw, Server, Upload } from 'lucide-vue-next'
 import { AppSelect, Button } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
@@ -28,13 +31,13 @@ import McpInfoDetail from '@/components/mcp/McpInfoDetail.vue'
 import McpAiAddDialog from '@/components/mcp/McpAiAddDialog.vue'
 import McpNewMenu from '@/components/mcp/McpNewMenu.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
-import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useMcpServersStore, type McpServer, type PastedServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
+import { settingsLocation } from '@/lib/settingsSections'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { IMPORT_FEATURE } from '@/lib/configImport'
 import {
@@ -59,9 +62,22 @@ import {
   type McpRow,
 } from '@/lib/mcpRows'
 
-// Named explicitly: <KeepAlive :include> in App.vue matches on component name,
-// and an inferred name is a build detail that minification can change.
-defineOptions({ name: 'McpServersView' })
+const props = defineProps<{
+  /** In the Settings window: no URL to keep the selection in. */
+  windowed?: boolean
+}>()
+const emit = defineEmits<{
+  /** A built-in row's "settings" button: the section (`google`) the host opens. */
+  'open-section': [section: string]
+}>()
+
+const MCP_PATH = settingsLocation({ section: 'mcp' }).path
+/** Below this width the list and the detail do not fit side by side (900px window). */
+const NARROW_BELOW = 760
+
+const root = ref<HTMLElement | null>(null)
+const { width } = useElementSize(root)
+const narrow = computed(() => width.value > 0 && width.value < NARROW_BELOW)
 
 const route = useRoute()
 const router = useRouter()
@@ -226,23 +242,24 @@ function setSelection(id: string | null, draft = false) {
   selectedId.value = draft ? null : id
   isNew.value = draft
   if (!draft) draftSeed.value = null
-  router.replace({ path: '/mcp', query: draft ? { new: '1' } : id ? { id } : {} }).catch(() => {})
+  if (props.windowed) return
+  router.replace({ path: MCP_PATH, query: draft ? { new: '1' } : id ? { id } : {} }).catch(() => {})
 }
 
 function restoreQuery() {
+  if (props.windowed) return
   router
-    .replace({ path: '/mcp', query: isNew.value ? { new: '1' } : selectedId.value ? { id: selectedId.value } : {} })
+    .replace({ path: MCP_PATH, query: isNew.value ? { new: '1' } : selectedId.value ? { id: selectedId.value } : {} })
     .catch(() => {})
 }
 
-// KeepAlive keeps this view alive on other routes: only /mcp's own query
-// drives the selection. A bare /mcp (the nav link) restores the current one; a
-// different ?id= / ?new=1 from outside (e.g. an old editor URL) asks first
-// when there are unsaved edits.
+// Only this section's own query drives the selection. A bare /settings/mcp (the
+// nav item) restores the current one; a different ?id= / ?new=1 from outside
+// (e.g. an old editor URL) asks first when there are unsaved edits.
 watch(
-  () => [route.name, route.query.id, route.query.new],
+  () => [route?.name, route?.params.section, route?.query.id, route?.query.new],
   async () => {
-    if (route.name !== 'mcp') return
+    if (props.windowed || route.name !== 'settings-section' || route.params.section !== 'mcp') return
     const id = typeof route.query.id === 'string' && route.query.id ? route.query.id : null
     const incoming = { id, isNew: !id && route.query.new === '1' }
     const current = { id: selectedId.value, isNew: isNew.value }
@@ -263,6 +280,8 @@ watch(
   { immediate: true },
 )
 
+/** Narrow: the detail replaces the list once something is open (or a draft). */
+const showDetail = computed(() => isNew.value || !!selectedRow.value)
 const selectedServer = computed(() => store.items.find((s) => s.id === selectedId.value) ?? null)
 const selectedRow = computed(() => allRows.value.find((r) => r.id === selectedId.value) ?? null)
 const selectedEntry = computed(() =>
@@ -302,7 +321,7 @@ async function startNew(seed: McpForm | null = null): Promise<boolean> {
 watch(
   () => [store.loading, allRows.value] as const,
   ([loading]) => {
-    if (loading || route.name !== 'mcp' || !selectedId.value) return
+    if (loading || !selectedId.value) return
     if (!selectedRow.value) setSelection(null)
   },
 )
@@ -319,11 +338,6 @@ onMounted(() => {
   appSettings.ensureLoaded()
   loadGoogleStatus()
 })
-
-// Cached by <KeepAlive> (App.vue): onMounted fires once for the app's whole
-// lifetime, so re-show the screen with fresh data instead of whatever it read
-// the very first time.
-useActivatedRefresh(refresh)
 
 // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -447,7 +461,7 @@ async function addFromCatalog(item: CatalogEntry) {
 
 function openSettings(row: McpRow) {
   const section = builtins.value.find((b) => b.name === row.name)?.section
-  if (section) router.push({ path: '/settings', query: { section } })
+  if (section) emit('open-section', section)
 }
 
 async function handleToggleBuiltin(b: Builtin) {
@@ -464,6 +478,14 @@ async function handleToggleBuiltin(b: Builtin) {
   }
 }
 
+/** Narrow: back from a server to the list. */
+async function backToList() {
+  if (!(await confirmDiscard())) return
+  setSelection(null)
+}
+
+defineExpose({ mayDiscard: confirmDiscard })
+
 function onSaved(id: string) {
   if (id !== selectedId.value) setSelection(id)
 }
@@ -477,8 +499,10 @@ function dotClass(row: McpRow): string {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0">
+  <div ref="root" class="flex h-full min-h-0">
     <ListDetailSidebar
+      v-show="!narrow || !showDetail"
+      :class="narrow && '!w-full border-r-0'"
       v-model:search="search"
       :groups="groups"
       :selected-id="isNew ? null : selectedId"
@@ -563,57 +587,68 @@ function dotClass(row: McpRow): string {
       </template>
     </ListDetailSidebar>
 
-    <McpServerDetail
-      v-if="isNew"
-      :key="`new-${draftKey}`"
-      ref="detailRef"
-      :server="null"
-      :seed="draftSeed"
-      :default-is-codex="defaultIsCodex"
-      :toggling="false"
-      @saved="onSaved"
-    />
-    <McpServerDetail
-      v-else-if="selectedServer"
-      :key="selectedServer.id"
-      ref="detailRef"
-      :server="selectedServer"
-      :default-is-codex="defaultIsCodex"
-      :toggling="togglingId === selectedServer.id"
-      @saved="onSaved"
-      @toggle-enabled="handleToggleEnabled(selectedServer)"
-      @export="handleExport(selectedServer)"
-      @duplicate="handleDuplicate(selectedServer)"
-      @delete="handleDelete(selectedServer)"
-    />
-    <McpInfoDetail
-      v-else-if="selectedRow && selectedRow.kind !== 'server'"
-      :key="selectedRow.id"
-      :row="selectedRow"
-      :entry="selectedEntry"
-      :status-label="selectedBuiltin?.status ?? ''"
-      :enabled="selectedBuiltin?.enabled"
-      :toggling="togglingId === selectedRow.id"
-      :configurable="!!selectedBuiltin?.section"
-      :tool-groups="selectedBuiltin?.toolGroups"
-      :purpose="selectedBuiltin?.purpose"
-      :adding="addingName === selectedRow.name"
-      @add="selectedEntry && addFromCatalog(selectedEntry)"
-      @settings="openSettings(selectedRow)"
-      @toggle="selectedBuiltin && handleToggleBuiltin(selectedBuiltin)"
-    />
-    <DetailEmpty
-      v-else
-      :icon="Server"
-      :text="store.items.length === 0 && !store.loading ? t('mcp.list.empty.title') : t('mcp.list.noSelection')"
-    >
-      <template v-if="store.items.length === 0 && !store.loading">
-        <p class="mx-auto mt-1 max-w-60 text-2xs text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
-        <div class="mt-4 flex justify-center">
-          <McpNewMenu align="left" @manual="startNew()" @ai="aiAddOpen = true" />
-        </div>
-      </template>
-    </DetailEmpty>
+    <div v-show="!narrow || showDetail" class="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div v-if="narrow" class="flex shrink-0 items-center border-b border-border/60 px-3 py-1.5">
+        <Button variant="ghost" size="sm" @click="backToList">
+          <ChevronLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ t('mcp.list.backToList') }}
+        </Button>
+      </div>
+      <McpServerDetail
+        v-if="isNew"
+        :key="`new-${draftKey}`"
+        ref="detailRef"
+        :server="null"
+        :seed="draftSeed"
+        :default-is-codex="defaultIsCodex"
+        :compact="narrow"
+        :toggling="false"
+        @saved="onSaved"
+      />
+      <McpServerDetail
+        v-else-if="selectedServer"
+        :key="selectedServer.id"
+        ref="detailRef"
+        :server="selectedServer"
+        :default-is-codex="defaultIsCodex"
+        :compact="narrow"
+        :toggling="togglingId === selectedServer.id"
+        @saved="onSaved"
+        @toggle-enabled="handleToggleEnabled(selectedServer)"
+        @export="handleExport(selectedServer)"
+        @duplicate="handleDuplicate(selectedServer)"
+        @delete="handleDelete(selectedServer)"
+      />
+      <McpInfoDetail
+        v-else-if="selectedRow && selectedRow.kind !== 'server'"
+        :key="selectedRow.id"
+        :row="selectedRow"
+        :entry="selectedEntry"
+        :status-label="selectedBuiltin?.status ?? ''"
+        :enabled="selectedBuiltin?.enabled"
+        :toggling="togglingId === selectedRow.id"
+        :configurable="!!selectedBuiltin?.section"
+        :tool-groups="selectedBuiltin?.toolGroups"
+        :purpose="selectedBuiltin?.purpose"
+        :adding="addingName === selectedRow.name"
+        @add="selectedEntry && addFromCatalog(selectedEntry)"
+        @settings="openSettings(selectedRow)"
+        @toggle="selectedBuiltin && handleToggleBuiltin(selectedBuiltin)"
+      />
+      <DetailEmpty
+        v-else
+        :icon="Server"
+        :text="store.items.length === 0 && !store.loading ? t('mcp.list.empty.title') : t('mcp.list.noSelection')"
+      >
+        <template v-if="store.items.length === 0 && !store.loading">
+          <p class="mx-auto mt-1 max-w-60 text-2xs text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
+          <div class="mt-4 flex justify-center">
+            <McpNewMenu align="left" @manual="startNew()" @ai="aiAddOpen = true" />
+          </div>
+        </template>
+      </DetailEmpty>
+
+    </div>
 
     <McpAiAddDialog v-model:open="aiAddOpen" @pick="openPasted" />
 

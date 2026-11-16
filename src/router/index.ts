@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router'
 import { emit } from '@tauri-apps/api/event'
 import LibraryView from '../views/LibraryView.vue'
-import McpServersView from '../views/McpServersView.vue'
 import ServersView from '../views/ServersView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
 import PrInboxView from '../views/PrInboxView.vue'
@@ -41,7 +40,7 @@ import { SCREEN_OPEN_ROUTE, screenGuard, type ScreenOpenRoute } from '../lib/det
 import { openSettingsWindow } from '../lib/settingsWindow'
 import { SECRET_NOTES_PATH, secretNotesTarget } from '../lib/secretNotesWindow'
 import {
-  isSettingsSectionId, resolveSettingsPlace, settingsLocation, settingsPlaceFromRoute, settingsRedirect,
+  isSettingsSectionId, mcpLegacyLocation, resolveSettingsPlace, settingsLocation, settingsPlaceFromRoute, settingsRedirect,
 } from '../lib/settingsSections'
 
 /**
@@ -82,7 +81,7 @@ async function secretNotesGuard(to: RouteLocationNormalized, from: RouteLocation
   return screenGuard(secretNotesTarget)(to, from)
 }
 
-// MCP / Servers edit in their list's detail pane now; the old
+// Servers edit in their list's detail pane now; the old
 // editor URLs redirect there so stale links keep working.
 function editorRedirects(base: string): RouteRecordRaw[] {
   return [
@@ -113,8 +112,10 @@ const router = createRouter({
       path: `${base}/:rest(.*)*`,
       redirect: '/library',
     })),
-    { path: '/mcp', name: 'mcp', component: McpServersView },
-    ...editorRedirects('/mcp'),
+    // MCP became Settings › Connections › MCP (V3-51); old links, editor URLs included, land there.
+    { path: '/mcp', redirect: (to) => mcpLegacyLocation(to.query) },
+    { path: '/mcp/new', redirect: () => mcpLegacyLocation({ new: '1' }) },
+    { path: '/mcp/:id/edit', redirect: (to) => mcpLegacyLocation({}, String(to.params.id)) },
     { path: '/servers', name: 'servers', component: ServersView },
     ...editorRedirects('/servers'),
     { path: '/projects', name: 'projects', component: ProjectsView },

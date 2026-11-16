@@ -48,7 +48,8 @@
     "filterByType": "Lọc theo loại",
     "newManual": "Thêm thủ công",
     "newManualHint": "Tự điền từng trường của form",
-    "newAiHint": "Dán hướng dẫn cài đặt hoặc link README"
+    "newAiHint": "Dán hướng dẫn cài đặt hoặc link README",
+    "backToList": "Về danh sách MCP"
   },
   "editor": {
     "newTitle": "MCP Server mới",

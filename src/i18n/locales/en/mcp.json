@@ -48,7 +48,8 @@
     "filterByType": "Filter by type",
     "newManual": "Add manually",
     "newManualHint": "Fill in the form field by field",
-    "newAiHint": "Paste setup instructions or a README link"
+    "newAiHint": "Paste setup instructions or a README link",
+    "backToList": "Back to MCP list"
   },
   "editor": {
     "newTitle": "New MCP Server",

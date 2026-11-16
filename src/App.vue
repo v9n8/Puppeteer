@@ -211,7 +211,6 @@ const routeKey = computed(() =>
 // longer fire on navigation, so a timer would otherwise run forever in the
 // background.
 const CACHED_VIEWS = [
-  'McpServersView',
   'ServersView',
   'SessionSearchView',
 ]

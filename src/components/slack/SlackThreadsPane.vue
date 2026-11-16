@@ -324,7 +324,7 @@ function newSession() {
 }
 
 function openMcp() {
-  emit_('openRoute', '/mcp')
+  emit_('openRoute', '/settings/mcp')
 }
 
 // ── Add dialog ──────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@
     "focus": "Focus",
     "features": "Features",
     "connections": "Connections",
+    "mcp": "MCP",
     "about": "About",
     "shortcuts": "Shortcuts & quick commands"
   },
@@ -701,5 +702,8 @@
       "palette": "Quick commands",
       "keymap": "Shortcuts"
     }
+  },
+  "mcp": {
+    "description": "App-wide setup: define a server once here. Turn it on or off for each Project under Project › Connections."
   }
 }

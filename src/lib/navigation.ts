@@ -1,6 +1,5 @@
 import type { Component } from 'vue'
 import {
-  Server,
   HardDrive,
   FolderOpen,
   GitPullRequest,
@@ -63,7 +62,6 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/pr-inbox', labelKey: 'nav.prInbox', icon: GitPullRequest, group: 'mine', feature: 'code_hosting.pr_inbox', screen: 'pr-inbox' },
   { path: '/slack', labelKey: 'slackThread.nav', icon: Slack, group: 'mine', feature: 'integrations.slack', screen: 'slack' },
   { path: '/library', labelKey: 'nav.library', icon: Library, group: 'agent' },
-  { path: '/mcp', labelKey: 'nav.mcp', icon: Server, group: 'agent' },
   { path: '/servers', labelKey: 'nav.servers', icon: HardDrive, group: 'agent', feature: 'infra_access.vps' },
   { path: '/stats', labelKey: 'nav.stats', icon: BarChart3, group: 'foot', feature: 'usage.stats' },
   { path: '/settings', labelKey: 'nav.settings', icon: Settings, group: 'foot', screen: 'settings' },

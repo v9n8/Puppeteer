@@ -47,6 +47,8 @@ const props = defineProps<{
   defaultIsCodex: boolean
   /** The enabled switch is being applied. */
   toggling: boolean
+  /** One-column layout: the Test button keeps its icon and title, not its label. */
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -215,10 +217,17 @@ defineExpose({ dirty })
         </template>
       </template>
       <template #actions>
-        <Button variant="outline" size="sm" :disabled="testing" :title="t('mcp.detail.testHint')" @click="handleTest">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="testing"
+          :title="t('mcp.detail.testHint')"
+          :aria-label="t('mcp.editor.testConnection')"
+          @click="handleTest"
+        >
           <Loader2 v-if="testing" class="h-3.5 w-3.5 animate-spin" :stroke-width="2" />
           <Plug v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ testing ? t('mcp.editor.testing') : t('mcp.editor.testConnection') }}
+          <template v-if="!compact">{{ testing ? t('mcp.editor.testing') : t('mcp.editor.testConnection') }}</template>
         </Button>
         <Button size="sm" :disabled="!dirty || saving" :title="t('mcp.detail.saveHint')" @click="save">
           {{ saving ? t('mcp.editor.saving') : t('common.save') }}

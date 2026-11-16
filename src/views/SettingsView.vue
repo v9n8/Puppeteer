@@ -27,6 +27,7 @@ import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
 import AboutSettings from '@/components/settings/AboutSettings.vue'
 import ModelSettings from '@/components/settings/ModelSettings.vue'
+import McpSettings from '@/components/settings/McpSettings.vue'
 import ShortcutsSettings, { type ShortcutsTab } from '@/components/settings/ShortcutsSettings.vue'
 import { createSettingsForm } from '@/components/settings/useSettingsForm'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
@@ -37,7 +38,7 @@ import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useFeaturesStore } from '@/stores/features'
 import {
-  SETTINGS_SECTIONS, settingsCrumbKeys, settingsHref, settingsLocation, settingsNav, settingsPlaceFromRoute,
+  SETTINGS_SECTIONS, resolveSettingsPlace, settingsCrumbKeys, settingsHref, settingsLocation, settingsNav, settingsPlaceFromRoute,
   type SettingsPlace, type SettingsSectionId,
 } from '@/lib/settingsSections'
 import { openSettingsWindow } from '@/lib/settingsWindow'
@@ -144,8 +145,11 @@ watch([visibleSections, activeSection, () => features.loaded], ([list, active, l
 // window, closing the window) drops the editor's unsaved edits, so it asks
 // first, like switching its file does.
 const memory = ref<InstanceType<typeof MemorySettings> | null>(null)
+// MCP is mounted only while shown: an unsaved server draft asks the same way (V3-51).
+const mcp = ref<InstanceType<typeof McpSettings> | null>(null)
 async function mayLeave(): Promise<boolean> {
-  return memory.value ? memory.value.mayDiscard() : true
+  if (memory.value && !(await memory.value.mayDiscard())) return false
+  return mcp.value ? mcp.value.mayDiscard() : true
 }
 if (!props.windowed) {
   onBeforeRouteUpdate((to, from) => (to.params.section === from.params.section ? true : mayLeave()))
@@ -260,6 +264,22 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
              coming back doesn't re-read the file; leaving with unsaved edits asks first (mayLeave). -->
         <div v-if="!loading" v-show="activeSection === 'memory'" class="max-w-4xl">
           <MemorySettings ref="memory" />
+        </div>
+
+        <!-- MCP servers: a list-detail frame, as tall as the panel (no max-w). Mounted only while shown,
+             so it reads the live list; leaving with an unsaved server asks first (mayLeave). -->
+        <div v-if="!loading && activeSection === 'mcp'" class="flex h-full min-h-[28rem] flex-col gap-4">
+          <div class="shrink-0">
+            <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.mcp') }}</h2>
+            <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.mcp.description') }}</p>
+          </div>
+          <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+            <McpSettings
+              ref="mcp"
+              :windowed="windowed"
+              @open-section="openPlace(resolveSettingsPlace($event) ?? { section: 'general' })"
+            />
+          </div>
         </div>
 
         <!-- Remote Control + Sync & backup under their shared relay / device name / master password -->
