@@ -37,7 +37,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'styles', group: 'ai', labelKey: 'settings.sections.styles', icon: MessageSquareText },
   { id: 'translate', group: 'ai', labelKey: 'settings.sections.translate', icon: Languages },
   { id: 'memory', group: 'ai', labelKey: 'settings.sections.memory', icon: Brain },
-  { id: 'sessions', group: 'ai', labelKey: 'settings.sections.sessions', icon: Gauge },
+  // Context, quota and unattended thresholds; was "Sessions" (V3-60).
+  { id: 'limits', group: 'ai', labelKey: 'settings.sections.limits', icon: Gauge },
   // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
   // is gated inside the screen, and `?section=github` etc. open it filtered.
   { id: 'connections', group: 'connections', labelKey: 'settings.sections.connections', icon: Plug },
@@ -87,8 +88,10 @@ const DEVICES_TAB_OF: Record<string, 'remote' | 'backup'> = { remote: 'remote', 
 // The command palette and Keyboard shortcuts were sections of their own: now tabs of `shortcuts`.
 const SHORTCUTS_TAB_OF: Record<string, 'palette' | 'keymap'> = { palette: 'palette', keymap: 'keymap' }
 // Claude Accounts and Engine Paths were sections of their own: now the engine cards of `engines`.
-// Usage & Budget is now AI › Sessions.
-const MERGED_INTO: Record<string, SettingsSectionId> = { claude: 'engines', engine: 'engines', usage: 'sessions' }
+// Usage & Budget, then AI › Sessions, are now AI › Limits.
+const MERGED_INTO: Record<string, SettingsSectionId> = {
+  claude: 'engines', engine: 'engines', usage: 'limits', sessions: 'limits',
+}
 
 /**
  * Resolves a deep link's section id, old ids included. GitHub, GitLab, AWS, Azure

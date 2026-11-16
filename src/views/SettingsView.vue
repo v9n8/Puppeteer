@@ -21,7 +21,7 @@ import ConnectionsSettings from '@/components/settings/ConnectionsSettings.vue'
 import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
-import SessionsSettings from '@/components/settings/SessionsSettings.vue'
+import LimitsSettings from '@/components/settings/LimitsSettings.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import FlagsSettings from '@/components/settings/FlagsSettings.vue'
 import MemorySettings from '@/components/settings/MemorySettings.vue'
@@ -252,7 +252,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
         <FlagsSettings v-if="activeSection === 'flags'" />
         <TranslateSettings v-show="activeSection === 'translate'" />
-        <SessionsSettings v-show="activeSection === 'sessions'" />
+        <LimitsSettings v-show="activeSection === 'limits'" />
 
         </div>
 

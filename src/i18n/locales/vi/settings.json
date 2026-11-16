@@ -10,7 +10,7 @@
     "styles": "Phong cách",
     "translate": "Dịch",
     "memory": "Memory",
-    "sessions": "Session",
+    "limits": "Giới hạn",
     "devices": "Thiết bị",
     "inbox": "Inbox API",
     "focus": "Focus",
@@ -414,7 +414,11 @@
     "styleCasual": "Casual — thân mật"
   },
   "sessions": {
-    "title": "Session",
+    "title": "Giới hạn",
+    "intro": "Ngưỡng cảnh báo và chặn cho cửa sổ Context, quota của gói và lượt không người xem. Trước đây là mục “Session”.",
+    "nowPrefix": "Bây giờ:",
+    "nowStale": "(cũ)",
+    "nowCaptured": "Chụp lúc {time}",
     "contextTitle": "Context",
     "contextHint": "Hiển thị cửa sổ Context của Session hiện tại đã đầy đến đâu. Thanh chuyển sang màu hổ phách khi vượt ngưỡng cảnh báo và có nút /compact chỉ một cú nhấp.",
     "warnAt": "Cảnh báo tại (%)",

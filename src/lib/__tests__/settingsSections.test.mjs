@@ -29,7 +29,7 @@ test('every section belongs to a known group, ids are unique', () => {
 test('settingsNav: all features on → four groups in order, every section listed', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(true))), [
     ['general', ['general', 'flags', 'features', 'focus', 'shortcuts']],
-    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'sessions']],
+    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
     ['connections', ['connections', 'inbox']],
     ['system', ['devices', 'about']],
   ])
@@ -38,7 +38,7 @@ test('settingsNav: all features on → four groups in order, every section liste
 test('settingsNav: features off hide their sections, ungated ones stay', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(false))), [
     ['general', ['general', 'flags', 'features']],
-    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'sessions']],
+    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
     ['connections', ['connections', 'inbox']],
     ['system', ['devices', 'about']],
   ])
@@ -74,7 +74,9 @@ test('resolveSettingsPlace: current ids, merged old ids, tabs and connection fil
   assert.deepEqual(resolveSettingsPlace('memory'), { section: 'memory' })
   assert.deepEqual(resolveSettingsPlace('model'), { section: 'model' })
   assert.deepEqual(resolveSettingsPlace('claude'), { section: 'engines' })
-  assert.deepEqual(resolveSettingsPlace('usage'), { section: 'sessions' })
+  assert.deepEqual(resolveSettingsPlace('usage'), { section: 'limits' })
+  assert.deepEqual(resolveSettingsPlace('sessions'), { section: 'limits' })
+  assert.deepEqual(resolveSettingsPlace('limits'), { section: 'limits' })
   assert.deepEqual(resolveSettingsPlace('remote'), { section: 'devices', devicesTab: 'remote' })
   assert.deepEqual(resolveSettingsPlace('sync'), { section: 'devices', devicesTab: 'backup' })
   assert.deepEqual(resolveSettingsPlace('palette'), { section: 'shortcuts', shortcutsTab: 'palette' })
@@ -93,7 +95,8 @@ test('settingsRedirect: every old id of resolveSettingsPlace lands on its route'
   const cases = {
     claude: ['/settings/engines', {}],
     engine: ['/settings/engines', {}],
-    usage: ['/settings/sessions', {}],
+    usage: ['/settings/limits', {}],
+    sessions: ['/settings/limits', {}],
     remote: ['/settings/devices', { tab: 'remote' }],
     sync: ['/settings/devices', { tab: 'backup' }],
     backup: ['/settings/devices', { tab: 'backup' }],

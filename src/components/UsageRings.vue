@@ -9,17 +9,17 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { invoke } from '@/lib/tauri'
 import UsageRing from '@/components/UsageRing.vue'
 import { useBudgetStore } from '@/stores/budget'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useCodexAccountsStore } from '@/stores/codexAccounts'
 import { useToast } from '@/composables/useToast'
+import { usePlanSnapshots } from '@/composables/usePlanSnapshots'
 import type { QuotaWarnWindow } from '@/lib/quotaWarn'
 import {
-  parsePercentSetting, planUsageRead, usageWindows, visibleUsageRings,
-  type PlanUsageSnapshot, type UsageRingAccount, type UsageThresholds,
+  parsePercentSetting, usageWindows, visibleUsageRings,
+  type UsageRingAccount, type UsageThresholds,
 } from '@/lib/usageRing'
 
 const { t } = useI18n()
@@ -32,7 +32,7 @@ const now = ref(Date.now())
 
 // Full plan snapshots by row key. The budget verdicts only carry one window;
 // the card lists every window, so the rings read the snapshots themselves.
-const snapshots = ref<Record<string, PlanUsageSnapshot | null>>({})
+const { snapshots, loadSnapshot, loadSnapshots: loadSnapshotsOf } = usePlanSnapshots()
 
 /** One usage row before it becomes a ring: the snapshot plus its budget verdict. */
 interface UsageRow extends UsageRingAccount {
@@ -136,18 +136,7 @@ watch(() => rows.value.map((r) => ({ key: r.key, label: r.label, windows: r.quot
   }
 }, { immediate: true })
 
-/** Snapshot reads are local DB reads (no engine call). Keeps the old value on error. */
-async function loadSnapshot(key: string) {
-  try {
-    const read = planUsageRead(key)
-    snapshots.value[key] = await invoke<PlanUsageSnapshot | null>(read.cmd, read.args)
-  } catch {
-    // leave the previous value on transient errors
-  }
-}
-async function loadSnapshots() {
-  await Promise.all(rows.value.map((r) => loadSnapshot(r.key)))
-}
+const loadSnapshots = () => loadSnapshotsOf(rows.value.map((r) => r.key))
 
 /** Re-read every managed Claude account's verdict (skips accounts mid-probe). */
 async function refreshAccountBudgets() {

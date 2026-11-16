@@ -18,6 +18,7 @@ import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
 import AccountLoginProgress from './AccountLoginProgress.vue'
 import AddAccountDialog from './AddAccountDialog.vue'
+import RenameAccountModal from './RenameAccountModal.vue'
 import { accountRows, type AccountKind, type AccountRow } from '@/lib/engineAccounts'
 import { useAccountLogin } from './useAccountLogin'
 
@@ -41,8 +42,10 @@ const rows = computed(() => accountRows({
   sharedCodexUsage: budget.codexStatus,
 }))
 
-const editing = ref<string | null>(null)
-const editLabel = ref('')
+// The account whose label the rename dialog edits (V3-60).
+const renaming = ref<AccountRow | null>(null)
+const renameBusy = ref(false)
+const renameError = ref<string | null>(null)
 const busy = ref<string | null>(null)
 const errors = ref<Record<string, string>>({})
 // Last validation result per account, shown inline instead of via a toast.
@@ -62,22 +65,22 @@ function storeOf(kind: AccountKind) {
 }
 
 function startEdit(row: AccountRow) {
-  editing.value = row.key
-  editLabel.value = row.label
+  renameError.value = null
+  renaming.value = row
 }
 
-async function saveEdit(row: AccountRow) {
+async function saveEdit(row: AccountRow, label: string) {
   if (!row.id) return
-  busy.value = row.key
-  errors.value[row.key] = ''
+  renameBusy.value = true
+  renameError.value = null
   try {
-    await storeOf(row.kind).rename(row.id, editLabel.value.trim())
-    editing.value = null
+    await storeOf(row.kind).rename(row.id, label)
+    renaming.value = null
     toast.success(t('settings.github.accountUpdated'))
   } catch (e) {
-    errors.value[row.key] = String(e)
+    renameError.value = String(e)
   } finally {
-    busy.value = null
+    renameBusy.value = false
   }
 }
 
@@ -136,6 +139,8 @@ async function remove(row: AccountRow) {
 }
 
 // --- Claude auto-balance --------------------------------------------------
+
+const balanceOn = computed(() => settings.value.claude_auto_balance !== 'false')
 
 // Label of the account the balancer currently suggests as default.
 const balanceRecommendedLabel = computed(() => {
@@ -211,172 +216,163 @@ onUnmounted(() => {
         :key="row.key"
         class="border border-border rounded-md p-3 space-y-2"
       >
-        <template v-if="editing !== row.key">
-          <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <Badge size="xs" :tone="row.kind === 'claude' ? 'primary' : 'info'">
-                  {{ row.kind === 'claude' ? t('settings.accounts.typeClaude') : t('settings.accounts.typeCodex') }}
-                </Badge>
-                <span class="text-sm font-medium truncate" :title="row.label">{{ row.label }}</span>
-                <InfoTip v-if="!row.id" :text="t('settings.accounts.sharedCodexHint')" />
-                <span
-                  v-if="row.isDefault"
-                  class="inline-flex shrink-0 items-center gap-0.5 text-2xs text-primary font-medium"
-                >
-                  <Star class="h-2.5 w-2.5" :stroke-width="2" fill="currentColor" />
-                  {{ t('settings.claude.default') }}
-                </span>
-              </div>
-              <div class="text-2xs truncate" :class="statusTone(row.status)">
-                <template v-if="row.status">{{ t(`settings.claude.status.${row.status}`) }}</template>
-                <span v-if="login.running(row.kind, row.id ?? '')" class="text-muted-foreground"> · {{ t('settings.claude.waitingLogin') }}</span>
-                <span v-if="row.detail" class="text-muted-foreground" :title="row.detail">{{ row.status ? ' · ' : '' }}{{ row.detail }}</span>
-                <span
-                  v-if="row.usage"
-                  class="text-muted-foreground"
-                  :class="{ 'text-warning': row.usage.warning, 'text-destructive': row.usage.over }"
-                >
-                  · {{ t('settings.claude.usagePercent', {
-                    percent: row.usage.percent,
-                    period: t(`settings.claude.period.${row.usage.period}`),
-                  }) }}
-                </span>
-              </div>
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <Badge size="xs" :tone="row.kind === 'claude' ? 'primary' : 'info'">
+                {{ row.kind === 'claude' ? t('settings.accounts.typeClaude') : t('settings.accounts.typeCodex') }}
+              </Badge>
+              <span class="text-sm font-medium truncate" :title="row.label">{{ row.label }}</span>
+              <InfoTip v-if="!row.id" :text="t('settings.accounts.sharedCodexHint')" />
+              <span
+                v-if="row.isDefault"
+                class="inline-flex shrink-0 items-center gap-0.5 text-2xs text-primary font-medium"
+              >
+                <Star class="h-2.5 w-2.5" :stroke-width="2" fill="currentColor" />
+                {{ t('settings.claude.default') }}
+              </span>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
-              <template v-if="row.id">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  :disabled="busy === row.key"
-                  @click="validate(row)"
-                >
-                  {{ busy === row.key ? '…' : t('settings.claude.validate') }}
-                </Button>
-                <Button
-                  v-if="login.running(row.kind, row.id)"
-                  variant="outline"
-                  size="xs"
-                  @click="login.cancel(row.kind, row.id)"
-                >
-                  {{ t('common.cancel') }}
-                </Button>
-                <Button
-                  v-else-if="row.status !== 'ready'"
-                  variant="outline"
-                  size="xs"
-                  @click="signIn(row)"
-                >
-                  <LogIn class="h-3 w-3" :stroke-width="1.75" />
-                  {{ t('settings.claude.login') }}
-                </Button>
-                <Button
-                  v-else
-                  variant="ghost"
-                  size="icon-sm"
-                  :title="t('settings.accounts.signInAgain')"
-                  :aria-label="t('settings.accounts.signInAgain')"
-                  @click="signIn(row)"
-                >
-                  <LogIn class="h-3.5 w-3.5" :stroke-width="1.75" />
-                </Button>
-              </template>
+            <div class="text-2xs truncate" :class="statusTone(row.status)">
+              <template v-if="row.status">{{ t(`settings.claude.status.${row.status}`) }}</template>
+              <span v-if="login.running(row.kind, row.id ?? '')" class="text-muted-foreground"> · {{ t('settings.claude.waitingLogin') }}</span>
+              <span v-if="row.detail" class="text-muted-foreground" :title="row.detail">{{ row.status ? ' · ' : '' }}{{ row.detail }}</span>
+              <span
+                v-if="row.usage"
+                class="text-muted-foreground"
+                :class="{ 'text-warning': row.usage.warning, 'text-destructive': row.usage.over }"
+              >
+                · {{ t('settings.claude.usagePercent', {
+                  percent: row.usage.percent,
+                  period: t(`settings.claude.period.${row.usage.period}`),
+                }) }}
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <template v-if="row.id">
               <Button
-                v-if="!row.isDefault"
+                variant="outline"
+                size="xs"
+                :disabled="busy === row.key"
+                @click="validate(row)"
+              >
+                {{ busy === row.key ? '…' : t('settings.claude.validate') }}
+              </Button>
+              <Button
+                v-if="login.running(row.kind, row.id)"
+                variant="outline"
+                size="xs"
+                @click="login.cancel(row.kind, row.id)"
+              >
+                {{ t('common.cancel') }}
+              </Button>
+              <Button
+                v-else-if="row.status !== 'ready'"
+                variant="outline"
+                size="xs"
+                @click="signIn(row)"
+              >
+                <LogIn class="h-3 w-3" :stroke-width="1.75" />
+                {{ t('settings.claude.login') }}
+              </Button>
+              <Button
+                v-else
                 variant="ghost"
                 size="icon-sm"
-                :title="t('settings.claude.setDefault')"
-                :aria-label="t('settings.claude.setDefault')"
-                @click="setDefault(row)"
+                :title="t('settings.accounts.signInAgain')"
+                :aria-label="t('settings.accounts.signInAgain')"
+                @click="signIn(row)"
               >
-                <Star class="h-3.5 w-3.5" :stroke-width="1.75" />
+                <LogIn class="h-3.5 w-3.5" :stroke-width="1.75" />
               </Button>
-              <template v-if="row.id">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  :title="t('common.edit')"
-                  :aria-label="t('common.edit')"
-                  @click="startEdit(row)"
-                >
-                  <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
-                </Button>
-                <Button
-                  variant="destructive-ghost"
-                  size="icon-sm"
-                  :title="t('common.delete')"
-                  :aria-label="t('common.delete')"
-                  @click="remove(row)"
-                >
-                  <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
-                </Button>
-              </template>
-            </div>
-          </div>
-
-          <AccountLoginProgress
-            v-if="row.id && login.runs[row.key] && login.runs[row.key].state !== 'cancelled'"
-            :kind="row.kind"
-            :run="login.runs[row.key]"
-            @submit-code="login.submitCode(row.id!, $event)"
-            @use-device-code="login.start(row.kind, row.id!, true)"
-            @retry="login.start(row.kind, row.id!, login.runs[row.key].deviceAuth)"
-          />
-          <Banner v-else-if="validations[row.key]?.logged_in" tone="success">
-            <div class="font-medium text-success">{{ t('settings.claude.validReady') }}</div>
-            <p v-if="validations[row.key].email" class="text-muted-foreground mt-1 truncate" :title="validations[row.key].email ?? ''">
-              {{ validations[row.key].email }}
-            </p>
-          </Banner>
-          <Banner v-else-if="validations[row.key]" tone="warning">
-            <span>{{ t('settings.claude.validNeedsLogin') }}</span>
-          </Banner>
-        </template>
-
-        <template v-else>
-          <Input
-            v-model="editLabel"
-            size="sm"
-            :placeholder="t('settings.claude.labelPlaceholder')"
-            @keyup.enter="saveEdit(row)"
-          />
-          <div class="flex items-center gap-2">
+            </template>
             <Button
-              :disabled="!editLabel.trim() || busy === row.key"
-              @click="saveEdit(row)"
+              v-if="!row.isDefault"
+              variant="ghost"
+              size="icon-sm"
+              :title="t('settings.claude.setDefault')"
+              :aria-label="t('settings.claude.setDefault')"
+              @click="setDefault(row)"
             >
-              {{ busy === row.key ? t('settings.aws.saving') : t('common.save') }}
+              <Star class="h-3.5 w-3.5" :stroke-width="1.75" />
             </Button>
-            <Button variant="outline" @click="editing = null">{{ t('common.cancel') }}</Button>
+            <template v-if="row.id">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                :title="t('common.edit')"
+                :aria-label="t('common.edit')"
+                @click="startEdit(row)"
+              >
+                <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+              <Button
+                variant="destructive-ghost"
+                size="icon-sm"
+                :title="t('common.delete')"
+                :aria-label="t('common.delete')"
+                @click="remove(row)"
+              >
+                <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </Button>
+            </template>
           </div>
-        </template>
+        </div>
+
+        <AccountLoginProgress
+          v-if="row.id && login.runs[row.key] && login.runs[row.key].state !== 'cancelled'"
+          :kind="row.kind"
+          :run="login.runs[row.key]"
+          @submit-code="login.submitCode(row.id!, $event)"
+          @use-device-code="login.start(row.kind, row.id!, true)"
+          @retry="login.start(row.kind, row.id!, login.runs[row.key].deviceAuth)"
+        />
+        <Banner v-else-if="validations[row.key]?.logged_in" tone="success">
+          <div class="font-medium text-success">{{ t('settings.claude.validReady') }}</div>
+          <p v-if="validations[row.key].email" class="text-muted-foreground mt-1 truncate" :title="validations[row.key].email ?? ''">
+            {{ validations[row.key].email }}
+          </p>
+        </Banner>
+        <Banner v-else-if="validations[row.key]" tone="warning">
+          <span>{{ t('settings.claude.validNeedsLogin') }}</span>
+        </Banner>
 
         <p v-if="errors[row.key]" class="text-2xs text-destructive">{{ errors[row.key] }}</p>
       </div>
     </div>
 
     <!-- Auto-balance the Claude default across accounts -->
-    <div v-if="claudeStore.accounts.length > 1" class="border-t border-border/60 pt-3 space-y-3">
+    <div v-if="claudeStore.accounts.length > 1" class="space-y-3">
       <SettingsRow :label="t('settings.claude.balance.title')" :hint="t('settings.claude.balance.hint')">
         <div class="flex min-[900px]:justify-end">
           <ToggleSwitch
             size="md"
-            :checked="settings.claude_auto_balance !== 'false'"
+            :checked="balanceOn"
             :label="t('settings.claude.balance.title')"
-            @toggle="settings.claude_auto_balance = settings.claude_auto_balance === 'false' ? 'true' : 'false'"
+            @toggle="settings.claude_auto_balance = balanceOn ? 'false' : 'true'"
           />
         </div>
       </SettingsRow>
 
-      <template v-if="settings.claude_auto_balance !== 'false'">
+      <!-- Always shown, locked while the switch is off: the values stay for when it is back on. -->
+      <div class="space-y-3 pl-4">
         <SettingsRow :label="t('settings.claude.balance.cooldown')">
-          <Input v-model="settings.claude_auto_balance_min_swap_minutes" type="number" min="0" max="1440" placeholder="10" />
+          <Input
+            v-model="settings.claude_auto_balance_min_swap_minutes"
+            type="number" min="0" max="1440" placeholder="10"
+            :disabled="!balanceOn"
+            :class="{ 'bg-muted/60 text-muted-foreground cursor-not-allowed': !balanceOn }"
+          />
         </SettingsRow>
         <SettingsRow :label="t('settings.claude.balance.threshold')">
-          <Input v-model="settings.claude_auto_balance_swap_threshold_pct" type="number" min="0" max="100" placeholder="10" />
+          <Input
+            v-model="settings.claude_auto_balance_swap_threshold_pct"
+            type="number" min="0" max="100" placeholder="10"
+            :disabled="!balanceOn"
+            :class="{ 'bg-muted/60 text-muted-foreground cursor-not-allowed': !balanceOn }"
+          />
         </SettingsRow>
-      </template>
+      </div>
 
       <Banner v-if="showBalanceSuggestion" tone="info" :icon="ArrowRightLeft">
         {{ t('settings.claude.balance.suggest', { account: balanceRecommendedLabel }) }}
@@ -390,4 +386,12 @@ onUnmounted(() => {
   </Card>
 
   <AddAccountDialog v-model:open="addOpen" :login="login" />
+  <RenameAccountModal
+    :open="!!renaming"
+    :label="renaming?.label ?? ''"
+    :busy="renameBusy"
+    :error="renameError"
+    @update:open="(open) => { if (!open) renaming = null }"
+    @save="(label) => renaming && saveEdit(renaming, label)"
+  />
 </template>

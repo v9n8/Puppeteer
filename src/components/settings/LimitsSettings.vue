@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Settings → AI › "Sessions": the context meter (warning / limit override) and
+// Settings → AI › "Limits" (was "Sessions", V3-60): the context meter (warning / limit override) and
 // the usage quota tiers — a warning (`quota_warn_percent`, toast + badge colour)
 // and the blocks on new sessions / follow-ups (`budget_5h_percent`,
 // `budget_week_percent`, enforced by `stats::enforce_budget`), plus the opt-in
@@ -7,16 +7,27 @@
 // `runs::quota_stop`) — and the limits on a turn nobody watches
 // (`unattended_max_turns`, `unattended_max_minutes`, `runs::unattended`),
 // and the desktop notification switches (`desktop_notify`, NotificationSettings).
-import { computed, ref } from 'vue'
+// Under each block threshold a "Now: …" line shows every account's current %
+// (lib/quotaNow), read from the snapshots the usage rings use.
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
-import { Card, InfoTip, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
+import { Card, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
 import NotificationSettings from './NotificationSettings.vue'
+import { usePlanSnapshots } from '@/composables/usePlanSnapshots'
+import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
+import { useCodexAccountsStore } from '@/stores/codexAccounts'
+import { quotaNowLine, type QuotaNowRow } from '@/lib/quotaNow'
+import { usageWindows } from '@/lib/usageRing'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
+const claudeAccounts = useClaudeAccountsStore()
+const codexAccounts = useCodexAccountsStore()
+const { snapshots, loadSnapshots } = usePlanSnapshots()
+const now = ref(Date.now())
 
 const pct = (v: string | number | undefined) => Number(String(v ?? '').trim()) || 0
 const blocks = computed(() => [settings.value.budget_5h_percent, settings.value.budget_week_percent].map(pct))
@@ -31,6 +42,36 @@ const warnNotBelowBlock = computed(() => {
 // Stopping acts on the block thresholds, so it needs one of them set.
 const hasBlock = computed(() => blocks.value.some((block) => block > 0))
 const stopRunning = computed(() => settings.value.quota_stop_running === 'true')
+
+// The accounts of the usage rings (Claude accounts, or the one global Claude
+// login; the shared Codex login; Codex accounts), each with its snapshot.
+const snapshotKeys = computed(() => [
+  ...(claudeAccounts.accounts.length ? claudeAccounts.accounts.map((a) => `claude:${a.id}`) : ['claude']),
+  'codex',
+  ...codexAccounts.accounts.map((a) => `codex:${a.id}`),
+])
+const nowRows = computed<QuotaNowRow[]>(() => {
+  const labels: Record<string, string> = { claude: 'Claude', codex: codexAccounts.accounts.length ? t('settings.accounts.sharedCodex') : 'Codex' }
+  for (const a of claudeAccounts.accounts) labels[`claude:${a.id}`] = a.label
+  for (const a of codexAccounts.accounts) labels[`codex:${a.id}`] = a.label
+  return snapshotKeys.value.map((key) => ({
+    label: labels[key],
+    windows: usageWindows(snapshots.value[key], now.value),
+    capturedAt: snapshots.value[key]?.captured_at ?? null,
+  }))
+})
+const nowFor = (period: '5h' | 'week') => quotaNowLine(nowRows.value, period, now.value)
+const now5h = computed(() => nowFor('5h'))
+const nowWeek = computed(() => nowFor('week'))
+
+let clock: ReturnType<typeof setInterval> | null = null
+onMounted(async () => {
+  await Promise.all([claudeAccounts.fetch(), codexAccounts.fetch()])
+  now.value = Date.now()
+  await loadSnapshots(snapshotKeys.value)
+  clock = setInterval(() => { now.value = Date.now() }, 30_000)
+})
+onUnmounted(() => { if (clock) clearInterval(clock) })
 
 // Sub-tabs keep this section one screen tall. The choice is not saved.
 type Tab = 'context' | 'quota' | 'unattended' | 'notify'
@@ -56,10 +97,10 @@ const tabHint = computed(() => ({
       <span class="text-xs font-semibold">{{ t('settings.sessions.title') }}</span>
     </template>
 
-      <div class="flex items-center gap-2">
-        <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
-        <InfoTip :text="tabHint" />
-      </div>
+      <p class="text-xs text-muted-foreground leading-relaxed">{{ t('settings.sessions.intro') }}</p>
+
+      <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
+      <p class="text-xs text-muted-foreground leading-relaxed">{{ tabHint }}</p>
 
       <!-- Context window meter -->
       <template v-if="tab === 'context'">
@@ -95,9 +136,23 @@ const tabHint = computed(() => ({
         </SettingsRow>
         <SettingsRow :label="t('settings.sessions.block5h')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_5h_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
+          <p v-if="now5h.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
+            {{ t('settings.sessions.nowPrefix') }}
+            <template v-for="(e, i) in now5h" :key="e.label">
+              <span v-if="i > 0"> · </span>
+              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale"> {{ t('settings.sessions.nowStale') }}</template></span>
+            </template>
+          </p>
         </SettingsRow>
         <SettingsRow :label="t('settings.sessions.blockWeekly')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_week_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
+          <p v-if="nowWeek.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
+            {{ t('settings.sessions.nowPrefix') }}
+            <template v-for="(e, i) in nowWeek" :key="e.label">
+              <span v-if="i > 0"> · </span>
+              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale"> {{ t('settings.sessions.nowStale') }}</template></span>
+            </template>
+          </p>
         </SettingsRow>
         <p v-if="warnNotBelowBlock" class="text-2xs text-warning leading-relaxed">
           {{ t('settings.sessions.warnNotBelowBlock') }}

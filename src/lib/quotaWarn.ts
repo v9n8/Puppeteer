@@ -1,4 +1,4 @@
-// Quota warning tier (Settings › Sessions › Quota): which plan windows should
+// Quota warning tier (Settings › Limits › Quota): which plan windows should
 // raise a toast now. The backend reports the windows at or past
 // `quota_warn_percent` (`quota_warn_windows` of a budget status); this decides
 // which of them are new, so each window warns once per crossing.

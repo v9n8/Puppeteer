@@ -10,7 +10,7 @@
     "styles": "Response styles",
     "translate": "Translation",
     "memory": "Memory",
-    "sessions": "Sessions",
+    "limits": "Limits",
     "devices": "Devices",
     "inbox": "Inbox API",
     "focus": "Focus",
@@ -414,7 +414,11 @@
     "styleCasual": "Casual — friendly tone"
   },
   "sessions": {
-    "title": "Sessions",
+    "title": "Limits",
+    "intro": "Warning and block thresholds for the Context window, the plan quota and unattended turns. Formerly the “Sessions” section.",
+    "nowPrefix": "Now:",
+    "nowStale": "(old)",
+    "nowCaptured": "Captured {time}",
     "contextTitle": "Context",
     "contextHint": "Shows how full the current session's context window is. The bar turns amber past the warn threshold and offers a one-click /compact.",
     "warnAt": "Warn at (%)",
