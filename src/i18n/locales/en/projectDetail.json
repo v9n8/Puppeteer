@@ -184,5 +184,33 @@
     "noAccount": "None (global ~/.claude)"
   },
   "libraryKindEmpty": "This project has no {kind} yet.",
-  "libraryRetry": "Retry"
+  "libraryRetry": "Retry",
+  "health": {
+    "title": "Configuration health",
+    "needsFix": "Needs fixing",
+    "fine": "OK",
+    "ready": "Ready",
+    "repos": "Connected to {count} repository",
+    "noRepos": "No repository connected",
+    "linkRepos": "Connect a repository",
+    "claudeAccount": "Claude account: {label}",
+    "claudeNoAccount": "No Claude account available",
+    "codexAccount": "Codex account: {label}",
+    "codexNoAccount": "No Codex account available",
+    "linkSession": "Open New session",
+    "mcpChecking": "Checking MCP…",
+    "mcpOk": "MCP: {count} on",
+    "mcpFailed": "MCP {name} could not connect",
+    "mcpLastCheck": "Checked at {time}: {message}",
+    "linkMcp": "Open Connections › MCP",
+    "conflicts": "{count} sync conflict(s) in the Library",
+    "conflictItem": "{name} ({kind}): the Project copy ≠ the central copy",
+    "linkConflicts": "Open Library › Conflicts",
+    "rechecking": "Checking…",
+    "servers": "{count} server(s) on for this Project",
+    "reposLoadError": "Could not read the repositories",
+    "accountLoadError": "Could not read the accounts",
+    "mcpLoadError": "Could not read the MCP servers",
+    "serversLoadError": "Could not read the servers"
+  }
 }

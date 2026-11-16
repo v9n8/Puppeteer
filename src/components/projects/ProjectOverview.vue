@@ -10,6 +10,7 @@ import {
 } from 'lucide-vue-next'
 import { Badge, Button, Input } from '@/components/ui'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
+import ProjectHealthCard from '@/components/projects/ProjectHealthCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { composerDefaults } from '@/lib/composerChips'
@@ -318,6 +319,8 @@ async function remove() {
       </div>
     </dl>
 
+    <ProjectHealthCard :project="project" @open="emit('open', $event)" />
+
     <DetailSection :title="t('projectDetail.general')">
       <div class="max-w-lg space-y-4">
         <div class="space-y-1.5">
@@ -387,7 +390,7 @@ async function remove() {
       </dl>
     </DetailSection>
 
-    <DetailSection :title="t('projects.repositories')">
+    <DetailSection id="project-repositories" :title="t('projects.repositories')">
       <div class="max-w-lg space-y-3">
         <!-- Add new repo — paste a URL, no manual fields -->
         <div class="space-y-2">

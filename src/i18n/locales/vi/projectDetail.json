@@ -184,5 +184,33 @@
     "noAccount": "Không có (~/.claude chung)"
   },
   "libraryKindEmpty": "Project này chưa có {kind} nào.",
-  "libraryRetry": "Thử lại"
+  "libraryRetry": "Thử lại",
+  "health": {
+    "title": "Sức khoẻ cấu hình",
+    "needsFix": "Cần sửa",
+    "fine": "Ổn",
+    "ready": "Sẵn sàng",
+    "repos": "Đã nối {count} repository",
+    "noRepos": "Chưa nối repository",
+    "linkRepos": "Nối repository",
+    "claudeAccount": "Tài khoản Claude: {label}",
+    "claudeNoAccount": "Chưa có tài khoản Claude dùng được",
+    "codexAccount": "Tài khoản Codex: {label}",
+    "codexNoAccount": "Chưa có tài khoản Codex dùng được",
+    "linkSession": "Mở Session mới",
+    "mcpChecking": "Đang kiểm tra MCP…",
+    "mcpOk": "MCP: {count} đang bật",
+    "mcpFailed": "MCP {name} không kết nối được",
+    "mcpLastCheck": "Lần kiểm tra lúc {time}: {message}",
+    "linkMcp": "Mở Kết nối › MCP",
+    "conflicts": "{count} xung đột đồng bộ ở Thư viện",
+    "conflictItem": "{name} ({kind}): bản trong Project ≠ bản trung tâm",
+    "linkConflicts": "Mở Thư viện › Xung đột",
+    "rechecking": "Đang kiểm tra…",
+    "servers": "{count} máy chủ đã bật cho Project",
+    "reposLoadError": "Không đọc được repository",
+    "accountLoadError": "Không đọc được tài khoản",
+    "mcpLoadError": "Không đọc được MCP",
+    "serversLoadError": "Không đọc được máy chủ"
+  }
 }
