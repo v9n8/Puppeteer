@@ -8,6 +8,7 @@ import {
 import RunActionItems from '@/components/RunActionItems.vue'
 import { Button, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import SessionTitle from '@/components/sessions/SessionTitle.vue'
+import SessionFlagChip from '@/components/sessions/SessionFlagChip.vue'
 import SessionBookmarksMenu from '@/components/sessions/SessionBookmarksMenu.vue'
 import { useRunSession } from './useRunSession'
 import { projectPageQuery } from '@/lib/projectSections'
@@ -23,6 +24,7 @@ const {
   <div class="flex items-center justify-between gap-3 px-4 h-12 border-b border-border/60 shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <SessionTitle />
+      <SessionFlagChip />
     </div>
     <!-- Icon-only actions, then one ⋯ menu for the rest. Labels live in the tooltips so the header stays
          short no matter how narrow the pane gets.

@@ -9,5 +9,27 @@
     "nameRequired": "Flag cần có tên.",
     "nameTooLong": "Tên dài quá {max} ký tự.",
     "nameTaken": "Ở đây đã có flag trùng tên này."
+  },
+  "menu": {
+    "set": "Gắn flag",
+    "shared": "Flag chung",
+    "project": "Project này",
+    "remove": "Bỏ flag",
+    "manage": "Quản lý flag…"
+  },
+  "chip": {
+    "add": "Gắn flag",
+    "tooltip": "Flag của Session: {name} — bấm để đổi hoặc bỏ flag",
+    "tooltipNone": "Gắn flag cho Session này"
+  },
+  "row": {
+    "tooltip": "Flag: {name}"
+  },
+  "filter": {
+    "title": "Lọc theo flag",
+    "all": "Mọi flag",
+    "none": "Không flag",
+    "tooltip": "Lọc theo flag: {name}",
+    "projectFlags": "Flag của Project này…"
   }
 }

@@ -6,14 +6,16 @@
 //
 //   section 'actions'  Pop out · Open on GitHub · Refetch · Copy log path ·
 //                      Copy session ID · View log file · Export transcript |
-//                      Fork · Rename · Pin · Protect
+//                      Flag ▸ · Fork · Rename · Pin · Protect
 //   section 'delete'   | Delete (hidden while the run is running)
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AppWindow,
   ClipboardCopy,
   ExternalLink,
   FileDown,
+  Flag,
   GitFork,
   Hash,
   Pencil,
@@ -25,11 +27,14 @@ import {
   ShieldOff,
   Trash2,
 } from 'lucide-vue-next'
-import { DropdownItem, DropdownSeparator } from '@/components/ui'
+import { DropdownItem, DropdownSeparator, DropdownSubmenu } from '@/components/ui'
+import FlagMenuItems from '@/components/sessions/FlagMenuItems.vue'
 import type { RunRecord } from '@/stores/runs'
+import { useSessionFlagsStore } from '@/stores/sessionFlags'
+import { flagById, flagLabel } from '@/lib/sessionFlags'
 import { canForkRun } from '@/lib/runFork'
 
-defineProps<{
+const props = defineProps<{
   run: RunRecord
   section: 'actions' | 'delete'
   /** A session pop-out can't pop itself out again. */
@@ -56,6 +61,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const flagsStore = useSessionFlagsStore()
+const currentFlagName = computed(() => {
+  const flag = flagById(flagsStore.flagsOf(props.run.project_id), props.run.flag_id)
+  return flag ? flagLabel(flag, t) : ''
+})
 </script>
 
 <template>
@@ -95,6 +105,15 @@ const { t } = useI18n()
       {{ t('run.exportTranscript') }}
     </DropdownItem>
     <DropdownSeparator />
+    <!-- Flag ▸ (V3-19): the same menu as the header chip. -->
+    <DropdownSubmenu>
+      <template #label>
+        <Flag class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+        {{ t('sessionFlags.menu.set') }}
+      </template>
+      <template #hint>{{ currentFlagName }}</template>
+      <FlagMenuItems :run-id="run.id" :project-id="run.project_id" :flag-id="run.flag_id" />
+    </DropdownSubmenu>
     <!-- A new session with this one's conversation and settings (UX-28). -->
     <DropdownItem v-if="canForkRun(run)" :disabled="busy.forking" @click="emit('fork')">
       <GitFork class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />

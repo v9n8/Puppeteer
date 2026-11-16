@@ -9,5 +9,27 @@
     "nameRequired": "The flag needs a name.",
     "nameTooLong": "The name is longer than {max} characters.",
     "nameTaken": "A flag with this name already exists here."
+  },
+  "menu": {
+    "set": "Flag",
+    "shared": "Shared flags",
+    "project": "This project",
+    "remove": "Remove flag",
+    "manage": "Manage flags…"
+  },
+  "chip": {
+    "add": "Add flag",
+    "tooltip": "Session flag: {name} — click to change or remove it",
+    "tooltipNone": "Add a flag to this Session"
+  },
+  "row": {
+    "tooltip": "Flag: {name}"
+  },
+  "filter": {
+    "title": "Filter by flag",
+    "all": "All flags",
+    "none": "No flag",
+    "tooltip": "Filter by flag: {name}",
+    "projectFlags": "This project's flags…"
   }
 }

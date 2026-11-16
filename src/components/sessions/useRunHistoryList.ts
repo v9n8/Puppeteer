@@ -13,6 +13,7 @@ import {
 import { openFileWindow } from '@/lib/fileWindow'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
+import { useRunFlagFilter } from './useRunFlagFilter'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -195,7 +196,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // actually shows (title/label, engine, status, issue/PR number) so whatever the
   // user reads in the list is also what they can type to find it again.
   const sessionSearch = ref('')
-  const filteredRuns = computed(() => {
+  const searchedRuns = computed(() => {
     const q = sessionSearch.value.trim().toLowerCase()
     if (!q) return runsStore.runs
     return runsStore.runs.filter((run) => {
@@ -212,6 +213,10 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       return haystack.includes(q)
     })
   })
+  // The flag filter applies on top of the search: a row must pass both.
+  const {
+    projectFlags, flagFilter, flagCounts, flagOptions, flagFilteredRuns: filteredRuns, runFlag,
+  } = useRunFlagFilter(projectId, searchedRuns, t)
 
   // ── History list ───────────────────────────────────────────────────────────
   // Worker sessions (run.conductor_run_id set) NEVER appear in the History list —
@@ -237,7 +242,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // still work on the whole list.
   const historyPage = ref(1)
   const pagedRuns = computed(() => pageSlice(displayRuns.value, historyPage.value))
-  watch(sessionSearch, () => { historyPage.value = 1 })
+  watch([sessionSearch, flagFilter], () => { historyPage.value = 1 })
   // Also once the list has loaded: a deep link sets the session before its rows arrive.
   watch([currentRunId, () => runsStore.loading], ([id]) => {
     const page = pageOfIndex(displayRuns.value.findIndex((d) => d.run.id === id))
@@ -667,7 +672,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
     runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
-    runTimestamp, sessionSearch, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
+    runTimestamp, sessionSearch, projectFlags, flagFilter, flagCounts, flagOptions, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
     runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId,
     renameDraft, setRenameInputRef, cancelRename, commitRename, applyRename, renameViaPrompt, runActionProps,
     runActionHandlers, handleClearAllRuns, handleRefInput,

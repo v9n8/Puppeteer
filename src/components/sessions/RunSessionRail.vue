@@ -10,8 +10,10 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
+import HistoryFlagFilter from '@/components/sessions/HistoryFlagFilter.vue'
 import FileTree from '@/components/FileTree.vue'
 import { Button, Input, DropdownMenu } from '@/components/ui'
+import { swatchClass } from '@/lib/projectAppearance'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
@@ -21,7 +23,7 @@ const {
   leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
   runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
-  runTimestamp, sessionSearch, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
+  runTimestamp, sessionSearch, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
   handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, renamingRunId, renameDraft,
   setRenameInputRef, cancelRename, commitRename, runActionProps, runActionHandlers,
   handleClearAllRuns, handleRefInput, creatingSession, handleNewSession, openFile,
@@ -176,10 +178,11 @@ const {
             </Button>
           </div>
         </div>
-        <div class="flex items-center justify-between px-4 py-1.5">
-          <p class="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div class="flex items-center justify-between gap-1 px-4 py-0.5">
+          <p class="shrink-0 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
             {{ t('run.history') }}<span v-if="displayRuns.length" class="font-normal"> · {{ displayRuns.length }}</span>
           </p>
+          <HistoryFlagFilter />
           <button
             v-if="runsStore.orderStale"
             class="ml-auto mr-3 flex items-center gap-1 text-2xs text-primary/80 hover:text-primary transition-colors cursor-pointer"
@@ -283,6 +286,13 @@ const {
                 :class="historyDensity === 'dense' ? 'text-xs' : 'text-sm'"
                 :title="historyDensity === 'dense' ? undefined : runLabel(run)"
               >{{ runLabel(run) }}</span>
+              <!-- Dense rows have no meta line: the flag is only its dot (name in the tooltip). -->
+              <span
+                v-if="historyDensity === 'dense' && runFlag(run)"
+                class="h-2 w-2 shrink-0 rounded-full"
+                :class="swatchClass(runFlag(run)!.color)"
+                :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })"
+              />
               <!-- Worker count (its workers never get rows of their own). -->
               <span
                 v-if="runWorkerCount(run) > 0"
@@ -327,10 +337,16 @@ const {
             <p
               v-if="historyDensity === 'compact'"
               class="mt-0.5 pl-5 pr-6 truncate text-2xs leading-tight text-muted-foreground/70"
-              :class="{ invisible: !runStarted(run) }"
+              :class="{ invisible: !runStarted(run) && !runFlag(run) }"
               :title="runAccountModelLine(run, false)"
             >
-              {{ runAccountModelLine(run) || '\u00a0' }}
+              <template v-if="runFlag(run)">
+                <span class="inline-flex items-center gap-1" :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })">
+                  <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(runFlag(run)!.color)" />{{ runFlag(run)!.label }}
+                </span>
+                <template v-if="runAccountModelLine(run)"> · </template>
+              </template>
+              {{ runAccountModelLine(run) || (runFlag(run) ? '' : '\u00a0') }}
             </p>
             <!-- Comfortable meta: the AI badges (account + model) on top so a
                  long model id gets the full row width, with the timestamp on
@@ -338,13 +354,21 @@ const {
             <div
               v-else-if="historyDensity === 'comfortable'"
               class="mt-2 pl-6 pr-3 text-2xs text-muted-foreground/70"
-              :class="{ invisible: !runStarted(run) }"
+              :class="{ invisible: !runStarted(run) && !runFlag(run) }"
             >
+              <span
+                v-if="runFlag(run)"
+                class="mb-1 flex items-center gap-1.5 text-foreground/80"
+                :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })"
+              >
+                <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(runFlag(run)!.color)" />
+                <span class="min-w-0 truncate">{{ runFlag(run)!.label }}</span>
+              </span>
               <!-- Account badge shown alongside the model when the run has a
                    known Claude account (the name implies Claude); Codex and
                    legacy/account-less runs show just the model. `pr-6` keeps
                    the badges clear of the hover actions (⋯) at the row's end. -->
-              <div class="flex flex-wrap items-center gap-1.5 pr-6">
+              <div class="flex flex-wrap items-center gap-1.5 pr-6" :class="{ invisible: !runStarted(run) }">
                 <span
                   v-if="runClaudeAccountLabel(run)"
                   class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-2xs font-medium tracking-wide text-primary"
@@ -360,7 +384,7 @@ const {
                   {{ runModelLabel(run) }}
                 </span>
               </div>
-              <span class="mt-1 flex items-center gap-1" :title="t('run.lastActivity')">
+              <span class="mt-1 flex items-center gap-1" :class="{ invisible: !runStarted(run) }" :title="t('run.lastActivity')">
                 <Clock class="h-2.5 w-2.5 shrink-0" :stroke-width="1.5" />
                 {{ runTimestamp(runActivityAt(run)) }}
               </span>

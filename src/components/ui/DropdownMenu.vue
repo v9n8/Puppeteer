@@ -92,8 +92,29 @@ function inside(t: EventTarget | null) {
 function onDoc(e: Event) {
   if (!inside(e.target)) close()
 }
+// ↑ ↓ walk the rows of the menu (of the open submenu while focus is in one),
+// wrapping at the ends. A text field keeps its own arrow keys.
+function moveFocus(step: 1 | -1) {
+  const active = document.activeElement
+  const sub = active instanceof Element && panel.value?.contains(active)
+    ? active.closest<HTMLElement>('[data-submenu-panel]')
+    : null
+  const scope = sub ?? panel.value
+  if (!scope) return
+  const rows = [...scope.querySelectorAll<HTMLElement>('button:not(:disabled)')]
+    .filter((el) => el.closest('[data-submenu-panel]') === sub)
+  if (!rows.length) return
+  const at = active instanceof HTMLElement ? rows.indexOf(active) : -1
+  const next = at === -1 ? (step === 1 ? 0 : rows.length - 1) : (at + step + rows.length) % rows.length
+  rows[next].focus()
+}
 function onKey(e: Event) {
-  if ((e as KeyboardEvent).key === 'Escape') close()
+  const pressed = (e as KeyboardEvent).key
+  if (pressed === 'Escape') close()
+  else if ((pressed === 'ArrowDown' || pressed === 'ArrowUp') && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+    e.preventDefault()
+    moveFocus(pressed === 'ArrowDown' ? 1 : -1)
+  }
 }
 // Follow the trigger when something around it scrolls (a live run's stream
 // auto-scrolls) or the window resizes, rather than closing under the user.
