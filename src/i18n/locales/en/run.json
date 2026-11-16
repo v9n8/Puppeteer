@@ -474,6 +474,19 @@
     "hiddenTitle": "Hidden tabs · {n}",
     "detachTip": "Open in new window: show this file in its own window"
   },
+  "splitView": {
+    "split": "Split",
+    "splitTip": "Split: Conversation on the left, file tabs on the right",
+    "blockedNoFile": "Open a file to split",
+    "blockedNarrow": "Window narrower than 1100px: can't split",
+    "unsplit": "Unsplit",
+    "unsplitTip": "Unsplit: file tabs go back to the shared tab bar",
+    "openRight": "Open on the right",
+    "dividerLabel": "Resize Conversation and file panes",
+    "dividerTip": "Drag to resize · double-click for 50 / 50",
+    "dragTip": "Conversation {l}% · File {r}% — at least {px}px each side",
+    "narrowNotice": "Window narrower than 1100px, so the Session shows tabs for now. Widen the window to split again as before."
+  },
   "changedFiles": {
     "title": "Files changed in this Session · {n}",
     "subtitle": "since the Session started",

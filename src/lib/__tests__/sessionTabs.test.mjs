@@ -3,7 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CONVERSATION, MAX_SESSIONS, closeOthers, closeTab, emptyState, fileTabIcon, hiddenTabIndexes, openChangedTab, openTab, orderedTabs,
+  CONVERSATION, MAX_SESSIONS, clampRatio, closeOthers, closeTab, effectiveLayout, emptyState, fileAreaTab, fileTabIcon, hiddenTabIndexes,
+  openChangedTab, openTab, orderedTabs, ratioLimits, resetRatio, setRatio, splitBlockedReason, startSplit, stopSplit,
   parse, prune, renameTab, selectTab, serialize, tabLabel, togglePin,
 } from '../sessionTabs.ts'
 
@@ -204,4 +205,103 @@ test('hiddenTabIndexes: tabs cut by either edge of the viewport', () => {
   assert.deepEqual(hiddenTabIndexes(boxes, 150, 250), [0, 1])
   // Sub-pixel slack: the third tab still counts as shown.
   assert.deepEqual(hiddenTabIndexes(boxes, 0, 299.5), [3])
+})
+
+// ── Split view (V3-27) ─────────────────────────────────────────────────────
+
+test('startSplit: needs a tab; right side is the given tab, else the selected file, else the first', () => {
+  const none = emptyState()
+  assert.equal(startSplit(none), none)
+  let s = three()
+  s = selectTab(s, CONVERSATION)
+  assert.equal(startSplit(s).split.rightActive, 'file:a.ts')
+  assert.equal(startSplit(s, 'file:b.ts').split.rightActive, 'file:b.ts')
+  assert.equal(startSplit(selectTab(s, 'file:c.ts')).split.rightActive, 'file:c.ts')
+  assert.equal(startSplit(s).split.on, true)
+  assert.equal(startSplit(s).split.ratio, 0.5)
+  // Splitting again keeps the ratio and only moves the right side.
+  const again = startSplit(setRatio(startSplit(s), 900, 1200), 'file:c.ts')
+  assert.equal(again.split.rightActive, 'file:c.ts')
+  assert.equal(again.split.ratio, 0.7)
+})
+
+test('stopSplit: back to tabs, the right tab stays selected', () => {
+  let s = startSplit(three(), 'file:b.ts')
+  s = selectTab(s, CONVERSATION)
+  const off = stopSplit(s)
+  assert.equal(off.split.on, false)
+  assert.equal(off.active, 'file:b.ts')
+  assert.equal(stopSplit(emptyState()).split, undefined)
+})
+
+test('split: opening or selecting a file goes to the right; Conversation stays left', () => {
+  let s = startSplit(three(), 'file:a.ts')
+  s = openTab(s, 'd.ts', 3)
+  assert.equal(s.split.rightActive, 'file:d.ts')
+  s = selectTab(s, CONVERSATION)
+  assert.equal(s.split.rightActive, 'file:d.ts')
+  assert.equal(s.active, CONVERSATION)
+  s = openChangedTab(s)
+  assert.equal(s.split.rightActive, 'changed')
+  // Not split: no split state appears.
+  assert.equal(openTab(three(), 'x.ts', null).split, undefined)
+})
+
+test('split: closing tabs moves the right side left; the last one ends the split', () => {
+  let s = startSplit(three(), 'file:b.ts')
+  s = closeTab(s, 'file:b.ts')
+  assert.equal(s.split.rightActive, 'file:a.ts')
+  assert.equal(s.active, 'file:a.ts')
+  s = closeTab(s, 'file:a.ts')
+  assert.equal(s.split.rightActive, 'file:c.ts')
+  s = closeTab(s, 'file:c.ts')
+  assert.equal(s.split.on, false)
+  assert.equal(s.active, CONVERSATION)
+  // Closing a tab that is not on the right leaves it.
+  const t = closeTab(startSplit(three(), 'file:b.ts'), 'file:c.ts')
+  assert.equal(t.split.rightActive, 'file:b.ts')
+  const o = closeOthers(startSplit(three(), 'file:b.ts'), 'file:c.ts')
+  assert.equal(o.split.rightActive, 'file:c.ts')
+})
+
+test('clampRatio / setRatio: each side keeps 360px; too narrow gives 50 / 50', () => {
+  assert.equal(clampRatio(700, 1400), 0.5)
+  assert.equal(clampRatio(100, 1400), 360 / 1400)
+  assert.equal(clampRatio(1300, 1400), 1 - 360 / 1400)
+  assert.equal(clampRatio(300, 700), 0.5)
+  assert.equal(clampRatio(NaN, 1400), 0.5)
+  assert.deepEqual(ratioLimits(1000), { min: 0.36, max: 0.64 })
+  const s = startSplit(three())
+  assert.equal(setRatio(s, 840, 1200).split.ratio, 0.7)
+  assert.equal(setRatio(s, 1100, 1200).split.ratio, 1 - 360 / 1200)
+  assert.equal(resetRatio(setRatio(s, 840, 1200)).split.ratio, 0.5)
+  assert.equal(setRatio(three(), 900, 1200).split, undefined)
+})
+
+test('effectiveLayout / splitBlockedReason: 1100px threshold, split.on is not changed', () => {
+  const s = startSplit(three())
+  assert.equal(effectiveLayout(s, 1100), 'split')
+  assert.equal(effectiveLayout(s, 1099), 'tabs')
+  assert.equal(effectiveLayout(three(), 1920), 'tabs')
+  assert.equal(effectiveLayout(stopSplit(s), 1920), 'tabs')
+  assert.equal(splitBlockedReason(emptyState(), 1920), 'noFile')
+  assert.equal(splitBlockedReason(three(), 1099), 'narrow')
+  assert.equal(splitBlockedReason(emptyState(), 900), 'narrow')
+  assert.equal(splitBlockedReason(three(), 1100), null)
+  assert.equal(fileAreaTab(selectTab(s, CONVERSATION), 'split'), 'file:c.ts')
+  assert.equal(fileAreaTab(selectTab(s, CONVERSATION), 'tabs'), CONVERSATION)
+})
+
+test('split: survives serialize / parse; a wild ratio is clamped; a split with no tabs is tabs layout', () => {
+  const s = setRatio(startSplit(three(), 'file:b.ts'), 840, 1200)
+  const back = parse(serialize({ r: s })).r
+  assert.deepEqual(back.split, { on: true, ratio: 0.7, rightActive: 'file:b.ts' })
+  const wild = parse(JSON.stringify({ r: { tabs: [], split: { on: true, ratio: 9, rightActive: null } } })).r
+  assert.equal(wild.split.ratio, 0.9)
+  assert.equal(effectiveLayout(wild, 1920), 'tabs')
+})
+
+test('renameTab: the right side follows a renamed file', () => {
+  const s = renameTab(startSplit(three(), 'file:b.ts'), 'b.ts', 'z.ts')
+  assert.equal(s.split.rightActive, 'file:z.ts')
 })

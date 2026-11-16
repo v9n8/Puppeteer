@@ -17,6 +17,8 @@ import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { useToast } from '@/composables/useToast'
 import { useRunSession } from './useRunSession'
 
+// `activeId`: the tab this area shows (the right side's while split, V3-27).
+const props = defineProps<{ activeId: string }>()
 const { t } = useI18n()
 const { toast } = useToast()
 const { currentRunId, currentRun, project, runLabel } = useRunSession()
@@ -30,7 +32,7 @@ const fileTabs = computed(() => state.value.tabs.filter((tab): tab is FileTab =>
 // Tabs shown at least once in this Session; the others mount on first view.
 const shown = ref(new Set<string>())
 watch(runId, () => { shown.value = new Set() })
-watch(() => state.value.active, (id) => {
+watch(() => props.activeId, (id) => {
   if (id.startsWith('file:') && !shown.value.has(id)) shown.value = new Set([...shown.value, id])
 }, { immediate: true })
 const mounted = computed(() => fileTabs.value.filter((tab) => shown.value.has(tab.id)))
@@ -69,7 +71,7 @@ async function detach(tab: FileTab) {
   <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
     <FileViewer
       v-for="tab in mounted"
-      v-show="state.active === tab.id"
+      v-show="activeId === tab.id"
       :key="`${runId}|${tab.id}`"
       class="flex-1"
       :project-path="projectPath"

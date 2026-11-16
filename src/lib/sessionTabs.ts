@@ -26,12 +26,23 @@ export interface ChangedFilesTab {
 
 export type SessionTab = FileTab | ChangedFilesTab
 
+export interface SplitState {
+  on: boolean
+  ratio: number
+  rightActive: SessionTabId | null
+}
+
 export interface SessionTabsState {
   /** Without 'conversation': it always comes first and is never closed or pinned. */
   tabs: SessionTab[]
   active: SessionTabId
-  /** Split view (V3-27); only reserved here. */
-  split?: { on: boolean; ratio: number; rightActive: SessionTabId | null }
+  /**
+   * Split view (V3-27): Conversation on the left, the file tabs on the right.
+   * `ratio` is the left share (0..1). While `on`, `active` keeps following the
+   * file tab picked on the right, so dropping back to the tab layout (a narrow
+   * window, "Unsplit") lands on the same tab.
+   */
+  split?: SplitState
   /** For pruning: the Sessions used least recently go first. */
   usedAt: number
 }
@@ -54,6 +65,12 @@ export function orderedTabs(state: SessionTabsState): SessionTab[] {
   return [...state.tabs.filter((t) => t.pinned), ...state.tabs.filter((t) => !t.pinned)]
 }
 
+/** While split, a file tab picked anywhere is the one shown on the right. */
+function rightPick(state: SessionTabsState, id: SessionTabId): { split?: SplitState } {
+  const { split } = state
+  return split?.on && id !== CONVERSATION ? { split: { ...split, rightActive: id } } : split ? { split } : {}
+}
+
 function hasTab(state: SessionTabsState, id: SessionTabId): boolean {
   return id === CONVERSATION || state.tabs.some((t) => t.id === id)
 }
@@ -65,7 +82,7 @@ export function openTab(state: SessionTabsState, path: string, line: number | nu
   const tabs: SessionTab[] = existing
     ? state.tabs.map((t) => (t.id === id && t.kind === 'file' ? { ...t, line: line ?? t.line } : t))
     : [...state.tabs, { id, kind: 'file', path, line, pinned: false }]
-  return { ...state, tabs, active: id, usedAt: now }
+  return { ...state, tabs, active: id, ...rightPick(state, id), usedAt: now }
 }
 
 /** Open the "Changed files" tab, or select it when it is already open. */
@@ -73,12 +90,12 @@ export function openChangedTab(state: SessionTabsState, now = state.usedAt): Ses
   const tabs: SessionTab[] = state.tabs.some((t) => t.id === 'changed')
     ? state.tabs
     : [...state.tabs, { id: 'changed', kind: 'changed', pinned: false }]
-  return { ...state, tabs, active: 'changed', usedAt: now }
+  return { ...state, tabs, active: 'changed', ...rightPick(state, 'changed'), usedAt: now }
 }
 
 export function selectTab(state: SessionTabsState, id: SessionTabId, now = state.usedAt): SessionTabsState {
   if (!hasTab(state, id)) return state
-  return { ...state, active: id, usedAt: now }
+  return { ...state, active: id, ...rightPick(state, id), usedAt: now }
 }
 
 /** Close a tab. Closing the selected one selects the tab on its left (Conversation last). */
@@ -90,7 +107,27 @@ export function closeTab(state: SessionTabsState, id: SessionTabId): SessionTabs
     const i = order.findIndex((t) => t.id === id)
     active = i > 0 ? order[i - 1].id : CONVERSATION
   }
-  return { ...state, tabs: state.tabs.filter((t) => t.id !== id), active }
+  return fixSplit({ ...state, tabs: state.tabs.filter((t) => t.id !== id), active }, state, id)
+}
+
+/**
+ * After tabs went away: the right side needs a tab that exists. `before` is the
+ * state the change started from; `closedId` the tab closed, so the right side
+ * moves to its left neighbour. No tab left → the split ends.
+ */
+function fixSplit(next: SessionTabsState, before: SessionTabsState, closedId: SessionTabId | null): SessionTabsState {
+  const split = next.split
+  if (!split?.on) return next
+  if (next.tabs.length === 0) return { ...next, active: CONVERSATION, split: { ...split, on: false, rightActive: null } }
+  if (split.rightActive && next.tabs.some((t) => t.id === split.rightActive)) return next
+  const order = orderedTabs(before)
+  const i = closedId ? order.findIndex((t) => t.id === closedId) : -1
+  const remaining = new Set(next.tabs.map((t) => t.id as SessionTabId))
+  const left = order.slice(0, Math.max(i, 0)).reverse().find((t) => remaining.has(t.id))
+  const rightActive = left?.id ?? orderedTabs(next)[0].id
+  // `active` followed the right side; keep it so, unless Conversation was selected.
+  const active = before.active === CONVERSATION ? CONVERSATION : rightActive
+  return { ...next, active, split: { ...split, rightActive } }
 }
 
 /** Keep Conversation, the pinned tabs and `id`. */
@@ -99,7 +136,8 @@ export function closeOthers(state: SessionTabsState, id: SessionTabId): SessionT
   const active = tabs.some((t) => t.id === state.active) || state.active === CONVERSATION
     ? state.active
     : hasTab({ ...state, tabs }, id) ? id : CONVERSATION
-  return { ...state, tabs, active }
+  const closed = state.tabs.find((t) => !tabs.includes(t) && t.id === state.split?.rightActive)
+  return fixSplit({ ...state, tabs, active }, state, closed ? closed.id : null)
 }
 
 export function togglePin(state: SessionTabsState, id: SessionTabId): SessionTabsState {
@@ -127,7 +165,12 @@ export function renameTab(state: SessionTabsState, oldPath: string, newPath: str
     if (state.tabs.some((o) => o.id === id)) continue
     tabs.push({ ...t, id, path: next })
   }
-  return { ...state, tabs, active }
+  const right = state.split?.rightActive
+  const rightMoved = right && state.tabs.find((t) => t.id === right && t.kind === 'file' && moved(t.path) !== null)
+  const split = state.split && rightMoved && rightMoved.kind === 'file'
+    ? { ...state.split, rightActive: fileTabId(moved(rightMoved.path) as string) }
+    : state.split
+  return { ...state, tabs, active, split }
 }
 
 /**
@@ -182,7 +225,8 @@ function parseState(raw: unknown): SessionTabsState | null {
     const right = typeof split.rightActive === 'string' && hasTab(state, split.rightActive as SessionTabId)
       ? (split.rightActive as SessionTabId)
       : null
-    state.split = { on: split.on, ratio: split.ratio, rightActive: right }
+    const ratio = Number.isFinite(split.ratio) ? Math.min(0.9, Math.max(0.1, split.ratio)) : 0.5
+    state.split = { on: split.on, ratio, rightActive: right }
   }
   if (typeof raw.active === 'string' && hasTab(state, raw.active as SessionTabId)) {
     state.active = raw.active as SessionTabId
@@ -206,6 +250,71 @@ export function parse(raw: string | null): Record<string, SessionTabsState> {
     if (runId && state) out[runId] = state
   }
   return out
+}
+
+// ── Split view (V3-27) ─────────────────────────────────────────────────────
+
+/** Narrower windows show the tabs layout instead of the split. */
+export const SPLIT_MIN_WINDOW = 1100
+/** Each side keeps at least this many px. */
+export const SPLIT_MIN_SIDE = 360
+export const SPLIT_STEP = 0.05
+
+/** Split needs a tab for the right side and a window wide enough. */
+export function splitBlockedReason(state: SessionTabsState, windowWidth: number): 'narrow' | 'noFile' | null {
+  if (windowWidth < SPLIT_MIN_WINDOW) return 'narrow'
+  return state.tabs.length === 0 ? 'noFile' : null
+}
+
+/** 'split' only while the split is on, there is a tab to show, and the window is wide enough. */
+export function effectiveLayout(state: SessionTabsState, windowWidth: number): 'tabs' | 'split' {
+  return state.split?.on && state.tabs.length > 0 && windowWidth >= SPLIT_MIN_WINDOW ? 'split' : 'tabs'
+}
+
+/** The left share allowed for `totalPx`: each side keeps SPLIT_MIN_SIDE (too narrow for that → 50 / 50). */
+export function ratioLimits(totalPx: number): { min: number; max: number } {
+  if (!(totalPx >= SPLIT_MIN_SIDE * 2)) return { min: 0.5, max: 0.5 }
+  return { min: SPLIT_MIN_SIDE / totalPx, max: 1 - SPLIT_MIN_SIDE / totalPx }
+}
+
+/** The left share for a left side `leftPx` wide, kept within the limits. */
+export function clampRatio(leftPx: number, totalPx: number): number {
+  const { min, max } = ratioLimits(totalPx)
+  if (!Number.isFinite(leftPx)) return 0.5
+  return Math.min(max, Math.max(min, leftPx / totalPx))
+}
+
+/** Start the split with `tabId` (or the selected file tab, or the first one) on the right. */
+export function startSplit(state: SessionTabsState, tabId?: SessionTabId): SessionTabsState {
+  if (state.tabs.length === 0) return state
+  const pick = [tabId, state.active, state.split?.rightActive].find(
+    (id): id is SessionTabId => !!id && id !== CONVERSATION && state.tabs.some((t) => t.id === id),
+  )
+  const rightActive = pick ?? orderedTabs(state)[0].id
+  return { ...state, active: rightActive, split: { on: true, ratio: state.split?.ratio ?? 0.5, rightActive } }
+}
+
+/** Back to one tab bar; the tab that was selected on the right stays selected. */
+export function stopSplit(state: SessionTabsState): SessionTabsState {
+  if (!state.split?.on) return state
+  const right = state.split.rightActive
+  const active = right && hasTab(state, right) ? right : state.active
+  return { ...state, active, split: { ...state.split, on: false } }
+}
+
+/** Set the share from a drag or a key: `leftPx` of `totalPx`. Stored only when the split exists. */
+export function setRatio(state: SessionTabsState, leftPx: number, totalPx: number): SessionTabsState {
+  if (!state.split) return state
+  return { ...state, split: { ...state.split, ratio: clampRatio(leftPx, totalPx) } }
+}
+
+export function resetRatio(state: SessionTabsState): SessionTabsState {
+  return state.split ? { ...state, split: { ...state.split, ratio: 0.5 } } : state
+}
+
+/** The tab the file area shows: the right side's while split, else the selected one. */
+export function fileAreaTab(state: SessionTabsState, layout: 'tabs' | 'split'): SessionTabId {
+  return layout === 'split' ? (state.split?.rightActive ?? state.active) : state.active
 }
 
 /** File name, and the folder it sits in (empty at the root), for a tab label. */

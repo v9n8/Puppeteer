@@ -12,8 +12,12 @@ import {
   parse,
   prune,
   renameTab,
+  resetRatio as resetRatioIn,
   selectTab,
   serialize,
+  setRatio as setRatioIn,
+  startSplit as startSplitIn,
+  stopSplit as stopSplitIn,
   togglePin as togglePinIn,
   type SessionTabId,
   type SessionTabsState,
@@ -119,6 +123,24 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     put(runId, togglePinIn(stateFor(runId), id))
   }
 
+  /** Split view (V3-27): `tabId` goes on the right (default: the selected file tab). */
+  function startSplit(runId: string, tabId?: SessionTabId) {
+    put(runId, startSplitIn(stateFor(runId), tabId))
+  }
+
+  function stopSplit(runId: string) {
+    put(runId, stopSplitIn(stateFor(runId)))
+  }
+
+  /** Only on release of the divider (or a key): a write per frame would hit localStorage. */
+  function setRatio(runId: string, leftPx: number, totalPx: number) {
+    put(runId, setRatioIn(stateFor(runId), leftPx, totalPx))
+  }
+
+  function resetRatio(runId: string) {
+    put(runId, resetRatioIn(stateFor(runId)))
+  }
+
   function rename(runId: string, oldPath: string, newPath: string) {
     put(runId, renameTab(stateFor(runId), oldPath, newPath))
   }
@@ -156,5 +178,5 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     /* running outside the Tauri shell */
   })
 
-  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, rename, forget, flush }
+  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, startSplit, stopSplit, setRatio, resetRatio, rename, forget, flush }
 })

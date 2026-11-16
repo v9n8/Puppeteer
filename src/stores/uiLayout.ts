@@ -298,6 +298,7 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
   return {
     focusMode,
     toggleFocus,
+    windowWidth,
     sidebarMode,
     toggleSidebar,
     expandSidebar,
