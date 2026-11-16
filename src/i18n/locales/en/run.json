@@ -464,5 +464,22 @@
     "hiddenTip": "{n} hidden tabs — click to see them",
     "hiddenTitle": "Hidden tabs · {n}",
     "detachTip": "Open in new window: show this file in its own window"
+  },
+  "changedFiles": {
+    "title": "Files changed in this Session · {n}",
+    "subtitle": "since the Session started",
+    "subtitleTip": "The total of what this Session changed",
+    "reload": "Reload",
+    "edit": "edit",
+    "create": "create",
+    "turn": "Turn {n}",
+    "openFile": "Open file",
+    "empty": "This Session has not changed any file.",
+    "tooLarge": "Content too large to compare",
+    "error": "Could not read the changed files.",
+    "retry": "Try again",
+    "tab": "Files changed · {n}",
+    "tabPlain": "Files changed",
+    "tabTip": "Files changed in this Session"
   }
 }

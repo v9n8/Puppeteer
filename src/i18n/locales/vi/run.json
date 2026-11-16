@@ -464,5 +464,22 @@
     "hiddenTip": "{n} tab bị khuất — bấm để xem",
     "hiddenTitle": "Tab bị khuất · {n}",
     "detachTip": "Tách cửa sổ: mở tệp này ở cửa sổ riêng"
+  },
+  "changedFiles": {
+    "title": "File đã đổi trong Session · {n}",
+    "subtitle": "so với lúc Session bắt đầu",
+    "subtitleTip": "Tổng các lần Session này sửa",
+    "reload": "Tải lại",
+    "edit": "sửa",
+    "create": "tạo",
+    "turn": "Lượt {n}",
+    "openFile": "Mở tệp",
+    "empty": "Session này chưa sửa file nào.",
+    "tooLarge": "Nội dung quá lớn để so sánh",
+    "error": "Không đọc được danh sách file đã đổi.",
+    "retry": "Thử lại",
+    "tab": "File đã đổi · {n}",
+    "tabPlain": "File đã đổi",
+    "tabTip": "File đã đổi trong Session này"
   }
 }

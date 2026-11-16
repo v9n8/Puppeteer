@@ -979,6 +979,7 @@ mod tests {
             "scan_sync_conflicts",
             "list_project_sync_conflicts",
             "read_sync_conflict_sides",
+            "get_run_edit_records",
         ] {
             assert!(!audited_command(name), "{name}");
         }

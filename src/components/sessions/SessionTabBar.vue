@@ -1,21 +1,23 @@
 <script setup lang="ts">
 // The Session area's tab bar (V3-24), under the header: "Conversation" first,
-// then the files this Session opened (pinned ones right after it). Right-click a
+// then the files this Session opened and the "Changed files" tab (V3-26); pinned
+// ones come right after it. Right-click a
 // file tab for pin / close / copy path. When the tabs overflow, the bar scrolls
 // and "+N ▾" lists the ones out of view. Tabs per Session live in
 // stores/sessionTabs; the rules in lib/sessionTabs.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  ChevronDown, File, FileCode, FileImage, FileJson, FileText, Link, Link2, MessageSquare, Pin, PinOff, X,
+  ChevronDown, File, FileCode, FileDiff, FileImage, FileJson, FileText, Link, Link2, MessageSquare, Pin, PinOff, X,
 } from 'lucide-vue-next'
 import { ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { useFileActions } from '@/lib/fileActions'
 import {
   CONVERSATION, fileTabIcon, hiddenTabIndexes, orderedTabs, tabLabel,
-  type FileTab, type FileTabIcon, type SessionTabId,
+  type FileTab, type FileTabIcon, type SessionTab, type SessionTabId,
 } from '@/lib/sessionTabs'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
+import { useChangedFilesCount } from './useChangedFiles'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
@@ -27,9 +29,20 @@ const ICONS: Record<FileTabIcon, Component> = { code: FileCode, json: FileJson, 
 
 const runId = computed(() => currentRunId.value ?? '')
 const state = computed(() => tabsStore.stateFor(runId.value))
-// The V3-26 "Changed files" tab is not drawn yet; only file tabs.
-const fileTabs = computed(() => orderedTabs(state.value).filter((tab): tab is FileTab => tab.kind === 'file'))
-const allIds = computed<SessionTabId[]>(() => [CONVERSATION, ...fileTabs.value.map((tab) => tab.id)])
+const tabs = computed(() => orderedTabs(state.value))
+const allIds = computed<SessionTabId[]>(() => [CONVERSATION, ...tabs.value.map((tab) => tab.id)])
+const changedCount = useChangedFilesCount()
+
+function tabName(tab: SessionTab): string {
+  if (tab.kind === 'file') return tabLabel(tab.path).name
+  return changedCount.value === null ? t('run.changedFiles.tabPlain') : t('run.changedFiles.tab', { n: changedCount.value })
+}
+function tabTip(tab: SessionTab): string {
+  return tab.kind === 'file' ? tab.path : t('run.changedFiles.tabTip')
+}
+function tabIcon(tab: SessionTab): Component {
+  return tab.kind === 'file' ? ICONS[fileTabIcon(tab.path)] : FileDiff
+}
 
 function select(id: SessionTabId) {
   if (runId.value) tabsStore.select(runId.value, id)
@@ -40,17 +53,17 @@ function close(id: SessionTabId) {
 
 // ── Overflow: which tabs are out of view ───────────────────────────────────
 const scroller = ref<HTMLElement | null>(null)
-const hidden = ref<FileTab[]>([])
+const hidden = ref<SessionTab[]>([])
 
 function measure() {
   const el = scroller.value
   if (!el) return
   const nodes = [...el.querySelectorAll<HTMLElement>('[data-tab-id]')]
   const boxes = nodes.map((n) => ({ left: n.offsetLeft, width: n.offsetWidth }))
-  const byId = new Map(fileTabs.value.map((tab) => [tab.id as string, tab]))
+  const byId = new Map(tabs.value.map((tab) => [tab.id as string, tab]))
   hidden.value = hiddenTabIndexes(boxes, el.scrollLeft, el.clientWidth)
     .map((i) => byId.get(nodes[i].dataset.tabId ?? ''))
-    .filter((tab): tab is FileTab => !!tab)
+    .filter((tab): tab is SessionTab => !!tab)
 }
 
 function tabEl(id: SessionTabId): HTMLElement | null {
@@ -84,7 +97,7 @@ watch(() => [runId.value, state.value.active] as const, () => nextTick(() => {
   reveal(state.value.active)
   measure()
 }))
-watch(fileTabs, () => nextTick(measure))
+watch([tabs, changedCount], () => nextTick(measure))
 
 // ── Keyboard: ← → move between tabs, Enter selects, Delete closes ──────────
 const focusedId = ref<SessionTabId | null>(null)
@@ -111,9 +124,9 @@ function onKeydown(e: KeyboardEvent, id: SessionTabId) {
 }
 
 // ── Right-click menu on a file tab ─────────────────────────────────────────
-const menu = ref<{ tab: FileTab; x: number; y: number } | null>(null)
+const menu = ref<{ tab: SessionTab; x: number; y: number } | null>(null)
 
-function openMenu(e: MouseEvent, tab: FileTab) {
+function openMenu(e: MouseEvent, tab: SessionTab) {
   menu.value = { tab, x: e.clientX, y: e.clientY }
 }
 
@@ -153,13 +166,13 @@ function copyPath(tab: FileTab) {
       </div>
 
       <div
-        v-for="tab in fileTabs"
+        v-for="tab in tabs"
         :key="tab.id"
         role="tab"
         :data-tab-id="tab.id"
         :aria-selected="state.active === tab.id"
         :tabindex="tabStop === tab.id ? 0 : -1"
-        :title="tab.path"
+        :title="tabTip(tab)"
         class="session-tab pr-1.5"
         :class="{ 'is-active': state.active === tab.id }"
         @click="select(tab.id)"
@@ -167,8 +180,8 @@ function copyPath(tab: FileTab) {
         @keydown="onKeydown($event, tab.id)"
         @contextmenu.prevent="openMenu($event, tab)"
       >
-        <component :is="ICONS[fileTabIcon(tab.path)]" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" aria-hidden="true" />
-        <span class="truncate">{{ tabLabel(tab.path).name }}</span>
+        <component :is="tabIcon(tab)" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+        <span class="truncate">{{ tabName(tab) }}</span>
         <button
           v-if="tab.pinned"
           type="button"
@@ -210,9 +223,9 @@ function copyPath(tab: FileTab) {
         {{ t('run.sessionTabs.hiddenTitle', { n: hidden.length }) }}
       </div>
       <DropdownItem v-for="tab in hidden" :key="tab.id" class="max-w-72" @click="pickHidden(tab.id)">
-        <component :is="ICONS[fileTabIcon(tab.path)]" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-        <span class="min-w-0 flex-1 truncate">{{ tabLabel(tab.path).name }}</span>
-        <span v-if="tabLabel(tab.path).dir" class="max-w-28 truncate font-mono text-xs text-muted-foreground">{{ tabLabel(tab.path).dir }}</span>
+        <component :is="tabIcon(tab)" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+        <span class="min-w-0 flex-1 truncate">{{ tabName(tab) }}</span>
+        <span v-if="tab.kind === 'file' && tabLabel(tab.path).dir" class="max-w-28 truncate font-mono text-xs text-muted-foreground">{{ tabLabel(tab.path).dir }}</span>
       </DropdownItem>
     </DropdownMenu>
 
@@ -230,15 +243,17 @@ function copyPath(tab: FileTab) {
           <span class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {{ t('run.sessionTabs.closeOthers') }}
         </DropdownItem>
-        <DropdownSeparator />
-        <DropdownItem @click="copyPath(menu.tab)">
-          <Link class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          {{ t('files.tree.copyPath') }}
-        </DropdownItem>
-        <DropdownItem @click="actions.copyRelPath(target(menu.tab))">
-          <Link2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-          {{ t('files.tree.copyRelativePath') }}
-        </DropdownItem>
+        <template v-if="menu.tab.kind === 'file'">
+          <DropdownSeparator />
+          <DropdownItem @click="copyPath(menu.tab)">
+            <Link class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+            {{ t('files.tree.copyPath') }}
+          </DropdownItem>
+          <DropdownItem @click="actions.copyRelPath(target(menu.tab))">
+            <Link2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+            {{ t('files.tree.copyRelativePath') }}
+          </DropdownItem>
+        </template>
       </template>
     </ContextMenu>
   </div>

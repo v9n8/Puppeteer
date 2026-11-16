@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CONVERSATION, MAX_SESSIONS, closeOthers, closeTab, emptyState, fileTabIcon, hiddenTabIndexes, openTab, orderedTabs,
+  CONVERSATION, MAX_SESSIONS, closeOthers, closeTab, emptyState, fileTabIcon, hiddenTabIndexes, openChangedTab, openTab, orderedTabs,
   parse, prune, renameTab, selectTab, serialize, tabLabel, togglePin,
 } from '../sessionTabs.ts'
 
@@ -42,6 +42,18 @@ test('openTab: an open file is only selected, its line updated, never duplicated
   assert.equal(s.tabs[0].line, 42)
   // No line given: keep the last one.
   assert.equal(openTab(s, 'a.ts', null).tabs[0].line, 42)
+})
+
+test('openChangedTab: opens the tab once, then only selects it; it closes and pins like a file tab', () => {
+  let s = openChangedTab(openTab(emptyState(), 'a.ts', null))
+  assert.deepEqual(ids(s), ['file:a.ts', 'changed'])
+  assert.equal(s.active, 'changed')
+  s = openChangedTab(selectTab(s, 'file:a.ts'))
+  assert.equal(s.tabs.length, 2)
+  assert.equal(s.active, 'changed')
+  assert.deepEqual(ids(togglePin(s, 'changed')), ['changed', 'file:a.ts'])
+  assert.equal(closeTab(s, 'changed').active, 'file:a.ts')
+  assert.deepEqual(parse(serialize({ r: s })).r.tabs.map((t) => t.id), ['file:a.ts', 'changed'])
 })
 
 test('selectTab: unknown ids are ignored', () => {

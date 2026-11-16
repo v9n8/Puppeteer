@@ -2385,7 +2385,7 @@ pub(crate) fn resolve_log_source(row: &RunLogRow, run_id: &str) -> Option<(LogSo
         .map(|p| (LogSource::Output, p))
 }
 
-fn build_revision(row: &RunLogRow, run_id: &str) -> RunLogRevision {
+pub(crate) fn build_revision(row: &RunLogRow, run_id: &str) -> RunLogRevision {
     let resolved = resolve_log_source(row, run_id);
     let (source, path, size, mtime_ns) = match &resolved {
         Some((src, p)) => {

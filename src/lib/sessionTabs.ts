@@ -68,6 +68,14 @@ export function openTab(state: SessionTabsState, path: string, line: number | nu
   return { ...state, tabs, active: id, usedAt: now }
 }
 
+/** Open the "Changed files" tab, or select it when it is already open. */
+export function openChangedTab(state: SessionTabsState, now = state.usedAt): SessionTabsState {
+  const tabs: SessionTab[] = state.tabs.some((t) => t.id === 'changed')
+    ? state.tabs
+    : [...state.tabs, { id: 'changed', kind: 'changed', pinned: false }]
+  return { ...state, tabs, active: 'changed', usedAt: now }
+}
+
 export function selectTab(state: SessionTabsState, id: SessionTabId, now = state.usedAt): SessionTabsState {
   if (!hasTab(state, id)) return state
   return { ...state, active: id, usedAt: now }

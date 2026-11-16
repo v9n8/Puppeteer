@@ -699,6 +699,7 @@ pub fn run() {
             get_run_log_path,
             get_run_log_revision,
             get_run_tool_records,
+            runs::edit_records::get_run_edit_records,
             get_run_user_records,
             search_run_log,
             commands::session_search::search_sessions,

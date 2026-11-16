@@ -53,10 +53,8 @@
     "copy": "Sao chép bản dịch"
   },
   "mentionedFiles": {
-    "edit": "sửa",
-    "write": "tạo",
     "countTitle": "{count} file bị thay đổi trong Session này",
-    "filesInSession": "File đã thay đổi ({count})"
+    "button": "File đã đổi · {count}"
   },
   "modelOptions": {
     "defaultFromSettings": "Mặc định (theo cài đặt)",

@@ -8,6 +8,7 @@ import RunSessionRail from '@/components/sessions/RunSessionRail.vue'
 import RunLogPane from '@/components/sessions/RunLogPane.vue'
 import SessionTabBar from '@/components/sessions/SessionTabBar.vue'
 import FileTabView from '@/components/sessions/FileTabView.vue'
+import ChangedFilesTab from '@/components/sessions/ChangedFilesTab.vue'
 import RunComposer from '@/components/sessions/RunComposer.vue'
 import TurnStatusBar from '@/components/sessions/TurnStatusBar.vue'
 import RunWorkerSidebar from '@/components/sessions/RunWorkerSidebar.vue'
@@ -21,9 +22,14 @@ const {
   uiLayout, isSessionWindow, composerVisible, showWorkerPanel, rewindTarget, onRewound, closeRewind, currentRunId,
 } = createRunSession()
 
-// A file tab of this Session is selected (V3-24): it takes the conversation's place.
+// A file tab (V3-24) or the Changed files tab (V3-26) of this Session is selected:
+// it takes the conversation's place.
 const sessionTabs = useSessionTabsStore()
-const showingFile = computed(() => !!currentRunId.value && sessionTabs.stateFor(currentRunId.value).active.startsWith('file:'))
+const activeTab = computed(() => (currentRunId.value ? sessionTabs.stateFor(currentRunId.value).active : 'conversation'))
+const showingFile = computed(() => activeTab.value.startsWith('file:'))
+const showingChanged = computed(() => activeTab.value === 'changed')
+// Mounted while the tab exists, so its count stays right and it follows the Session.
+const hasChangedTab = computed(() => !!currentRunId.value && sessionTabs.stateFor(currentRunId.value).tabs.some((t) => t.id === 'changed'))
 </script>
 
 <template>
@@ -39,8 +45,9 @@ const showingFile = computed(() => !!currentRunId.value && sessionTabs.stateFor(
         <RunHeader />
         <SessionTabBar v-if="currentRunId" />
         <!-- v-show, not v-if: the conversation keeps its scroll and its stream while a file is read. -->
-        <RunLogPane v-show="!showingFile" />
+        <RunLogPane v-show="!showingFile && !showingChanged" />
         <FileTabView v-if="currentRunId" v-show="showingFile" />
+        <ChangedFilesTab v-if="hasChangedTab" v-show="showingChanged" />
 
         <!-- Turn status bar (V3-17): what the last turn is doing; opens its steps and todo. -->
         <TurnStatusBar v-if="composerVisible" />

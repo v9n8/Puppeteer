@@ -7,6 +7,7 @@ import {
   closeOthers as closeOthersIn,
   closeTab,
   emptyState,
+  openChangedTab,
   openTab,
   parse,
   prune,
@@ -97,6 +98,11 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     put(runId, openTab(stateFor(runId), path, line, Date.now()))
   }
 
+  function openChanged(runId: string) {
+    if (!runId) return
+    put(runId, openChangedTab(stateFor(runId), Date.now()))
+  }
+
   function select(runId: string, id: SessionTabId) {
     put(runId, selectTab(stateFor(runId), id, Date.now()))
   }
@@ -150,5 +156,5 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     /* running outside the Tauri shell */
   })
 
-  return { byRun, stateFor, open, select, close, closeOthers, togglePin, rename, forget, flush }
+  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, rename, forget, flush }
 })

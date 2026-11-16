@@ -273,7 +273,7 @@ function onOpenUrl(url: string) {
               <FileText class="h-3.5 w-3.5" :stroke-width="1.75" />
               {{ t('run.content') }}
             </button>
-            <MentionedFiles :entries="mentionedFileEntries" @open-file="openFile" />
+            <MentionedFiles :entries="mentionedFileEntries" />
           </div>
         </div>
       </div>

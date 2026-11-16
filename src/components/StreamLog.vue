@@ -9,8 +9,8 @@ import {
 import type { LiveStatus, StreamEntry, TaskProgress } from '@/lib/streamEvents'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
-import { computeDiff } from '@/lib/diff'
-import { toolFileTarget, toolFileTargets, codexEditParts, type DiffPart } from '@/lib/toolFiles'
+import { editParts, editStats } from '@/lib/editStats'
+import { toolFileTarget, toolFileTargets } from '@/lib/toolFiles'
 import IdeContextChip from './IdeContextChip.vue'
 import DiffView from './DiffView.vue'
 import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
@@ -322,66 +322,6 @@ async function copyCommand(i: number, input: unknown) {
 const EDIT_TOOLS = new Set(['edit', 'multiedit', 'write'])
 function isEditTool(name: string): boolean {
   return EDIT_TOOLS.has((name || '').toLowerCase())
-}
-
-// Extract the before/after pair(s) a file-editing tool changes: Edit → one pair,
-// MultiEdit → one per edit, Write → whole content as an all-added block, Codex
-// `fileChange` → one per patch hunk, tagged with the file it belongs to.
-// Memoized per input object: the template re-reads this while rendering each
-// part (to decide where a new per-file heading starts), and parsing a patch on
-// every one of those reads would be quadratic for a large diff.
-const editPartsCache = new WeakMap<object, DiffPart[]>()
-function editParts(name: string, input: unknown): DiffPart[] {
-  if (!input || typeof input !== 'object') return []
-  const cached = editPartsCache.get(input)
-  if (cached) return cached
-  const parts = computeEditParts(name, input)
-  editPartsCache.set(input, parts)
-  return parts
-}
-
-function computeEditParts(name: string, input: unknown): DiffPart[] {
-  if (!input || typeof input !== 'object') return []
-  const obj = input as Record<string, unknown>
-  const n = (name || '').toLowerCase()
-  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
-  if (obj.changes) return codexEditParts(obj)
-  if (n === 'edit') {
-    const before = str(obj.old_string)
-    const after = str(obj.new_string)
-    return before || after ? [{ before, after }] : []
-  }
-  if (n === 'multiedit' && Array.isArray(obj.edits)) {
-    return (obj.edits as unknown[])
-      .map((e) => (e && typeof e === 'object' ? (e as Record<string, unknown>) : {}))
-      .map((e) => ({ before: str(e.old_string), after: str(e.new_string) }))
-      .filter((d) => d.before || d.after)
-  }
-  if (n === 'write') {
-    const after = str(obj.content)
-    return after ? [{ before: '', after }] : []
-  }
-  return []
-}
-
-// Aggregate +added / −removed across all diff parts for the header badge.
-// Memoized per input object: the template reads editStats up to four times per
-// entry and each call runs an O(n·m) LCS — computing it once per entry matters
-// for MultiEdit calls with many parts.
-const editStatsCache = new WeakMap<object, { added: number; removed: number }>()
-function editStats(name: string, input: unknown): { added: number; removed: number } {
-  if (!input || typeof input !== 'object') return { added: 0, removed: 0 }
-  const hit = editStatsCache.get(input)
-  if (hit) return hit
-  const stats = editParts(name, input).reduce(
-    (acc, p) => {
-      const d = computeDiff(p.before, p.after, { fold: false })
-      return { added: acc.added + d.added, removed: acc.removed + d.removed }
-    },
-    { added: 0, removed: 0 },
-  )
-  editStatsCache.set(input, stats)
-  return stats
 }
 
 // Small helpers for structured tool inputs below.

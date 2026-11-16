@@ -43,6 +43,7 @@ pub fn step_mark(msg: &Value, at_ms: i64) -> Option<Value> {
 }
 
 /// `step_mark` as one log line (with its newline).
+#[cfg(test)]
 pub fn step_mark_line(msg: &Value, at_ms: i64) -> Option<String> {
     step_mark(msg, at_ms).map(|m| format!("{}\n", m))
 }

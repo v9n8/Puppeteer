@@ -538,6 +538,16 @@ export const useRunsStore = defineStore('runs', () => {
   }
 
   /**
+   * The file-editing calls of the whole run WITH their before / after text, plus
+   * the ids of calls whose text was too large to bring (`get_run_edit_records`).
+   * Backs the Session's "Changed files" tab.
+   */
+  async function getRunEditRecords(run_id: string): Promise<{ records: string[]; truncated: string[] }> {
+    const r = await invoke<{ records: string[]; truncated: string[] }>('get_run_edit_records', { runId: run_id })
+    return { records: r.records, truncated: r.truncated }
+  }
+
+  /**
    * Every `type: "user"` prompt in the run, pruned to just text/image stubs,
    * each with the byte offset it starts at (so the viewer can jump straight to
    * it with a forward read). Scanned in Rust so the whole log never crosses IPC
@@ -807,7 +817,7 @@ export const useRunsStore = defineStore('runs', () => {
     runs, loading, loadedProjectId, runMeta, orderStale,
     fetchRuns, sortRuns, refreshMeta, fetchIssue, fetchPr,
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
-    getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunUserRecords, searchRunLog, readRunInput,
+    getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunEditRecords, getRunUserRecords, searchRunLog, readRunInput,
     respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, steerRun, endRunInput,
     listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, listRunQuotes, exportTranscript,
     listProjectFiles, readProjectFile, statPaths, writeProjectFile, listDir,

@@ -53,10 +53,8 @@
     "copy": "Copy translation"
   },
   "mentionedFiles": {
-    "edit": "edit",
-    "write": "create",
     "countTitle": "{count} files changed in this session",
-    "filesInSession": "Files changed ({count})"
+    "button": "Files changed · {count}"
   },
   "modelOptions": {
     "defaultFromSettings": "Default (from settings)",
