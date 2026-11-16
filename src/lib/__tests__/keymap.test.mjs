@@ -179,3 +179,13 @@ test('matchesAccelerator: the key press of a shortcut, for a window without the 
   assert.ok(!matchesAccelerator(press('KeyJ', { metaKey: true }), 'CmdOrCtrl+K', true))
   assert.ok(matchesAccelerator(press('KeyP', { metaKey: true, shiftKey: true }), 'CmdOrCtrl+Shift+P', true))
 })
+
+test('DEFAULT_KEYMAP: Search sessions is ⌘⇧F, usable, and no other default shares it', () => {
+  const accel = DEFAULT_KEYMAP['go./search']
+  assert.equal(accel, 'CmdOrCtrl+Shift+F')
+  for (const isMac of [true, false]) {
+    assert.equal(acceleratorProblem(accel, isMac), null, `reserved on ${isMac}`)
+  }
+  const others = Object.entries(DEFAULT_KEYMAP).filter(([id]) => id !== 'go./search').map(([, a]) => a)
+  assert.ok(!others.includes(accel))
+})

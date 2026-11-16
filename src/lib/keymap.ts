@@ -34,6 +34,8 @@ export const DEFAULT_KEYMAP: Readonly<Record<string, string>> = {
   // Not ⌘` (AWOG's key): macOS uses it to cycle an app's windows, and the
   // pop-outs need that, so it is reserved below; ⌥ is added instead.
   [PREVIOUS_PROJECT_ACTION]: 'CmdOrCtrl+Alt+`',
+  // Search sessions. Shift keeps it apart from ⌘F (find in page).
+  'go./search': 'CmdOrCtrl+Shift+F',
 }
 
 /** Action id → accelerator (`""`: no shortcut), only where it differs from the default. */

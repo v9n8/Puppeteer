@@ -54,13 +54,14 @@ export function stepMatch(current: number, count: number, delta: number): number
 
 /**
  * ⌘F on macOS, Ctrl+F elsewhere. Ctrl+F on macOS is the text fields' "cursor
- * forward", so it must not open the bar while the user types.
+ * forward", so it must not open the bar while the user types. ⌘⇧F is not this
+ * shortcut: it opens Search sessions (go./search).
  */
 export function isFindShortcut(
-  e: { key: string; metaKey: boolean; ctrlKey: boolean },
+  e: { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey?: boolean },
   isMac: boolean,
 ): boolean {
-  return (isMac ? e.metaKey : e.ctrlKey) && (e.key === 'f' || e.key === 'F')
+  return (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && (e.key === 'f' || e.key === 'F')
 }
 
 export interface FindTargetContext {

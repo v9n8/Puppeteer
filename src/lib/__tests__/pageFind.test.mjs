@@ -93,6 +93,11 @@ test('isFindShortcut: Cmd+F on macOS, Ctrl+F elsewhere, either case', () => {
   assert.equal(isFindShortcut({ key: 'F', metaKey: false, ctrlKey: true }, false), true)
 })
 
+test('isFindShortcut: with Shift it is Search sessions, not find in page', () => {
+  assert.equal(isFindShortcut({ key: 'F', metaKey: true, ctrlKey: false, shiftKey: true }, true), false)
+  assert.equal(isFindShortcut({ key: 'F', metaKey: false, ctrlKey: true, shiftKey: true }, false), false)
+})
+
 test('isFindShortcut: Ctrl+F on macOS is not (cursor forward in a text field)', () => {
   assert.equal(isFindShortcut({ key: 'f', metaKey: false, ctrlKey: true }, true), false)
 })

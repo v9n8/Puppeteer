@@ -5,17 +5,19 @@
 // lib/commandPalette's accent-insensitive fuzzy search. Pin / hide act on the
 // item's id.
 //
-// Opened by the View menu item `view.commandPalette`, whose shortcut is in the
+// With text typed, a last row searches it in every session (Search sessions,
+// ⌘⇧F). Opened by the View menu item `view.commandPalette`, whose shortcut is in the
 // keymap (lib/keymap) and fired by the OS. Without the native menu (a browser)
 // the same shortcut is caught here instead.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { EyeOff, Pin, PinOff, Search } from 'lucide-vue-next'
 import { Modal } from '@/components/ui'
-import { IS_MAC, hasNativeMenu, menuAccelerator, registerMenuAction } from '@/lib/appMenu'
+import { IS_MAC, effectiveKeymap, hasNativeMenu, menuAccelerator, registerMenuAction } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
-import { hideItem, paletteSections, togglePinned } from '@/lib/commandPalette'
-import { PALETTE_ACTION, matchesAccelerator } from '@/lib/keymap'
+import { hideItem, paletteSections, searchAllSection, togglePinned } from '@/lib/commandPalette'
+import { PALETTE_ACTION, formatAccelerator, matchesAccelerator } from '@/lib/keymap'
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useCommandPaletteStore } from '@/stores/commandPalette'
@@ -23,6 +25,7 @@ import { usePaletteItems, type PaletteCommand } from '@/composables/usePaletteIt
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
+const router = useRouter()
 const features = useFeaturesStore()
 const appSettings = useAppSettingsStore()
 const palette = useCommandPaletteStore()
@@ -36,16 +39,48 @@ const inputEl = ref<HTMLInputElement | null>(null)
 const rowEls = ref<HTMLElement[]>([])
 
 const sections = computed(() => paletteSections(items.value, palette.config, features.tree, query.value))
-// Rows in screen order, for ↑ ↓ across sections.
-const rows = computed(() => sections.value.flatMap((s) => s.items))
+const SEARCH_ACTION = 'go./search'
+const searchSection = computed(() => searchAllSection(query.value, features.tree))
+const searchRow = computed<PaletteCommand | null>(() => {
+  const item = searchSection.value?.items[0]
+  if (!item) return null
+  return {
+    id: item.id,
+    group: 'nav',
+    label: t('palette.searchAll', { q: item.query }),
+    icon: Search,
+    run: () => openSearch(item.query),
+  }
+})
+const searchShortcut = computed(() => {
+  const accel = effectiveKeymap().get(SEARCH_ACTION)
+  return accel ? formatAccelerator(accel, IS_MAC) : ''
+})
+// Rows in screen order, for ↑ ↓ across sections; the search row is last.
+const rows = computed(() => [...sections.value.flatMap((s) => s.items), ...(searchRow.value ? [searchRow.value] : [])])
 const pinned = computed(() => new Set(palette.config.pinned))
 
 function rowIndex(item: PaletteCommand): number {
   return rows.value.indexOf(item)
 }
 
+function openSearch(q: string) {
+  router.push({ path: '/search', query: { q } }).catch(() => {})
+}
+
+// While open, the Search sessions shortcut takes the typed text along.
+let unbindSearchAction: (() => void) | null = null
+function searchTyped() {
+  close()
+  const q = query.value.trim()
+  if (q) openSearch(q)
+  else router.push('/search').catch(() => {})
+}
+
 function show() {
   open.value = true
+  unbindSearchAction?.()
+  unbindSearchAction = registerMenuAction(SEARCH_ACTION, searchTyped)
   query.value = ''
   active.value = 0
   // The layout may have changed in another window since.
@@ -55,6 +90,8 @@ function show() {
 
 function close() {
   open.value = false
+  unbindSearchAction?.()
+  unbindSearchAction = null
 }
 
 function run(item: PaletteCommand | undefined) {
@@ -101,6 +138,12 @@ function toggle() {
 // too would open and close the palette on one press.
 function onKeydown(e: KeyboardEvent) {
   if (hasNativeMenu() || e.defaultPrevented || e.isComposing) return
+  const searchAccel = menuAccelerator(SEARCH_ACTION)
+  if (open.value && searchAccel && matchesAccelerator(e, searchAccel, IS_MAC)) {
+    e.preventDefault()
+    searchTyped()
+    return
+  }
   const accel = menuAccelerator(PALETTE_ACTION)
   if (!accel || !matchesAccelerator(e, accel, IS_MAC)) return
   e.preventDefault()
@@ -124,6 +167,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   unbindMenuAction?.()
+  unbindSearchAction?.()
   window.removeEventListener('keydown', onKeydown)
 })
 </script>
@@ -191,6 +235,24 @@ onBeforeUnmount(() => {
             >
               <EyeOff class="h-3.5 w-3.5" :stroke-width="1.75" />
             </button>
+          </div>
+        </section>
+        <section v-if="searchSection && searchRow" class="mb-1 last:mb-0">
+          <h4 class="px-2.5 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {{ t('palette.group.search') }}
+          </h4>
+          <div
+            :ref="(el) => { if (el) rowEls[rowIndex(searchRow!)] = el as HTMLElement }"
+            role="option"
+            :aria-selected="active === rowIndex(searchRow)"
+            class="flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors"
+            :class="active === rowIndex(searchRow) ? 'bg-accent' : 'hover:bg-accent/60'"
+            @mouseenter="active = rowIndex(searchRow!)"
+            @click="run(searchRow!)"
+          >
+            <Search class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
+            <span class="min-w-0 flex-1 truncate text-sm text-popover-foreground">{{ searchRow.label }}</span>
+            <kbd v-if="searchShortcut" class="shrink-0 rounded border border-border/70 px-1 font-sans text-2xs text-muted-foreground">{{ searchShortcut }}</kbd>
           </div>
         </section>
       </div>

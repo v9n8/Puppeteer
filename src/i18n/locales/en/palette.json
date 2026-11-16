@@ -1,6 +1,8 @@
 {
   "placeholder": "Type a command, screen, session or project…",
   "noResults": "Nothing matches",
+  "box": "Search or run a command…",
+  "searchAll": "Search “{q}” in all sessions",
   "hint": "↑ ↓ to move · Enter to run · Esc to close",
   "pin": "Pin to the top",
   "unpin": "Unpin",
@@ -11,7 +13,8 @@
     "nav": "Navigation",
     "session": "Sessions",
     "project": "Projects",
-    "settings": "Settings"
+    "settings": "Settings",
+    "search": "Search in content"
   },
   "settings": {
     "title": "Command palette",

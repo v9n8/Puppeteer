@@ -7,6 +7,7 @@
 // by the label on screen, so renaming a project or switching the language
 // keeps them.
 import { allowsFeature, type FeatureTree } from './featureGate.ts'
+import { SESSION_SEARCH_FEATURE } from './sessionSearch.ts'
 
 export const PALETTE_FEATURE = 'app.command_palette'
 
@@ -245,4 +246,21 @@ export function fuzzyScore(query: string, text: string): number | null {
     total += s
   }
   return total
+}
+
+/** The "Search in content" section: one row that opens Search sessions with the typed text. */
+export interface SearchAllSection {
+  id: 'search'
+  items: { id: 'search.all'; query: string }[]
+}
+
+/**
+ * The row under the matches that searches the typed text in every session, or
+ * null when nothing is typed or Search sessions is off. Not a PaletteItem: it
+ * is neither pinnable, hideable nor fuzzy-matched.
+ */
+export function searchAllSection(query: string, tree: FeatureTree): SearchAllSection | null {
+  const q = query.trim()
+  if (!q || !allowsFeature(tree, SESSION_SEARCH_FEATURE)) return null
+  return { id: 'search', items: [{ id: 'search.all', query: q }] }
 }

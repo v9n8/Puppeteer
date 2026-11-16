@@ -4,11 +4,14 @@
 // keeps (sessions.cross_session_search). Hits are listed per run; picking one opens
 // the run at that message, with the query highlighted (RunView reads it back).
 //
+// `?q=` (from the command palette's "Search in all sessions" row, or ⌘⇧F with
+// text typed) fills the box and searches at once.
+//
 // In App.vue's KeepAlive list, so the query and results are still there after
 // opening a hit; re-entry runs the search again for anything indexed since.
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onActivated, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Search, X } from 'lucide-vue-next'
 import { AppSelect, Banner, Button, Input, PageHeader } from '@/components/ui'
 import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
@@ -29,9 +32,11 @@ defineOptions({ name: 'SessionSearchView' })
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const projects = useProjectsStore()
 
 const query = ref('')
+const boxEl = ref<HTMLElement | null>(null)
 /** '' = every project. */
 const projectFilter = ref('')
 const projectOptions = computed(() => [
@@ -87,10 +92,40 @@ async function runSearch() {
   searching.value = false
 }
 
+// Set when the text comes from the URL: that search should not wait for a pause.
+let runNow = false
 watch([query, projectFilter], () => {
   if (timer) clearTimeout(timer)
+  if (runNow) {
+    runNow = false
+    void runSearch()
+    return
+  }
   timer = setTimeout(runSearch, DEBOUNCE_MS)
 })
+
+function focusBox() {
+  void nextTick(() => boxEl.value?.querySelector('input')?.focus())
+}
+
+// The screen stays mounted when left, so `route` keeps changing underneath it:
+// only this screen's own URL counts.
+function routeQueryText(): string {
+  const q = route.path === '/search' ? route.query.q : undefined
+  return typeof q === 'string' ? q.trim() : ''
+}
+function applyRouteQuery(q: string) {
+  if (!q) return
+  if (q === query.value.trim()) void runSearch()
+  else {
+    runNow = true
+    query.value = q
+  }
+  focusBox()
+}
+applyRouteQuery(routeQueryText())
+watch(routeQueryText, applyRouteQuery)
+onActivated(focusBox)
 
 if (projects.projects.length === 0) projects.fetchProjects().catch(() => {})
 useActivatedRefresh(() => {
@@ -122,7 +157,7 @@ function openHit(g: SessionHitGroup, offset: number) {
     <div class="flex-1 overflow-auto p-6">
       <div class="max-w-4xl space-y-4">
         <div class="flex items-center gap-2">
-          <div class="relative flex-1 min-w-0">
+          <div ref="boxEl" class="relative flex-1 min-w-0">
             <Search class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
             <Input
               v-model="query"

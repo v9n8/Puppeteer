@@ -10,6 +10,7 @@ import {
   hideItem,
   moveGroup,
   paletteSections,
+  searchAllSection,
   parsePaletteConfig,
   resetPalettePart,
   serializePaletteConfig,
@@ -220,4 +221,15 @@ test('fuzzyScore: substrings beat scattered letters; word starts and early hits 
   assert.ok(fuzzyScore('cai', 'Cài đặt') > 0, 'accents ignored in the text')
   assert.ok(fuzzyScore('cài', 'Cai dat') > 0, 'and in the query')
   assert.equal(fuzzyScore('review missing', 'Review code'), null, 'every word must match')
+})
+
+test('searchAllSection: a row with the trimmed text, none when empty or Search is off', () => {
+  assert.deepEqual(searchAllSection('  đăng nhập ', tree), {
+    id: 'search',
+    items: [{ id: 'search.all', query: 'đăng nhập' }],
+  })
+  assert.equal(searchAllSection('', tree), null)
+  assert.equal(searchAllSection('   ', tree), null)
+  const off = [{ module: 'sessions', enabled: true, locked: false, props: [prop('sessions.cross_session_search', false)] }]
+  assert.equal(searchAllSection('login', off), null)
 })
