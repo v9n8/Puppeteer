@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import type { CalEvent } from '@/stores/googleCalendar'
 import { startOfWeek, addDays, sameDay, minutesOfDay, parseEventTime } from '@/lib/calendar'
 import { lunarInfo } from '@/lib/lunar'
+import { isOngoing, nowLineTop } from '@/lib/calendarNow'
+import { useMinuteClock } from '@/composables/useMinuteClock'
 
 const props = defineProps<{
   anchorDate: Date
@@ -39,7 +41,9 @@ const weekDays = computed(() => {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i))
 })
 
-const today = new Date()
+// Ticks every minute: moves the now line, flips the "today" column after midnight
+// and ends the "ongoing" state of events.
+const today = useMinuteClock()
 
 interface Parsed {
   ev: CalEvent
@@ -122,6 +126,10 @@ function timedBlocks(day: Date): Block[] {
   }
   flush()
   return blocks
+}
+
+function nowLabel() {
+  return hhmm(today.value)
 }
 
 function hhmm(d: Date) {
@@ -211,12 +219,23 @@ onMounted(() => {
               class="border-b border-border/30"
               :style="{ height: `${HOUR_HEIGHT}px` }"
             />
+            <!-- now line -->
+            <div
+              v-if="sameDay(d, today)"
+              class="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-primary"
+              :style="{ top: `${nowLineTop(today, 0, HOUR_HEIGHT)}px` }"
+              :title="t('calendar.view.nowAt', { time: nowLabel() })"
+            >
+              <span class="absolute -left-[5px] -top-1 h-2.5 w-2.5 rounded-full bg-primary" />
+              <span class="absolute left-2 -top-2.5 rounded bg-primary px-1 text-2xs leading-tight text-primary-foreground tabular-nums">{{ nowLabel() }}</span>
+            </div>
             <!-- event blocks -->
             <button
               v-for="b in timedBlocks(d)"
               :key="b.ev.id + b.ev.calendar_id"
               type="button"
-              class="absolute overflow-hidden rounded px-1 py-0.5 text-left text-2xs leading-tight text-white shadow-sm ring-1 ring-black/10 hover:brightness-110 transition"
+              class="absolute overflow-hidden rounded px-1 py-0.5 text-left text-2xs leading-tight text-white shadow-sm hover:brightness-110 transition"
+              :class="isOngoing(b.ev, today) ? 'ring-[1.5px] ring-info' : 'ring-1 ring-black/10'"
               :style="{
                 top: `${b.top}px`,
                 height: `${b.height}px`,
@@ -229,6 +248,7 @@ onMounted(() => {
             >
               <div class="font-medium truncate">{{ b.ev.title }}</div>
               <div class="opacity-80 truncate">{{ hhmm(b.start) }}</div>
+              <div v-if="isOngoing(b.ev, today)" class="truncate font-medium">{{ t('calendar.view.ongoing') }}</div>
             </button>
           </div>
         </div>

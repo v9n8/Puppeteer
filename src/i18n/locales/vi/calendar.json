@@ -49,7 +49,17 @@
     "deleteMessage": "Xóa \"{name}\"?",
     "deleteSuccess": "Đã xóa event.",
     "deleteAuthError": "Không đủ quyền. Hãy kết nối lại tài khoản trong Settings.",
-    "deleteFailed": "Xóa thất bại: {msg}"
+    "deleteFailed": "Xóa thất bại: {msg}",
+    "previousKey": "Trước (←)",
+    "nextKey": "Sau (→)",
+    "todayKey": "Hôm nay (T)",
+    "weekKey": "Tuần (W)",
+    "monthKey": "Tháng (M)",
+    "createKey": "Tạo event (N)",
+    "ongoing": "Đang diễn ra",
+    "minutesLeft": "còn {n} phút",
+    "nowAt": "Bây giờ {time}",
+    "retry": "Thử lại"
   },
   "editor": {
     "createTitle": "Tạo event",

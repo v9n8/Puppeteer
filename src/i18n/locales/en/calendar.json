@@ -49,7 +49,17 @@
     "deleteMessage": "Delete \"{name}\"?",
     "deleteSuccess": "Event deleted.",
     "deleteAuthError": "Not enough permission. Reconnect the account in Settings.",
-    "deleteFailed": "Delete failed: {msg}"
+    "deleteFailed": "Delete failed: {msg}",
+    "previousKey": "Previous (←)",
+    "nextKey": "Next (→)",
+    "todayKey": "Today (T)",
+    "weekKey": "Week (W)",
+    "monthKey": "Month (M)",
+    "createKey": "Create event (N)",
+    "ongoing": "Happening now",
+    "minutesLeft": "{n} min left",
+    "nowAt": "Now {time}",
+    "retry": "Retry"
   },
   "editor": {
     "createTitle": "Create event",

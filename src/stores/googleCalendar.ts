@@ -4,6 +4,7 @@ import { translateText } from '@/lib/translate'
 import { ref, computed } from 'vue'
 import { emit, listen } from '@tauri-apps/api/event'
 import { startOfWeek, addDays, startOfMonth, endOfMonth, colorForIndex } from '@/lib/calendar'
+import { mergeAccountEvents } from '@/lib/calendarNow'
 
 /**
  * State for the unified Google Calendar screen. Events for ALL connected
@@ -465,6 +466,47 @@ export const useGoogleCalendarStore = defineStore('googleCalendar', () => {
     prefetchNeighbors()
   }
 
+  /** Accounts whose "Retry" is in flight (blocks a second click). */
+  const retrying = ref<Set<string>>(new Set())
+
+  /**
+   * Re-fetch the viewed range for ONE failed account and fold the result into
+   * the events, errors and cache entry of that range. If the user changed range
+   * meanwhile, only the cache entry (the range that was retried) is updated.
+   */
+  async function retryAccount(accountId: string) {
+    if (retrying.value.has(accountId)) return
+    const mode = viewMode.value
+    const date = anchorDate.value
+    const key = keyFor(date, mode)
+    const { start, end } = boundsFor(date, mode)
+    retrying.value = new Set(retrying.value).add(accountId)
+    try {
+      const res = await invoke<EventsResult>('list_google_calendar_events', {
+        accountIds: [accountId],
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+      })
+      const onScreen = keyFor(anchorDate.value, viewMode.value) === key
+      const base = cache.get(key) ?? (onScreen ? { events: events.value, errors: errors.value } : null)
+      if (!base) return
+      const merged = mergeAccountEvents(base.events, accountId, res.events)
+      const mergedErrors = [...base.errors.filter(e => e.account_id !== accountId), ...res.errors]
+      cache.set(key, { events: merged, errors: mergedErrors, ts: Date.now() })
+      if (onScreen) {
+        events.value = merged
+        errors.value = mergedErrors
+        ingestForReminders(merged, start, end)
+      }
+    } catch (e) {
+      error.value = String(e)
+    } finally {
+      const next = new Set(retrying.value)
+      next.delete(accountId)
+      retrying.value = next
+    }
+  }
+
   /**
    * After a write, drop all cached ranges and re-fetch the visible range so the
    * grid reflects the change. We clear the whole cache (cheap — a handful of
@@ -591,6 +633,8 @@ export const useGoogleCalendarStore = defineStore('googleCalendar', () => {
     fetchAccounts,
     fetchCalendars,
     fetchEvents,
+    retryAccount,
+    retrying,
     createEvent,
     updateEvent,
     deleteEvent,

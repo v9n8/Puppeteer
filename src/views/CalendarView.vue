@@ -5,10 +5,10 @@ import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import {
-  ChevronLeft, ChevronRight, Loader2, CalendarDays,
+  Loader2, CalendarDays,
   ExternalLink, MapPin, Clock, CalendarRange, User, Timer,
   Video, Paperclip, AlignLeft, Settings2, Check, Languages, Bell, Moon,
-  Plus, Pencil, Trash2, Pin, PinOff,
+  Pencil, Trash2, Pin, PinOff,
 } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { emit as emitEvent } from '@tauri-apps/api/event'
@@ -16,8 +16,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { CALENDAR_WINDOW_OPEN_ROUTE, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
 import { translateText } from '@/lib/translate'
-import { Button, Badge, Drawer, AppSelect, Modal, PageHeader, SegmentedControl, Banner } from '@/components/ui'
-import { useGoogleCalendarStore, type CalEvent, type ViewMode } from '@/stores/googleCalendar'
+import { Button, Badge, Drawer, AppSelect, Modal, PageHeader } from '@/components/ui'
+import { useGoogleCalendarStore, type CalEvent } from '@/stores/googleCalendar'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -27,6 +27,11 @@ import { solarToLunar } from '@/lib/lunar'
 import CalendarWeekGrid from '@/components/calendar/CalendarWeekGrid.vue'
 import CalendarMonthGrid from '@/components/calendar/CalendarMonthGrid.vue'
 import EventEditorModal from '@/components/calendar/EventEditorModal.vue'
+import CalendarHeaderControls from '@/components/calendar/CalendarHeaderControls.vue'
+import CalendarErrorBanner from '@/components/calendar/CalendarErrorBanner.vue'
+import { useCalendarKeys } from '@/composables/useCalendarKeys'
+import { useMinuteClock } from '@/composables/useMinuteClock'
+import { isOngoing, minutesLeft } from '@/lib/calendarNow'
 
 // Named explicitly: <KeepAlive :include> in App.vue matches on component name,
 // and an inferred name is a build detail that minification can change.
@@ -94,11 +99,6 @@ const editorMode = ref<'create' | 'edit'>('create')
 const editorEvent = ref<CalEvent | null>(null)
 const editorDefaultStart = ref<Date | null>(null)
 
-const viewModeOptions = computed<{ value: ViewMode, label: string }[]>(() => [
-  { value: 'week', label: t('calendar.view.week') },
-  { value: 'month', label: t('calendar.view.month') },
-])
-
 const hasWritableCalendar = computed(() => store.writableCalendars.length > 0)
 
 const canEditSelected = computed(
@@ -117,6 +117,16 @@ function openCreate(defaultStart?: Date) {
   editorDefaultStart.value = defaultStart ?? null
   editorOpen.value = true
 }
+
+useCalendarKeys(action => {
+  if (!store.accounts.length) return
+  if (action === 'prev') store.step(-1)
+  else if (action === 'next') store.step(1)
+  else if (action === 'today') store.today()
+  else if (action === 'week') store.setViewMode('week')
+  else if (action === 'month') store.setViewMode('month')
+  else if (hasWritableCalendar.value && !editorOpen.value) openCreate()
+})
 
 /** Empty-cell click from a grid (AC-17) — only when a writable calendar exists. */
 function onGridCreate(start: Date) {
@@ -198,7 +208,7 @@ const rangeLabel = computed(() => {
 
 const visibleCount = computed(() => store.visibleEvents.length)
 
-// ── Settings popover (view mode, navigation, account show/hide) ──
+// ── Settings popover (lunar, accounts, translate, reminders) ──
 const settingsOpen = ref(false)
 const settingsWrap = ref<HTMLElement | null>(null)
 onClickOutside(settingsWrap, () => { settingsOpen.value = false })
@@ -254,6 +264,7 @@ watch(
   { immediate: true },
 )
 
+const clock = useMinuteClock()
 const selectedParsed = computed(() =>
   selected.value ? parseEventTime(selected.value) : null,
 )
@@ -418,15 +429,9 @@ function openForAccount(url: string) {
       <template #actions>
         <Loader2 v-if="store.loading" class="h-4 w-4 animate-spin text-muted-foreground" />
 
-        <!-- Create event -->
-        <Button
-          v-if="store.accounts.length && hasWritableCalendar"
-          variant="primary"
-          size="sm"
-          @click="openCreate()"
-        >
-          <Plus class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('calendar.createEvent') }}
-        </Button>
+        <template v-if="store.accounts.length">
+          <CalendarHeaderControls :can-create="hasWritableCalendar" @create="openCreate()" />
+        </template>
 
         <!-- Standalone window: pin on top (same control as the PR Inbox window) -->
         <Button
@@ -458,17 +463,6 @@ function openForAccount(url: string) {
             v-if="settingsOpen"
             class="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-border/60 bg-popover p-3 shadow-xl shadow-black/30"
           >
-            <!-- View mode -->
-            <div class="mb-3">
-              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.viewLabel') }}</div>
-              <SegmentedControl
-                :model-value="store.viewMode"
-                :options="viewModeOptions"
-                :aria-label="t('calendar.view.viewMode')"
-                @update:model-value="store.setViewMode"
-              />
-            </div>
-
             <!-- Lunar calendar -->
             <div class="mb-3">
               <button
@@ -495,20 +489,6 @@ function openForAccount(url: string) {
                   />
                 </span>
               </button>
-            </div>
-
-            <!-- Navigation -->
-            <div class="mb-3">
-              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.navigation') }}</div>
-              <div class="flex items-center gap-1">
-                <Button variant="outline" size="icon" :aria-label="t('calendar.view.previous')" :title="t('calendar.view.previous')" @click="store.step(-1)">
-                  <ChevronLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
-                </Button>
-                <Button variant="outline" size="sm" class="flex-1" @click="store.today()">{{ t('calendar.view.today') }}</Button>
-                <Button variant="outline" size="icon" :aria-label="t('calendar.view.next')" :title="t('calendar.view.next')" @click="store.step(1)">
-                  <ChevronRight class="h-3.5 w-3.5" :stroke-width="1.75" />
-                </Button>
-              </div>
             </div>
 
             <!-- Account show/hide -->
@@ -614,25 +594,7 @@ function openForAccount(url: string) {
       </template>
     </PageHeader>
 
-    <!-- Warnings: accounts missing calendar WRITE scope / per-account fetch errors -->
-    <div
-      v-if="store.accountsMissingWrite.length || store.errors.length"
-      class="px-6 py-2 border-b border-border/60 shrink-0"
-    >
-      <Banner tone="warning">
-        <template v-if="store.accountsMissingWrite.length">
-          {{ t('calendar.missingWriteWarning') }}
-          <b>{{ store.accountsMissingWrite.map(a => a.label).join(', ') }}</b>.
-          {{ t('calendar.missingWriteHint') }}
-        </template>
-        <template v-for="err in store.errors" :key="err.account_id">
-          <div>{{ err.account_label }}: {{ err.message }}</div>
-        </template>
-        <template #actions>
-          <Button variant="outline" size="xs" @click="goSettings">{{ t('calendar.reconnect') }}</Button>
-        </template>
-      </Banner>
-    </div>
+    <CalendarErrorBanner @reconnect="goSettings" />
 
     <!-- Empty state -->
     <div
@@ -693,6 +655,9 @@ function openForAccount(url: string) {
                 {{ selectedParsed.allDay ? t('calendar.view.allDay') : t('calendar.view.timed') }}
               </Badge>
               <Badge tone="neutral" size="sm">{{ relativeDay(selectedParsed.start) }}</Badge>
+              <Badge v-if="isOngoing(selected, clock)" tone="info" size="sm">
+                {{ t('calendar.view.ongoing') }} · {{ t('calendar.view.minutesLeft', { n: minutesLeft(selected, clock) }) }}
+              </Badge>
             </div>
           </div>
         </div>
