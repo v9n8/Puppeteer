@@ -38,7 +38,9 @@ CLAUDE.md
 src-tauri/*.db
 src-tauri/*.db-shm
 src-tauri/*.db-wal
-# AWOG working files (drafts, throwaway scripts) — never part of a commit.
-.awog/scratch/
+# Working files (drafts, throwaway scripts) live in .puppeteer/scratch/ (ignored by .puppeteer/* above).
+# .awog/ is the scratch dir from when the repo was set up in AWOG; kept for old drafts, never committed.
+.awog/
+.puppeteer
 # Local product reports (evaluations, analyses) — not part of the codebase.
 docs/reports/
