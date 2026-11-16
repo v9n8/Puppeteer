@@ -1,5 +1,6 @@
 {
   "projects": "Project",
+  "session": "Session",
   "search": "Tìm kiếm",
   "runs": "Run",
   "prInbox": "Duyệt PR",
@@ -29,5 +30,11 @@
     "secretNotes": "Ghi chú bí mật",
     "settings": "Cài đặt",
     "fileTransfer": "Truyền tệp"
-  }
+  },
+  "groups": {
+    "work": "Làm việc",
+    "mine": "Việc của tôi",
+    "agent": "Agent"
+  },
+  "openInWindow": "Đang mở ở cửa sổ riêng"
 }

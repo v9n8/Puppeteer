@@ -51,5 +51,7 @@
     "noRepos": "No repositories linked",
     "noConnections": "No accounts or servers linked",
     "removeHint": "Moves the project and its sessions to the Trash. Files on disk stay."
-  }
+  },
+  "addIntro": "No project is open. A session runs in a project's folder, so add a project first.",
+  "chooseFolder": "Choose folder…"
 }

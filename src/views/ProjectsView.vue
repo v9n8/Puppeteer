@@ -3,7 +3,7 @@
 // the right. Management only — no click here opens a session; sessions open from
 // the project tabs on the titlebar (D3). `?id=` picks the project, `?tab=` its tab
 // and `?section=` the section in that tab (the old settings page, UX-50).
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useMediaQuery } from '@vueuse/core'
@@ -21,6 +21,8 @@ import { Button, Input, Badge, Modal, Drawer } from '@/components/ui'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import ProjectList from '@/components/projects/ProjectList.vue'
 import ProjectDetailPane from '@/components/projects/ProjectDetailPane.vue'
+import AddProjectIntro from '@/components/projects/AddProjectIntro.vue'
+import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
@@ -31,6 +33,7 @@ const ghStore = useGithubAccountsStore()
 const glStore = useGitlabAccountsStore()
 const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
+const tabs = useWorkspaceTabsStore()
 const { toast } = useToast()
 const adding = ref(false)
 const detecting = ref(false)
@@ -123,6 +126,32 @@ function repoCoords(repo: PendingRepo): string {
     : repo.path
 }
 
+// `?add=1` (sidebar Session with no project tab open): explain, pick a folder,
+// and once the project is added open its Session instead of staying here.
+const introOpen = ref(false)
+const fromSession = ref(false)
+watch(
+  () => route.query.add,
+  (add) => {
+    if (add !== '1') return
+    introOpen.value = true
+    fromSession.value = true
+    const { add: _drop, ...rest } = route.query
+    router.replace({ query: rest })
+  },
+  { immediate: true },
+)
+
+function closeIntro() {
+  introOpen.value = false
+  if (!pending.value) fromSession.value = false
+}
+
+async function pickFromIntro() {
+  await handleAdd()
+  if (pending.value) introOpen.value = false
+}
+
 onMounted(async () => {
   await store.fetchProjects()
   if (ghStore.accounts.length === 0) ghStore.fetch()
@@ -172,6 +201,7 @@ function removeRepoRow(key: number) {
 }
 
 function cancelAdd() {
+  fromSession.value = false
   pending.value = null
   pendingRepos.value = []
   newRepoUrl.value = ''
@@ -201,7 +231,14 @@ async function confirmAdd() {
     pendingRepos.value = []
     newRepoUrl.value = ''
     toast.success(t('projects.toastAdded'))
-    select(project.id)
+    if (fromSession.value) {
+      fromSession.value = false
+      tabs.open(project.id)
+      tabs.touch(project.id)
+      router.push({ name: 'project-run', params: { projectId: project.id } })
+    } else {
+      select(project.id)
+    }
   } catch (e) {
     toast.error(String(e).includes('project_is_home') ? t('projects.errorHomeFolder') : String(e))
   } finally {
@@ -245,6 +282,8 @@ async function confirmAdd() {
         </Button>
       </div>
     </DetailEmpty>
+
+    <AddProjectIntro :open="introOpen" :busy="adding || detecting" @close="closeIntro" @pick="pickFromIntro" />
 
     <!-- Add project modal -->
     <Modal :open="!!pending" size="md" scroll-body :title="t('projects.addProject')" @close="cancelAdd">

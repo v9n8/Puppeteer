@@ -234,7 +234,7 @@ test('gated ids exist in the backend registry', () => {
     ['../navigation.ts', /feature: '([\w.]+)'/g],
     ['../tray.ts', /isOn\('([\w.]+)'\)/g],
     ['../../App.vue', /isOn\('([\w.]+)'\)/g],
-    ['../../components/app/AppSidebar.vue', /isOn\('([\w.]+)'\)/g],
+    ['../../components/app/AppSidebar.vue', /feature: '([\w.]+)'/g],
     ['../settingsSections.ts', /feature: '([\w.]+)'/g],
   ]) {
     for (const [, id] of read(file).matchAll(pattern)) used.add(id)

@@ -24,6 +24,8 @@ import TrashView from '../views/TrashView.vue'
 import { NAV_ROUTES } from '../lib/navigation'
 import { FALLBACK_PATH, routeFeature } from '../lib/featureGate'
 import { useFeaturesStore } from '../stores/features'
+import { useWorkspaceTabsStore } from '../stores/workspaceTabs'
+import { homePath, sessionNavTarget, sessionPath } from '../lib/sidebarNav'
 import { IS_SESSION_WINDOW } from '../lib/windowMode'
 import { getOpenMode } from '../lib/windowPlacement'
 import { SCREEN_OPEN_ROUTE, screenGuard, type ScreenOpenRoute } from '../lib/detachedScreens'
@@ -71,7 +73,19 @@ function editorRedirects(base: string): RouteRecordRaw[] {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/projects' },
+    // Start-up lands on the tab used last (the store reads localStorage when created).
+    { path: '/', redirect: () => {
+      const tabs = useWorkspaceTabsStore()
+      return homePath(tabs.tabs, tabs.recent)
+    } },
+    // Virtual (sidebar Session, Go menu, ⌘K): never rendered or kept in history.
+    // The Session of the tab in use, or the Projects screen asking to add one.
+    { path: '/session', redirect: () => {
+      const tabs = useWorkspaceTabsStore()
+      const params = router.currentRoute.value.params.projectId
+      const target = sessionNavTarget(tabs.tabs, tabs.recent, typeof params === 'string' ? params : null)
+      return target ? sessionPath(target) : { path: '/projects', query: { add: '1' } }
+    } },
     { path: '/library', name: 'library', component: LibraryView },
     // The Library replaced these screens (UX-54); old links, editor URLs included, land on it.
     ...['/skills', '/rules', '/agents', '/commands', '/import'].map((base) => ({

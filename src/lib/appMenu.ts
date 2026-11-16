@@ -97,7 +97,7 @@ function goMenuItems(): ItemSpec[] {
     useFeaturesStore().tree,
   )
   return routes.flatMap((route, index): ItemSpec[] => [
-    // Same grouping as the sidebar dividers.
+    // Same groups as the sidebar.
     ...(startsGroup(routes, index) ? [SEPARATOR] : []),
     { kind: 'item', id: `go.${route.path}`, label: t(route.labelKey) },
   ])

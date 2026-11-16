@@ -1,5 +1,6 @@
 {
   "projects": "Projects",
+  "session": "Session",
   "search": "Search",
   "runs": "Runs",
   "prInbox": "PR Reviews",
@@ -29,5 +30,11 @@
     "secretNotes": "Secret notes",
     "settings": "Settings",
     "fileTransfer": "File Transfer"
-  }
+  },
+  "groups": {
+    "work": "Work",
+    "mine": "My work",
+    "agent": "Agent"
+  },
+  "openInWindow": "Open in its own window"
 }
