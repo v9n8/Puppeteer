@@ -13,3 +13,30 @@ export const IS_SESSION_WINDOW = params.get('sessionWindow') === '1'
 /** The project / run the session window was opened for (null in every other window). */
 export const SESSION_WINDOW_PROJECT_ID = params.get('projectId')
 export const SESSION_WINDOW_RUN_ID = params.get('runId')
+
+// Pop-out windows load the same SPA with a query flag; render a bare,
+// chrome-less host (no sidebar / nav / background work) in those cases.
+export const IS_FILE_WINDOW = params.get('fileWindow') === '1'
+export const IS_PERMISSION_WINDOW = params.get('permissionWindow') === '1'
+export const IS_ITEM_WINDOW = params.get('itemWindow') === '1'
+export const IS_ITEM_LIST_WINDOW = params.get('itemListWindow') === '1'
+export const IS_SECRET_NOTES_WINDOW = params.get('secretNotesWindow') === '1'
+export const IS_GANTT_WINDOW = params.get('ganttWindow') === '1'
+export const IS_SLACK_WINDOW = params.get('slackWindow') === '1'
+export const IS_PR_INBOX_WINDOW = params.get('prInboxWindow') === '1'
+export const IS_CALENDAR_WINDOW = params.get('calendarWindow') === '1'
+export const IS_FOCUS_WINDOW = params.get('focusWindow') === '1'
+export const IS_FILE_TRANSFER_WINDOW = params.get('fileTransferWindow') === '1'
+// All pop-out kinds only need the theme applied; skip the main app's data work.
+export const IS_POPOUT_WINDOW =
+  IS_FILE_WINDOW ||
+  IS_PERMISSION_WINDOW ||
+  IS_ITEM_WINDOW ||
+  IS_ITEM_LIST_WINDOW ||
+  IS_SECRET_NOTES_WINDOW ||
+  IS_GANTT_WINDOW ||
+  IS_SLACK_WINDOW ||
+  IS_PR_INBOX_WINDOW ||
+  IS_CALENDAR_WINDOW ||
+  IS_FOCUS_WINDOW ||
+  IS_FILE_TRANSFER_WINDOW

@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
-import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { type UnlistenFn } from '@tauri-apps/api/event'
 import { useProjectsStore } from '@/stores/projects'
 import { useFocusStore } from '@/stores/focus'
-import { openFocusWindow } from '@/lib/focusWindow'
-import { FOCUS_OPEN_WINDOW, type FocusOpenTodo } from '@/lib/focus'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
@@ -13,8 +11,6 @@ import { useUILayoutStore } from '@/stores/uiLayout'
 import { useFeaturesStore } from '@/stores/features'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
-import { ListTodo, LockKeyhole, PanelLeftClose, PanelLeftOpen, PowerOff, Slack, StickyNote, Trash2 } from 'lucide-vue-next'
-import { EVT_TRASH_CHANGED } from '@/lib/trash'
 import PermissionNotifier from '@/components/PermissionNotifier.vue'
 import InterruptedRunsBanner from '@/components/InterruptedRunsBanner.vue'
 import PermissionWindowManager from '@/components/PermissionWindowManager.vue'
@@ -22,49 +18,22 @@ import CalendarReminder from '@/components/CalendarReminder.vue'
 import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WhatsNewModal from '@/components/WhatsNewModal.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
-import WorkspaceTabs from '@/components/WorkspaceTabs.vue'
-import ProjectSwitcher from '@/components/ProjectSwitcher.vue'
 import ProjectQuickView from '@/components/projects/ProjectQuickView.vue'
 import SettingsModal from '@/components/settings/SettingsModal.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
-import ActiveRunsDock from '@/components/ActiveRunsDock.vue'
 import RemoteIndicator from '@/components/RemoteIndicator.vue'
 import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
 import RemoteDesktopAlert from '@/components/remote/RemoteDesktopAlert.vue'
-import FileViewerWindow from '@/views/FileViewerWindow.vue'
-import PermissionWindow from '@/views/PermissionWindow.vue'
-import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
+import { ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
 import SelectionToolbar from '@/components/SelectionToolbar.vue'
-import ItemWindow from '@/views/ItemWindow.vue'
-import ItemListWindow from '@/views/ItemListWindow.vue'
-import SecretNotesWindow from '@/views/SecretNotesWindow.vue'
-import SlackThreadsWindow from '@/views/SlackThreadsWindow.vue'
-import PrInboxWindow from '@/views/PrInboxWindow.vue'
-import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
-import CalendarWindow from '@/views/CalendarWindow.vue'
-import { CALENDAR_WINDOW_OPEN_ROUTE, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
-import FocusWindow from '@/views/FocusWindow.vue'
-import FileTransferWindow from '@/views/FileTransferWindow.vue'
-import {
-  SLACK_API_RECEIVED,
-  type SlackApiReceived,
-  SLACK_NOTIFICATION_CLICKED,
-  type SlackNotificationClicked,
-  openSlackWindow,
-  SLACK_WINDOW_OPEN_ROUTE,
-  type SlackWindowOpenRoute,
-} from '@/lib/slackWindow'
-import {
-  WINDOW_NEW_SESSION,
-  WINDOW_OPEN_RUN,
-  createdFromSource,
-  linkTargetRun,
-  type WindowNewSession,
-  type WindowOpenRun,
-} from '@/lib/sessionLinks'
-import { useChatDraftsStore } from '@/stores/chatDrafts'
+import AppPopoutHost from '@/components/app/AppPopoutHost.vue'
+import AppTitlebar from '@/components/app/AppTitlebar.vue'
+import AppSidebar from '@/components/app/AppSidebar.vue'
+import { openSlackWindow } from '@/lib/slackWindow'
 import { useToast } from '@/composables/useToast'
+import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
+import { useMainWindowEvents } from '@/composables/useMainWindowEvents'
 import { useAgentAmbient } from '@/composables/useAgentAmbient'
 import { useFindShortcut } from '@/composables/usePageFind'
 import { normalizeColorTheme } from '@/lib/colorThemes'
@@ -81,34 +50,23 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { remoteFs } from '@/lib/ipc/native'
 import { NAV_ROUTES } from '@/lib/navigation'
-import { fallbackPath, filterByFeature, popoutFeature, startsGroup } from '@/lib/featureGate'
-import { IS_SESSION_WINDOW, SESSION_WINDOW_PROJECT_ID, SESSION_WINDOW_RUN_ID } from '@/lib/windowMode'
-import IssuesGanttView from '@/views/IssuesGanttView.vue'
-import { getVersion } from '@tauri-apps/api/app'
+import { fallbackPath } from '@/lib/featureGate'
+import {
+  IS_POPOUT_WINDOW,
+  IS_SECRET_NOTES_WINDOW,
+  IS_SESSION_WINDOW,
+  SESSION_WINDOW_PROJECT_ID,
+  SESSION_WINDOW_RUN_ID,
+} from '@/lib/windowMode'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useRunsStore } from '@/stores/runs'
-import { useConductorStore } from '@/stores/conductor'
-import { refreshTray, buildSessionItems, TRAY_OPEN_RUN, type TrayOpenRun } from '@/lib/tray'
-import { focusSessionWindow } from '@/lib/sessionWindow'
+import { refreshTray, buildSessionItems } from '@/lib/tray'
 import { useBackgroundProcessesStore } from '@/stores/backgroundProcesses'
-import { EVT_TRAY_OPEN } from '@/lib/backgroundProcesses'
-import BackgroundProcessesDock from '@/components/processes/BackgroundProcessesDock.vue'
 import OrphanProcessesPrompt from '@/components/processes/OrphanProcessesPrompt.vue'
 import QuitProcessesDialog from '@/components/processes/QuitProcessesDialog.vue'
 
-// Pop-out windows load the same SPA with a query flag; render a bare,
-// chrome-less host (no sidebar / nav / background work) in those cases.
-const isFileWindow = new URLSearchParams(window.location.search).get('fileWindow') === '1'
-const isPermissionWindow = new URLSearchParams(window.location.search).get('permissionWindow') === '1'
-const isItemWindow = new URLSearchParams(window.location.search).get('itemWindow') === '1'
-const isItemListWindow = new URLSearchParams(window.location.search).get('itemListWindow') === '1'
-const isSecretNotesWindow = new URLSearchParams(window.location.search).get('secretNotesWindow') === '1'
-const isGanttWindow = new URLSearchParams(window.location.search).get('ganttWindow') === '1'
-const isSlackWindow = new URLSearchParams(window.location.search).get('slackWindow') === '1'
-const isPrInboxWindow = new URLSearchParams(window.location.search).get('prInboxWindow') === '1'
-const isCalendarWindow = new URLSearchParams(window.location.search).get('calendarWindow') === '1'
-const isFocusWindow = new URLSearchParams(window.location.search).get('focusWindow') === '1'
-const isFileTransferWindow = new URLSearchParams(window.location.search).get('fileTransferWindow') === '1'
+// Pop-out windows (flags read once in lib/windowMode) render a bare,
+// chrome-less host (no sidebar / nav / background work): AppPopoutHost.
 // A session pop-out is different from the bare pop-outs above: it reuses the full
 // RunView (routed to one run) with the app chrome hidden, so it still needs the
 // stores + router — only the sidebar / nav / docks / app-wide notifiers are cut.
@@ -116,20 +74,7 @@ const isFileTransferWindow = new URLSearchParams(window.location.search).get('fi
 // the URL out from under us on the first navigation.
 const isSessionWindow = IS_SESSION_WINDOW
 // All pop-out kinds only need the theme applied; skip the main app's data work.
-const isPopoutWindow =
-  isFileWindow ||
-  isPermissionWindow ||
-  isItemWindow ||
-  isItemListWindow ||
-  isSecretNotesWindow ||
-  isGanttWindow ||
-  isSlackWindow ||
-  isPrInboxWindow ||
-  isCalendarWindow ||
-  isFocusWindow ||
-  isFileTransferWindow
-// The feature a gated pop-out (Focus, PR Inbox, Todos, …) belongs to, if this is one.
-const gatedPopout = popoutFeature(window.location.search)
+const isPopoutWindow = IS_POPOUT_WINDOW
 
 const route = useRoute()
 const router = useRouter()
@@ -141,13 +86,10 @@ const tabsStore = useWorkspaceTabsStore()
 const uiLayout = useUILayoutStore()
 const live = useLiveRunsStore()
 const runsStore = useRunsStore()
-const conductorStore = useConductorStore()
 const bgProcs = useBackgroundProcessesStore()
 const features = useFeaturesStore()
-const gatedPopoutOn = computed(() => !!gatedPopout && features.loaded && features.isOn(gatedPopout))
 // Agent-reactive aurora (`<html data-agent-state>`) — main window only.
 if (!isPopoutWindow && !isSessionWindow) useAgentAmbient()
-const draftsStore = useChatDraftsStore()
 const { toast } = useToast()
 const { t, locale } = useI18n()
 
@@ -221,77 +163,9 @@ if (!isPopoutWindow && !isSessionWindow) {
   )
 }
 
-// A session row in the menu-bar switcher (or a linked session in the Slack /
-// Notes / Todos windows) was clicked: show the run where it lives — its own
-// pop-out if it has one, otherwise this window. `projectHint` covers runs this
-// window never loaded.
-async function openRunFromTray(runId: string, projectHint?: string) {
-  if (await focusSessionWindow(runId)) return
-  const projectId =
-    live.sessions.get(runId)?.projectId ?? runsStore.runMeta.get(runId)?.project_id ?? projectHint
-  if (!projectId) return
-  try {
-    const win = getCurrentWebviewWindow()
-    await win.unminimize()
-    await win.show()
-    await win.setFocus()
-  } catch {
-    /* best-effort focus */
-  }
-  live.markSeen(runId)
-  // Open the project's workspace tab before routing — the run workspace is
-  // driven by the tabs store (see PermissionNotifier.navigateToRun).
-  tabsStore.open(projectId, runId)
-  router
-    .push({ name: 'project-run-detail', params: { projectId, runId } })
-    .catch(() => {})
-}
-
-// A router-less pop-out (Slack threads / PR Inbox window) asked to show an app
-// screen: bring this window forward and navigate. Only in-app paths.
-async function openRouteFromWindow(path: string | undefined) {
-  if (!path || !path.startsWith('/')) return
-  try {
-    const win = getCurrentWebviewWindow()
-    await win.unminimize()
-    await win.show()
-    await win.setFocus()
-  } catch {
-    /* best-effort focus */
-  }
-  router.push(path).catch(() => {})
-}
-
-// "New session from this thread / note / todo" in a pop-out: the session is
-// created here, where the drafts store lives, its composer is prefilled with
-// the target's reference (not sent), the target is linked to it, then it opens.
-// One request per target at a time: a double click must not create two sessions.
-const newSessionPending = new Set<string>()
-async function newSessionFromWindow({ projectId, text, target }: WindowNewSession) {
-  const key = `${target.kind}:${target.id}`
-  if (newSessionPending.has(key)) return
-  newSessionPending.add(key)
-  try {
-    let runId: string
-    try {
-      runId = (await runsStore.createSessionRun(projectId)).id
-    } catch (e) {
-      toast.error(t('run.createSessionFailed', { error: String(e) }))
-      return
-    }
-    draftsStore.set(runId, { text, images: [], files: [] })
-    try {
-      await linkTargetRun(target, runId, createdFromSource(target.kind))
-    } catch (e) {
-      // Best-effort: the session and its prefilled composer still open.
-      console.warn('[links] linking the new session failed', e)
-    }
-    await runsStore.refreshMeta(projectId).catch(() => {})
-    await openRunFromTray(runId, projectId)
-  } finally {
-    newSessionPending.delete(key)
-  }
-}
+// Tray rows and pop-outs asking the main window to open a run / a screen / a
+// new session (attached in onMounted, main window only).
+const { listenMainWindowEvents } = useMainWindowEvents()
 
 // The page on screen whose feature was just switched off (Settings, another
 // window, a remote desktop) moves away, as the router guard would on entry.
@@ -361,38 +235,6 @@ watch(
   { immediate: true },
 )
 
-// Global listener that mirrors backend-reported active runs into the liveRuns
-// store (see onMounted). Torn down on unmount to avoid a dangling subscription.
-let unlistenActivated: UnlistenFn | null = null
-
-// Listener for a session row clicked in the menu-bar switcher (see lib/tray.ts).
-let unlistenTrayRun: UnlistenFn | null = null
-let unlistenFocusOpen: UnlistenFn | null = null
-
-// Listener for the tray's "Background processes" row (lib/tray.ts).
-let unlistenTrayProcs: UnlistenFn | null = null
-
-// Listener for a clicked Slack thread OS notification (see lib/slackWindow.ts).
-let unlistenCaptureNotification: UnlistenFn | null = null
-
-// Listener for a Slack thread received over the Inbox API (see lib/slackWindow.ts).
-let unlistenSlackApiReceived: UnlistenFn | null = null
-
-// Listener for the Slack threads window asking to navigate (e.g. to the MCP settings).
-let unlistenSlackRoute: UnlistenFn | null = null
-
-// Listener for the PR Inbox window asking to navigate (e.g. "Add to puppeteer").
-let unlistenPrInboxRoute: UnlistenFn | null = null
-let unlistenCalendarRoute: UnlistenFn | null = null
-
-// Listeners for the Slack / Notes / Todos windows opening a linked session or
-// starting a new one (lib/sessionLinks).
-let unlistenWindowRun: UnlistenFn | null = null
-let unlistenWindowNewSession: UnlistenFn | null = null
-// Projects moved to / out of the Trash (any window, a remote desktop): the
-// project list (Projects grid, tabs, palette) follows.
-let unlistenTrashChanged: UnlistenFn | null = null
-
 // True when the event target is a text-entry surface where Backspace/navigation
 // keys are legitimately used to edit text.
 function isEditableTarget(el: EventTarget | null): boolean {
@@ -445,6 +287,7 @@ const sidebarVisible = computed(
 // screen or the last one used; RunView binds it again on top while open, so
 // there it keeps the composer's engine choice.
 const switcher = useProjectSwitcher()
+const routeCaptureContext = useRouteCaptureContext()
 
 /** Open the titlebar switcher, bringing the titlebar back first in focus mode. */
 async function openSwitcher() {
@@ -544,40 +387,7 @@ watch([locale, () => features.tree], () => {
   void refreshTray()
 })
 
-// File the capture under whatever the user is looking at, so capturing from a
-// run needs no project picking at all.
-function routeCaptureContext() {
-  return {
-    projectId: typeof route.params.projectId === 'string' ? route.params.projectId : null,
-    runId: typeof route.params.runId === 'string' ? route.params.runId : null,
-  }
-}
-
 onBeforeUnmount(() => {
-  unlistenActivated?.()
-  unlistenActivated = null
-  unlistenTrayRun?.()
-  unlistenTrayRun = null
-  unlistenFocusOpen?.()
-  unlistenFocusOpen = null
-  unlistenTrayProcs?.()
-  unlistenTrayProcs = null
-  unlistenCaptureNotification?.()
-  unlistenCaptureNotification = null
-  unlistenSlackApiReceived?.()
-  unlistenSlackApiReceived = null
-  unlistenSlackRoute?.()
-  unlistenSlackRoute = null
-  unlistenPrInboxRoute?.()
-  unlistenPrInboxRoute = null
-  unlistenCalendarRoute?.()
-  unlistenCalendarRoute = null
-  unlistenWindowRun?.()
-  unlistenWindowRun = null
-  unlistenWindowNewSession?.()
-  unlistenWindowNewSession = null
-  unlistenTrashChanged?.()
-  unlistenTrashChanged = null
   unbindMenuActions?.()
   unbindMenuActions = null
   unlistenMenu?.()
@@ -586,32 +396,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onSwitcherShortcut)
 })
 
-// App version shown in the sidebar footer; read from Tauri so it always matches
-// the packaged build (tauri.conf.json) instead of a hardcoded string.
-const appVersion = ref('')
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('keydown', onGlobalNavKeyGuard, true)
   window.addEventListener('keydown', onSwitcherShortcut)
-  try {
-    appVersion.value = await getVersion()
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
 })
-
-// Same source of truth as the native "Go" menu (see lib/navigation.ts). Empty
-// until the feature switches load, so a gated entry never shows, then vanishes.
-const navItems = computed(() =>
-  features.loaded
-    ? filterByFeature(NAV_ROUTES, features.tree).map((r) => ({
-        path: r.path,
-        label: t(r.labelKey),
-        icon: r.icon,
-        group: r.group,
-        openWindow: r.openWindow,
-      }))
-    : [],
-)
 
 const isDark = ref(false)
 
@@ -704,151 +492,7 @@ onMounted(async () => {
   // pop-outs re-send as they open — see lib/tray.ts / lib/sessionWindow.ts).
   void refreshTray()
 
-  // Attach per-run listeners for any run the backend reports as active — even
-  // ones this window never opened (started/resumed from a remote Controller, or
-  // still live after a restart). This is what lets a remotely-driven run's
-  // permission / question prompts surface on the desktop (active-runs dock +
-  // native notification), not just on the phone. `startListening` is idempotent,
-  // so re-announcing a locally-started run is a harmless no-op.
-  try {
-    unlistenActivated = await listen<{ run_id: string; project_id: string }>(
-      'run:activated',
-      async (e) => {
-        const { run_id, project_id } = e.payload ?? {}
-        if (!run_id || !project_id) return
-        // `activate` (not just `startListening`): on a backend-driven resume the
-        // listeners survived the previous turn, so only this resets the stale
-        // terminal status that would otherwise let the session be evicted.
-        live.activate(run_id, project_id).catch(() => {})
-        // A freshly-spawned run (notably a conductor's worker) lands in
-        // live.sessions the instant it activates, but the dock groups workers
-        // under their conductor via runMeta[run].conductor_run_id — which only
-        // list_runs fills. Without this, a new worker flashes as a standalone
-        // row until something opens a RunView for its project and refetches.
-        // refreshMeta learns the worker's conductor so the dock nests it at
-        // once; when the run is in the on-screen project it also refreshes the
-        // foreground runs list (quietly, no loading flash) so RunView's History
-        // gives the conductor its expand chevron immediately too.
-        if (!runsStore.runMeta.has(run_id)) {
-          await runsStore.refreshMeta(project_id).catch(() => {})
-        }
-        // Worker of the conductor currently open in a RunView? Refresh that
-        // conductor's right-side worker panel too. The panel is otherwise driven
-        // ONLY by the per-select `conductor:changed` listener — a single point of
-        // failure that, if it misses or is torn down, leaves a freshly-spawned
-        // worker invisible until the user reopens the session. Piggybacking on
-        // this always-on `run:activated` signal (the same one the dock trusts)
-        // makes the new worker appear in the panel the instant it activates.
-        const meta = runsStore.runMeta.get(run_id)
-        if (meta?.conductor_run_id && meta.conductor_run_id === conductorStore.selectedId) {
-          conductorStore.refreshDetail().catch(() => {})
-        }
-      },
-    )
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  try {
-    unlistenTrayRun = await listen<TrayOpenRun>(TRAY_OPEN_RUN, (e) => {
-      if (e.payload?.runId) void openRunFromTray(e.payload.runId)
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // A Focus reminder click (or the tray's Focus row) while the Focus window is
-  // closed: open it here; it picks the todo up itself (`focus_take_open_todo`).
-  try {
-    unlistenFocusOpen = await listen<FocusOpenTodo>(FOCUS_OPEN_WINDOW, () => {
-      void openFocusWindow()
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // The tray's "Background processes" row: show the Processes screen here.
-  try {
-    unlistenTrayProcs = await listen(EVT_TRAY_OPEN, () => {
-      void openRouteFromWindow('/processes')
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // A clicked "Slack thread translated / failed" notification opens the Slack
-  // threads window on that thread. Registered here, past the pop-out / session
-  // early returns, so only the main window handles it.
-  try {
-    unlistenCaptureNotification = await listen<SlackNotificationClicked>(
-      SLACK_NOTIFICATION_CLICKED,
-      (e) => {
-        const { id, kind } = e.payload ?? {}
-        if (id && kind === 'slack') void openSlackWindow({ id })
-      },
-    )
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // A Slack thread sent from the browser extension opens the Slack threads
-  // window on it right away (it fills in as the background job progresses).
-  try {
-    unlistenSlackApiReceived = await listen<SlackApiReceived>(SLACK_API_RECEIVED, (e) => {
-      if (e.payload?.id) void openSlackWindow({ id: e.payload.id })
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // The Slack threads window has no router of this app: it asks the main window
-  // to focus itself and navigate (e.g. to the MCP settings when no token is set).
-  try {
-    unlistenSlackRoute = await listen<SlackWindowOpenRoute>(SLACK_WINDOW_OPEN_ROUTE, (e) => {
-      void openRouteFromWindow(e.payload?.path)
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // Same for the PR Inbox window (e.g. "Add to puppeteer" → the Projects screen).
-  try {
-    unlistenPrInboxRoute = await listen<PrInboxWindowOpenRoute>(PR_INBOX_WINDOW_OPEN_ROUTE, (e) => {
-      void openRouteFromWindow(e.payload?.path)
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // Same for the Calendar window (e.g. "Reconnect" → the Settings screen).
-  try {
-    unlistenCalendarRoute = await listen<CalendarWindowOpenRoute>(CALENDAR_WINDOW_OPEN_ROUTE, (e) => {
-      void openRouteFromWindow(e.payload?.path)
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  // Linked sessions / "New session from this …" of the Slack, Notes and Todos
-  // windows (no router of this app there).
-  try {
-    unlistenWindowRun = await listen<WindowOpenRun>(WINDOW_OPEN_RUN, (e) => {
-      const { projectId, runId } = e.payload ?? {}
-      if (projectId && runId) void openRunFromTray(runId, projectId)
-    })
-    unlistenWindowNewSession = await listen<WindowNewSession>(WINDOW_NEW_SESSION, (e) => {
-      const p = e.payload
-      if (p?.projectId && p.target?.id) void newSessionFromWindow(p)
-    })
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
-
-  try {
-    unlistenTrashChanged = await listen(EVT_TRASH_CHANGED, () => void projectsStore.fetchProjects())
-  } catch {
-    // Ignore (e.g. running outside the Tauri shell during dev in a browser).
-  }
+  await listenMainWindowEvents()
 
   // Load projects up front so app-wide UI (e.g. permission notifications) can
   // resolve project names without waiting for the Projects view to open.
@@ -867,83 +511,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- A gated pop-out whose feature is off (or, blank, not loaded yet): a notice
-       instead of the window, so one left open when the switch flipped stops. -->
-  <div
-    v-if="gatedPopout && !gatedPopoutOn"
-    class="app-shell flex h-screen w-screen items-center justify-center bg-background p-6 text-foreground"
-  >
-    <div v-if="features.loaded" class="flex max-w-sm flex-col items-center gap-3 text-center">
-      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-        <PowerOff class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <p class="text-sm font-semibold">{{ t('features.disabled.title') }}</p>
-      <p class="text-xs text-muted-foreground">{{ t('features.disabled.body') }}</p>
-    </div>
-  </div>
-
-  <!-- Pop-out file viewer window: bare layout, no app chrome. -->
-  <FileViewerWindow v-else-if="isFileWindow" />
-
-  <!-- Pop-out permission prompt window: bare layout, mirrors the main window. -->
-  <PermissionWindow v-else-if="isPermissionWindow" />
-
-  <!-- THE todo / note window: create or edit, the only place either is written. -->
-  <ItemWindow v-else-if="isItemWindow" />
-
-  <!-- THE todo / note LIST window: stands beside the main window, replacing the drawer. -->
-  <ItemListWindow v-else-if="isItemListWindow" />
-
-  <!-- THE Secret notes window: the password-sealed vault (local only). -->
-  <SecretNotesWindow v-else-if="isSecretNotesWindow" />
-
-  <!-- THE Slack threads window: Slack-like reader of the fetched + translated threads. -->
-  <SlackThreadsWindow v-else-if="isSlackWindow" />
-
-  <!-- THE PR Inbox window: the PR Inbox screen on its own OS window. -->
-  <PrInboxWindow v-else-if="isPrInboxWindow" />
-
-  <!-- THE Calendar window: the Calendar screen on its own OS window. -->
-  <CalendarWindow v-else-if="isCalendarWindow" />
-
-  <!-- THE Focus window: the Focus board on its own OS window. -->
-  <FocusWindow v-else-if="isFocusWindow" />
-
-  <!-- THE File Transfer window (remote desktop only): this machine ⇄ the controlled Puppeteer. -->
-  <FileTransferWindow v-else-if="isFileTransferWindow" />
-
-  <!-- Pop-out Gantt window: bare Gantt chart on its own OS window. -->
-  <!-- Gantt pop-out: the board plus the dialog / toast hosts its row menu
-       ("+ Todo") needs, like PrInboxWindow. -->
-  <div
-    v-else-if="isGanttWindow"
-    class="app-shell flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
-  >
-    <IssuesGanttView class="min-h-0 flex-1" />
-    <ConfirmModal />
-    <ToastHost />
-  </div>
-
-  <!-- Session pop-out: one run in its own OS window. Reuses the full RunView via
-       the router, but with no sidebar / nav / docks / app-wide notifiers — just
-       the conversation, its toolbar and composer. -->
-  <div
-    v-else-if="isSessionWindow"
-    class="app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden"
-  >
-    <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
-      <div class="flex-1 min-w-0 overflow-auto">
-        <RouterView />
-      </div>
-    </main>
-    <!-- Overlay hosts the run screen relies on; NOT PermissionNotifier /
-         CalendarReminder — those stay owned by the main window. -->
-    <SettingsModal />
-    <ConfirmModal />
-    <PromptModal />
-    <ToastHost />
-    <ImageCompareHost />
-  </div>
+  <!-- Every pop-out kind and the session pop-out (a gated pop-out whose
+       feature is off is always one of the pop-outs, so it lands here too). -->
+  <AppPopoutHost v-if="isPopoutWindow || isSessionWindow" />
 
   <div v-else class="app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden">
     <!-- Unified title bar: brand + open-project tabs + global actions on ONE 44px
@@ -953,31 +523,7 @@ onMounted(async () => {
          its own any more, so nothing competes with a view's header for the top
          line, and the run screen gains back ~52px of height for the conversation.
          Hidden in focus mode, where the point is no chrome at all. -->
-    <header
-      v-if="!(uiLayout.focusMode && isRunRoute)"
-      class="app-titlebar flex items-center gap-2 h-11 px-3 shrink-0 bg-sidebar border-b border-border/50"
-    >
-      <img src="/logo.png" alt="Puppeteer" class="h-[18px] w-[18px] rounded shrink-0" />
-      <p class="text-sm font-semibold leading-none tracking-tight shrink-0">Puppeteer</p>
-      <div class="h-4 w-px bg-border shrink-0 mx-1" aria-hidden="true" />
-
-      <WorkspaceTabs />
-      <!-- Right after the last tab: it adds projects to the strip (UX-09). -->
-      <ProjectSwitcher />
-
-      <!-- Sits here rather than inside the sidebar: a "hide" button that
-           disappears along with the thing it hides can't bring it back. -->
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="shrink-0 ml-auto"
-        :title="uiLayout.sidebarHidden ? t('menu.showSidebar') : t('menu.hideSidebar')"
-        :aria-label="uiLayout.sidebarHidden ? t('menu.showSidebar') : t('menu.hideSidebar')"
-        @click="uiLayout.toggleSidebar()"
-      >
-        <component :is="uiLayout.sidebarHidden ? PanelLeftOpen : PanelLeftClose" class="h-4 w-4" :stroke-width="1.75" />
-      </Button>
-    </header>
+    <AppTitlebar v-if="!(uiLayout.focusMode && isRunRoute)" />
 
     <div class="flex flex-1 min-h-0">
     <!-- Sidebar. Hidden either by the title-bar toggle (all routes, persisted) or
@@ -988,152 +534,7 @@ onMounted(async () => {
          It collapses by animating its own width to zero while the inner column
          keeps a fixed 220px, so the nav slides out of view instead of the labels
          reflowing into a squashed mess on the way. -->
-    <Transition name="sidebar">
-      <aside
-        v-if="sidebarVisible"
-        class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border/50"
-      >
-        <div class="w-[220px] h-full flex flex-col">
-          <!-- No brand header: the logo moved to the title bar, so the nav starts
-               at the very top and a view's header owns the first line alone. -->
-          <nav class="flex-1 px-2 py-2.5 space-y-0.5">
-            <template v-for="(item, index) in navItems" :key="item.path">
-              <!-- Todos, Notes and Slack threads are overlays, not destinations:
-                   each opens its own window instead of navigating, so whatever
-                   screen (or running session) is underneath survives untouched.
-                   They close out the daily-work group, right before the config
-                   screens. -->
-              <template v-if="startsGroup(navItems, index) && item.group === 'config'">
-                <button
-                  v-if="features.isOn('productivity.todos')"
-                  type="button"
-                  class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  :title="t('item.navTodos')"
-                  @click="openItemListWindow('todo', { projectId: routeCaptureContext().projectId })"
-                >
-                  <ListTodo class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                  <span class="flex-1 truncate text-left">{{ t('item.navTodos') }}</span>
-                </button>
-
-                <button
-                  v-if="features.isOn('productivity.notes')"
-                  type="button"
-                  class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  :title="t('item.navNotes')"
-                  @click="openItemListWindow('note', { projectId: routeCaptureContext().projectId })"
-                >
-                  <StickyNote class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                  <span class="flex-1 truncate text-left">{{ t('item.navNotes') }}</span>
-                </button>
-
-                <!-- Secret notes: their own window. -->
-                <button
-                  v-if="features.isOn('security.secret_vault')"
-                  type="button"
-                  class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  :title="t('secretNotes.nav')"
-                  @click="openSecretNotesWindow({ projectId: routeCaptureContext().projectId })"
-                >
-                  <LockKeyhole class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                  <span class="flex-1 truncate text-left">{{ t('secretNotes.nav') }}</span>
-                </button>
-
-                <!-- Slack threads have their own window. -->
-                <button
-                  v-if="features.isOn('integrations.slack')"
-                  type="button"
-                  class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  :title="t('slackThread.nav')"
-                  @click="openSlackWindow({ projectId: routeCaptureContext().projectId })"
-                >
-                  <Slack class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                  <span class="flex-1 truncate text-left">{{ t('slackThread.nav') }}</span>
-                </button>
-              </template>
-
-              <!-- Divider between nav groups (daily work / agent config / app). -->
-              <div v-if="startsGroup(navItems, index)" class="mx-3 !my-2 border-t border-border/50" />
-
-              <!-- Destinations with their own window (PR Inbox) open it, like
-                   the Slack button above, instead of routing. -->
-              <button
-                v-if="item.openWindow"
-                type="button"
-                class="relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer select-none text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                :title="`${item.label} — ${t('nav.opensInWindow')}`"
-                @click="item.openWindow()"
-              >
-                <component :is="item.icon" class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                <span class="flex-1 truncate text-left">{{ item.label }}</span>
-                <span class="sr-only">({{ t('nav.opensInWindow') }})</span>
-              </button>
-              <RouterLink
-                v-else
-                :to="item.path"
-                class="relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer select-none"
-                :class="route.path.startsWith(item.path)
-                  ? 'is-active bg-accent text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"
-              >
-                <span
-                  v-if="route.path.startsWith(item.path)"
-                  class="app-nav-indicator absolute left-0 inset-y-[6px] w-[2px] rounded-r-full bg-primary"
-                />
-                <component :is="item.icon" class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-                <span class="flex-1 truncate">{{ item.label }}</span>
-                <span
-                  v-if="item.path === '/focus' && focusStore.overdueCount > 0"
-                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-2xs font-medium text-destructive-foreground leading-none"
-                  :title="t('focus.buckets.overdue')"
-                >
-                  {{ focusStore.overdueCount }}
-                </span>
-                <span
-                  v-if="item.path === '/projects' && (projectsStore.conflicts.length + projectsStore.ruleConflicts.length) > 0"
-                  class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none"
-                >
-                  {{ projectsStore.conflicts.length + projectsStore.ruleConflicts.length }}
-                </span>
-              </RouterLink>
-            </template>
-          </nav>
-
-          <!-- App-wide monitor of concurrent runs + permission center -->
-          <ActiveRunsDock />
-
-          <!-- Warning row while processes outlive their session -->
-          <BackgroundProcessesDock />
-
-          <!-- Trash: reached from the footer and the command palette, not a
-               nav destination of its own. -->
-          <div class="px-2 pb-1.5">
-            <RouterLink
-              to="/trash"
-              class="relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer select-none"
-              :class="route.path.startsWith('/trash')
-                ? 'is-active bg-accent text-foreground font-medium'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"
-            >
-              <span
-                v-if="route.path.startsWith('/trash')"
-                class="app-nav-indicator absolute left-0 inset-y-[6px] w-[2px] rounded-r-full bg-primary"
-              />
-              <Trash2 class="h-[15px] w-[15px] shrink-0" :stroke-width="1.75" />
-              <span class="flex-1 truncate">{{ t('nav.trash') }}</span>
-            </RouterLink>
-          </div>
-
-          <!-- Version footer -->
-          <div class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border/50">
-            <p v-if="appVersion" class="text-2xs text-muted-foreground/50 font-mono">v{{ appVersion }}</p>
-            <!-- This machine's Remote Control dot, or (remote-desktop window) the
-                 link to the controlled Puppeteer; each hides itself elsewhere. -->
-            <RemoteIndicator />
-            <RemoteDesktopIndicator />
-          </div>
-        </div>
-      </aside>
-    </Transition>
+    <AppSidebar :visible="sidebarVisible" />
 
     <!-- Main content -->
     <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -1222,33 +623,5 @@ onMounted(async () => {
   <!-- The window's one selection toolbar, for whichever screen declared a
        selection surface. Never in the Secret vault window: its text must not
        reach Translate or the clipboard shortcuts. -->
-  <SelectionToolbar v-if="!isSecretNotesWindow" />
+  <SelectionToolbar v-if="!IS_SECRET_NOTES_WINDOW" />
 </template>
-
-<style scoped>
-/* Sidebar collapse/expand. Width is set here rather than as a Tailwind class so
-   the transition classes below can override it without a specificity fight. */
-.app-sidebar {
-  width: 220px;
-}
-
-.sidebar-enter-active,
-.sidebar-leave-active {
-  transition: width 180ms ease, opacity 180ms ease;
-}
-
-.sidebar-enter-from,
-.sidebar-leave-to {
-  width: 0;
-  /* The border would otherwise linger as a 1px line at the very end. */
-  border-right-width: 0;
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-enter-active,
-  .sidebar-leave-active {
-    transition: none;
-  }
-}
-</style>
