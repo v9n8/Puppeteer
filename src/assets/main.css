@@ -72,13 +72,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Type scale, one step up from Tailwind's defaults so nothing renders below
- * 12px — 10–11px text breaks up on low-density IPS panels. `text-2xs` (12px)
- * is the floor (badges, meta lines, hints); `text-xs` (13px) is default UI
+ * 13px — 10–12px text breaks up on low-density IPS panels. `text-2xs` (13px,
+ * line-height kept tighter than text-xs so badges stay compact) is the floor
+ * (badges, meta lines, hints); `text-xs` (13px) is default UI
  * text. sm/base/lg keep Tailwind's 14/16/18px. */
 @theme {
   /* Code font; Settings › General may swap it (lib/appFonts sets --font-mono on <html>). */
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --text-2xs: 0.75rem;
+  --text-2xs: 0.8125rem;
   --text-2xs--line-height: 1rem;
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.125rem;
@@ -92,7 +93,7 @@
 .chat-text { --text-scale: var(--chat-text-scale, 1); }
 :root,
 .chat-text {
-  --text-2xs: calc(0.75rem * var(--text-scale));
+  --text-2xs: calc(0.8125rem * var(--text-scale));
   --text-2xs--line-height: calc(1rem * var(--text-scale));
   --text-xs: calc(0.8125rem * var(--text-scale));
   --text-xs--line-height: calc(1.125rem * var(--text-scale));

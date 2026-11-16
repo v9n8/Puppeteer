@@ -52,11 +52,11 @@ cards & floating toolbars · `rounded-full` dots, count pills, avatars.
 ### Typography scale
 
 `text-2xs` and `text-xs` are redefined in `main.css` (`@theme`) so nothing
-renders below 12px — smaller text breaks up on low-density IPS panels.
+renders below 13px — smaller text breaks up on low-density IPS panels.
 
 | Size | Use |
 |---|---|
-| `text-2xs` (12px) | the floor: badges, count pills, Button `xs` text, meta lines, hints under fields, list secondary text, segmented controls, banners, kbd hints |
+| `text-2xs` (13px) | the floor: badges, count pills, Button `xs` text, meta lines, hints under fields, list secondary text, segmented controls, banners, kbd hints |
 | `text-xs` (13px) | default UI text: form fields, Button `sm`, list content |
 | `text-sm` (14px) | page titles (`PageHeader`), list row primary titles, menu items, body copy |
 | `text-base` (16px) | detail-pane title (`DetailHeader`) |
@@ -78,8 +78,8 @@ table. Weights: 400 body, 500 labels/badges, 600 titles — no 300.
 
 | Size | Height | Button | Input / AppSelect / DatePicker | Icon button |
 |---|---|---|---|---|
-| — | 24px `h-6` | — | — | `size="icon-xs"` (dense spots only) |
-| `xs` | 28px `h-7` | `size="xs"` (12px text) | `size="xs"` | `size="icon-sm"` |
+| — | 28px `h-7` | — | — | `size="icon-xs"` (dense spots only) |
+| `xs` | 28px `h-7` | `size="xs"` (13px text) | `size="xs"` | `size="icon-sm"` |
 | `sm` | 32px `h-8` | `size="sm"` (default) | `size="sm"` (default) | `size="icon"` |
 | `md` | 36px `h-9` | `size="md"` | `size="md"` | `size="icon-lg"` |
 
