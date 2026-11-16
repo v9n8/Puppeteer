@@ -979,6 +979,7 @@ mod tests {
             "list_trash",
             "list_response_styles",
             "list_session_flags",
+            "list_board_runs",
             "set_run_flag",
             "get_run_mcp",
             "list_project_tool_permissions",

@@ -1,0 +1,56 @@
+{
+  "title": "Board Session",
+  "nav": "Board Session",
+  "project": {
+    "choose": "Choose Project",
+    "all": "All projects",
+    "tooltip": "Project shown on the board: {name}"
+  },
+  "filter": {
+    "placeholder": "Filter by Session name…",
+    "label": "Filter the cards by Session name"
+  },
+  "refresh": "Refresh",
+  "manageFlags": "Manage flags",
+  "manageFlagsTip": "Manage the flags of this board",
+  "viewAsBoard": "View as board",
+  "column": {
+    "none": "No flag",
+    "own": "Own flags",
+    "ownLock": "Cannot drop here: own flags belong to each Project. Use right-click › Set flag.",
+    "fold": "Fold the “No flag” column",
+    "unfold": "Unfold the “No flag” column",
+    "emptyFlag": "Drag a card here to set “{flag}”",
+    "emptyNone": "Every Session has a flag",
+    "emptyOwn": "No Session with an own flag",
+    "noMatch": "No card matches “{query}”",
+    "blocked": "{project} hides this flag: no drop here",
+    "cardCount": "{n} cards"
+  },
+  "card": {
+    "workers": "{n} workers",
+    "updated": "Updated {age} ago",
+    "waiting": "Waiting for you to grant permission",
+    "open": "Open this Session",
+    "ownFlag": "Own flag: {name}",
+    "busy": "Setting the flag…"
+  },
+  "banner": {
+    "noFlags": "No Session in {project} has a flag yet. Drag a card to a column, or right-click › Set flag.",
+    "noFlagsAll": "No Session has a flag yet. Drag a card to a column, or right-click › Set flag.",
+    "error": "Could not load the board: {error}",
+    "retry": "Try again"
+  },
+  "drag": {
+    "mouse": "Dragging “{name}” · drop on a column to change its flag; drop on No flag to remove the flag.",
+    "keys": "Keyboard: Space lifts a card · ← → choose a column · Space drops · Esc cancels.",
+    "lifted": "Lifted “{name}” · column: {column}. ← → choose a column, Space to drop, Esc to cancel.",
+    "idle": "Tab or ↑ ↓ choose a card · Enter opens it · Space lifts it to another column."
+  },
+  "toast": {
+    "set": "Set flag “{flag}” for “{name}”",
+    "removed": "Removed the flag from “{name}”",
+    "undo": "Undo",
+    "undone": "Put “{name}” back"
+  }
+}

@@ -26,6 +26,7 @@ import FileTransferView from '../views/FileTransferView.vue'
 import TasksView from '../views/TasksView.vue'
 import SecretNotesView from '../views/SecretNotesView.vue'
 import RunningView from '../views/RunningView.vue'
+import BoardView from '../views/BoardView.vue'
 import SessionSearchView from '../views/SessionSearchView.vue'
 import SchedulesView from '../views/SchedulesView.vue'
 import TrashView from '../views/TrashView.vue'
@@ -196,6 +197,7 @@ const router = createRouter({
     // Secret notes: a screen here once the user merged it back (secretNotesGuard).
     { path: SECRET_NOTES_PATH, name: 'secret-notes', component: SecretNotesView, beforeEnter: secretNotesGuard },
     { path: '/running', name: 'running', component: RunningView },
+    { path: '/board', name: 'board', component: BoardView },
     // The Background processes screen became a tab of Running (V3-53).
     { path: '/processes', redirect: { path: '/running', query: { tab: 'processes' } } },
     // Settings › About replaced the About screen; old links land there.

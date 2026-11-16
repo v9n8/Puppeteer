@@ -54,7 +54,7 @@ export function usePaletteItems() {
       ...NAV_ROUTES.map((r) => ({
         id: `go.${r.path}`,
         group: 'nav' as const,
-        label: t(r.labelKey),
+        label: t(r.paletteLabelKey ?? r.labelKey),
         icon: r.icon,
         feature: r.feature,
         run: () => runMenuAction(`go.${r.path}`),

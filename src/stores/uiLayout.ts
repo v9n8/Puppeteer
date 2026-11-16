@@ -162,6 +162,28 @@ function loadComposerHeight(): number | null {
   }
 }
 
+/** Flag board (V3-22): the Project it shows (an id, 'all', or none yet) and whether its "No flag" column is folded. */
+const BOARD_PROJECT_KEY = 'puppeteer.boardProject'
+const BOARD_NO_FLAG_KEY = 'puppeteer.boardNoFlagCollapsed'
+
+function loadBoardProject(): string | null {
+  try {
+    return localStorage.getItem(BOARD_PROJECT_KEY) || null
+  } catch {
+    return null
+  }
+}
+
+/** null: never chosen, so the board's own default applies (folded on the All projects board). */
+function loadBoardNoFlagCollapsed(): boolean | null {
+  try {
+    const raw = localStorage.getItem(BOARD_NO_FLAG_KEY)
+    return raw === null ? null : raw === '1'
+  } catch {
+    return null
+  }
+}
+
 export const useUILayoutStore = defineStore('uiLayout', () => {
   const focusMode = ref(false)
   const sidebarPrefs = ref<SidebarPrefs>(loadSidebarPrefs())
@@ -221,6 +243,28 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     listDensity.value = density
     try {
       localStorage.setItem(LIST_DENSITY_KEY, density)
+    } catch {
+      /* storage unavailable — the in-memory value still works for this session */
+    }
+  }
+
+  const boardProject = ref<string | null>(loadBoardProject())
+  const boardNoFlagCollapsed = ref<boolean | null>(loadBoardNoFlagCollapsed())
+
+  function setBoardProject(project: string | null) {
+    boardProject.value = project
+    try {
+      if (project) localStorage.setItem(BOARD_PROJECT_KEY, project)
+      else localStorage.removeItem(BOARD_PROJECT_KEY)
+    } catch {
+      /* storage unavailable — the in-memory value still works for this session */
+    }
+  }
+
+  function setBoardNoFlagCollapsed(collapsed: boolean) {
+    boardNoFlagCollapsed.value = collapsed
+    try {
+      localStorage.setItem(BOARD_NO_FLAG_KEY, collapsed ? '1' : '0')
     } catch {
       /* storage unavailable — the in-memory value still works for this session */
     }
@@ -306,6 +350,10 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     toggleDock,
     listDensity,
     setListDensity,
+    boardProject,
+    setBoardProject,
+    boardNoFlagCollapsed,
+    setBoardNoFlagCollapsed,
     timelineOpen,
     setTimelineOpen,
     timelineHeight,

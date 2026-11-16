@@ -256,6 +256,7 @@ mod tests {
             "sessions.cross_session_search",
             "sessions.rewind",
             "sessions.steer",
+            "sessions.board",
             "library.agents",
             "library.commands",
             "library.import_external",

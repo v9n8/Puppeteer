@@ -54,7 +54,8 @@
       "mirror_codex": "Mirror Codex CLI sessions",
       "cross_session_search": "Search across sessions",
       "rewind": "Rewind: snapshot files before each turn",
-      "steer": "Steer: send instructions into the running turn"
+      "steer": "Steer: send instructions into the running turn",
+      "board": "Board: Sessions in columns by flag, drag a card to change its flag"
     },
     "text_tools": {
       "find_in_page": "Find in page",

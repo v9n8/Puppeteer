@@ -82,6 +82,8 @@ pub static MODULES: &[Module] = &[
             on("rewind"),
             // Steer (D4-06): send instructions into the turn in flight.
             on("steer"),
+            // Flag board (V3-22): the Board screen and its sidebar entry.
+            on("board"),
         ],
     },
     Module {

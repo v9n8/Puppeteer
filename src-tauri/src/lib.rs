@@ -916,6 +916,7 @@ pub fn run() {
             commands::response_styles::update_response_style,
             commands::response_styles::delete_response_style,
             commands::response_styles::restore_builtin_styles,
+            commands::flag_board::list_board_runs,
             commands::session_flags::list_session_flags,
             commands::session_flags::create_session_flag,
             commands::session_flags::update_session_flag,

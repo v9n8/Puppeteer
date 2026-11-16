@@ -1,0 +1,56 @@
+{
+  "title": "Board Session",
+  "nav": "Board Session",
+  "project": {
+    "choose": "Chọn Project",
+    "all": "Mọi Project",
+    "tooltip": "Project đang hiện trên board: {name}"
+  },
+  "filter": {
+    "placeholder": "Lọc theo tên Session…",
+    "label": "Lọc thẻ theo tên Session"
+  },
+  "refresh": "Làm mới",
+  "manageFlags": "Quản lý flag",
+  "manageFlagsTip": "Quản lý các flag của board này",
+  "viewAsBoard": "Xem dạng board",
+  "column": {
+    "none": "Không flag",
+    "own": "Flag riêng",
+    "ownLock": "Không thả vào cột này: flag riêng thuộc từng Project. Dùng chuột phải › Gắn flag.",
+    "fold": "Gập cột “Không flag”",
+    "unfold": "Mở cột “Không flag”",
+    "emptyFlag": "Kéo thẻ vào đây để gắn “{flag}”",
+    "emptyNone": "Mọi Session đều có flag",
+    "emptyOwn": "Không Session nào có flag riêng",
+    "noMatch": "Không thẻ nào khớp “{query}”",
+    "blocked": "{project} đã ẩn flag này: không thả được",
+    "cardCount": "{n} thẻ"
+  },
+  "card": {
+    "workers": "{n} worker",
+    "updated": "Cập nhật {age} trước",
+    "waiting": "Đang chờ bạn cấp quyền",
+    "open": "Mở Session này",
+    "ownFlag": "Flag riêng: {name}",
+    "busy": "Đang gắn flag…"
+  },
+  "banner": {
+    "noFlags": "Chưa Session nào trong {project} có flag. Kéo thẻ sang một cột, hoặc chuột phải › Gắn flag.",
+    "noFlagsAll": "Chưa Session nào có flag. Kéo thẻ sang một cột, hoặc chuột phải › Gắn flag.",
+    "error": "Không tải được board: {error}",
+    "retry": "Thử lại"
+  },
+  "drag": {
+    "mouse": "Đang kéo “{name}” · thả vào một cột để đổi flag; thả vào Không flag để bỏ flag.",
+    "keys": "Bàn phím: Space nhấc thẻ · ← → chọn cột · Space thả · Esc huỷ.",
+    "lifted": "Đã nhấc “{name}” · cột: {column}. ← → chọn cột, Space để thả, Esc để huỷ.",
+    "idle": "Tab hoặc ↑ ↓ chọn thẻ · Enter mở · Space nhấc thẻ sang cột khác."
+  },
+  "toast": {
+    "set": "Đã gắn flag “{flag}” cho “{name}”",
+    "removed": "Đã bỏ flag của “{name}”",
+    "undo": "Hoàn tác",
+    "undone": "Đã đưa “{name}” về chỗ cũ"
+  }
+}

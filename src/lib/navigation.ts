@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Target,
   Activity,
+  Kanban,
   Settings,
   Search,
   CalendarClock,
@@ -41,6 +42,8 @@ export interface NavRoute {
    * off, the sidebar and Go menu drop the entry and the router turns the path away.
    */
   feature?: string
+  /** i18n key of the ⌘K row when it reads differently from the sidebar label. */
+  paletteLabelKey?: string
   /** False keeps it out of the sidebar; the Go menu and ⌘K still list it. */
   sidebar?: false
   /** The screen whose saved open mode (lib/windowPlacement) marks the entry with ↗. */
@@ -50,6 +53,7 @@ export interface NavRoute {
 export const NAV_ROUTES: NavRoute[] = [
   // Virtual: the router sends it to the Session of the tab in use (or asks to add a Project).
   { path: '/session', labelKey: 'nav.session', icon: MessageSquare, group: 'work' },
+  { path: '/board', labelKey: 'nav.board', icon: Kanban, group: 'work', feature: 'sessions.board', paletteLabelKey: 'board.nav' },
   { path: '/projects', labelKey: 'nav.projects', icon: FolderOpen, group: 'work' },
   { path: '/running', labelKey: 'nav.running', icon: Activity, group: 'work' },
   { path: '/schedules', labelKey: 'nav.schedules', icon: CalendarClock, group: 'work', feature: 'orchestration.schedules' },

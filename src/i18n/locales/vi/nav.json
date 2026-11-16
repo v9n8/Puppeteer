@@ -1,6 +1,7 @@
 {
   "projects": "Project",
   "session": "Session",
+  "board": "Board",
   "search": "Tìm kiếm",
   "runs": "Run",
   "prInbox": "Duyệt PR",

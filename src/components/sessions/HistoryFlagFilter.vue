@@ -4,6 +4,8 @@
 // in useRunHistoryList (per project); the number in "History · N" follows it.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { useFeaturesStore } from '@/stores/features'
 import { Check, ChevronDown, Filter } from 'lucide-vue-next'
 import { DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { flagById, flagLabel } from '@/lib/sessionFlags'
@@ -14,6 +16,14 @@ import { useRunSession } from './useRunSession'
 const { t } = useI18n()
 const { projectId, projectFlags, flagFilter, flagCounts, flagOptions } = useRunSession()
 const { canManage, canOpenProjectFlags, openManage, openProjectFlags } = useFlagTargets()
+
+const features = useFeaturesStore()
+const router = useRouter()
+const boardOn = computed(() => features.isOn('sessions.board'))
+// The board opens on the Project whose History this is.
+function openBoard() {
+  router.push({ path: '/board', query: { project: projectId.value } }).catch(() => {})
+}
 
 const selected = computed(() => flagById(projectFlags.value, flagFilter.value))
 const buttonLabel = computed(() => {
@@ -71,8 +81,9 @@ const groups = computed(() => [
         <span class="font-mono text-2xs text-muted-foreground">{{ flagCounts.none }}</span>
         <Check class="h-3.5 w-3.5 shrink-0 text-primary" :class="{ invisible: flagFilter !== 'none' }" :stroke-width="2" />
       </DropdownItem>
-      <template v-if="canManage || canOpenProjectFlags">
+      <template v-if="canManage || canOpenProjectFlags || boardOn">
         <DropdownSeparator />
+        <DropdownItem v-if="boardOn" @click="openBoard">{{ t('board.viewAsBoard') }}</DropdownItem>
         <DropdownItem v-if="canManage" @click="openManage()">{{ t('sessionFlags.menu.manage') }}</DropdownItem>
         <DropdownItem v-if="canOpenProjectFlags" @click="openProjectFlags(projectId)">
           {{ t('sessionFlags.filter.projectFlags') }}

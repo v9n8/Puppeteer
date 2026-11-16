@@ -54,7 +54,8 @@
       "mirror_codex": "Mirror Session của Codex CLI",
       "cross_session_search": "Tìm xuyên các Session",
       "rewind": "Rewind: chụp file trước mỗi lượt",
-      "steer": "Steer: chen chỉ dẫn vào lượt đang chạy"
+      "steer": "Steer: chen chỉ dẫn vào lượt đang chạy",
+      "board": "Board: Session xếp cột theo flag, kéo thẻ để đổi flag"
     },
     "text_tools": {
       "find_in_page": "Tìm trong trang",
