@@ -17,17 +17,21 @@ import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import type MarkdownIt from 'markdown-it'
 import { Button, DropdownMenu, SegmentedControl } from '@/components/ui'
 import FileActionsMenu from '@/components/FileActionsMenu.vue'
-import { useFileTreeStore } from '@/stores/fileTree'
-import { usePrompt } from '@/composables/usePrompt'
-import { useToast } from '@/composables/useToast'
 import type { FileTarget } from '@/lib/fileActions'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import type { QuoteSource } from '@/lib/quote'
 import { usePageFind } from '@/composables/usePageFind'
 import FindBar from '@/components/FindBar.vue'
+import CompareFilePicker from '@/components/files/CompareFilePicker.vue'
+import MarkdownOutline from '@/components/files/MarkdownOutline.vue'
+import OutlineToggle from '@/components/files/OutlineToggle.vue'
+import TextCompareView from '@/components/files/TextCompareView.vue'
+import { useFileCompare } from '@/composables/useFileCompare'
+import { useSaveShortcut } from '@/composables/useSaveShortcut'
+import { hasHeadings } from '@/lib/markdownOutline'
+import { useUILayoutStore } from '@/stores/uiLayout'
 import { useRunsStore } from '@/stores/runs'
 import { useProjectsStore } from '@/stores/projects'
-import { useImageCompareStore } from '@/stores/imageCompare'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { dropRemoteMediaAttr, guardMarkdownImages } from '@/lib/markdownImages'
 import { vCopyCode } from '@/lib/copyCode'
@@ -53,54 +57,17 @@ const emit = defineEmits<{
   'open-file': [path: string, line: number | null]
   /** An http(s)/mailto link inside the markdown preview was clicked. */
   'open-url': [url: string]
-  /** Renamed from the ⋯ menu; the host should follow the file to its new path. */
-  renamed: [path: string]
-  /** Deleted from the ⋯ menu; there is nothing left to show. */
-  deleted: []
 }>()
 
 const { t } = useI18n()
-const { prompt } = usePrompt()
-const { toast } = useToast()
 const runsStore = useRunsStore()
-const fileTree = useFileTreeStore()
 const projectsStore = useProjectsStore()
-const imageCompare = useImageCompareStore()
 
-// Start a side-by-side comparison from this image; the compare host then prompts
-// for the second image (via picker or a right-click in the file tree).
-function startCompare() {
-  imageCompare.selectFirst(props.projectPath, curPath.value)
-}
-
-// What the shared ⋯ menu acts on: always this file.
 const menuTarget = computed<FileTarget | null>(() =>
   curPath.value
     ? { path: curPath.value, name: curPath.value.split('/').pop() || curPath.value, isDir: false }
     : null,
 )
-
-/**
- * Rename from the menu.
- *
- * The explorer renames inline in the row it owns; this window has no row, so it
- * asks. Either way the file moves, and the host is told to follow it.
- */
-async function promptRename(target: FileTarget) {
-  const name = await prompt({
-    title: t('files.tree.rename'),
-    label: t('files.tree.fileNameLabel'),
-    initialValue: target.name,
-    confirmLabel: t('files.tree.rename'),
-  })
-  if (!name || name === target.name) return
-  try {
-    const next = await fileTree.rename(props.projectPath, target.path, name)
-    emit('renamed', next)
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
 
 // ── File-type classification ──────────────────────────────────────────────
 type FileKind = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'other'
@@ -405,8 +372,7 @@ function onPanEnd(e: PointerEvent) {
   ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
 }
 
-// Scroll container wrapping both preview and raw views — the selection surface
-// (shared selection toolbar) is scoped to this element.
+// Scroll container of the preview and raw views; the selection toolbar is scoped to it.
 const viewerBodyEl = ref<HTMLElement | null>(null)
 
 const lines = computed(() => content.value.split('\n'))
@@ -458,8 +424,7 @@ const csvColumnCount = computed(() =>
   csvRows.value.reduce((max, r) => Math.max(max, r.length), 0),
 )
 const mode = ref<'code' | 'preview'>('code')
-// The HTML preview lives in an iframe, out of reach of the font-size control,
-// the in-page search and the selection toolbar.
+// The HTML preview is an iframe: out of reach of font size, search and selection.
 const htmlPreview = computed(() => isHtml.value && mode.value === 'preview')
 
 // ── Inline editing (text / markdown only) ───────────────────────────────────
@@ -858,6 +823,13 @@ watch(() => [props.projectPath, props.path, props.line], () => {
   load()
 })
 
+const uiLayout = useUILayoutStore()
+const fc = useFileCompare(computed(() => props.projectPath), curPath, editing)
+const canSearch = computed(() => !!content.value && !htmlPreview.value && searchEnabled.value)
+const mdEl = ref<HTMLElement | null>(null)
+const hasOutline = computed(() => isMarkdown.value && mode.value === 'preview' && !editing.value && hasHeadings(content.value))
+const { shortcutLabel } = useSaveShortcut(editing, saveEdit, viewerBodyEl)
+
 defineExpose({ onRevealInFolder, onOpenInApp })
 </script>
 
@@ -867,6 +839,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
     <div class="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-card px-4 py-3 shrink-0">
       <FileCode2 class="h-4 w-4 text-primary shrink-0" :stroke-width="1.75" />
       <span class="text-xs font-mono text-foreground/90 truncate flex-1" :title="curPath">{{ curPath }}</span>
+      <OutlineToggle v-if="hasOutline" />
       <!-- Raw / rendered toggle, only meaningful for markdown and HTML files -->
       <SegmentedControl
         v-if="previewable && !editing && !loading && !error && (content || isHtml)"
@@ -927,17 +900,15 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         variant="ghost"
         size="icon-sm"
         class="shrink-0"
-        :class="{ 'bg-primary/15 text-primary': imageCompare.pendingFirst === curPath }"
         :title="t('files.compare.compareButton')"
         :aria-label="t('files.compare.compareButton')"
-        :aria-pressed="imageCompare.pendingFirst === curPath"
-        @click="startCompare"
+        @click="fc.openPicker"
       >
         <Columns2 class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
       <!-- Toggle the in-page search bar -->
       <Button
-        v-if="content && !htmlPreview && searchEnabled"
+        v-if="canSearch"
         variant="ghost"
         size="icon-sm"
         class="shrink-0"
@@ -980,7 +951,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
           variant="primary"
           size="xs"
           class="shrink-0"
-          :title="t('files.viewer.saveChanges')"
+          :title="t('files.viewer.saveChangesShortcut', { key: shortcutLabel })"
           :disabled="saving || !dirty"
           @click="saveEdit"
         >
@@ -1013,12 +984,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
             <MoreHorizontal class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>
         </template>
-        <FileActionsMenu
-          :project-path="projectPath"
-          :target="menuTarget"
-          @rename="promptRename"
-          @deleted="emit('deleted')"
-        />
+        <FileActionsMenu variant="viewer" :project-path="projectPath" :target="menuTarget" :can-find="canSearch" :can-compare-image="canCompare" @compare="fc.openPicker" @find="openSearch" />
       </DropdownMenu>
       <!-- Host-supplied chrome controls (full-screen, pop-out, close) -->
       <slot name="actions" />
@@ -1032,9 +998,11 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       class="absolute top-14 right-4 z-20"
     />
 
+    <CompareFilePicker v-if="fc.pickerOpen.value && fc.kind.value" :project-path="projectPath" :path="curPath" :kind="fc.kind.value" class="absolute top-14 right-4 z-20" @pick="fc.pick" @close="fc.pickerOpen.value = false" />
     <!-- Body -->
     <div ref="viewerBodyEl" class="flex-1 overflow-auto min-h-0">
-      <div v-if="loading" class="p-4 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
+      <TextCompareView v-if="fc.second.value" :project-path="projectPath" :path="curPath" :content="truncated || error ? null : content" :other="fc.second.value" @close="fc.closeCompare" />
+      <div v-else-if="loading" class="p-4 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
       <div v-else-if="error" class="p-6 flex flex-col items-center gap-3 text-center">
         <FileQuestion class="h-10 w-10 text-foreground/30" :stroke-width="1.5" />
         <div>
@@ -1203,16 +1171,19 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         </table>
       </div>
       <!-- Rendered markdown preview -->
-      <div
-        v-else-if="isMarkdown && mode === 'preview'"
-        v-file-links
-        v-mermaid
-        v-copy-code
-        v-html="renderText(content)"
-        class="markdown-output p-4 leading-relaxed text-foreground"
-        :style="{ fontSize: fontSize + 'px' }"
-        @click="onProseClick"
-      />
+      <div v-else-if="isMarkdown && mode === 'preview'" class="flex items-start min-h-full">
+        <MarkdownOutline v-if="uiLayout.fileOutlineOpen && hasOutline" :source="content" :preview-el="mdEl" :scroll-el="viewerBodyEl" />
+        <div
+          ref="mdEl"
+          v-file-links
+          v-mermaid
+          v-copy-code
+          v-html="renderText(content)"
+          class="markdown-output p-4 leading-relaxed text-foreground flex-1 min-w-0"
+          :style="{ fontSize: fontSize + 'px' }"
+          @click="onProseClick"
+        />
+      </div>
       <!-- Raw, line-numbered source -->
       <div
         v-else

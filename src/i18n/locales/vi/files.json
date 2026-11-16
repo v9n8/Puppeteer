@@ -31,7 +31,9 @@
     "unpin": "Bỏ ghim (chỉ nổi khi đang dùng)",
     "dockBack": "Về cửa sổ chính",
     "dockBackTip": "Về cửa sổ chính: mở tệp này thành tab của Session",
-    "dockFailed": "Không đưa được tệp về cửa sổ chính"
+    "dockFailed": "Không đưa được tệp về cửa sổ chính",
+    "find": "Tìm",
+    "saveChangesShortcut": "Lưu thay đổi ({key})"
   },
   "tree": {
     "explorer": "Explorer",
@@ -73,7 +75,9 @@
     "toastFailedCopyPath": "Sao chép đường dẫn thất bại",
     "copyContent": "Chép nội dung",
     "openInDefaultApp": "Mở bằng ứng dụng mặc định",
-    "toastContentCopied": "Đã chép nội dung"
+    "toastContentCopied": "Đã chép nội dung",
+    "revealInExplorer": "Hiện trong Explorer",
+    "revealInFolder": "Mở thư mục chứa"
   },
   "compare": {
     "title": "So sánh ảnh",
@@ -84,6 +88,20 @@
     "searchPlaceholder": "Tìm ảnh…",
     "noImages": "Không tìm thấy ảnh",
     "swap": "Đổi bên",
-    "hint": "Ctrl/Cmd + cuộn để zoom · kéo để di chuyển · double-click để bật/tắt zoom — hai bên đồng bộ"
+    "hint": "Ctrl/Cmd + cuộn để zoom · kéo để di chuyển · double-click để bật/tắt zoom — hai bên đồng bộ",
+    "pickSecondFile": "Chọn tệp thứ hai",
+    "searchFiles": "Tìm tệp…",
+    "noFiles": "Không tìm thấy tệp",
+    "close": "Đóng so sánh",
+    "lockedType": "Chỉ so sánh được tệp chữ và ảnh",
+    "lockedWindow": "So sánh ảnh chỉ có ở cửa sổ chính",
+    "tooLarge": "\"{name}\" quá lớn để so sánh",
+    "sourceUnavailable": "Không đọc được đủ nội dung tệp này nên không so sánh được.",
+    "identical": "Hai tệp giống hệt nhau."
+  },
+  "outline": {
+    "title": "Mục lục",
+    "hide": "Ẩn mục lục",
+    "show": "Hiện mục lục"
   }
 }

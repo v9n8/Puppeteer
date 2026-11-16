@@ -79,8 +79,6 @@ async function detach(tab: FileTab) {
       :quote-target="quoteTarget"
       @open-file="onOpenFile"
       @open-url="onOpenUrl"
-      @renamed="(next: string) => tabsStore.rename(runId, tab.path, next)"
-      @deleted="tabsStore.close(runId, tab.id)"
     >
       <template #actions>
         <Button

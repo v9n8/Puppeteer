@@ -184,8 +184,6 @@ async function dockBack() {
       :quote-target="quoteTarget"
       @open-file="onOpenFile"
       @open-url="onOpenUrl"
-      @renamed="onRenamed"
-      @deleted="closeWindow"
     >
       <!-- Pin: keep this viewer above other apps even after it loses focus. -->
       <template #actions>

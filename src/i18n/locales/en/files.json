@@ -31,7 +31,9 @@
     "unpin": "Unpin (float only while focused)",
     "dockBack": "Back to main window",
     "dockBackTip": "Back to main window: show this file as a tab of its Session",
-    "dockFailed": "Could not move this file back to the main window"
+    "dockFailed": "Could not move this file back to the main window",
+    "find": "Find",
+    "saveChangesShortcut": "Save changes ({key})"
   },
   "tree": {
     "explorer": "Explorer",
@@ -73,7 +75,9 @@
     "toastFailedCopyPath": "Failed to copy path",
     "copyContent": "Copy content",
     "openInDefaultApp": "Open in default app",
-    "toastContentCopied": "Content copied"
+    "toastContentCopied": "Content copied",
+    "revealInExplorer": "Reveal in Explorer",
+    "revealInFolder": "Open containing folder"
   },
   "compare": {
     "title": "Image comparison",
@@ -84,6 +88,20 @@
     "searchPlaceholder": "Search images…",
     "noImages": "No images found",
     "swap": "Swap sides",
-    "hint": "Ctrl/Cmd + scroll to zoom · drag to pan · double-click to toggle zoom — both sides stay in sync"
+    "hint": "Ctrl/Cmd + scroll to zoom · drag to pan · double-click to toggle zoom — both sides stay in sync",
+    "pickSecondFile": "Pick the second file",
+    "searchFiles": "Search files…",
+    "noFiles": "No files found",
+    "close": "Close comparison",
+    "lockedType": "Only text files and images can be compared",
+    "lockedWindow": "Image comparison is only available in the main window",
+    "tooLarge": "\"{name}\" is too large to compare",
+    "sourceUnavailable": "This file could not be loaded in full, so it cannot be compared.",
+    "identical": "The two files are identical."
+  },
+  "outline": {
+    "title": "Contents",
+    "hide": "Hide contents",
+    "show": "Show contents"
   }
 }

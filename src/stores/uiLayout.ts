@@ -120,6 +120,17 @@ function loadStepsExpanded(): boolean {
   }
 }
 
+/** Markdown file viewer: the Contents column beside the rendered text (V3-25); on by default. */
+const FILE_OUTLINE_KEY = 'puppeteer.fileOutlineOpen'
+
+function loadFileOutlineOpen(): boolean {
+  try {
+    return localStorage.getItem(FILE_OUTLINE_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
 function loadSidebarPrefs(): SidebarPrefs {
   try {
     const prefs = parseSidebarPrefs(
@@ -250,6 +261,18 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     }
   }
 
+  const fileOutlineOpen = ref(loadFileOutlineOpen())
+
+  function setFileOutlineOpen(open: boolean) {
+    fileOutlineOpen.value = open
+    try {
+      if (open) localStorage.removeItem(FILE_OUTLINE_KEY)
+      else localStorage.setItem(FILE_OUTLINE_KEY, '0')
+    } catch {
+      /* storage unavailable — the in-memory flag still works for this session */
+    }
+  }
+
   const composerHeight = ref<number | null>(loadComposerHeight())
 
   function setComposerHeight(px: number | null) {
@@ -290,6 +313,8 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     setStepsExpanded,
     composerHeight,
     setComposerHeight,
+    fileOutlineOpen,
+    setFileOutlineOpen,
     fontPrefs,
     setFontPrefs,
   }

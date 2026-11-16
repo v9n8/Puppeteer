@@ -2,7 +2,8 @@
 // The rows of the file menu — ONE list, rendered by both surfaces that offer
 // file actions:
 //   • FileTree      — inside the right-click ContextMenu
-//   • FileViewer    — inside the ⋯ DropdownMenu of the file window
+//   • FileViewer    — inside the ⋯ DropdownMenu of an open file (`variant="viewer"`:
+//                     its own, shorter list — files/ViewerFileMenu)
 //
 // They used to be two separate lists that had quietly diverged: the viewer could
 // copy content and open in the default app but not rename, delete, duplicate or
@@ -24,6 +25,7 @@ import {
 import { DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useFileActions, type FileTarget } from '@/lib/fileActions'
 import { isImagePath } from '@/stores/imageCompare'
+import ViewerFileMenu from '@/components/files/ViewerFileMenu.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -32,8 +34,14 @@ const props = withDefaults(
     target: FileTarget | null
     /** Offer New file / New folder — only where a target folder is known. */
     showCreate?: boolean
+    /** `tree`: every action, for the Files tree. `viewer`: the open file's own menu. */
+    variant?: 'tree' | 'viewer'
+    /** Viewer only: whether there is text on screen to search in. */
+    canFind?: boolean
+    /** Viewer only: whether image comparison has a host in this window. */
+    canCompareImage?: boolean
   }>(),
-  { showCreate: false },
+  { showCreate: false, variant: 'tree', canFind: false, canCompareImage: false },
 )
 
 const emit = defineEmits<{
@@ -43,11 +51,16 @@ const emit = defineEmits<{
   rename: [target: FileTarget]
   /** The target is gone; the viewer closes its window, the tree just refreshes. */
   deleted: [target: FileTarget]
+  /** Viewer only: "Compare with…" was chosen. */
+  compare: []
+  /** Viewer only: "Find" was chosen. */
+  find: []
 }>()
 
 const { t } = useI18n()
 const actions = useFileActions()
 
+const isTree = computed(() => props.variant === 'tree')
 const isImage = computed(() => !!props.target && !props.target.isDir && isImagePath(props.target.path))
 const isFile = computed(() => !!props.target && !props.target.isDir)
 
@@ -59,8 +72,18 @@ async function onDelete() {
 </script>
 
 <template>
+  <ViewerFileMenu
+    v-if="variant === 'viewer' && target"
+    :project-path="projectPath"
+    :target="target"
+    :can-find="canFind"
+    :can-compare-image="canCompareImage"
+    @compare="emit('compare')"
+    @find="emit('find')"
+  />
+
   <!-- Create (tree only: it is the surface that knows which folder to create in) -->
-  <template v-if="showCreate">
+  <template v-if="isTree && showCreate">
     <DropdownItem @click="emit('createFile')">
       <FilePlus class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('files.tree.newFile') }}
@@ -73,7 +96,7 @@ async function onDelete() {
   </template>
 
   <!-- Clipboard -->
-  <template v-if="target">
+  <template v-if="isTree && target">
     <DropdownItem @click="actions.copy(target)">
       <Copy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('files.tree.copy') }}
@@ -87,13 +110,13 @@ async function onDelete() {
       {{ t('files.tree.duplicate') }}
     </DropdownItem>
   </template>
-  <DropdownItem v-if="actions.clipboard.value" @click="actions.paste(projectPath, target)">
+  <DropdownItem v-if="isTree && actions.clipboard.value" @click="actions.paste(projectPath, target)">
     <ClipboardPaste class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
     {{ t('files.tree.paste') }}
   </DropdownItem>
 
   <!-- Edit -->
-  <template v-if="target">
+  <template v-if="isTree && target">
     <DropdownSeparator />
     <DropdownItem @click="emit('rename', target)">
       <Pencil class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
