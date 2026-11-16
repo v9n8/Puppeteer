@@ -39,7 +39,9 @@
   "toastHidden": "Đã ẩn \"{name}\"",
   "toastShown": "Đã hiện lại \"{name}\"",
   "searchPlaceholder": "Tìm theo tên hoặc đường dẫn",
-  "showList": "Danh sách Project",
+  "dotsLegend": "Chấm: Session đang chạy / chờ bạn",
+  "dotRunning": "Session đang chạy",
+  "dotWaiting": "Session đang chờ bạn",
   "noSelection": "Chọn một Project ở bên trái",
   "overview": {
     "sessions": "Session",

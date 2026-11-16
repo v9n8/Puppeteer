@@ -6,7 +6,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { useMediaQuery } from '@vueuse/core'
 import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
 import { visibleProjects } from '@/lib/projectAppearance'
 import { projectPlace, selectedProjectId, type ProjectPlace } from '@/lib/projectList'
@@ -16,8 +15,8 @@ import { useAwsAccountsStore } from '@/stores/awsAccounts'
 import { useAzureAccountsStore } from '@/stores/azureAccounts'
 import { open } from '@tauri-apps/plugin-dialog'
 import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
-import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle, PanelLeft } from 'lucide-vue-next'
-import { Button, Input, Badge, Modal, Drawer } from '@/components/ui'
+import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { Button, Input, Badge, Modal } from '@/components/ui'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import ProjectList from '@/components/projects/ProjectList.vue'
 import ProjectDetailPane from '@/components/projects/ProjectDetailPane.vue'
@@ -57,12 +56,7 @@ const place = computed<ProjectPlace>({
   set: ({ tab, section, type }) => router.replace({ query: { ...route.query, tab, section: section ?? undefined, type: type ?? undefined } }),
 })
 
-// On a narrow window the list leaves the row and opens as a drawer.
-const narrow = useMediaQuery('(max-width: 1023px)')
-const listOpen = ref(false)
-
 function select(id: string) {
-  listOpen.value = false
   router.replace({ query: { ...route.query, id } })
 }
 
@@ -72,7 +66,6 @@ function move(fromId: string, toId: string) {
   store.reorder(index(fromId), index(toId))
 }
 
-// The same list sits beside the detail or, on a narrow window, in a drawer.
 const listProps = computed(() => ({
   projects: shownProjects.value,
   selectedId: selectedId.value,
@@ -249,33 +242,13 @@ async function confirmAdd() {
 
 <template>
   <div class="flex h-full min-h-0">
-    <aside v-if="!narrow" class="flex w-[280px] shrink-0 flex-col border-r border-border/60">
+    <aside class="flex w-[240px] shrink-0 flex-col border-r border-border/60 min-[1024px]:w-[280px]">
       <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
     </aside>
-    <Drawer v-else :open="listOpen" side="left" size="sm" :title="t('projects.title')" @close="listOpen = false">
-      <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
-    </Drawer>
 
-    <ProjectDetailPane v-if="selected" v-model:place="place" :project="selected">
-      <template v-if="narrow" #leading>
-        <Button
-          variant="outline"
-          size="icon"
-          class="shrink-0"
-          :title="t('projects.showList')"
-          :aria-label="t('projects.showList')"
-          @click="listOpen = true"
-        >
-          <PanelLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
-      </template>
-    </ProjectDetailPane>
+    <ProjectDetailPane v-if="selected" v-model:place="place" :project="selected" />
     <DetailEmpty v-else :icon="FolderOpen" :text="emptyText">
       <div class="mt-4 flex justify-center gap-2">
-        <Button v-if="narrow && store.projects.length > 0" variant="outline" size="sm" @click="listOpen = true">
-          <PanelLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ t('projects.showList') }}
-        </Button>
         <Button v-if="!store.loading" size="sm" :disabled="adding || detecting" @click="handleAdd">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
           {{ addLabel }}

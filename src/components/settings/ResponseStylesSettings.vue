@@ -100,22 +100,26 @@ async function restoreSamples() {
     <template #header>
       <MessageSquareText class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t(scope ? 'responseStyles.projectTitle' : 'responseStyles.title') }}</span>
-      <InfoTip :text="t(scope ? 'responseStyles.projectHint' : 'responseStyles.hint')" />
+      <template v-if="!scope">
+        <InfoTip :text="t('responseStyles.hint')" />
+      </template>
+      <Button v-else variant="outline" size="sm" class="ml-auto" @click="openEditor()">
+        <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+        {{ t('responseStyles.projectAdd') }}
+      </Button>
     </template>
 
-    <div class="flex flex-wrap items-center justify-between gap-2">
+    <div v-if="!scope" class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex min-w-0 items-center gap-1.5">
-        <h3 class="text-xs font-semibold text-foreground">{{ t(scope ? 'responseStyles.projectStylesTitle' : 'responseStyles.mineTitle') }}</h3>
-        <InfoTip :text="t(scope ? 'responseStyles.projectStylesHint' : 'responseStyles.mineHint')" />
+        <h3 class="text-xs font-semibold text-foreground">{{ t('responseStyles.mineTitle') }}</h3>
+        <InfoTip :text="t('responseStyles.mineHint')" />
       </div>
       <div class="flex shrink-0 items-center gap-1.5">
-        <template v-if="!scope">
-          <Button variant="ghost" size="sm" :disabled="!missing.length" @click="restoreSamples">
-            <RotateCcw class="h-3.5 w-3.5" :stroke-width="2" />
-            {{ t('responseStyles.restore') }}
-          </Button>
-          <InfoTip :text="t('responseStyles.restoreHint')" />
-        </template>
+        <Button variant="ghost" size="sm" :disabled="!missing.length" @click="restoreSamples">
+          <RotateCcw class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ t('responseStyles.restore') }}
+        </Button>
+        <InfoTip :text="t('responseStyles.restoreHint')" />
         <Button variant="outline" size="sm" @click="openEditor()">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('responseStyles.add') }}
@@ -153,7 +157,6 @@ async function restoreSamples() {
             <span v-if="r.description" class="block truncate text-2xs text-muted-foreground" :title="r.description">{{ r.description }}</span>
           </span>
           <Badge v-if="r.style.builtin_key" size="xs">{{ t('responseStyles.sampleBadge') }}</Badge>
-          <Badge v-if="scope" size="xs">{{ t('responseStyles.projectBadge') }}</Badge>
           <Button variant="ghost" size="icon-sm" :title="t('common.edit')" :aria-label="t('common.edit')" @click="openEditor(r.style)">
             <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>

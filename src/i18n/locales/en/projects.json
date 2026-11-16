@@ -39,7 +39,9 @@
   "toastHidden": "\"{name}\" hidden",
   "toastShown": "\"{name}\" shown again",
   "searchPlaceholder": "Search name or path",
-  "showList": "Project list",
+  "dotsLegend": "Dots: session running / waiting for you",
+  "dotRunning": "Session running",
+  "dotWaiting": "Session waiting for you",
   "noSelection": "Select a project on the left",
   "overview": {
     "sessions": "Sessions",

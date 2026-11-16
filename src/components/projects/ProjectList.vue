@@ -11,6 +11,8 @@ import { rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components
 import { useDragSort } from '@/composables/useDragSort'
 import { projectIcon, projectTileClass } from '@/lib/projectAppearance'
 import { filterProjects } from '@/lib/projectList'
+import { middlePath, projectRunDots, type RunDot } from '@/lib/projectRunDots'
+import { useLiveRunsStore } from '@/stores/liveRuns'
 import type { Project } from '@/stores/projects'
 
 const props = defineProps<{
@@ -38,6 +40,15 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const live = useLiveRunsStore()
+// A project's dot follows its live sessions, so it changes as soon as a run ends or a permission is answered.
+const dots = computed(() => projectRunDots(live.sessions.values()))
+const dotClass: Record<RunDot, string> = { waiting: 'bg-warning', running: 'bg-primary' }
+const dotLabel = (d: RunDot) => t(d === 'waiting' ? 'projects.dotWaiting' : 'projects.dotRunning')
+
+// Longer than this many characters, the middle folders may be cut (CSS cuts only the middle).
+const PATH_BUDGET = 28
 
 const rows = computed(() => filterProjects(props.projects, search.value))
 
@@ -156,8 +167,22 @@ function onListClickCapture(e: MouseEvent) {
                     {{ t('projects.hiddenBadge') }}
                   </Badge>
                 </span>
-                <span class="block font-mono" :class="rowSubClass" :title="project.path">{{ project.path }}</span>
+                <span class="flex min-w-0 font-mono" :class="rowSubClass" :title="project.path">
+                  <template v-for="p in [middlePath(project.path, PATH_BUDGET)]" :key="project.path">
+                    <span class="min-w-0 truncate" :class="p.middle ? 'max-w-[45%] shrink-0' : ''">{{ p.head }}</span>
+                    <span v-if="p.middle" class="min-w-0 truncate">{{ p.middle }}</span>
+                    <span v-if="p.tail" class="min-w-0 shrink-[0.001] truncate">{{ p.tail }}</span>
+                  </template>
+                </span>
               </span>
+              <span
+                v-if="dots[project.id]"
+                class="mt-2 h-2 w-2 shrink-0 rounded-full"
+                :class="dotClass[dots[project.id]]"
+                role="img"
+                :title="dotLabel(dots[project.id])"
+                :aria-label="dotLabel(dots[project.id])"
+              />
             </button>
             <button
               type="button"
@@ -173,5 +198,7 @@ function onListClickCapture(e: MouseEvent) {
         </li>
       </ul>
     </div>
+
+    <p class="shrink-0 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">{{ t('projects.dotsLegend') }}</p>
   </div>
 </template>
