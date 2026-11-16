@@ -1,6 +1,6 @@
 // Focus board (docs/focus-board-spec.md): the backend contract — types mirroring
 // the Rust `focus_board` / `list_todos` / `focus_settings_*` payloads — plus the
-// pure helpers the Focus screen, the "+ Todo" forms and the drawer share:
+// pure helpers the Focus screen, the "+ Todo" forms and the detail panel share:
 // estimate parsing, relative due labels, bucket order, filters, snooze presets,
 // source links. Scoring and bucketing are done by the backend (BR-04/05); the UI
 // only groups by `bucket` and sorts by `score`.
@@ -664,7 +664,7 @@ export interface DayPlan {
   created_at: string
 }
 
-/** What "Apply" of an analysis puts into the drawer's form. */
+/** What "Apply" of an analysis puts into the detail panel (saved right away). */
 export interface AiApply {
   estimateMin?: number
   priority?: TodoPriority

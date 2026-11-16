@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// Header of the Notes / Todos window's detail pane — the sibling of
-// SlackThreadHeader, same layout and controls:
+// Header of the Notes window's detail pane — the sibling of SlackThreadHeader,
+// same layout and controls:
 //
-//   note  title (click → inline rename) / updated · N characters
-//   todo  text's first line (click → edit) / created · from <session> · due
-//   right [Sessions (n) ▾] | (todo) ✓ Done · ✎ Edit · (note) ⧉ Copy ID (not in ⋯) ·
-//         ⋯ (New session from this … · Copy ID · Delete)
+//   title (click → inline rename) / updated · N characters
+//   right [Sessions (n) ▾] | ✎ Edit · ⧉ Copy ID (not in ⋯) ·
+//         ⋯ (New session from this note · Make secret · Delete)
 //
-// The project (and a todo's deadline) are edited in the body (ItemFields).
+// The project is edited in the body (ItemFields). A todo's header is
+// components/tasks/TaskDetailHeader.vue.
 //
 // While editing, the actions give way to Cancel · Save (⌘/Ctrl+Enter / Esc do
 // the same inside the fields). Narrow pane: the title gives way first, then the
@@ -19,17 +19,13 @@ import { Button, DropdownItem } from '@/components/ui'
 import InlineRenameInput from '@/components/InlineRenameInput.vue'
 import LinkedSessionsMenu from '@/components/sessions/LinkedSessionsMenu.vue'
 import DetailActionsMenu from '@/components/sessions/DetailActionsMenu.vue'
-import { useSessionText } from '@/composables/useSessionText'
 import { firstLine, relativeAge } from '@/lib/itemText'
 import { formatFullDate } from '@/lib/slackThreadUtils'
-import { daysUntil, dueStatus, localYmd } from '@/lib/todoDue'
 import type { SessionLink } from '@/lib/sessionLinks'
 import type { Note } from '@/stores/notes'
-import type { Todo } from '@/stores/todos'
 
 const props = defineProps<{
-  kind: 'note' | 'todo'
-  item: Note | Todo
+  item: Note
   /** Sessions linked to the item. */
   links: SessionLink[]
   renaming: boolean
@@ -49,7 +45,6 @@ const emit = defineEmits<{
   edit: []
   cancelEdit: []
   save: []
-  toggleDone: []
   openRun: [link: SessionLink]
   unlinkRun: [link: SessionLink]
   linkRun: [runId: string]
@@ -60,58 +55,27 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { runLabel } = useSessionText()
-
-const isNote = computed(() => props.kind === 'note')
-const note = computed(() => (isNote.value ? (props.item as Note) : null))
-const todo = computed(() => (isNote.value ? null : (props.item as Todo)))
-const body = computed(() => note.value?.content ?? todo.value?.text ?? '')
 
 const heading = computed(
-  () => note.value?.title.trim() || firstLine(body.value) || t('item.untitled'),
+  () => props.item.title.trim() || firstLine(props.item.content) || t('item.untitled'),
 )
 
-/** The todo's deadline, relative to today ("Due in 3 days", "Overdue by 2 days"). */
-const due = computed(() => {
-  const date = todo.value?.due_date
-  const days = daysUntil(date, localYmd())
-  if (!date || days == null) return null
-  const label =
-    days < 0 ? t('item.overdueDays', { n: -days }, -days)
-    : days === 0 ? t('item.dueToday')
-    : days === 1 ? t('item.dueTomorrow')
-    : t('item.dueInDays', { n: days })
-  // A finished todo is never late.
-  const status = todo.value?.done ? 'later' : dueStatus(date, localYmd())
-  return { label, status }
-})
-
-/** note: updated · N characters; todo: created · from <the session it was written in>. */
+/** updated · N characters */
 const meta = computed(() => {
-  if (note.value) {
-    const chars = [...note.value.content].length
-    return [
-      t('item.metaUpdated', { age: relativeAge(note.value.updated_at) }),
-      t('item.metaChars', { n: chars }, chars),
-    ].join(' · ')
-  }
-  const parts = [t('item.metaCreated', { age: relativeAge(props.item.created_at) })]
-  const captured = props.links.find((l) => l.source === 'captured')
-  if (captured) parts.push(t('item.metaFromSession', { name: runLabel(captured) }))
-  return parts.join(' · ')
+  const chars = [...props.item.content].length
+  return [
+    t('item.metaUpdated', { age: relativeAge(props.item.updated_at) }),
+    t('item.metaChars', { n: chars }, chars),
+  ].join(' · ')
 })
 
 const metaTitle = computed(() => {
   const lines = [t('item.createdAt', { date: formatFullDate(props.item.created_at) })]
-  if (note.value && note.value.updated_at !== note.value.created_at) {
-    lines.push(t('item.updatedAt', { date: formatFullDate(note.value.updated_at) }))
+  if (props.item.updated_at !== props.item.created_at) {
+    lines.push(t('item.updatedAt', { date: formatFullDate(props.item.updated_at) }))
   }
   return lines.join('\n')
 })
-
-const newSessionLabel = computed(() =>
-  isNote.value ? t('item.newSessionNote') : t('item.newSessionTodo'),
-)
 </script>
 
 <template>
@@ -119,9 +83,9 @@ const newSessionLabel = computed(() =>
     <div class="min-w-[6rem] flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
         <InlineRenameInput
-          v-if="renaming && note"
+          v-if="renaming"
           class="w-full text-base font-bold leading-snug"
-          :value="note.title"
+          :value="item.title"
           :placeholder="t('item.titlePlaceholder')"
           @commit="emit('commitRename', $event)"
           @cancel="emit('cancelRename')"
@@ -129,23 +93,14 @@ const newSessionLabel = computed(() =>
         <h1
           v-else
           class="min-w-0 cursor-text truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug transition-colors hover:bg-accent/50"
-          :class="todo?.done && 'text-muted-foreground line-through decoration-muted-foreground/60'"
-          :title="`${heading}\n${note ? t('item.renameHint') : t('item.editTitle')}`"
-          @click="note ? emit('startRename') : emit('edit')"
+          :title="`${heading}\n${t('item.renameHint')}`"
+          @click="emit('startRename')"
         >
           {{ heading }}
         </h1>
       </div>
       <p class="mt-0.5 truncate text-xs text-muted-foreground" :title="metaTitle">
-        {{ meta }}<template v-if="due">
-          ·
-          <span
-            :class="{
-              'font-medium text-destructive': due.status === 'overdue',
-              'font-medium text-warning': due.status === 'today' || due.status === 'soon',
-            }"
-          >{{ due.label }}</span>
-        </template>
+        {{ meta }}
       </p>
     </div>
 
@@ -178,18 +133,6 @@ const newSessionLabel = computed(() =>
       </template>
       <template v-else>
         <Button
-          v-if="todo"
-          :variant="todo.done ? 'primary' : 'outline'"
-          size="icon"
-          class="shrink-0"
-          :aria-pressed="todo.done"
-          :title="todo.done ? t('item.markNotDone') : t('item.markDone')"
-          :aria-label="todo.done ? t('item.markNotDone') : t('item.markDone')"
-          @click="emit('toggleDone')"
-        >
-          <Check class="h-3.5 w-3.5" :stroke-width="1.75" />
-        </Button>
-        <Button
           variant="outline"
           size="icon"
           class="shrink-0"
@@ -200,7 +143,6 @@ const newSessionLabel = computed(() =>
           <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
         <Button
-          v-if="note"
           variant="outline"
           size="icon"
           class="shrink-0"
@@ -211,16 +153,16 @@ const newSessionLabel = computed(() =>
           <component :is="copiedId ? Check : Copy" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
         <DetailActionsMenu
-          :new-session-label="newSessionLabel"
+          :new-session-label="t('item.newSessionNote')"
           :new-session-hint="item.project_id ? t('item.newSessionHint') : t('item.needProject')"
           :can-new-session="!!item.project_id"
           :copied-id="copiedId"
-          :show-copy-id="!note"
+          :show-copy-id="false"
           @new-session="emit('newSession')"
           @copy-id="emit('copyId')"
           @delete="emit('delete')"
         >
-          <DropdownItem v-if="note && canMakeSecret" @click="emit('makeSecret')">
+          <DropdownItem v-if="canMakeSecret" @click="emit('makeSecret')">
             <LockKeyhole class="h-3.5 w-3.5" :stroke-width="1.75" />
             {{ t('secretNotes.makeSecret.action') }}
           </DropdownItem>

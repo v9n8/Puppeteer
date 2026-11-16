@@ -30,6 +30,7 @@ import ItemSidebar from '@/components/items/ItemSidebar.vue'
 import ItemHeader from '@/components/items/ItemHeader.vue'
 import ItemBody from '@/components/items/ItemBody.vue'
 import ItemFields from '@/components/items/ItemFields.vue'
+import TaskDetailPanel from '@/components/tasks/TaskDetailPanel.vue'
 import FindBar from '@/components/FindBar.vue'
 import { noteRow, todoRow, type ItemRow } from '@/components/items/itemRow'
 import { useConfirm } from '@/composables/useConfirm'
@@ -39,6 +40,7 @@ import { useProjectsStore } from '@/stores/projects'
 import { useFeaturesStore } from '@/stores/features'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
+import type { FocusTodo } from '@/lib/focus'
 import { errorCode } from '@/stores/slackThreads'
 import { ITEM_CHANGED, openItemCreateWindow, type ItemKind } from '@/lib/itemWindow'
 import {
@@ -185,6 +187,14 @@ async function loadLinks() {
 const editing = ref(false)
 const renaming = ref(false)
 const bodyRef = ref<InstanceType<typeof ItemBody> | null>(null)
+/** A todo is shown by the Tasks detail panel, which owns its own editing. */
+const panelRef = ref<InstanceType<typeof TaskDetailPanel> | null>(null)
+const todoItem = computed(() => (kind === 'todo' ? (item.value as FocusTodo | null) : null))
+
+function onPanelChanged() {
+  void refresh()
+  announce()
+}
 
 // ⌘F searches the item as it reads (not its edit fields); another item or an
 // edit re-renders it, which detaches the old matches.
@@ -195,6 +205,7 @@ watch([item, editing], () => (editing.value ? find.closeFind() : find.refresh())
 
 /** Leaving unsaved edits takes a confirm; true = go ahead. */
 async function confirmDiscard(): Promise<boolean> {
+  if (kind === 'todo') return (await panelRef.value?.confirmDiscard()) ?? true
   if (!editing.value || !bodyRef.value?.dirty) return true
   return confirm({
     title: t('item.confirm.discardTitle'),
@@ -241,9 +252,9 @@ watch(item, (now, before) => {
 async function rescueDraft(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    toast.info(kind === 'note' ? t('item.deletedNoteDraftCopied') : t('item.deletedTodoDraftCopied'))
+    toast.info(t('item.deletedNoteDraftCopied'))
   } catch {
-    toast.error(kind === 'note' ? t('item.deletedNoteDraftLost') : t('item.deletedTodoDraftLost'))
+    toast.error(t('item.deletedNoteDraftLost'))
   }
 }
 
@@ -273,8 +284,7 @@ function onSaved() {
 
 function startRename() {
   if (!item.value) return
-  if (kind === 'note') renaming.value = true
-  else startEdit()
+  renaming.value = true
 }
 
 async function commitRename(title: string) {
@@ -288,15 +298,7 @@ async function commitRename(title: string) {
 async function setProject(next: string | null) {
   const it = item.value
   if (!it || next === it.project_id) return
-  if (kind === 'note') await notes.setProject(it.id, next)
-  else await todos.setProject(it.id, next)
-  announce()
-}
-
-async function setDueDate(next: string | null) {
-  const it = item.value as Todo | null
-  if (kind !== 'todo' || !it || next === it.due_date) return
-  await todos.setDueDate(it.id, next)
+  await notes.setProject(it.id, next)
   announce()
 }
 
@@ -309,10 +311,10 @@ async function toggleDone(id: string) {
 async function remove() {
   const it = item.value
   if (!it) return
-  const isNote = kind === 'note'
+  // Only notes get here: a todo is deleted from its detail panel.
   const ok = await confirm({
-    title: isNote ? t('item.confirm.deleteNoteTitle') : t('item.confirm.deleteTodoTitle'),
-    message: isNote ? t('item.confirm.deleteNoteMessage') : t('item.confirm.deleteTodoMessage'),
+    title: t('item.confirm.deleteNoteTitle'),
+    message: t('item.confirm.deleteNoteMessage'),
     confirmLabel: t('common.delete'),
   })
   if (!ok) return
@@ -321,8 +323,7 @@ async function remove() {
   const i = rows.findIndex((r) => r.id === it.id)
   const next = rows[i + 1]?.id ?? rows[i - 1]?.id ?? null
   editing.value = false
-  if (isNote) await notes.remove(it.id)
-  else await todos.remove(it.id)
+  await notes.remove(it.id)
   selectedId.value = next
   void loadLinks()
   emit_('selected', next)
@@ -452,8 +453,8 @@ function newSession() {
     toast.info(t('item.needProject'))
     return
   }
-  const n = kind === 'note' ? (it as Note) : null
-  const title = n ? n.title.trim() || firstLine(n.content) || t('item.untitled') : undefined
+  const n = it as Note
+  const title = n.title.trim() || firstLine(n.content) || t('item.untitled')
   emit(WINDOW_NEW_SESSION, {
     projectId: it.project_id,
     text: linkReference(kind, it.id, title),
@@ -545,7 +546,7 @@ defineExpose({
   setScope,
   confirmDiscard,
   /** An edit with unsaved changes is open. */
-  hasUnsavedEdit: () => editing.value && !!bodyRef.value?.dirty,
+  hasUnsavedEdit: () => (kind === 'todo' ? !!panelRef.value?.hasUnsavedEdit() : editing.value && !!bodyRef.value?.dirty),
   windowTitle,
 })
 
@@ -583,10 +584,10 @@ onBeforeUnmount(() => {
       @reload="reloadAll"
       @retry="reloadAll"
     />
-    <section v-if="item" class="flex min-w-0 flex-1 flex-col">
+    <TaskDetailPanel v-if="todoItem" ref="panelRef" :todo="todoItem" mode="pane" @changed="onPanelChanged" />
+    <section v-else-if="item" class="flex min-w-0 flex-1 flex-col">
       <ItemHeader
-        :kind="kind"
-        :item="item"
+        :item="item as Note"
         :links="links"
         :renaming="renaming"
         :editing="editing"
@@ -600,7 +601,6 @@ onBeforeUnmount(() => {
         @edit="startEdit"
         @cancel-edit="cancelEdit"
         @save="bodyRef?.save()"
-        @toggle-done="toggleDone(item.id)"
         @open-run="openRun"
         @unlink-run="unlinkRun"
         @link-run="linkRun"
@@ -609,12 +609,7 @@ onBeforeUnmount(() => {
         @make-secret="makeSecret"
         @delete="remove"
       />
-      <ItemFields
-        :kind="kind"
-        :item="item"
-        @set-project="setProject"
-        @set-due-date="setDueDate"
-      />
+      <ItemFields :item="item as Note" @set-project="setProject" />
       <!-- Zero-height anchor: the ⌘F bar floats over the body's top edge. -->
       <div v-if="findOpen" class="relative z-20 h-0 shrink-0">
         <FindBar :find="find" class="absolute top-2 right-4" />

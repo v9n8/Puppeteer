@@ -1,4 +1,4 @@
-// AI actions of a todo (spec §3.6 b, d) shared by the row and the drawer, with
+// AI actions of a todo (spec §3.6 b, d) shared by the row and the detail panel, with
 // their toasts: ✨ Analyze (stores `ai_plan`) and 🚀 Start with AI (a new
 // session in the todo's project, then opened). A todo without a project asks
 // for one first — FocusAiDialogs renders that picker once for every row.

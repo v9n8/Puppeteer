@@ -148,7 +148,6 @@
     "save": "Save"
   },
   "drawer": {
-    "text": "Title",
     "project": "Project",
     "due": "Deadline",
     "dueTime": "Time (optional)",
@@ -168,9 +167,12 @@
     "started": "Started {time}",
     "completed": "Completed {time}",
     "save": "Save",
-    "cancel": "Cancel",
-    "unsaved": "Discard your changes?",
-    "discard": "Discard"
+    "cancel": "Cancel"
+  },
+  "panel": {
+    "close": "Close (Esc)",
+    "discardTitle": "Discard changes?",
+    "stay": "Stay"
   },
   "capture": {
     "title": "New todo",

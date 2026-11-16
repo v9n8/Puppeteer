@@ -67,32 +67,6 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
-  /** Link or unlink a todo from a project (session links are independent of it). */
-  async function setProject(id: string, projectId: string | null) {
-    const todo = todos.value.find(t => t.id === id)
-    const prev = todo ? todo.project_id : null
-    if (todo) todo.project_id = projectId // optimistic
-    try {
-      await invoke('set_todo_project', { id, projectId })
-    } catch (e) {
-      error.value = String(e)
-      if (todo) todo.project_id = prev
-    }
-  }
-
-  /** Set or clear (null) a todo's deadline, a `YYYY-MM-DD` date. */
-  async function setDueDate(id: string, dueDate: string | null) {
-    const todo = todos.value.find(t => t.id === id)
-    const prev = todo ? todo.due_date : null
-    if (todo) todo.due_date = dueDate // optimistic
-    try {
-      await invoke('set_todo_due_date', { id, dueDate })
-    } catch (e) {
-      error.value = String(e)
-      if (todo) todo.due_date = prev
-    }
-  }
-
   async function toggle(id: string) {
     const t = todos.value.find(t => t.id === id)
     if (!t) return
@@ -175,5 +149,5 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
-  return { todos, loading, error, fetchTodos, add, setProject, setDueDate, toggle, update, remove, removeMany, clearCompleted, reorder }
+  return { todos, loading, error, fetchTodos, add, toggle, update, remove, removeMany, clearCompleted, reorder }
 })

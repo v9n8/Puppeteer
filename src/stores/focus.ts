@@ -16,7 +16,7 @@ import {
 /**
  * Focus board (docs/focus-board-spec.md §3.2): the ranked todo board computed by
  * the backend (`focus_board`), the work-hour settings, and every todo write the
- * board, the drawer and the "+ Todo" forms make.
+ * board, the detail panel and the "+ Todo" forms make.
  *
  * The board is recomputed by the backend, so writes simply refetch it: right
  * after our own writes, on `focus:changed` / `item:changed` and every 60 s so

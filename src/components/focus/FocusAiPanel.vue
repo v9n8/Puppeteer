@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// AI section of the todo drawer (spec §3.6 b, d): ✨ Analyze (cancellable) and
-// 🚀 Start with AI; after an analysis, its estimate range and any suggested
-// priority / deadline with "Apply" — which only fills the drawer's fields
-// (`apply`), saved with the drawer like any edit (BR-09: AI never writes them
-// itself). The stored plan (`ai_plan`) is shown as markdown and can be edited
-// in place (saved right away).
+// AI section of the task detail panel (spec §3.6 b, d): Analyze (cancellable) and
+// Start with AI; after an analysis, its estimate range and any suggested priority
+// / deadline with "Apply". "Apply" is a button the user presses, so the host saves
+// that field right away (`apply`) — the AI still never writes a field by itself
+// (BR-09). The stored plan (`ai_plan`) is shown as markdown and edited in place
+// (saved right away). Five states: plan · no plan yet · analyzing · editing the
+// plan · the last analysis failed.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loader2, Pencil, Rocket, Sparkles, X } from 'lucide-vue-next'
@@ -52,6 +53,21 @@ const suggestedDue = computed(() => {
   return { date: a.suggested_due_date, time: a.suggested_due_time }
 })
 
+// ── Analyze: a failure stays visible in the block, not only as a toast ──
+const failure = ref<string | null>(null)
+watch(
+  () => props.todo.id,
+  () => (failure.value = null),
+)
+async function analyze() {
+  failure.value = null
+  try {
+    await ai.analyze(props.todo.id)
+  } catch (e) {
+    failure.value = actions.errorText(e)
+  }
+}
+
 // ── Plan editing ──
 const editing = ref(false)
 const planDraft = ref('')
@@ -96,7 +112,7 @@ async function savePlan() {
           {{ t('focus.ai.cancel') }}
         </Button>
       </template>
-      <Button v-else variant="outline" size="xs" :disabled="todo.done" @click="actions.analyze(todo)">
+      <Button v-else variant="outline" size="xs" :disabled="todo.done" @click="analyze">
         <Sparkles class="h-3 w-3" :stroke-width="1.75" />
         {{ todo.ai_plan ? t('focus.ai.reanalyze') : t('focus.ai.analyze') }}
       </Button>
@@ -106,7 +122,7 @@ async function savePlan() {
       </Button>
     </div>
 
-    <!-- What the last analysis proposes (applied into the form, saved with it) -->
+    <!-- What the last analysis proposes; Apply saves that field -->
     <div v-if="analysis" class="space-y-1 text-xs">
       <p class="flex flex-wrap items-center gap-2">
         <span>{{ estimateText }}</span>
@@ -133,6 +149,8 @@ async function savePlan() {
       </p>
     </div>
 
+    <p v-if="failure && !running" class="text-xs text-destructive" role="alert">{{ failure }}</p>
+
     <!-- The stored plan: markdown, editable -->
     <template v-if="editing">
       <Textarea v-model="planDraft" class="min-h-[10rem] w-full font-mono text-xs" />
@@ -141,19 +159,13 @@ async function savePlan() {
         <Button size="xs" :disabled="savingPlan" @click="savePlan">{{ t('focus.drawer.save') }}</Button>
       </div>
     </template>
-    <div v-else-if="todo.ai_plan" class="group relative">
+    <div v-else-if="todo.ai_plan" class="space-y-1.5">
       <div class="markdown-output text-sm" v-html="renderText(todo.ai_plan)" />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="absolute right-0 top-0 opacity-0 transition-opacity group-hover:opacity-100"
-        :title="t('focus.ai.editPlan')"
-        :aria-label="t('focus.ai.editPlan')"
-        @click="editPlan"
-      >
-        <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
+      <Button variant="outline" size="xs" @click="editPlan">
+        <Pencil class="h-3 w-3" :stroke-width="1.75" />
+        {{ t('focus.ai.editPlan') }}
       </Button>
     </div>
-    <p v-else-if="!running" class="text-2xs text-muted-foreground">{{ t('focus.ai.noPlan') }}</p>
+    <p v-else-if="!running && !failure" class="text-xs text-muted-foreground">{{ t('focus.ai.noPlan') }}</p>
   </section>
 </template>

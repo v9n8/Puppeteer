@@ -3,9 +3,9 @@
 // ranked by the backend (BR-04/05) — the UI only groups by bucket and sorts by
 // score. Three views: by time ("Do now" top 3 + collapsible buckets), by project
 // (one column each), and the week (Mon → Sun columns by due date). Rows open the
-// detail drawer. The screen around it (views/TasksView.vue) owns the header, the
+// task detail panel (components/tasks/TaskDetailPanel.vue, docked at the right). The screen around it (views/TasksView.vue) owns the header, the
 // project / source filter (`filter`) and the data feed (store start / stop, reminder
-// clicks); it opens a todo here through `showTodo` — drawer open, row flashing.
+// clicks); it opens a todo here through `showTodo` — panel open, row flashing.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarClock, ChevronDown, ChevronRight, RefreshCw, Target, TriangleAlert } from 'lucide-vue-next'
@@ -13,7 +13,7 @@ import { Banner, Button, Card, SegmentedControl, Skeleton } from '@/components/u
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import FocusDialogs from '@/components/focus/FocusDialogs.vue'
 import FocusAiDialogs from '@/components/focus/FocusAiDialogs.vue'
-import FocusTodoDrawer from '@/components/focus/FocusTodoDrawer.vue'
+import TaskDetailPanel from '@/components/tasks/TaskDetailPanel.vue'
 import FocusTodoRow from '@/components/focus/FocusTodoRow.vue'
 import { useFocusText } from '@/components/focus/useFocusText'
 import { useFeaturesStore } from '@/stores/features'
@@ -129,8 +129,15 @@ function dayOverloaded(date: string): boolean {
   return date === today.value && !!capacity.value && overloadMin.value > 0
 }
 
-// ── Drawer ──
+// ── Detail panel ──
 const openId = ref<string | null>(null)
+const panelRef = ref<InstanceType<typeof TaskDetailPanel> | null>(null)
+/** Show another todo in the panel; an unsaved edit in it is asked about first. */
+async function openTodo(id: string) {
+  if (id === openId.value) return
+  if (!(await (panelRef.value?.confirmDiscard() ?? true))) return
+  openId.value = id
+}
 const openItem = computed(() => (openId.value ? store.items.find((it) => it.todo.id === openId.value) ?? null : null))
 // Deleted elsewhere → close.
 watch(openItem, (it) => {
@@ -145,7 +152,7 @@ async function showTodo(id: string | null | undefined): Promise<boolean> {
   if (!id) return false
   if (!store.loaded) await store.load()
   if (!store.items.some((it) => it.todo.id === id)) return false
-  openId.value = id
+  await openTodo(id)
   // Make sure its bucket is visible in the time view, then flash the row.
   const it = store.items.find((x) => x.todo.id === id)
   if (it && view.value === 'time' && !openBuckets.value.has(it.bucket)) toggleBucket(it.bucket)
@@ -161,11 +168,12 @@ onBeforeUnmount(() => {
   if (flashTimer) clearTimeout(flashTimer)
 })
 
-defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
+defineExpose({ showTodo, openTodo })
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div class="relative flex h-full min-h-0">
+  <div class="flex min-w-0 flex-1 flex-col">
     <!-- Today's load (BR-08) — only once the backend has Calendar data -->
     <div v-if="capacity" class="flex shrink-0 items-center gap-3 border-b border-border/60 px-6 py-2 text-xs">
       <span class="shrink-0">{{ t('focus.capacity.summary', { need: formatEstimate(capacity.need_min), free: formatEstimate(Math.max(0, capacity.free_min)) }) }}</span>
@@ -268,7 +276,7 @@ defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
           :item="it"
           :now="now"
           :rank="i + 1"
-          @open="openId = $event"
+          @open="openTodo($event)"
         />
       </Card>
 
@@ -288,7 +296,7 @@ defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
         <div v-if="openBuckets.has(g.bucket)" class="mt-0.5">
           <FocusTodoRow
           :data-focus-row="it.todo.id"
-          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in g.items" :key="it.todo.id" :item="it" :now="now" @open="openId = $event" />
+          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in g.items" :key="it.todo.id" :item="it" :now="now" @open="openTodo($event)" />
         </div>
       </section>
     </div>
@@ -318,7 +326,7 @@ defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
             :now="now"
             layout="card"
             hide-project
-            @open="openId = $event"
+            @open="openTodo($event)"
           />
         </div>
       </div>
@@ -348,14 +356,22 @@ defineExpose({ showTodo, openTodo: (id: string) => (openId.value = id) })
           <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
             <FocusTodoRow
           :data-focus-row="it.todo.id"
-          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in col.items" :key="it.todo.id" :item="it" :now="now" layout="card" @open="openId = $event" />
+          :class="flashId === it.todo.id ? 'ring-2 ring-primary/70' : ''" v-for="it in col.items" :key="it.todo.id" :item="it" :now="now" layout="card" @open="openTodo($event)" />
           </div>
         </div>
       </div>
     </div>
 
-    <FocusTodoDrawer :item="openItem" @close="openId = null" />
-    <FocusDialogs />
-    <FocusAiDialogs />
+  </div>
+
+  <!-- The todo's panel: beside the board (it stays visible and clickable); under 900px it floats over it. -->
+  <aside
+    v-if="openItem"
+    class="w-[440px] shrink-0 border-l border-border bg-background min-[1920px]:w-[520px] max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-20 max-[900px]:max-w-full max-[900px]:shadow-xl"
+  >
+    <TaskDetailPanel ref="panelRef" :todo="openItem.todo" mode="dock" @close="openId = null" @deleted="openId = null" />
+  </aside>
+  <FocusDialogs />
+  <FocusAiDialogs />
   </div>
 </template>

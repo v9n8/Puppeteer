@@ -1,26 +1,14 @@
 <script setup lang="ts">
-// An item's properties at the top of the Notes / Todos detail body: its project
-// and, for a todo, its deadline (× clears it). Same label-over-field look as
-// TodoMetaFields.
-import { computed } from 'vue'
+// A note's properties at the top of the Notes detail body: its project. Same
+// label-over-field look as TodoMetaFields. (A todo's properties live in
+// components/tasks/TaskFieldsGrid.vue.)
 import { useI18n } from 'vue-i18n'
-import { X } from 'lucide-vue-next'
-import { DatePicker } from '@/components/ui'
 import ProjectSelect from '@/components/ProjectSelect.vue'
 import type { Note } from '@/stores/notes'
-import type { Todo } from '@/stores/todos'
 
-const props = defineProps<{
-  kind: 'note' | 'todo'
-  item: Note | Todo
-}>()
+defineProps<{ item: Note }>()
 
-const todo = computed(() => (props.kind === 'todo' ? (props.item as Todo) : null))
-
-const emit = defineEmits<{
-  setProject: [projectId: string | null]
-  setDueDate: [dueDate: string | null]
-}>()
+const emit = defineEmits<{ setProject: [projectId: string | null] }>()
 
 const { t } = useI18n()
 </script>
@@ -36,29 +24,6 @@ const { t } = useI18n()
           size="sm"
           @update:model-value="emit('setProject', $event)"
         />
-      </div>
-      <div v-if="todo" class="min-w-0 space-y-1">
-        <label class="block text-2xs font-medium text-muted-foreground">{{ t('item.fieldDue') }}</label>
-        <div class="flex items-center">
-          <DatePicker
-            :model-value="todo.due_date ?? ''"
-            size="sm"
-            class="min-w-0 flex-1"
-            :class="todo.due_date ? 'rounded-r-none' : ''"
-            :placeholder="t('item.setDueDate')"
-            @update:model-value="emit('setDueDate', $event || null)"
-          />
-          <button
-            v-if="todo.due_date"
-            type="button"
-            class="flex h-8 w-7 shrink-0 cursor-pointer items-center justify-center rounded-r-md border border-l-0 border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            :title="t('item.clearDueDate')"
-            :aria-label="t('item.clearDueDate')"
-            @click="emit('setDueDate', null)"
-          >
-            <X class="h-3 w-3" :stroke-width="2" />
-          </button>
-        </div>
       </div>
     </div>
   </div>

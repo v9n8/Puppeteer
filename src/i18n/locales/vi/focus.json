@@ -148,7 +148,6 @@
     "save": "Lưu"
   },
   "drawer": {
-    "text": "Tiêu đề",
     "project": "Project",
     "due": "Hạn",
     "dueTime": "Giờ (tuỳ chọn)",
@@ -168,9 +167,12 @@
     "started": "Bắt đầu lúc {time}",
     "completed": "Xong lúc {time}",
     "save": "Lưu",
-    "cancel": "Huỷ",
-    "unsaved": "Bỏ các thay đổi chưa lưu?",
-    "discard": "Bỏ thay đổi"
+    "cancel": "Huỷ"
+  },
+  "panel": {
+    "close": "Đóng (Esc)",
+    "discardTitle": "Bỏ thay đổi?",
+    "stay": "Ở lại"
   },
   "capture": {
     "title": "Todo mới",
