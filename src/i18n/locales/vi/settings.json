@@ -576,6 +576,7 @@
       "secretNotes": "Note bí mật",
       "todos": "Todo",
       "bookmarks": "Đánh dấu trong Session",
+      "sessionFlags": "Flag của Session",
       "slackThreads": "Slack thread",
       "projects": "Project"
     }

@@ -576,6 +576,7 @@
       "secretNotes": "Secret notes",
       "todos": "Todos",
       "bookmarks": "Session bookmarks",
+      "sessionFlags": "Session flags",
       "slackThreads": "Slack threads",
       "projects": "Projects"
     }

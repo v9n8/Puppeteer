@@ -173,6 +173,11 @@ export interface RunRecord {
    * `list_runs` fills it; History labels the status with it.
    */
   end_reason?: string | null
+  /**
+   * The session's flag (V3-18): a `SessionFlag` id; null = "No flag". Only
+   * `list_runs` fills it; a new, rerun or forked session has none.
+   */
+  flag_id?: string | null
 }
 
 /**
@@ -750,6 +755,15 @@ export const useRunsStore = defineStore('runs', () => {
     }
   }
 
+  /** Flag a session (`null`: no flag). No event follows: this window updates its own records, like a pin. */
+  async function setRunFlag(run_id: string, flagId: string | null): Promise<void> {
+    await invoke('set_run_flag', { runId: run_id, flagId })
+    const run = runs.value.find(r => r.id === run_id)
+    if (run) run.flag_id = flagId
+    const cached = runMeta.get(run_id)
+    if (cached) cached.flag_id = flagId
+  }
+
   async function setRunProtected(run_id: string, protectedFlag: boolean): Promise<void> {
     await invoke('set_run_protected', { runId: run_id, protected: protectedFlag })
     const run = runs.value.find(r => r.id === run_id)
@@ -788,6 +802,6 @@ export const useRunsStore = defineStore('runs', () => {
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun, forkRun,
     reconcileClaudeSessions, reconcileCodexSessions,
-    deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunCodexAccount, setRunPinned, setRunProtected, touchRun,
+    deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunCodexAccount, setRunPinned, setRunFlag, setRunProtected, touchRun,
   }
 })

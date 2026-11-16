@@ -272,6 +272,14 @@ const AUDITED_COMMANDS: &[&str] = &[
     "update_response_style",
     "delete_response_style",
     "restore_builtin_styles",
+    // Session flags: the definitions every project's sessions are labelled with
+    // (`set_run_flag`, one session's label, is not audited, like a pin).
+    "create_session_flag",
+    "update_session_flag",
+    "delete_session_flag",
+    "reorder_session_flags",
+    "restore_default_session_flags",
+    "set_project_flag_hidden",
     // MCP per session: which servers (and their credentials) the session gets.
     "set_run_mcp_override",
     // A project's defaults for new sessions: permission mode, style text, engine.
@@ -910,6 +918,12 @@ mod tests {
             "update_response_style",
             "delete_response_style",
             "restore_builtin_styles",
+            "create_session_flag",
+            "update_session_flag",
+            "delete_session_flag",
+            "reorder_session_flags",
+            "restore_default_session_flags",
+            "set_project_flag_hidden",
             "set_run_mcp_override",
             "set_project_session_defaults",
             "fork_run",
@@ -945,6 +959,8 @@ mod tests {
             "devserver_logs",
             "list_trash",
             "list_response_styles",
+            "list_session_flags",
+            "set_run_flag",
             "get_run_mcp",
             "list_project_tool_permissions",
         ] {

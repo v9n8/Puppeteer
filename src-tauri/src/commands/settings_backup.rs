@@ -125,6 +125,8 @@ struct Bundle {
     bookmarks: Vec<BookmarkEntry>,
     #[serde(default)]
     response_styles: Vec<ResponseStyleEntry>,
+    #[serde(default)]
+    session_flags: crate::commands::session_flags_backup::SessionFlagsBackup,
     /// `$HOME` of the exporting machine: project paths under it are moved under this machine's.
     #[serde(default)]
     home_dir: Option<String>,
@@ -433,9 +435,9 @@ struct CodexEntry {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct ProjectRef {
-    name: String,
-    path: String,
+pub(crate) struct ProjectRef {
+    pub(crate) name: String,
+    pub(crate) path: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -786,6 +788,7 @@ impl Bundle {
             ("projects", self.projects.len()),
             ("bookmarks", self.bookmarks.len()),
             ("responseStyles", self.response_styles.len()),
+            ("sessionFlags", self.session_flags.flags.len()),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_string(), v))
@@ -1332,6 +1335,7 @@ async fn collect(
         projects,
         bookmarks,
         response_styles,
+        session_flags: crate::commands::session_flags_backup::collect(db).await?,
         home_dir: std::env::var("HOME").ok().filter(|h| !h.is_empty()),
         secrets: None,
     };
@@ -2049,6 +2053,7 @@ async fn apply_bundle(
             .warnings
             .push(format!("bookmarks: {orphan_bookmarks} skipped, their session is not on this machine"));
     }
+    crate::commands::session_flags_backup::import(db, &bundle.session_flags, &mut report).await;
     for entry in &bundle.response_styles {
         let result = import_response_style(db, entry).await;
         report.record("responseStyles", &entry.name, result);
@@ -2130,6 +2135,7 @@ fn remap_bundle_paths(bundle: &mut Bundle, local_home: Option<&str>) {
         .filter_map(|n| n.project.as_mut())
         .chain(bundle.todos.iter_mut().filter_map(|t| t.project.as_mut()))
         .chain(bundle.response_styles.iter_mut().filter_map(|s| s.project.as_mut()))
+        .chain(bundle.session_flags.project_refs_mut())
         .chain(
             bundle
                 .slack_threads
@@ -4545,6 +4551,7 @@ mod tests {
             projects: vec![],
             bookmarks: vec![],
             response_styles: vec![],
+            session_flags: Default::default(),
             home_dir: None,
             secrets: None,
         };

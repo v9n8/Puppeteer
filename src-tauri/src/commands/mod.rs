@@ -40,6 +40,8 @@ pub mod rules;
 pub mod run_mcp;
 pub mod runs;
 pub mod session_defaults;
+pub mod session_flags;
+pub mod session_flags_backup;
 pub mod session_search;
 pub mod sessions;
 pub mod settings;

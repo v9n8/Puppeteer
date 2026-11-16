@@ -1,0 +1,13 @@
+{
+  "builtin": {
+    "needs_review": "Cần xem",
+    "in_progress": "Đang làm",
+    "awaiting_review": "Chờ review",
+    "settled": "Đã chốt"
+  },
+  "errors": {
+    "nameRequired": "Flag cần có tên.",
+    "nameTooLong": "Tên dài quá {max} ký tự.",
+    "nameTaken": "Ở đây đã có flag trùng tên này."
+  }
+}

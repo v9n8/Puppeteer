@@ -1,0 +1,13 @@
+{
+  "builtin": {
+    "needs_review": "Needs review",
+    "in_progress": "In progress",
+    "awaiting_review": "Awaiting review",
+    "settled": "Settled"
+  },
+  "errors": {
+    "nameRequired": "The flag needs a name.",
+    "nameTooLong": "The name is longer than {max} characters.",
+    "nameTaken": "A flag with this name already exists here."
+  }
+}

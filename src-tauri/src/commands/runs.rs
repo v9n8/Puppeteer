@@ -3451,6 +3451,7 @@ pub async fn rerun_run(db: State<'_, Db>, run_id: String) -> Result<RunRecord, S
         effort: None,
         forked_from_run_id: None,
         end_reason: None,
+        flag_id: None,
     })
 }
 
@@ -3569,6 +3570,7 @@ pub async fn create_handoff_run(
             effort: None,
             forked_from_run_id: None,
             end_reason: None,
+            flag_id: None,
         },
         context_path,
         summary_lines,
@@ -3631,6 +3633,7 @@ pub async fn create_session_run(
         effort: None,
         forked_from_run_id: None,
         end_reason: None,
+        flag_id: None,
     })
 }
 
