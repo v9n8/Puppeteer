@@ -807,6 +807,7 @@ mod tests {
         // Full control: credentials, the vault, backups and settings included.
         for name in [
             "list_runs",
+            "list_server_projects",
             "start_run",
             "send_user_message",
             "list_github_accounts",

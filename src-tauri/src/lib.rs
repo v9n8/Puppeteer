@@ -158,7 +158,7 @@ use commands::todos::{
     set_todo_due_date, set_todo_project, toggle_todo, update_todo, update_todo_fields,
 };
 use commands::vps_servers::{
-    create_vps_server, delete_vps_server, list_project_servers, list_vps_servers,
+    create_vps_server, delete_vps_server, list_project_servers, list_server_projects, list_vps_servers,
     map_server_to_project, test_vps_connection, unmap_server, update_vps_server,
 };
 use commands::models::{get_model_caches, refresh_codex_models, validate_claude_models};
@@ -622,6 +622,7 @@ pub fn run() {
             delete_vps_server,
             test_vps_connection,
             list_project_servers,
+            list_server_projects,
             map_server_to_project,
             unmap_server,
             detect_project_info,

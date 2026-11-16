@@ -72,6 +72,8 @@ defineSlots<{
   row: (p: { row: T; selected: boolean }) => unknown
   /** Hover actions at the end of a row (outside the click area). */
   'row-actions'?: (p: { row: T }) => unknown
+  /** Pinned under the list (e.g. a legend). */
+  footer?: () => unknown
   /** Hover actions on a folder header. */
   'group-actions'?: (p: { group: RowGroup<T> }) => unknown
 }>()
@@ -215,6 +217,10 @@ function showHeaders(): boolean {
           </li>
         </ul>
       </div>
+    </div>
+
+    <div v-if="$slots.footer" class="shrink-0 border-t border-border px-3 py-2">
+      <slot name="footer" />
     </div>
   </aside>
 </template>

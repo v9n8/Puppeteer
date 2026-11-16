@@ -747,6 +747,57 @@ pub async fn list_project_servers(
     Ok(rows.iter().map(row_to_project_server).collect())
 }
 
+/// A Project that has a server switched on (V3-52): the reverse of `list_project_servers`.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ServerProject {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    /// Every role the server has in this project, A-Z (a project shows once, not once per role).
+    pub roles: Vec<String>,
+}
+
+async fn server_projects(db: &Db, server_id: &str) -> Result<Vec<ServerProject>, String> {
+    let rows = sqlx::query(
+        "SELECT p.id, p.name, p.path, p.color, p.icon, GROUP_CONCAT(ps.role, char(10)) AS roles \
+         FROM project_servers ps JOIN projects p ON p.id = ps.project_id \
+         WHERE ps.server_id = ? AND p.deleted_at IS NULL \
+         GROUP BY p.id ORDER BY p.position, p.name",
+    )
+    .bind(server_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(rows
+        .iter()
+        .map(|row| {
+            let joined: String = row.get("roles");
+            let mut roles: Vec<String> = joined.split('\n').map(str::to_string).collect();
+            roles.sort();
+            ServerProject {
+                id: row.get("id"),
+                name: row.get("name"),
+                path: row.get("path"),
+                color: row.get("color"),
+                icon: row.get("icon"),
+                roles,
+            }
+        })
+        .collect())
+}
+
+/// V3-52: the live Projects that have `server_id` switched on (Trash excluded), for the
+/// server's detail and the Delete box. Read-only. No project → `[]`.
+#[tauri::command]
+pub async fn list_server_projects(
+    db: State<'_, Db>,
+    server_id: String,
+) -> Result<Vec<ServerProject>, String> {
+    server_projects(db.inner(), &server_id).await
+}
+
 /// FR-102 / AC-103,104,105: map a server to a project under a role.
 /// BR-101: role is trimmed; empty → `'production'`. BR-102: idempotent via
 /// `INSERT OR IGNORE` on the (project, server, role) PK. BR-103: FK guarantees
@@ -899,6 +950,38 @@ mod tests {
         ] {
             assert!(check(host, user).is_err(), "{user:?}@{host:?} must be rejected");
         }
+    }
+
+    #[tokio::test]
+    async fn server_projects_lists_live_projects_once_with_all_roles() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at, position) VALUES ('p1', 'b', '/tmp/b', 'c', 0)",
+            "INSERT INTO projects (id, name, path, created_at, position, deleted_at) VALUES ('p2', 'trashed', '/tmp/t', 'c', 1, 'x')",
+            "INSERT INTO projects (id, name, path, created_at, position) VALUES ('p3', 'a', '/tmp/a', 'c', 2)",
+            "INSERT INTO servers (id, label, host, port, username, auth_method, created_at) \
+             VALUES ('v1', 'prod', 'example.com', 22, 'root', 'agent', 'c')",
+            "INSERT INTO servers (id, label, host, port, username, auth_method, created_at) \
+             VALUES ('v2', 'idle', 'example.org', 22, 'root', 'agent', 'c')",
+            "INSERT INTO project_servers (project_id, server_id, role, created_at) VALUES ('p1', 'v1', 'staging', 'c')",
+            "INSERT INTO project_servers (project_id, server_id, role, created_at) VALUES ('p1', 'v1', 'production', 'c')",
+            "INSERT INTO project_servers (project_id, server_id, role, created_at) VALUES ('p2', 'v1', 'production', 'c')",
+            "INSERT INTO project_servers (project_id, server_id, role, created_at) VALUES ('p3', 'v1', 'production', 'c')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+
+        let got = server_projects(&db, "v1").await.unwrap();
+        let ids: Vec<&str> = got.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["p1", "p3"], "one row per project, Trash left out, by position");
+        assert_eq!(got[0].roles, ["production", "staging"]);
+        assert_eq!(got[1].roles, ["production"]);
+        assert!(server_projects(&db, "v2").await.unwrap().is_empty());
     }
 
     /// The phone's server switch (`project_toggle_set`) maps through here: it

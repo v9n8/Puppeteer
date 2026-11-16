@@ -17,6 +17,7 @@ import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import { useToast } from '@/composables/useToast'
 import { relativeAge } from '@/lib/itemText'
+import ServerProjects from '@/components/servers/ServerProjects.vue'
 import { splitTags } from '@/lib/listGroups'
 import { addTags, joinTags, serverStatus, sshCommand } from '@/lib/serverRows'
 import {
@@ -460,6 +461,8 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
             {{ testResult.message }}
           </Banner>
         </DetailSection>
+
+        <ServerProjects v-if="server" :server-id="server.id" />
       </div>
     </div>
   </section>

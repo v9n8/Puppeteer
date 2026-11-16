@@ -48,6 +48,16 @@ export interface ProjectServer extends VpsServer {
   role: string
 }
 
+/** A live Project that has a server switched on — mirrors the Rust `ServerProject` (V3-52). */
+export interface ServerProject {
+  id: string
+  name: string
+  path: string
+  color: string | null
+  icon: string | null
+  roles: string[]
+}
+
 export const useServersStore = defineStore('servers', () => {
   const items = ref<VpsServer[]>([])
   const loading = ref(false)
@@ -96,6 +106,11 @@ export const useServersStore = defineStore('servers', () => {
     return invoke<ProjectServer[]>('list_project_servers', { projectId })
   }
 
+  /** The live Projects that have a server switched on (the reverse of `listForProject`). */
+  async function listProjectsOf(serverId: string): Promise<ServerProject[]> {
+    return invoke<ServerProject[]>('list_server_projects', { serverId })
+  }
+
   /** Map a server to a project under a role (empty role → 'production'). */
   async function mapToProject(
     projectId: string,
@@ -120,6 +135,7 @@ export const useServersStore = defineStore('servers', () => {
     deleteServer,
     testConnection,
     listForProject,
+    listProjectsOf,
     mapToProject,
     unmap,
   }

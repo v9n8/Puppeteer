@@ -7,12 +7,15 @@
     "status": {
       "online": "Online",
       "offline": "Offline",
-      "notChecked": "Not checked"
+      "notChecked": "Not checked",
+      "testing": "Checking…"
     },
+    "statusLegend": "Check result",
     "testTitle": "Test connection",
     "confirmDelete": {
       "title": "Delete server",
-      "message": "Delete server \"{label}\"? This also removes its stored passphrase. This cannot be undone."
+      "message": "Delete server \"{label}\"? This also removes its stored passphrase. This cannot be undone.",
+      "impact": "{count} project that has this server switched on will lose it: {names}. | {count} projects that have this server switched on will lose it: {names}."
     },
     "toast": {
       "deleted": "Deleted",
@@ -65,6 +68,13 @@
     "toast": {
       "saved": "Saved"
     }
+  },
+  "projects": {
+    "title": "Projects using it",
+    "hint": "Projects that switched this server on in their Servers & access tab.",
+    "none": "No project has switched this server on.",
+    "open": "Open",
+    "loadFailed": "Could not load the projects: {error}"
   },
   "detail": {
     "newTitle": "New server",

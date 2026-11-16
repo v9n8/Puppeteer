@@ -76,3 +76,24 @@ export function summarizeTests(results: ReadonlyArray<PromiseSettledResult<{ ok:
   for (const r of results) if (r.status === 'fulfilled' && r.value.ok) online++
   return { online, offline: results.length - online }
 }
+
+export interface ServerDot {
+  tone: 'online' | 'offline' | 'unknown' | 'testing'
+  labelKey: string
+}
+
+/** The row's status dot: a running test wins over the last stored result (V3-52). */
+export function serverDot(status: ServerStatus, testing: boolean): ServerDot {
+  if (testing) return { tone: 'testing', labelKey: 'servers.list.status.testing' }
+  const labelKey = {
+    online: 'servers.list.status.online',
+    offline: 'servers.list.status.offline',
+    unknown: 'servers.list.status.notChecked',
+  }[status]
+  return { tone: status, labelKey }
+}
+
+/** Project names for the Delete box ("A, B"); '' when no project uses the server. */
+export function deleteImpactNames(projects: ReadonlyArray<{ name: string }>): string {
+  return projects.map((p) => p.name).join(', ')
+}

@@ -6,9 +6,11 @@ import { GROUP_NONE } from '../listGroups.ts'
 import {
   addTags,
   allServerTags,
+  deleteImpactNames,
   filterServers,
   groupServers,
   joinTags,
+  serverDot,
   serverStatus,
   sshCommand,
   summarizeTests,
@@ -92,4 +94,16 @@ test('summarizeTests counts rejections as offline', () => {
     ]),
     { online: 1, offline: 2 },
   )
+})
+
+test('serverDot: a running test wins, otherwise the stored status', () => {
+  assert.deepEqual(serverDot('online', true), { tone: 'testing', labelKey: 'servers.list.status.testing' })
+  assert.deepEqual(serverDot('online', false), { tone: 'online', labelKey: 'servers.list.status.online' })
+  assert.deepEqual(serverDot('offline', false), { tone: 'offline', labelKey: 'servers.list.status.offline' })
+  assert.deepEqual(serverDot('unknown', false), { tone: 'unknown', labelKey: 'servers.list.status.notChecked' })
+})
+
+test('deleteImpactNames: comma list, empty when none', () => {
+  assert.equal(deleteImpactNames([]), '')
+  assert.equal(deleteImpactNames([{ name: 'Puppeteer' }, { name: 'pms-api' }]), 'Puppeteer, pms-api')
 })

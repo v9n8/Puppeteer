@@ -7,12 +7,15 @@
     "status": {
       "online": "Trực tuyến",
       "offline": "Ngoại tuyến",
-      "notChecked": "Chưa kiểm tra"
+      "notChecked": "Chưa kiểm tra",
+      "testing": "Đang kiểm tra…"
     },
+    "statusLegend": "Kết quả kiểm tra",
     "testTitle": "Kiểm tra kết nối",
     "confirmDelete": {
       "title": "Xóa server",
-      "message": "Xóa server \"{label}\"? Thao tác này cũng xóa passphrase đã lưu. Không thể hoàn tác."
+      "message": "Xóa server \"{label}\"? Thao tác này cũng xóa passphrase đã lưu. Không thể hoàn tác.",
+      "impact": "{count} Project đang bật máy chủ này sẽ không còn nó: {names}."
     },
     "toast": {
       "deleted": "Đã xóa",
@@ -65,6 +68,13 @@
     "toast": {
       "saved": "Đã lưu"
     }
+  },
+  "projects": {
+    "title": "Project đang dùng",
+    "hint": "Project đã bật máy chủ này ở tab Máy chủ & quyền.",
+    "none": "Chưa Project nào bật máy chủ này.",
+    "open": "Mở",
+    "loadFailed": "Không đọc được danh sách Project: {error}"
   },
   "detail": {
     "newTitle": "Server mới",

@@ -11,15 +11,20 @@ import { HardDrive, RotateCw } from 'lucide-vue-next'
 import { AppSelect, Button } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
-import ServerDetail, { type ServerPrefill } from '@/components/servers/ServerDetail.vue'
+import ServerStatusDot from '@/components/servers/ServerStatusDot.vue'
+import ServerDetail,{ type ServerPrefill } from '@/components/servers/ServerDetail.vue'
 import { useActivatedRefresh } from '@/composables/useActivatedRefresh'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import {
   allServerTags,
   filterServers,
+  deleteImpactNames,
   groupServers,
+  serverDot,
+  serverStatus,
   summarizeTests,
+  type ServerStatus,
 } from '@/lib/serverRows'
 import { useServersStore, type TestConnectionResult, type VpsServer } from '@/stores/servers'
 
@@ -191,6 +196,12 @@ const testResults = reactive(new Map<string, TestConnectionResult>())
 const testingIds = reactive(new Set<string>())
 const testingAll = ref(false)
 
+const legendTones: ServerStatus[] = ['online', 'offline', 'unknown']
+
+function dotOf(server: VpsServer) {
+  return serverDot(serverStatus(server), testingIds.has(server.id))
+}
+
 async function runTest(id: string): Promise<TestConnectionResult> {
   testingIds.add(id)
   try {
@@ -231,9 +242,14 @@ async function testAll() {
 const deletingId = ref<string | null>(null)
 
 async function handleDelete(server: VpsServer) {
+  // Read fresh on every open; a failed read must not block the Delete box.
+  const users = await store.listProjectsOf(server.id).catch(() => [])
+  const impact = users.length > 0
+    ? ` ${t('servers.list.confirmDelete.impact', { count: users.length, names: deleteImpactNames(users) }, users.length)}`
+    : ''
   if (!(await confirm({
     title: t('servers.list.confirmDelete.title'),
-    message: t('servers.list.confirmDelete.message', { label: server.label }),
+    message: t('servers.list.confirmDelete.message', { label: server.label }) + impact,
     confirmLabel: t('common.delete'),
   }))) return
   deletingId.value = server.id
@@ -284,10 +300,22 @@ async function handleDelete(server: VpsServer) {
         <AppSelect v-model="tagFilter" size="sm" :options="tagOptions" />
       </template>
       <template #row="{ row }">
-        <span class="min-w-0 truncate text-sm font-medium leading-snug">{{ row.label }}</span>
-        <span class="mt-1 truncate font-mono text-2xs text-muted-foreground/70">
+        <span class="flex min-w-0 items-center gap-2">
+          <ServerStatusDot :dot="dotOf(row)" />
+          <span class="min-w-0 truncate text-sm font-medium leading-snug">{{ row.label }}</span>
+        </span>
+        <span class="mt-1 truncate pl-4 font-mono text-2xs text-muted-foreground/70">
           {{ row.username }}@{{ row.host }}:{{ row.port }}
         </span>
+      </template>
+      <template #footer>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+          <span>{{ t('servers.list.statusLegend') }}</span>
+          <span v-for="tone in legendTones" :key="tone" class="flex items-center gap-1.5">
+            <ServerStatusDot :dot="serverDot(tone, false)" />
+            {{ t(serverDot(tone, false).labelKey) }}
+          </span>
+        </div>
       </template>
     </ListDetailSidebar>
 
