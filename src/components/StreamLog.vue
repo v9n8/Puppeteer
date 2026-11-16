@@ -16,6 +16,7 @@ import DiffView from './DiffView.vue'
 import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
 import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import TurnActivityHeader from './sessions/TurnActivityHeader.vue'
+import WorkerResultCards from './conductor/WorkerResultCards.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionQuoteNote, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
@@ -1073,12 +1074,10 @@ function toolResult(e: StreamEntry): unknown {
            each streamed chunk proportional to what's on screen. It takes effect
            only once `v-entry-size` has measured the entry (so the skipped entry
            reserves the height it really had) and only WHILE THE RUN IS LIVE.
-           Reading a finished run is pure scrolling: content that stays laid out
-           costs a paint to scroll past, whereas a skipped entry has to be laid
-           out again from scratch in the frame it re-enters the viewport — so
-           skipping is a loss there, and that stutter is what the reader feels.
-           The last entry is excluded while streaming: it's always in view and
-           its height changes every chunk, which makes the placeholder thrash. -->
+           Reading a finished run is pure scrolling: a skipped entry must be laid
+           out again from scratch when it re-enters the viewport, which stutters.
+           The last entry is excluded while streaming: its height changes every
+           chunk, so the placeholder would thrash. -->
       <!-- Header of the turn's folded work, above its first step. Open, it
            hugs the rail the steps hang from. -->
       <div
@@ -1233,6 +1232,7 @@ function toolResult(e: StreamEntry): unknown {
 
       <!-- Harness-injected message (skill body, conductor nudge, meta) — a slim
            marker the user can expand; it isn't something they typed. -->
+      <WorkerResultCards v-else-if="entry.kind === 'worker_results'" :workers="entry.workers" :nudge="entry.nudge" />
       <div v-else-if="entry.kind === 'injected'" class="my-1.5 flex flex-col items-start gap-1">
         <button
           class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-2xs text-foreground/60 hover:text-foreground/80 transition-colors"

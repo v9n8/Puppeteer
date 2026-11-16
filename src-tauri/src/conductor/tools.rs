@@ -870,11 +870,8 @@ async fn wake_conductor(
         return;
     }
 
-    let nudge = "[session] A worker you spawned has finished its turn. \
-Call session_poll() or session_list() to see which of your workers are now idle, \
-session_read() each finished worker's result, then continue toward the goal \
-(send follow-ups, spawn a specialist, or conclude). If the goal is now met, give \
-the human your final summary.";
+    let results = crate::conductor::worker_results::collect(&db, conductor_run_id).await;
+    let nudge = crate::conductor::worker_results::nudge_text(&results);
 
     let outcome = async {
         if !alive {
@@ -893,12 +890,13 @@ the human your final summary.";
             )
             .await?;
         }
+        crate::conductor::worker_results::push(&registry_from(app), conductor_run_id, &results).await;
         crate::commands::runs::send_user_message_inner(
             &db,
             &registry_from(app),
             crate::commands::runs::SendUserMessagePayload {
                 run_id: conductor_run_id.to_string(),
-                content: nudge.to_string(),
+                content: nudge.clone(),
                 images: Vec::new(),
                 override_budget: false,
                 quotes: Vec::new(),

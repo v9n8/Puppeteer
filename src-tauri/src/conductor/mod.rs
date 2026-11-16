@@ -16,6 +16,7 @@ pub mod commands;
 mod framing;
 pub mod mcp_http;
 pub mod tools;
+pub mod worker_results;
 pub mod worktree;
 
 use std::collections::{HashMap, HashSet};

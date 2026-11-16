@@ -49,6 +49,11 @@ export function useRunSession(): RunSession {
   return session
 }
 
+/** For components that also render outside RunView (the log in the phone controller). */
+export function useRunSessionOptional(): RunSession | null {
+  return inject(RUN_SESSION, null)
+}
+
 // Mount / unmount work that spans the parts: the first load, app-wide menu and
 // window listeners, file drops and the transcript watcher.
 

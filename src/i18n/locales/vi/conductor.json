@@ -48,5 +48,18 @@
   },
   "justStarted": "<1m",
   "runningSince": "Đang chạy từ {time}",
-  "resizeTimeline": "Kéo để chỉnh chiều cao dòng thời gian"
+  "resizeTimeline": "Kéo để chỉnh chiều cao dòng thời gian",
+  "result": {
+    "title": "Worker xong lượt",
+    "status": { "done": "Hoàn tất", "failed": "Lỗi", "cancelled": "Đã hủy" },
+    "edited": "Sửa {n} file",
+    "tokens": "{n} token",
+    "durSec": "{s} giây",
+    "durMinSec": "{m} phút {s} giây",
+    "durHourMin": "{h} giờ {m} phút",
+    "openWorker": "Mở worker",
+    "openChanged": "Xem file đã đổi",
+    "nudge": "Tin gửi conductor",
+    "inTrash": "Worker đã ở Thùng rác"
+  }
 }

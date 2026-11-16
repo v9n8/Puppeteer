@@ -48,5 +48,18 @@
   },
   "justStarted": "<1m",
   "runningSince": "Running since {time}",
-  "resizeTimeline": "Drag to resize the timeline"
+  "resizeTimeline": "Drag to resize the timeline",
+  "result": {
+    "title": "Worker finished a turn",
+    "status": { "done": "Done", "failed": "Failed", "cancelled": "Cancelled" },
+    "edited": "Edited {n} files",
+    "tokens": "{n} tokens",
+    "durSec": "{s}s",
+    "durMinSec": "{m}m {s}s",
+    "durHourMin": "{h}h {m}m",
+    "openWorker": "Open worker",
+    "openChanged": "View changed files",
+    "nudge": "Message to the session",
+    "inTrash": "Worker is in the Trash"
+  }
 }

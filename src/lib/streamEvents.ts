@@ -1,5 +1,6 @@
 import { estimateCost } from './pricing'
 import { STEP_MARK_TYPE, applyStepMark } from './stepMarks'
+import { WORKER_RESULTS_TYPE, parseWorkerResults, attachNudge, type WorkerResult } from './workerResults'
 import { carriesOver, parseModelUsage, turnTotals, type ModelUsageMap } from './modelUsage'
 
 /** A pasted/attached image carried on a user message. `data` is raw base64. */
@@ -206,6 +207,8 @@ export type StreamEntry =
   | { kind: 'command'; name: string; args?: string; stdout?: string }
   /** Harness-injected user message (skill body, conductor nudge, meta) — collapsed by default. */
   | { kind: 'injected'; source: 'skill' | 'session' | 'system'; label?: string; text: string }
+  /** The workers that finished a turn, one result card each (V3-30), with the nudge the conductor got after them. */
+  | { kind: 'worker_results'; workers: WorkerResult[]; nudge?: string }
   | {
       kind: 'tool'
       id: string
@@ -506,6 +509,12 @@ export function applyStreamEvent(
     return
   }
 
+  if (type === WORKER_RESULTS_TYPE) {
+    const workers = parseWorkerResults(e)
+    if (workers.length) state.entries.push({ kind: 'worker_results', workers })
+    return
+  }
+
   if (type === 'tool_progress') {
     const id = progressToolId(state.toolIndex, e)
     const idx = id ? state.toolIndex.get(id) : undefined
@@ -615,7 +624,7 @@ export function applyStreamEvent(
       if (!text) return
       const injected = classifyInjected(e, text)
       if (injected) {
-        state.entries.push(injected)
+        if (!attachNudge(state.entries, injected)) state.entries.push(injected)
         return
       }
       const rest = handleCommandMessage(state, text)
@@ -657,7 +666,7 @@ export function applyStreamEvent(
     if (userText) {
       const injected = classifyInjected(e, userText)
       if (injected) {
-        state.entries.push(injected)
+        if (!attachNudge(state.entries, injected)) state.entries.push(injected)
         return
       }
       const rest = handleCommandMessage(state, userText)
