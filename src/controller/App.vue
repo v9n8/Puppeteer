@@ -70,6 +70,7 @@ import {
   type TodoInfo,
 } from './protocol'
 import { localYmd } from '@/lib/todoDue'
+import { intersectEnabled } from '@/lib/enabledModels'
 import type { TodoTab } from '@/lib/remoteTodos'
 
 const { t } = useI18n()
@@ -403,6 +404,13 @@ const browserProjectId = ref<string | null>(null)
 // A new session being composed: the project it will be created in. Its run only
 // exists once the Host accepts the first turn (the ack carries the new run id).
 const draftProjectId = ref<string | null>(null)
+
+// The models this session may pick: the Host's list narrowed by the list of the
+// session's project, when it has one (Project › Model, V3-64).
+const sessionEnabledModels = computed(() => {
+  const projectId = runId.value ? store.state.runList.find((r) => r.id === runId.value)?.project_id : draftProjectId.value
+  return intersectEnabled(store.state.enabledModels, projectId ? store.state.projectEnabledModels[projectId] : null)
+})
 
 function startNewSession(projectId: string): void {
   browserProjectId.value = projectId
@@ -982,7 +990,7 @@ function onRequestFiles(): void {
     :slash-commands="store.state.slashCommands"
     :project-files="store.state.projectFiles"
     :discovered-models="store.state.discoveredModels"
-    :enabled-models="store.state.enabledModels"
+    :enabled-models="sessionEnabledModels"
     :claude-account-choices="store.state.claudeAccountChoices"
     :claude-account-id="store.state.runMeta.claudeAccountId"
     :engine="engine"

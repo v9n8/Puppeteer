@@ -460,7 +460,9 @@
   },
   "errors": {
     "modelDisabled": "Model {model} đang tắt ở Cài đặt › Model. Bật lại hoặc chọn model khác.",
-    "modelDefaultDisabled": "Model {model} là model mặc định cho Session mới nhưng đang tắt ở Cài đặt › Model. Đổi ở Cài đặt › Mặc định cho Session mới."
+    "modelDefaultDisabled": "Model {model} là model mặc định cho Session mới nhưng đang tắt ở Cài đặt › Model. Đổi ở Cài đặt › Mặc định cho Session mới.",
+    "modelDisabledProject": "Model {model} đang tắt cho Project {project} (Project › Model). Bật lại ở đó hoặc chọn model khác.",
+    "modelDefaultDisabledProject": "Model {model} là model mặc định cho Session mới nhưng đang tắt cho Project {project}. Đổi ở mục Mặc định cho Session mới của Project."
   },
   "sessionTabs": {
     "tablist": "Tab của Session",

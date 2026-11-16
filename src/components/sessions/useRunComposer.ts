@@ -113,13 +113,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Claude's is curated + annotated with the last validation sweep; Codex's is
   // whatever `codex debug models` last reported.
   //
-  // The model that an empty (Default) pick resolves to: the one the run last ran
-  // with (a resume keeps it), else the project's default, else the global one —
-  // read reactively, so changing a default is reflected here at once.
+  // What an empty (Default) pick resolves to: the run's last model (a resume keeps
+  // it), else the project's default, else the global one; reactive.
   const defaultModel = computed(() => inheritedModel(currentRun.value, effectiveEngine.value, sessionDefaults.value))
   const modelOptions = computed(() => {
-    let claude = modelCatalog.offered('claude', modelOverride.value)
-    let codex = modelCatalog.offered('codex', modelOverride.value)
+    let claude = modelCatalog.offered('claude', modelOverride.value, projectId.value)
+    let codex = modelCatalog.offered('codex', modelOverride.value, projectId.value)
     // Keep an off-table saved pick selectable (a dropped/aliased id) by appending
     // it to the group matching the loaded run's engine.
     const cur = modelOverride.value

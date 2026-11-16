@@ -10,6 +10,7 @@ import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import ProjectSessionDefaults from '@/components/ProjectSessionDefaults.vue'
 import ResponseStylesSettings from '@/components/settings/ResponseStylesSettings.vue'
 import ProjectFlags from '@/components/projects/ProjectFlags.vue'
+import ProjectModels from '@/components/projects/ProjectModels.vue'
 import ProjectOverview from '@/components/projects/ProjectOverview.vue'
 import ProjectBoard from '@/components/projects/ProjectBoard.vue'
 import ProjectConnections from '@/components/projects/ProjectConnections.vue'
@@ -200,6 +201,7 @@ async function toggleHidden() {
           <ResponseStylesSettings :project-id="project.id" />
         </div>
         <ProjectFlags v-else-if="section === 'flags'" :project="project" />
+        <ProjectModels v-else-if="section === 'model'" :project="project" @open="openSection" />
         <ProjectConnections v-else-if="place.tab === 'connections'" :project="project" :section="section as 'accounts'" :account-type="place.type ?? null" />
         <ProjectLibrary v-else-if="place.tab === 'library'" :project="project" :section="section as 'files'" />
         <ProjectServers v-else-if="place.tab === 'servers'" :project="project" :section="section as 'deploy'" />

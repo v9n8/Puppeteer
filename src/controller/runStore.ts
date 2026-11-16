@@ -196,6 +196,9 @@ export interface RunStoreState {
   claudeAccountChoices: ClaudeAccountChoice[]
   /** Models that are on per engine (Settings › Model on the Host); all on by default. */
   enabledModels: EnabledModels
+  /** Per project id, the project's own list (Project › Model, V3-64); a project left
+   * out follows `enabledModels`. Empty from an older Host. */
+  projectEnabledModels: Record<string, EnabledModels>
   /** Subscription plan-usage badges, mirrored from the desktop `BudgetBadge`. */
   claudeBudget: PlanBudget | null
   codexBudget: PlanBudget | null
@@ -229,6 +232,7 @@ export function createRunStore() {
     runMeta: { engine: '', model: '', permissionMode: '', claudeAccountId: '' },
     claudeAccountChoices: [],
     enabledModels: { ...ALL_MODELS_ON },
+    projectEnabledModels: {},
     claudeBudget: null,
     codexBudget: null,
     claudeAccount: null,
@@ -346,6 +350,7 @@ export function createRunStore() {
         state.discoveredModels = { codex: payload.codex_models ?? [] }
         state.claudeAccountChoices = payload.claude_accounts ?? []
         state.enabledModels = payload.enabled_models ?? { ...ALL_MODELS_ON }
+        state.projectEnabledModels = payload.project_enabled_models ?? {}
         break
       case 'project_file_list':
         state.projectFiles = payload.files
@@ -574,6 +579,7 @@ export function createRunStore() {
     state.runMeta = { engine: '', model: '', permissionMode: '', claudeAccountId: '' }
     state.claudeAccountChoices = []
     state.enabledModels = { ...ALL_MODELS_ON }
+    state.projectEnabledModels = {}
     state.claudeAccounts = []
   }
 

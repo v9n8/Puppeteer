@@ -6,7 +6,7 @@ use serde::Serialize;
 use sqlx::{Row, SqliteConnection};
 use tauri::State;
 
-use super::{is_disabled, EnabledModels, SETTING};
+use super::{first_enabled, intersect, is_disabled, EnabledModels, SETTING};
 use crate::commands::settings::DEFAULT_CLAUDE_FALLBACK_MODEL;
 use crate::db::Db;
 
@@ -17,6 +17,8 @@ pub struct ProjectModels {
     pub name: String,
     pub claude: Option<String>,
     pub codex: Option<String>,
+    /// The project's own list (Project › Model, V3-64); `None` = follows Settings.
+    pub enabled: Option<EnabledModels>,
 }
 
 /// Every place that names a default model.
@@ -67,8 +69,7 @@ fn side_engine(own: &str, fallback: &str) -> String {
 /// What `value` becomes on `engine`: `None` when it stays (empty, an alias, an
 /// id that is on), else the first id still on, or `""` (the engine picks).
 fn moved(engine: &str, value: &str, enabled: &EnabledModels) -> Option<String> {
-    is_disabled(engine, value, enabled)
-        .then(|| enabled.list(engine).and_then(|ids| ids.first()).cloned().unwrap_or_default())
+    is_disabled(engine, value, enabled).then(|| first_enabled(engine, enabled))
 }
 
 /// The fallback setting may list several models (tried in order): the ones now
@@ -103,6 +104,8 @@ pub fn reassign_defaults(current: &DefaultSlots, enabled: &EnabledModels) -> Vec
         }
     }
     for p in &current.projects {
+        // A project with its own list (V3-64) keeps its defaults within both lists.
+        let enabled = &intersect(enabled, p.enabled.as_ref());
         for (column, engine, value) in [
             ("default_model_claude", "claude", &p.claude),
             ("default_model_codex", "codex", &p.codex),
@@ -146,7 +149,7 @@ async fn read_slots(conn: &mut SqliteConnection) -> Result<DefaultSlots, String>
         }
     }
     let projects = sqlx::query(
-        "SELECT id, name, default_model_claude, default_model_codex FROM projects \
+        "SELECT id, name, default_model_claude, default_model_codex, enabled_models FROM projects \
          WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE, id",
     )
     .fetch_all(&mut *conn)
@@ -159,6 +162,7 @@ async fn read_slots(conn: &mut SqliteConnection) -> Result<DefaultSlots, String>
             name: r.get("name"),
             claude: r.get("default_model_claude"),
             codex: r.get("default_model_codex"),
+            enabled: r.get::<Option<String>, _>("enabled_models").map(|raw| EnabledModels::parse(Some(&raw))),
         })
         .collect();
     Ok(slots)
@@ -326,8 +330,8 @@ mod tests {
     fn project_defaults_move_too() {
         let slots = DefaultSlots {
             projects: vec![
-                ProjectModels { id: "p1".into(), name: "A".into(), claude: Some("claude-opus-4-8".into()), codex: Some("gpt-5.4".into()) },
-                ProjectModels { id: "p2".into(), name: "B".into(), claude: None, codex: None },
+                ProjectModels { id: "p1".into(), name: "A".into(), claude: Some("claude-opus-4-8".into()), codex: Some("gpt-5.4".into()), enabled: None },
+                ProjectModels { id: "p2".into(), name: "B".into(), claude: None, codex: None, enabled: None },
             ],
             ..Default::default()
         };
@@ -338,6 +342,28 @@ mod tests {
         assert_eq!(got[0].project_id.as_deref(), Some("p1"));
         assert_eq!(got[1].place, "project.default_model_codex");
         assert_eq!(got[1].to, "");
+    }
+
+    /// V3-64-AC-14: a project with its own list moves to the first model on in both lists.
+    #[test]
+    fn a_project_with_its_own_list_moves_within_both_lists() {
+        let own = enabled(r#"{"claude":["claude-opus-5-5","claude-haiku-4-5","claude-sonnet-4-6"],"codex":["gpt-5.4"]}"#);
+        let slots = DefaultSlots {
+            projects: vec![ProjectModels {
+                id: "p1".into(),
+                name: "A".into(),
+                claude: Some("claude-opus-5-5".into()),
+                codex: Some("gpt-5.4".into()),
+                enabled: Some(own),
+            }],
+            ..Default::default()
+        };
+        let got = reassign_defaults(&slots, &enabled(r#"{"claude":["claude-sonnet-4-6","claude-haiku-4-5"],"codex":["gpt-5.5"]}"#));
+        // Not the global first (sonnet): the project's first that is still on in both.
+        assert_eq!((got[0].from.as_str(), got[0].to.as_str()), ("claude-opus-5-5", "claude-haiku-4-5"));
+        // Nothing left in both: the project follows Settings again ('' is written as NULL).
+        assert_eq!((got[1].from.as_str(), got[1].to.as_str()), ("gpt-5.4", ""));
+        assert_eq!(got.len(), 2);
     }
 
     async fn test_db() -> Db {

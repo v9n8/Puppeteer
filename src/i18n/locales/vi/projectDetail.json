@@ -16,7 +16,8 @@
     "styles": "Phong cách trả lời",
     "flags": "Flag",
     "tools": "Quyền tool",
-    "conflicts": "Xung đột"
+    "conflicts": "Xung đột",
+    "model": "Model"
   },
   "groups": {
     "overview": "Tổng quan",
@@ -212,5 +213,36 @@
     "accountLoadError": "Không đọc được tài khoản",
     "mcpLoadError": "Không đọc được MCP",
     "serversLoadError": "Không đọc được máy chủ"
+  },
+  "model": {
+    "title": "Model",
+    "pickLabel": "Model của Project",
+    "follow": "Theo Cài đặt chung",
+    "followHint": "Mặc định. Dùng mọi model khả dụng ở Cài đặt › Model.",
+    "own": "Chọn riêng cho Project này",
+    "ownHint": "Chỉ bật một phần model khả dụng.",
+    "followText": "Session của Project này dùng được mọi model đang khả dụng ở Cài đặt chung. Bật / tắt model ở Cài đặt sẽ đổi luôn ở đây.",
+    "engineCount": "{engine} · {n} model",
+    "noneAvailable": "Không có model nào của engine này khả dụng ở Cài đặt › Model.",
+    "openSettings": "Mở Cài đặt › Model",
+    "offHidden": "Model bị tắt ở Cài đặt chung không hiện ở đây.",
+    "engineTabs": "Engine",
+    "tabTitle": "{engine}: đang dùng {count} model",
+    "use": "Dùng {id} trong Project này",
+    "dontUse": "Không dùng {id} trong Project này",
+    "unsaved": "Chưa lưu",
+    "changes": "{n} thay đổi chưa lưu",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "saveTip": "Lưu (⌘S)",
+    "confirmTitle": "Lưu model cho Project này?",
+    "confirmMove": "{from} đang là model mặc định ở Session mới của Project này. Lưu thì Session mới đổi sang model đầu tiên còn bật: {to}.",
+    "savedOwn": "Đã lưu model cho {project}: Claude {claude} · Codex {codex}",
+    "savedFollow": "Đã lưu: {project} theo Cài đặt › Model",
+    "footBefore": "Model mặc định ở",
+    "footLink": "Session mới",
+    "footAfter": "phải là model đang bật ở đây",
+    "footNow": " (đang là {id})",
+    "footMoved": " (đã đổi sang {id})"
   }
 }

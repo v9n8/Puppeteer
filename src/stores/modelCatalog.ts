@@ -10,8 +10,9 @@ import {
   filterEnabledOptions,
   type SelectOption,
 } from '@/lib/engineOptions'
-import { parseEnabledModels } from '@/lib/enabledModels'
+import { intersectEnabled, parseEnabledModels, type EnabledModels } from '@/lib/enabledModels'
 import { useAppSettingsStore } from './appSettings'
+import { useProjectsStore } from './projects'
 
 /**
  * Model catalog state, persisted by the backend in the `settings` table and
@@ -96,6 +97,12 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
   // settings; all on until they load. Every model picker filters through it.
   const appSettings = useAppSettingsStore()
   const enabled = computed(() => parseEnabledModels(appSettings.settings?.enabled_models))
+  // A project may narrow it (Project › Model, V3-64): its pickers offer both lists' models.
+  const projects = useProjectsStore()
+  function enabledFor(projectId?: string | null): EnabledModels {
+    const own = projectId ? projects.projects.find((p) => p.id === projectId)?.session_defaults?.enabled_models : null
+    return intersectEnabled(enabled.value, own)
+  }
 
   const loaded = ref(false)
 
@@ -214,17 +221,18 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     })
   }
 
-  /** `options` of `engine` without the models that are off; `current` (the
-   * select's value) stays, marked "turned off" (lib/engineOptions). */
-  function enabledOnly<T extends SelectOption>(engine: string, options: T[], current?: string | null): T[] {
-    return filterEnabledOptions(options, enabled.value, engine, current)
+  /** `options` of `engine` without the models that are off (in Settings, or in
+   * `projectId`'s own list); `current` (the select's value) stays, marked "turned
+   * off" (lib/engineOptions). */
+  function enabledOnly<T extends SelectOption>(engine: string, options: T[], current?: string | null, projectId?: string | null): T[] {
+    return filterEnabledOptions(options, enabledFor(projectId), engine, current)
   }
 
   /** A picker's group of `engine`: the pinned Claude table with the last sweep's
    * marks, or the scanned Codex list, without the models that are off. */
-  function offered(engine: 'claude' | 'codex', current?: string | null): SelectOption[] {
+  function offered(engine: 'claude' | 'codex', current?: string | null, projectId?: string | null): SelectOption[] {
     const base = engine === 'codex' ? codexOptions(MODEL_OPTIONS.codex) : withValidation(MODEL_OPTIONS.claude)
-    return enabledOnly(engine, base, current)
+    return enabledOnly(engine, base, current, projectId)
   }
 
   return {
@@ -248,6 +256,7 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
     validationError,
     unsupportedModels,
     enabled,
+    enabledFor,
     // actions
     ensureLoaded,
     validateClaude,

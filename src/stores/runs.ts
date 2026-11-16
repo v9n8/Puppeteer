@@ -240,11 +240,14 @@ export interface ForkOutcome {
   conversation: boolean
 }
 
-/** A start refused because its model is off in Settings › Model comes back
+/** A start refused because its model is off in Settings › Model (or Project › Model) comes back
  * coded (`model_policy`); show it in the UI language. Other errors pass as is. */
 function localizedStartError(e: unknown): unknown {
   const blocked = modelBlockedError(e)
-  return blocked ? i18n.global.t(`run.errors.${blocked.code}`, { model: blocked.model }) : e
+  if (!blocked) return e
+  // Off in the project's own list (V3-64): the message names the project.
+  const key = blocked.project === undefined ? blocked.code : `${blocked.code}Project`
+  return i18n.global.t(`run.errors.${key}`, { model: blocked.model, project: blocked.project })
 }
 
 export const useRunsStore = defineStore('runs', () => {

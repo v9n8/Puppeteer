@@ -11,8 +11,12 @@
 //! Saving the list through [`save::save_enabled_models`] also moves every default
 //! that names a model now off, so the refusal is only a safety net for the paths
 //! that write the setting directly (`update_setting` from Remote, a restored backup).
+//! A project may narrow the list further (Project › Model, V3-64, [`project`]).
 
+pub mod project;
 pub mod save;
+
+pub use project::{intersect, wire_projects};
 
 use serde::{Deserialize, Serialize};
 
@@ -95,6 +99,12 @@ pub fn is_disabled(engine: &str, model: &str, enabled: &EnabledModels) -> bool {
     governed(engine, model) && enabled.list(engine).is_some_and(|ids| !ids.iter().any(|id| id == model))
 }
 
+/// The first model still on for `engine` (where a default that names a model now
+/// off moves to), or `""` (the engine picks) when none is.
+pub fn first_enabled(engine: &str, enabled: &EnabledModels) -> String {
+    enabled.list(engine).and_then(|ids| ids.first()).cloned().unwrap_or_default()
+}
+
 /// A refused model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelBlocked {
@@ -145,21 +155,28 @@ pub async fn load_enabled(db: &Db) -> EnabledModels {
 
 /// Refuse a run start whose resolved `model` is off. `picked` is the caller's
 /// own model choice: when the refused model is not it, the model came from a
-/// default (project or global) and the message points there.
-/// `_project_id` is kept for a per-project list (V3-64).
+/// default (project or global) and the message points there. A model on in
+/// Settings but off in the project's own list (V3-64) is refused naming the project.
 pub async fn ensure_allowed(
     db: &Db,
-    _project_id: &str,
+    project_id: &str,
     engine: &str,
     model: Option<&str>,
     previous: Option<&str>,
     picked: Option<&str>,
 ) -> Result<(), String> {
+    let from_default = |b: &ModelBlocked| picked.map(str::trim) != Some(b.model.as_str());
     let enabled = load_enabled(db).await;
-    check_model(engine, model, previous, &enabled).map_err(|blocked| {
-        let from_default = picked.map(str::trim) != Some(blocked.model.as_str());
+    if let Err(blocked) = check_model(engine, model, previous, &enabled) {
+        let from_default = from_default(&blocked);
         tracing::info!(event = "model_blocked", engine, model = %blocked.model, from_default);
-        blocked_message(&blocked, from_default)
+        return Err(blocked_message(&blocked, from_default));
+    }
+    let Some((name, own)) = project::load(db, project_id).await else { return Ok(()) };
+    check_model(engine, model, previous, &intersect(&enabled, Some(&own))).map_err(|blocked| {
+        let from_default = from_default(&blocked);
+        tracing::info!(event = "model_blocked", engine, model = %blocked.model, from_default, project_id);
+        project::blocked_message(&blocked, from_default, &name)
     })
 }
 

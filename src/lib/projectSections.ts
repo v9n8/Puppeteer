@@ -1,6 +1,6 @@
 import {
   Settings, KanbanSquare, SlidersHorizontal, MessageSquareText, KeyRound,
-  Library, Server, GitMerge, Rocket, ShieldCheck, Flag,
+  Library, Server, GitMerge, Rocket, ShieldCheck, Flag, Boxes,
 } from 'lucide-vue-next'
 
 /** Tabs of the project detail column (UX-50), in display order. */
@@ -30,6 +30,8 @@ export const PROJECT_SECTIONS = [
   { id: 'styles', group: 'defaults', icon: MessageSquareText },
   // Shared flags this project hides, and its own flags (V3-21).
   { id: 'flags', group: 'defaults', icon: Flag },
+  // The models this project's sessions may use, within Settings › Model's (V3-64).
+  { id: 'model', group: 'defaults', icon: Boxes },
   // One list of the accounts the project may use, filtered by type (V3-44), and its MCP switches.
   { id: 'accounts', group: 'connections', icon: KeyRound },
   { id: 'mcp', group: 'connections', icon: Server },

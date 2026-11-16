@@ -460,7 +460,9 @@
   },
   "errors": {
     "modelDisabled": "Model {model} is turned off in Settings › Model. Turn it on or pick another model.",
-    "modelDefaultDisabled": "Model {model} is the default model for new sessions but is turned off in Settings › Model. Change it in Settings › Defaults for new sessions."
+    "modelDefaultDisabled": "Model {model} is the default model for new sessions but is turned off in Settings › Model. Change it in Settings › Defaults for new sessions.",
+    "modelDisabledProject": "Model {model} is turned off for project {project} (Project › Model). Turn it on there or pick another model.",
+    "modelDefaultDisabledProject": "Model {model} is the default model for new sessions but is turned off for project {project}. Change it in the project's defaults for new sessions."
   },
   "sessionTabs": {
     "tablist": "Session tabs",

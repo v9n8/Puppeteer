@@ -349,6 +349,11 @@ pub enum StreamPayload {
         /// while every model is on. An older controller ignores it.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         enabled_models: Option<EnabledModelsWire>,
+        /// Per project id, the project's own list (Project › Model, V3-64); only the
+        /// projects that have one. The controller narrows `enabled_models` by the list of
+        /// the open run's project. An older controller ignores it.
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        project_enabled_models: std::collections::BTreeMap<String, EnabledModelsWire>,
     },
     /// A bounded listing of files under the bound run's project path (for
     /// @mention completion in the controller composer).
@@ -876,6 +881,7 @@ mod tests {
             codex_models: Vec::new(),
             claude_accounts: Vec::new(),
             enabled_models,
+            project_enabled_models: Default::default(),
         };
         let all_on = serde_json::to_value(frame(None)).unwrap();
         assert!(all_on.get("enabled_models").is_none(), "{all_on}");
@@ -889,6 +895,26 @@ mod tests {
         let old: StreamPayload =
             serde_json::from_value(serde_json::json!({ "kind": "engine_model_options", "engines": [] })).unwrap();
         assert!(matches!(old, StreamPayload::EngineModelOptions { enabled_models: None, .. }));
+    }
+
+    #[test]
+    fn engine_model_options_carry_project_lists_only_when_some_project_has_one() {
+        let frame = |project_enabled_models| StreamPayload::EngineModelOptions {
+            engines: Vec::new(),
+            claude_models: Vec::new(),
+            codex_models: Vec::new(),
+            claude_accounts: Vec::new(),
+            enabled_models: None,
+            project_enabled_models,
+        };
+        let none = serde_json::to_value(frame(Default::default())).unwrap();
+        assert!(none.get("project_enabled_models").is_none(), "{none}");
+        let lists = std::collections::BTreeMap::from([(
+            "p1".to_string(),
+            EnabledModelsWire { claude: Some(vec!["claude-haiku-4-5".into()]), codex: None },
+        )]);
+        let some = serde_json::to_value(frame(lists)).unwrap();
+        assert_eq!(some["project_enabled_models"], serde_json::json!({ "p1": { "claude": ["claude-haiku-4-5"], "codex": null } }));
     }
 
     #[test]

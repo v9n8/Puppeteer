@@ -16,7 +16,8 @@
     "styles": "Response styles",
     "flags": "Flags",
     "tools": "Tool Permissions",
-    "conflicts": "Conflicts"
+    "conflicts": "Conflicts",
+    "model": "Model"
   },
   "groups": {
     "overview": "Overview",
@@ -212,5 +213,36 @@
     "accountLoadError": "Could not read the accounts",
     "mcpLoadError": "Could not read the MCP servers",
     "serversLoadError": "Could not read the servers"
+  },
+  "model": {
+    "title": "Model",
+    "pickLabel": "Models of this project",
+    "follow": "Follow Settings",
+    "followHint": "Default. Uses every model available in Settings › Model.",
+    "own": "Choose for this project",
+    "ownHint": "Turn on only some of the available models.",
+    "followText": "Sessions of this project can use every model available in Settings. Turning a model on or off in Settings changes it here too.",
+    "engineCount": "{engine} · {n} model | {engine} · {n} models",
+    "noneAvailable": "No model of this engine is available in Settings › Model.",
+    "openSettings": "Open Settings › Model",
+    "offHidden": "Models turned off in Settings are not listed here.",
+    "engineTabs": "Engine",
+    "tabTitle": "{engine}: {count} models in use",
+    "use": "Use {id} in this project",
+    "dontUse": "Don't use {id} in this project",
+    "unsaved": "Unsaved",
+    "changes": "{n} unsaved change | {n} unsaved changes",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saveTip": "Save (⌘S)",
+    "confirmTitle": "Save models for this project?",
+    "confirmMove": "{from} is the default model for new sessions of this project. Saving switches new sessions to the first model still on: {to}.",
+    "savedOwn": "Saved models for {project}: Claude {claude} · Codex {codex}",
+    "savedFollow": "Saved: {project} follows Settings › Model",
+    "footBefore": "The default model in",
+    "footLink": "New sessions",
+    "footAfter": "must be a model that is on here",
+    "footNow": " (currently {id})",
+    "footMoved": " (changed to {id})"
   }
 }

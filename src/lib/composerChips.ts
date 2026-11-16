@@ -4,6 +4,7 @@
 // resume; '' = no pick, and then the backend resolves the same defaults.
 import { EFFORT_LEVELS, resolvePermissionMode, type EffortLevel } from './engineOptions.ts'
 import { NO_STYLE } from './responseStyles.ts'
+import type { EnabledModels } from './enabledModels.ts'
 
 export interface ComposerDefaults {
   /** The engine of a new session: 'claude' or 'codex'. */
@@ -40,6 +41,8 @@ export interface ProjectSessionDefaults {
   permission_mode?: string | null
   effort?: string | null
   style?: string | null
+  /** The project's own list of models (Project › Model, V3-64); null = Settings'. */
+  enabled_models?: EnabledModels | null
 }
 
 const ENGINES = ['claude', 'codex']

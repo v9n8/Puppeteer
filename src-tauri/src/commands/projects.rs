@@ -810,8 +810,7 @@ pub async fn list_projects(db: State<'_, Db>) -> Result<Vec<Project>, String> {
 /// Live projects only; `run_count` / `last_used_at` count only runs outside the trash.
 pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String> {
     use sqlx::Row;
-    // Manual order first (drag-and-drop), then usage frequency / recency / name
-    // as a stable tiebreaker for any projects sharing a position.
+    // Manual order (drag-and-drop), then usage / recency / name as a stable tiebreaker.
     let rows = sqlx::query(
         "SELECT p.id, p.name, p.path, p.created_at, p.github_account_id, p.gitlab_account_id, \
                 (SELECT GROUP_CONCAT(account_id) FROM project_github_accounts WHERE project_id = p.id) AS github_account_ids, \
@@ -820,7 +819,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 p.default_engine_override, p.default_model_claude, p.default_model_codex, \
-                p.default_permission_mode, p.default_effort, p.default_style, \
+                p.default_permission_mode, p.default_effort, p.default_style, p.enabled_models, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p \
          LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL \
@@ -1219,7 +1218,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
                 (SELECT GROUP_CONCAT(account_id) FROM project_azure_accounts WHERE project_id = p.id) AS azure_account_ids, \
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 p.default_engine_override, p.default_model_claude, p.default_model_codex, \
-                p.default_permission_mode, p.default_effort, p.default_style, \
+                p.default_permission_mode, p.default_effort, p.default_style, p.enabled_models, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )

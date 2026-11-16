@@ -9,6 +9,10 @@
 //! global setting — see `runs::start_run_inner` / `resume_run_with` and
 //! `response_styles::resolve_run_style`. So changing a project's defaults never
 //! switches the engine, model, effort or style of a session that already ran.
+//!
+//! The project's own list of models (Project › Model, V3-64, migration 0024) is
+//! written with the defaults, so one call saves a new list and the default model it
+//! moves to; [`validate`] refuses a default model that list (or Settings) turns off.
 
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -16,6 +20,7 @@ use tauri::State;
 
 use crate::commands::projects::Project;
 use crate::db::Db;
+use crate::model_policy::{self, EnabledModels};
 
 /// Engines a project may default to.
 pub const ENGINES: &[&str] = &["claude", "codex"];
@@ -25,13 +30,14 @@ const MODEL_MAX_CHARS: usize = 200;
 
 /// The project columns, in the order [`ProjectSessionDefaults::from_row`] reads
 /// them by name. Prefix each with `p.` where the query aliases `projects`.
-pub const COLUMNS: [&str; 6] = [
+pub const COLUMNS: [&str; 7] = [
     "default_engine_override",
     "default_model_claude",
     "default_model_codex",
     "default_permission_mode",
     "default_effort",
     "default_style",
+    "enabled_models",
 ];
 
 /// A project's defaults for new sessions; `None` = follow the global setting.
@@ -52,6 +58,9 @@ pub struct ProjectSessionDefaults {
     /// A built-in style key or a style id (global, or this project's own).
     #[serde(default)]
     pub style: Option<String>,
+    /// The models the project's sessions may use (V3-64); `None` = Settings › Model's.
+    #[serde(default)]
+    pub enabled_models: Option<EnabledModels>,
 }
 
 impl ProjectSessionDefaults {
@@ -73,6 +82,9 @@ impl ProjectSessionDefaults {
             permission_mode: row.get("default_permission_mode"),
             effort: row.get("default_effort"),
             style: row.get("default_style"),
+            enabled_models: row
+                .get::<Option<String>, _>("enabled_models")
+                .map(|raw| EnabledModels::parse(Some(&raw))),
         }
     }
 }
@@ -167,14 +179,38 @@ pub async fn validate(
             return Err("This response style does not exist in the project".into());
         }
     }
-    Ok(ProjectSessionDefaults {
+    let enabled_models = defaults.enabled_models.map(check_enabled_models).transpose()?;
+    let checked = ProjectSessionDefaults {
         engine,
         model_claude: check_model("claude", defaults.model_claude)?,
         model_codex: check_model("codex", defaults.model_codex)?,
         permission_mode,
         effort,
         style,
-    })
+        enabled_models,
+    };
+    // V3-64-AC-14: a default model must be on in Settings and in the project's list.
+    let on = model_policy::intersect(&model_policy::load_enabled(db).await, checked.enabled_models.as_ref());
+    for engine in ENGINES {
+        if let Some(m) = checked.model_for(engine).filter(|m| model_policy::is_disabled(engine, m, &on)) {
+            return Err(format!(
+                "Model {m} is turned off for this project (Project › Model) or in Settings › Model, so it cannot be the default {engine} model"
+            ));
+        }
+    }
+    Ok(checked)
+}
+
+/// A project's list of models, trimmed and deduplicated like the global one, each id
+/// a model of its own engine.
+fn check_enabled_models(list: EnabledModels) -> Result<EnabledModels, String> {
+    let list = EnabledModels::parse(Some(&list.to_json()));
+    for engine in ENGINES {
+        for id in list.list(engine).unwrap_or_default() {
+            check_model(engine, Some(id.clone()))?;
+        }
+    }
+    Ok(list)
 }
 
 /// Write `defaults` (checked first) as the project's; every field is replaced.
@@ -193,6 +229,7 @@ pub(crate) async fn write(db: &Db, project_id: &str, d: &ProjectSessionDefaults)
         .bind(&d.permission_mode)
         .bind(&d.effort)
         .bind(&d.style)
+        .bind(d.enabled_models.as_ref().map(EnabledModels::to_json))
         .bind(project_id)
         .execute(db)
         .await
@@ -204,14 +241,17 @@ pub(crate) async fn write(db: &Db, project_id: &str, d: &ProjectSessionDefaults)
 }
 
 /// Replace a project's defaults for new sessions. Sessions that already ran
-/// keep their own engine, model, effort and style.
+/// keep their own engine, model, effort and style. Remote: allowed + audited.
 #[tauri::command]
 pub async fn set_project_session_defaults(
+    app: tauri::AppHandle,
     db: State<'_, Db>,
     project_id: String,
     defaults: ProjectSessionDefaults,
 ) -> Result<Project, String> {
     set(db.inner(), &project_id, defaults).await?;
+    // The project's list of models may have changed: a paired phone gets it again.
+    model_policy::notify_changed(&app);
     crate::commands::projects::project_by_id(db.inner(), &project_id).await
 }
 
@@ -229,6 +269,7 @@ mod tests {
             permission_mode: o(mode),
             effort: o(effort),
             style: o(style),
+            enabled_models: None,
         }
     }
 
@@ -265,6 +306,64 @@ mod tests {
         // Blank everywhere: back to following the global settings.
         set(&db, "p1", d(" ", "", "", "", "", "")).await.unwrap();
         assert_eq!(load(&db, "p1").await, ProjectSessionDefaults::default());
+    }
+
+    /// V3-64: the project's list is stored normalized; NULL follows Settings.
+    #[tokio::test]
+    async fn the_project_list_is_checked_and_stored() {
+        let db = test_db().await;
+        let list = |raw: &str| Some(EnabledModels::parse(Some(raw)));
+        let mut own = ProjectSessionDefaults {
+            enabled_models: Some(EnabledModels {
+                claude: Some(vec![" claude-haiku-4-5 ".into(), "claude-haiku-4-5".into(), "".into()]),
+                codex: None,
+            }),
+            ..Default::default()
+        };
+        set(&db, "p1", own.clone()).await.unwrap();
+        assert_eq!(load(&db, "p1").await.enabled_models, list(r#"{"claude":["claude-haiku-4-5"]}"#));
+        let raw: Option<String> = sqlx::query_scalar("SELECT enabled_models FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(raw.as_deref(), Some(r#"{"claude":["claude-haiku-4-5"],"codex":null}"#));
+        // Switching to "own" without turning anything off is still a list of its own.
+        set(&db, "p2", ProjectSessionDefaults { enabled_models: Some(EnabledModels::default()), ..Default::default() }).await.unwrap();
+        assert_eq!(load(&db, "p2").await.enabled_models, Some(EnabledModels::default()));
+        // A model of the other engine in a list is refused.
+        own.enabled_models = list(r#"{"claude":["gpt-5.5"]}"#);
+        assert!(set(&db, "p1", own).await.is_err());
+        assert_eq!(load(&db, "p1").await.enabled_models, list(r#"{"claude":["claude-haiku-4-5"]}"#));
+        // Following Settings again.
+        set(&db, "p1", ProjectSessionDefaults::default()).await.unwrap();
+        assert_eq!(load(&db, "p1").await.enabled_models, None);
+    }
+
+    /// V3-64-AC-14: a default model off in the project's list or in Settings is refused, nothing written.
+    #[tokio::test]
+    async fn a_default_model_must_be_on_in_both_lists() {
+        let db = test_db().await;
+        let own = |claude: &str, list: &str| ProjectSessionDefaults {
+            model_claude: Some(claude.to_string()),
+            enabled_models: Some(EnabledModels::parse(Some(list))),
+            ..Default::default()
+        };
+        set(&db, "p1", own("claude-haiku-4-5", r#"{"claude":["claude-haiku-4-5"]}"#)).await.unwrap();
+        let e = set(&db, "p1", own("claude-opus-4-8", r#"{"claude":["claude-haiku-4-5"]}"#)).await.unwrap_err();
+        assert!(e.contains("claude-opus-4-8"), "{e}");
+        assert_eq!(load(&db, "p1").await.model_claude.as_deref(), Some("claude-haiku-4-5"));
+        // The new list and the default it moves to, in one call.
+        set(&db, "p1", own("claude-sonnet-4-6", r#"{"claude":["claude-sonnet-4-6"]}"#)).await.unwrap();
+        // An alias or "Default" is never refused.
+        set(&db, "p1", own("sonnet", r#"{"claude":[]}"#)).await.unwrap();
+        // Off in Settings, the project following it.
+        crate::commands::settings::set_setting(&db, model_policy::SETTING, r#"{"codex":["gpt-5.5"]}"#).await.unwrap();
+        let follow = ProjectSessionDefaults { model_codex: Some("gpt-5.4".into()), ..Default::default() };
+        assert!(set(&db, "p2", follow).await.is_err());
+        // Intersection: on in the project, off in Settings.
+        let both = ProjectSessionDefaults {
+            model_codex: Some("gpt-5.4".into()),
+            enabled_models: Some(EnabledModels::parse(Some(r#"{"codex":["gpt-5.4","gpt-5.5"]}"#))),
+            ..Default::default()
+        };
+        assert!(set(&db, "p2", both).await.is_err());
     }
 
     #[tokio::test]

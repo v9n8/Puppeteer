@@ -621,13 +621,12 @@ pub async fn send_engine_model_options(
 
     let payload = StreamPayload::EngineModelOptions {
         engines: engine_model_options(),
-        // Claude's list is curated in the shared frontend bundle, so the
-        // controller already has it — nothing to discover or ship. The field
-        // stays on the wire (empty, hence skipped) for older controllers.
+        // Claude's list is curated in the frontend bundle; the (skipped) field stays for older controllers.
         claude_models: Vec::new(),
         codex_models: codex.into_iter().map(to_wire).collect(),
         claude_accounts,
         enabled_models: crate::model_policy::wire(db).await,
+        project_enabled_models: crate::model_policy::wire_projects(db).await,
     };
     if let Some(env) = seal_stream(session, room_id, &payload, seq.next()) {
         let _ = out.send(env);

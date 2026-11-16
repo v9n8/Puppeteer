@@ -6,15 +6,14 @@
 //! VPS servers, account metadata (GitHub, GitLab, AWS, Azure, Google, Claude, Codex), notes / todos and Slack threads (messages and
 //! translations; attachments are re-downloaded) and projects with their repos, enabled
 //! Skills / Rules / groups / Agents / Commands / MCP / VPS servers, account links, defaults for new
-//! sessions, standing tool permissions. Sessions and usage history stay on the machine; the bookmarks on them travel, and
-//! land on the same session when the importing machine has it. The user's response styles travel too (a project's own ones
-//! with their project). The trash is local too: a project or session in it is not
-//! exported (nor the bookmarks on such a session).
+//! sessions, standing tool permissions. Sessions and usage history stay; their bookmarks travel (to
+//! the same session, if the target has it). Response styles travel too (a project's own ones with
+//! their project). Nothing in the trash is exported (nor bookmarks on a trashed session).
 //!
 //! Secrets (PATs, MCP env/header VALUEs, Google OAuth client + refresh tokens, SSH passphrases and
 //! Puppeteer-managed private key files) are only exported when the user gives a password: they are
-//! sealed with XChaCha20-Poly1305 under an Argon2id key derived from it. Without a password the
-//! file carries no secret at all and the accounts must be re-authenticated after import.
+//! sealed with XChaCha20-Poly1305 under an Argon2id key derived from it. Without one the file
+//! carries no secret and the accounts must sign in again after import.
 //!
 //! Import merges by name: an item whose name/label exists locally is overwritten with the
 //! imported version, a new one is created, and nothing local is ever deleted. Notes and todos
@@ -47,6 +46,9 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
+
+#[path = "session_defaults_backup.rs"]
+mod session_defaults_backup;
 
 const FORMAT: &str = "puppeteer-settings-backup";
 const VERSION: u32 = 1;
@@ -210,8 +212,7 @@ struct ProjectEntry {
     /// Defaults for new sessions (UX-19). Older backups have none: a matched project keeps its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     session_defaults: Option<SessionDefaultsEntry>,
-    /// Standing "Always allow / deny" tool decisions (UX-31). Older backups have none: a matched
-    /// project keeps its own.
+    /// Standing "Always allow / deny" tool decisions (UX-31). Older backups have none: kept as is.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tool_permissions: Vec<ToolPermissionEntry>,
 }
@@ -225,7 +226,7 @@ struct ToolPermissionEntry {
 }
 
 /// A project's defaults for new sessions (`commands::session_defaults`); unset follows the global
-/// setting. The style travels like the response styles themselves: by id, else by name.
+/// setting. The style travels by id, else by name.
 #[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 struct SessionDefaultsEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -240,6 +241,8 @@ struct SessionDefaultsEntry {
     effort: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<StyleRefEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    enabled_models: Option<crate::model_policy::EnabledModels>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -1370,8 +1373,7 @@ async fn collect_response_styles(db: &Db) -> Result<Vec<ResponseStyleEntry>, Str
         .collect())
 }
 
-/// A project's defaults for new sessions, `None` when it has none. A default style that no longer
-/// exists is left out, as runs skip it too.
+/// A project's defaults for new sessions, `None` when it has none. A style that is gone is left out.
 async fn collect_session_defaults(db: &Db, project_id: &str) -> Result<Option<SessionDefaultsEntry>, String> {
     let d = crate::commands::session_defaults::load(db, project_id).await;
     let style = match d.style {
@@ -1395,6 +1397,7 @@ async fn collect_session_defaults(db: &Db, project_id: &str) -> Result<Option<Se
         permission_mode: d.permission_mode,
         effort: d.effort,
         style,
+        enabled_models: d.enabled_models,
     };
     Ok(Some(entry).filter(|e| *e != SessionDefaultsEntry::default()))
 }
@@ -3853,11 +3856,10 @@ async fn import_project(
     Ok((outcome, id, warnings))
 }
 
-/// Merge a project's imported defaults for new sessions, the style aside ([`import_project_style`],
-/// once the styles are in). A value set in the backup replaces the local one; an unset one keeps
-/// it. A value this version does not take is left out with a warning, and so is a default
-/// permission mode of `bypassPermissions`: like the global setting, an import never widens what a
-/// run may do. True when something changed.
+/// Merge a project's imported defaults for new sessions (the style: [`import_project_style`]). A value
+/// set in the backup replaces the local one, an unset one keeps it. An unknown value and a
+/// `bypassPermissions` mode are left out with a warning: an import never widens what a run may do.
+/// True when something changed.
 async fn import_session_defaults(
     db: &Db,
     project_id: &str,
@@ -3897,6 +3899,7 @@ async fn import_session_defaults(
         permission_mode: permission_mode.or(current.permission_mode.clone()),
         effort: effort.or(current.effort.clone()),
         style: current.style.clone(),
+        enabled_models: session_defaults_backup::merged_list(entry.enabled_models.as_ref(), &current, warnings),
     };
     if merged == current {
         return Ok(false);
@@ -3905,10 +3908,9 @@ async fn import_session_defaults(
     Ok(true)
 }
 
-/// Merge a project's imported standing tool permissions. A deny always lands (it replaces a local
-/// allow); an allow only where the project has no decision for that tool: like the defaults above,
-/// an import never widens what a run may do over a local choice. Nothing local is removed. True
-/// when something changed.
+/// Merge a project's imported standing tool permissions. A deny always lands; an allow only where the
+/// project has no decision for that tool (an import never widens a local choice). Nothing local is
+/// removed. True when something changed.
 async fn import_tool_permissions(
     db: &Db,
     project_id: &str,
@@ -3942,8 +3944,8 @@ async fn import_tool_permissions(
     Ok(changed)
 }
 
-/// Set a project's imported default style: "No style" (`default`), else the style with the exported id in the
-/// same scope (global / this project), else the one with its name there. True when it changed.
+/// Set a project's imported default style: `default`, else the style with the exported id in the same
+/// scope (global / this project), else the one of that name there. True when it changed.
 async fn import_project_style(db: &Db, project_id: &str, style: &StyleRefEntry) -> Result<bool, String> {
     let key = if style.key == crate::commands::response_styles::DEFAULT_STYLE_KEY {
         Some(style.key.clone())
@@ -4114,6 +4116,7 @@ mod tests {
             permission_mode: o("plan"),
             effort: o("high"),
             style: Some(team.id.clone()),
+            enabled_models: None,
         };
         defaults::set(&source, "p1", web.clone()).await.unwrap();
         let api = ProjectSessionDefaults { permission_mode: o("bypassPermissions"), style: o("concise"), ..Default::default() };

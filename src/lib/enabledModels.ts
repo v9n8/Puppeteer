@@ -38,10 +38,12 @@ export function parseEnabledModels(raw: unknown): EnabledModels {
   return { claude: idList(o.claude), codex: idList(o.codex) }
 }
 
-/** A start the backend refused because its model is off (`run.errors.*`). */
+/** A start the backend refused because its model is off (`run.errors.*`).
+ * `project`: the project whose own list turns it off (V3-64), else Settings'. */
 export interface ModelBlockedError {
   code: 'modelDisabled' | 'modelDefaultDisabled'
   model: string
+  project?: string
 }
 
 const BLOCKED_CODES: Record<string, ModelBlockedError['code']> = {
@@ -53,7 +55,49 @@ const BLOCKED_CODES: Record<string, ModelBlockedError['code']> = {
 export function modelBlockedError(e: unknown): ModelBlockedError | null {
   const msg = String(e instanceof Error ? e.message : e)
   const m = /^(model_disabled|model_default_disabled):(\S+?): /.exec(msg)
-  return m ? { code: BLOCKED_CODES[m[1]], model: m[2] } : null
+  if (!m) return null
+  // `model_policy::project::blocked_message` names the project this way.
+  const project = / for project "(.*)" \(Project › Model\)/.exec(msg)?.[1]
+  return { code: BLOCKED_CODES[m[1]], model: m[2], ...(project !== undefined && { project }) }
+}
+
+// Project › Model (V3-64) ------------------------------------------------------
+
+/**
+ * The models on for a project's sessions: the global list narrowed by the
+ * project's own (`null` = the project follows Settings). Per engine, `null` (all
+ * on) on one side gives the other side's list; with two lists the project's order
+ * is kept. Same rule as the backend's `model_policy::intersect`.
+ */
+export function intersectEnabled(global: EnabledModels, project: EnabledModels | null | undefined): EnabledModels {
+  if (!project) return global
+  const one = (g: string[] | null, p: string[] | null) => (g === null ? p : p === null ? g : p.filter((id) => g.includes(id)))
+  return { claude: one(global.claude, project.claude), codex: one(global.codex, project.codex) }
+}
+
+/** Where a default naming a model now off moves to: the first model still on
+ * for `engine`, or '' (the engine picks). Same as `model_policy::first_enabled`. */
+export function firstEnabled(engine: 'claude' | 'codex', enabled: EnabledModels): string {
+  return enabled[engine]?.[0] ?? ''
+}
+
+/** The `project_enabled_models` of a phone frame: per project id, its list. */
+export function parseProjectEnabledModels(raw: unknown): Record<string, EnabledModels> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, EnabledModels> = {}
+  for (const [id, list] of Object.entries(raw as Record<string, unknown>)) out[id] = parseEnabledModels(list)
+  return out
+}
+
+/** The two lists of an `engine_model_options` frame, each only when the Host sent it. */
+export function parseModelLists(o: Record<string, unknown>): {
+  enabled_models?: EnabledModels
+  project_enabled_models?: Record<string, EnabledModels>
+} {
+  return {
+    ...(o.enabled_models ? { enabled_models: parseEnabledModels(o.enabled_models) } : {}),
+    ...(o.project_enabled_models ? { project_enabled_models: parseProjectEnabledModels(o.project_enabled_models) } : {}),
+  }
 }
 
 // Settings › Model (V3-63) -----------------------------------------------------

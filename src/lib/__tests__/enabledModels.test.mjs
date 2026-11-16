@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   parseEnabledModels, modelBlockedError, ALL_MODELS_ON,
   isModelOff, modelBlocks, draftOn, engineListToSave, draftSummary,
+  intersectEnabled, firstEnabled, parseProjectEnabledModels, parseModelLists,
 } from '../enabledModels.ts'
 import { filterEnabledOptions, MODEL_OPTIONS } from '../engineOptions.ts'
 
@@ -121,4 +122,61 @@ test('engineListToSave: nothing changed keeps the saved value, else display orde
 
 test('draftSummary lists what turns on and off', () => {
   assert.deepEqual(draftSummary(IDS, ['a', 'b'], new Set(['b', 'c'])), { on: ['c'], off: ['b'] })
+})
+
+// Project › Model (V3-64): the same cases as model_policy::project's Rust tests -----
+
+test('intersectEnabled narrows the global list by the project\'s', () => {
+  const global = { claude: ['claude-opus-5-5', 'claude-sonnet-4-6', 'claude-haiku-4-5'], codex: null }
+  // Following Settings: the global list as is.
+  assert.deepEqual(intersectEnabled(global, null), global)
+  assert.deepEqual(intersectEnabled(global, undefined), global)
+  // Only ids on in both, in the project's order; all on globally gives the project's list.
+  const p = { claude: ['claude-haiku-4-5', 'claude-opus-4-8', 'claude-sonnet-4-6'], codex: ['gpt-5.5'] }
+  assert.deepEqual(intersectEnabled(global, p), { claude: ['claude-haiku-4-5', 'claude-sonnet-4-6'], codex: ['gpt-5.5'] })
+  // An engine the project leaves at null follows the global list.
+  assert.deepEqual(intersectEnabled(global, { claude: null, codex: [] }), { claude: global.claude, codex: [] })
+  // Every model off in the project: only the engine's own pick is left.
+  const none = intersectEnabled(global, { claude: [], codex: [] })
+  assert.equal(isModelOff('claude', 'claude-sonnet-4-6', none), true)
+  assert.equal(isModelOff('claude', 'sonnet', none), false)
+  assert.equal(firstEnabled('claude', none), '')
+})
+
+test('a model off in Settings is off in the project until it is back', () => {
+  const p = { claude: ['claude-opus-5-5', 'claude-haiku-4-5'], codex: null }
+  const off = intersectEnabled({ claude: ['claude-haiku-4-5'], codex: null }, p)
+  assert.equal(isModelOff('claude', 'claude-opus-5-5', off), true)
+  assert.equal(firstEnabled('claude', off), 'claude-haiku-4-5')
+  const back = intersectEnabled(ALL_MODELS_ON, p)
+  assert.equal(isModelOff('claude', 'claude-opus-5-5', back), false)
+  assert.equal(firstEnabled('claude', back), 'claude-opus-5-5')
+  // `null` (all on) has no first model: nothing moves.
+  assert.equal(firstEnabled('codex', back), '')
+})
+
+test('a phone frame carries the project lists by project id', () => {
+  assert.deepEqual(parseProjectEnabledModels(undefined), {})
+  assert.deepEqual(parseProjectEnabledModels(['x']), {})
+  assert.deepEqual(parseProjectEnabledModels({ p1: { claude: ['claude-haiku-4-5'], codex: null }, p2: 'broken' }), {
+    p1: { claude: ['claude-haiku-4-5'], codex: null },
+    p2: ALL_MODELS_ON,
+  })
+  // Both lists of the frame, each only when the Host sent it.
+  assert.deepEqual(parseModelLists({ engines: [] }), {})
+  assert.deepEqual(parseModelLists({ enabled_models: { codex: ['gpt-5.5'] }, project_enabled_models: { p1: {} } }), {
+    enabled_models: { claude: null, codex: ['gpt-5.5'] },
+    project_enabled_models: { p1: ALL_MODELS_ON },
+  })
+})
+
+test('a refusal by the project\'s list names the project', () => {
+  assert.deepEqual(
+    modelBlockedError('model_disabled:claude-opus-4-8: Model claude-opus-4-8 is turned off for project "Client A" (Project › Model). Turn it on there or pick another model.'),
+    { code: 'modelDisabled', model: 'claude-opus-4-8', project: 'Client A' },
+  )
+  assert.deepEqual(
+    modelBlockedError('model_default_disabled:gpt-5.4: Model gpt-5.4 is the default model for new sessions but is turned off for project "x" (Project › Model). Change it.'),
+    { code: 'modelDefaultDisabled', model: 'gpt-5.4', project: 'x' },
+  )
 })
