@@ -450,5 +450,19 @@
   "errors": {
     "modelDisabled": "Model {model} đang tắt ở Cài đặt › Model. Bật lại hoặc chọn model khác.",
     "modelDefaultDisabled": "Model {model} là model mặc định cho Session mới nhưng đang tắt ở Cài đặt › Model. Đổi ở Cài đặt › Mặc định cho Session mới."
+  },
+  "sessionTabs": {
+    "tablist": "Tab của Session",
+    "conversation": "Hội thoại",
+    "conversationTip": "Hội thoại của Session",
+    "closeTab": "Đóng tab",
+    "unpinTab": "Bỏ ghim tab",
+    "pin": "Ghim",
+    "unpin": "Bỏ ghim",
+    "close": "Đóng",
+    "closeOthers": "Đóng tab khác",
+    "hiddenTip": "{n} tab bị khuất — bấm để xem",
+    "hiddenTitle": "Tab bị khuất · {n}",
+    "detachTip": "Tách cửa sổ: mở tệp này ở cửa sổ riêng"
   }
 }

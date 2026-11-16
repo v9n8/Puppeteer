@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // Self-contained file viewer: loads a project file and renders it (syntax-
 // highlighted text, rendered/raw markdown or HTML, images, video, audio, PDF, or an
-// "open externally" fallback). Used both inside the in-app modal (RunView) and
-// in the standalone pop-out window (FileViewerWindow). Hosts supply chrome-
-// specific buttons (full-screen, pop-out, close) via the #actions slot.
+// "open externally" fallback). Used in a file tab of the Session area
+// (sessions/FileTabView) and in the file's own window (FileViewerWindow). Hosts
+// add buttons (new window, pin, back to main) via the #actions slot.
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {

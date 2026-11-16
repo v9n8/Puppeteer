@@ -28,7 +28,10 @@
     "searchInFile": "Tìm trong tệp",
     "searchPlaceholder": "Tìm trong tệp…",
     "pin": "Ghim nổi trên cùng",
-    "unpin": "Bỏ ghim (chỉ nổi khi đang dùng)"
+    "unpin": "Bỏ ghim (chỉ nổi khi đang dùng)",
+    "dockBack": "Về cửa sổ chính",
+    "dockBackTip": "Về cửa sổ chính: mở tệp này thành tab của Session",
+    "dockFailed": "Không đưa được tệp về cửa sổ chính"
   },
   "tree": {
     "explorer": "Explorer",

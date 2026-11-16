@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// Right-click menu on a file link in a session (UX-44): Open · Open in VS Code ·
-// Reveal in Finder · Copy path. A short list on purpose: a link names a file to
+// Right-click menu on a file link in a session (UX-44): Open (as a tab of the
+// Session, V3-24) · Open in VS Code · Reveal in Finder · Copy path · Copy relative
+// path. A short list on purpose: a link names a file to
 // look at, not one to rename or delete — that is the explorer's menu
 // (FileActionsMenu). The actions are the explorer's own, from lib/fileActions.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Code, Copy, FileText, FolderOpen } from 'lucide-vue-next'
+import { Code, Copy, FileText, FolderOpen, Link2 } from 'lucide-vue-next'
 import { ContextMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useFileActions, type FileTarget } from '@/lib/fileActions'
 
@@ -48,6 +49,10 @@ const file = computed<FileTarget | null>(() => {
       <DropdownItem @click="actions.copyAbsPath(projectPath, file)">
         <Copy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
         {{ t('files.tree.copyPath') }}
+      </DropdownItem>
+      <DropdownItem @click="actions.copyRelPath(file)">
+        <Link2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+        {{ t('files.tree.copyRelativePath') }}
       </DropdownItem>
     </template>
   </ContextMenu>

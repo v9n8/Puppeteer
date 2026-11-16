@@ -450,5 +450,19 @@
   "errors": {
     "modelDisabled": "Model {model} is turned off in Settings › Model. Turn it on or pick another model.",
     "modelDefaultDisabled": "Model {model} is the default model for new sessions but is turned off in Settings › Model. Change it in Settings › Defaults for new sessions."
+  },
+  "sessionTabs": {
+    "tablist": "Session tabs",
+    "conversation": "Conversation",
+    "conversationTip": "This Session's conversation",
+    "closeTab": "Close tab",
+    "unpinTab": "Unpin tab",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "close": "Close",
+    "closeOthers": "Close other tabs",
+    "hiddenTip": "{n} hidden tabs — click to see them",
+    "hiddenTitle": "Hidden tabs · {n}",
+    "detachTip": "Open in new window: show this file in its own window"
   }
 }

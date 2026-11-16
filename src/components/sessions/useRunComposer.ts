@@ -30,7 +30,7 @@ import {
 } from '@/lib/editResend'
 import type { ChatDraft } from '@/stores/chatDrafts'
 import { createPathChecker, matchProjectFile } from '@/lib/fileLinks'
-import { openFileWindow } from '@/lib/fileWindow'
+import { openSessionFile } from './openSessionFile'
 import { FILE_MENTION_EVENT } from '@/lib/fileEvents'
 import type { ImageAttachment } from '@/lib/streamEvents'
 import {
@@ -1168,11 +1168,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     }
   }
 
-  /** Show a file (optionally scrolled to `line`) in its own window. */
+  /** Show a file (optionally scrolled to `line`) as a tab of this Session. */
   function openFile(path: string, line?: number | null) {
-    const projectPath = project.value?.path
-    if (!projectPath || !path) return
-    openFileWindow(projectPath, path, line ?? null, currentRunId.value)
+    openSessionFile(project.value?.path, currentRunId.value, path, line ?? null)
   }
 
   // Score an entry against the query. Higher = more relevant; -1 = no match.

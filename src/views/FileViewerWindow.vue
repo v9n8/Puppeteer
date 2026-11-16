@@ -3,22 +3,24 @@
 // (opened via openFileWindow / `index.html?fileWindow=1&…`). Lets a file be read
 // side-by-side with the main app window. Clicking a file link inside opens yet
 // another pop-out window, keeping the "one window per file" model. Quote sends a
-// selection to the session that opened the file (lib/quoteAppend).
+// selection to the session that opened the file (lib/quoteAppend). "Back to main
+// window" hands the file to that session as a tab (V3-24) and closes this window.
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { Pin, PinOff } from 'lucide-vue-next'
+import { Pin, PinOff, SquareArrowDownLeft } from 'lucide-vue-next'
 import { FILE_DELETED_EVENT, FILE_MOVED_EVENT } from '@/lib/fileEvents'
 import FileViewer from '@/components/FileViewer.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
-import { FILE_WINDOW_ORIGIN, openFileWindow, type FileWindowOrigin } from '@/lib/fileWindow'
+import { FILE_WINDOW_ORIGIN, dockFileWindow, openFileWindow, type FileWindowOrigin } from '@/lib/fileWindow'
 import { parseFileWindowQuery } from '@/lib/fileWindowCore'
 import { pickQuoteRun, type QuoteSource } from '@/lib/quote'
 import { sendQuote } from '@/lib/quoteAppend'
 import { invoke } from '@/lib/tauri'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
+import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
 
@@ -149,6 +151,28 @@ function onRenamed(next: string) {
 function closeWindow() {
   getCurrentWindow().close().catch(() => { /* already closing */ })
 }
+
+// Back to main window: the session that opened the file shows it as a tab
+// (the main window, or that session's own window when open), then this closes.
+const { toast } = useToast()
+const docking = ref(false)
+async function dockBack() {
+  const runId = originRunId.value
+  if (!runId || docking.value) return
+  docking.value = true
+  try {
+    if (!projects.projects.length) await projects.fetchProjects()
+    const project = projects.projects.find((p) => p.path === projectPath.value)
+    if (!project) throw new Error(`no project at ${projectPath.value}`)
+    await dockFileWindow({ runId, projectId: project.id, path: path.value, line: line.value })
+    closeWindow()
+  } catch (e) {
+    console.error('[FileViewerWindow] cannot move the file back to the main window', e)
+    toast.error(t('files.viewer.dockFailed'))
+  } finally {
+    docking.value = false
+  }
+}
 </script>
 
 <template>
@@ -165,6 +189,20 @@ function closeWindow() {
     >
       <!-- Pin: keep this viewer above other apps even after it loses focus. -->
       <template #actions>
+        <!-- Only for a file opened from a session: that is where it goes back to. -->
+        <Button
+          v-if="originRunId"
+          variant="ghost"
+          size="sm"
+          class="shrink-0"
+          :title="t('files.viewer.dockBackTip')"
+          :aria-label="t('files.viewer.dockBackTip')"
+          :disabled="docking"
+          @click="dockBack"
+        >
+          <SquareArrowDownLeft class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+          <span class="max-[900px]:hidden">{{ t('files.viewer.dockBack') }}</span>
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

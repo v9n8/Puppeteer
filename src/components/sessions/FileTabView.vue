@@ -1,0 +1,100 @@
+<script setup lang="ts">
+// The file tabs of the Session area (V3-24): a FileViewer per open file tab, the
+// selected one shown. A tab's viewer stays mounted once it was shown, so going
+// back to it keeps the scroll and an edit in progress; closing the tab drops it.
+// "Open in new window" moves the file to its own window and closes the tab.
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { SquareArrowOutUpRight } from 'lucide-vue-next'
+import FileViewer from '@/components/FileViewer.vue'
+import { Button } from '@/components/ui'
+import { openFileWindow } from '@/lib/fileWindow'
+import { sendQuote } from '@/lib/quoteAppend'
+import type { QuoteSource } from '@/lib/quote'
+import type { FileTab } from '@/lib/sessionTabs'
+import { useSessionTabsStore } from '@/stores/sessionTabs'
+import { useToast } from '@/composables/useToast'
+import { useRunSession } from './useRunSession'
+
+const { t } = useI18n()
+const { toast } = useToast()
+const { currentRunId, currentRun, project, runLabel } = useRunSession()
+const tabsStore = useSessionTabsStore()
+
+const runId = computed(() => currentRunId.value ?? '')
+const projectPath = computed(() => project.value?.path ?? '')
+const state = computed(() => tabsStore.stateFor(runId.value))
+const fileTabs = computed(() => state.value.tabs.filter((tab): tab is FileTab => tab.kind === 'file'))
+
+// Tabs shown at least once in this Session; the others mount on first view.
+const shown = ref(new Set<string>())
+watch(runId, () => { shown.value = new Set() })
+watch(() => state.value.active, (id) => {
+  if (id.startsWith('file:') && !shown.value.has(id)) shown.value = new Set([...shown.value, id])
+}, { immediate: true })
+const mounted = computed(() => fileTabs.value.filter((tab) => shown.value.has(tab.id)))
+
+// Quote goes to this Session's composer, through the same route as a file window's.
+const quoteTarget = computed(() => {
+  const run = currentRun.value
+  if (!run) return null
+  return {
+    label: runLabel(run),
+    append: (text: string, source: QuoteSource, note?: string) => {
+      sendQuote(run.id, text, source, note).catch((e) => toast.error(String(e)))
+    },
+  }
+})
+
+function onOpenFile(path: string, line: number | null) {
+  tabsStore.open(runId.value, path, line)
+}
+function onOpenUrl(url: string) {
+  openUrl(url).catch((e) => toast.error(String(e)))
+}
+
+async function detach(tab: FileTab) {
+  const id = runId.value
+  try {
+    await openFileWindow(projectPath.value, tab.path, tab.line, id)
+    tabsStore.close(id, tab.id)
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+</script>
+
+<template>
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
+    <FileViewer
+      v-for="tab in mounted"
+      v-show="state.active === tab.id"
+      :key="`${runId}|${tab.id}`"
+      class="flex-1"
+      :project-path="projectPath"
+      :path="tab.path"
+      :line="tab.line"
+      :can-compare="true"
+      :quote-target="quoteTarget"
+      @open-file="onOpenFile"
+      @open-url="onOpenUrl"
+      @renamed="(next: string) => tabsStore.rename(runId, tab.path, next)"
+      @deleted="tabsStore.close(runId, tab.id)"
+    >
+      <template #actions>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="shrink-0"
+          :title="t('run.sessionTabs.detachTip')"
+          :aria-label="t('run.sessionTabs.detachTip')"
+          @click="detach(tab)"
+        >
+          <SquareArrowOutUpRight class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+          <span class="max-[900px]:hidden">{{ t('nav.detachWindow') }}</span>
+        </Button>
+      </template>
+    </FileViewer>
+  </div>
+</template>

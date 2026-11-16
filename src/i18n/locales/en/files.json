@@ -28,7 +28,10 @@
     "searchInFile": "Search in file",
     "searchPlaceholder": "Find in file…",
     "pin": "Pin above other windows",
-    "unpin": "Unpin (float only while focused)"
+    "unpin": "Unpin (float only while focused)",
+    "dockBack": "Back to main window",
+    "dockBackTip": "Back to main window: show this file as a tab of its Session",
+    "dockFailed": "Could not move this file back to the main window"
   },
   "tree": {
     "explorer": "Explorer",

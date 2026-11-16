@@ -40,6 +40,8 @@ import { useConductorStore } from '@/stores/conductor'
 import { TRAY_OPEN_RUN, type TrayOpenRun } from '@/lib/tray'
 import { focusSessionWindow } from '@/lib/sessionWindow'
 import { EVT_TRAY_OPEN } from '@/lib/backgroundProcesses'
+import { FILE_WINDOW_DOCK, type FileWindowDock } from '@/lib/fileWindow'
+import { useSessionTabsStore } from '@/stores/sessionTabs'
 
 /**
  * Call in setup; then await the returned `listenMainWindowEvents()` once, from
@@ -54,6 +56,8 @@ export function useMainWindowEvents() {
   const runsStore = useRunsStore()
   const conductorStore = useConductorStore()
   const draftsStore = useChatDraftsStore()
+  // Created up front: it adds the docked file's tab itself (stores/sessionTabs).
+  useSessionTabsStore()
   const { toast } = useToast()
   const { t } = useI18n()
 
@@ -87,6 +91,8 @@ export function useMainWindowEvents() {
   // starting a new one (lib/sessionLinks).
   let unlistenWindowRun: UnlistenFn | null = null
   let unlistenWindowNewSession: UnlistenFn | null = null
+  // A file window's "Back to main window" (V3-24).
+  let unlistenFileDock: UnlistenFn | null = null
   // Projects moved to / out of the Trash (any window, a remote desktop): the
   // project list (Projects grid, tabs, palette) follows.
   let unlistenTrashChanged: UnlistenFn | null = null
@@ -188,6 +194,8 @@ export function useMainWindowEvents() {
     unlistenWindowRun = null
     unlistenWindowNewSession?.()
     unlistenWindowNewSession = null
+    unlistenFileDock?.()
+    unlistenFileDock = null
     unlistenTrashChanged?.()
     unlistenTrashChanged = null
   })
@@ -337,6 +345,11 @@ export function useMainWindowEvents() {
       unlistenWindowNewSession = await listen<WindowNewSession>(WINDOW_NEW_SESSION, (e) => {
         const p = e.payload
         if (p?.projectId && p.target?.id) void newSessionFromWindow(p)
+      })
+      // Show the file's Session; its tab is added by the sessionTabs store.
+      unlistenFileDock = await listen<FileWindowDock>(FILE_WINDOW_DOCK, (e) => {
+        const { projectId, runId } = e.payload ?? {}
+        if (projectId && runId) void openRunFromTray(runId, projectId)
       })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).

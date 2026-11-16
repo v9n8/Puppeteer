@@ -10,7 +10,7 @@ import { onClickOutside } from '@vueuse/core'
 import {
   formatRunTimestamp, relativeAge, runStatusColorClass, runStatusIcon, shortModelId,
 } from '@/lib/runDisplay'
-import { openFileWindow } from '@/lib/fileWindow'
+import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
 import { useRunFlagFilter } from './useRunFlagFilter'
@@ -40,8 +40,9 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   } = conductor
   const {
     popoutSession, sessionListEl, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
-    loadInputContent, clearHistoryView, forking, forkRun,
+    loadInputContent, clearHistoryView, forking, forkRun, loadRunLog,
   } = log
+  const sessionTabs = useSessionTabsStore()
 
   const repos = ref<Repo[]>([])
 
@@ -409,27 +410,32 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     }
   }
 
-  // Open this run/session's log file in a standalone file viewer window.
+  // A file of `run` (its log, its transcript) opens as a tab of that session,
+  // which the Session area then shows (V3-24).
+  async function openRunFileTab(run: RunRecord, path: string) {
+    sessionTabs.open(run.id, path, null)
+    if (currentRunId.value !== run.id) await loadRunLog(run.id)
+  }
+
+  // Open this run/session's log file as a tab of that session.
   async function viewLogFile(run: RunRecord) {
-    const p = project.value
-    if (!p) return
+    if (!project.value) return
     try {
       const path = await runsStore.getRunLogPath(run.id)
       if (!path) { toast.info(t('run.noLogFileYet')); return }
-      await openFileWindow(p.path, path, null, run.id)
+      await openRunFileTab(run, path)
     } catch (e) {
       toast.error(String(e))
     }
   }
 
   // Write this run/session's conversation to a Markdown file (secrets redacted)
-  // and open it in the file viewer.
+  // and open it as a tab of that session.
   async function exportTranscript(run: RunRecord) {
-    const p = project.value
     try {
       const path = await runsStore.exportTranscript(run.id)
       toast.success(t('run.transcriptExported', { path }))
-      if (p) await openFileWindow(p.path, path, null, run.id)
+      if (project.value) await openRunFileTab(run, path)
     } catch (e) {
       toast.error(String(e))
     }
@@ -568,6 +574,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       // navigate away from a deep-linked deleted run so the URL stays consistent.
       tabsStore.forgetRun(runId)
       scrollMemory.forget(runId)
+      sessionTabs.forget([runId])
       if (activeRunId.value === runId) {
         router.replace(`/projects/${projectId.value}`)
       }
@@ -587,8 +594,11 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       confirmLabel: t('run.deleteAll'),
     }))) return
     clearingAll.value = true
+    const before = runsStore.runs.map((r) => r.id)
     try {
       await runsStore.deleteAllRuns(projectId.value)
+      const kept = new Set(runsStore.runs.map((r) => r.id))
+      sessionTabs.forget(before.filter((id) => !kept.has(id)))
       clearActiveRunState()
       if (activeRunId.value) {
         router.replace(`/projects/${projectId.value}`)

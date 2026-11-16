@@ -11,6 +11,7 @@ import { trackWindowForTray } from '@/lib/tray'
 import { nextCascadePosition } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { fileWindowQuery } from '@/lib/fileWindowCore'
+import { composerWindowLabel } from '@/lib/quoteAppend'
 
 /** Sent to an already-open file window: the run that opened it again. */
 export const FILE_WINDOW_ORIGIN = 'file-window:origin'
@@ -22,6 +23,27 @@ export interface FileWindowOrigin {
 }
 
 // Small deterministic string hash (djb2) → safe, stable window label per file.
+/**
+ * Sent by a file window's "Back to main window" (V3-24): show `path` as a tab of
+ * the Session it came from. `writer` is the one window that applies the tab —
+ * the run's session pop-out when open, else the main window — so two windows
+ * holding the same Session never both write its tabs.
+ */
+export const FILE_WINDOW_DOCK = 'file-window:dock'
+
+export interface FileWindowDock {
+  runId: string
+  projectId: string
+  path: string
+  line: number | null
+  writer: string
+}
+
+export async function dockFileWindow(dock: Omit<FileWindowDock, 'writer'>): Promise<void> {
+  const writer = await composerWindowLabel(dock.runId)
+  await emit(FILE_WINDOW_DOCK, { ...dock, writer } satisfies FileWindowDock)
+}
+
 function hashLabel(s: string): string {
   let h = 5381
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0

@@ -1,21 +1,29 @@
 <script setup lang="ts">
-// The run screen: left rail, then the session column (header, AI result pane,
-// composer, info bar) and conductor sidebar. Each part lives in components/sessions and shares
+// The run screen: left rail, then the session column (header, tab bar, AI result
+// pane or a file tab, composer, info bar) and conductor sidebar. Each part lives in components/sessions and shares
 // this view's state through createRunSession / useRunSession (UX-03).
 import RewindDialog from '@/components/sessions/RewindDialog.vue'
 import RunHeader from '@/components/sessions/RunHeader.vue'
 import RunSessionRail from '@/components/sessions/RunSessionRail.vue'
 import RunLogPane from '@/components/sessions/RunLogPane.vue'
+import SessionTabBar from '@/components/sessions/SessionTabBar.vue'
+import FileTabView from '@/components/sessions/FileTabView.vue'
 import RunComposer from '@/components/sessions/RunComposer.vue'
 import TurnStatusBar from '@/components/sessions/TurnStatusBar.vue'
 import RunWorkerSidebar from '@/components/sessions/RunWorkerSidebar.vue'
 import RunEngineSwitchDialog from '@/components/sessions/RunEngineSwitchDialog.vue'
 import RunStatusBar from '@/components/sessions/RunStatusBar.vue'
+import { computed } from 'vue'
 import { createRunSession } from '@/components/sessions/useRunSession'
+import { useSessionTabsStore } from '@/stores/sessionTabs'
 
 const {
-  uiLayout, isSessionWindow, composerVisible, showWorkerPanel, rewindTarget, onRewound, closeRewind,
+  uiLayout, isSessionWindow, composerVisible, showWorkerPanel, rewindTarget, onRewound, closeRewind, currentRunId,
 } = createRunSession()
+
+// A file tab of this Session is selected (V3-24): it takes the conversation's place.
+const sessionTabs = useSessionTabsStore()
+const showingFile = computed(() => !!currentRunId.value && sessionTabs.stateFor(currentRunId.value).active.startsWith('file:'))
 </script>
 
 <template>
@@ -29,7 +37,10 @@ const {
       <div class="flex-1 flex flex-col overflow-hidden bg-background">
         <!-- Header: this session's name, bookmarks, find; as wide as the session column. -->
         <RunHeader />
-        <RunLogPane />
+        <SessionTabBar v-if="currentRunId" />
+        <!-- v-show, not v-if: the conversation keeps its scroll and its stream while a file is read. -->
+        <RunLogPane v-show="!showingFile" />
+        <FileTabView v-if="currentRunId" v-show="showingFile" />
 
         <!-- Turn status bar (V3-17): what the last turn is doing; opens its steps and todo. -->
         <TurnStatusBar v-if="composerVisible" />
