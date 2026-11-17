@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
 import type { ProjectColor } from '@/lib/projectAppearance'
 import type { SessionFlag, SessionFlagList } from '@/lib/sessionFlags'
+import { clearGoneFlags } from '@/lib/flagFilter'
+import { useRunsStore } from '@/stores/runs'
 
 /** Emitted by the backend when a flag definition changed (any window, a remote desktop too). */
 const EVT_CHANGED = 'session-flags:changed'
@@ -45,6 +47,15 @@ export const useSessionFlagsStore = defineStore('sessionFlags', () => {
     // A project's own flags and hidden marks do not show in the shared list.
     const scopes = projectId === null ? [...byScope.keys()] : [projectId].filter((k) => byScope.has(k))
     await Promise.all(scopes.map((k) => load(k === SHARED ? null : k)))
+    dropGoneFlagsFromRuns()
+  }
+
+  /** A flag deleted in another window leaves its id on the runs this window holds: clear it, so filters and counts agree. */
+  function dropGoneFlagsFromRuns() {
+    const runsStore = useRunsStore()
+    const flagsOf = (projectId: string) => byScope.get(projectId) ?? null
+    clearGoneFlags(runsStore.runs, flagsOf)
+    clearGoneFlags(runsStore.runMeta.values(), flagsOf)
   }
 
   function listenOnce(): Promise<void> {

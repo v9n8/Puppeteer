@@ -59,6 +59,12 @@ test('a flag is found by id; no id or a deleted one finds nothing', () => {
   assert.equal(flagById(flags, undefined), undefined)
 })
 
+test('a name that equals the shown name of a flag is taken, even when the stored name differs (F-U1-R3-1)', () => {
+  const scope = [{ ...flag('a', { name: 'In progress' }), label: 'Đang làm' }]
+  assert.equal(flagNameError('đang LÀM', scope), 'sessionFlags.errors.nameTaken')
+  assert.equal(flagNameError('in progress', scope), 'sessionFlags.errors.nameTaken')
+})
+
 test('a name is checked like the backend: trimmed, 1 to 24 characters, unique in its scope', () => {
   const scope = [flag('a', { name: 'In progress' }), flag('b', { name: 'Blocked' })]
   assert.equal(flagNameError('  ', scope), 'sessionFlags.errors.nameRequired')

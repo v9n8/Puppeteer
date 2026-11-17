@@ -66,17 +66,18 @@ export function flagById<F extends Pick<SessionFlag, 'id'>>(flags: readonly F[],
 
 /**
  * Why a flag name cannot be saved (an i18n key), or null when it can. `scope` is
- * the flags of the same scope; `exceptId` the flag being renamed.
+ * the flags of the same scope (`label`: the name the UI shows, when it differs from
+ * the stored one, as an untouched default's does); `exceptId` the flag being renamed.
  */
 export function flagNameError(
   name: string,
-  scope: readonly Pick<SessionFlag, 'id' | 'name'>[],
+  scope: readonly (Pick<SessionFlag, 'id' | 'name'> & { label?: string })[],
   exceptId: string | null = null,
 ): string | null {
   const trimmed = name.trim()
   if (!trimmed) return 'sessionFlags.errors.nameRequired'
   if ([...trimmed].length > FLAG_NAME_MAX) return 'sessionFlags.errors.nameTooLong'
   const lower = trimmed.toLowerCase()
-  if (scope.some((f) => f.id !== exceptId && f.name.toLowerCase() === lower)) return 'sessionFlags.errors.nameTaken'
+  if (scope.some((f) => f.id !== exceptId && (f.name.toLowerCase() === lower || f.label?.toLowerCase() === lower))) return 'sessionFlags.errors.nameTaken'
   return null
 }

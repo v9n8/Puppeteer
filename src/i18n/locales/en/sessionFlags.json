@@ -69,6 +69,7 @@
     "color": "Colour (project tab palette)",
     "preview": "On the History row:",
     "previewEmpty": "Flag name",
+    "addProjectFlag": "Add flag",
     "projectOnly": "Only usable in this project · {name}",
     "runsFollow": "{n} Sessions with this flag change right away."
   },

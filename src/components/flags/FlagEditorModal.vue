@@ -49,7 +49,7 @@ watch(name, () => { backendError.value = null })
 
 const trimmed = computed(() => name.value.trim())
 const count = computed(() => [...name.value.trim()].length)
-const others = computed(() => props.flags.filter((f) => f.id !== props.flag?.id))
+const others = computed(() => props.flags.filter((f) => f.id !== props.flag?.id).map((f) => ({ ...f, label: flagLabel(f, t) })))
 const nameError = computed(() => validateFlagName(name.value, others.value))
 // "Required" is not shown while the field is still empty: the button being off says it.
 const shownError = computed(() => {
@@ -137,7 +137,7 @@ async function save() {
       <div class="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" @click="emit('close')">{{ t('common.cancel') }}</Button>
         <Button type="submit" size="sm" :disabled="!!nameError || saving">
-          {{ t(flag ? 'common.save' : 'common.add') }}
+          {{ t(flag ? 'common.save' : projectId ? 'sessionFlags.editor.addProjectFlag' : 'common.add') }}
         </Button>
       </div>
     </form>

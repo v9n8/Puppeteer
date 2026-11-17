@@ -57,7 +57,13 @@ function moveFocus(step: 1 | -1) {
 }
 function onKeydown(e: KeyboardEvent) {
   const pressed = e.key
-  if (pressed === 'Escape') emit('close')
+  if (pressed === 'Escape') {
+    // This listener is on window in the capture phase, so it runs before the submenu's own
+    // Escape (close just that submenu): leave the key to it while focus is inside one.
+    const active = document.activeElement
+    if (active instanceof Element && active.closest('[data-submenu-panel]')) return
+    emit('close')
+  }
   else if (pressed === 'ArrowDown' || pressed === 'ArrowUp') {
     e.preventDefault()
     moveFocus(pressed === 'ArrowDown' ? 1 : -1)

@@ -69,6 +69,7 @@
     "color": "Màu (bảng màu tab Project)",
     "preview": "Trên dòng History:",
     "previewEmpty": "Tên flag",
+    "addProjectFlag": "Thêm flag",
     "projectOnly": "Chỉ dùng được trong Project này · {name}",
     "runsFollow": "{n} Session đang gắn flag này đổi theo ngay."
   },

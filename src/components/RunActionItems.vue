@@ -62,6 +62,7 @@ const emit = defineEmits<{
   rename: []
   togglePin: []
   toggleProtect: []
+  flagChanged: []
   delete: []
 }>()
 
@@ -128,7 +129,7 @@ const currentFlagName = computed(() => {
         {{ t('sessionFlags.menu.set') }}
       </template>
       <template #hint>{{ currentFlagName }}</template>
-      <FlagMenuItems :run-id="run.id" :project-id="run.project_id" :flag-id="run.flag_id" />
+      <FlagMenuItems :run-id="run.id" :project-id="run.project_id" :flag-id="run.flag_id" @changed="emit('flagChanged')" />
     </DropdownSubmenu>
     <!-- A new session with this one's conversation and settings (UX-28). -->
     <DropdownItem v-if="canForkRun(run)" :disabled="busy.forking" @click="emit('fork')">

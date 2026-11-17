@@ -218,6 +218,8 @@ export function useBoardRunActions(onChanged: () => void) {
         toast.success(t(protect ? 'run.runProtected' : 'run.runUnprotected'))
         onChanged()
       }),
+      // set_run_flag emits no event: the board copy of the run is stale until it reloads.
+      flagChanged: () => onChanged(),
       delete: () => remove(run),
     }
   }

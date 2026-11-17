@@ -3,7 +3,7 @@ import { flagNameError, missingDefaultFlags, type SessionFlag } from './sessionF
 import type { ProjectColor } from './projectAppearance.ts'
 
 /** Why `name` cannot be saved (an i18n key), or null. `others`: the other flags of the same scope. */
-export function validateFlagName(name: string, others: readonly Pick<SessionFlag, 'id' | 'name'>[]): string | null {
+export function validateFlagName(name: string, others: readonly (Pick<SessionFlag, 'id' | 'name'> & { label?: string })[]): string | null {
   return flagNameError(name, others)
 }
 

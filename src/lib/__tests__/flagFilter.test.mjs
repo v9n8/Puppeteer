@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/flagFilter.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { filterByFlag, filterOptions, flagCounts, resetIfGone } from '../flagFilter.ts'
+import { clearGoneFlags, filterByFlag, filterOptions, flagCounts, resetIfGone } from '../flagFilter.ts'
 import { hasProjectSection, hasSettingsSection } from '../settingsTargets.ts'
 
 const runs = [
@@ -52,4 +52,16 @@ test('settingsTargets: known ids only', () => {
   assert.equal(hasSettingsSection('nope'), false)
   assert.equal(hasProjectSection('overview'), true)
   assert.equal(hasProjectSection('nope'), false)
+})
+
+test('clearGoneFlags drops a flag id that no longer exists, only for projects whose list is loaded (F-R3-9)', () => {
+  const rows = [
+    { id: 'a', project_id: 'p1', flag_id: 'gone' },
+    { id: 'b', project_id: 'p1', flag_id: 'kept' },
+    { id: 'c', project_id: 'p2', flag_id: 'gone' },
+    { id: 'd', project_id: 'p1', flag_id: null },
+  ]
+  const flagsOf = (projectId) => (projectId === 'p1' ? [{ id: 'kept' }] : null)
+  assert.equal(clearGoneFlags(rows, flagsOf), 1)
+  assert.deepEqual(rows.map((r) => r.flag_id), [null, 'kept', 'gone', null])
 })

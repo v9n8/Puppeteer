@@ -24,6 +24,27 @@ export function filterByFlag<R extends FlaggedRun>(runs: readonly R[], filter: F
   return runs.filter((r) => r.flag_id === filter)
 }
 
+/**
+ * Clears (in place) the `flag_id` of runs whose flag was deleted elsewhere. `flagsOf` gives
+ * the flags a project's sessions see, or null while that list is not loaded (those runs stay
+ * as they are). Returns how many runs changed.
+ */
+export function clearGoneFlags(
+  runs: Iterable<{ project_id: string; flag_id?: string | null }>,
+  flagsOf: (projectId: string) => readonly { id: string }[] | null,
+): number {
+  let cleared = 0
+  for (const run of runs) {
+    if (!run.flag_id) continue
+    const flags = flagsOf(run.project_id)
+    if (flags && !flags.some((f) => f.id === run.flag_id)) {
+      run.flag_id = null
+      cleared += 1
+    }
+  }
+  return cleared
+}
+
 /** Sessions per flag over what History lists: workers never get a row, so they are not counted. */
 export function flagCounts(runs: readonly FlaggedRun[]): FlagCounts {
   const counts: FlagCounts = { total: 0, none: 0, byFlag: new Map() }
