@@ -2,21 +2,32 @@
 //! `settings_backup.rs`, which only carries the field and calls [`merged_list`]; declared
 //! there as a child module so the round-trip test can use its private collect / import.
 //!
-//! The list travels with the project's other defaults for new sessions. A backup without
-//! it (older, or a project following Settings) keeps the local list, like every other
-//! default left unset there.
+//! The list travels with the project's other defaults for new sessions. A project
+//! following Settings is written as an explicit `null`, so importing it puts the target
+//! project back on Settings too. A backup without the field (an older one) keeps the
+//! local list, like every other default left unset there.
 
 use crate::commands::session_defaults::{check_model, ProjectSessionDefaults};
 use crate::model_policy::EnabledModels;
 
+/// The field in a backup entry: outer `None` = absent (older backup), `Some(None)` = `null`
+/// (follows Settings), `Some(Some(list))` = the project's own list.
+pub(super) type List = Option<Option<EnabledModels>>;
+
+/// serde hook that tells `null` from an absent field (a plain `Option` reads both as `None`).
+pub(super) fn de<'de, D: serde::Deserializer<'de>>(d: D) -> Result<List, D::Error> {
+    serde::Deserialize::deserialize(d).map(Some)
+}
+
 /// The list a project ends up with on import: the backup's (trimmed, ids of the wrong
-/// engine left out with a warning), else the local one.
+/// engine left out with a warning), Settings for `null`, else the local one.
 pub(super) fn merged_list(
-    backup: Option<&EnabledModels>,
+    backup: Option<&Option<EnabledModels>>,
     current: &ProjectSessionDefaults,
     warnings: &mut Vec<String>,
 ) -> Option<EnabledModels> {
     let Some(backup) = backup else { return current.enabled_models.clone() };
+    let Some(backup) = backup else { return None };
     let backup = EnabledModels::parse(Some(&backup.to_json()));
     let mut keep = |engine: &str| -> Option<Vec<String>> {
         let ids = backup.list(engine)?;
@@ -55,7 +66,8 @@ mod tests {
         let local = ProjectSessionDefaults { enabled_models: list(r#"{"codex":["gpt-5.5"]}"#), ..Default::default() };
         let mut warnings = Vec::new();
         assert_eq!(merged_list(None, &local, &mut warnings), local.enabled_models);
-        let got = merged_list(list(r#"{"claude":["claude-haiku-4-5","gpt-5.5"]}"#).as_ref(), &local, &mut warnings);
+        assert_eq!(merged_list(Some(&None), &local, &mut warnings), None);
+        let got = merged_list(Some(&list(r#"{"claude":["claude-haiku-4-5","gpt-5.5"]}"#)), &local, &mut warnings);
         assert_eq!(got, list(r#"{"claude":["claude-haiku-4-5"]}"#));
         assert_eq!(warnings.len(), 1, "{warnings:?}");
     }
@@ -69,18 +81,18 @@ mod tests {
             ..Default::default()
         };
         defaults::set(&source, "p1", web.clone()).await.unwrap();
-        // `api` follows Settings: its entry carries no list.
+        // `api` follows Settings: its entry carries an explicit null.
         let projects: Vec<ProjectEntry> =
             serde_json::from_value(serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap()).unwrap();
         let by_name = |n: &str| projects.iter().find(|p| p.name == n).unwrap();
-        assert!(by_name("api").session_defaults.is_none());
+        assert_eq!(serde_json::to_value(by_name("api")).unwrap()["session_defaults"], serde_json::json!({ "enabled_models": null }));
         let json = serde_json::to_value(by_name("web")).unwrap();
         assert_eq!(
             json["session_defaults"]["enabled_models"],
             serde_json::json!({ "claude": ["claude-haiku-4-5", "claude-sonnet-4-6"], "codex": [] })
         );
 
-        // Another machine: `api` has its own list, which the backup does not touch.
+        // Another machine: `api` has its own list, which the backup of a project on Settings resets.
         let target = db_with_projects("('w', 'web', '/other/web', 'c'), ('a', 'api', '/other/api', 'c')").await;
         let api_own = ProjectSessionDefaults { enabled_models: list(r#"{"codex":["gpt-5.5"]}"#), ..Default::default() };
         defaults::set(&target, "a", api_own.clone()).await.unwrap();
@@ -90,7 +102,8 @@ mod tests {
             assert_ne!(outcome, Upsert::Created, "{name}");
         }
         assert_eq!(defaults::load(&target, "w").await, web);
-        assert_eq!(defaults::load(&target, "a").await, api_own);
+        assert_eq!(defaults::load(&target, "a").await.enabled_models, None);
+        defaults::set(&target, "a", api_own.clone()).await.unwrap();
 
         // A backup from before V3-64 (defaults, no list) keeps the local list too.
         let old: ProjectEntry = serde_json::from_value(serde_json::json!({

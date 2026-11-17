@@ -48,7 +48,7 @@ use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 #[path = "session_defaults_backup.rs"]
-mod session_defaults_backup;
+mod sd_backup;
 
 const FORMAT: &str = "puppeteer-settings-backup";
 const VERSION: u32 = 1;
@@ -241,8 +241,8 @@ struct SessionDefaultsEntry {
     effort: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style: Option<StyleRefEntry>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    enabled_models: Option<crate::model_policy::EnabledModels>,
+    #[serde(default, deserialize_with = "sd_backup::de", skip_serializing_if = "Option::is_none")]
+    enabled_models: sd_backup::List,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -1397,7 +1397,7 @@ async fn collect_session_defaults(db: &Db, project_id: &str) -> Result<Option<Se
         permission_mode: d.permission_mode,
         effort: d.effort,
         style,
-        enabled_models: d.enabled_models,
+        enabled_models: Some(d.enabled_models),
     };
     Ok(Some(entry).filter(|e| *e != SessionDefaultsEntry::default()))
 }
@@ -3899,7 +3899,7 @@ async fn import_session_defaults(
         permission_mode: permission_mode.or(current.permission_mode.clone()),
         effort: effort.or(current.effort.clone()),
         style: current.style.clone(),
-        enabled_models: session_defaults_backup::merged_list(entry.enabled_models.as_ref(), &current, warnings),
+        enabled_models: sd_backup::merged_list(entry.enabled_models.as_ref(), &current, warnings),
     };
     if merged == current {
         return Ok(false);

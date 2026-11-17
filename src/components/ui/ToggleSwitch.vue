@@ -4,6 +4,8 @@
 // flips a field).
 //
 // - `size`: `sm` (h-5, list rows / compact cards) or `md` (h-6, settings rows).
+// - The click area is 4px wider on every side (an invisible `before:` layer, so the box
+//   in the layout keeps its size): 28px+ high, as the touch-target rule asks.
 // - `checked: 'mixed'` = some members on (group toggles) — knob in the middle.
 import { computed } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
@@ -40,7 +42,7 @@ const state = computed(() => (props.checked === 'mixed' ? 'mixed' : props.checke
     :aria-label="label"
     :title="label"
     :disabled="disabled || loading"
-    class="ui-switch relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+    class="ui-switch relative inline-flex shrink-0 before:absolute before:-inset-1 before:content-[''] cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
     :class="[
       size === 'md' ? 'h-6 w-11' : 'h-5 w-9',
       state === 'on' ? 'bg-primary' : state === 'mixed' ? 'bg-primary/40' : 'bg-muted-foreground/30',
