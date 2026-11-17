@@ -6,6 +6,7 @@
   "add": "Add",
   "new": "New",
   "close": "Close",
+  "closeEsc": "Close (Esc)",
   "clear": "Clear",
   "confirm": "Confirm",
   "loading": "Loading…",

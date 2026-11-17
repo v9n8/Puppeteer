@@ -3,10 +3,12 @@
 // via useConfirm().confirm(). Replaces the browser-native confirm() so dialogs
 // match the app's design system (dark theme, indigo primitives).
 import { nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Modal, Button } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { AlertTriangle } from 'lucide-vue-next'
 
+const { t } = useI18n()
 const { state, respond } = useConfirm()
 
 // A notice has one button: focus it so Enter closes the dialog.
@@ -22,7 +24,7 @@ watch(
 </script>
 
 <template>
-  <Modal :open="state.open" :title="state.title" size="sm" @close="respond(null)">
+  <Modal :open="state.open" :title="state.title || t('common.confirm')" size="sm" @close="respond(null)">
     <div class="flex gap-3 px-4 py-4">
       <div
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
@@ -35,10 +37,10 @@ watch(
     <template #footer>
       <!-- Wraps when a second action and a long label don't fit on one line. -->
       <div class="flex w-full flex-wrap justify-end gap-2">
-        <Button v-if="!state.single" variant="outline" @click="respond(null)">{{ state.cancelLabel }}</Button>
+        <Button v-if="!state.single" variant="outline" @click="respond(null)">{{ state.cancelLabel || t('common.cancel') }}</Button>
         <Button v-if="state.altLabel" variant="outline" @click="respond('alt')">{{ state.altLabel }}</Button>
         <Button ref="confirmBtn" :variant="state.variant === 'destructive' ? 'destructive' : 'primary'" @click="respond('confirm')">
-          {{ state.confirmLabel }}
+          {{ state.confirmLabel || t('common.confirm') }}
         </Button>
       </div>
     </template>

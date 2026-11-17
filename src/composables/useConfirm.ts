@@ -42,10 +42,11 @@ interface ConfirmState extends Required<ConfirmOptions> {
 
 const state = reactive<ConfirmState>({
   open: false,
-  title: 'Confirm',
+  // '' = the host (ConfirmModal) fills in the translated default.
+  title: '',
   message: '',
-  confirmLabel: 'Confirm',
-  cancelLabel: 'Cancel',
+  confirmLabel: '',
+  cancelLabel: '',
   variant: 'destructive',
   altLabel: '',
   single: false,
@@ -57,10 +58,10 @@ function openDialog(opts: ConfirmOptions, altLabel: string, single = false): Pro
   // If a dialog is already pending, cancel it before opening the new one.
   resolver?.(null)
 
-  state.title = opts.title ?? 'Confirm'
+  state.title = opts.title ?? ''
   state.message = opts.message
-  state.confirmLabel = opts.confirmLabel ?? 'Confirm'
-  state.cancelLabel = opts.cancelLabel ?? 'Cancel'
+  state.confirmLabel = opts.confirmLabel ?? ''
+  state.cancelLabel = opts.cancelLabel ?? ''
   state.variant = opts.variant ?? 'destructive'
   state.altLabel = altLabel
   state.single = single

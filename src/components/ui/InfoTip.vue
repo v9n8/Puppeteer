@@ -87,7 +87,7 @@ onBeforeUnmount(() => bind(false))
   <button
     ref="trigger"
     type="button"
-    class="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    class="relative inline-flex h-4 w-4 shrink-0 before:absolute before:-inset-1.5 before:content-[''] cursor-help items-center justify-center rounded-full transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     :class="pinned ? 'text-foreground' : 'text-muted-foreground'"
     :aria-label="t('common.moreInfo')"
     :aria-describedby="open ? id : undefined"
