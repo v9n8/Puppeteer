@@ -24,32 +24,37 @@ test('waiting beats running whatever the order', () => {
   assert.deepEqual(projectRunDots([s('a', 'running', 2), s('a', 'running')]), { a: 'waiting' })
 })
 
-test('short path stays whole', () => {
-  assert.deepEqual(middlePath('~/repos/app', 30), { head: '~/repos/app', middle: '', tail: '' })
+test('path of 23 characters still splits so the folder name is never cut by a fixed budget', () => {
+  assert.deepEqual(middlePath('~/code/acme-billing-api'), { head: '~', middle: '/code', tail: '/acme-billing-api' })
+})
+
+test('short path keeps its text whole when joined', () => {
+  const r = middlePath('~/repos/app')
+  assert.equal(r.head + r.middle + r.tail, '~/repos/app')
 })
 
 test('long path keeps the start and the last folder', () => {
-  assert.deepEqual(middlePath('~/WorkSpace/repos/Personal/Puppeteer', 20), {
+  assert.deepEqual(middlePath('~/WorkSpace/repos/Personal/Puppeteer'), {
     head: '~/WorkSpace', middle: '/repos/Personal', tail: '/Puppeteer',
   })
 })
 
 test('absolute path keeps three parts of the head', () => {
-  const r = middlePath('/Users/me/WorkSpace/repos/app', 10)
+  const r = middlePath('/Users/me/WorkSpace/repos/app')
   assert.deepEqual(r, { head: '/Users/me', middle: '/WorkSpace/repos', tail: '/app' })
   assert.equal(r.head + r.middle + r.tail, '/Users/me/WorkSpace/repos/app')
 })
 
 test('long last folder name is left whole for CSS to cut', () => {
-  const r = middlePath('~/a/b/' + 'x'.repeat(60), 20)
+  const r = middlePath('~/a/b/' + 'x'.repeat(60))
   assert.equal(r.tail, '/' + 'x'.repeat(60))
 })
 
 test('Windows path', () => {
-  const r = middlePath('C:\\Users\\me\\repos\\Personal\\Puppeteer', 20)
+  const r = middlePath('C:\\Users\\me\\repos\\Personal\\Puppeteer')
   assert.deepEqual(r, { head: 'C:\\Users', middle: '\\me\\repos\\Personal', tail: '\\Puppeteer' })
 })
 
 test('too few folders to have a middle', () => {
-  assert.equal(middlePath('~/' + 'x'.repeat(50), 20).middle, '')
+  assert.equal(middlePath('~/' + 'x'.repeat(50)).middle, '')
 })

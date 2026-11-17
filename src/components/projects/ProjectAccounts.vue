@@ -7,12 +7,16 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
-import { Badge, Card, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
+import { Badge, Banner, Card, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useToast } from '@/composables/useToast'
 import { connectionType, type AccountLike } from '@/lib/connectionTypes'
 import { PROJECT_ACCOUNT_TYPES, type ProjectAccountType } from '@/lib/projectSections'
 import { useProjectsStore, type Project } from '@/stores/projects'
+import { useGithubAccountsStore } from '@/stores/githubAccounts'
+import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
+import { useAwsAccountsStore } from '@/stores/awsAccounts'
+import { useAzureAccountsStore } from '@/stores/azureAccounts'
 
 const props = defineProps<{ project: Project; type: ProjectAccountType | null }>()
 
@@ -21,7 +25,16 @@ const { toast } = useToast()
 const projectStore = useProjectsStore()
 const { sources, fetchers, types } = useConnectionSources()
 
-for (const id of PROJECT_ACCOUNT_TYPES) if (!sources.value[id]?.length) fetchers[id]().catch(() => {})
+// The stores keep a failed load in `error` (fetch never throws); it is shown below instead of "No accounts yet".
+const accountStores = {
+  github: useGithubAccountsStore(),
+  gitlab: useGitlabAccountsStore(),
+  aws: useAwsAccountsStore(),
+  azure: useAzureAccountsStore(),
+}
+const loadError = computed(() => PROJECT_ACCOUNT_TYPES.map((id) => accountStores[id].error).find(Boolean) ?? null)
+
+for (const id of PROJECT_ACCOUNT_TYPES) if (!sources.value[id]?.length) fetchers[id]()
 
 // Per type: the strings of its hint line.
 const CONFIG = {
@@ -100,16 +113,17 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
 <template>
   <div class="max-w-lg space-y-3">
     <SegmentedControl
-      v-model="filter"
+      :model-value="activeFilter"
       :options="filterOptions"
       :stretch="false"
-      class="flex-wrap"
+      class="flex-wrap [&_button]:min-h-7"
+      @update:model-value="filter = $event"
     />
 
     <Card>
       <template #header>
         <span class="text-xs font-semibold">{{ t('projectDetail.sections.accounts') }}</span>
-        <RouterLink :to="manageTo" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
+        <RouterLink :to="manageTo" class="ml-auto inline-flex min-h-7 items-center px-1 text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
       </template>
 
       <p v-if="activeFilter !== 'all'" class="px-4 pt-3 text-2xs text-muted-foreground leading-relaxed">
@@ -117,7 +131,10 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
         <code class="text-primary">{{ CONFIG[activeFilter].envVar }}=&lt;label&gt;</code>.
       </p>
 
-      <div v-if="total === 0" class="px-4 py-5 text-center text-xs text-muted-foreground">
+      <Banner v-if="loadError" tone="destructive" live class="m-3">
+        {{ t('projectDetail.accountsLoadError', { error: loadError }) }}
+      </Banner>
+      <div v-else-if="total === 0" class="px-4 py-5 text-center text-xs text-muted-foreground">
         {{ t('projectDetail.noAccounts') }}
         <RouterLink :to="manageTo" class="text-primary hover:underline">{{ t('projectDetail.addInSettings') }}</RouterLink>
         {{ t('projectDetail.toLinkHere') }}
@@ -150,7 +167,7 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
                   <button
                     v-else-if="enabledIds(g.type).has(account.id)"
                     type="button"
-                    class="text-2xs text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+                    class="-my-1 inline-flex min-h-7 items-center px-1 text-2xs text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
                     :disabled="busyId !== null"
                     @click="makeDefault(g.type, account)"
                   >{{ t('projectDetail.makeDefault') }}</button>

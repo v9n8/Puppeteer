@@ -47,9 +47,6 @@ const dots = computed(() => projectRunDots(live.sessions.values()))
 const dotClass: Record<RunDot, string> = { waiting: 'bg-warning', running: 'bg-primary' }
 const dotLabel = (d: RunDot) => t(d === 'waiting' ? 'projects.dotWaiting' : 'projects.dotRunning')
 
-// Longer than this many characters, the middle folders may be cut (CSS cuts only the middle).
-const PATH_BUDGET = 28
-
 const rows = computed(() => filterProjects(props.projects, search.value))
 
 const listRef = ref<HTMLElement | null>(null)
@@ -168,10 +165,11 @@ function onListClickCapture(e: MouseEvent) {
                   </Badge>
                 </span>
                 <span class="flex min-w-0 font-mono" :class="rowSubClass" :title="project.path">
-                  <template v-for="p in [middlePath(project.path, PATH_BUDGET)]" :key="project.path">
-                    <span class="min-w-0 truncate" :class="p.middle ? 'max-w-[45%] shrink-0' : ''">{{ p.head }}</span>
-                    <span v-if="p.middle" class="min-w-0 truncate">{{ p.middle }}</span>
-                    <span v-if="p.tail" class="min-w-0 shrink-[0.001] truncate">{{ p.tail }}</span>
+                  <template v-for="p in [middlePath(project.path)]" :key="p.head">
+                    <!-- Shrink weights: the middle gives way first, then the head, the folder name last (it ends in "…" only when nothing else is left). -->
+                    <span class="min-w-0 truncate">{{ p.head }}</span>
+                    <span v-if="p.middle" class="min-w-0 shrink-[1000] truncate">{{ p.middle }}</span>
+                    <span v-if="p.tail" class="min-w-0 shrink-[0.01] truncate">{{ p.tail }}</span>
                   </template>
                 </span>
               </span>
