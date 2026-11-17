@@ -368,7 +368,7 @@ function openProject(group: TrashEntry['full']) {
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
           {{ t('trash.refresh') }}
         </Button>
-        <Button v-if="!remote" variant="destructive" size="xs" :disabled="busy || groups.length === 0" @click="emptyTrash">
+        <Button v-if="!remote" variant="destructive-solid" size="xs" :disabled="busy || groups.length === 0" @click="emptyTrash">
           <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('trash.emptyTrash') }}
         </Button>

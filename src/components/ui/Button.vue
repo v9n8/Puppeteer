@@ -9,16 +9,18 @@ import { cn } from '@/lib/utils'
 defineOptions({ inheritAttrs: false })
 
 const button = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition cursor-pointer select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-sm border border-transparent font-medium transition cursor-pointer select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none',
   {
     variants: {
       variant: {
         primary: 'bg-primary text-primary-foreground hover:opacity-90 active:scale-[.97]',
         // Hover only swaps the fill; the border stays put.
         outline: 'border border-input bg-card text-foreground hover:bg-accent active:scale-[.97]',
-        ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[.97]',
-        // Tinted, never solid red: the warning reads before the click without shouting.
+        ghost: 'text-foreground hover:bg-accent active:scale-[.97]',
+        // Tinted by default: the warning reads before the click without shouting.
         destructive: 'bg-destructive/10 text-destructive hover:bg-destructive/15',
+        // Solid red only where the design draws it (empty the Trash); every other destructive action stays tinted.
+        'destructive-solid': 'bg-destructive text-destructive-foreground hover:opacity-90 active:scale-[.97]',
         'destructive-ghost': 'text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10',
         subtle: 'bg-muted text-muted-foreground border border-border/60',
       },
@@ -26,13 +28,17 @@ const button = cva(
         xs: 'h-7 gap-1 px-2.5 text-2xs',
         sm: 'h-8 gap-1.5 px-3 text-xs',
         md: 'h-9 gap-2 px-4 text-sm',
-        icon: 'h-8 w-8',
-        'icon-sm': 'h-7 w-7',
+        icon: 'h-7 w-7 font-normal',
+        'icon-sm': 'h-7 w-7 font-normal',
         /** Dense spots only (banner retry, chip ×, folder-header actions inside a h-8 bar). */
-        'icon-xs': 'h-7 w-7 rounded',
+        'icon-xs': 'h-7 w-7 font-normal',
         'icon-lg': 'h-9 w-9',
       },
     },
+    compoundVariants: [
+      // The design keeps icon-only ghost buttons muted; only ghost buttons with a label read as --foreground.
+      { variant: 'ghost', size: ['icon', 'icon-sm', 'icon-xs', 'icon-lg'], class: 'text-muted-foreground hover:text-foreground' },
+    ],
     defaultVariants: { variant: 'primary', size: 'sm' },
   },
 )

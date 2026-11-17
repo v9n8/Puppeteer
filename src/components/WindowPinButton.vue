@@ -14,7 +14,7 @@ const { t } = useI18n()
 
 <template>
   <Button
-    :variant="pinned ? 'primary' : 'outline'"
+    :variant="pinned ? 'primary' : 'ghost'"
     size="icon-sm"
     class="shrink-0"
     :aria-pressed="pinned"

@@ -53,7 +53,7 @@ function viewProcesses(runId: string) {
       <template #actions>
         <Button
           v-if="tab === 'session' && sessionsTab?.canStopAll"
-          variant="destructive"
+          variant="outline"
           :title="t('processes.running.action.stopAllTitle')"
           @click="sessionsTab.stopAll()"
         >
