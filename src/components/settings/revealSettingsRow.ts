@@ -7,6 +7,8 @@ const HIT_MS = 2000
 const MAX_FRAMES = 40
 
 const FIRST_CONTROL = 'input, select, textarea, [role="switch"], [role="combobox"]'
+// A row made only of buttons (Font, Mode, Theme…) falls back to its first button.
+const FALLBACK_CONTROL = 'button'
 
 function findRow(id: string): HTMLElement | null {
   for (const el of document.querySelectorAll<HTMLElement>(`[data-settings-id="${id}"]`)) {
@@ -38,7 +40,7 @@ export function revealSettingsRow(id: string): void {
     el.classList.add(...HIT_CLASSES)
     lit = el
     clearTimer = setTimeout(unlight, HIT_MS)
-    const control = el.matches('button, input, select, textarea') ? el : el.querySelector<HTMLElement>(FIRST_CONTROL)
+    const control = el.matches('button, input, select, textarea') ? el : el.querySelector<HTMLElement>(FIRST_CONTROL) ?? el.querySelector<HTMLElement>(FALLBACK_CONTROL)
     control?.focus({ preventScroll: true })
   }
   requestAnimationFrame(attempt)

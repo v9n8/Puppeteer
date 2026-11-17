@@ -638,9 +638,9 @@ function dotClass(row: McpRow): string {
       <DetailEmpty
         v-else
         :icon="Server"
-        :text="store.items.length === 0 && !store.loading ? t('mcp.list.empty.title') : t('mcp.list.noSelection')"
+        :text="store.items.length === 0 && !store.loading && !store.error ? t('mcp.list.empty.title') : t('mcp.list.noSelection')"
       >
-        <template v-if="store.items.length === 0 && !store.loading">
+        <template v-if="store.items.length === 0 && !store.loading && !store.error">
           <p class="mx-auto mt-1 max-w-60 text-2xs text-muted-foreground/70">{{ t('mcp.list.empty.hint') }}</p>
           <div class="mt-4 flex justify-center">
             <McpNewMenu align="left" @manual="startNew()" @ai="aiAddOpen = true" />

@@ -25,6 +25,8 @@ import {
 } from '@/lib/connectionTypes'
 
 const filter = defineModel<ConnectionFilter>('filter', { default: 'all' })
+// The section stays mounted (v-show), so leaving it must stop "Validate all" too.
+const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 
 const { t } = useI18n()
 const { sources, fetchers, types } = useConnectionSources()
@@ -83,9 +85,11 @@ async function validate(row: ConnectionRow) {
 const validatingAll = ref<{ index: number; total: number } | null>(null)
 let leaving = false
 onBeforeUnmount(() => { leaving = true })
+watch(() => props.active, (on) => { if (!on) leaving = true })
 
 async function validateAll() {
   if (validatingAll.value) return
+  leaving = false
   const list = [...visibleRows.value]
   const keys = list.map(rowKey)
   let i = 0

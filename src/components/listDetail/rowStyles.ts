@@ -6,7 +6,7 @@
 export const groupClass = 'mb-3 last:mb-0'
 
 /** Folder header row (below it, a hairline separates it from its rows). */
-export const groupHeaderClass = 'group/folder flex items-center rounded border-b border-border/40 pb-0.5 hover:bg-accent/50'
+export const groupHeaderClass = 'group/folder flex min-h-7 items-center rounded border-b border-border/40 pb-0.5 hover:bg-accent/50'
 
 /** The rows of one group, separated by hairlines. */
 export const rowListClass = 'mt-1 divide-y divide-border/40'

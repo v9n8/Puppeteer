@@ -147,14 +147,9 @@ function showHeaders(): boolean {
       <Banner v-if="error" tone="destructive" class="mb-2">
         {{ error }}
         <template #actions>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            :title="t('common.refresh')"
-            :aria-label="t('common.refresh')"
-            @click="emit('retry')"
-          >
+          <Button variant="ghost" size="xs" @click="emit('retry')">
             <RotateCw class="h-3 w-3" :stroke-width="2" />
+            {{ t('common.retry') }}
           </Button>
         </template>
       </Banner>

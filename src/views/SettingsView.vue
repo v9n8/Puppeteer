@@ -271,7 +271,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <div v-else class="max-w-4xl">
 
         <GeneralSettings v-show="activeSection === 'general'" />
-        <ConnectionsSettings v-show="activeSection === 'connections'" v-model:filter="connectionsFilter" />
+        <ConnectionsSettings v-show="activeSection === 'connections'" :active="activeSection === 'connections'" v-model:filter="connectionsFilter" />
         <EnginesSettings v-show="activeSection === 'engines'" @open-section="openPlace({ section: $event })" />
         <SessionDefaultsSettings v-show="activeSection === 'ai'" @open-section="openPlace({ section: $event })" />
         <ResponseStylesSettings v-if="activeSection === 'styles'" />
