@@ -51,8 +51,8 @@ const tip = computed(() => {
   <button
     v-if="action"
     type="button"
-    :class="[base, IDLE]"
-    :title="`${tip} — ${t('nav.opensInWindow')}`"
+    :class="[base, active ? CURRENT : IDLE]"
+    :title="inOwnWindow ? `${tip} — ${t('nav.opensInWindow')}` : tip"
     :aria-label="compact ? tip : undefined"
     @click="action()"
   >
@@ -65,7 +65,7 @@ const tip = computed(() => {
       <SidebarBadge :badge="badge" />
     </template>
     <ArrowUpRight v-else-if="inOwnWindow" class="absolute right-1 top-1 h-2.5 w-2.5 opacity-70" :stroke-width="2" />
-    <span class="sr-only">({{ t('nav.opensInWindow') }})</span>
+    <span v-if="inOwnWindow" class="sr-only">({{ t('nav.opensInWindow') }})</span>
   </button>
   <RouterLink
     v-else

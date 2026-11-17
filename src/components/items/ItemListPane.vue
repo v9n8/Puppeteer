@@ -250,6 +250,13 @@ watch(item, (now, before) => {
   }
 })
 
+// A filter or search that hides the selected row clears the detail, so it never shows
+// something the list no longer has. An item being edited stays until the edit ends.
+watch(visibleRows, (rows) => {
+  if (!ready.value || !selectedId.value || editing.value) return
+  if (!rows.some((r) => r.id === selectedId.value)) void select(null)
+})
+
 async function rescueDraft(text: string) {
   try {
     await navigator.clipboard.writeText(text)

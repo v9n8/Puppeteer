@@ -191,7 +191,13 @@ onMounted(() => {
     <div ref="scrollBody" class="flex-1 overflow-y-auto min-h-0">
       <div class="flex" :style="{ height: `${24 * HOUR_HEIGHT}px` }">
         <!-- Hour labels -->
-        <div class="w-12 shrink-0">
+        <div class="relative w-12 shrink-0">
+          <!-- "Now" time sits in the gutter, so it never covers an event -->
+          <span
+            v-if="weekDays.some((d) => sameDay(d, today))"
+            class="pointer-events-none absolute right-1 z-10 -translate-y-1/2 rounded bg-primary px-1 text-2xs leading-tight text-primary-foreground tabular-nums"
+            :style="{ top: `${nowLineTop(today, 0, HOUR_HEIGHT)}px` }"
+          >{{ nowLabel() }}</span>
           <div
             v-for="h in HOURS"
             :key="h"
@@ -227,7 +233,6 @@ onMounted(() => {
               :title="t('calendar.view.nowAt', { time: nowLabel() })"
             >
               <span class="absolute -left-[5px] -top-1 h-2.5 w-2.5 rounded-full bg-primary" />
-              <span class="absolute left-2 -top-2.5 rounded bg-primary px-1 text-2xs leading-tight text-primary-foreground tabular-nums">{{ nowLabel() }}</span>
             </div>
             <!-- event blocks -->
             <button
@@ -247,8 +252,9 @@ onMounted(() => {
               @click.stop="emit('select', b.ev)"
             >
               <div class="font-medium truncate">{{ b.ev.title }}</div>
-              <div class="opacity-80 truncate">{{ hhmm(b.start) }}</div>
-              <div v-if="isOngoing(b.ev, today)" class="truncate font-medium">{{ t('calendar.view.ongoing') }}</div>
+              <div class="opacity-80 truncate">
+                {{ hhmm(b.start) }}<span v-if="isOngoing(b.ev, today)" class="font-medium"> · {{ t('calendar.view.ongoing') }}</span>
+              </div>
             </button>
           </div>
         </div>

@@ -24,7 +24,7 @@ const viewModeOptions = computed<{ value: ViewMode, label: string, title: string
   <div class="flex items-center gap-1">
     <Button
       variant="outline"
-      size="icon"
+      size="icon-sm"
       :aria-label="t('calendar.view.previousKey')"
       :title="t('calendar.view.previousKey')"
       @click="store.step(-1)"
@@ -36,7 +36,7 @@ const viewModeOptions = computed<{ value: ViewMode, label: string, title: string
     </Button>
     <Button
       variant="outline"
-      size="icon"
+      size="icon-sm"
       :aria-label="t('calendar.view.nextKey')"
       :title="t('calendar.view.nextKey')"
       @click="store.step(1)"

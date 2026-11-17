@@ -29,10 +29,12 @@ function pickCustom() {
 }
 
 // Closed with the keyboard (Esc, Enter on a mark): focus goes back to the row, so ↑ ↓ carry on.
+// The menu still holds focus (it fades out for 100ms), so that counts as "nowhere".
 function onOpenChange(open: boolean) {
   if (open) return
   void nextTick(() => {
-    if (document.activeElement && document.activeElement !== document.body) return
+    const at = document.activeElement
+    if (at && at !== document.body && !at.closest('.ui-popover')) return
     document.querySelector<HTMLElement>(`[data-focus-row="${CSS.escape(props.todo.id)}"]`)?.focus({ preventScroll: true })
   })
 }

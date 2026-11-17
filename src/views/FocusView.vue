@@ -333,7 +333,7 @@ defineExpose({ showTodo, openTodo })
       </div>
       <p class="text-sm font-medium">{{ t('focus.empty.title') }}</p>
       <p class="mt-1 max-w-96 text-xs text-muted-foreground">{{ t('focus.empty.hint') }}</p>
-      <AddTodoButton class="mt-4" button-variant="primary" size="sm" />
+      <div class="mt-4"><AddTodoButton button-variant="primary" size="sm" /></div>
     </div>
 
     <p v-else-if="visible.length === 0" class="py-12 text-center text-sm text-muted-foreground">{{ t('focus.empty.filtered') }}</p>

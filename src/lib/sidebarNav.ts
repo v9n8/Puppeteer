@@ -61,6 +61,8 @@ export function sidebarGroups<T extends SidebarSource>(items: readonly T[], tree
 export function navActive(id: string, routePath: string): boolean {
   if (id === '/session') return /^\/projects\/[^/]+(\/run\/[^/]+)?\/?$/.test(routePath)
   if (id === '/projects') return routePath === '/projects' || routePath === '/projects/'
+  // The window button has no route of its own; merged into the main window it is /secret-notes.
+  if (id === 'secret-notes') return routePath === '/secret-notes' || routePath.startsWith('/secret-notes/')
   return routePath === id || routePath.startsWith(`${id}/`)
 }
 
