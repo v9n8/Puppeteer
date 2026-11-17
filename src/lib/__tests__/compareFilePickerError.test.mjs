@@ -4,8 +4,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const src = readFileSync(new URL('../CompareFilePicker.vue', import.meta.url), 'utf8')
-const locale = (l) => JSON.parse(readFileSync(new URL(`../../../i18n/locales/${l}/files.json`, import.meta.url), 'utf8'))
+const src = readFileSync(new URL('../../components/files/CompareFilePicker.vue', import.meta.url), 'utf8')
+const locale = (l) => JSON.parse(readFileSync(new URL(`../../i18n/locales/${l}/files.json`, import.meta.url), 'utf8'))
 
 test('the picker keeps the listing error and renders it', () => {
   assert.match(src, /const error = ref</)

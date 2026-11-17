@@ -1,7 +1,7 @@
 // Run: node --test src/lib/windowCreated.test.mjs
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { whenWindowCreated } from './windowCreated.ts'
+import { whenWindowCreated } from '../windowCreated.ts'
 
 const fakeWin = () => {
   const h = {}

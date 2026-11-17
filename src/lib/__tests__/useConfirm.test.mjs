@@ -2,7 +2,7 @@
 // DoD i18n: the composable carries no English default; the host translates blanks.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { useConfirm } from '../useConfirm.ts'
+import { useConfirm } from '../../composables/useConfirm.ts'
 
 test('DoD i18n: a confirm without labels leaves them blank for the host to translate', () => {
   const { state, confirm, respond } = useConfirm()
