@@ -135,15 +135,15 @@ function mtimeText(ms: number | null): string {
 
       <!-- The two copies; stacked when the card is narrow -->
       <div class="mb-3 space-y-1 text-xs">
-        <div class="grid grid-cols-1 gap-x-3 gap-y-0.5 @md:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+        <div class="grid grid-cols-1 gap-x-3 gap-y-0.5 @[40rem]:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
           <span class="font-medium">{{ t('projectDetail.sideProject') }}</span>
-          <span class="min-w-0 break-all font-mono text-muted-foreground @md:break-normal" :title="c.project_path">{{ truncateMiddle(c.project_path) }}</span>
+          <span class="min-w-0 break-all font-mono text-muted-foreground @[40rem]:break-normal" :title="c.project_path">{{ truncateMiddle(c.project_path) }}</span>
           <span class="text-muted-foreground">{{ mtimeText(c.project_mtime) }}</span>
         </div>
-        <p class="select-none pl-0 text-muted-foreground @md:pl-[7.5rem]" aria-hidden="true">≠</p>
-        <div class="grid grid-cols-1 gap-x-3 gap-y-0.5 @md:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+        <p class="select-none pl-0 text-muted-foreground @[40rem]:pl-[7.5rem]" aria-hidden="true">≠</p>
+        <div class="grid grid-cols-1 gap-x-3 gap-y-0.5 @[40rem]:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
           <span class="font-medium">{{ t('projectDetail.sideCentral') }}</span>
-          <span class="min-w-0 break-all font-mono text-muted-foreground @md:break-normal" :title="c.central_path">{{ truncateMiddle(c.central_path) }}</span>
+          <span class="min-w-0 break-all font-mono text-muted-foreground @[40rem]:break-normal" :title="c.central_path">{{ truncateMiddle(c.central_path) }}</span>
           <span class="text-muted-foreground">{{ mtimeText(c.central_mtime) }}</span>
         </div>
       </div>

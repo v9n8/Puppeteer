@@ -213,7 +213,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </span>
           <p v-else class="text-2xs text-muted-foreground">{{ t('projectDetail.model.noneAvailable') }}</p>
         </div>
-        <RouterLink :to="SETTINGS_MODEL" class="inline-flex items-center gap-1 text-2xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <RouterLink :to="SETTINGS_MODEL" class="inline-flex min-h-7 items-center gap-1 text-2xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {{ t('projectDetail.model.openSettings') }}<ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
         </RouterLink>
       </div>
@@ -223,7 +223,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <p class="flex flex-wrap items-center gap-1.5 px-4 py-2 text-2xs text-muted-foreground">
           <Info class="h-4 w-4 shrink-0" :stroke-width="1.75" />
           <span class="flex-1">{{ t('projectDetail.model.offHidden') }}</span>
-          <RouterLink :to="SETTINGS_MODEL" class="inline-flex items-center gap-1 text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <RouterLink :to="SETTINGS_MODEL" class="inline-flex min-h-7 items-center gap-1 text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {{ t('projectDetail.model.openSettings') }}<ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
           </RouterLink>
         </p>
@@ -273,7 +273,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           {{ t('projectDetail.model.footBefore') }}
           <button
             type="button"
-            class="cursor-pointer text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="min-h-7 cursor-pointer text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             @click="emit('open', 'session')"
           >{{ t('projectDetail.model.footLink') }}</button>
           {{ t('projectDetail.model.footAfter') }}<template v-if="moved[tab] !== undefined">{{ t('projectDetail.model.footMoved', { id: modelName(moved[tab]!) }) }}</template><template v-else-if="defaultModels[tab]">{{ t('projectDetail.model.footNow', { id: defaultModels[tab] }) }}</template>.

@@ -153,7 +153,7 @@ const LINK_CLASS = 'inline-flex min-h-7 shrink-0 cursor-pointer items-center rou
           <button
             v-if="row.key === 'conflicts' && row.link"
             type="button"
-            class="cursor-pointer break-words rounded text-left text-[13px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="min-h-7 cursor-pointer break-words rounded text-left text-[13px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             @click="openLink(row)"
           >{{ t(row.title.key, row.title.params ?? {}) }}</button>
           <p v-else class="break-words text-[13px] font-medium">{{ t(row.title.key, row.title.params ?? {}) }}</p>
