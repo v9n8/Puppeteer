@@ -12,7 +12,8 @@
 //! two conflict tables: it opens a row per conflict, closes the rows that no longer conflict or
 //! whose item is no longer applied, and folds duplicate open rows into the newest. "Keep local"
 //! is remembered by the row it closed: a closed row holding the current pair of hashes is not
-//! reopened; once either side changes, the pair differs and the conflict comes back.
+//! reopened; once either side changes, the pair differs and the conflict comes back. Every other
+//! close sets `local_hash = source_hash` ([`CLOSE_NOT_KEPT`]), a pair no scan reads as kept.
 
 use crate::commands::library_disk::{mtime_ms, read_text};
 use crate::commands::project_links::{at_dest, parent_is_real, AtDest};
@@ -368,13 +369,28 @@ async fn rows_of(db: &Db, kind: ItemKind, project_id: &str, item_id: &str, engin
         .collect())
 }
 
+/// The SET clause of a close that isn't "Keep local": a project version equal to the central one
+/// is [`Verdict::Matches`] before [`Verdict::Kept`] is checked, so this pair never counts as kept.
+pub(crate) const CLOSE_NOT_KEPT: &str = "resolved = 1, local_hash = source_hash";
+
 async fn close_row(db: &Db, kind: ItemKind, id: &str) -> Result<(), String> {
-    sqlx::query(&format!("UPDATE {} SET resolved = 1 WHERE id = ?", kind.table()))
+    sqlx::query(&format!("UPDATE {} SET {CLOSE_NOT_KEPT} WHERE id = ?", kind.table()))
         .bind(id)
         .execute(db)
         .await
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// Every open row of a project's item, for each engine, after it was re-written from the
+/// central copy (`reapply_skills`, `reapply_rules`).
+pub(crate) async fn close_overwritten(db: &Db, kind: ItemKind, project_id: &str, item_id: &str) -> Result<(), String> {
+    let sql = format!(
+        "UPDATE {} SET {CLOSE_NOT_KEPT} WHERE project_id = ? AND {} = ? AND resolved = 0",
+        kind.table(),
+        kind.item_column()
+    );
+    sqlx::query(&sql).bind(project_id).bind(item_id).execute(db).await.map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// Scan one project, or every live one. Projects in the Trash are skipped.

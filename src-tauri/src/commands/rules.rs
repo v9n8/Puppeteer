@@ -697,13 +697,8 @@ pub async fn reapply_rules(
         match result {
             Ok(()) => {
                 applied += 1;
-                let _ = sqlx::query(
-                    "UPDATE rule_sync_conflicts SET resolved = 1 WHERE project_id = ? AND rule_id = ? AND resolved = 0"
-                )
-                .bind(&project_id)
-                .bind(&rid)
-                .execute(db.inner())
-                .await;
+                use crate::commands::sync_conflicts::{close_overwritten, ItemKind};
+                let _ = close_overwritten(db.inner(), ItemKind::Rule, &project_id, &rid).await;
             }
             Err(error) => failures.push(ApplyFailure {
                 project_id,

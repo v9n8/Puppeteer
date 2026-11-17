@@ -238,6 +238,59 @@ async fn ac7_duplicates_fold_and_orphans_close() {
 }
 
 #[tokio::test]
+async fn ac7_real_duplicate_pair_stays_open_over_two_scans() {
+    let fx = Fx::new("ac7-real").await;
+    apply_rule_to_project(&fx.db, "p1", "r1", true).await.unwrap();
+    let agents = fs::read_to_string(fx.p("AGENTS.md")).unwrap();
+    fs::write(fx.p("AGENTS.md"), agents.replace("Short subjects.", "Long subjects.")).unwrap();
+    let first = fx.scan().await.open[0].conflict_id.clone().unwrap();
+    // A backup restored twice: a newer open row with the same real pair.
+    sqlx::query(
+        "INSERT INTO rule_sync_conflicts (id, project_id, rule_id, engine, detected_at, local_hash, source_hash, resolved)
+         SELECT 'restored', project_id, rule_id, engine, '2999-01-01', local_hash, source_hash, 0
+         FROM rule_sync_conflicts WHERE id = ?",
+    )
+    .bind(&first)
+    .execute(&fx.db)
+    .await
+    .unwrap();
+
+    let r = fx.scan().await;
+    assert_eq!(r.open[0].conflict_id.as_deref(), Some("restored"));
+    assert_eq!(r.closed.iter().map(|c| (c.conflict_id.as_str(), c.reason)).collect::<Vec<_>>(), vec![(first.as_str(), CloseReason::Duplicate)]);
+    let again = fx.scan().await;
+    assert_eq!(again.open.len(), 1, "nobody chose Keep local: {:?}", again.closed);
+    assert_eq!(fx.open_rows("rule_sync_conflicts").await, vec![key("r1", "codex")]);
+}
+
+#[tokio::test]
+async fn ac6_fixed_by_hand_then_edited_back_conflicts_again() {
+    let fx = Fx::new("ac6-back").await;
+    fx.skill_copy(CLAUDE, ".claude/skills", "mine\n").await;
+    assert_eq!(fx.scan().await.open.len(), 1);
+    let file = fx.p(".claude/skills/ui-review/SKILL.md");
+    fs::copy(fx.dir.join("lib/skills/ui-review/SKILL.md"), &file).unwrap();
+    assert_eq!(fx.scan().await.closed[0].reason, CloseReason::InSync);
+    // `git checkout` brings the edit back.
+    fs::write(&file, "mine\n").unwrap();
+    assert_eq!(fx.scan().await.open.len(), 1, "an InSync close is not a Keep local");
+}
+
+#[tokio::test]
+async fn ac6_overwritten_then_edited_back_conflicts_again() {
+    let fx = Fx::new("ac6-over").await;
+    fx.skill_copy(CLAUDE, ".claude/skills", "mine\n").await;
+    let id = fx.scan().await.open[0].conflict_id.clone().unwrap();
+    resolve_skill(&fx.db, &id, true).await.unwrap();
+    // The same edited copy put back where the link is.
+    let at = fx.p(".claude/skills/ui-review");
+    fs::remove_file(&at).unwrap();
+    fs::create_dir_all(&at).unwrap();
+    fs::write(at.join("SKILL.md"), "mine\n").unwrap();
+    assert_eq!(fx.scan().await.open.len(), 1, "an overwrite is not a Keep local");
+}
+
+#[tokio::test]
 async fn ac8_ac9_list_and_read_both_sides() {
     let fx = Fx::new("ac8").await;
     fx.skill_copy(CODEX, ".agents/skills", "mine\n").await;

@@ -4,7 +4,7 @@ import type { ProjectSyncConflict, SyncScanReport } from '@/stores/projects'
 
 /** Where the project's copy lives, for the "Skill · …" / "Rule · …" badge. */
 export function conflictPlace(c: Pick<ProjectSyncConflict, 'kind' | 'engine' | 'block'>): string {
-  if (c.kind === 'skill') return c.engine === 'codex' ? '.codex/skills' : '.claude/skills'
+  if (c.kind === 'skill') return c.engine === 'codex' ? '.agents/skills' : '.claude/skills'
   if (c.engine === 'claude') return '.claude/rules'
   return c.block !== null ? 'AGENTS.md' : '.agents/skills'
 }

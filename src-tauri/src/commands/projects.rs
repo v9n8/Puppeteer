@@ -1589,13 +1589,8 @@ pub async fn reapply_skills(
         match result {
             Ok(()) => {
                 applied += 1;
-                let _ = sqlx::query(
-                    "UPDATE sync_conflicts SET resolved = 1 WHERE project_id = ? AND skill_id = ? AND resolved = 0",
-                )
-                .bind(&project_id)
-                .bind(&sid)
-                .execute(db.inner())
-                .await;
+                use crate::commands::sync_conflicts::{close_overwritten, ItemKind};
+                let _ = close_overwritten(db.inner(), ItemKind::Skill, &project_id, &sid).await;
             }
             Err(error) => failures.push(ApplyFailure {
                 project_id,

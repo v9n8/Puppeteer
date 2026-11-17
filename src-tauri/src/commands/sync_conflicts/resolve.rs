@@ -3,9 +3,9 @@
 //! "Overwrite with the central version" re-links the item; the project's version is never lost:
 //! a copy goes to the legacy backups (`project_links`), and an `AGENTS.md` whose block is
 //! rewritten is copied there first. "Keep local" only closes the row, whose hash pair then stands
-//! for the user's choice (see the module docs above).
+//! for the user's choice (see the module docs above); every other close here uses [`CLOSE_NOT_KEPT`].
 
-use super::ItemKind;
+use super::{ItemKind, CLOSE_NOT_KEPT};
 use crate::commands::library_disk::materialize::MaterializeOutcome;
 use crate::commands::project_links::{self, no_copies, project_backup_dir};
 use crate::commands::rules::{
@@ -77,7 +77,7 @@ pub(crate) async fn resolve_skill(db: &Db, conflict_id: &str, overwrite: bool) -
         }
     }
 
-    sqlx::query("UPDATE sync_conflicts SET resolved = 1 WHERE id = ?")
+    sqlx::query(&close_sql("sync_conflicts", overwrite))
         .bind(conflict_id)
         .execute(db)
         .await
@@ -126,12 +126,18 @@ pub(crate) async fn resolve_rule(db: &Db, conflict_id: &str, overwrite: bool) ->
             .map_err(|e| e.to_string())?;
     }
 
-    sqlx::query("UPDATE rule_sync_conflicts SET resolved = 1 WHERE id = ?")
+    sqlx::query(&close_sql("rule_sync_conflicts", overwrite))
         .bind(conflict_id)
         .execute(db)
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Close one row; only "Keep local" (`overwrite` false) keeps its pair.
+fn close_sql(table: &str, overwrite: bool) -> String {
+    let set = if overwrite { CLOSE_NOT_KEPT } else { "resolved = 1" };
+    format!("UPDATE {table} SET {set} WHERE id = ?")
 }
 
 /// Copy a project's `AGENTS.md` to `<legacy backups>/<project>/<timestamp>/AGENTS.md` before a
@@ -307,7 +313,7 @@ async fn detach_rule(db: &Db, project_id: &str, rule_id: &str, engine: &str) -> 
 
 async fn close_open(db: &Db, kind: ItemKind, project_id: &str, item_id: &str, engine: &str) -> Result<(), String> {
     let sql = format!(
-        "UPDATE {} SET resolved = 1 WHERE project_id = ? AND {} = ? AND engine = ? AND resolved = 0",
+        "UPDATE {} SET {CLOSE_NOT_KEPT} WHERE project_id = ? AND {} = ? AND engine = ? AND resolved = 0",
         kind.table(),
         kind.item_column()
     );

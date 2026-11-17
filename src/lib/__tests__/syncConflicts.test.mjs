@@ -6,7 +6,7 @@ import { conflictPlace, scanMessage, scanOutcome, sortConflicts, truncateMiddle 
 
 test('conflictPlace names where the project copy lives', () => {
   assert.equal(conflictPlace({ kind: 'skill', engine: 'claude', block: null }), '.claude/skills')
-  assert.equal(conflictPlace({ kind: 'skill', engine: 'codex', block: null }), '.codex/skills')
+  assert.equal(conflictPlace({ kind: 'skill', engine: 'codex', block: null }), '.agents/skills')
   assert.equal(conflictPlace({ kind: 'rule', engine: 'claude', block: null }), '.claude/rules')
   assert.equal(conflictPlace({ kind: 'rule', engine: 'codex', block: 'commit-rules' }), 'AGENTS.md')
   assert.equal(conflictPlace({ kind: 'rule', engine: 'codex', block: null }), '.agents/skills')
