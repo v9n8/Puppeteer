@@ -127,8 +127,16 @@ function onKeydown(e: KeyboardEvent) {
 function onPointerDown(e: PointerEvent) {
   if (open.value && root.value && !root.value.contains(e.target as Node)) open.value = false
 }
-onMounted(() => document.addEventListener('pointerdown', onPointerDown))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown))
+// Esc is heard on the document: WebKit does not focus a button on mouse click,
+// so a list opened by mouse has no focus inside the block to receive the key.
+onMounted(() => {
+  document.addEventListener('pointerdown', onPointerDown)
+  document.addEventListener('keydown', onKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onPointerDown)
+  document.removeEventListener('keydown', onKeydown)
+})
 
 const stepsTitle = computed(() => t('run.turnStatus.stepsTitle', { n: status.value.kind === 'none' || status.value.kind === 'loading' ? 0 : status.value.turn, count: steps.value.length }))
 const stepTime = (s: (typeof steps.value)[number]) => {
@@ -139,7 +147,7 @@ const todoIconClass = { completed: 'text-emerald-500', in_progress: 'text-primar
 </script>
 
 <template>
-  <div v-if="visible" ref="root" class="relative shrink-0" @keydown="onKeydown">
+  <div v-if="visible" ref="root" class="relative shrink-0">
     <!-- The list opens upward, over the conversation. -->
     <div
       v-if="open"

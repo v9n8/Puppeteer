@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The one-line mark at the end of a turn that was cut short (V3-29). Not a
-// message: no buttons, and not part of the ⌘F text.
+// message: no buttons, and not part of the ⌘F text (`search-skip`).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CircleStop } from 'lucide-vue-next'
@@ -16,7 +16,7 @@ const tooltip = computed(() => turnCutTooltip(props.cut, t))
 <template>
   <div
     role="note"
-    class="turn-cut-mark my-2 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground"
+    class="turn-cut-mark search-skip my-2 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground"
     :title="tooltip || undefined"
   >
     <CircleStop class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" aria-hidden="true" />

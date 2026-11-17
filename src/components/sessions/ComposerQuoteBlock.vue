@@ -48,12 +48,14 @@ function fileLabel(q: DraftQuote): string {
   return l.end > l.start ? `${q.path}:${l.start}-${l.end}` : `${q.path}:${l.start}`
 }
 
-// The conversation area is the run column minus the composer; the list's own
+// The conversation area is the Session frame (the grid that holds the
+// conversation, files, status, composer) minus the composer; the list's own
 // height is added back so growing the list does not shrink its own limit.
+// The composer's parent is only its grid cell, so it cannot stand for the frame.
 let observer: ResizeObserver | null = null
 function measure() {
   const composer = rootEl.value?.closest<HTMLElement>('[data-run-composer]')
-  const column = composer?.parentElement
+  const column = composer?.closest<HTMLElement>('[data-run-frame]')
   if (!composer || !column) return
   const own = listEl.value?.offsetHeight ?? 0
   conversationPx.value = Math.max(0, column.clientHeight - composer.offsetHeight + own)
@@ -64,7 +66,8 @@ onMounted(() => {
   if (!composer || typeof ResizeObserver === 'undefined') return
   observer = new ResizeObserver(measure)
   observer.observe(composer)
-  if (composer.parentElement) observer.observe(composer.parentElement)
+  const frame = composer.closest<HTMLElement>('[data-run-frame]')
+  if (frame) observer.observe(frame)
 })
 onBeforeUnmount(() => observer?.disconnect())
 
@@ -159,7 +162,7 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
         </template>
         <Quote v-else class="h-3.5 w-3.5 shrink-0 opacity-60" :stroke-width="2" />
         <span class="truncate font-medium text-foreground">
-          {{ t('run.quotes.count', { n: quotes.length }, quotes.length) }}<template v-if="withNotes"> {{ t('run.quotes.withNotes', { n: withNotes }) }}</template>
+          {{ t('run.quotes.count', { n: quotes.length }, quotes.length) }}<template v-if="withNotes">{{ ' ' }}{{ t('run.quotes.withNotes', { n: withNotes }) }}</template>
         </span>
       </component>
       <button

@@ -57,7 +57,7 @@ function onCommit(leftPx: number, totalPx: number) {
 </script>
 
 <template>
-  <div ref="grid" class="grid min-h-0 min-w-0 flex-1 overflow-hidden" :style="frame">
+  <div ref="grid" data-run-frame class="grid min-h-0 min-w-0 flex-1 overflow-hidden" :style="frame">
     <div class="flex min-w-0 flex-col" style="grid-area: tabbar"><slot name="tabbar" /></div>
 
     <div v-if="narrowNotice && !split" class="flex items-start gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-2xs text-muted-foreground" style="grid-area: banner" role="status">

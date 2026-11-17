@@ -41,6 +41,9 @@ watch(titleEditRequest, start)
 function cancel() {
   editing.value = false
 }
+// The header stays mounted when another Session of the same Project opens, so an
+// edit left open must not carry its draft over to that Session.
+watch(() => currentRun.value?.id, cancel)
 async function save() {
   const run = currentRun.value
   if (!editing.value || !run) return
@@ -85,12 +88,12 @@ async function save() {
     <button
       v-if="canRename"
       type="button"
-      class="block max-w-full truncate rounded px-1 py-0.5 text-left font-semibold transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-text"
+      class="block max-w-full truncate rounded px-1 py-1 text-left font-semibold transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-text"
       :title="`${label} · ${t('run.sessionTitle.renameHint')}`"
       @click="start"
     >
       {{ label }}
     </button>
-    <span v-else class="block truncate px-1 py-0.5">{{ label }}</span>
+    <span v-else class="block truncate px-1 py-1">{{ label }}</span>
   </h1>
 </template>
