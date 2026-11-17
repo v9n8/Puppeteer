@@ -562,8 +562,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 1.6rem;
-  width: 1.6rem;
+  height: 1.75rem;
+  width: 1.75rem;
   padding: 0;
   border: 1px solid hsl(var(--border));
   border-radius: 0.35rem;

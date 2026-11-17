@@ -12,6 +12,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
 import { useMarkdown } from '@/lib/markdown'
 import { errorText } from '@/lib/featureGate'
+import AppSelect from '@/components/AppSelect.vue'
 
 const { t } = useI18n()
 
@@ -119,7 +120,10 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function onDocMouseDown(e: MouseEvent) {
-  if (rootEl.value && !rootEl.value.contains(e.target as Node)) emit('close')
+  const target = e.target as Element
+  // The language select's menu is teleported to <body>, outside the card.
+  if (target.closest?.('[data-app-select-dropdown]')) return
+  if (rootEl.value && !rootEl.value.contains(target)) emit('close')
 }
 
 onMounted(async () => {
@@ -164,11 +168,15 @@ watch(() => props.text, () => runTranslate())
       :style="style"
     >
       <!-- Header -->
-      <div class="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/40">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 border-b border-border bg-muted/40">
         <Languages class="h-3.5 w-3.5 text-primary/80 shrink-0" :stroke-width="1.75" />
         <span class="text-2xs font-semibold text-foreground/80">{{ t('misc.translate.heading') }}</span>
         <!-- State of the translation: the body only ever holds the translated text. -->
-        <div class="ml-2 flex min-w-0 flex-1 items-center justify-end gap-1.5 text-2xs" aria-live="polite">
+        <div
+          class="flex min-w-0 items-center gap-1.5 text-2xs"
+          :class="phase === 'error' ? 'order-last basis-full justify-between' : 'ml-2 flex-1 justify-end'"
+          aria-live="polite"
+        >
           <span v-if="phase === 'loading'" class="flex items-center gap-1 text-foreground/50">
             <Loader2 class="h-3 w-3 animate-spin" :stroke-width="2" />{{ t('misc.translate.translating') }}
           </span>
@@ -182,17 +190,15 @@ watch(() => props.text, () => runTranslate())
             </button>
           </template>
         </div>
-        <div class="flex items-center gap-0.5">
-          <button
-            v-for="opt in LANG_OPTIONS"
-            :key="opt.value"
-            class="text-2xs px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-            :class="opt.value === lang
-              ? 'bg-primary/15 text-primary font-medium'
-              : 'text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5'"
-            @click="setLang(opt.value)"
-          >{{ opt.label }}</button>
-        </div>
+        <AppSelect
+          :model-value="lang"
+          size="xs"
+          variant="ghost"
+          class="shrink-0"
+          :options="LANG_OPTIONS"
+          :aria-label="t('misc.translate.heading')"
+          @update:model-value="setLang"
+        />
         <button
           v-if="phase === 'done'"
           class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-foreground/50 hover:bg-foreground/5 hover:text-foreground cursor-pointer"
@@ -203,8 +209,9 @@ watch(() => props.text, () => runTranslate())
           <component :is="copied ? Check : Copy" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </button>
         <button
-          class="shrink-0 text-foreground/40 hover:text-foreground/80 transition-colors cursor-pointer"
+          class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-foreground/40 hover:bg-foreground/5 hover:text-foreground/80 transition-colors cursor-pointer"
           :title="t('misc.translate.close')"
+          :aria-label="t('misc.translate.close')"
           @click="emit('close')"
         >
           <X class="h-3.5 w-3.5" :stroke-width="2" />

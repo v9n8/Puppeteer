@@ -279,7 +279,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
         />
 
         <!-- Footer toolbar: attachments/actions plus compact run settings menu -->
-        <div class="flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5">
+        <div class="flex items-center gap-1.5 px-1.5 pb-1.5">
           <Button
             variant="ghost"
             size="icon"
@@ -315,7 +315,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           </Button>
           <div
             ref="runSettingsRoot"
-            class="relative inline-flex shrink-0"
+            class="relative inline-flex min-w-0"
             @keydown.esc.stop="closeRunSettingsMenu"
           >
             <Button

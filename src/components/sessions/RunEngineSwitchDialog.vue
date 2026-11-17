@@ -40,14 +40,14 @@ function onChoiceKeydown(event: KeyboardEvent) {
     <template #header>
       <Cpu class="h-4 w-4 text-primary shrink-0" :stroke-width="2" />
       <h3 class="text-sm font-semibold flex-1">
-        {{ t('run.switchTo') }} <span class="font-mono">{{ handoffTarget }}</span>
+        {{ t('run.switchTo') }} <span class="font-mono">{{ targetName }}</span>
       </h3>
     </template>
 
     <div class="space-y-3 px-4 py-3 text-xs">
       <p class="text-foreground/80">
         {{ t('run.handoffIntro') }}
-        <span class="font-mono">{{ loadedRunEngine || t('run.currentEngine') }}</span>.
+        <span class="font-mono">{{ fromName }}</span>.
         {{ t('run.handoffQuestion') }}
       </p>
       <div class="space-y-2" role="group" @keydown="onChoiceKeydown">
