@@ -23,7 +23,6 @@ export interface FileWindowOrigin {
   originRunId: string | null
 }
 
-// Small deterministic string hash (djb2) → safe, stable window label per file.
 /**
  * Sent by a file window's "Back to main window" (V3-24): show `path` as a tab of
  * the Session it came from. `writer` is the one window that applies the tab —
@@ -45,6 +44,7 @@ export async function dockFileWindow(dock: Omit<FileWindowDock, 'writer'>): Prom
   await emit(FILE_WINDOW_DOCK, { ...dock, writer } satisfies FileWindowDock)
 }
 
+// Small deterministic string hash (djb2) → safe, stable window label per file.
 function hashLabel(s: string): string {
   let h = 5381
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0

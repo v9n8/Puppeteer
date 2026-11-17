@@ -22,6 +22,7 @@ const runsStore = useRunsStore()
 
 const files = ref<string[]>([])
 const loading = ref(true)
+const error = ref<string | null>(null)
 const query = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
 
@@ -38,8 +39,8 @@ onMounted(async () => {
       .filter(e => !e.is_dir && e.path !== props.path && compareKind(e.path) === props.kind)
       .map(e => e.path)
       .sort((a, b) => a.localeCompare(b))
-  } catch {
-    files.value = []
+  } catch (e) {
+    error.value = String(e)
   } finally {
     loading.value = false
   }
@@ -75,6 +76,9 @@ onMounted(async () => {
     </div>
     <div class="max-h-64 overflow-y-auto px-1 pb-1">
       <p v-if="loading" class="px-3 py-2 text-sm text-foreground/50">{{ t('common.loading') }}</p>
+      <p v-else-if="error" class="px-3 py-2 text-sm text-destructive break-all">
+        {{ t('files.compare.listFailed', { error }) }}
+      </p>
       <p v-else-if="!shown.length" class="px-3 py-2 text-sm text-foreground/50">
         {{ kind === 'image' ? t('files.compare.noImages') : t('files.compare.noFiles') }}
       </p>

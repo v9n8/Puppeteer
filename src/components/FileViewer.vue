@@ -836,9 +836,9 @@ defineExpose({ onRevealInFolder, onOpenInApp })
 <template>
   <div class="relative flex flex-col h-full min-h-0 bg-card">
     <!-- Toolbar -->
-    <div class="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-card px-4 py-3 shrink-0">
+    <div class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-1 shrink-0">
       <FileCode2 class="h-4 w-4 text-primary shrink-0" :stroke-width="1.75" />
-      <span class="text-xs font-mono text-foreground/90 truncate flex-1" :title="curPath">{{ curPath }}</span>
+      <span class="text-xs font-mono text-foreground/90 truncate grow basis-32" :title="curPath">{{ curPath }}</span>
       <OutlineToggle v-if="hasOutline" />
       <!-- Raw / rendered toggle, only meaningful for markdown and HTML files -->
       <SegmentedControl
@@ -899,7 +899,6 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         v-if="kind === 'image' && canCompare"
         variant="ghost"
         size="icon-sm"
-        class="shrink-0"
         :title="t('files.compare.compareButton')"
         :aria-label="t('files.compare.compareButton')"
         @click="fc.openPicker"

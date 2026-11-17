@@ -193,7 +193,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           <HistoryFlagFilter />
           <button
             v-if="runsStore.orderStale"
-            class="ml-auto mr-3 flex items-center gap-1 text-2xs text-primary/80 hover:text-primary transition-colors cursor-pointer"
+            class="ml-auto mr-3 flex shrink-0 items-center gap-1 whitespace-nowrap text-2xs text-primary/80 hover:text-primary transition-colors cursor-pointer"
             :title="t('run.resortSessionsTitle')"
             @click="runsStore.sortRuns()"
           >
@@ -202,7 +202,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           </button>
           <button
             v-if="runsStore.runs.length > 0"
-            class="flex items-center gap-1 text-2xs text-muted-foreground/70 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex shrink-0 items-center gap-1 whitespace-nowrap text-2xs text-muted-foreground/70 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="clearingAll"
             :title="clearingAll ? t('run.clearing') : t('run.clearAllRunsTitle')"
             @click="handleClearAllRuns"

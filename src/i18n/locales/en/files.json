@@ -92,6 +92,7 @@
     "pickSecondFile": "Pick the second file",
     "searchFiles": "Search files…",
     "noFiles": "No files found",
+    "listFailed": "Could not list the project's files: {error}",
     "close": "Close comparison",
     "lockedType": "Only text files and images can be compared",
     "lockedWindow": "Image comparison is only available in the main window",

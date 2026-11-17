@@ -92,6 +92,7 @@
     "pickSecondFile": "Chọn tệp thứ hai",
     "searchFiles": "Tìm tệp…",
     "noFiles": "Không tìm thấy tệp",
+    "listFailed": "Không liệt kê được tệp của Project: {error}",
     "close": "Đóng so sánh",
     "lockedType": "Chỉ so sánh được tệp chữ và ảnh",
     "lockedWindow": "So sánh ảnh chỉ có ở cửa sổ chính",
