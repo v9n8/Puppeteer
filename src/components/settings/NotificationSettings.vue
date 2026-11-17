@@ -27,7 +27,7 @@ function toggle(kind: DesktopNotifyKind) {
     :label="t(`settings.sessions.notify.${k}`)"
     :description="t(`settings.sessions.notifyDescriptions.${k}`)"
   >
-    <div class="flex min-[900px]:justify-end">
+    <div class="flex min-[901px]:justify-end">
       <ToggleSwitch
         size="md"
         :checked="notify[k]"

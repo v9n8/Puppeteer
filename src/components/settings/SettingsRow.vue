@@ -28,7 +28,7 @@ withDefaults(defineProps<{
   <div
     :data-settings-id="searchId"
     class="flex flex-col gap-1.5"
-    :class="!stacked && 'min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between min-[900px]:gap-6'"
+    :class="!stacked && 'min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-6'"
   >
     <div class="min-w-0">
       <div class="flex items-center gap-1.5">
@@ -37,7 +37,7 @@ withDefaults(defineProps<{
       </div>
       <p v-if="description" class="mt-0.5 text-xs text-muted-foreground text-pretty">{{ description }}</p>
     </div>
-    <div :class="stacked ? 'w-full' : 'w-full min-[900px]:w-72 min-[900px]:shrink-0'">
+    <div :class="stacked ? 'w-full' : 'w-full min-[901px]:w-72 min-[901px]:shrink-0'">
       <slot />
     </div>
   </div>

@@ -177,7 +177,7 @@ function unlistedWorkers(s: TrashSession): number {
               />
               <span class="truncate">{{ labelOf(w) }}</span>
               <Badge size="xs">{{ w.engine }}</Badge>
-              <span class="text-xs text-muted-foreground max-[900px]:hidden">{{ t('trash.withConductor') }}</span>
+              <span class="text-xs text-muted-foreground max-[901px]:hidden">{{ t('trash.withConductor') }}</span>
             </li>
             <li v-if="unlistedWorkers(s) > 0" class="text-xs text-muted-foreground">
               {{ t('trash.unlistedWorkers', { count: unlistedWorkers(s) }, unlistedWorkers(s)) }}

@@ -344,7 +344,7 @@ onUnmounted(() => {
     <!-- Auto-balance the Claude default across accounts -->
     <div v-if="claudeStore.accounts.length > 1" class="space-y-3">
       <SettingsRow :label="t('settings.claude.balance.title')" :hint="t('settings.claude.balance.hint')">
-        <div class="flex min-[900px]:justify-end">
+        <div class="flex min-[901px]:justify-end">
           <ToggleSwitch
             size="md"
             :checked="balanceOn"

@@ -92,7 +92,7 @@ async function detach(tab: FileTab) {
           @click="detach(tab)"
         >
           <SquareArrowOutUpRight class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
-          <span class="max-[900px]:hidden">{{ t('nav.detachWindow') }}</span>
+          <span class="max-[901px]:hidden">{{ t('nav.detachWindow') }}</span>
         </Button>
       </template>
     </FileViewer>

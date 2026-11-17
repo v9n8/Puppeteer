@@ -162,7 +162,7 @@ const tabHint = computed(() => ({
         </p>
         <div class="space-y-1.5">
           <SettingsRow search-id="limits-stopRunning" :label="t('settings.sessions.stopRunning')" :hint="t('settings.sessions.stopRunningHint')">
-            <div class="flex min-[900px]:justify-end">
+            <div class="flex min-[901px]:justify-end">
               <ToggleSwitch
                 size="md"
                 :checked="stopRunning"

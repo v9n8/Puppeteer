@@ -201,7 +201,7 @@ async function save() {
         :label="t('focus.settings.reminders.title')"
         :hint="`${t('focus.settings.reminders.hint')}\n\n${t('focus.settings.reminders.workHoursOnly')}`"
       >
-        <div class="flex min-[900px]:justify-end">
+        <div class="flex min-[901px]:justify-end">
           <ToggleSwitch
             size="md"
             :checked="form.notify_enabled"

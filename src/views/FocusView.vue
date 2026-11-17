@@ -466,7 +466,7 @@ defineExpose({ showTodo, openTodo })
   <!-- The todo's panel: beside the board (it stays visible and clickable); under 900px it floats over it. -->
   <aside
     v-if="openItem"
-    class="w-[440px] shrink-0 border-l border-border bg-background min-[1920px]:w-[520px] max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-20 max-[900px]:max-w-full max-[900px]:shadow-xl"
+    class="w-[440px] shrink-0 border-l border-border bg-background min-[1920px]:w-[520px] max-[901px]:absolute max-[901px]:inset-y-0 max-[901px]:right-0 max-[901px]:z-20 max-[901px]:max-w-full max-[901px]:shadow-xl"
   >
     <TaskDetailPanel ref="panelRef" :todo="openItem.todo" mode="dock" @close="openId = null" @deleted="openId = null" />
   </aside>

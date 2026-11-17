@@ -52,7 +52,7 @@ onBeforeRouteLeave(async () => {
       <span v-else class="flex-1" />
       <Button v-if="pane?.unlocked" variant="outline" size="sm" :title="t('secretNotes.lockNow')" @click="pane?.lockNow()">
         <Lock class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
-        <span class="max-[900px]:hidden">{{ t('secretNotes.lockNow') }}</span>
+        <span class="max-[901px]:hidden">{{ t('secretNotes.lockNow') }}</span>
       </Button>
       <DetachButton :target="secretNotesTarget" :confirm-leave="confirmLeave" />
     </header>

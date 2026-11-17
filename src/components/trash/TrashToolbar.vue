@@ -89,7 +89,7 @@ function onEnter() {
       @click="emit('submit')"
     >
       <Search class="h-3.5 w-3.5" :stroke-width="2" />
-      <span class="max-[900px]:hidden">{{ searching ? t('trash.search.searching') : t('trash.search.submit') }}</span>
+      <span class="max-[901px]:hidden">{{ searching ? t('trash.search.searching') : t('trash.search.submit') }}</span>
     </Button>
     <DropdownMenu>
       <template #trigger="{ open }">

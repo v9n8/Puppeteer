@@ -269,7 +269,7 @@ function manageFlags() {
         </div>
       </DropdownMenu>
 
-      <label class="relative block w-[220px] shrink min-[901px]:min-w-[220px] max-[900px]:w-[150px]">
+      <label class="relative block w-[220px] shrink min-[901px]:min-w-[220px] max-[901px]:w-[150px]">
         <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" :stroke-width="1.75" />
         <input
           v-model="query"
@@ -283,7 +283,7 @@ function manageFlags() {
       <div class="ml-auto flex shrink-0 items-center gap-1.5">
         <Button variant="outline" size="sm" :disabled="board.loading" :title="t('board.refresh')" @click="board.reload()">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': board.loading }" :stroke-width="1.75" />
-          <span class="max-[900px]:hidden">{{ t('board.refresh') }}</span>
+          <span class="max-[901px]:hidden">{{ t('board.refresh') }}</span>
         </Button>
         <Button
           v-if="manageTarget"

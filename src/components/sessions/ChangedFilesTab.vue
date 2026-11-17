@@ -56,7 +56,7 @@ function openFile(path: string) {
       <FileDiff class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" aria-hidden="true" />
       <span class="truncate text-sm font-medium text-foreground">{{ t('run.changedFiles.title', { n: files.length }) }}</span>
       <span
-        class="truncate text-xs text-muted-foreground max-[900px]:hidden"
+        class="truncate text-xs text-muted-foreground max-[901px]:hidden"
         :title="t('run.changedFiles.subtitleTip')"
       >{{ t('run.changedFiles.subtitle') }}</span>
       <Button
@@ -68,7 +68,7 @@ function openFile(path: string) {
         @click="reload"
       >
         <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" :stroke-width="1.75" aria-hidden="true" />
-        <span class="max-[900px]:hidden">{{ t('run.changedFiles.reload') }}</span>
+        <span class="max-[901px]:hidden">{{ t('run.changedFiles.reload') }}</span>
       </Button>
     </div>
 

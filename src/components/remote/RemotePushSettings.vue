@@ -119,7 +119,7 @@ function fmtTime(ts: string | null): string {
     <div class="p-4 space-y-4">
       <div class="space-y-3">
         <SettingsRow v-for="k in KINDS" :key="k" :label="t(`remote.push.kinds.${k}`)" :hint="t(`remote.push.kindHints.${k}`)">
-          <div class="flex min-[900px]:justify-end">
+          <div class="flex min-[901px]:justify-end">
             <ToggleSwitch
               size="md"
               :checked="events[k]"

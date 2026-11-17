@@ -179,7 +179,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
         <!-- Remote desktop: drive another Puppeteer from this one. -->
         <div v-if="!remoteMode" class="border-t border-border/50 pt-3">
           <SettingsRow :label="t('remote.settings.controlOther')" :hint="t('remote.settings.controlOtherHint')">
-            <div class="flex min-[900px]:justify-end">
+            <div class="flex min-[901px]:justify-end">
               <Button variant="outline" @click="openRemoteDesktop">
                 <MonitorSmartphone class="h-3.5 w-3.5" :stroke-width="1.75" />
                 {{ t('remote.settings.controlOtherOpen') }}

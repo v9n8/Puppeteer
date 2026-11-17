@@ -126,7 +126,7 @@ function cancelImport() {
       </label>
 
       <SettingsRow :label="t('settings.backup.export.includeSecrets')" :hint="t('settings.backup.export.includeSecretsHint')">
-        <div class="flex min-[900px]:justify-end">
+        <div class="flex min-[901px]:justify-end">
           <ToggleSwitch
             size="md"
             :checked="includeSecrets"

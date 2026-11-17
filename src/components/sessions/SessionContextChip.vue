@@ -55,7 +55,7 @@ const labels = computed(() => ({
         <span class="relative h-1 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
           <span class="absolute inset-y-0 left-0 rounded-full transition-all" :class="barClass" :style="{ width: percent + '%' }" />
         </span>
-        <span class="font-mono tabular-nums max-[900px]:hidden" :class="textClass">{{ labels.used }}/{{ labels.limit }}</span>
+        <span class="font-mono tabular-nums max-[901px]:hidden" :class="textClass">{{ labels.used }}/{{ labels.limit }}</span>
       </button>
     </template>
     <div class="w-[19rem]">

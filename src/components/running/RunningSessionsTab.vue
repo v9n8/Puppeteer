@@ -213,7 +213,7 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
           :title="t('processes.running.filter.projectTitle')"
           class="w-44"
         />
-        <span class="ml-auto text-2xs text-muted-foreground max-[900px]:hidden">{{ t('processes.running.filter.sort') }}</span>
+        <span class="ml-auto text-2xs text-muted-foreground max-[901px]:hidden">{{ t('processes.running.filter.sort') }}</span>
         <Button
           v-if="shown.length > 0"
           variant="destructive"
@@ -254,13 +254,13 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
               :aria-label="t('processes.running.action.selectAll')"
               @change="toggleAll"
             />
-            <span class="w-[108px] shrink-0 max-[900px]:w-5 max-[900px]:overflow-hidden max-[900px]:text-transparent">{{ t('processes.running.col.status') }}</span>
+            <span class="w-[108px] shrink-0 max-[901px]:w-5 max-[901px]:overflow-hidden max-[901px]:text-transparent">{{ t('processes.running.col.status') }}</span>
             <span class="min-w-0 flex-1">{{ t('processes.running.col.session') }}</span>
-            <span class="w-[230px] shrink min-w-0 max-[900px]:w-[150px]">{{ t('processes.running.col.doing') }}</span>
+            <span class="w-[230px] shrink min-w-0 max-[901px]:w-[150px]">{{ t('processes.running.col.doing') }}</span>
             <span class="w-[72px] shrink-0 text-right">{{ t('processes.running.col.age') }}</span>
-            <span class="w-[84px] shrink-0 max-[900px]:hidden">{{ t('processes.running.col.waiting') }}</span>
-            <span class="w-[64px] shrink-0 text-right max-[900px]:hidden">{{ t('processes.running.col.workers') }}</span>
-            <span class="w-[132px] shrink-0 max-[900px]:w-[96px]" />
+            <span class="w-[84px] shrink-0 max-[901px]:hidden">{{ t('processes.running.col.waiting') }}</span>
+            <span class="w-[64px] shrink-0 text-right max-[901px]:hidden">{{ t('processes.running.col.workers') }}</span>
+            <span class="w-[132px] shrink-0 max-[901px]:w-[96px]" />
           </div>
 
           <p v-if="shown.length === 0" class="px-3 py-6 text-center text-sm text-muted-foreground">
@@ -281,9 +281,9 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                 :aria-label="t('processes.running.action.selectRow', { title: r.title })"
                 @change="toggle(r.runId)"
               />
-              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[900px]:w-5" :class="STATUS_TONE[r.status]" :title="statusLabel(r)">
+              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[901px]:w-5" :class="STATUS_TONE[r.status]" :title="statusLabel(r)">
                 <component :is="STATUS_ICON[r.status]" class="h-4 w-4 shrink-0" :class="r.status === 'run' && 'animate-spin'" :stroke-width="2" />
-                <span class="truncate max-[900px]:hidden">{{ statusLabel(r) }}</span>
+                <span class="truncate max-[901px]:hidden">{{ statusLabel(r) }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="flex items-center gap-1.5">
@@ -292,7 +292,7 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                 </span>
                 <span class="block truncate text-2xs text-muted-foreground" :title="subtitle(r)">{{ subtitle(r) }}</span>
               </span>
-              <span class="w-[230px] min-w-0 shrink text-[13px] max-[900px]:w-[150px]">
+              <span class="w-[230px] min-w-0 shrink text-[13px] max-[901px]:w-[150px]">
                 <template v-if="r.doing.kind === 'permission'">
                   <span class="block truncate" :title="r.doing.arg">
                     <span class="font-medium text-warning">{{ t('processes.running.doing.permission', { tool: r.doing.name }) }}</span>
@@ -311,11 +311,11 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                 <span v-else class="text-muted-foreground">—</span>
               </span>
               <span class="w-[72px] shrink-0 text-right text-[13px] tabular-nums text-muted-foreground">{{ age(r) }}</span>
-              <span class="w-[84px] shrink-0 whitespace-nowrap text-[13px] max-[900px]:hidden" :class="r.waitingOn === 'user' ? 'font-medium text-warning' : 'text-muted-foreground'">{{ waitingText(r) }}</span>
-              <span class="flex w-[64px] shrink-0 items-center justify-end gap-1 text-[13px] text-muted-foreground max-[900px]:hidden">
+              <span class="w-[84px] shrink-0 whitespace-nowrap text-[13px] max-[901px]:hidden" :class="r.waitingOn === 'user' ? 'font-medium text-warning' : 'text-muted-foreground'">{{ waitingText(r) }}</span>
+              <span class="flex w-[64px] shrink-0 items-center justify-end gap-1 text-[13px] text-muted-foreground max-[901px]:hidden">
                 <template v-if="r.workers.length > 0"><Network class="h-3.5 w-3.5" :stroke-width="2" />{{ r.workers.length }}</template>
               </span>
-              <span class="flex w-[132px] shrink-0 items-center justify-end gap-1 max-[900px]:w-[96px]">
+              <span class="flex w-[132px] shrink-0 items-center justify-end gap-1 max-[901px]:w-[96px]">
                 <Button variant="outline" size="xs" :title="t('processes.running.action.openTitle')" @click="openRow(r)">
                   {{ t('processes.running.action.open') }}
                 </Button>
@@ -350,15 +350,15 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
               :key="w.runId"
               class="flex min-h-[44px] min-w-0 items-center gap-2 border-t border-border py-1.5 pl-12 pr-3 hover:bg-accent/50"
             >
-              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[900px]:w-5" :class="STATUS_TONE[w.status]" :title="statusLabel(w)">
+              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[901px]:w-5" :class="STATUS_TONE[w.status]" :title="statusLabel(w)">
                 <component :is="STATUS_ICON[w.status]" class="h-4 w-4 shrink-0" :class="w.status === 'run' && 'animate-spin'" :stroke-width="2" />
-                <span class="truncate max-[900px]:hidden">{{ statusLabel(w) }}</span>
+                <span class="truncate max-[901px]:hidden">{{ statusLabel(w) }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm" :title="w.title">{{ w.title }}</span>
                 <span class="block truncate text-2xs text-muted-foreground">{{ subtitle(w) }}</span>
               </span>
-              <span class="w-[230px] min-w-0 shrink truncate text-[13px] max-[900px]:w-[150px]">
+              <span class="w-[230px] min-w-0 shrink truncate text-[13px] max-[901px]:w-[150px]">
                 <template v-if="w.doing.kind === 'permission' || w.doing.kind === 'tool'">
                   <span class="font-medium" :class="w.doing.kind === 'permission' && 'text-warning'">
                     {{ w.doing.kind === 'permission' ? t('processes.running.doing.permission', { tool: w.doing.name }) : w.doing.name }}
@@ -368,9 +368,9 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                 <span v-else class="text-muted-foreground">—</span>
               </span>
               <span class="w-[72px] shrink-0 text-right text-[13px] tabular-nums text-muted-foreground">{{ age(w) }}</span>
-              <span class="w-[84px] shrink-0 max-[900px]:hidden" />
-              <span class="w-[64px] shrink-0 max-[900px]:hidden" />
-              <span class="flex w-[132px] shrink-0 items-center justify-end gap-1 max-[900px]:w-[96px]">
+              <span class="w-[84px] shrink-0 max-[901px]:hidden" />
+              <span class="w-[64px] shrink-0 max-[901px]:hidden" />
+              <span class="flex w-[132px] shrink-0 items-center justify-end gap-1 max-[901px]:w-[96px]">
                 <Button variant="ghost" size="icon-sm" :title="t('processes.running.action.openWorker')" :aria-label="t('processes.running.action.openWorker')" @click="openRow(w)">
                   <ArrowUpRight class="h-4 w-4" :stroke-width="1.75" />
                 </Button>
@@ -398,19 +398,19 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
               class="flex min-h-[52px] min-w-0 items-center gap-2 border-t border-border px-3 py-1.5 text-muted-foreground hover:bg-accent/50"
             >
               <span class="h-4 w-4 shrink-0" />
-              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[900px]:w-5" :class="STATUS_TONE[r.status]" :title="statusLabel(r)">
+              <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[901px]:w-5" :class="STATUS_TONE[r.status]" :title="statusLabel(r)">
                 <component :is="STATUS_ICON[r.status]" class="h-4 w-4 shrink-0" :stroke-width="2" />
-                <span class="truncate max-[900px]:hidden">{{ statusLabel(r) }}</span>
+                <span class="truncate max-[901px]:hidden">{{ statusLabel(r) }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm text-foreground" :title="r.title">{{ r.title }}</span>
                 <span class="block truncate text-2xs" :title="subtitle(r)">{{ subtitle(r) }}</span>
               </span>
-              <span class="w-[230px] shrink max-[900px]:w-[150px]" />
+              <span class="w-[230px] shrink max-[901px]:w-[150px]" />
               <span class="w-[72px] shrink-0 text-right text-[13px] tabular-nums">{{ age(r) }}</span>
-              <span class="w-[84px] shrink-0 max-[900px]:hidden" />
-              <span class="w-[64px] shrink-0 max-[900px]:hidden" />
-              <span class="flex w-[132px] shrink-0 justify-end max-[900px]:w-[96px]">
+              <span class="w-[84px] shrink-0 max-[901px]:hidden" />
+              <span class="w-[64px] shrink-0 max-[901px]:hidden" />
+              <span class="flex w-[132px] shrink-0 justify-end max-[901px]:w-[96px]">
                 <Button variant="outline" size="xs" :title="t('processes.running.action.openTitle')" @click="openRow(r)">
                   {{ t('processes.running.action.open') }}
                 </Button>

@@ -114,7 +114,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <aside class="flex w-[280px] shrink-0 max-[900px]:w-[256px] flex-col border-r border-border/60 bg-sidebar">
+  <aside class="flex w-[280px] shrink-0 max-[901px]:w-[256px] flex-col border-r border-border/60 bg-sidebar">
     <!-- Search + pin / lock, filter + new -->
     <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
       <div class="flex items-center gap-1.5">

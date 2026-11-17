@@ -17,7 +17,7 @@ const { t } = useI18n()
       <span>{{ t('settings.general.preview') }}</span>
       <span class="ml-auto truncate">{{ summary }}</span>
     </div>
-    <div class="grid gap-4 p-4 min-[900px]:grid-cols-[13rem_1fr]">
+    <div class="grid gap-4 p-4 min-[901px]:grid-cols-[13rem_1fr]">
       <div class="space-y-1 self-start rounded-md border border-border bg-sidebar p-1.5">
         <div class="relative rounded-md bg-primary/12 px-2.5 py-1.5 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary">
           <div class="truncate text-xs font-medium">{{ t('settings.general.previewRunTitle') }}</div>

@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
         />
         <span
           v-if="calibration"
-          class="flex min-w-0 items-center gap-1 truncate text-2xs text-muted-foreground max-[900px]:hidden"
+          class="flex min-w-0 items-center gap-1 truncate text-2xs text-muted-foreground max-[901px]:hidden"
         >
           <Gauge class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span class="truncate">
