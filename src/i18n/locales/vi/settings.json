@@ -296,6 +296,11 @@
     "sharedCodex": "Login Codex chung",
     "sharedCodexHint": "Login trong ~/.codex, tạo bằng codex login trong terminal. Session Codex dùng login này khi chưa có tài khoản Codex nào là mặc định.",
     "signInAgain": "Đăng nhập lại",
+    "rename": {
+      "title": "Đổi tên tài khoản",
+      "label": "Nhãn tài khoản",
+      "note": "Chỉ đổi tên hiện trong Puppeteer. Đăng nhập và profile của tài khoản giữ nguyên."
+    },
     "deleteCodexTitle": "Xoá tài khoản Codex",
     "deleteCodexMessage": "Thao tác này gỡ tài khoản và thông tin đăng nhập của nó khỏi Puppeteer; các Project đang gán tài khoản này quay về mặc định. Login ~/.codex toàn cục không bị ảnh hưởng.",
     "add": {

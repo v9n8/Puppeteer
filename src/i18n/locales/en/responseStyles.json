@@ -36,5 +36,7 @@
   },
   "projectTitle": "Response styles of this project",
   "projectEmpty": "This project has no styles of its own yet.",
-  "projectAdd": "Add"
+  "projectAdd": "Add",
+  "projectScope": "Only available in project {project}.",
+  "projectStylesTitle": "This project"
 }

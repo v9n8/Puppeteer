@@ -20,9 +20,14 @@
  * terms such as Session and Project stay in English, so "phiên" or "dự án"
  * is reported with the term to use instead.
  *
+ * Last, it scans src for static `t('a.b.c')` / `$t('a.b.c')` calls in .vue and
+ * .ts files and fails when a key is missing from en or vi: vue-i18n only warns
+ * at runtime and renders the raw key. Dynamic keys (template strings,
+ * variables) are skipped.
+ *
  * Usage: pnpm check:i18n
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -63,14 +68,17 @@ function* leaves(node, prefix = '') {
 const failures = []
 const glossaryHits = []
 let checked = 0
+const definedKeys = {}
 
 for (const locale of readdirSync(LOCALES_DIR)) {
   const dir = join(LOCALES_DIR, locale)
+  definedKeys[locale] = new Set()
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
     const namespace = file.replace(/\.json$/, '')
     const tree = JSON.parse(readFileSync(join(dir, file), 'utf8'))
     for (const [key, message] of leaves(tree)) {
       checked += 1
+      definedKeys[locale].add(`${namespace}.${key}`)
       const errors = []
       baseCompile(message, { onError: (e) => errors.push(e) })
       for (const e of errors) {
@@ -89,6 +97,42 @@ for (const locale of readdirSync(LOCALES_DIR)) {
   }
 }
 
+const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url))
+// `t('a.b.c'` / `$t("a.b.c"` — a literal first argument only.
+const STATIC_KEY = /(?<![\w.$])\$?t\(\s*(['"])([\w-]+(?:\.[\w-]+)+)\1\s*[,)]/g
+
+function* sourceFiles(dir) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name)
+    if (statSync(path).isDirectory()) yield* sourceFiles(path)
+    else if (/\.(vue|ts)$/.test(name) && !/\.(test|spec)\.ts$/.test(name)) yield path
+  }
+}
+
+const missingKeys = new Map()
+for (const file of sourceFiles(SRC_DIR)) {
+  const rel = file.slice(SRC_DIR.length)
+  if (rel.startsWith('i18n/')) continue
+  const text = readFileSync(file, 'utf8')
+  for (const m of text.matchAll(STATIC_KEY)) {
+    const key = m[2]
+    const lacking = Object.keys(definedKeys).filter((l) => !definedKeys[l].has(key))
+    if (lacking.length === 0) continue
+    const line = text.slice(0, m.index).split('\n').length
+    const entry = missingKeys.get(key) ?? { lacking, uses: [] }
+    entry.uses.push(`${rel}:${line}`)
+    missingKeys.set(key, entry)
+  }
+}
+if (missingKeys.size > 0) {
+  console.error(`i18n: ${missingKeys.size} keys used in src/ are missing from a locale\n`)
+  for (const [key, { lacking, uses }] of missingKeys) {
+    console.error(`  ${key} (missing in ${lacking.join(', ')})`)
+    console.error(`    used at ${uses.join(', ')}`)
+  }
+  console.error('')
+}
+
 if (glossaryHits.length > 0) {
   const report = GLOSSARY_FAILS_BUILD ? console.error : console.warn
   const level = GLOSSARY_FAILS_BUILD ? 'error' : 'warning'
@@ -98,7 +142,7 @@ if (glossaryHits.length > 0) {
   for (const h of glossaryHits) byTerm[h.term] = (byTerm[h.term] ?? 0) + 1
   report(`\n  by term: ${Object.entries(byTerm).map(([term, n]) => `${term} ${n}`).join(', ')}\n`)
 }
-const glossaryFails = GLOSSARY_FAILS_BUILD && glossaryHits.length > 0
+const glossaryFails = (GLOSSARY_FAILS_BUILD && glossaryHits.length > 0) || missingKeys.size > 0
 
 if (failures.length === 0) {
   console.log(`i18n: ${checked} messages compile cleanly`)

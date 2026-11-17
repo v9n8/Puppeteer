@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // "New style" / "Edit style" dialog of Response styles (V3-60), used by Settings
-// and by the project page. `style` null creates one (in the project when
+// and by the project page. `target` null creates one (in the project when
 // `projectId` is set). A sample opens with its shown (translated) texts; saving
 // one unchanged keeps the stored text, so it goes on following the UI language.
 // A failed save stays in the dialog with the reason.
@@ -14,7 +14,7 @@ import { type ResponseStyle, STYLE_BODY_MAX, styleFormError, styleText } from '@
 
 const props = defineProps<{
   open: boolean
-  style: ResponseStyle | null
+  target: ResponseStyle | null
   projectId: string | null
 }>()
 // `saved` carries the stored row, so a caller can pick a style it just created.
@@ -34,8 +34,8 @@ const projectName = computed(() => projects.projects.find((p) => p.id === props.
 
 watch(() => props.open, (open) => {
   if (!open) return
-  const text = props.style ? styleText(props.style, t) : { name: '', description: '' }
-  Object.assign(draft, { ...text, body: props.style?.body ?? '' })
+  const text = props.target ? styleText(props.target, t) : { name: '', description: '' }
+  Object.assign(draft, { ...text, body: props.target?.body ?? '' })
   saveError.value = null
   nextTick(() => form.value?.querySelector('input')?.focus())
 })
@@ -46,7 +46,7 @@ async function save() {
   saveError.value = null
   try {
     const input = { name: draft.name, description: draft.description, body: draft.body }
-    const editing = props.style
+    const editing = props.target
     if (editing) {
       const shown = styleText(editing, t)
       if (editing.stock_name && input.name.trim() === shown.name) input.name = editing.name
@@ -68,7 +68,7 @@ async function save() {
 <template>
   <Modal
     :open="open"
-    :title="style ? t('responseStyles.editTitle') : t('responseStyles.newTitle')"
+    :title="target ? t('responseStyles.editTitle') : t('responseStyles.newTitle')"
     size="md"
     :dismiss-on-overlay="false"
     @update:open="emit('update:open', $event)"

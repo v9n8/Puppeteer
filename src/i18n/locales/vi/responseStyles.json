@@ -36,5 +36,7 @@
   },
   "projectTitle": "Phong cách trả lời của Project này",
   "projectEmpty": "Project này chưa có phong cách riêng.",
-  "projectAdd": "Thêm"
+  "projectAdd": "Thêm",
+  "projectScope": "Chỉ dùng được trong Project {project}.",
+  "projectStylesTitle": "Project này"
 }

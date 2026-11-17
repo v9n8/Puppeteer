@@ -296,6 +296,11 @@
     "sharedCodex": "Shared Codex login",
     "sharedCodexHint": "The login in ~/.codex, made with codex login in a terminal. Codex sessions use it while no Codex account is the default.",
     "signInAgain": "Sign in again",
+    "rename": {
+      "title": "Rename account",
+      "label": "Account label",
+      "note": "Only the name shown in Puppeteer changes. The account sign-in and profile stay as they are."
+    },
     "deleteCodexTitle": "Delete Codex account",
     "deleteCodexMessage": "This removes the account and its login from Puppeteer, and projects linked to it go back to the default. Your global ~/.codex login is not affected.",
     "add": {

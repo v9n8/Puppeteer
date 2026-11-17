@@ -143,5 +143,5 @@ async function restoreSamples() {
     </div>
   </Card>
 
-  <ResponseStyleModal v-model:open="editorOpen" :style="editing" :project-id="scope" />
+  <ResponseStyleModal v-model:open="editorOpen" :target="editing" :project-id="scope" />
 </template>

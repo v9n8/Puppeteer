@@ -200,5 +200,5 @@ function manageAccounts() {
     </template>
   </AppSelect>
   <!-- Also opened from the Run options select when compact, so it lives here once. -->
-  <ResponseStyleModal v-model:open="styleDialogOpen" :style="null" :project-id="projectId" @saved="onStyleSaved" />
+  <ResponseStyleModal v-model:open="styleDialogOpen" :target="null" :project-id="projectId" @saved="onStyleSaved" />
 </template>
