@@ -29,14 +29,15 @@ export function tabRows(items: readonly DiskItem[], kind: LibraryItemKind, searc
  * items; else the first kind that has items; else the first kind (an empty place).
  */
 export function pickTab(
-  items: readonly Pick<DiskItem, 'kind' | 'path'>[],
+  items: readonly (Pick<DiskItem, 'kind' | 'path'> & { hash?: string | null })[],
   kinds: readonly LibraryItemKind[],
   selectedPath: string | null,
   current: LibraryItemKind | null,
 ): LibraryItemKind {
   const selected = selectedPath ? items.find((i) => i.path === selectedPath) : undefined
   if (selected && kinds.includes(selected.kind)) return selected.kind
-  const counts = kindCounts(items, kinds)
+  // A Memory row is listed even when its file is missing (`hash` null): that is not content.
+  const counts = kindCounts(items.filter((i) => i.kind !== 'memory' || i.hash !== null), kinds)
   if (current && counts[current] > 0) return current
   return kinds.find((k) => counts[k] > 0) ?? kinds[0]
 }

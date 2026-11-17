@@ -106,7 +106,7 @@ watch(projectId, async () => {
         >{{ files.length }}</span>
         <RouterLink
           :to="libraryLink()"
-          class="ml-auto shrink-0 text-2xs text-primary hover:underline"
+          class="ml-auto inline-flex min-h-7 shrink-0 items-center px-2 text-2xs text-primary hover:underline"
           :title="t('projectDetail.openInLibraryHint')"
         >{{ t('projectDetail.openInLibrary') }}</RouterLink>
       </template>
@@ -127,13 +127,6 @@ watch(projectId, async () => {
           <Button variant="ghost" size="xs" @click="loadFiles">{{ t('projectDetail.libraryRetry') }}</Button>
         </template>
       </Banner>
-
-      <div
-        v-else-if="files.length === 0"
-        class="px-4 py-6 text-center text-xs text-muted-foreground"
-      >
-        {{ t('projectDetail.libraryFilesEmpty') }}
-      </div>
 
       <!-- Tabs by kind; a row opens that file in the Library -->
       <template v-else>

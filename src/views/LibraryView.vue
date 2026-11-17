@@ -238,12 +238,14 @@ watch(
       want.scope === scope.value &&
       want.path === selectedPath.value &&
       (want.scope === 'global' || want.projectId === null || want.projectId === activeProjectId.value)
+    // Set before the `same` check: a fresh visit to the link is already "the same place".
+    globalMemoryLink.value = want.scope === 'global' && query.kind === 'memory'
     if (same) return
     if (!(await confirmDiscard())) {
+      globalMemoryLink.value = false
       void router.replace({ query: libraryQuery(current()) })
       return
     }
-    globalMemoryLink.value = want.scope === 'global' && query.kind === 'memory'
     scope.value = want.scope
     if (want.projectId) projectId.value = want.projectId
     selectedPath.value = want.path

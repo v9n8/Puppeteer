@@ -43,7 +43,7 @@ function onKeydown(ev: KeyboardEvent, index: number) {
     :aria-label="t('library.kindSelect')"
     @update:model-value="(v: string) => (model = v as LibraryItemKind)"
   />
-  <div v-else role="tablist" :aria-label="t('library.kindSelect')" class="flex min-w-0 gap-0.5 overflow-x-auto border-b border-border/60">
+  <div v-else role="tablist" :aria-label="t('library.kindSelect')" class="flex min-w-0 overflow-x-auto border-b border-border/60">
     <button
       v-for="(k, i) in kinds"
       :key="k"
@@ -52,7 +52,7 @@ function onKeydown(ev: KeyboardEvent, index: number) {
       role="tab"
       :aria-selected="k === model"
       :tabindex="k === model ? 0 : -1"
-      class="-mb-px inline-flex min-h-7 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 px-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
+      class="-mb-px inline-flex min-h-7 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 px-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
       :class="k === model ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
       @click="model = k"
       @keydown="onKeydown($event, i)"

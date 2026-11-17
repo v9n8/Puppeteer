@@ -58,6 +58,12 @@ test('pickTab on Global never lands on Memory', () => {
   assert.equal(pickTab([item('memory', 'CLAUDE.md')], DISK_ITEM_KINDS, null, null), 'skill')
 })
 
+test('pickTab ignores Memory rows whose file is not on disk', () => {
+  const absent = [{ ...item('memory', 'CLAUDE.md'), hash: null }, { ...item('memory', 'AGENTS.md', 'codex'), hash: null }]
+  assert.equal(pickTab(absent, PROJECT_ITEM_KINDS, null, null), 'skill')
+  assert.equal(pickTab([{ ...absent[0], hash: 'h' }], PROJECT_ITEM_KINDS, null, null), 'memory')
+})
+
 test('projectListCollapsed: wide uses the saved choice, narrow folds unless opened', () => {
   assert.equal(projectListCollapsed(false, false, null), false)
   assert.equal(projectListCollapsed(true, false, null), true)
