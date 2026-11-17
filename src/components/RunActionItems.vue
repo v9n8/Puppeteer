@@ -46,6 +46,8 @@ const props = defineProps<{
   githubUrl: string | null
   /** An action for this run is in flight (its item is disabled meanwhile). */
   busy: { refetching: boolean; pinning: boolean; protecting: boolean; deleting: boolean; forking: boolean }
+  /** A prop, not an emit: it must still run after the menu (and this component) is gone. */
+  onFlagChanged?: () => void
 }>()
 
 const emit = defineEmits<{
@@ -62,7 +64,6 @@ const emit = defineEmits<{
   rename: []
   togglePin: []
   toggleProtect: []
-  flagChanged: []
   delete: []
 }>()
 
@@ -129,7 +130,7 @@ const currentFlagName = computed(() => {
         {{ t('sessionFlags.menu.set') }}
       </template>
       <template #hint>{{ currentFlagName }}</template>
-      <FlagMenuItems :run-id="run.id" :project-id="run.project_id" :flag-id="run.flag_id" @changed="emit('flagChanged')" />
+      <FlagMenuItems :run-id="run.id" :project-id="run.project_id" :flag-id="run.flag_id" :on-changed="() => props.onFlagChanged?.()" />
     </DropdownSubmenu>
     <!-- A new session with this one's conversation and settings (UX-28). -->
     <DropdownItem v-if="canForkRun(run)" :disabled="busy.forking" @click="emit('fork')">

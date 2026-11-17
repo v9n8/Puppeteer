@@ -254,7 +254,7 @@ async function remove(s: Schedule) {
               <p v-if="s.proposed" class="text-2xs text-warning">{{ t('schedules.proposedHint') }}</p>
               <p v-if="lastText(s)" class="text-2xs" :class="s.last_status === 'error' ? 'text-destructive' : 'text-muted-foreground'">
                 {{ lastText(s) }}
-                <button v-if="s.last_run_id" type="button" class="ml-1 underline hover:text-foreground" @click="openRun(s)">
+                <button v-if="s.last_run_id" type="button" class="ml-1 inline-flex min-h-7 items-center px-1 underline hover:text-foreground" @click="openRun(s)">
                   {{ t('schedules.openSession') }}
                 </button>
               </p>

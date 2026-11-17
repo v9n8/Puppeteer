@@ -29,6 +29,8 @@
     "retry": "Try again"
   },
   "gone": "That window is already closed.",
+  "closeFailed": "Couldn't close that window.",
+  "minimizeFailed": "Couldn't minimize that window.",
   "here": "This window",
   "open": "Open",
   "mergeBack": "Move back to main window",

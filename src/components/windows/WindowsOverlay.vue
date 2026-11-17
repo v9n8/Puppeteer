@@ -134,12 +134,18 @@ async function closeCard(label: string) {
   selected.value = selectionAfterClose(flat.value, label)
   // The card goes when the window is really gone (windows:changed), not now: a window
   // with unsaved changes asks first and may stay.
-  await closeWindow(label).catch((e) => console.error('[WindowsOverlay] cannot close', label, e))
+  await closeWindow(label).catch((e) => {
+    console.error('[WindowsOverlay] cannot close', label, e)
+    toast.error(t('windows.closeFailed'))
+  })
   void store.refresh()
 }
 
 async function minimizeCard(label: string) {
-  await minimizeWindow(label).catch((e) => console.error('[WindowsOverlay] cannot minimize', label, e))
+  await minimizeWindow(label).catch((e) => {
+    console.error('[WindowsOverlay] cannot minimize', label, e)
+    toast.error(t('windows.minimizeFailed'))
+  })
   void store.refresh()
 }
 

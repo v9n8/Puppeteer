@@ -342,7 +342,7 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
         <!-- Authentication -->
         <DetailSection :title="t('servers.editor.authentication')">
           <div class="space-y-1.5">
-            <SegmentedControl v-model="authMethod" :options="authOptions" class="max-w-md" />
+            <SegmentedControl v-model="authMethod" :options="authOptions" class="max-w-md [&_button]:min-h-7" />
             <p v-if="!isKey" class="flex items-center gap-1 text-2xs text-muted-foreground">
               <AlertCircle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
               {{ t('servers.editor.agentHint') }}
@@ -412,7 +412,7 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
               {{ tag }}
               <button
                 type="button"
-                class="flex h-4 w-4 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                class="flex h-7 w-7 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                 :title="t('common.remove')"
                 :aria-label="t('common.remove')"
                 @click="removeTag(tag)"
@@ -422,7 +422,7 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
             </span>
             <input
               v-model="tagInput"
-              class="h-6 min-w-24 flex-1 bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground"
+              class="h-7 min-w-24 flex-1 bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground"
               :placeholder="tags.length ? '' : t('servers.detail.tagsPlaceholder')"
               @keydown="onTagKeydown"
               @blur="commitTagInput"

@@ -169,7 +169,7 @@ function showHeaders(): boolean {
         <div v-if="showHeaders()" :class="groupHeaderClass">
           <button
             type="button"
-            class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 px-1.5 py-1 text-left text-xs font-semibold text-foreground"
+            class="flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 px-1.5 py-1 text-left text-xs font-semibold text-foreground"
             :aria-expanded="!collapsed.has(g.key)"
             @click="toggle(g.key)"
           >

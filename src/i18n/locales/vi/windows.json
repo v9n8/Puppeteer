@@ -29,6 +29,8 @@
     "retry": "Thử lại"
   },
   "gone": "Cửa sổ đó đã đóng.",
+  "closeFailed": "Không đóng được cửa sổ đó.",
+  "minimizeFailed": "Không thu nhỏ được cửa sổ đó.",
   "here": "Cửa sổ này",
   "open": "Mở",
   "mergeBack": "Gộp về cửa sổ chính",

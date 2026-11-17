@@ -14,9 +14,15 @@ import { flagLabel, flagMenuGroups } from '@/lib/sessionFlags'
 import { swatchClass } from '@/lib/projectAppearance'
 import { useFlagTargets } from './useFlagTargets'
 
-const props = defineProps<{ runId: string; projectId: string; flagId: string | null | undefined }>()
-// Tells a screen with its own copy of the run (the board) that the flag was saved.
-const emit = defineEmits<{ changed: [flagId: string | null] }>()
+const props = defineProps<{
+  runId: string
+  projectId: string
+  flagId: string | null | undefined
+  // Tells a screen with its own copy of the run (the board) that the flag was saved. A prop,
+  // not an emit: the menu has closed and this component is unmounted when the save returns,
+  // and Vue drops an emit from an unmounted component.
+  onChanged?: (flagId: string | null) => void
+}>()
 
 const { t } = useI18n()
 const runsStore = useRunsStore()
@@ -37,7 +43,7 @@ async function choose(flagId: string | null) {
   if (flagId === (props.flagId ?? null)) return
   try {
     await runsStore.setRunFlag(props.runId, flagId)
-    emit('changed', flagId)
+    props.onChanged?.(flagId)
   } catch (e) {
     // The flag may have been hidden or deleted in another window: show why and re-read the list.
     toast.error(String(e))
