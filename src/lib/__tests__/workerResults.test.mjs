@@ -14,7 +14,7 @@ register(
         }
       }`),
 )
-const { attachNudge, formatDuration, parseWorkerResults, shortWorkerId, workerResultLine } = await import('../workerResults.ts')
+const { attachCards, attachNudge, formatDuration, parseWorkerResults, shortWorkerId, workerResultLine } = await import('../workerResults.ts')
 const { parseStreamLogWindow } = await import('../streamEvents.ts')
 
 // A translator that shows the key and its params, so the test reads the structure.
@@ -69,4 +69,16 @@ test('the log reader turns the record into a card entry and flags the nudge afte
   assert.match(entries[0].nudge, /^A worker you spawned/)
   // An old log has no card record: the nudge stays an entry, with its button.
   assert.equal(parseStreamLogWindow([nudge]).entries[0].kind, 'injected')
+})
+
+test('a card record written after its nudge takes the nudge too', () => {
+  const rec = JSON.stringify({ type: '_puppeteer_worker_results', workers: [{ id: 'w1', title: 'A', status: 'done', finished_at: 'f' }] })
+  const nudge = JSON.stringify({ type: 'user', message: { role: 'user', content: '[session] A worker you spawned has finished its turn.' } })
+  const { entries } = parseStreamLogWindow([nudge, rec])
+  assert.equal(entries.length, 1)
+  assert.equal(entries[0].kind, 'worker_results')
+  assert.match(entries[0].nudge, /^A worker you spawned/)
+  // Only a session nudge right before the record.
+  assert.equal(attachCards([{ kind: 'text', text: 'x' }], []), false)
+  assert.equal(attachCards([{ kind: 'injected', source: 'skill', text: 'x' }], []), false)
 })

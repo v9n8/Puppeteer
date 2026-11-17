@@ -753,11 +753,10 @@ pub async fn drain_sidecar(
         }
     }
 
-    // Incremental persistence: append what the buffer gained to the on-disk
-    // log while the run streams (after the existing log of a resumed run).
-    // This lets the frontend recover partial output after an app restart
-    // mid-run, instead of only seeing the log once the run finishes.
+    // Persist the buffer as the run streams (it survives a restart mid-run);
+    // emit records pushed from outside (live_records).
     let mut log_file = LogFlusher::new(log_path.clone(), merge_existing_log);
+    let mut live = super::live_records::LiveRecords::default();
     let mut flush_tick = tokio::time::interval(std::time::Duration::from_millis(500));
     flush_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -766,6 +765,7 @@ pub async fn drain_sidecar(
             _ = flush_tick.tick() => {
                 let buf = log_buf.lock().await;
                 log_file.flush(&buf);
+                live.emit_new(&app, &run_id, &buf);
             }
             // Watchdog: surface long waits (notices only), and detect the one
             // definitive hang the drain can see itself — the sidecar process has
@@ -1426,10 +1426,11 @@ pub async fn drain_sidecar(
         watchdog_line(&app, &log_buf, &remote_bus, &run_id, "warn", &notice).await;
     }
 
-    // Final persist (anything appended since the last periodic flush).
+    // Final persist + live records, before `run:done`.
     {
         let buf = log_buf.lock().await;
         log_file.flush(&buf);
+        live.emit_new(&app, &run_id, &buf);
     }
 
     // The sidecar is gone, so any request it was blocked on can never be answered.

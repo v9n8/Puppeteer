@@ -95,3 +95,18 @@ export function attachNudge(
   entries[entries.length - 1] = { ...last, nudge: injected.text }
   return true
 }
+
+/**
+ * A card record right after its conductor nudge (the backend now writes the record
+ * once the nudge went through, so it follows it): the nudge entry becomes the cards'
+ * entry, as `attachNudge` does for the older order. Returns true when it was taken.
+ */
+export function attachCards(
+  entries: { kind: string; source?: unknown; text?: unknown; workers?: WorkerResult[]; nudge?: string }[],
+  workers: WorkerResult[],
+): boolean {
+  const last = entries[entries.length - 1]
+  if (last?.kind !== 'injected' || last.source !== 'session' || typeof last.text !== 'string') return false
+  entries[entries.length - 1] = { kind: 'worker_results', workers, nudge: last.text }
+  return true
+}

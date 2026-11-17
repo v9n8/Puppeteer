@@ -6,6 +6,7 @@ pub mod edit_records;
 pub mod fork;
 pub mod handoff;
 pub mod interrupted;
+pub mod live_records;
 pub mod liveness;
 pub mod model_usage;
 pub mod permission;

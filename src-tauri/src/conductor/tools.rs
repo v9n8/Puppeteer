@@ -890,10 +890,10 @@ async fn wake_conductor(
             )
             .await?;
         }
-        crate::conductor::worker_results::push(&registry_from(app), conductor_run_id, &results).await;
-        crate::commands::runs::send_user_message_inner(
+        let registry = registry_from(app);
+        let send = crate::commands::runs::send_user_message_inner(
             &db,
-            &registry_from(app),
+            &registry,
             crate::commands::runs::SendUserMessagePayload {
                 run_id: conductor_run_id.to_string(),
                 content: nudge.clone(),
@@ -903,8 +903,8 @@ async fn wake_conductor(
                 quote_set: None,
             },
             false,
-        )
-        .await
+        );
+        crate::conductor::worker_results::deliver(&registry, conductor_run_id, &results, send).await
     }
     .await;
 

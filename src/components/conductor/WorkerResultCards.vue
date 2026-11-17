@@ -45,7 +45,9 @@ async function loadEdits(w: WorkerResult) {
         removed: files.reduce((n, f) => n + f.removed, 0),
       }
       editsCache.set(key, found)
-    } catch {
+    } catch (e) {
+      // The card still shows, without the "Edited N files" part.
+      console.warn(`worker result card: could not read the edit records of worker ${w.id}`, e)
       return
     }
   }

@@ -15,7 +15,7 @@ use crate::db::Db;
 use crate::runs::RunRegistry;
 
 /// Log record type read by `src/lib/streamEvents.ts`.
-const RECORD_TYPE: &str = "_puppeteer_worker_results";
+pub const RECORD_TYPE: &str = "_puppeteer_worker_results";
 
 /// Newest `finished_at` already reported, per conductor. Kept in memory: after a
 /// restart the conductor's own `last_activity_at` stands in for it.
@@ -44,8 +44,10 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
             .bind(conductor_run_id)
             .fetch_optional(db)
             .await
-            .ok()
-            .flatten()
+            .unwrap_or_else(|e| {
+                tracing::warn!(event = "worker_results_since_failed", run_id = %conductor_run_id, error = %e);
+                None
+            })
             .flatten()
             .unwrap_or_default(),
     };
@@ -62,7 +64,11 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
     .bind(since)
     .fetch_all(db)
     .await
-    .unwrap_or_default();
+    .unwrap_or_else(|e| {
+        // The nudge still goes out, just without the list and the cards.
+        tracing::warn!(event = "worker_results_collect_failed", run_id = %conductor_run_id, error = %e);
+        Vec::new()
+    });
     rows.iter()
         .map(|r| WorkerResult {
             id: r.get("id"),
@@ -96,9 +102,9 @@ the human your final summary.",
 }
 
 /// Write the cards' record into the conductor's live log and move the
-/// "already reported" mark past these workers. Called once the conductor is
-/// able to take the nudge, so a failed wake reports them again next time.
-pub async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerResult]) {
+/// "already reported" mark past these workers. Only `deliver` calls it, once
+/// the nudge went through.
+async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerResult]) {
     let Some(last) = results.last() else { return };
     let log_buf = match registry.lock().await.get(conductor_run_id) {
         Some(handles) => handles.log_buf.clone(),
@@ -109,6 +115,21 @@ pub async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[Wor
     if let Ok(mut m) = REPORTED.lock() {
         m.insert(conductor_run_id.to_string(), last.finished_at.clone());
     }
+}
+
+/// Send the nudge, then report the workers it names. A nudge that did not go
+/// through leaves no cards and the mark where it was, so the next wake names
+/// the same workers again. The record lands after the nudge's own log line;
+/// `attachCards` in `src/lib/workerResults.ts` pairs them in that order.
+pub async fn deliver<T>(
+    registry: &RunRegistry,
+    conductor_run_id: &str,
+    results: &[WorkerResult],
+    send: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    let sent = send.await?;
+    push(registry, conductor_run_id, results).await;
+    Ok(sent)
 }
 
 #[cfg(test)]
@@ -199,5 +220,47 @@ mod tests {
         assert_eq!(ids, ["w-late", "w-later"]);
         assert_eq!((got[0].duration_ms, got[0].total_tokens), (Some(7), Some(70)));
         assert_eq!((got[1].duration_ms, got[1].total_tokens), (None, None));
+    }
+
+    /// A live conductor: a `sleep` stand-in sidecar (Windows ships no `sleep`).
+    #[cfg(unix)]
+    async fn live(id: &str) -> RunRegistry {
+        let registry = crate::runs::new_registry();
+        let child = tokio::process::Command::new("sleep").arg("30").kill_on_drop(true).spawn().unwrap();
+        registry.lock().await.insert(
+            id.to_string(),
+            crate::runs::RunHandles {
+                proc: None,
+                pgid: child.id(),
+                child,
+                stdin: None,
+                session_id: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
+                log_buf: std::sync::Arc::new(tokio::sync::Mutex::new(String::new())),
+                broker_run: None,
+                ssh_access: None,
+                turn_gate: crate::runs::TurnGate::default(),
+            },
+        );
+        registry
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_failed_nudge_leaves_no_cards_and_reports_the_workers_again() {
+        let db = db().await;
+        run(&db, "c-fail", None, "running", None, None).await;
+        run(&db, "w1", Some("c-fail"), "done", Some("2026-01-03T00:00:00Z"), None).await;
+        let registry = live("c-fail").await;
+        let results = collect(&db, "c-fail").await;
+        let sent = deliver(&registry, "c-fail", &results, async { Err::<(), _>("budget".to_string()) }).await;
+        assert!(sent.is_err());
+        let buf = registry.lock().await.get("c-fail").unwrap().log_buf.clone();
+        assert!(!buf.lock().await.contains(RECORD_TYPE));
+        let again: Vec<_> = collect(&db, "c-fail").await.into_iter().map(|w| w.id).collect();
+        assert_eq!(again, ["w1"]);
+
+        deliver(&registry, "c-fail", &results, async { Ok::<(), String>(()) }).await.unwrap();
+        assert!(buf.lock().await.contains(RECORD_TYPE));
+        assert!(collect(&db, "c-fail").await.is_empty());
     }
 }

@@ -1,7 +1,7 @@
 import { estimateCost } from './pricing'
 import { STEP_MARK_TYPE, applyStepMark } from './stepMarks'
 import { TURN_CUT_TYPE, parseTurnCut, type TurnCut } from './turnCut'
-import { WORKER_RESULTS_TYPE, parseWorkerResults, attachNudge, type WorkerResult } from './workerResults'
+import { WORKER_RESULTS_TYPE, parseWorkerResults, attachCards, attachNudge, type WorkerResult } from './workerResults'
 import { carriesOver, parseModelUsage, turnTotals, type ModelUsageMap } from './modelUsage'
 
 /** A pasted/attached image carried on a user message. `data` is raw base64. */
@@ -519,7 +519,7 @@ export function applyStreamEvent(
 
   if (type === WORKER_RESULTS_TYPE) {
     const workers = parseWorkerResults(e)
-    if (workers.length) state.entries.push({ kind: 'worker_results', workers })
+    if (workers.length && !attachCards(state.entries, workers)) state.entries.push({ kind: 'worker_results', workers })
     return
   }
 
