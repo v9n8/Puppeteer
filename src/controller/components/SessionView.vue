@@ -312,7 +312,7 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Usage / context status bar (mirrors the desktop ContextMeter). -->
+    <!-- Usage / context status bar (mirrors the desktop context chip). -->
     <SessionUsageBar
       :tokens="contextTokens"
       :model="contextModel"

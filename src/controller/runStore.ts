@@ -65,7 +65,7 @@ interface RunView {
   /** True once history has been received & folded in (so live can append). */
   historyDone: boolean
   status: string | null
-  /** Context-window occupancy (tokens), mirrors the desktop ContextMeter. */
+  /** Context-window occupancy (tokens), mirrors the desktop context chip (SessionContextChip). */
   contextTokens: number
   /** Model id from `system.init` — resolves the context-window limit. */
   model: string | null

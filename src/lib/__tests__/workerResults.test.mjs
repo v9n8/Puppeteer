@@ -38,9 +38,9 @@ test('workerResultLine joins what it has and leaves out the rest', () => {
   const w = { id: 'a', title: 't', status: 'done', finished_at: '', duration_ms: 372000, total_tokens: 41000 }
   assert.equal(
     workerResultLine(w, { files: 3, added: 120, removed: 4 }, t),
-    'edited{"n":3} · +120 −4 · durMinSec{"m":6,"s":12} · tokens{"n":"41.0k"}',
+    'edited{"n":3} · +120 −4 · durMinSec{"m":6,"s":12} · tokens{"n":"41k"}',
   )
-  assert.equal(workerResultLine(w, { files: 0, added: 0, removed: 0 }, t), 'durMinSec{"m":6,"s":12} · tokens{"n":"41.0k"}')
+  assert.equal(workerResultLine(w, { files: 0, added: 0, removed: 0 }, t), 'durMinSec{"m":6,"s":12} · tokens{"n":"41k"}')
   assert.equal(workerResultLine({ ...w, duration_ms: undefined, total_tokens: undefined }, null, t), '')
 })
 

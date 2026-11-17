@@ -63,10 +63,7 @@
     "checkFailed": "kiểm tra thất bại"
   },
   "context": {
-    "compactTitle": "Nén hội thoại để giải phóng context (gửi /compact)",
-    "fiveHourTitle": "Cửa sổ mức dùng 5 giờ của gói đăng ký claude.ai",
-    "resetsInHours": "reset sau {n} giờ",
-    "resetsInMinutes": "reset sau {n} phút"
+    "compactTitle": "Nén hội thoại để giải phóng context (gửi /compact)"
   },
   "activeRuns": {
     "heading": "Run đang hoạt động",

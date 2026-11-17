@@ -57,9 +57,10 @@ export function mergeContextModel(
   return reported || selected || null
 }
 
-/** Format a token count compactly, e.g. 45200 -> "45.2k". */
+/** Format a token count compactly, e.g. 45200 -> "45.2k", 82000 -> "82k". */
 export function formatTokensShort(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  const trim = (v: number) => v.toFixed(1).replace(/\.0$/, '')
+  if (n >= 1_000_000) return `${trim(n / 1_000_000)}M`
+  if (n >= 1_000) return `${trim(n / 1_000)}k`
   return String(n)
 }

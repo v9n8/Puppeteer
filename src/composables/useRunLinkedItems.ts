@@ -5,6 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
+import { useToast } from '@/composables/useToast'
 import { ITEM_CHANGED } from '@/lib/itemWindow'
 import { listRunItems, type RunLinkedItem } from '@/lib/sessionLinks'
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/stores/slackThreads'
 
 export function useRunLinkedItems(runId: Ref<string | null>) {
+  const { toast } = useToast()
   const threads = ref<SlackThreadSummary[]>([])
   const items = ref<RunLinkedItem[]>([])
 
@@ -71,7 +73,8 @@ export function useRunLinkedItems(runId: Ref<string | null>) {
     todo.done = !todo.done
     try {
       await invoke('toggle_todo', { id })
-    } catch {
+    } catch (e) {
+      toast.error(String(e))
       await load()
     }
   }

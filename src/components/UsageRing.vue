@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
   <button
     ref="trigger"
     type="button"
-    class="inline-flex h-5 min-w-0 shrink-0 items-center gap-1 rounded px-1.5 text-2xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    class="inline-flex h-7 min-w-0 shrink-0 items-center gap-1 rounded px-1.5 text-2xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     :class="{ 'bg-muted text-foreground': pinned }"
     :title="cardVisible ? undefined : ringTitle"
     :aria-label="ringTitle"
@@ -188,7 +188,7 @@ onBeforeUnmount(() => {
         transform="rotate(-90 18 18)"
       />
     </svg>
-    <span class="max-w-16 truncate">{{ account.label }}</span>
+    <span class="max-w-16 truncate max-[901px]:hidden">{{ account.label }}</span>
     <span v-if="noData" class="font-mono tabular-nums">–</span>
     <span v-else class="font-mono font-semibold tabular-nums" :class="SEV_TEXT[severity]">{{ shown?.percent ?? 0 }}%</span>
   </button>

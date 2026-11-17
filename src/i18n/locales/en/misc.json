@@ -63,10 +63,7 @@
     "checkFailed": "check failed"
   },
   "context": {
-    "compactTitle": "Compact the conversation to free up context (sends /compact)",
-    "fiveHourTitle": "claude.ai subscription 5-hour usage window",
-    "resetsInHours": "resets {n}h",
-    "resetsInMinutes": "resets {n}m"
+    "compactTitle": "Compact the conversation to free up context (sends /compact)"
   },
   "activeRuns": {
     "heading": "Active runs",

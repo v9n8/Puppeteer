@@ -120,13 +120,17 @@ function newTodo() {
               :aria-checked="td.done"
               :aria-label="t('run.infoBar.links.toggleTodo')"
               :title="t('run.infoBar.links.toggleTodo')"
-              class="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center rounded-[4px] border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              :class="td.done ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'"
+              class="-my-1.5 -ml-1.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               @click.stop="linked.toggleTodo(td.id)"
               @keydown.enter.stop.prevent="linked.toggleTodo(td.id)"
               @keydown.space.stop.prevent="linked.toggleTodo(td.id)"
             >
-              <Check v-if="td.done" class="h-2 w-2" :stroke-width="3" />
+              <span
+                class="flex h-3.5 w-3.5 items-center justify-center rounded-[4px] border"
+                :class="td.done ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'"
+              >
+                <Check v-if="td.done" class="h-2 w-2" :stroke-width="3" />
+              </span>
             </span>
             <span class="min-w-0 flex-1 truncate" :class="td.done && 'text-muted-foreground line-through'">
               {{ itemLabel(td) }}

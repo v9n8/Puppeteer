@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Controller usage/context bar — mirrors the desktop ContextMeter + result usage
+ * Controller usage/context bar — mirrors the desktop context chip + result usage
  * badge, but standalone (no Pinia / appSettings): every value is derived on the
  * controller from the same stream events the desktop uses. Renders:
  *   • a context-window meter (tokens / limit, %),
