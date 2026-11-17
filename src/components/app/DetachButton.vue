@@ -8,6 +8,8 @@ import { useI18n } from 'vue-i18n'
 import { SquareArrowOutUpRight } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { detachScreen, type ScreenTarget } from '@/lib/detachedScreens'
+import { isWindowErrorReported } from '@/lib/windowCreateGuard'
+import { useToast } from '@/composables/useToast'
 import type { DetachableScreen } from '@/lib/windowPlacement'
 
 const props = defineProps<{
@@ -32,6 +34,7 @@ const NAME_KEYS: Record<DetachableScreen, string> = {
 
 const router = useRouter()
 const { t } = useI18n()
+const { toast } = useToast()
 const busy = ref(false)
 const tip = computed(
   () => props.lockedTip || t('nav.detachWindowTip', { screen: t(NAME_KEYS[props.target.screen]) }),
@@ -45,6 +48,8 @@ async function detach() {
     await detachScreen(props.target, router)
   } catch (e) {
     console.error(`[DetachButton] cannot move ${props.target.screen} to its own window`, e)
+    // A creation failure was already toasted below; anything else is told here.
+    if (!isWindowErrorReported(e)) toast.error(t('nav.windowOpenFailed', { error: String(e) }))
   } finally {
     busy.value = false
   }

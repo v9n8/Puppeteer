@@ -385,11 +385,11 @@ async function makeSecret() {
     editing.value = false
     await notes.fetchNotes()
     toast.success(t('secretNotes.makeSecret.done'))
-    void openSecretNotesFromPopout({ id: moved.id })
+    openSecretNotesFromPopout({ id: moved.id }).catch((err) => console.error('[ItemListPane] cannot open Secret notes', err))
   } catch (e) {
     const { code } = vaultError(e)
     if (code === 'vault_locked' || code === 'vault_missing') {
-      void openSecretNotesFromPopout({ projectId: it.project_id })
+      openSecretNotesFromPopout({ projectId: it.project_id }).catch((err) => console.error('[ItemListPane] cannot open Secret notes', err))
       toast.info(t(`secretNotes.makeSecret.${code === 'vault_locked' ? 'needUnlock' : 'needVault'}`))
     } else {
       toast.error(code ? t(`secretNotes.errors.${code}`) : String(e))

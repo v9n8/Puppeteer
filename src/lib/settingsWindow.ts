@@ -8,6 +8,7 @@ import { emit, once, type UnlistenFn } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { settingsLocation, type SettingsPlace } from '@/lib/settingsSections'
 
 /** Window label; src-tauri/capabilities/default.json grants it (and `remote-settings`) the app permissions. */
@@ -88,9 +89,7 @@ async function createSettingsWindow(place: SettingsPlace): Promise<WebviewWindow
     // Where it was last left; the first time 1000 × 720 centred on the current monitor.
     ...(await placementOptions('settings', { width: 1000, height: 720, minWidth: 760, minHeight: 520 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[settingsWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'settingsWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'settings')
   return win

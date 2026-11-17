@@ -12,9 +12,7 @@ import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import type { CalEvent } from '@/stores/googleCalendar'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { useFeaturesStore } from '@/stores/features'
-import { whenWindowCreated } from '@/lib/windowCreated'
-import { useToast } from '@/composables/useToast'
-import { i18n } from '@/i18n'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
 export const CALENDAR_WINDOW_LABEL = 'calendar'
@@ -139,14 +137,7 @@ async function createCalendarWindow(): Promise<WebviewWindow> {
     // Where it was last left; the first time 1200 × 820 centred on the current monitor.
     ...(await placementOptions('calendar', { width: 1200, height: 820, minWidth: 760, minHeight: 520 })),
   })
-  try {
-    await whenWindowCreated(win)
-  } catch (e) {
-    console.error('[calendarWindow] failed to open window', e)
-    useToast().toast.error(i18n.global.t('nav.windowOpenFailed', { error: String(e) }))
-    // detachScreen relies on this to put the screen back in the main window.
-    throw e
-  }
+  await awaitWindowCreated(win, 'calendarWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'calendar')
   return win

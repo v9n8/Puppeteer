@@ -385,7 +385,9 @@ export function isMenuActionBound(id: string): boolean {
 export function runMenuAction(id: string): void {
   // The menu (or tray) may still show an item whose feature was just turned off.
   if (!actionAllowed(id)) return
-  handlers.get(id)?.()
+  // Handlers are typed void, but several open a window and return its promise.
+  const result: unknown = handlers.get(id)?.()
+  if (result instanceof Promise) result.catch((e) => console.error(`[appMenu] action ${id} failed`, e))
 }
 
 /** Subscribe to menu clicks coming from Rust. Returns an unlisten function. */

@@ -53,7 +53,7 @@ function itemLabel(it: RunLinkedItem): string {
 }
 
 function openItem(kind: 'todo' | 'note', id: string) {
-  void openItemListWindow(kind, { id })
+  openItemListWindow(kind, { id }).catch((err) => console.error('[SessionLinksMenu] cannot open window', err))
 }
 
 // A session made from an issue: "New todo" starts from the issue's title and link.

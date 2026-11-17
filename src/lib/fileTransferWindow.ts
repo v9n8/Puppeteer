@@ -13,6 +13,7 @@ import { getOpenMode } from '@/lib/windowPlacement'
 import type { Router } from 'vue-router'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 
 /** Local label (the window itself is `remote-file-transfer`, see lib/popout.ts). */
 const FILE_TRANSFER_WINDOW_LABEL = 'file-transfer'
@@ -85,9 +86,7 @@ async function createFileTransferWindow(label: string): Promise<WebviewWindow> {
     // Where it was last left; the first time 1100 × 760 centred on the current monitor.
     ...(await placementOptions('file-transfer', { width: 1100, height: 760, minWidth: 820, minHeight: 520 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[fileTransferWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'fileTransferWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'file-transfer')
   return win

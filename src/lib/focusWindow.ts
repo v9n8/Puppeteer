@@ -13,6 +13,7 @@ import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/lib/detachedScreens'
 import { getOpenMode } from '@/lib/windowPlacement'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { TASKS_FEATURE } from '@/lib/featureGate'
 import { TASKS_PATH, tasksPath, tasksQuery, type TasksLocation } from '@/lib/tasksRoute'
 import { useFeaturesStore } from '@/stores/features'
@@ -100,9 +101,7 @@ async function createFocusWindow(loc: TasksLocation): Promise<WebviewWindow> {
     // Where it was last left; the first time 1100 × 780 centred on the user's monitor.
     ...(await placementOptions('tasks', { width: 1100, height: 780, minWidth: 720, minHeight: 480 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[focusWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'focusWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'tasks')
   return win

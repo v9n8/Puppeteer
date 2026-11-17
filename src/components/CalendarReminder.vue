@@ -142,7 +142,7 @@ onMounted(async () => {
         return
       }
       const ev: CalEvent | undefined = store.reminderEvents.find(x => x.id === id)
-      void openCalendar({ event: ev })
+      openCalendar({ event: ev }).catch((err) => console.error('[CalendarReminder] cannot open Calendar', err))
     })
   } catch {
     unlistenClick = null

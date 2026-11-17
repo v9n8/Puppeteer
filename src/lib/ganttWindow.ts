@@ -13,6 +13,7 @@ import { GANTT_PATH, ganttPath } from '@/lib/screenRoutes'
 import { trackWindowForTray } from '@/lib/tray'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { useFeaturesStore } from '@/stores/features'
 
 const GANTT_WINDOW_LABEL = 'gantt'
@@ -65,9 +66,7 @@ export async function openGanttWindow(projectId?: string): Promise<WebviewWindow
     // user is working on, not the primary screen.
     ...(await placementOptions('gantt', { width: 1200, height: 760, minWidth: 720, minHeight: 480 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[ganttWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'ganttWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'gantt')
   return win

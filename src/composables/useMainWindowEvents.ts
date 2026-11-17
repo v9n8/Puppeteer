@@ -261,7 +261,7 @@ export function useMainWindowEvents() {
     try {
       unlistenFocusOpen = await listen<FocusOpenTodo>(FOCUS_OPEN_WINDOW, (e) => {
         void invoke('focus_take_open_todo').catch(() => {})
-        void openTasks({ view: 'focus', id: e.payload?.todo_id })
+        openTasks({ view: 'focus', id: e.payload?.todo_id }).catch((err) => console.error('[mainWindowEvents] cannot open Tasks', err))
       })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).
@@ -284,7 +284,7 @@ export function useMainWindowEvents() {
         SLACK_NOTIFICATION_CLICKED,
         (e) => {
           const { id, kind } = e.payload ?? {}
-          if (id && kind === 'slack') void openSlackWindow({ id })
+          if (id && kind === 'slack') openSlackWindow({ id }).catch((err) => console.error('[mainWindowEvents] cannot open Slack', err))
         },
       )
     } catch {
@@ -295,7 +295,7 @@ export function useMainWindowEvents() {
     // window on it right away (it fills in as the background job progresses).
     try {
       unlistenSlackApiReceived = await listen<SlackApiReceived>(SLACK_API_RECEIVED, (e) => {
-        if (e.payload?.id) void openSlackWindow({ id: e.payload.id })
+        if (e.payload?.id) openSlackWindow({ id: e.payload.id }).catch((err) => console.error('[mainWindowEvents] cannot open Slack', err))
       })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).

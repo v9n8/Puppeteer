@@ -19,6 +19,7 @@ import type { ItemKind } from '@/lib/itemWindow'
 import { openSlackWindow } from '@/lib/slackWindow'
 import { openTasks } from '@/lib/focusWindow'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { useFeaturesStore } from '@/stores/features'
 
 /**
@@ -127,9 +128,7 @@ export async function openNotesWindow(opts: OpenItemListOptions = {}): Promise<W
     // Where it was last left; the first time 1000 × 720 centred on the user's monitor.
     ...(await placementOptions('notes', { width: 1000, height: 720, minWidth: 760, minHeight: 480 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[itemListWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'itemListWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'notes')
   return win

@@ -7,6 +7,7 @@ import { trackWindowForTray } from '@/lib/tray'
 import type { ScreenTarget } from '@/lib/detachedScreens'
 import { placementOptions, trackWindowBounds } from '@/lib/windowBounds'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
@@ -90,9 +91,7 @@ async function createPrInboxWindow(): Promise<WebviewWindow> {
     // Where it was last left; the first time 1100 × 780 centred on the current monitor.
     ...(await placementOptions('pr-inbox', { width: 1100, height: 780, minWidth: 720, minHeight: 480 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[prInboxWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'prInboxWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'pr-inbox')
   return win

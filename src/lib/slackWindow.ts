@@ -11,6 +11,7 @@ import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/li
 import { getOpenMode } from '@/lib/windowPlacement'
 import { SLACK_PATH, slackPath } from '@/lib/screenRoutes'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; src-tauri/capabilities/default.json grants it the app permissions. */
@@ -131,9 +132,7 @@ export async function openSlackThreadsWindow(
     // Where it was last left; the first time 1100 × 760 centred on the user's monitor.
     ...(await placementOptions('slack', { width: 1100, height: 760, minWidth: 820, minHeight: 520 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[slackWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'slackWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'slack')
   return win

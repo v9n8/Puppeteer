@@ -18,6 +18,7 @@ import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute, type ScreenTarget } from '@/li
 import { getOpenMode } from '@/lib/windowPlacement'
 import type { Router } from 'vue-router'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { awaitWindowCreated } from '@/lib/windowCreateGuard'
 import { useFeaturesStore } from '@/stores/features'
 
 /** Window label; the backend allows the vault commands from this window only. */
@@ -112,9 +113,7 @@ export async function openSecretNotesWindow(
     // Where it was last left; the first time 1000 × 720 centred on the user's monitor.
     ...(await placementOptions('secret-notes', { width: 1000, height: 720, minWidth: 760, minHeight: 480 })),
   })
-  win.once('tauri://error', (e) => {
-    console.error('[secretNotesWindow] failed to open window', e)
-  })
+  await awaitWindowCreated(win, 'secretNotesWindow')
   trackWindowForTray(win)
   trackWindowBounds(win, 'secret-notes')
   return win
