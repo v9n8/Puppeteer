@@ -134,7 +134,7 @@ watch(projectId, async () => {
           <LibraryKindTabs v-model="kind" :kinds="DISK_ITEM_KINDS" :counts="counts" />
         </div>
         <p v-if="rows.length === 0" class="px-4 py-6 text-center text-xs text-muted-foreground">
-          {{ t('projectDetail.libraryKindEmpty', { kind: t(`library.kindOne.${kind}`) }) }}
+          {{ files.length === 0 ? t('projectDetail.libraryFilesEmpty') : t('projectDetail.libraryKindEmpty', { kind: t(`library.kindOne.${kind}`) }) }}
         </p>
         <div v-else class="divide-y divide-border/60">
           <RouterLink

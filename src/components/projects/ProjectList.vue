@@ -167,9 +167,9 @@ function onListClickCapture(e: MouseEvent) {
                 <span class="flex min-w-0 font-mono" :class="rowSubClass" :title="project.path">
                   <template v-for="p in [middlePath(project.path)]" :key="p.head">
                     <!-- Shrink weights: the middle gives way first, then the head, the folder name last (it ends in "…" only when nothing else is left). -->
-                    <span class="min-w-0 truncate">{{ p.head }}</span>
+                    <span class="min-w-0 shrink-[100] truncate">{{ p.head }}</span>
                     <span v-if="p.middle" class="min-w-0 shrink-[1000] truncate">{{ p.middle }}</span>
-                    <span v-if="p.tail" class="min-w-0 shrink-[0.01] truncate">{{ p.tail }}</span>
+                    <span v-if="p.tail" class="min-w-0 shrink-[1] truncate">{{ p.tail }}</span>
                   </template>
                 </span>
               </span>
