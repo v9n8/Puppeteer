@@ -8,7 +8,7 @@
 // not learn about answers given elsewhere, so it mirrors the main window's
 // `permission:sync` and forwards the choice as `permission:decide|answer`, like
 // PermissionWindow.vue does; the main window's manager writes it.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import PermissionPrompt, { type PermissionRequest } from '@/components/PermissionPrompt.vue'
@@ -75,16 +75,41 @@ function onAnswer(answers: Record<string, string>) {
 let off: UnlistenFn | null = null
 let readyTimer: ReturnType<typeof setInterval> | null = null
 let gotSync = false
+let subscribeSeq = 0
 
-onMounted(async () => {
+function stopListening() {
+  subscribeSeq++
+  if (readyTimer) clearInterval(readyTimer)
+  readyTimer = null
+  off?.()
+  off = null
+}
+
+onMounted(() => {
   loadMarkdown()
-  if (!IS_SESSION_WINDOW) return
-  off = await listen<{
+  if (IS_SESSION_WINDOW) void startListening(props.runId)
+})
+
+// The session window can switch to another run (engine change); listen to the new one.
+watch(
+  () => props.runId,
+  (id) => {
+    if (!IS_SESSION_WINDOW) return
+    stopListening()
+    gotSync = false
+    synced.value = { request: null, purpose: null, count: 0, allowedTools: [] }
+    void startListening(id)
+  },
+)
+
+async function startListening(runId: string) {
+  const seq = ++subscribeSeq
+  const unlisten = await listen<{
     request: PermissionRequest | null
     purpose?: string | null
     queue?: unknown[]
     allowedTools?: string[]
-  }>(`permission:sync:${props.runId}`, (e) => {
+  }>(`permission:sync:${runId}`, (e) => {
     gotSync = true
     const p = e.payload
     synced.value = {
@@ -94,9 +119,14 @@ onMounted(async () => {
       allowedTools: p?.allowedTools ?? [],
     }
   })
+  if (seq !== subscribeSeq) {
+    unlisten() // the run changed or the block went away while subscribing
+    return
+  }
+  off = unlisten
   // Ask the main window for the current state (it only listens while a request is
   // pending, so a missed ping is retried briefly).
-  void emit(`permission:window-ready:${props.runId}`)
+  void emit(`permission:window-ready:${runId}`)
   let tries = 0
   readyTimer = setInterval(() => {
     if (gotSync || ++tries > 5) {
@@ -104,14 +134,11 @@ onMounted(async () => {
       readyTimer = null
       return
     }
-    void emit(`permission:window-ready:${props.runId}`)
+    void emit(`permission:window-ready:${runId}`)
   }, 1500)
-})
+}
 
-onBeforeUnmount(() => {
-  if (readyTimer) clearInterval(readyTimer)
-  off?.()
-})
+onBeforeUnmount(stopListening)
 </script>
 
 <template>

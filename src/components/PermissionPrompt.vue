@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ShieldAlert, Check, X, FileEdit, HelpCircle, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
+import { isActivationTarget } from '@/lib/permissionKeys'
 import { permissionDiffParts } from '@/lib/permissionImpact'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 
@@ -262,9 +263,9 @@ function isEditableTarget(e: KeyboardEvent): boolean {
 function onKeydown(e: KeyboardEvent) {
   if (e.isComposing || e.keyCode === 229) return // mid-IME composition
   const editable = isEditableTarget(e)
-  // Enter on a focused button (reached with Tab) presses that button; it must not
-  // also count as "Allow", or Tab → "Deny" → Enter would allow.
-  if (e.key === 'Enter' && !isQuestions.value && (e.target as HTMLElement | null)?.tagName === 'BUTTON') return
+  // Enter on a focused button / <summary> / link (reached with Tab) activates that
+  // element; it must not also count as "Allow", or Tab → "Deny" → Enter would allow.
+  if (e.key === 'Enter' && !isQuestions.value && isActivationTarget(e.target)) return
 
   if (isQuestions.value) {
     switch (e.key) {
@@ -454,14 +455,14 @@ function onKeydown(e: KeyboardEvent) {
           <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
           <span>{{ t('permission.broadScopeWarning') }}</span>
         </div>
-        <div class="flex flex-col gap-2 @[26rem]/footer:flex-row @[26rem]/footer:items-center">
-          <span class="hidden min-w-0 truncate text-2xs text-foreground/40 @[26rem]/footer:mr-auto @[26rem]/footer:block">
+        <div class="flex flex-col gap-2">
+          <span class="hidden text-2xs text-foreground/40 @[26rem]/footer:block">
             <template v-if="isQuestions">{{ t('permission.hintQuestions') }}</template>
             <template v-else-if="isPlan">{{ t('permission.hintPlan') }}</template>
             <template v-else>{{ t('permission.hintPermission') }}</template>
           </span>
-          <!-- Action buttons: never wrap; stack full-width only in a narrow panel. -->
-          <div class="flex flex-col gap-2 @[26rem]/footer:flex-row @[26rem]/footer:items-center @[26rem]/footer:shrink-0">
+          <!-- Action buttons: stack full-width in a narrow panel; wrap to a second row when four do not fit. -->
+          <div class="flex flex-col gap-2 @[26rem]/footer:flex-row @[26rem]/footer:flex-wrap @[26rem]/footer:items-center @[26rem]/footer:justify-end">
             <template v-if="isQuestions">
               <span
                 v-if="stepCount > 1"

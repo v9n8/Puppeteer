@@ -116,17 +116,9 @@ function splitLines(s: string): string[] {
     </div>
 
     <!-- Command / target for bash, web, etc. -->
-    <div v-else-if="commandPreview" class="rounded-md border border-border bg-foreground/5 px-3 py-2">
-      <div class="mb-1 flex items-center gap-2">
+    <div v-else-if="commandPreview" class="relative rounded-md border border-border bg-foreground/5 px-3 py-2">
+      <div class="mb-1 flex h-7 items-center">
         <span class="text-2xs uppercase tracking-wider text-foreground/40">{{ t('permission.commandTarget') }}</span>
-        <button
-          type="button"
-          class="ml-auto inline-flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-2xs text-foreground/60 hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          @click="copyCommand"
-        >
-          <component :is="copied ? Check : Copy" class="h-3 w-3" :stroke-width="1.75" />
-          {{ copied ? t('common.copied') : t('permission.copy') }}
-        </button>
       </div>
       <pre class="whitespace-pre-wrap break-words font-mono text-xs text-foreground">{{ shownCommand }}</pre>
       <button
@@ -137,6 +129,15 @@ function splitLines(s: string): string[] {
       >
         <ChevronsUpDown class="h-3 w-3" :stroke-width="1.75" />
         {{ t('permission.showAllLines', { n: commandLines.length }) }}
+      </button>
+      <!-- After "show all" in the DOM so Tab goes Show all → Copy; drawn top-right. -->
+      <button
+        type="button"
+        class="absolute right-3 top-2 inline-flex h-7 cursor-pointer items-center gap-1 rounded px-2 text-2xs text-foreground/60 hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        @click="copyCommand"
+      >
+        <component :is="copied ? Check : Copy" class="h-3 w-3" :stroke-width="1.75" />
+        {{ copied ? t('common.copied') : t('permission.copy') }}
       </button>
     </div>
 
