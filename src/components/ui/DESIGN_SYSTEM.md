@@ -46,19 +46,24 @@ calendar event colors, decorations — data-driven palettes, not UI state.
 
 ### Radius
 
-`rounded-md` controls and buttons · `rounded` inner chips / segments · `rounded-lg`
-cards & floating toolbars · `rounded-full` dots, count pills, avatars.
+`rounded-sm` (6px) nav items, tabs, chips, dock rows, small icon buttons · `rounded-md`
+(8px) inputs and buttons · `rounded` inner chips / segments · `rounded-card` (10px) board
+columns, trash groups, schedule blocks · `rounded-lg` (12px) modals, cards & floating
+toolbars · `rounded-full` dots, count pills, avatars.
 
 ### Typography scale
 
-`text-2xs` and `text-xs` are redefined in `main.css` (`@theme`) so nothing
-renders below 13px — smaller text breaks up on low-density IPS panels.
+The body text is 13px / 1.4 (`main.css`, `body`), so an element with no size class is
+13px too. `text-2xs`, `text-xs`, `text-sm` and `text-md` are redefined in `main.css` so
+nothing renders below 13px — smaller text breaks up on low-density IPS panels. Every
+step is multiplied by Settings › General › font size (`--text-scale`).
 
 | Size | Use |
 |---|---|
-| `text-2xs` (13px) | the floor: badges, count pills, Button `xs` text, meta lines, hints under fields, list secondary text, segmented controls, banners, kbd hints |
-| `text-xs` (13px) | default UI text: form fields, Button `sm`, list content |
-| `text-sm` (14px) | page titles (`PageHeader`), list row primary titles, menu items, body copy |
+| `text-2xs` (13px / 18px) | the floor: badges, count pills, Button `xs` text, meta lines, hints under fields, list secondary text, segmented controls, banners, kbd hints |
+| `text-xs` (13px / 18px) | default UI text: form fields, Button `sm`, list content |
+| `text-sm` (13px / 1.4) | page titles (`PageHeader`), list row primary titles, menu items, tabs, body copy |
+| `text-md` (14px / 1.4) | the few labels drawn a step larger: sidebar and Settings nav items, the session name, trash group names |
 | `text-base` (16px) | detail-pane title (`DetailHeader`) |
 | `text-lg`+ | empty states / About only |
 

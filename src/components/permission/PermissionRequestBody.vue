@@ -80,7 +80,7 @@ function splitLines(s: string): string[] {
 
 <template>
   <div class="space-y-3">
-    <p v-if="purpose" class="text-sm leading-snug text-foreground">
+    <p v-if="purpose" class="text-md leading-snug text-foreground">
       <span class="text-foreground/50">{{ t('permission.purpose') }} ·</span> {{ purpose }}
     </p>
 

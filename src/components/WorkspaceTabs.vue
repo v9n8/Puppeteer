@@ -248,7 +248,7 @@ async function jumpTo(projectId: string) {
         :key="tab.projectId"
         type="button"
         :data-drag-index="index"
-        class="group relative flex h-7 min-w-0 shrink items-center gap-2 pl-3 pr-2 rounded-md text-sm max-w-[200px] transition-colors select-none touch-none"
+        class="group relative flex h-7 min-w-0 shrink items-center gap-2 pl-3 pr-2 rounded-sm text-sm max-w-[200px] transition-colors select-none touch-none"
         :class="[
           dragFrom === index
             ? 'bg-accent text-foreground shadow-md cursor-grabbing'

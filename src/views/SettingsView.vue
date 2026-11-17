@@ -239,7 +239,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
             v-for="s in g.sections"
             :key="s.id"
             type="button"
-            class="relative w-full flex items-center gap-2.5 h-8 px-2 mb-0.5 text-sm rounded-md transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="relative w-full flex items-center gap-2.5 h-8 px-2 mb-0.5 text-md rounded-sm transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :class="activeSection === s.id
               ? 'bg-accent text-foreground font-medium before:absolute before:left-0 before:inset-y-1.5 before:w-0.5 before:rounded-full before:bg-primary'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'"

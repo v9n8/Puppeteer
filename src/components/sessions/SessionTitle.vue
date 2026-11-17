@@ -58,7 +58,7 @@ async function save() {
       ref="inputEl"
       v-model="draft"
       type="text"
-      class="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-md font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       :aria-label="t('run.rename')"
       @keydown.esc.prevent="cancel"
     />
@@ -84,7 +84,7 @@ async function save() {
       <X class="h-3.5 w-3.5" :stroke-width="1.75" />
     </Button>
   </form>
-  <h1 v-else class="min-w-0 text-sm font-semibold">
+  <h1 v-else class="min-w-0 text-md font-semibold">
     <button
       v-if="canRename"
       type="button"

@@ -62,6 +62,8 @@
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
+  /* Board columns, trash groups, schedule blocks: between the 8px controls and the 12px modals. */
+  --radius-card: 0.625rem;
 }
 
 /* `dark:` follows the app's `.dark` class (App.vue / controller appearance), not
@@ -70,17 +72,22 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Type scale, one step up from Tailwind's defaults so nothing renders below
- * 13px — 10–12px text breaks up on low-density IPS panels. `text-2xs` (13px,
- * line-height kept tighter than text-xs so badges stay compact) is the floor
- * (badges, meta lines, hints); `text-xs` (13px) is default UI
- * text. sm/base/lg keep Tailwind's 14/16/18px. */
+ * 13px — 10–12px text breaks up on low-density IPS panels. The body text is
+ * 13px / 1.4 (`body` below), as the v3 design draws it. `text-2xs` and
+ * `text-xs` (13px / 18px: badges, meta lines, hints, default UI text) and
+ * `text-sm` (13px / 1.4: titles, menu items) share that size; `text-md` (14px)
+ * is for the few labels drawn a step larger. base/lg keep Tailwind's 16/18px. */
 @theme {
   /* Code font; Settings › General may swap it (lib/appFonts sets --font-mono on <html>). */
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --text-2xs: 0.8125rem;
-  --text-2xs--line-height: 1rem;
+  --text-2xs--line-height: 1.125rem;
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.4;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.4;
 }
 
 /* Text sizes follow Settings › General (lib/appFonts): --app-text-scale for the
@@ -92,10 +99,13 @@
 :root,
 .chat-text {
   --text-2xs: calc(0.8125rem * var(--text-scale));
-  --text-2xs--line-height: calc(1rem * var(--text-scale));
+  --text-2xs--line-height: calc(1.125rem * var(--text-scale));
   --text-xs: calc(0.8125rem * var(--text-scale));
   --text-xs--line-height: calc(1.125rem * var(--text-scale));
-  --text-sm: calc(0.875rem * var(--text-scale));
+  --text-sm: calc(0.8125rem * var(--text-scale));
+  --text-sm--line-height: 1.4;
+  --text-md: calc(0.875rem * var(--text-scale));
+  --text-md--line-height: 1.4;
   --text-base: calc(1rem * var(--text-scale));
   --text-lg: calc(1.125rem * var(--text-scale));
   --text-xl: calc(1.25rem * var(--text-scale));
@@ -217,6 +227,8 @@
     color: hsl(var(--foreground));
     font-family: var(--font-ui);
     font-weight: var(--font-weight-normal, 400);
+    font-size: calc(0.8125rem * var(--text-scale));
+    line-height: 1.4;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* friendlier 1/4/6/9/a/l glyphs */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

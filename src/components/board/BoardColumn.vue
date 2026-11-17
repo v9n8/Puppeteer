@@ -41,7 +41,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
 <template>
   <section
     :data-board-column="column.id"
-    class="relative flex min-h-0 flex-col rounded-lg border bg-muted/30"
+    class="relative flex min-h-0 flex-col rounded-card border bg-muted/30"
     :class="[
       collapsed ? 'w-11 shrink-0' : 'min-w-[12.25rem] max-w-[20rem] flex-1 basis-[12.25rem]',
       drop === 'target' ? 'border-dashed border-primary bg-accent' : drop === 'blocked' ? 'cursor-not-allowed border-dashed border-destructive/60' : 'border-border/60',
@@ -53,7 +53,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
     <button
       v-if="collapsed"
       type="button"
-      class="flex h-full min-h-0 w-full cursor-pointer flex-col items-center gap-2 rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="flex h-full min-h-0 w-full cursor-pointer flex-col items-center gap-2 rounded-card py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       :title="t('board.column.unfold')"
       :aria-label="t('board.column.unfold')"
       @click="emit('toggle')"
@@ -73,7 +73,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
         <button
           v-if="column.kind === 'none'"
           type="button"
-          class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :title="t('board.column.fold')"
           :aria-label="t('board.column.fold')"
           @click="emit('toggle')"

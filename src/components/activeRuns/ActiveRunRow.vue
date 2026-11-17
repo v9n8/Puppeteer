@@ -25,7 +25,7 @@ const { t } = useI18n()
   <button
     type="button"
     data-run-item
-    class="w-full flex items-center gap-2 py-1.5 px-2 rounded-md text-left transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="w-full flex items-center gap-2 py-1.5 px-2 rounded-sm text-left transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="active
       ? 'bg-accent text-foreground'
       : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"

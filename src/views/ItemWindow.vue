@@ -142,7 +142,7 @@ onBeforeUnmount(() => {
           v-for="tabItem in tabs"
           :key="tabItem.key"
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
+          class="inline-flex cursor-pointer items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors"
           :class="tab === tabItem.key
             ? 'bg-accent text-foreground'
             : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"

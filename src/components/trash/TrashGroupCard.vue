@@ -60,7 +60,7 @@ function unlistedWorkers(s: TrashSession): number {
 </script>
 
 <template>
-  <section class="rounded-lg border border-border bg-card">
+  <section class="rounded-card border border-border bg-card">
     <header class="flex items-center gap-2 px-3 py-2" :class="open && 'border-b border-border/60'">
       <button
         type="button"
@@ -77,7 +77,7 @@ function unlistedWorkers(s: TrashSession): number {
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="min-h-7 truncate text-sm font-semibold"
+            class="min-h-7 truncate text-md font-semibold"
             :class="group.projectTrashed ? 'cursor-default' : 'hover:underline'"
             :disabled="group.projectTrashed"
             @click="emit('openProject')"

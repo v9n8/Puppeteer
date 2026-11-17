@@ -181,7 +181,7 @@ function badgeTip(id: string): string | undefined {
         <button
           v-if="appVersion && !rail"
           type="button"
-          class="-mx-1.5 h-7 rounded-md px-1.5 text-2xs text-muted-foreground/70 font-mono hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="-mx-1.5 h-7 rounded-sm px-1.5 text-2xs text-muted-foreground/70 font-mono hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :title="t('about.openHint')"
           @click="router.push('/settings/about').catch(() => {})"
         >

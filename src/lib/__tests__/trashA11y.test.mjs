@@ -6,7 +6,7 @@ const read = (name) => readFileSync(new URL(`../../components/trash/${name}`, im
 
 test('Trash group card: project-name button and worker badge are >= 28px tall', () => {
   const src = read('TrashGroupCard.vue')
-  const name = src.match(/<button[^>]*?class="[^"]*truncate text-sm font-semibold[^"]*"/s)?.[0]
+  const name = src.match(/<button[^>]*?class="[^"]*truncate text-md font-semibold[^"]*"/s)?.[0]
   assert.match(name, /min-h-7/)
   const workers = src.match(/<button[^>]*?:title="t\('trash\.workersTitle'\)"/s)?.[0]
   assert.match(workers, /min-h-7/)

@@ -39,7 +39,7 @@ function seeAll() {
       <ActiveRunsPopup side="top">
         <button
           type="button"
-          class="flex h-8 min-w-0 flex-1 cursor-pointer select-none items-center gap-2 rounded-md px-2 text-left text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-8 min-w-0 flex-1 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-left text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Activity class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
           <span class="min-w-0 flex-1 truncate text-xs">
@@ -57,7 +57,7 @@ function seeAll() {
       </ActiveRunsPopup>
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :title="t('misc.activeRuns.expand')"
         :aria-label="t('misc.activeRuns.expand')"
         @click="$emit('toggle')"
@@ -82,7 +82,7 @@ function seeAll() {
         >{{ doneCount }}</span>
         <button
           type="button"
-          class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :title="t('misc.activeRuns.collapse')"
           :aria-label="t('misc.activeRuns.collapse')"
           @click="$emit('toggle')"
@@ -108,7 +108,7 @@ function seeAll() {
       <button
         v-if="displayRows.length > DOCK_MAX_ROWS"
         type="button"
-        class="mt-0.5 w-full cursor-pointer select-none rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="mt-0.5 w-full cursor-pointer select-none rounded-sm px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         @click="seeAll"
       >
         {{ t('misc.activeRuns.seeAllCount', { n: displayRows.length }) }}

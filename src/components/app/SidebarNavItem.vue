@@ -30,11 +30,11 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const ROW =
-  'relative flex h-8 w-full items-center gap-2.5 rounded-md px-3 text-sm transition-colors cursor-pointer select-none ' +
+  'relative flex h-8 w-full items-center gap-2.5 rounded-sm px-3 text-md transition-colors cursor-pointer select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const IDLE = 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
 const RAIL =
-  'relative flex h-9 w-full items-center justify-center rounded-md transition-colors cursor-pointer select-none ' +
+  'relative flex h-9 w-full items-center justify-center rounded-sm transition-colors cursor-pointer select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const CURRENT = 'is-active bg-accent text-foreground font-medium'
 

@@ -230,7 +230,7 @@ async function remove(s: Schedule) {
           {{ t('schedules.empty') }}
         </p>
 
-        <div v-if="schedules.length > 0" class="divide-y divide-border/40 rounded-lg border border-border bg-card">
+        <div v-if="schedules.length > 0" class="divide-y divide-border/40 rounded-card border border-border bg-card">
           <div v-for="s in schedules" :key="s.id" class="flex items-start gap-3 px-3 py-2.5 text-xs">
             <ToggleSwitch
               class="mt-0.5"
