@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { moveDueDate, nextSelection, taskKeyAction, weekNeighbour } from '../taskKeys.ts'
+import { moveDueDate, nextSelection, taskKeyAction, verticalSelection, weekNeighbour } from '../taskKeys.ts'
 
 const ev = (key, extra = {}) => ({
   key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, target: { tagName: 'DIV' }, ...extra,
@@ -66,4 +66,13 @@ test('moveDueDate changes the day and keeps the time', () => {
   assert.deepEqual(moveDueDate({ due_date: '2026-11-16', due_time: '17:00' }, '2026-11-18'), { due_date: '2026-11-18', due_time: '17:00' })
   assert.deepEqual(moveDueDate({ due_date: '2026-11-16', due_time: null }, '2026-11-18'), { due_date: '2026-11-18', due_time: null })
   assert.equal(moveDueDate({ due_date: '2026-11-18', due_time: '17:00' }, '2026-11-18'), null)
+})
+
+test('verticalSelection stays inside the week column', () => {
+  const cols = [['a', 'b'], ['c', 'd']]
+  assert.equal(verticalSelection(cols, 'b', 'next', true), 'b')
+  assert.equal(verticalSelection(cols, 'c', 'prev', true), 'c')
+  assert.equal(verticalSelection(cols, 'a', 'next', true), 'b')
+  assert.equal(verticalSelection(cols, 'b', 'next', false), 'c')
+  assert.equal(verticalSelection(cols, null, 'next', true), 'a')
 })

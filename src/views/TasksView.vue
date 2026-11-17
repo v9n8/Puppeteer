@@ -122,10 +122,6 @@ const sourceOptions = computed(() => [
   { value: FILTER_NONE, label: t('focus.filters.noSource') },
 ])
 
-// A todo's source, for the list (the todo rows carry none): read from the board.
-const sourceById = computed(() => new Map(store.items.map((it) => [it.todo.id, it.todo.source_type])))
-const sourceOf = (id: string) => sourceById.value.get(id) ?? null
-
 // ── Header ──
 const openCount = computed(() => store.items.filter((it) => isActiveBucket(it.bucket)).length)
 // BR-10: shown only while calibration is on (the backend reports it with the board).
@@ -273,7 +269,6 @@ onBeforeUnmount(() => {
         kind="todo"
         embedded
         :source="filter.sourceType"
-        :source-of="sourceOf"
         :initial-id="listInitialId"
         @selected="selectedId = $event"
       />

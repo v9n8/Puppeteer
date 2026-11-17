@@ -14,6 +14,7 @@ import {
   dueLabel,
   emptyTodoDraft,
   filterItems,
+  matchesSource,
   formatEstimate,
   fromLocalInput,
   githubRef,
@@ -314,4 +315,14 @@ test('rebaseForm takes changes for untouched fields only', async () => {
   assert.deepEqual(rebaseForm(form, base, next), { text: 'Fix', status: 'doing', priority: 2, estimate: '2h' })
   // Nothing edited: the form becomes the new todo (not dirty).
   assert.deepEqual(rebaseForm(base, base, next), next)
+})
+
+test('matchesSource reads the todo row: an old Slack todo is still Slack', () => {
+  assert.equal(matchesSource('slack', 'slack'), true)
+  assert.equal(matchesSource('slack', 'github'), false)
+  assert.equal(matchesSource('slack', '__none__'), false)
+  assert.equal(matchesSource(null, '__none__'), true)
+  assert.equal(matchesSource(undefined, '__none__'), true)
+  assert.equal(matchesSource(null, 'slack'), false)
+  assert.equal(matchesSource('slack', ''), true)
 })

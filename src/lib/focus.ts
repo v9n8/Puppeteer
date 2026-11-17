@@ -389,13 +389,17 @@ export interface FocusFilter {
   sourceType: string
 }
 
+/** The source filter: '' = all, FILTER_NONE = a todo without source, else one source type. */
+export function matchesSource(source: string | null | undefined, filter: string): boolean {
+  if (filter === FILTER_NONE) return !source
+  return !filter || source === filter
+}
+
 export function filterItems(items: FocusItem[], f: FocusFilter): FocusItem[] {
   return items.filter((it) => {
     const p = it.todo.project_id
     if (f.projectId === FILTER_NONE ? p !== null : f.projectId && p !== f.projectId) return false
-    const s = it.todo.source_type
-    if (f.sourceType === FILTER_NONE ? s !== null : f.sourceType && s !== f.sourceType) return false
-    return true
+    return matchesSource(it.todo.source_type, f.sourceType)
   })
 }
 

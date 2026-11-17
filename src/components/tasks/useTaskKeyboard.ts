@@ -6,7 +6,7 @@
 import type { Ref } from 'vue'
 import { useFocusActions } from '@/components/focus/useFocusActions'
 import { hasOpenModal } from '@/lib/modalStack'
-import { nextSelection, taskKeyAction, weekNeighbour } from '@/lib/taskKeys'
+import { taskKeyAction, verticalSelection, weekNeighbour } from '@/lib/taskKeys'
 import type { FocusTodo } from '@/lib/focus'
 
 export interface TaskKeyboardOptions {
@@ -46,7 +46,7 @@ export function useTaskKeyboard(o: TaskKeyboardOptions) {
 
     if (action === 'next' || action === 'prev' || action === 'left' || action === 'right') {
       const to =
-        action === 'left' || action === 'right' ? weekNeighbour(columns, cur, action) : nextSelection(ids, cur, action)
+        action === 'left' || action === 'right' ? weekNeighbour(columns, cur, action) : verticalSelection(columns, cur, action, o.week())
       if (to === null) return
       e.preventDefault()
       o.select(to)

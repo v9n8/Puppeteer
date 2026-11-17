@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
-import type { AddTodoInput } from '@/lib/focus'
+import type { AddTodoInput, TodoSourceType } from '@/lib/focus'
 
 /**
  * Global "quick note" todo list, persisted in the app SQLite DB (todos table)
@@ -21,6 +21,8 @@ export interface Todo {
   project_id: string | null
   /** Deadline, a local `YYYY-MM-DD` date; null = none. */
   due_date: string | null
+  /** Where the todo came from (Slack, GitHub…); null = none. */
+  source_type: TodoSourceType | null
   /** Linked sessions whose run still exists. */
   linked_run_count: number
 }

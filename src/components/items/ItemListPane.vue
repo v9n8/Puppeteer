@@ -41,7 +41,7 @@ import { useProjectsStore } from '@/stores/projects'
 import { useFeaturesStore } from '@/stores/features'
 import { useNotesStore, type Note } from '@/stores/notes'
 import { useTodosStore, type Todo } from '@/stores/todos'
-import type { FocusTodo } from '@/lib/focus'
+import { matchesSource, type FocusTodo } from '@/lib/focus'
 import { errorCode } from '@/stores/slackThreads'
 import { ITEM_CHANGED, openItemCreateWindow, type ItemKind } from '@/lib/itemWindow'
 import {
@@ -76,9 +76,8 @@ const props = defineProps<{
   contextProjectId?: string | null
   /** Inside the Tasks screen: its filter bar and header own the project filter, "New" and the pin. */
   embedded?: boolean
-  /** Source filter of the Tasks screen ('' = all); a todo's source is read through `sourceOf`. */
+  /** Source filter of the Tasks screen ('' = all); read from each todo row. */
   source?: string
-  sourceOf?: (todoId: string) => string | null | undefined
   pinned?: boolean
   /** The main window's Notes screen: no pin button. */
   hidePin?: boolean
@@ -111,6 +110,8 @@ const allRows = computed<ItemRow[]>(() =>
   kind === 'note' ? notes.notes.map(noteRow) : todos.todos.map(todoRow),
 )
 
+const sourceById = computed(() => new Map(todos.todos.map((td) => [td.id, td.source_type])))
+
 function matchesFilters(row: ItemRow): boolean {
   if (filter.value === 'linked' && row.linkedRunCount === 0) return false
   if (filter.value === 'active' && row.done) return false
@@ -120,10 +121,7 @@ function matchesFilters(row: ItemRow): boolean {
 
 /** The project / source filter alone (what the open count follows). */
 function matchesScope(row: ItemRow): boolean {
-  if (props.source) {
-    const src = props.sourceOf?.(row.id) ?? null
-    if (props.source === NO_PROJECT ? src !== null : src !== props.source) return false
-  }
+  if (props.source && !matchesSource(sourceById.value.get(row.id), props.source)) return false
   if (projectFilter.value === NO_PROJECT) return !row.projectId
   if (projectFilter.value) return row.projectId === projectFilter.value
   return true

@@ -78,6 +78,20 @@ export function nextSelection(ids: string[], current: string | null, dir: 'next'
 }
 
 /**
+ * ↑ / ↓: in the week, only inside the column that holds `current` (a day), else over all ids.
+ * `columns` is one list per day; no selection (or one in no column) uses the flat list.
+ */
+export function verticalSelection(
+  columns: string[][],
+  current: string | null,
+  dir: 'next' | 'prev',
+  week: boolean,
+): string | null {
+  const col = week && current !== null ? columns.find((c) => c.includes(current)) : undefined
+  return nextSelection(col ?? [...new Set(columns.flat())], current, dir)
+}
+
+/**
  * ← / → in the week: the nearest non-empty column on that side, same row
  * (or its last one when shorter). Nothing on that side → stay.
  */
