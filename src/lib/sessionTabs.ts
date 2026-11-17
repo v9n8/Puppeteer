@@ -147,6 +147,15 @@ export function togglePin(state: SessionTabsState, id: SessionTabId): SessionTab
   return { ...flipped, tabs: orderedTabs(flipped) }
 }
 
+/** Close the tab of a deleted file, or the tabs of the files under a deleted folder. */
+export function removeTabsUnder(state: SessionTabsState, path: string): SessionTabsState {
+  let next = state
+  for (const t of state.tabs) {
+    if (t.kind === 'file' && (t.path === path || t.path.startsWith(`${path}/`))) next = closeTab(next, t.id)
+  }
+  return next
+}
+
 /** Follow a renamed file (or a file under a renamed folder). */
 export function renameTab(state: SessionTabsState, oldPath: string, newPath: string): SessionTabsState {
   const moved = (p: string) =>

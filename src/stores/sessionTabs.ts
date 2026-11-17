@@ -11,6 +11,7 @@ import {
   openTab,
   parse,
   prune,
+  removeTabsUnder,
   renameTab,
   resetRatio as resetRatioIn,
   selectTab,
@@ -145,6 +146,10 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     put(runId, renameTab(stateFor(runId), oldPath, newPath))
   }
 
+  function removeUnder(runId: string, path: string) {
+    put(runId, removeTabsUnder(stateFor(runId), path))
+  }
+
   /** Deleted Sessions: nothing of theirs to keep. */
   function forget(runIds: Iterable<string>) {
     const next = { ...byRun.value }
@@ -178,5 +183,5 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     /* running outside the Tauri shell */
   })
 
-  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, startSplit, stopSplit, setRatio, resetRatio, rename, forget, flush }
+  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, startSplit, stopSplit, setRatio, resetRatio, rename, removeUnder, forget, flush }
 })

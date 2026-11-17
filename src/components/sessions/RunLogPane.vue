@@ -20,6 +20,7 @@ import { fallbackLastTurnCut } from '@/lib/turnCut'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { hrefFileRef, parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
+import { turnAtOffset } from '@/lib/turnPosition'
 import { useRunSession } from './useRunSession'
 import { useUILayoutStore } from '@/stores/uiLayout'
 
@@ -35,10 +36,15 @@ const {
   onOutputScroll, navTurns, showTurnNav, activeTurnSeq, onTurnMenuToggle, turnPositionTracked,
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
-  runFind, findOpen, logHits, logSearching, logSearchActive,
+  runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
   jumpToQuote, runsStore, loadRunLog, isSessionWindow, session, project,
 } = useRunSession()
+// Which prompt (Lượt n) each hit of the whole log sits in.
+const logHitTurns = computed(() => {
+  const offsets = navTurns.value.map((turn) => turn.offset)
+  return logHits.value.map((hit) => turnAtOffset(offsets, hit.offset))
+})
 // A fork names the session it came from, and opens it (not from a pop-out,
 // which stays on its one session).
 const forkedFrom = computed(() => forkSource(currentRun.value, runsStore.runs))
@@ -224,14 +230,17 @@ function onOpenUrl(url: string) {
           </div>
           <div v-else class="max-h-64 overflow-y-auto py-1">
             <button
-              v-for="hit in logHits"
+              v-for="(hit, i) in logHits"
               :key="hit.offset"
               type="button"
               class="w-full px-2.5 py-1 text-left text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
               @click="jumpToLogHit(hit)"
             >
-              {{ hit.snippet }}
+              <span v-if="logHitTurns[i] !== null" class="mr-1.5 font-medium text-foreground/50">{{ t('find.sessionHitTurn', { n: logHitTurns[i] }) }} ·</span>{{ hit.snippet }}
             </button>
+            <div v-if="logHitsTruncated" class="px-2.5 py-1 text-2xs text-foreground/50">
+              {{ t('find.sessionHitsTruncated', { n: logHits.length }) }}
+            </div>
           </div>
         </div>
       </div>

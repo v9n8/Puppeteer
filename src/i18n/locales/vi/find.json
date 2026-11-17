@@ -5,5 +5,7 @@
   "nextMatch": "Kết quả tiếp theo",
   "close": "Đóng tìm kiếm",
   "searchingSession": "Đang tìm trong cả Session…",
-  "noSessionMatches": "Không có kết quả trong cả Session"
+  "noSessionMatches": "Không có kết quả trong cả Session",
+  "sessionHitTurn": "Lượt {n}",
+  "sessionHitsTruncated": "Chỉ hiện {n} kết quả đầu; hãy gõ cụ thể hơn để thu hẹp."
 }

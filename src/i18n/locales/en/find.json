@@ -5,5 +5,7 @@
   "nextMatch": "Next match",
   "close": "Close search",
   "searchingSession": "Searching the whole session…",
-  "noSessionMatches": "No match in the whole session"
+  "noSessionMatches": "No match in the whole session",
+  "sessionHitTurn": "Turn {n}",
+  "sessionHitsTruncated": "Showing the first {n} matches; refine the search to narrow them."
 }

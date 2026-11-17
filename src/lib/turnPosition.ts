@@ -48,3 +48,13 @@ export function isAwayFromTop(windowStartsLater: boolean, firstTurnTop: number |
 export function promptsBefore(promptOffsets: readonly (number | undefined)[], offset: number): number {
   return promptOffsets.filter((o) => typeof o === 'number' && o < offset).length
 }
+
+/**
+ * 1-based number of the prompt a record at byte `offset` belongs to: the prompts
+ * starting at or before it. Null before the first prompt or when no prompt
+ * offset is known yet.
+ */
+export function turnAtOffset(promptOffsets: readonly (number | undefined)[], offset: number): number | null {
+  const n = promptOffsets.filter((o) => typeof o === 'number' && o <= offset).length
+  return n > 0 ? n : null
+}

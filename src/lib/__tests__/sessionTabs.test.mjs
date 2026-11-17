@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import {
   CONVERSATION, MAX_SESSIONS, clampRatio, closeOthers, closeTab, effectiveLayout, emptyState, fileAreaTab, fileTabIcon, hiddenTabIndexes,
   openChangedTab, openTab, orderedTabs, ratioLimits, resetRatio, setRatio, splitBlockedReason, startSplit, stopSplit,
-  parse, prune, renameTab, selectTab, serialize, tabLabel, togglePin,
+  parse, prune, removeTabsUnder, renameTab, selectTab, serialize, tabLabel, togglePin,
 } from '../sessionTabs.ts'
 
 const ids = (s) => orderedTabs(s).map((t) => t.id)
@@ -304,4 +304,21 @@ test('split: survives serialize / parse; a wild ratio is clamped; a split with n
 test('renameTab: the right side follows a renamed file', () => {
   const s = renameTab(startSplit(three(), 'file:b.ts'), 'b.ts', 'z.ts')
   assert.equal(s.split.rightActive, 'file:z.ts')
+})
+
+test('removeTabsUnder: closes the file and the files under a deleted folder, not look-alikes', () => {
+  let s = emptyState()
+  s = openTab(s, 'src/x/a.ts', null)
+  s = openTab(s, 'src/x/b.ts', null)
+  s = openTab(s, 'src/xy.ts', null)
+  s = selectTab(s, 'file:src/x/a.ts')
+  s = removeTabsUnder(s, 'src/x')
+  assert.deepEqual(ids(s), ['file:src/xy.ts'])
+  assert.notEqual(s.active, 'file:src/x/a.ts')
+  assert.equal(removeTabsUnder(s, 'src/xy.ts').tabs.length, 0)
+})
+
+test('removeTabsUnder: nothing covered returns the same state', () => {
+  const s = three()
+  assert.equal(removeTabsUnder(s, 'zzz'), s)
 })

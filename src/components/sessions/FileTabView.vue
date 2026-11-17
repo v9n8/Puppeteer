@@ -3,12 +3,14 @@
 // selected one shown. A tab's viewer stays mounted once it was shown, so going
 // back to it keeps the scroll and an edit in progress; closing the tab drops it.
 // "Open in new window" moves the file to its own window and closes the tab.
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { SquareArrowOutUpRight } from 'lucide-vue-next'
 import FileViewer from '@/components/FileViewer.vue'
 import { Button } from '@/components/ui'
+import { FILE_DELETED_EVENT, FILE_MOVED_EVENT } from '@/lib/fileEvents'
 import { openFileWindow } from '@/lib/fileWindow'
 import { sendQuote } from '@/lib/quoteAppend'
 import type { QuoteSource } from '@/lib/quote'
@@ -47,6 +49,32 @@ const quoteTarget = computed(() => {
       sendQuote(run.id, text, source, note).catch((e) => toast.error(String(e)))
     },
   }
+})
+
+// The Files tree renames and deletes in another component (or webview): the tabs
+// follow, as a file window does.
+let unlisten: UnlistenFn[] = []
+let gone = false
+onMounted(async () => {
+  try {
+    const handlers = [
+      await listen<{ projectPath: string; path: string }>(FILE_DELETED_EVENT, ({ payload: p }) => {
+        if (p?.projectPath === projectPath.value && runId.value) tabsStore.removeUnder(runId.value, p.path)
+      }),
+      await listen<{ projectPath: string; from: string; to: string }>(FILE_MOVED_EVENT, ({ payload: p }) => {
+        if (p?.projectPath === projectPath.value && runId.value) tabsStore.rename(runId.value, p.from, p.to)
+      }),
+    ]
+    if (gone) handlers.forEach((u) => u())
+    else unlisten = handlers
+  } catch {
+    /* running outside the Tauri shell */
+  }
+})
+onBeforeUnmount(() => {
+  gone = true
+  unlisten.forEach((u) => u())
+  unlisten = []
 })
 
 function onOpenFile(path: string, line: number | null) {
