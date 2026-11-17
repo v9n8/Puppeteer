@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   GROUP_STORAGE_KEY, META_STORAGE_KEY, RECENT_STORAGE_KEY, RUN_STATUS_STORAGE_KEY,
-  canMergeBack, cardsFrom, cycleSelection, filterCards, flattenGroups, fold, groupCards,
+  canMergeBack, cardsFrom, isCloseCardKey, registerMergeBack, runMergeBack, cycleSelection, filterCards, flattenGroups, fold, groupCards,
   initialSelection, kindOfLabel, moveSelection, parseGroupBy, parseMeta, parseRecent,
   parseRunStatuses, runStatusOf, selectionAfterClose, touchRecent,
 } from '../windowsOverlay.ts'
@@ -41,9 +41,45 @@ test('kindOfLabel: kinds by label', () => {
   }
 })
 
-test('canMergeBack: only the screens that have a Move back button', () => {
-  for (const l of ['calendar', 'gantt', 'pr-inbox', 'settings']) assert.ok(canMergeBack(l), l)
-  for (const l of ['remote-desktop', 'session-1', 'fileviewer-1', 'secret-notes', 'file-transfer']) assert.ok(!canMergeBack(l), l)
+test('canMergeBack: every window with its own Move back control', () => {
+  const yes = ['calendar', 'gantt', 'pr-inbox', 'settings', 'focus', 'slack-threads', 'secret-notes', 'file-transfer',
+    'item-list-note', 'session-1']
+  for (const l of yes) assert.ok(canMergeBack(l), l)
+  for (const l of ['remote-desktop', 'remote-calendar', 'quick-capture', 'item-list-todo']) assert.ok(!canMergeBack(l), l)
+  // A file viewer has the button only when a session opened it.
+  assert.ok(!canMergeBack('fileviewer-1'))
+  assert.ok(!canMergeBack('fileviewer-1', { projectId: 'p1' }))
+  assert.ok(canMergeBack('fileviewer-1', { runId: 'r1' }))
+})
+
+test('runMergeBack runs what the window registered, and nothing after it unregisters', async () => {
+  assert.equal(await runMergeBack(), false)
+  let calls = 0
+  const off = registerMergeBack(async () => { calls++ })
+  assert.equal(await runMergeBack(), true)
+  assert.equal(calls, 1)
+  off()
+  assert.equal(await runMergeBack(), false)
+})
+
+test('registerMergeBack: an old unregister does not drop a newer registration', async () => {
+  const offOld = registerMergeBack(async () => {})
+  let ran = false
+  const offNew = registerMergeBack(async () => { ran = true })
+  offOld()
+  assert.equal(await runMergeBack(), true)
+  assert.ok(ran)
+  offNew()
+})
+
+test('isCloseCardKey: Delete is a text key while the filter has text', () => {
+  const ev = (o) => ({ key: '', code: '', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...o })
+  assert.equal(isCloseCardKey(ev({ key: 'Delete' }), false, true), false)
+  assert.equal(isCloseCardKey(ev({ key: 'Delete' }), false, false), true)
+  assert.equal(isCloseCardKey(ev({ key: 'w', code: 'KeyW', ctrlKey: true }), false, true), true)
+  assert.equal(isCloseCardKey(ev({ key: 'w', code: 'KeyW', metaKey: true }), true, false), true)
+  assert.equal(isCloseCardKey(ev({ key: 'w', code: 'KeyW', ctrlKey: true }), true, false), false)
+  assert.equal(isCloseCardKey(ev({ key: 'w', code: 'KeyW', metaKey: true, shiftKey: true }), true, false), false)
 })
 
 test('cardsFrom: drops the main window and builds the second lines', () => {

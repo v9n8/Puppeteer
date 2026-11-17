@@ -8,6 +8,7 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { emit } from '@tauri-apps/api/event'
 import { trackWindowForTray } from '@/lib/tray'
+import { loadWindowMeta, recordWindow } from '@/lib/windowRegistry'
 import { nextCascadePosition } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
 import { fileWindowQuery } from '@/lib/fileWindowCore'
@@ -79,6 +80,11 @@ export async function openFileWindow(
       await existing.show()
       await existing.setFocus()
       await emit(FILE_WINDOW_ORIGIN, { label, originRunId: originRunId ?? null } satisfies FileWindowOrigin)
+      // The overlay enables "Move back" only for a file a session opened.
+      const meta = { ...loadWindowMeta()[label] }
+      if (originRunId) meta.runId = originRunId
+      else delete meta.runId
+      recordWindow(label, meta)
     } catch { /* window may be mid-teardown */ }
     return
   }
@@ -102,5 +108,5 @@ export async function openFileWindow(
   // The open-windows overlay shows "Project · folder" under the file's name.
   const projectId = useProjectsStore().projects.find((p) => p.path === projectPath)?.id
   const slash = path.lastIndexOf('/')
-  trackWindowForTray(win, { ...(projectId ? { projectId } : {}), folder: slash > 0 ? path.slice(0, slash) : '' })
+  trackWindowForTray(win, { ...(projectId ? { projectId } : {}), ...(originRunId ? { runId: originRunId } : {}), folder: slash > 0 ? path.slice(0, slash) : '' })
 }

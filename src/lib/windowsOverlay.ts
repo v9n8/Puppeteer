@@ -24,6 +24,7 @@ export interface WindowCard {
   status?: WindowRunStatus
   minimized: boolean
   isHere: boolean
+  canMerge: boolean
 }
 
 export interface WindowInfo {
@@ -89,17 +90,57 @@ export function kindOfLabel(label: string): WindowKindTag | null {
   return 'screen'
 }
 
-/** The label of a screen window → its screen and route, for the windows with a "Move back to main window" (lib/detachedScreens). */
-export const MERGE_BACK_SCREENS: Readonly<Record<string, { screen: string; path: string }>> = {
-  calendar: { screen: 'calendar', path: '/calendar' },
-  gantt: { screen: 'gantt', path: '/gantt' },
-  'pr-inbox': { screen: 'pr-inbox', path: '/pr-inbox' },
-  settings: { screen: 'settings', path: '/settings' },
+/** Screen windows (fixed label, or a prefix) whose own header has "Move back to main window". */
+const MERGE_BACK_LABELS: readonly string[] = [
+  'calendar', 'gantt', 'pr-inbox', 'settings', 'focus', 'slack-threads', 'secret-notes', 'file-transfer',
+  // The todo list window has no such button, only the notes one.
+  'item-list-note',
+]
+
+/**
+ * Whether "Move back to main window" works for this window: only the windows that really have the
+ * button. A file viewer has it only when a session opened it (`meta.runId`).
+ */
+export function canMergeBack(label: string, meta?: WindowMeta): boolean {
+  const kind = kindOfLabel(label)
+  if (kind === 'session') return true
+  if (kind === 'file') return !!meta?.runId
+  return MERGE_BACK_LABELS.includes(label)
 }
 
-/** Whether "Move back to main window" works for this window (the others have no such button). */
-export function canMergeBack(label: string): boolean {
-  return label in MERGE_BACK_SCREENS
+// The window's own "Move back" control (MergeBackButton, the session header, the file viewer) registers
+// what it does, so the overlay of another window runs the SAME function: unsaved-edit prompt, the
+// section or item being viewed, all kept.
+let mergeBackAction: (() => Promise<void>) | null = null
+
+/** Register this window's "Move back to main window"; returns the function that unregisters it. */
+export function registerMergeBack(run: () => Promise<void>): () => void {
+  mergeBackAction = run
+  return () => {
+    if (mergeBackAction === run) mergeBackAction = null
+  }
+}
+
+/** Run this window's "Move back to main window". False when this window registered none. */
+export async function runMergeBack(): Promise<boolean> {
+  if (!mergeBackAction) return false
+  await mergeBackAction()
+  return true
+}
+
+interface CloseKeyEvent {
+  key: string
+  code: string
+  metaKey: boolean
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+}
+
+/** Delete / ⌘W (Ctrl+W) closes the selected card; Delete is a text key while the filter has text in it. */
+export function isCloseCardKey(ev: CloseKeyEvent, isMac: boolean, typingInFilter: boolean): boolean {
+  if (ev.key === 'Delete') return !typingInFilter
+  return (isMac ? ev.metaKey : ev.ctrlKey) && !ev.shiftKey && !ev.altKey && ev.code === 'KeyW'
 }
 
 /** One card per private window, in label order. */
@@ -114,7 +155,10 @@ export function cardsFrom(
   for (const w of windows) {
     const kind = kindOfLabel(w.label)
     if (!kind) continue
-    const base = { label: w.label, kind, minimized: w.minimized, isHere: w.label === hereLabel }
+    const base = {
+      label: w.label, kind, minimized: w.minimized, isHere: w.label === hereLabel,
+      canMerge: canMergeBack(w.label, meta[w.label]),
+    }
     // The vault never shows anything of its content: no OS title, no meta, no status (QĐ-18).
     if (kind === 'secret') {
       cards.push({ ...base, title: ctx.nameOf(w.label, ''), sub: '' })

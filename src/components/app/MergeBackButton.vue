@@ -3,11 +3,12 @@
 // window opens the screen and this window closes (lib/detachedScreens). Only for
 // detachable screens — the permission prompt, Quick capture and Remote desktop
 // always live in their own window. Below 900 px only the icon is left.
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SquareArrowDownLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { mergeScreen } from '@/lib/detachedScreens'
+import { registerMergeBack } from '@/lib/windowsOverlay'
 import type { DetachableScreen } from '@/lib/windowPlacement'
 
 const props = defineProps<{
@@ -37,6 +38,15 @@ async function merge() {
     busy.value = false
   }
 }
+
+// The "Open windows" overlay of another window asks this window to run the same move.
+let unregister: (() => void) | null = null
+onMounted(() => {
+  unregister = registerMergeBack(async () => {
+    if (!props.lockedTip) await merge()
+  })
+})
+onBeforeUnmount(() => unregister?.())
 </script>
 
 <template>

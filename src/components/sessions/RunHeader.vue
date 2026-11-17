@@ -12,11 +12,12 @@ import SessionTitle from '@/components/sessions/SessionTitle.vue'
 import SessionFlagChip from '@/components/sessions/SessionFlagChip.vue'
 import SessionBookmarksMenu from '@/components/sessions/SessionBookmarksMenu.vue'
 import { useRunSession } from './useRunSession'
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { emit as emitEvent } from '@tauri-apps/api/event'
 import { projectPageQuery, type ProjectSectionId } from '@/lib/projectSections'
 import { sessionHeaderMenu } from '@/lib/sessionHeaderMenu'
 import { dockSessionToMain } from '@/lib/sessionWindow'
+import { registerMergeBack } from '@/lib/windowsOverlay'
 import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute } from '@/lib/detachedScreens'
 import { titleEditRequest } from './titleEditRequest'
 
@@ -42,6 +43,14 @@ function openProjectScreen(section?: ProjectSectionId) {
 
 function dock() {
   if (currentRun.value) void dockSessionToMain(currentRun.value.id, projectId.value)
+}
+
+// The "Open windows" overlay of another window asks this session window to move back.
+if (isSessionWindow) {
+  const unregister = registerMergeBack(async () => {
+    if (currentRun.value) await dockSessionToMain(currentRun.value.id, projectId.value)
+  })
+  onBeforeUnmount(unregister)
 }
 </script>
 

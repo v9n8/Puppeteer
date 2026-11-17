@@ -13,16 +13,14 @@ import { Button, ContextMenu, DropdownItem, DropdownSeparator } from '@/componen
 import WindowCard from '@/components/windows/WindowCard.vue'
 import { useToast } from '@/composables/useToast'
 import { IS_MAC, effectiveKeymap, hasNativeMenu } from '@/lib/appMenu'
-import { mergeScreen } from '@/lib/detachedScreens'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { OPEN_WINDOWS_ACTION, formatAccelerator, matchesAccelerator } from '@/lib/keymap'
 import { closeWindow, minimizeWindow, raiseWindow, requestMergeBack } from '@/lib/openWindowsActions'
-import type { DetachableScreen } from '@/lib/windowPlacement'
 import { loadRecentWindows } from '@/lib/windowRegistry'
 import { thumbFor } from '@/lib/windowThumbs'
 import {
-  GROUP_STORAGE_KEY, MERGE_BACK_SCREENS, WINDOWS_OVERLAY_OPEN, WINDOW_MERGE_REQUEST,
-  canMergeBack, cycleSelection, filterCards, flattenGroups, groupCards, initialSelection,
+  GROUP_STORAGE_KEY, WINDOWS_OVERLAY_OPEN, WINDOW_MERGE_REQUEST,
+  isCloseCardKey, runMergeBack, cycleSelection, filterCards, flattenGroups, groupCards, initialSelection,
   moveSelection, parseGroupBy, selectionAfterClose, type GroupBy, type MoveDirection, type WindowTargeted,
 } from '@/lib/windowsOverlay'
 import { useOpenWindowsStore } from '@/stores/openWindows'
@@ -113,6 +111,9 @@ watch(selected, async (label) => {
   root.value?.querySelector(`[data-window-label="${CSS.escape(label)}"]`)?.scrollIntoView({ block: 'nearest' })
 })
 
+// Time for closed windows to leave the list before it is read again.
+const CLOSE_SETTLE_MS = 300
+
 function close() {
   store.open = false
 }
@@ -152,12 +153,17 @@ async function closeAllWindows() {
   const here = labels.includes(store.here) ? store.here : null
   confirmAll.value = false
   close()
-  toast.success(t('windows.closed', { count: labels.length }, labels.length))
   // Closing this window too: the main one comes to the front first.
   if (here) await raiseWindow('main')
-  await Promise.all(labels.filter((l) => l !== here).map((l) => closeWindow(l).catch(() => {})))
-  if (here) await closeWindow(here).catch(() => {})
-  void store.refresh()
+  await Promise.all(
+    labels.filter((l) => l !== here).map((l) => closeWindow(l).catch((e) => console.error('[WindowsOverlay] cannot close', l, e))),
+  )
+  if (here) await closeWindow(here).catch((e) => console.error('[WindowsOverlay] cannot close', here, e))
+  // A window with unsaved changes may stay (the user kept it): count what is really gone.
+  await new Promise((r) => setTimeout(r, CLOSE_SETTLE_MS))
+  await store.refresh()
+  const closed = labels.length - store.cards.filter((c) => labels.includes(c.label)).length
+  if (closed > 0) toast.success(t('windows.closed', { count: closed }, closed))
 }
 
 function openMenu(e: MouseEvent, label: string) {
@@ -219,8 +225,8 @@ function onKeydown(e: KeyboardEvent) {
     void activate(selected.value)
     return
   }
-  const closeKey = e.key === 'Delete' || ((IS_MAC ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyW')
-  if (closeKey && selected.value) {
+  const typingInFilter = e.target === filterInput.value && query.value !== ''
+  if (isCloseCardKey(e, IS_MAC, typingInFilter) && selected.value) {
     e.preventDefault()
     void closeCard(selected.value)
     return
@@ -247,11 +253,7 @@ onMounted(() => {
   void onTargeted(WINDOWS_OVERLAY_OPEN, () => store.openOrCycle())
   // This window's own "Move back to main window", asked from the overlay of another window.
   void onTargeted(WINDOW_MERGE_REQUEST, () => {
-    const target = MERGE_BACK_SCREENS[store.here]
-    if (!target) return
-    void mergeScreen({ screen: target.screen as DetachableScreen, path: target.path }).catch((e) =>
-      console.error('[WindowsOverlay] cannot move back to the main window', e),
-    )
+    void runMergeBack().catch((e) => console.error('[WindowsOverlay] cannot move back to the main window', store.here, e))
   })
 })
 
@@ -367,7 +369,7 @@ onBeforeUnmount(() => {
         <span class="flex-1">{{ t('windows.open') }}</span>
         <span class="text-xs text-muted-foreground">Enter</span>
       </DropdownItem>
-      <DropdownItem :disabled="!menuCard || !canMergeBack(menuCard.label)" @click="mergeCard(menu!.label)">
+      <DropdownItem :disabled="!menuCard || !menuCard.canMerge" @click="mergeCard(menu!.label)">
         <SquareArrowDownLeft class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
         <span class="flex-1">{{ t('windows.mergeBack') }}</span>
       </DropdownItem>

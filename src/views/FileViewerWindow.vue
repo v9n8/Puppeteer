@@ -14,6 +14,7 @@ import { Pin, PinOff, SquareArrowDownLeft } from 'lucide-vue-next'
 import { FILE_DELETED_EVENT, FILE_MOVED_EVENT } from '@/lib/fileEvents'
 import FileViewer from '@/components/FileViewer.vue'
 import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
+import { registerMergeBack } from '@/lib/windowsOverlay'
 import { FILE_WINDOW_ORIGIN, dockFileWindow, openFileWindow, type FileWindowOrigin } from '@/lib/fileWindow'
 import { parseFileWindowQuery } from '@/lib/fileWindowCore'
 import { pickQuoteRun, type QuoteSource } from '@/lib/quote'
@@ -173,6 +174,10 @@ async function dockBack() {
     docking.value = false
   }
 }
+
+// The "Open windows" overlay of another window asks this window to move back.
+const unregisterMergeBack = registerMergeBack(dockBack)
+onBeforeUnmount(unregisterMergeBack)
 </script>
 
 <template>
