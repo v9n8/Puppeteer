@@ -48,7 +48,7 @@ const TONES: Record<ToastVariant, string> = {
           <button
             v-if="t.action"
             type="button"
-            class="shrink-0 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-accent"
+            class="inline-flex min-h-7 shrink-0 items-center rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-accent"
             @click.stop="runAction(t.id, t.action)"
           >
             {{ t.action.label }}

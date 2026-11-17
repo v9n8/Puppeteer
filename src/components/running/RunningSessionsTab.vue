@@ -183,6 +183,10 @@ function openProjects() {
 
 const loading = computed(() => projectsStore.loading && projectsStore.projects.length === 0)
 const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.status === 'wait').length === 0 && finished.value.length === 0)
+
+// The page header owns the "Stop all" button and reads these through a template ref.
+const canStopAll = computed(() => !loading.value && !empty.value && shown.value.length > 0)
+defineExpose({ canStopAll, stopAll })
 </script>
 
 <template>
@@ -205,7 +209,7 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
     <template v-else>
       <!-- Filters -->
       <div class="flex shrink-0 flex-wrap items-center gap-2 px-6 pt-4">
-        <SegmentedControl v-model="status" :options="statusOptions" :stretch="false" />
+        <SegmentedControl v-model="status" :options="statusOptions" :stretch="false" class="[&_button]:min-h-7" />
         <AppSelect
           v-model="projectId"
           :options="projectOptions"
@@ -214,15 +218,6 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
           class="w-44"
         />
         <span class="ml-auto text-2xs text-muted-foreground max-[901px]:hidden">{{ t('processes.running.filter.sort') }}</span>
-        <Button
-          v-if="shown.length > 0"
-          variant="destructive"
-          :title="t('processes.running.action.stopAllTitle')"
-          @click="stopAll"
-        >
-          <CircleStop class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ t('processes.running.action.stopAll') }}
-        </Button>
       </div>
 
       <!-- Selection bar -->
@@ -246,14 +241,16 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
         <div class="rounded-[10px] border border-border bg-card">
           <!-- Header -->
           <div class="flex min-w-0 items-center gap-2 rounded-t-[10px] border-b border-border bg-muted px-3 text-[13px] font-semibold" style="height: 36px">
-            <input
-              type="checkbox"
-              class="h-4 w-4 shrink-0 cursor-pointer accent-primary"
-              :checked="allSelected"
-              :disabled="shown.length === 0"
-              :aria-label="t('processes.running.action.selectAll')"
-              @change="toggleAll"
-            />
+            <label class="-mx-1.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center">
+              <input
+                type="checkbox"
+                class="h-4 w-4 cursor-pointer accent-primary"
+                :checked="allSelected"
+                :disabled="shown.length === 0"
+                :aria-label="t('processes.running.action.selectAll')"
+                @change="toggleAll"
+              />
+            </label>
             <span class="w-[108px] shrink-0 max-[901px]:w-5 max-[901px]:overflow-hidden max-[901px]:text-transparent">{{ t('processes.running.col.status') }}</span>
             <span class="min-w-0 flex-1">{{ t('processes.running.col.session') }}</span>
             <span class="w-[230px] shrink min-w-0 max-[901px]:w-[150px]">{{ t('processes.running.col.doing') }}</span>
@@ -274,13 +271,15 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
               :class="selected.has(r.runId) && 'bg-accent'"
               @keydown="onRowKey($event, r.runId)"
             >
-              <input
-                type="checkbox"
-                class="h-4 w-4 shrink-0 cursor-pointer accent-primary"
-                :checked="selected.has(r.runId)"
-                :aria-label="t('processes.running.action.selectRow', { title: r.title })"
-                @change="toggle(r.runId)"
-              />
+              <label class="-mx-1.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 cursor-pointer accent-primary"
+                  :checked="selected.has(r.runId)"
+                  :aria-label="t('processes.running.action.selectRow', { title: r.title })"
+                  @change="toggle(r.runId)"
+                />
+              </label>
               <span class="flex w-[108px] shrink-0 items-center gap-1.5 text-[13px] font-medium max-[901px]:w-5" :class="STATUS_TONE[r.status]" :title="statusLabel(r)">
                 <component :is="STATUS_ICON[r.status]" class="h-4 w-4 shrink-0" :class="r.status === 'run' && 'animate-spin'" :stroke-width="2" />
                 <span class="truncate max-[901px]:hidden">{{ statusLabel(r) }}</span>
@@ -296,13 +295,13 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                 <template v-if="r.doing.kind === 'permission'">
                   <span class="block truncate" :title="r.doing.arg">
                     <span class="font-medium text-warning">{{ t('processes.running.doing.permission', { tool: r.doing.name }) }}</span>
-                    <span class="font-mono text-muted-foreground"> {{ r.doing.arg }}</span>
+                    {{ ' ' }}<span class="font-mono text-muted-foreground">{{ r.doing.arg }}</span>
                   </span>
                 </template>
                 <template v-else-if="r.doing.kind === 'tool'">
                   <span class="block truncate" :title="r.doing.name + ' ' + r.doing.arg">
                     <span class="font-medium">{{ r.doing.name }}</span>
-                    <span class="font-mono text-muted-foreground"> {{ r.doing.arg }}</span>
+                    {{ ' ' }}<span class="font-mono text-muted-foreground">{{ r.doing.arg }}</span>
                   </span>
                 </template>
                 <span v-else-if="r.doing.kind === 'workers'" class="block truncate text-muted-foreground">
@@ -363,7 +362,7 @@ const empty = computed(() => rows.value.filter((r) => r.status === 'run' || r.st
                   <span class="font-medium" :class="w.doing.kind === 'permission' && 'text-warning'">
                     {{ w.doing.kind === 'permission' ? t('processes.running.doing.permission', { tool: w.doing.name }) : w.doing.name }}
                   </span>
-                  <span class="font-mono text-muted-foreground"> {{ w.doing.arg }}</span>
+                  {{ ' ' }}<span class="font-mono text-muted-foreground">{{ w.doing.arg }}</span>
                 </template>
                 <span v-else class="text-muted-foreground">—</span>
               </span>

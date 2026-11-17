@@ -143,7 +143,7 @@ const tabHint = computed(() => ({
             {{ t('settings.sessions.nowPrefix') }}
             <template v-for="(e, i) in now5h" :key="e.label">
               <span v-if="i > 0"> · </span>
-              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale"> {{ t('settings.sessions.nowStale') }}</template></span>
+              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale">{{ ' ' }}{{ t('settings.sessions.nowStale') }}</template></span>
             </template>
           </p>
         </SettingsRow>
@@ -153,7 +153,7 @@ const tabHint = computed(() => ({
             {{ t('settings.sessions.nowPrefix') }}
             <template v-for="(e, i) in nowWeek" :key="e.label">
               <span v-if="i > 0"> · </span>
-              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale"> {{ t('settings.sessions.nowStale') }}</template></span>
+              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale">{{ ' ' }}{{ t('settings.sessions.nowStale') }}</template></span>
             </template>
           </p>
         </SettingsRow>

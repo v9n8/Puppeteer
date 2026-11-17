@@ -3,10 +3,11 @@
 // "Session") and everything Puppeteer started in the background (tab "Background
 // processes"). The tab lives in `?tab=`; `?run=` asks the processes tab to scroll
 // to one Session's group.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { PageHeader } from '@/components/ui'
+import { CircleStop } from 'lucide-vue-next'
+import { Button, PageHeader } from '@/components/ui'
 import RunningSessionsTab from '@/components/running/RunningSessionsTab.vue'
 import BackgroundProcessesTab from '@/components/running/BackgroundProcessesTab.vue'
 import { useRunningRows } from '@/composables/useRunningRows'
@@ -22,6 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const { rows } = useRunningRows()
 const procs = useBackgroundProcessesStore()
+const sessionsTab = ref<InstanceType<typeof RunningSessionsTab> | null>(null)
 
 const tab = computed<Tab>(() => (route.query.tab === 'processes' ? 'processes' : 'session'))
 const focusRunId = computed(() => (typeof route.query.run === 'string' ? route.query.run : null))
@@ -47,7 +49,19 @@ function viewProcesses(runId: string) {
 
 <template>
   <div class="flex h-full flex-col">
-    <PageHeader :title="t('processes.running.title')" />
+    <PageHeader :title="t('processes.running.title')">
+      <template #actions>
+        <Button
+          v-if="tab === 'session' && sessionsTab?.canStopAll"
+          variant="destructive"
+          :title="t('processes.running.action.stopAllTitle')"
+          @click="sessionsTab.stopAll()"
+        >
+          <CircleStop class="h-3.5 w-3.5" :stroke-width="1.75" />
+          {{ t('processes.running.action.stopAll') }}
+        </Button>
+      </template>
+    </PageHeader>
     <div class="flex shrink-0 gap-1 border-b border-border/60 px-6" role="tablist">
       <button
         v-for="x in tabs"
@@ -66,7 +80,7 @@ function viewProcesses(runId: string) {
       </button>
     </div>
     <div class="min-h-0 flex-1">
-      <RunningSessionsTab v-show="tab === 'session'" class="h-full" @view-processes="viewProcesses" />
+      <RunningSessionsTab ref="sessionsTab" v-show="tab === 'session'" class="h-full" @view-processes="viewProcesses" />
       <BackgroundProcessesTab v-if="tab === 'processes'" :focus-run-id="focusRunId" class="h-full" />
     </div>
   </div>
