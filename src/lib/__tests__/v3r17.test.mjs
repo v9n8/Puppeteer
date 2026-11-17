@@ -19,8 +19,8 @@ test('Limits: percent and "(stale)" are separated by an explicit space', () => {
   assert.match(limits, /\{\{ e\.percent \}\}%<template v-if="e\.stale">\{\{ ' ' \}\}\{\{ t\('settings\.sessions\.nowStale'\) \}\}/)
 })
 
-test('Running tab: filter chips are at least 28px high', () => {
-  assert.match(tab, /<SegmentedControl[^>]*\[&_button\]:min-h-7/)
+test('Running tab: filter chips use the shared 24px SegmentedControl (no per-screen height override)', () => {
+  assert.doesNotMatch(tab, /<SegmentedControl[^>]*min-h-7/)
 })
 
 test('Running tab: row checkboxes sit in a 28px hit area', () => {

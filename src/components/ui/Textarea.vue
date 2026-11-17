@@ -10,7 +10,8 @@ import { controlSize, fieldBase } from './controlStyles'
 defineOptions({ inheritAttrs: false })
 
 const textarea = cva(`${fieldBase} resize-y`, {
-  variants: { size: { ...controlSize } },
+  // `sm`: padding 8px 10px and 19.5px line-height (mockup); cn() lets py-2 win over py-1.5.
+  variants: { size: { ...controlSize, sm: `${controlSize.sm} py-2 leading-[calc(1.21875rem*var(--text-scale))]` } },
   defaultVariants: { size: 'sm' },
 })
 

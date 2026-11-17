@@ -88,7 +88,7 @@ table. Weights: 400 body, 500 labels/badges, 600 titles — no 300.
 | `sm` | 32px `h-8` | `size="sm"` (default) | `size="sm"` (default) | `size="icon"` |
 | `md` | 36px `h-9` | `size="md"` | `size="md"` | `size="icon-lg"` |
 
-Heights come from `controlHeight` in `controlStyles.ts`. Controls placed in the
+Heights come from `controlHeight` in `controlStyles.ts`. Fields have a 10px side padding; Input `md` is the 36px / 14px search field of the mockup; AppSelect has a `--input` border on a `--card` background and `0 8px 0 10px` padding. Controls placed in the
 same row must use the same size, so their edges line up. Never override height
 with `class="h-…"` on a shared control.
 
@@ -123,7 +123,7 @@ Every icon-only button needs `:title` and `:aria-label`.
   notes): `listDetail/ListDetailSidebar` (280px) + right pane with
   `listDetail/DetailHeader`, body of `listDetail/DetailSection`s, and
   `listDetail/DetailEmpty` when nothing is selected.
-- **Switchers** (filters, view modes, auth method): `SegmentedControl`.
+- **Switchers** (filters, view modes, auth method): `SegmentedControl` — 30px bordered track, 24px segments; `radio` gives a `radiogroup` (Trash search mode).
 - **Dropdowns**: `AppSelect` for values, `DropdownMenu` + `DropdownItem` for actions.
 - **Dialogs**: `Modal`, `ConfirmModal`, `PromptModal`, `Drawer` — never a custom overlay.
 - **On/off**: `ToggleSwitch` — `size="sm"` in list rows/cards, `size="md"` in

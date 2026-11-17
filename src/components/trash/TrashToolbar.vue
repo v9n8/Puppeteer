@@ -4,7 +4,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, ChevronDown, Search } from 'lucide-vue-next'
-import { Button, DropdownItem, DropdownMenu, Input } from '@/components/ui'
+import { Button, DropdownItem, DropdownMenu, Input, SegmentedControl } from '@/components/ui'
 import { TRASH_SORTS, type TrashSearchMode, type TrashSort } from '@/lib/trash'
 
 const props = defineProps<{
@@ -27,9 +27,17 @@ const { t } = useI18n()
 const sortLabel = computed(() => t(`trash.sort.${props.sort}`))
 const modes: TrashSearchMode[] = ['name', 'content']
 
-function lockedTitle(mode: TrashSearchMode): string | undefined {
-  return mode === 'content' && props.contentLocked ? t('trash.content.locked') : undefined
-}
+const modeOptions = computed(() =>
+  modes.map((m) => {
+    const locked = m === 'content' && props.contentLocked
+    return {
+      value: m,
+      label: t(`trash.search.mode.${m}`),
+      disabled: locked,
+      title: locked ? t('trash.content.locked') : undefined,
+    }
+  }),
+)
 
 // Esc clears the text; with nothing typed it keeps its usual meaning.
 function onEscape(e: KeyboardEvent) {
@@ -46,26 +54,14 @@ function onEnter() {
 
 <template>
   <div class="flex items-center gap-2 border-b border-border px-6 py-2">
-    <div
-      class="flex shrink-0 rounded-md bg-muted p-0.5 text-xs font-medium"
-      role="radiogroup"
+    <SegmentedControl
+      radio
+      :stretch="false"
       :aria-label="t('trash.search.by')"
-    >
-      <button
-        v-for="m in modes"
-        :key="m"
-        type="button"
-        role="radio"
-        class="min-h-7 cursor-pointer rounded px-2.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        :class="mode === m ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:text-foreground'"
-        :aria-checked="mode === m"
-        :disabled="m === 'content' && contentLocked"
-        :title="lockedTitle(m)"
-        @click="emit('update:mode', m)"
-      >
-        {{ t(`trash.search.mode.${m}`) }}
-      </button>
-    </div>
+      :model-value="mode"
+      :options="modeOptions"
+      @update:model-value="emit('update:mode', $event)"
+    />
     <div class="relative min-w-0 flex-1">
       <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" :stroke-width="2" />
       <Input

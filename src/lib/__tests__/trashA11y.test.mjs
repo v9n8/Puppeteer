@@ -18,3 +18,11 @@ test('Trash toolbar: Search button label follows its text and is 32px wide when 
   assert.match(src, /max-\[901px\]:w-8/)
   assert.match(src, /max-\[901px\]:px-0/)
 })
+
+test('Trash toolbar: search mode is the shared SegmentedControl in radio mode, content option disabled + titled when locked', () => {
+  const src = read('TrashToolbar.vue')
+  assert.match(src, /<SegmentedControl\s+radio/)
+  assert.doesNotMatch(src, /role="radiogroup"/)
+  assert.match(src, /disabled: locked/)
+  assert.match(src, /title: locked \? t\('trash\.content\.locked'\)/)
+})

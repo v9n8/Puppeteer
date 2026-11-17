@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ChevronDown, Check } from 'lucide-vue-next'
-import { controlHeight, controlSize } from './ui/controlStyles'
+import { controlHeight, selectOption, selectSize } from './ui/controlStyles'
 
 interface Option {
   value: string
@@ -219,14 +219,14 @@ watch(isOpen, (val) => {
       :aria-label="ariaLabel ?? displayLabel"
       class="flex w-full items-center gap-2 rounded-md border transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
       :class="[
-        controlSize[size],
+        selectSize[size],
         // Same fixed height as Button / Input of this size.
         controlHeight[size],
         variant === 'ghost'
           ? 'border-transparent bg-transparent hover:bg-accent hover:text-accent-foreground'
           : variant === 'outline'
-            ? 'border-border bg-secondary shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-primary/40'
-            : 'border-border bg-background hover:bg-accent hover:text-accent-foreground',
+            ? 'border-input bg-card hover:bg-accent hover:text-accent-foreground'
+            : 'border-input bg-card hover:bg-accent hover:text-accent-foreground',
         isOpen && variant !== 'ghost' && 'border-ring ring-1 ring-ring',
         isOpen && variant === 'ghost' && 'bg-accent text-accent-foreground',
       ]"
@@ -285,7 +285,7 @@ watch(isOpen, (val) => {
             :title="option.tooltip"
             class="relative flex items-start gap-2 cursor-pointer select-none transition-colors"
             :class="[
-              size === 'md' ? controlSize.md : controlSize.sm,
+              size === 'md' ? selectOption.md : selectOption.sm,
               highlightedIndex === i
                 ? 'bg-accent text-accent-foreground'
                 : 'text-foreground',

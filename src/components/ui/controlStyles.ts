@@ -10,6 +10,20 @@
 export const controlSize = {
   /** Same font as Button `xs` (compact controls in a row of xs buttons). */
   xs: 'px-2.5 py-1 text-2xs',
+  sm: 'px-2.5 py-1.5 text-xs',
+  // 14px (`text-md`): the mockup's larger search field.
+  md: 'px-2.5 py-2 text-md',
+} as const
+
+/** AppSelect trigger: the mockup's `0 8px 0 10px` padding (height is fixed by `controlHeight`). */
+export const selectSize = {
+  xs: 'pl-2.5 pr-2 py-0 text-2xs',
+  sm: 'pl-2.5 pr-2 py-0 text-xs',
+  md: 'pl-2.5 pr-2 py-0 text-sm',
+} as const
+
+/** AppSelect dropdown options (unchanged from the old `sm` / `md`). */
+export const selectOption = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-3 py-2 text-sm',
 } as const

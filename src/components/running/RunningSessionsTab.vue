@@ -209,7 +209,7 @@ defineExpose({ canStopAll, stopAll })
     <template v-else>
       <!-- Filters -->
       <div class="flex shrink-0 flex-wrap items-center gap-2 px-6 pt-4">
-        <SegmentedControl v-model="status" :options="statusOptions" :stretch="false" class="[&_button]:min-h-7" />
+        <SegmentedControl v-model="status" :options="statusOptions" :stretch="false" />
         <AppSelect
           v-model="projectId"
           :options="projectOptions"
