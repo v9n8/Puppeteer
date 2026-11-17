@@ -21,6 +21,9 @@ import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewW
 import { trackWindowForTray } from '@/lib/tray'
 import { centerOnCurrentMonitor } from '@/lib/windowCascade'
 import { popoutLabel, popoutUrl } from '@/lib/popout'
+import { whenWindowCreated } from '@/lib/windowCreated'
+import { useToast } from '@/composables/useToast'
+import { i18n } from '@/i18n'
 import { WINDOW_OPEN_RUN, type WindowOpenRun } from '@/lib/sessionLinks'
 
 // Small deterministic string hash (djb2) → a stable, label-safe window id per run.
@@ -85,9 +88,13 @@ export async function openSessionWindow(
     // Open on the monitor the user is working on, not the primary screen.
     ...(await centerOnCurrentMonitor(1000, 720)),
   })
-  win.once('tauri://error', (e) => {
+  try {
+    await whenWindowCreated(win)
+  } catch (e) {
     console.error('[sessionWindow] failed to open window', e)
-  })
+    useToast().toast.error(i18n.global.t('nav.windowOpenFailed', { error: String(e) }))
+    return null
+  }
   // Keep the menu-bar switcher in sync as this window comes and goes. The window
   // also sets its own OS title from the run name (App.vue), which refreshes the
   // tray again once that lands — this just covers the open/close edges.

@@ -5,7 +5,6 @@
 // release notes, lib/whatsNew). `?release=<version>` opens that release and
 // scrolls to it (the launch toast's "See what's new").
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getVersion } from '@tauri-apps/api/app'
 import { ChevronRight, Globe, RefreshCw, Sparkles } from 'lucide-vue-next'
@@ -17,7 +16,7 @@ import { updateLine } from '@/lib/updateStatus'
 import { RELEASES, kindCounts, noteText, type Release } from '@/lib/whatsNew'
 
 const { t, locale } = useI18n()
-const route = useRoute()
+const props = defineProps<{ release?: string }>()
 const features = useFeaturesStore()
 const { state, lastCheckedAt, installing, check, install } = useUpdateCheck()
 
@@ -52,7 +51,7 @@ function toggle(r: Release) {
 }
 
 watch(
-  () => route.query.release,
+  () => props.release,
   async (v) => {
     if (typeof v !== 'string') return
     const hit = RELEASES.find((r) => r.version === v)

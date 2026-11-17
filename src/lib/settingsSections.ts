@@ -83,6 +83,8 @@ export interface SettingsPlace {
   devicesTab?: 'remote' | 'backup'
   shortcutsTab?: 'palette' | 'keymap'
   connectionsFilter?: ConnectionTypeId
+  /** About: the release (`?release=`) to open and scroll to. */
+  release?: string
 }
 
 // Remote Control and Backup (once Sync) were sections of their own: now tabs of `devices`.
@@ -126,6 +128,7 @@ export function settingsLocation(place: SettingsPlace, extra: Record<string, str
   if (place.devicesTab) query.tab = place.devicesTab
   if (place.shortcutsTab) query.tab = place.shortcutsTab
   if (place.connectionsFilter) query.type = place.connectionsFilter
+  if (place.release) query.release = place.release
   return { path: `/settings/${place.section}`, query }
 }
 
@@ -170,5 +173,6 @@ export function settingsPlaceFromRoute(params: Record<string, unknown>, query: R
   if (place.section === 'devices' && (query.tab === 'remote' || query.tab === 'backup')) place.devicesTab = query.tab
   if (place.section === 'shortcuts' && (query.tab === 'palette' || query.tab === 'keymap')) place.shortcutsTab = query.tab
   if (place.section === 'connections' && isConnectionTypeId(query.type)) place.connectionsFilter = query.type
+  if (place.section === 'about' && typeof query.release === 'string' && query.release) place.release = query.release
   return place
 }

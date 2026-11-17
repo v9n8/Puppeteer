@@ -333,7 +333,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
 
         <!-- Version, updates and release notes. Mounted only while shown, so `?release=` scrolls on open. -->
         <div v-if="!loading && activeSection === 'about'" class="max-w-4xl">
-          <AboutSettings />
+          <AboutSettings :release="place.release" />
         </div>
 
         <!-- Command palette (⌘K) and the menu's shortcuts, as two tabs. -->

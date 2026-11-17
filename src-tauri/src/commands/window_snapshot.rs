@@ -40,14 +40,13 @@ pub async fn snapshot_windows(
     width: u32,
 ) -> Vec<WindowSnapshot> {
     let width = width.clamp(64, 1280);
+    let targets = snapshot_targets(&labels);
     let mut out = Vec::with_capacity(labels.len());
-    for label in labels {
-        let res = if is_snapshot_allowed(&label) {
-            shoot(&app, &label, width).await
-        } else {
-            Err("refused".to_string())
-        };
-        out.push(match res {
+    for label in labels.iter().filter(|l| !targets.contains(l)) {
+        out.push(WindowSnapshot { label: label.clone(), image: None, error: Some("refused".to_string()) });
+    }
+    for label in targets {
+        out.push(match shoot(&app, &label, width).await {
             Ok(image) => WindowSnapshot { label, image: Some(image), error: None },
             Err(e) => WindowSnapshot { label, image: None, error: Some(e) },
         });

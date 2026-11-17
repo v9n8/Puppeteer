@@ -190,3 +190,10 @@ test('mcpLegacyLocation: /mcp, /mcp/new and /mcp/<id>/edit land on Settings › 
   assert.deepEqual(mcpLegacyLocation({ new: '0', other: 'z' }), { path: '/settings/mcp', query: {} })
   assert.deepEqual(mcpLegacyLocation({}, 'abc'), { path: '/settings/mcp', query: { id: 'abc' } })
 })
+
+test('release of the About section survives the route and the window hand-off (F-R1-5)', () => {
+  const place = settingsPlaceFromRoute({ section: 'about' }, { release: '1.2.0' })
+  assert.equal(place.release, '1.2.0')
+  assert.deepEqual(settingsLocation(place).query, { release: '1.2.0' })
+  assert.equal(settingsPlaceFromRoute({ section: 'general' }, { release: '1.2.0' }).release, undefined)
+})

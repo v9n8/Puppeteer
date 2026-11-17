@@ -512,7 +512,7 @@ onMounted(async () => {
   <AppPopoutHost v-if="isPopoutWindow || isSessionWindow" />
 
   <div v-else class="app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden">
-    <!-- Unified title bar: brand + open-project tabs + global actions on ONE 44px
+    <!-- Unified title bar: brand + open-project tabs + global actions on ONE 40px
          row spanning the whole window, above both columns.
 
          This is the app's only chrome row. The sidebar has no brand header of

@@ -18,6 +18,7 @@
   "trash": "Thùng rác",
   "detachWindow": "Tách cửa sổ",
   "detachWindowTip": "Tách cửa sổ: mở {screen} ở cửa sổ riêng",
+  "windowOpenFailed": "Không mở được cửa sổ: {error}",
   "mergeBack": "Gộp về cửa sổ chính",
   "screenNames": {
     "tasks": "Việc",

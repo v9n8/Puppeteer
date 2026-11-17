@@ -18,6 +18,7 @@
   "trash": "Trash",
   "detachWindow": "Open in new window",
   "detachWindowTip": "Open {screen} in its own window",
+  "windowOpenFailed": "Could not open the window: {error}",
   "mergeBack": "Move back to main window",
   "screenNames": {
     "tasks": "Tasks",

@@ -85,7 +85,7 @@ const badge = computed(() => {
         draggable="false"
       />
       <span v-else-if="thumb.kind === 'loading'" class="absolute inset-0 animate-pulse bg-muted" :aria-label="t('windows.thumb.loading')" />
-      <component :is="icon" v-else class="h-10 w-10" :stroke-width="1.25" aria-hidden="true" />
+      <component :is="icon" v-else class="h-8 w-8" :stroke-width="1.25" aria-hidden="true" />
       <span v-if="badge" class="absolute bottom-1.5 left-1.5 rounded-full bg-card">
         <span
           class="inline-flex h-[22px] items-center rounded-full px-2 text-[13px] font-medium"
