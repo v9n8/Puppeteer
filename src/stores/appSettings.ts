@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { emit, listen } from '@tauri-apps/api/event'
 import { invoke } from '@/lib/tauri'
+import { notifySettingsChanged, startSettingsSync } from '@/lib/settingsSync'
 
 /**
  * Reactive mirror of the backend `AppSettings`, loaded once and shared across
@@ -63,9 +65,21 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const settings = ref<AppSettings | null>(null)
   const loaded = ref(false)
 
+  // One listener per window for the store's lifetime: a save made in another
+  // window (the Settings window) re-reads here (lib/settingsSync.ts).
+  let syncing = false
   async function refresh() {
+    if (!syncing) {
+      syncing = true
+      void startSettingsSync(listen, refresh)
+    }
     settings.value = await invoke<AppSettings>('get_settings')
     loaded.value = true
+  }
+
+  /** Call after a save succeeded so the other windows re-read `keys`. */
+  function notifyChanged(keys: string[]) {
+    return notifySettingsChanged(emit, keys)
   }
 
   /** Load once; subsequent calls are no-ops (use refresh() to force-reload). */
@@ -73,5 +87,5 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     if (!loaded.value) await refresh()
   }
 
-  return { settings, loaded, refresh, ensureLoaded }
+  return { settings, loaded, refresh, ensureLoaded, notifyChanged }
 })

@@ -185,6 +185,7 @@ async function confirmSave() {
     discard()
     // The save may have moved defaults: reload everything that shows them.
     await Promise.all([appSettings.refresh(), form.load(), projects.fetchProjects()])
+    void appSettings.notifyChanged(['enabled_models'])
     toast.success(t('settings.model.saved'))
   } catch (e) {
     toast.error(errorText(e, t))

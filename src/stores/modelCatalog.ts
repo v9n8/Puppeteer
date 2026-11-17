@@ -133,18 +133,16 @@ export const useModelCatalogStore = defineStore('modelCatalog', () => {
 
   /** Hydrate from the backend (no discovery, no probing). Loads once. */
   async function ensureLoaded(force = false) {
-    appSettings.ensureLoaded().catch(() => {})
+    appSettings.ensureLoaded().catch((e) => console.warn('[modelCatalog] settings load failed', e))
     if (loaded.value && !force) return
-    try {
-      const caches = await invoke<ModelCaches>('get_model_caches')
-      codexByAccount.value = caches.codex ?? {}
-      codexActiveKey.value = caches.codex_active_key || 'default'
-      validationByAccount.value = caches.claude_validation ?? {}
-      validationActiveKey.value = caches.claude_validation_active_key || 'default'
-      loaded.value = true
-    } catch {
-      // Leave whatever we have; screens fall back to curated lists.
-    }
+    // Throws when `get_model_caches` fails so Settings › Model can show its banner;
+    // pickers call it with `.catch` and fall back to the curated lists.
+    const caches = await invoke<ModelCaches>('get_model_caches')
+    codexByAccount.value = caches.codex ?? {}
+    codexActiveKey.value = caches.codex_active_key || 'default'
+    validationByAccount.value = caches.claude_validation ?? {}
+    validationActiveKey.value = caches.claude_validation_active_key || 'default'
+    loaded.value = true
   }
 
   /**
