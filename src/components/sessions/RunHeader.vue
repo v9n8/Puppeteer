@@ -99,7 +99,7 @@ function dock() {
           <template v-for="(block, i) in menuBlocks" :key="block">
             <DropdownSeparator v-if="i > 0 && block !== 'delete'" />
             <template v-if="block === 'openProjectIn'">
-              <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+              <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium text-muted-foreground/70">
                 {{ t('run.openProjectIn') }}
               </div>
               <DropdownItem :disabled="!project" @click="handleOpenInVscode">

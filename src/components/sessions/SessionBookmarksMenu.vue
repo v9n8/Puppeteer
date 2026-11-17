@@ -35,7 +35,7 @@ function whenLabel(createdAt: string): string {
       </Button>
     </template>
     <div class="max-h-96 w-[26rem] max-w-[80vw] overflow-y-auto">
-      <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
+      <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium text-foreground/40">
         {{ t('run.bookmarks.count', { n: placedBookmarks.length }) }}
       </div>
       <DropdownItem

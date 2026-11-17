@@ -83,7 +83,7 @@ function newTodo() {
       <div class="max-h-[24rem] overflow-y-auto">
         <!-- Slack threads: only when there are some -->
         <template v-if="enabled.slack && linked.threads.value.length">
-          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium text-muted-foreground/70">
             {{ t('run.infoBar.links.slackGroup', { n: linked.threads.value.length }) }}
           </div>
           <DropdownItem
@@ -102,7 +102,7 @@ function newTodo() {
 
         <!-- Todos: a tick box (flips the todo, keeps the menu open) + first line -->
         <template v-if="enabled.todos">
-          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium text-muted-foreground/70">
             {{ t('run.infoBar.links.todoGroup', { n: linked.todos.value.length }) }}
           </div>
           <p v-if="!linked.todos.value.length" class="px-2.5 py-1.5 text-2xs text-muted-foreground" @click.stop>
@@ -140,7 +140,7 @@ function newTodo() {
 
         <!-- Notes -->
         <template v-if="enabled.notes">
-          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium text-muted-foreground/70">
             {{ t('run.infoBar.links.noteGroup', { n: linked.notes.value.length }) }}
           </div>
           <p v-if="!linked.notes.value.length" class="px-2.5 py-1.5 text-2xs text-muted-foreground" @click.stop>

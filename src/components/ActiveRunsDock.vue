@@ -69,7 +69,7 @@ function seeAll() {
     <template v-else>
       <div class="flex items-center gap-1.5 pl-2 mb-1">
         <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
-        <span class="text-2xs font-semibold uppercase tracking-wider text-muted-foreground flex-1">
+        <span class="min-w-0 flex-1 truncate text-2xs font-semibold text-muted-foreground">
           {{ t('misc.activeRuns.heading') }}
         </span>
         <span

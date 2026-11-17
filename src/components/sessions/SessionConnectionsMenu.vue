@@ -47,7 +47,7 @@ function editInProject() {
     <div class="w-[20rem]">
       <div class="max-h-[24rem] overflow-y-auto">
         <template v-for="g in connectionGroups" :key="g.id">
-          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium text-muted-foreground/70">
             {{ t(`run.infoBar.connections.${g.id}`) }}
           </div>
           <div
