@@ -3,7 +3,7 @@
 // own markdown containers and by the reusable FileViewer component.
 
 // Trailing punctuation a path picks up from the sentence around it.
-const TRAILING_PUNCT = /[)\].,:;'"`]+$/
+export const TRAILING_PUNCT = /[)\].,:;'"`]+$/
 
 /** A path with the line it points at, when the reference named one. */
 export interface FileRef {

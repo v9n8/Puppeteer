@@ -2,7 +2,7 @@
 // The composer under the AI result: palettes, attachments, prompt input and
 // the run controls. RunView shows it once a run is open; the usage row that
 // sat above the input is now RunStatusBar. State lives in useRunSession.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
@@ -15,6 +15,8 @@ import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
 import { WIDE_CHIPS_FROM as WIDE_FALLBACK, hideOptionalChips } from '@/lib/composerChipLayout'
 import ComposerQuoteBlock from './ComposerQuoteBlock.vue'
+import ComposerMentionOverlay from './ComposerMentionOverlay.vue'
+import { COMPOSER_TEXT } from './composerTextStyle'
 import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
 import RunMcpSection from './RunMcpSection.vue'
@@ -28,7 +30,7 @@ const {
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
   composerExpanded, toggleComposerExpand, startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen,
-  slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention,
+  slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, fileMatcher, ensureProjectFiles,
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
@@ -57,6 +59,12 @@ const runSettingsTitle = computed(() =>
 const compactChips = computed(() =>
   hideOptionalChips(paneWidth.value, { hasRunActions: currentStatus.value === 'running' || !!editingMessage.value }),
 )
+
+// A pasted or restored `@path` needs the project file list to show as a chip;
+// the call returns at once when the list is already loaded.
+watch(() => followUpInput.value.includes('@'), (hasAt) => {
+  if (hasAt) void ensureProjectFiles()
+})
 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
@@ -263,20 +271,24 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           <Paperclip class="h-4 w-4" :stroke-width="2" />
           {{ t('run.dropFileToAttach') }}
         </div>
-        <textarea
-          ref="composerEl"
-          v-model="followUpInput"
-          rows="2"
-          :placeholder="chatPlaceholder"
-          class="w-full resize-none px-3 pt-2.5 pb-1 bg-transparent text-xs focus:outline-none font-mono min-h-[2.75rem] leading-relaxed"
-          :disabled="sendingFollowUp"
-          @keydown="onComposerKeydown"
-          @input="onComposerInput"
-          @click="onComposerInput"
-          @compositionend="onComposerInput"
-          @paste="onComposerPaste"
-          @blur="mentionOpen = false; slashOpen = false"
-        />
+        <!-- `@path` chips are drawn by a layer under the textarea (VF-13) -->
+        <div class="relative">
+          <ComposerMentionOverlay :text="followUpInput" :textarea="composerEl" :resolve="fileMatcher" />
+          <textarea
+            ref="composerEl"
+            v-model="followUpInput"
+            rows="2"
+            :placeholder="chatPlaceholder"
+            :class="[COMPOSER_TEXT, 'relative z-[1] w-full resize-none bg-transparent focus:outline-none min-h-[2.75rem]']"
+            :disabled="sendingFollowUp"
+            @keydown="onComposerKeydown"
+            @input="onComposerInput"
+            @click="onComposerInput"
+            @compositionend="onComposerInput"
+            @paste="onComposerPaste"
+            @blur="mentionOpen = false; slashOpen = false"
+          />
+        </div>
 
         <!-- Footer toolbar: attachments/actions plus compact run settings menu -->
         <div class="flex items-center gap-1.5 px-1.5 pb-1.5">
