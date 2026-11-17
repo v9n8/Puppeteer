@@ -75,7 +75,7 @@ function onTriggerClick() {
       ref="panel"
       data-submenu-panel
       role="menu"
-      class="ui-popover absolute z-10 min-w-44 rounded-md border border-popover-border bg-popover p-1 shadow-lg shadow-black/20"
+      class="ui-popover absolute z-10 min-w-44 rounded-card border border-popover-border bg-popover p-1"
       :class="flip ? 'right-full -mr-1' : 'left-full -ml-1'"
       :style="{ top: `${shiftY}px` }"
     >

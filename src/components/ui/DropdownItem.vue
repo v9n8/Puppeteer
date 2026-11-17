@@ -16,7 +16,7 @@ const props = withDefaults(
 
 const classes = computed(() =>
   cn(
-    'ui-menu-item flex w-full items-center gap-2 whitespace-nowrap rounded px-2.5 py-1.5 text-sm transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none',
+    'ui-menu-item flex w-full items-center gap-2 whitespace-nowrap min-h-8 rounded-sm px-2.5 py-0 text-xs transition-colors cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none',
     props.variant === 'destructive'
       ? 'text-destructive hover:bg-destructive/10'
       : props.variant === 'primary'
@@ -27,7 +27,7 @@ const classes = computed(() =>
 </script>
 
 <template>
-  <button type="button" :disabled="disabled" :class="classes">
+  <button type="button" role="menuitem" :disabled="disabled" :class="classes">
     <slot />
   </button>
 </template>

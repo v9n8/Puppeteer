@@ -5,5 +5,5 @@
 </script>
 
 <template>
-  <div class="my-1 h-px bg-border" aria-hidden="true" />
+  <div class="my-1 h-px bg-border" role="separator" />
 </template>
