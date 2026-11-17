@@ -7,25 +7,25 @@ import { cn } from '@/lib/utils'
 
 defineOptions({ inheritAttrs: false })
 
-// Tinted tones: a /10–/15 fill with same-hue text, plus a currentColor inset
-// ring so the pill keeps its edge on a selected row. The status tokens are
-// dark enough to hold 4.5:1 on their own tint now that badges are 12px.
+// Outlined tones: transparent fill, same-hue text and a 1px currentColor border,
+// so the chip keeps its edge on a selected row. Neutral keeps the secondary fill
+// (as in the mockup) with the --border divider colour.
 const badge = cva(
-  'ui-badge inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap ring-1 ring-inset ring-current/15',
+  'ui-badge inline-flex h-[22px] items-center gap-1 rounded-[4px] border border-current bg-transparent text-xs font-medium whitespace-nowrap',
   {
     variants: {
       tone: {
-        neutral: 'bg-secondary text-muted-foreground',
-        running: 'bg-info/15 text-info',
-        success: 'bg-success/15 text-success',
-        error: 'bg-destructive/10 text-destructive',
-        warning: 'bg-warning/15 text-warning',
-        info: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-        primary: 'bg-primary/12 text-primary',
+        neutral: 'border-border bg-secondary text-muted-foreground',
+        running: 'text-info',
+        success: 'text-success',
+        error: 'text-destructive',
+        warning: 'text-warning',
+        info: 'text-violet-700 dark:text-violet-300',
+        primary: 'text-primary',
       },
       size: {
-        xs: 'px-1.5 py-px text-2xs',
-        sm: 'px-2 py-0.5 text-2xs',
+        xs: 'px-[7px]',
+        sm: 'px-[7px]',
       },
     },
     defaultVariants: { tone: 'neutral', size: 'sm' },

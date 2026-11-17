@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Inline status message (error / warning / success / info): tinted box with a
-// tone icon, the message, and optional trailing actions (retry, dismiss…).
-// Replaces the hand-copied `border-<tone>/30 bg-<tone>/10 …` blocks.
+// Inline status message (error / warning / success / info): card-colored box
+// with a solid tone border, a tone icon, the message, and optional trailing
+// actions (retry, dismiss…). Replaces the hand-copied tinted-box blocks.
 import { computed, type Component } from 'vue'
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2 } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
@@ -31,10 +31,10 @@ defineSlots<{
 
 // Full class strings so Tailwind can see them.
 const TONE = {
-  destructive: { box: 'border-destructive/30 bg-destructive/10', icon: 'text-destructive', glyph: AlertCircle },
-  warning: { box: 'border-warning/30 bg-warning/10', icon: 'text-warning', glyph: AlertTriangle },
-  success: { box: 'border-success/30 bg-success/10', icon: 'text-success', glyph: CheckCircle2 },
-  info: { box: 'border-info/30 bg-info/10', icon: 'text-info', glyph: Info },
+  destructive: { box: 'border-destructive bg-card', icon: 'text-destructive', glyph: AlertCircle },
+  warning: { box: 'border-warning bg-card', icon: 'text-warning', glyph: AlertTriangle },
+  success: { box: 'border-success bg-card', icon: 'text-success', glyph: CheckCircle2 },
+  info: { box: 'border-info bg-card', icon: 'text-info', glyph: Info },
 } as const
 
 const glyph = computed(() =>
@@ -44,7 +44,7 @@ const glyph = computed(() =>
 
 <template>
   <div
-    :class="cn('flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-2xs text-foreground', TONE[tone].box, props.class)"
+    :class="cn('flex items-start gap-2 rounded-md border px-3 py-2 text-xs text-foreground', TONE[tone].box, props.class)"
     :role="live ? (tone === 'destructive' ? 'alert' : 'status') : undefined"
   >
     <component :is="glyph" v-if="glyph" class="mt-px h-3.5 w-3.5 shrink-0" :class="[TONE[tone].icon, loading && 'animate-spin']" :stroke-width="2" />

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Panel container used across settings/detail screens. Optional `#header` slot
-// renders the standard muted header bar; body content goes in the default slot.
+// renders a 44px transparent header row with a solid divider; body content goes
+// in the default slot.
 import { computed, useAttrs, useSlots } from 'vue'
 import { cn } from '@/lib/utils'
 
@@ -14,13 +15,13 @@ withDefaults(defineProps<{
 const slots = useSlots()
 const attrs = useAttrs()
 const rootClass = computed(() =>
-  cn('ui-card border border-border bg-card rounded-lg overflow-hidden', attrs.class as string | undefined),
+  cn('ui-card border border-border bg-card rounded-card overflow-hidden', attrs.class as string | undefined),
 )
 </script>
 
 <template>
   <div v-bind="{ ...attrs, class: undefined }" :class="rootClass">
-    <div v-if="slots.header" class="flex items-center gap-2 px-4 py-3 border-b border-border/60 bg-muted/30">
+    <div v-if="slots.header" class="flex items-center gap-2 min-h-11 px-3.5 border-b border-border">
       <slot name="header" />
     </div>
     <div :class="bodyClass">

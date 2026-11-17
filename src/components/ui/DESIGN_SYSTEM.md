@@ -128,10 +128,13 @@ Every icon-only button needs `:title` and `:aria-label`.
 - **Dialogs**: `Modal`, `ConfirmModal`, `PromptModal`, `Drawer` — never a custom overlay.
 - **On/off**: `ToggleSwitch` — `size="sm"` in list rows/cards, `size="md"` in
   settings rows; `:checked="'mixed'"` for partially-enabled groups.
-- **Status pill**: `Badge` / `StatusBadge`; count pill: the one in `PageHeader`
+- **Status pill**: `Badge` (22px, 4px radius, 1px tone border, transparent fill) / `StatusBadge`; count pill: the one in `PageHeader`
   (`#leading` slot for a back button or page icon).
+- **Panels**: `Card` — 10px radius, solid `border-border`; `#header` is a 44px
+  transparent row (`px-3.5`) with a solid divider.
 - **Inline messages**: `Banner tone="destructive|warning|success|info"` (+ `#actions`
-  slot for retry/dismiss) — never a hand-copied tinted box.
+  slot for retry/dismiss) — `bg-card` with a solid 1px tone border, `px-3 py-2`;
+  never a hand-copied tinted box.
 
 ## 5. Remote controller (`src/controller/`, phones)
 

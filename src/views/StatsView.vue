@@ -449,7 +449,7 @@ async function loadStorage() {
       <!-- Real subscription plan usage (independent of token stats) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Claude subscription plan usage (from /usage) -->
-        <Card class="border-border/60" body-class="p-4 space-y-3">
+        <Card body-class="p-4 space-y-3">
           <div>
             <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.claudeTitle') }}
@@ -492,7 +492,7 @@ async function loadStorage() {
         </Card>
 
         <!-- Codex subscription plan usage (from account/rateLimits) -->
-        <Card class="border-border/60" body-class="p-4 space-y-3">
+        <Card body-class="p-4 space-y-3">
           <div>
             <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.codexTitle') }}
@@ -544,7 +544,7 @@ async function loadStorage() {
       <template v-if="hasData && stats">
         <!-- Summary cards -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="px-3.5 py-3">
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Coins class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.totalTokens') }}
             </div>
@@ -553,7 +553,7 @@ async function loadStorage() {
               {{ t('stats.summary.tokensBreakdown', { input: fmtCompact(stats.summary.total_input), output: fmtCompact(stats.summary.total_output), cache: fmtCompact(stats.summary.total_cache) }) }}
             </p>
           </Card>
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="px-3.5 py-3">
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <DollarSign class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.estCost') }}
               <span :title="t('stats.summary.estCostTooltip')">
@@ -565,13 +565,13 @@ async function loadStorage() {
               {{ t('stats.summary.estimated', { cost: fmtCost(stats.summary.estimated_cost) }) }}
             </p>
           </Card>
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="px-3.5 py-3">
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Play class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.runs') }}
             </div>
             <p class="text-xl font-semibold tabular-nums">{{ fmtNum(stats.summary.total_runs) }}</p>
           </Card>
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="px-3.5 py-3">
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Repeat class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.turns') }}
             </div>
@@ -580,7 +580,7 @@ async function loadStorage() {
         </div>
 
         <!-- Daily chart -->
-        <Card class="border-border/60" body-class="p-4">
+        <Card body-class="p-4">
           <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.charts.dailyTitle') }}</h2>
           <div class="h-64">
             <KeyboardChart
@@ -594,7 +594,7 @@ async function loadStorage() {
 
         <!-- Engine + project breakdown -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="p-4">
             <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.charts.byEngine') }}</h2>
             <div class="h-52">
               <Doughnut :data="engineChartData" :options="doughnutOptions" />
@@ -614,7 +614,7 @@ async function loadStorage() {
             </table>
           </Card>
 
-          <Card class="border-border/60" body-class="p-4">
+          <Card body-class="p-4">
             <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.charts.byProject') }}</h2>
             <table class="w-full text-xs">
               <thead>
@@ -640,7 +640,7 @@ async function loadStorage() {
         </div>
 
         <!-- By Claude account -->
-        <Card v-if="hasAccounts && stats.by_account.length" class="border-border/60" body-class="p-4">
+        <Card v-if="hasAccounts && stats.by_account.length" body-class="p-4">
           <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.table.byAccount') }}</h2>
           <table class="w-full text-xs">
             <thead>
@@ -667,7 +667,7 @@ async function loadStorage() {
         </Card>
 
         <!-- By model -->
-        <Card class="border-border/60" body-class="p-4">
+        <Card body-class="p-4">
           <h2 class="text-xs font-medium text-muted-foreground mb-3">{{ t('stats.table.byModel') }}</h2>
           <table class="w-full text-xs">
             <thead>
@@ -691,7 +691,7 @@ async function loadStorage() {
       </template>
 
       <!-- Storage: disk usage of session/run logs (read-only, independent of token data) -->
-      <Card class="border-border/60" body-class="p-4">
+      <Card body-class="p-4">
         <div class="flex items-center justify-between mb-3">
           <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <HardDrive class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.storage.title') }}
