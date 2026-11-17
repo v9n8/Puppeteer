@@ -68,8 +68,8 @@ function onKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <Modal :open="open" size="2xl" hide-header @close="emit('close')">
-    <div ref="root" tabindex="-1" class="flex max-h-[86vh] flex-col outline-none" role="dialog" aria-modal="true" :aria-label="title" @keydown="onKeydown">
+  <Modal :open="open" size="2xl" hide-header :aria-label="title" @close="emit('close')">
+    <div ref="root" tabindex="-1" class="flex max-h-[86vh] flex-col outline-none" @keydown="onKeydown">
       <div class="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
         <h3 class="min-w-0 flex-1 truncate font-mono text-sm font-semibold" :title="title">{{ title }}</h3>
         <button

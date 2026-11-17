@@ -23,6 +23,8 @@ const props = withDefaults(defineProps<{
   /** Suppress the built-in header (the body provides its own). Esc / overlay
    *  dismissal still work when `closable`. */
   hideHeader?: boolean
+  /** Accessible name when there is no built-in title (e.g. `hideHeader`). */
+  ariaLabel?: string
 }>(), {
   size: 'md',
   closable: true,
@@ -110,6 +112,7 @@ onBeforeUnmount(() => {
       :class="panelClass"
       role="dialog"
       aria-modal="true"
+      :aria-label="ariaLabel"
       :aria-labelledby="!hideHeader && title && !slots.header ? titleId : undefined"
     >
       <!-- Header -->
