@@ -82,10 +82,10 @@ function onEnter() {
       v-if="mode === 'content'"
       variant="primary"
       size="sm"
-      class="min-h-8 shrink-0"
+      class="min-h-8 shrink-0 max-[901px]:w-8 max-[901px]:px-0"
       :disabled="searching || !query.trim()"
       :title="t('trash.search.submitTitle')"
-      :aria-label="t('trash.search.submit')"
+      :aria-label="searching ? t('trash.search.searching') : t('trash.search.submit')"
       @click="emit('submit')"
     >
       <Search class="h-3.5 w-3.5" :stroke-width="2" />

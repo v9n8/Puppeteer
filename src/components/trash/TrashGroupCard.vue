@@ -77,7 +77,7 @@ function unlistedWorkers(s: TrashSession): number {
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="truncate text-sm font-semibold"
+            class="min-h-7 truncate text-sm font-semibold"
             :class="group.projectTrashed ? 'cursor-default' : 'hover:underline'"
             :disabled="group.projectTrashed"
             @click="emit('openProject')"
@@ -130,7 +130,7 @@ function unlistedWorkers(s: TrashSession): number {
                 <button
                   v-if="s.workers.length || s.run.worker_count"
                   type="button"
-                  class="rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  class="inline-flex min-h-7 items-center rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   :aria-expanded="workersOpen.has(s.run.id)"
                   :title="t('trash.workersTitle')"
                   @click="toggleWorkers(s.run.id)"
