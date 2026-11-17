@@ -4,14 +4,13 @@
 // selected column exactly as when hovering, and a polite live region reads it out.
 // Hover keeps working as before; leaving focus hides the tooltip.
 import { computed, ref } from 'vue'
-import type { Chart as ChartJS } from 'chart.js'
+import type { Chart as ChartJS, ChartData, ChartOptions } from 'chart.js'
 import { Bar } from 'vue-chartjs'
 import { moveCursor } from '@/lib/listCursor'
 
 const props = defineProps<{
-  // Mixed bar/line datasets do not fit vue-chartjs's typed props (same `any` as StatsView).
-  data: any
-  options: any
+  data: ChartData<'bar'>
+  options: ChartOptions<'bar'>
   /** Spoken text for the day at `index`, e.g. "05-12: 1,200 token, $0.40". */
   describe: (index: number) => string
   label: string

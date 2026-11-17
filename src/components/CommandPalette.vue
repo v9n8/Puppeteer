@@ -56,6 +56,11 @@ const searchShortcut = computed(() => {
   const accel = effectiveKeymap().get(SEARCH_ACTION)
   return accel ? formatAccelerator(accel, IS_MAC) : ''
 })
+// Menu-backed rows (`window.openWindows`, `file.newSession`…) share their id with the keymap action.
+function rowShortcut(id: string): string {
+  const accel = effectiveKeymap().get(id)
+  return accel ? formatAccelerator(accel, IS_MAC) : ''
+}
 // Rows in screen order, for ↑ ↓ across sections; the search row is last.
 const rows = computed(() => [...sections.value.flatMap((s) => s.items), ...(searchRow.value ? [searchRow.value] : [])])
 const pinned = computed(() => new Set(palette.config.pinned))
@@ -215,6 +220,7 @@ onBeforeUnmount(() => {
               {{ item.label }}
               <span v-if="item.detail" class="ml-1.5 text-2xs text-muted-foreground">{{ item.detail }}</span>
             </span>
+            <kbd v-if="rowShortcut(item.id)" class="shrink-0 rounded border border-border/70 px-1 font-sans text-2xs text-muted-foreground">{{ rowShortcut(item.id) }}</kbd>
             <button
               type="button"
               class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"

@@ -129,7 +129,8 @@ watch(
     if (add !== '1') return
     introOpen.value = true
     fromSession.value = true
-    const { add: _drop, ...rest } = route.query
+    const rest = { ...route.query }
+    delete rest.add
     router.replace({ query: rest })
   },
   { immediate: true },

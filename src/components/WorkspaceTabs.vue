@@ -15,6 +15,8 @@ import {
 } from '@/lib/projectAppearance'
 import { tabsToClose, type TabCloseScope } from '@/lib/projectSwitcher'
 import { projectPageQuery } from '@/lib/projectSections'
+import { IS_MAC, effectiveKeymap } from '@/lib/appMenu'
+import { NEW_SESSION_ACTION, formatAccelerator } from '@/lib/keymap'
 
 /**
  * Horizontal tab bar for fast switching between PROJECTS. One tab per open
@@ -161,6 +163,11 @@ const menuProject = computed(() => (menu.value ? projectOf(menu.value.projectId)
 const menuIndex = computed(() =>
   menu.value ? tabsStore.tabs.findIndex((tab) => tab.projectId === menu.value?.projectId) : -1,
 )
+
+const newSessionShortcut = computed(() => {
+  const accel = effectiveKeymap().get(NEW_SESSION_ACTION)
+  return accel ? formatAccelerator(accel, IS_MAC) : ''
+})
 
 function openMenu(projectId: string, e: MouseEvent) {
   menu.value = { projectId, x: e.clientX, y: e.clientY }
@@ -321,6 +328,7 @@ async function jumpTo(projectId: string) {
         <DropdownItem @click="newSession(menu.projectId)">
           <Plus class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           {{ t('projectSwitcher.newSession') }}
+          <kbd v-if="newSessionShortcut" class="ml-auto shrink-0 pl-4 font-sans text-2xs text-muted-foreground">{{ newSessionShortcut }}</kbd>
         </DropdownItem>
         <DropdownSeparator />
         <DropdownItem @click="closeTab(menu.projectId)">
@@ -351,24 +359,29 @@ async function jumpTo(projectId: string) {
           <DropdownSeparator />
           <div class="px-2.5 py-1.5">
             <p class="mb-1.5 text-2xs font-medium text-muted-foreground">{{ t('projectDetail.colorLabel') }}</p>
-            <div class="flex items-center gap-1.5">
+            <div class="-mx-1 flex items-center">
+              <!-- 28px hit area around the 16px dot -->
               <button
                 v-for="color in PROJECT_COLORS"
                 :key="color"
                 type="button"
-                class="h-4 w-4 rounded-full border-2 transition-transform cursor-pointer"
-                :class="[
-                  projectColor(menuProject.color) === color ? 'border-foreground scale-110' : 'border-transparent',
-                  swatchClass(color),
-                ]"
+                class="flex h-7 w-7 items-center justify-center rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 :title="t(`projectDetail.colors.${color}`)"
                 :aria-label="t(`projectDetail.colors.${color}`)"
                 :aria-pressed="projectColor(menuProject.color) === color"
                 @click="setColor(color)"
-              />
+              >
+                <span
+                  class="h-4 w-4 rounded-full border-2 transition-transform"
+                  :class="[
+                    projectColor(menuProject.color) === color ? 'border-foreground scale-110' : 'border-transparent',
+                    swatchClass(color),
+                  ]"
+                />
+              </button>
               <button
                 type="button"
-                class="ml-1 flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:pointer-events-none"
                 :disabled="!projectColor(menuProject.color)"
                 :title="t('misc.tabs.clearColor')"
                 :aria-label="t('misc.tabs.clearColor')"
