@@ -12,6 +12,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import TranslatePopover from '@/components/TranslatePopover.vue'
 import QuoteNotePopover from '@/components/QuoteNotePopover.vue'
 import { invoke } from '@/lib/tauri'
+import { useToast } from '@/composables/useToast'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { anchorFromRange } from '@/lib/quoteAnchor'
 import {
@@ -38,6 +39,7 @@ import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
 
 const { t } = useI18n()
+const { toast } = useToast()
 const features = useFeaturesStore()
 const appSettings = useAppSettingsStore()
 
@@ -182,7 +184,12 @@ async function run(action: SelectionAction) {
       translation.value = { surface: b.surface, text: b.text, ...at }
       break
     case 'copyMd': {
-      await navigator.clipboard.writeText(copyMdText(b.surface.markdownSource?.() ?? [], b.text)).catch(() => {})
+      try {
+        await navigator.clipboard.writeText(copyMdText(b.surface.markdownSource?.() ?? [], b.text))
+        toast.success(t('selection.copyMdDone'))
+      } catch (e) {
+        toast.error(t('selection.copyMdFailed', { error: e instanceof Error ? e.message : String(e) }))
+      }
       break
     }
     case 'saveNote':

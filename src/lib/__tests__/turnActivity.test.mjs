@@ -28,9 +28,10 @@ test('turnActivity: tools, thinking and commentary fold; the final answer stays 
     text('Fixed: renamed a to b.'),
     result({ duration_ms: 12300 }),
   ]
-  assert.deepEqual(blocks(entries), [[1, 0, [1, 2, 3, 4], 3, 1, 0, 12300, false]])
+  assert.deepEqual(blocks(entries), [[1, 0, [1, 2, 3], 2, 1, 0, 12300, false]])
   const map = turnActivity(entries, false)
   assert.equal(map.headerAt.get(1), 0)
+  assert.equal(map.memberOf.has(4), false, 'the diff card of a good edit is not folded')
   assert.equal(map.memberOf.has(5), false, 'the answer is not folded')
   assert.equal(map.memberOf.has(6), false, 'the result is not folded')
 })
@@ -130,10 +131,29 @@ test('turnActivity: compact / command / injected do not split a turn', () => {
 
 test('turnActivity: a steer (a new user message) starts the next turn', () => {
   const entries = [user('q'), tool('Read', {}, ok()), user('steer: also do X'), tool('Edit', { file_path: '/x' }, ok()), text('done')]
-  assert.deepEqual(blocks(entries, true), [
-    [1, 0, [1], 1, 0, 0, null, false],
-    [3, 2, [3], 1, 1, 0, null, true],
-  ])
+  assert.deepEqual(blocks(entries, true), [[1, 0, [1], 1, 0, 0, null, false]])
+})
+
+test('turnActivity: a turn that only edits files gets no block', () => {
+  const entries = [user('q'), tool('Edit', { file_path: '/a.ts' }, ok()), tool('Write', { file_path: '/b.ts' }, ok()), text('done')]
+  assert.deepEqual(blocks(entries), [])
+})
+
+test('turnActivity: edits outside the block still count as files edited; a failed edit folds in', () => {
+  const entries = [
+    user('q'),
+    tool('Read', {}, ok()),
+    tool('Edit', { file_path: '/a.ts' }, ok()),
+    tool('Edit', { file_path: '/b.ts' }, ok()),
+    tool('Edit', { file_path: '/c.ts' }, fail()),
+    text('done'),
+  ]
+  const map = turnActivity(entries, false)
+  assert.deepEqual(map.blocks[0].members, [1, 4])
+  assert.equal(map.blocks[0].steps, 2)
+  assert.equal(map.blocks[0].filesEdited, 2)
+  assert.equal(map.blocks[0].errors, 1)
+  assert.equal(foldsAway(entries[2]), false)
 })
 
 test('turnActivity: files edited are distinct, successful edit / write targets (Codex multi-file too)', () => {

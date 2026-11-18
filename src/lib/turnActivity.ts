@@ -57,6 +57,9 @@ const lower = (s: string | undefined) => (s || '').toLowerCase()
 // view when their turn is folded.
 const SHOWN_TOOLS = new Set(['askuserquestion', 'exitplanmode'])
 const EDIT_TOOLS = new Set(['edit', 'multiedit', 'write', 'notebookedit'])
+// File edits that came back fine show their diff card in the answer instead of
+// inside the folded block (a failed one folds, so the block counts its error).
+const DIFF_CARD_TOOLS = new Set(['edit', 'multiedit', 'write'])
 
 /** A step of the turn's work: a tool call or a thinking block. */
 function isStep(e: EntryLike): boolean {
@@ -72,6 +75,7 @@ function isStep(e: EntryLike): boolean {
 export function foldsAway(e: EntryLike): boolean {
   switch (e.kind) {
     case 'tool':
+      if (DIFF_CARD_TOOLS.has(lower(e.name)) && !e.result?.is_error) return false
       return !SHOWN_TOOLS.has(lower(e.name))
     case 'thinking':
     case 'text':
@@ -115,13 +119,15 @@ export function turnActivity(entries: readonly EntryLike[], running: boolean): T
     const files = new Set<string>()
     for (let i = from; i <= lastStep; i++) {
       const e = entries[i]
+      // Edits shown outside the block still count as files edited.
+      if (e.kind === 'tool' && !e.result?.is_error && EDIT_TOOLS.has(lower(e.name))) {
+        for (const f of toolFileTargets(e.input)) files.add(f)
+      }
       if (!foldsAway(e)) continue
       members.push(i)
       if (!isStep(e)) continue
       steps++
-      if (e.kind !== 'tool') continue
-      if (e.result?.is_error) errors++
-      else if (EDIT_TOOLS.has(lower(e.name))) for (const f of toolFileTargets(e.input)) files.add(f)
+      if (e.kind === 'tool' && e.result?.is_error) errors++
     }
     if (!steps) return
     const isRunning = running && end === entries.length

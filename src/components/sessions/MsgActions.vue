@@ -103,7 +103,7 @@ function title(action: TurnAction): string {
       :key="action"
       variant="ghost"
       size="icon-xs"
-      class="text-foreground/40"
+      class="rounded-sm border-0 text-muted-foreground"
       :class="{ 'text-primary': (action === 'copy' && copied) || (action === 'bookmark' && bookmarked) }"
       :title="title(action)"
       :aria-label="title(action)"
@@ -116,7 +116,7 @@ function title(action: TurnAction): string {
         <Button
           variant="ghost"
           size="icon-xs"
-          class="text-foreground/40"
+          class="rounded-sm border-0 text-muted-foreground"
           :title="t('streamLog.turn.more')"
           :aria-label="t('streamLog.turn.more')"
         >

@@ -465,7 +465,7 @@ watch(
       if (e.kind === 'tool' && expanded.value[i] === undefined) {
         // Plans are meant to be read — show them open; other tools start collapsed
         // unless they errored.
-        expanded.value[i] = isPlanTool(e.name) || !!e.result?.is_error
+        expanded.value[i] = isPlanTool(e.name) || isEditTool(e.name) || !!e.result?.is_error
       }
     }
   },
@@ -1117,7 +1117,7 @@ function toolResult(e: StreamEntry): unknown {
       <!-- User follow-up — right-aligned chat bubble with avatar -->
       <div v-else-if="entry.kind === 'user'" class="flex justify-end items-end gap-2 pl-10 my-1">
         <div
-          class="max-w-[82%] rounded-2xl rounded-br-md bg-muted/70 border border-border px-3.5 py-2 text-sm leading-relaxed text-foreground shadow-sm"
+          class="max-w-[82%] rounded-lg bg-secondary border border-border px-3 py-2.5 text-md leading-[1.6] text-foreground"
         >
           <div
             v-if="entry.ideContext?.length"
@@ -1126,17 +1126,17 @@ function toolResult(e: StreamEntry): unknown {
             <IdeContextChip :items="entry.ideContext" variant="inside" @open-file="(p) => emit('open-file', p)" />
           </div>
           <!-- Its structured quotes (UX-29): cards leading to the source. -->
-          <ol v-if="quoteSetOf(entry)" class="mb-2 flex flex-col gap-1.5">
+          <ol v-if="quoteSetOf(entry)" class="mb-2 flex flex-col gap-2">
             <li v-for="(card, ci) in quoteSetOf(entry)!.cards" :key="card.quote.id">
               <button
                 type="button"
-                class="w-full flex items-start gap-2 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-left text-xs transition-colors"
+                class="w-full flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left text-md leading-[1.6] transition-colors"
                 :class="card.jumpable ? 'cursor-pointer hover:bg-accent/60 hover:border-primary/40' : 'cursor-default opacity-80'"
                 :disabled="!card.jumpable"
                 :title="card.jumpable ? (card.quote.kind === 'file' ? t('streamLog.quotes.openFile') : t('streamLog.quotes.goToSource')) : undefined"
                 @click="openQuote(card)"
               >
-                <span class="shrink-0 mt-px h-4 min-w-4 px-1 rounded-full bg-primary/15 text-primary text-2xs font-semibold flex items-center justify-center">{{ ci + 1 }}</span>
+                <span class="shrink-0 mt-px h-5 w-5 rounded bg-muted text-foreground text-xs font-semibold flex items-center justify-center">{{ ci + 1 }}</span>
                 <span class="min-w-0 flex-1">
                   <span class="block whitespace-pre-wrap text-foreground/80 line-clamp-3">{{ card.quote.excerpt }}</span>
                   <span v-if="card.quote.note" class="mt-0.5 block whitespace-pre-wrap text-foreground">{{ card.quote.note }}</span>
@@ -1162,18 +1162,20 @@ function toolResult(e: StreamEntry): unknown {
               alt="attachment"
             />
           </div>
-          <CollapsibleMessage v-if="bubbleText(entry)" :max-height="256" fade="hsl(var(--muted))" :disabled="expandedMessageIndices.has(i)">
+          <CollapsibleMessage v-if="bubbleText(entry)" :max-height="256" fade="hsl(var(--secondary))" :disabled="expandedMessageIndices.has(i)">
             <div class="whitespace-pre-wrap"><template
                 v-for="(seg, si) in userSegments(bubbleText(entry))"
                 :key="si"
               ><span
                   v-if="seg.path"
-                  class="font-medium text-primary cursor-pointer underline decoration-dotted underline-offset-2 hover:text-primary/75"
+                  class="inline-flex items-center gap-1 align-baseline rounded border border-border bg-card px-1.5 font-mono text-xs text-foreground no-underline cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   :title="t('streamLog.openFile', { path: seg.path })"
                   :data-file-path="seg.path"
                   role="button"
+                  tabindex="0"
                   @click="emit('open-file', seg.path!, seg.line)"
-                >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
+                  @keydown.enter.prevent="emit('open-file', seg.path!, seg.line)"
+                ><FileText class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
           </CollapsibleMessage>
         </div>
         <div
@@ -1358,13 +1360,13 @@ function toolResult(e: StreamEntry): unknown {
       <!-- File-editing tool call (Edit / MultiEdit / Write) — unified diff view. -->
       <div
         v-else-if="entry.kind === 'tool' && isEditTool(entry.name)"
-        class="rounded-lg border border-l-[3px] bg-card/80 shadow-sm shadow-black/20 overflow-hidden"
+        class="rounded-md border border-l-[3px] bg-card overflow-hidden"
         :class="entry.result?.is_error
           ? 'border-border border-l-destructive/70'
           : ['border-border', toolStyle(entry.name).barClass]"
       >
         <button
-          class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-foreground/[0.07] transition-colors cursor-pointer"
+          class="w-full flex items-center gap-2 h-8 px-2.5 bg-muted text-left hover:bg-accent transition-colors cursor-pointer"
           @click="toggle(i)"
         >
           <ChevronRight

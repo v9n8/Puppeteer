@@ -12,6 +12,8 @@
   "translateTitle": "Translate the selection",
   "copyMd": "Copy MD",
   "copyMdTitle": "Copy the selection as Markdown",
+  "copyMdDone": "Copied as Markdown",
+  "copyMdFailed": "Could not copy: {error}",
   "saveNote": "Note",
   "saveNoteTitle": "Save the selection as a note",
   "saveTodo": "Todo",

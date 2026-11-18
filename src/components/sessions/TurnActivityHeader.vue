@@ -21,7 +21,7 @@ const { t } = useI18n()
 <template>
   <button
     type="button"
-    class="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs text-foreground/55 select-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground/80 cursor-pointer"
+    class="flex w-fit h-7 items-center gap-1.5 rounded-sm border border-border bg-background px-2 text-left text-xs leading-[1.6] text-muted-foreground select-none transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
     :aria-expanded="open"
     :title="open ? t('streamLog.activity.collapse') : t('streamLog.activity.expand')"
     @click="$emit('toggle')"

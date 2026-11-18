@@ -316,8 +316,8 @@
  * ------------------------------------------------------------------------- */
 .markdown-output {
   font-size: calc(0.875rem * var(--text-scale));
-  line-height: 1.7;
-  color: hsl(var(--foreground) / 0.92);
+  line-height: 1.6;
+  color: hsl(var(--foreground));
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -366,7 +366,7 @@
 .markdown-output p { margin: 0 0 0.7rem; }
 
 .markdown-output ul,
-.markdown-output ol { margin: 0 0 0.7rem; padding-left: 1.4rem; }
+.markdown-output ol { margin: 0 0 0.7rem; padding-left: 1.25rem; }
 .markdown-output ul { list-style: disc; }
 .markdown-output ol { list-style: decimal; }
 .markdown-output li { margin-bottom: 0.3rem; }
@@ -385,22 +385,22 @@
   /* Close to the text around it: at 0.8em a mono x-height reads a size smaller
    * than the sentence, and falls under 13px at the default conversation size. */
   font-size: max(13px, 0.9em);
-  background: hsl(var(--muted));
-  border: 1px solid hsl(var(--border) / 0.7);
-  padding: 0.08rem 0.35rem;
-  border-radius: 0.3rem;
-  color: hsl(var(--primary));
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: hsl(var(--foreground));
+  line-height: 1.4;
   white-space: break-spaces;
 }
 .markdown-output pre {
-  background: hsl(var(--muted) / 0.6);
+  background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
-  padding: 0.8rem 0.9rem;
+  padding: 10px 12px;
   border-radius: 0.5rem;
   overflow: auto;
   margin: 0 0 0.8rem;
-  /* ~0.9 of the answer text, never under the 13px floor. */
-  font-size: max(13px, calc(0.8rem * var(--text-scale)));
+  font-size: calc(0.875rem * var(--text-scale));
   line-height: 1.6;
 }
 .markdown-output pre code {
