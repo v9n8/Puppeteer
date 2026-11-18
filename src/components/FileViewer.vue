@@ -836,9 +836,9 @@ defineExpose({ onRevealInFolder, onOpenInApp })
 <template>
   <div class="relative flex flex-col h-full min-h-0 bg-card">
     <!-- Toolbar -->
-    <div class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-1 shrink-0">
+    <div class="sticky top-0 z-10 flex flex-wrap items-center gap-1.5 border-b border-border min-h-11 pl-3.5 pr-2.5 py-1.5 shrink-0">
       <FileCode2 class="h-4 w-4 text-primary shrink-0" :stroke-width="1.75" />
-      <span class="text-xs font-mono text-foreground/90 truncate grow basis-32" :title="curPath">{{ curPath }}</span>
+      <span class="text-sm font-mono text-foreground truncate grow basis-32" :title="curPath">{{ curPath }}</span>
       <OutlineToggle v-if="hasOutline" />
       <!-- Raw / rendered toggle, only meaningful for markdown and HTML files -->
       <SegmentedControl
@@ -853,8 +853,9 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       <!-- Font size controls -->
       <div v-if="content && !htmlPreview" class="flex items-center rounded-md border border-border overflow-hidden shrink-0">
         <button
-          class="flex items-center justify-center h-7 w-7 text-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          class="flex items-center justify-center h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
           :title="t('files.viewer.smallerFont')"
+          :aria-label="t('files.viewer.smallerFont')"
           :disabled="fontSize <= FONT_MIN"
           @click="bumpFontSize(-1)"
         >
@@ -862,8 +863,9 @@ defineExpose({ onRevealInFolder, onOpenInApp })
         </button>
         <span class="px-1.5 text-2xs tabular-nums text-foreground/50 border-x border-border select-none">{{ fontSize }}</span>
         <button
-          class="flex items-center justify-center h-7 w-7 text-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          class="flex items-center justify-center h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
           :title="t('files.viewer.largerFont')"
+          :aria-label="t('files.viewer.largerFont')"
           :disabled="fontSize >= FONT_MAX"
           @click="bumpFontSize(1)"
         >
@@ -873,21 +875,24 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       <!-- Zoom controls (images & PDF) — mirrors the font-size group for consistency -->
       <div v-if="kind === 'image' || kind === 'pdf'" class="flex items-center rounded-md border border-border overflow-hidden shrink-0">
         <button
-          class="flex items-center justify-center h-7 w-7 text-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          class="flex items-center justify-center h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
           :title="t('files.viewer.zoomOut')"
+          :aria-label="t('files.viewer.zoomOut')"
           :disabled="zoom <= ZOOM_MIN"
           @click="zoomOut"
         >
           <ZoomOut class="h-3.5 w-3.5" :stroke-width="1.75" />
         </button>
         <button
-          class="px-1.5 h-7 text-2xs tabular-nums text-foreground/60 hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
+          class="px-1.5 h-7 text-2xs tabular-nums text-muted-foreground hover:text-foreground border-x border-border select-none cursor-pointer min-w-[3rem]"
           :title="t('files.viewer.resetZoom')"
+          :aria-label="t('files.viewer.resetZoom')"
           @click="resetZoom"
         >{{ Math.round(zoom * 100) }}%</button>
         <button
-          class="flex items-center justify-center h-7 w-7 text-foreground/60 hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          class="flex items-center justify-center h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
           :title="t('files.viewer.zoomIn')"
+          :aria-label="t('files.viewer.zoomIn')"
           :disabled="zoom >= ZOOM_MAX"
           @click="zoomIn"
         >

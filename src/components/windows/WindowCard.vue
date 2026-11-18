@@ -71,11 +71,12 @@ const badge = computed(() => {
     role="option"
     :aria-selected="selected"
     :data-window-label="card.label"
-    class="group relative flex w-full cursor-pointer flex-col gap-1 rounded-[10px] border border-border bg-card p-2 text-left transition-colors hover:bg-accent"
+    class="group relative flex w-full cursor-pointer flex-col rounded-card border border-border bg-card text-left transition-colors hover:bg-accent"
     :class="selected ? 'ring-2 ring-ring' : ''"
     @click="emit('activate')"
     @contextmenu.prevent="emit('select'); emit('menu', $event)"
   >
+    <div class="flex min-w-0 flex-col gap-1 p-2">
     <div class="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
       <img
         v-if="thumb.kind === 'image'"
@@ -109,8 +110,9 @@ const badge = computed(() => {
     </div>
     <div class="flex min-w-0 items-center gap-1.5">
       <component :is="icon" class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" aria-hidden="true" />
-      <span class="truncate text-[13px] font-medium text-foreground" :title="card.title">{{ card.title }}</span>
+      <span class="truncate text-sm font-medium leading-5 text-foreground" :title="card.title">{{ card.title }}</span>
     </div>
-    <span v-if="card.sub" class="truncate text-[13px] text-muted-foreground" :title="card.sub">{{ card.sub }}</span>
+    <span v-if="card.sub" class="min-h-[22px] truncate text-sm text-muted-foreground" :title="card.sub">{{ card.sub }}</span>
+    </div>
   </div>
 </template>

@@ -280,12 +280,12 @@ onBeforeUnmount(() => {
   >
     <div class="absolute inset-0 bg-black/50" @click="close" />
 
-    <div class="relative my-3 flex w-[calc(100%-24px)] max-w-[1120px] flex-col overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-2xl">
-      <header class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-        <h2 class="text-sm font-semibold">{{ t('windows.title') }}</h2>
-        <span class="text-sm text-muted-foreground tabular-nums">· {{ query ? `${flat.length} / ${total}` : total }}</span>
+    <div class="relative my-3 flex w-[calc(100%-24px)] max-w-[1120px] flex-col overflow-hidden rounded-xl border border-popover-border bg-popover text-popover-foreground">
+      <header class="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+        <h2 class="text-md font-semibold">{{ t('windows.title') }}</h2>
+        <span class="text-md text-muted-foreground tabular-nums">· {{ query ? `${flat.length} / ${total}` : total }}</span>
 
-        <label class="ml-2 flex h-8 w-[220px] items-center gap-2 rounded-md border border-input bg-background px-2 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+        <label class="ml-2 flex h-8 w-[240px] max-[901px]:w-[180px] items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
           <Search class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
           <input
             ref="filterInput"
@@ -297,12 +297,12 @@ onBeforeUnmount(() => {
           />
         </label>
 
-        <div class="flex rounded-md bg-muted p-0.5 text-[13px] font-medium" role="group">
+        <div class="flex h-[30px] gap-0.5 rounded-md border border-border bg-muted p-0.5 text-sm font-normal" role="group">
           <button
             v-for="mode in (['type', 'project'] as const)"
             :key="mode"
             type="button"
-            class="h-7 cursor-pointer rounded px-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="h-6 cursor-pointer rounded px-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :class="groupBy === mode ? 'bg-card text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:text-foreground'"
             :aria-pressed="groupBy === mode"
             @click="groupBy = mode"
@@ -329,7 +329,7 @@ onBeforeUnmount(() => {
         <Button variant="outline" size="sm" class="text-[13px]" @click="store.refreshThumbs()">{{ t('windows.thumb.retry') }}</Button>
       </div>
 
-      <div class="min-h-[160px] flex-1 overflow-y-auto px-4 py-3">
+      <div class="min-h-[160px] flex-1 overflow-y-auto px-4 pt-3 pb-4">
         <p v-if="total === 0" class="py-10 text-center text-sm text-muted-foreground">{{ t('windows.empty') }}</p>
         <p v-else-if="flat.length === 0" class="py-10 text-center text-sm text-muted-foreground">
           {{ t('windows.noMatch', { query: query.trim() }) }}
@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
         </p>
         <template v-else>
         <section v-for="g in groups" :key="g.key" class="mb-4 last:mb-0">
-          <h3 class="mb-2 text-[13px] font-medium text-muted-foreground">{{ groupName(g) }} · {{ g.cards.length }}</h3>
+          <h3 class="mb-2 text-sm font-semibold text-muted-foreground">{{ groupName(g) }} · {{ g.cards.length }}</h3>
           <div
             class="grid grid-cols-[repeat(auto-fill,184px)] gap-3 min-[1366px]:grid-cols-[repeat(auto-fill,200px)]"
             role="listbox"
