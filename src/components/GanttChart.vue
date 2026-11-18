@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ZoomIn, ZoomOut, CalendarOff, User, Eye, EyeOff, Loader2, ListPlus, ExternalLink } from 'lucide-vue-next'
 import { Button, ContextMenu, DropdownItem } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
 import TodoCaptureModal from '@/components/focus/TodoCaptureModal.vue'
 import type { TodoPrefill } from '@/lib/focus'
 import {
@@ -28,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'toggle-closed', title: string): void }>()
 const store = useProjectIssuesStore()
 const { t } = useI18n()
+const { toast } = useToast()
 
 const NO_MILESTONE = 'No milestone'
 function isExpanded(title: string): boolean {
@@ -243,7 +245,7 @@ function milestoneDueX(group: MilestoneGroup): number | null {
 }
 
 function open(issue: IssueRow) {
-  openUrl(issue.htmlUrl).catch(() => {})
+  openUrl(issue.htmlUrl).catch((e) => toast.error(t('gantt.openFailed', { error: String(e) })))
 }
 
 // Row menu (right-click): "+ Todo" from the issue (title, project, link and its
@@ -284,7 +286,7 @@ function fmt(iso: string | null): string {
   <div class="flex flex-col gap-3 h-full min-h-0">
     <!-- Toolbar + legend -->
     <div class="flex items-center justify-between gap-4 flex-wrap shrink-0">
-      <div class="flex items-center gap-3 flex-wrap text-2xs text-muted-foreground">
+      <div class="flex min-h-8 items-center gap-3 flex-wrap text-2xs text-foreground">
         <span>{{ t('gantt.chart.colourLateness') }}</span>
         <span v-for="l in LEGEND" :key="l.label" class="flex items-center gap-1">
           <span class="h-2.5 w-2.5 rounded-sm" :class="l.class" />
@@ -340,7 +342,7 @@ function fmt(iso: string | null): string {
           <!-- Milestone header row -->
           <div class="flex border-b border-border/40 bg-muted/30" :style="{ height: `${ROW_H}px` }">
             <div
-              class="sticky left-0 z-10 shrink-0 bg-muted/40 border-r border-border/60 flex items-center px-3 gap-2 text-2xs font-semibold"
+              class="sticky left-0 z-10 shrink-0 bg-muted/40 border-r border-border/60 flex items-center px-3 gap-2 text-2xs font-semibold leading-[1.4]"
               :style="{ width: `${LEFT_WIDTH}px` }"
               :title="lane.group.title"
             >

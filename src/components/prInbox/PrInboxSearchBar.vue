@@ -6,7 +6,7 @@
 // popover buttons drop to icon-only when the content pane is narrow.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Input } from '@/components/ui'
+import { Button, Input, Kbd } from '@/components/ui'
 import { IS_MAC } from '@/lib/appMenu'
 import type { PrFilters } from '@/lib/prInboxFilters'
 import { applySearch, canClear } from '@/lib/prInboxSearch'
@@ -64,7 +64,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="@container/toolbar relative z-10 flex h-12 shrink-0 items-center border-b border-border/60 px-6">
+  <div class="@container/toolbar relative z-10 flex min-h-[49px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 py-2">
     <div class="flex min-w-0 flex-1 items-center gap-2">
       <div ref="wrap" class="relative min-w-40 flex-1">
         <Search
@@ -89,13 +89,13 @@ defineExpose({
         >
           <X class="h-3.5 w-3.5" :stroke-width="2" />
         </button>
-        <span
+        <Kbd
           v-else
-          class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-2xs text-muted-foreground"
+          class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
           :title="t('prInbox.findHint', { key: keyLabel })"
         >
           {{ keyLabel }}
-        </span>
+        </Kbd>
       </div>
       <Button variant="outline" :title="t('prInbox.searchTitle')" @click="submit">
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />

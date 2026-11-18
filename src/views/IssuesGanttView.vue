@@ -287,13 +287,13 @@ function relativeTime(iso: string | null): string {
         />
       </template>
       <template #actions>
-        <label class="flex items-center gap-1.5 text-2xs text-muted-foreground">
+        <label class="flex items-center gap-1.5 text-2xs leading-[1.4] text-muted-foreground">
           {{ t('gantt.stalledLabel') }}
           <Input
             v-model.number="store.staleDays"
             type="number"
-            size="sm"
-            class="w-16"
+            size="xs"
+            class="w-[3.75rem]"
           />
           {{ t('gantt.days') }}
         </label>
@@ -323,14 +323,14 @@ function relativeTime(iso: string | null): string {
            timeline) so the wait previews what's coming instead of blank boxes. -->
       <div v-else-if="store.loading && !store.board" class="flex-1 min-h-0 overflow-auto p-6 space-y-4">
         <!-- Summary cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 max-[901px]:gap-2">
           <div
             v-for="i in 4" :key="i"
-            class="animate-fade-rise rounded-lg border border-border/60 bg-card p-3 space-y-2.5"
+            class="animate-fade-rise flex h-11 items-center justify-between gap-2 rounded-card border border-border bg-card px-3.5 max-[901px]:px-2.5"
             :style="{ animationDelay: `${i * 60}ms` }"
           >
             <Skeleton class="h-2.5 w-16 rounded" />
-            <Skeleton class="h-6 w-10 rounded" />
+            <Skeleton class="h-4 w-8 rounded" />
           </div>
         </div>
 
@@ -378,22 +378,22 @@ function relativeTime(iso: string | null): string {
         </Banner>
 
         <!-- Summary cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 animate-fade-rise">
-          <Card body-class="p-3">
-            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryOpen') }}</div>
-            <div class="text-xl font-semibold mt-0.5">{{ store.summary.open }}</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 max-[901px]:gap-2 animate-fade-rise">
+          <Card class="flex h-11 items-center gap-2 px-3.5 max-[901px]:px-2.5 max-[901px]:py-2" body-class="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <div class="truncate text-2xs text-muted-foreground">{{ t('gantt.summaryOpen') }}</div>
+            <div class="shrink-0 text-xl font-semibold leading-[1.1]">{{ store.summary.open }}</div>
           </Card>
-          <Card body-class="p-3">
-            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryOverdue') }}</div>
-            <div class="text-xl font-semibold mt-0.5" :class="store.summary.overdue > 0 ? 'text-destructive' : ''">{{ store.summary.overdue }}</div>
+          <Card class="flex h-11 items-center gap-2 px-3.5 max-[901px]:px-2.5 max-[901px]:py-2" body-class="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <div class="truncate text-2xs text-muted-foreground">{{ t('gantt.summaryOverdue') }}</div>
+            <div class="shrink-0 text-xl font-semibold leading-[1.1]" :class="store.summary.overdue > 0 ? 'text-destructive' : ''">{{ store.summary.overdue }}</div>
           </Card>
-          <Card body-class="p-3">
-            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryAtRisk') }}</div>
-            <div class="text-xl font-semibold mt-0.5" :class="store.summary.atRisk > 0 ? 'text-warning' : ''">{{ store.summary.atRisk }}</div>
+          <Card class="flex h-11 items-center gap-2 px-3.5 max-[901px]:px-2.5 max-[901px]:py-2" body-class="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <div class="truncate text-2xs text-muted-foreground">{{ t('gantt.summaryAtRisk') }}</div>
+            <div class="shrink-0 text-xl font-semibold leading-[1.1]" :class="store.summary.atRisk > 0 ? 'text-warning' : ''">{{ store.summary.atRisk }}</div>
           </Card>
-          <Card body-class="p-3">
-            <div class="text-2xs text-muted-foreground">{{ t('gantt.summaryStalled') }}</div>
-            <div class="text-xl font-semibold mt-0.5" :class="store.summary.stale > 0 ? 'text-yellow-500' : ''">{{ store.summary.stale }}</div>
+          <Card class="flex h-11 items-center gap-2 px-3.5 max-[901px]:px-2.5 max-[901px]:py-2" body-class="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <div class="truncate text-2xs text-muted-foreground">{{ t('gantt.summaryStalled') }}</div>
+            <div class="shrink-0 text-xl font-semibold leading-[1.1]" :class="store.summary.stale > 0 ? 'text-yellow-500' : ''">{{ store.summary.stale }}</div>
           </Card>
         </div>
 

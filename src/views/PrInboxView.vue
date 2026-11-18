@@ -603,10 +603,10 @@ async function reviewAll(group: PrGroup) {
           <!-- Header: the name truncates first (counts stay); "N unreviewed"
                drops below 36rem, "AI review all" goes icon-only below 44rem,
                "Mark as bot" takes no space until hover / keyboard focus. -->
-          <div v-if="group.kind !== 'all'" class="group/header flex items-center gap-2 min-w-0">
+          <div v-if="group.kind !== 'all'" class="group/header flex min-h-8 items-center gap-2 min-w-0">
             <button
               type="button"
-              class="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
+              class="-ml-1.5 flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-sm px-1.5 text-left cursor-pointer hover:bg-accent"
               :aria-expanded="!isCollapsed(group)"
               @click="toggleGroup(group)"
             >
@@ -628,7 +628,7 @@ async function reviewAll(group: PrGroup) {
               <KeyRound v-else-if="store.groupBy === 'reviewer_account'" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
               <User v-else class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
               <span
-                class="min-w-0 text-xs font-semibold truncate group-hover/header:text-primary transition-colors"
+                class="min-w-0 text-md font-semibold truncate group-hover/header:text-primary transition-colors"
                 :class="{ 'font-mono': store.groupBy === 'repo' && group.kind === 'normal' }"
               >
                 {{ groupLabel(group) }}

@@ -4,6 +4,7 @@
   "selectProject": "Chọn một Project…",
   "stalledLabel": "Trì trệ >",
   "days": "ngày",
+  "openFailed": "Không mở được issue trên GitHub: {error}",
   "noBoardTitle": "Chưa Project nào có bảng GitHub Project",
   "noBoardHint": "Liên kết một bảng ở Settings → GitHub Project trong trang của Project để vẽ issue lên Gantt.",
   "noBoardHintSettings": "Settings → GitHub Project",
