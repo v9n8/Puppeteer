@@ -16,6 +16,7 @@ import { useResponseStylesStore } from '@/stores/responseStyles'
 import { useSettingsForm } from './useSettingsForm'
 import { useModelOptions } from './useModelOptions'
 import SettingsRow from './SettingsRow.vue'
+import SettingsSectionHead from './SettingsSectionHead.vue'
 
 const emit = defineEmits<{ openSection: [id: SettingsSectionId] }>()
 
@@ -69,6 +70,8 @@ const styleOptions = computed(() => {
 </script>
 
 <template>
+  <div class="space-y-4">
+  <SettingsSectionHead :title="t('settings.sections.ai')" :intro="t('settings.ai.intro')" />
   <Card body-class="p-4 space-y-4">
     <template #header>
       <Sparkles class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
@@ -131,4 +134,5 @@ const styleOptions = computed(() => {
         </div>
       </SettingsRow>
   </Card>
+  </div>
 </template>

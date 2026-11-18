@@ -9,7 +9,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle, CheckCircle2, KeyRound, LogIn, Plug, Plus, ShieldCheck } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
-import { Button, Card, DropdownItem, DropdownMenu, InfoTip, Modal, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import SettingsSectionHead from './SettingsSectionHead.vue'
+import { Button, Card, DropdownItem, DropdownMenu, Modal, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import GithubAccountsSettings from '@/components/settings/GithubAccountsSettings.vue'
 import GitlabAccountsSettings from '@/components/settings/GitlabAccountsSettings.vue'
 import AwsAccountsSettings from '@/components/settings/AwsAccountsSettings.vue'
@@ -149,12 +150,12 @@ watch([rows, types], () => {
 </script>
 
 <template>
-  <div>
+  <div class="space-y-4">
+  <SettingsSectionHead :title="t('settings.sections.connections')" :intro="t('settings.connections.intro')" />
   <Card body-class="p-4 space-y-4" data-settings-id="connections-list">
     <template #header>
       <Plug class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('settings.connections.title') }}</span>
-      <InfoTip :text="t('settings.connections.intro')" />
       <Button
         size="xs"
         variant="outline"

@@ -323,6 +323,8 @@
     "login": {
       "openPage": "Mở trang đăng nhập",
       "openAgain": "Mở lại",
+      "copyFailed": "Không sao chép được mã",
+      "openFailed": "Không mở được trang đăng nhập. Hãy tự mở địa chỉ này: {url}",
       "waitingCode": "Đang chờ mã…",
       "deviceCode": "Nhập mã này trên trang đăng nhập",
       "copyCode": "Sao chép mã",
@@ -334,6 +336,7 @@
     }
   },
   "engines": {
+    "intro": "Đăng nhập vào các engine và chọn engine chạy Session của bạn.",
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Tài khoản",
@@ -350,6 +353,7 @@
     "extraArgsHint": "Áp dụng cho mọi lần chạy."
   },
   "ai": {
+    "intro": "Giá trị một Session mới bắt đầu với, và cách các engine chạy mặc định.",
     "sessionDefaults": "Mặc định session mới",
     "sessionDefaultsHint": "Giá trị session mới dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng.",
     "openSection": "Mở {section}",
@@ -490,6 +494,7 @@
     "token": "Token",
     "copy": "Sao chép",
     "copied": "Đã sao chép",
+    "copyFailed": "Không sao chép được vào clipboard",
     "reveal": "Hiện token",
     "hide": "Ẩn token",
     "regenerate": "Tạo lại",

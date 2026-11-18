@@ -210,7 +210,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
       :class="windowed ? 'h-10' : 'h-12'"
     >
       <div class="flex min-w-0 flex-1 items-center gap-1 whitespace-nowrap">
-        <h1 class="shrink-0 text-sm font-semibold">{{ crumb[0] }}</h1>
+        <h1 class="shrink-0 text-xs font-bold">{{ crumb[0] }}</h1>
         <span class="text-xs text-muted-foreground" aria-hidden="true">›</span>
         <span class="shrink-0 text-xs text-muted-foreground">{{ crumb[1] }}</span>
         <span class="text-xs text-muted-foreground" aria-hidden="true">›</span>
@@ -231,8 +231,8 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
       <!-- Section nav: on the card tone, since it sits right beside the app sidebar
            (sidebar tone); the open section like a sidebar item (accent + primary bar). -->
       <nav class="w-56 shrink-0 border-r border-border bg-card p-2 overflow-auto">
-        <div v-for="g in nav" :key="g.id" class="mb-3 last:mb-0">
-          <div class="px-2 pt-1 pb-1 text-xs font-medium text-muted-foreground">
+        <div v-for="g in nav" :key="g.id">
+          <div class="mx-2 mb-1 mt-3 p-0 text-xs font-medium leading-[1.4] text-muted-foreground first:mt-1">
             {{ t(g.labelKey) }}
           </div>
           <button
@@ -262,13 +262,13 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
       </nav>
 
       <!-- Active section panel -->
-      <div class="flex-1 overflow-auto p-6 min-w-0">
+      <div class="flex-1 overflow-auto px-4 pt-4 pb-8 min-[901px]:px-6 min-[901px]:pt-5 min-w-0">
         <!-- Loading skeleton -->
-        <div v-if="loading" class="max-w-4xl space-y-4">
+        <div v-if="loading" class="max-w-[832px] space-y-4">
           <div v-for="i in 3" :key="i" class="h-28 bg-card rounded-lg border border-border animate-pulse" />
         </div>
 
-        <div v-else class="max-w-4xl">
+        <div v-else class="max-w-[832px]">
 
         <GeneralSettings v-show="activeSection === 'general'" />
         <ConnectionsSettings v-show="activeSection === 'connections'" :active="activeSection === 'connections'" v-model:filter="connectionsFilter" />

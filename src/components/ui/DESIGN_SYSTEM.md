@@ -130,6 +130,7 @@ Every icon-only button needs `:title` and `:aria-label`.
   settings rows; `:checked="'mixed'"` for partially-enabled groups.
 - **Status pill**: `Badge` (22px, 4px radius, 1px tone border, transparent fill) / `StatusBadge`; count pill: the one in `PageHeader`
   (`#leading` slot for a back button or page icon).
+- **Key label**: `Kbd` — 20px chip, 12px / 500, 1px `border-border`, 4px radius; the one text size below 13px (Settings search hotkey).
 - **Panels**: `Card` — 10px radius, solid `border-border`; `#header` is a 44px
   transparent row (`px-3.5`) with a solid divider.
 - **Inline messages**: `Banner tone="destructive|warning|success|info"` (+ `#actions`

@@ -21,6 +21,7 @@ import {
 } from '@/lib/appFonts'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
+import SettingsSectionHead from './SettingsSectionHead.vue'
 import FontFamilyPicker from './FontFamilyPicker.vue'
 import SizeStepper from './SizeStepper.vue'
 import TypographyPreview from './TypographyPreview.vue'
@@ -162,10 +163,7 @@ watch(() => settings.value.language, (v) => {
 
 <template>
   <div class="space-y-4">
-    <div>
-      <h3 class="text-lg font-semibold">{{ t('settings.sections.general') }}</h3>
-      <p class="mt-0.5 text-xs text-muted-foreground">{{ t('settings.general.intro') }}</p>
-    </div>
+    <SettingsSectionHead :title="t('settings.sections.general')" :intro="t('settings.general.intro')" />
 
     <Card body-class="divide-y divide-border">
       <template #header>

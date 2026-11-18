@@ -79,7 +79,7 @@ async function copy(what: 'url' | 'token') {
     }, 1500)
     toast.success(t('settings.inboxApi.copied'))
   } catch {
-    /* clipboard unavailable */
+    toast.error(t('settings.inboxApi.copyFailed'))
   }
 }
 

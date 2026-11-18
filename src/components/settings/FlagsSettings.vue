@@ -19,6 +19,7 @@ import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { keyboardMove, moveId, restoreDisabled } from '@/lib/flagEditor'
 import { flagLabel, type SessionFlag } from '@/lib/sessionFlags'
 import type { ProjectColor } from '@/lib/projectAppearance'
+import SettingsSectionHead from './SettingsSectionHead.vue'
 
 const ROW_PX = 44
 const LINK_MARK = '\u0001'
@@ -149,10 +150,7 @@ async function restoreDefaults() {
 
 <template>
   <div class="space-y-4">
-    <div>
-      <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.flags') }}</h2>
-      <p class="mt-1 text-sm text-muted-foreground">{{ t('sessionFlags.settings.description') }}</p>
-    </div>
+    <SettingsSectionHead :title="t('settings.sections.flags')" :intro="t('sessionFlags.settings.description')" />
 
     <div v-if="!loaded && !loadError" class="space-y-4">
       <div class="h-28 animate-pulse rounded-lg border border-border bg-card" />

@@ -51,6 +51,14 @@ async function load() {
   }
 }
 
+async function onRefreshAudit() {
+  try {
+    await store.refreshAudit()
+  } catch (e) {
+    toast.error(t('remote.settings.refreshAuditFailed', { error: errorText(e, t) }))
+  }
+}
+
 onMounted(() => {
   load()
   // Keep the status + audit trail reasonably fresh while the screen is open
@@ -204,7 +212,7 @@ function resultTone(r: string): 'success' | 'error' | 'neutral' {
             size="icon-sm"
             :title="t('common.refresh')"
             :aria-label="t('common.refresh')"
-            @click="store.refreshAudit().catch(() => {})"
+            @click="onRefreshAudit"
           >
             <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>

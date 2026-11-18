@@ -46,6 +46,7 @@
     "controlOtherHint": "Open a window that drives another Puppeteer over this relay, signed in with its device name and master password.",
     "controlOtherOpen": "Open",
     "auditLog": "Audit log",
+    "refreshAuditFailed": "Could not refresh the audit log: {error}",
     "clearLog": "Clear log",
     "table": {
       "time": "Time",

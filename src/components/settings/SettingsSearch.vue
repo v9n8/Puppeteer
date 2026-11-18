@@ -8,6 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Search, X } from 'lucide-vue-next'
+import { Kbd } from '@/components/ui'
 import { useFeaturesStore } from '@/stores/features'
 import { SETTINGS_SECTIONS } from '@/lib/settingsSections'
 import { SETTINGS_SEARCH_ROWS } from '@/lib/settingsSearchRows'
@@ -77,7 +78,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
 </script>
 
 <template>
-  <div class="relative w-64 min-w-[160px] shrink">
+  <div class="relative w-[260px] min-w-[160px] shrink">
     <Search class="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" :stroke-width="1.75" aria-hidden="true" />
     <input
       ref="input"
@@ -86,7 +87,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
       role="combobox"
       autocomplete="off"
       spellcheck="false"
-      class="h-8 w-full rounded-md border border-input bg-background pl-8 pr-14 text-2xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="h-8 w-full rounded-md border border-input bg-card pl-8 pr-14 text-2xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       :placeholder="t('settings.search.placeholder')"
       :aria-label="t('settings.search.label')"
       aria-autocomplete="list"
@@ -109,14 +110,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
     >
       <X class="h-4 w-4" :stroke-width="1.75" />
     </button>
-    <kbd
+    <Kbd
       v-else
-      class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border px-1 text-2xs text-muted-foreground"
-    >{{ hotkey }}</kbd>
+      class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+    >{{ hotkey }}</Kbd>
 
     <div
       v-if="showPanel"
-      class="absolute right-0 top-full z-30 mt-1 w-[max(100%,22rem)] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+      class="absolute right-0 top-full z-30 mt-1 w-[360px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
     >
       <template v-if="results.length">
         <p class="border-b border-border/60 px-3 py-1.5 text-2xs text-muted-foreground" role="status">
@@ -129,7 +130,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
             :key="r.id"
             role="option"
             :aria-selected="i === active"
-            class="cursor-pointer px-3 py-1.5"
+            class="flex min-h-11 cursor-pointer flex-col justify-center px-2.5 py-0"
             :class="i === active ? 'bg-accent' : 'hover:bg-accent/60'"
             @mousedown.prevent
             @mousemove="active = i"

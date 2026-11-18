@@ -12,6 +12,7 @@ import type { SettingsSectionId } from '@/lib/settingsSections'
 import ClaudeEngineCard from './ClaudeEngineCard.vue'
 import EngineAccountsCard from './EngineAccountsCard.vue'
 import SettingsRow from './SettingsRow.vue'
+import SettingsSectionHead from './SettingsSectionHead.vue'
 
 const emit = defineEmits<{ openSection: [id: SettingsSectionId] }>()
 
@@ -25,6 +26,8 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
 
 <template>
   <div class="space-y-4">
+    <SettingsSectionHead :title="t('settings.sections.engines')" :intro="t('settings.engines.intro')" />
+
     <EngineAccountsCard />
 
     <ClaudeEngineCard @open-defaults="emit('openSection', 'ai')" @open-models="emit('openSection', 'model')" />

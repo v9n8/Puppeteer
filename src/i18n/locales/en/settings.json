@@ -323,6 +323,8 @@
     "login": {
       "openPage": "Open the sign-in page",
       "openAgain": "Open again",
+      "copyFailed": "Could not copy the code",
+      "openFailed": "Could not open the sign-in page. Open this address by hand: {url}",
       "waitingCode": "Waiting for the code…",
       "deviceCode": "Enter this code on the sign-in page",
       "copyCode": "Copy code",
@@ -334,6 +336,7 @@
     }
   },
   "engines": {
+    "intro": "Sign in to the engines and choose which one runs your sessions.",
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Accounts",
@@ -350,6 +353,7 @@
     "extraArgsHint": "Applied to all runs."
   },
   "ai": {
+    "intro": "What a new session starts with, and how the engines behave by default.",
     "sessionDefaults": "Defaults for new sessions",
     "sessionDefaultsHint": "What a new session starts with, unless it picks its own.",
     "openSection": "Open {section}",
@@ -490,6 +494,7 @@
     "token": "Token",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Could not copy to the clipboard",
     "reveal": "Show token",
     "hide": "Hide token",
     "regenerate": "Regenerate",

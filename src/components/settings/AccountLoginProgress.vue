@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Check, Circle, Copy, Loader2 } from 'lucide-vue-next'
 import { Banner, Button, Input } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
 import { loginSteps, type AccountKind } from '@/lib/engineAccounts'
 import type { LoginRun } from './useAccountLogin'
 
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { toast } = useToast()
 const code = ref('')
 const copied = ref(false)
 
@@ -34,8 +36,14 @@ const steps = computed(() => {
   return loginSteps(props.run).map((s) => ({ ...s, label: labels[s.key] }))
 })
 
-function openPage() {
-  if (props.run.url) void openUrl(props.run.url).catch(() => {})
+async function openPage() {
+  const url = props.run.url
+  if (!url) return
+  try {
+    await openUrl(url)
+  } catch {
+    toast.error(t('settings.accounts.login.openFailed', { url }))
+  }
 }
 
 function submit() {
@@ -51,7 +59,7 @@ async function copyCode() {
     copied.value = true
     setTimeout(() => { copied.value = false }, 1500)
   } catch {
-    /* clipboard unavailable: the code stays on screen */
+    toast.error(t('settings.accounts.login.copyFailed'))
   }
 }
 </script>

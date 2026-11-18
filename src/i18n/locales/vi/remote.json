@@ -46,6 +46,7 @@
     "controlOtherHint": "Mở cửa sổ điều khiển một Puppeteer khác qua relay này, đăng nhập bằng tên thiết bị và master password của nó.",
     "controlOtherOpen": "Mở",
     "auditLog": "Nhật ký kiểm toán",
+    "refreshAuditFailed": "Không làm mới được nhật ký: {error}",
     "clearLog": "Xóa nhật ký",
     "table": {
       "time": "Thời gian",
