@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ShieldAlert, Check, X, FileEdit, HelpCircle, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-vue-next'
+import { ShieldAlert, Check, FileEdit, HelpCircle, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, Bot } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
 import { isActivationTarget } from '@/lib/permissionKeys'
 import { permissionDiffParts } from '@/lib/permissionImpact'
+import { engineLabel, permissionOriginParts, type PermissionAgent } from '@/lib/permissionOrigin'
+import { useMinuteClock } from '@/composables/useMinuteClock'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 export interface PermissionRequest {
   run_id: string
@@ -25,6 +27,14 @@ export interface PermissionRequest {
   display_name?: string | null
   /** A broker prompt (gh / ssh / aws …): answered once, never Always. */
   once_only?: boolean
+  /** The run's engine ("claude" / "codex"); absent for a broker prompt. */
+  engine?: string | null
+  /** Model id from the run's latest `system.init`. */
+  model?: string | null
+  /** Which agent asked; absent when the engine has no sub-agents (Codex). */
+  agent?: PermissionAgent | null
+  /** RFC 3339 UTC. */
+  requested_at?: string | null
 }
 
 const props = withDefaults(defineProps<{
@@ -243,8 +253,21 @@ function submitAnswers() {
 
 const headerTitle = computed(() => {
   if (isPlan.value) return t('permission.headerPlanFinished')
-  return props.request.title || (isQuestions.value ? t('permission.headerQuestion') : t('permission.headerRequest'))
+  return props.request.title || (isQuestions.value
+    ? t('permission.headerQuestion')
+    : engineLabel(props.request.engine, (engine) => t('permission.headerRequest', { engine }), t('permission.headerRequestNoEngine')))
 })
+
+// Who asked (engine · model · agent · time); the relative part follows a minute clock.
+const now = useMinuteClock()
+const originParts = computed(() =>
+  permissionOriginParts(props.request, now.value, locale.value, {
+    justNow: t('permission.by.justNow'),
+    main: t('permission.by.main'),
+    sub: t('permission.by.sub'),
+    subNamed: (name) => t('permission.by.subNamed', { name }),
+  }),
+)
 
 // --- Hotkeys ---------------------------------------------------------------
 // The panel grabs focus when it appears so its keydown handler receives keys
@@ -349,7 +372,22 @@ function onKeydown(e: KeyboardEvent) {
           :stroke-width="1.75"
         />
         <div class="flex-1 min-w-0">
-          <h2 class="text-sm font-medium text-foreground" :class="isQuestions ? 'leading-tight' : ''">{{ headerTitle }}</h2>
+          <h2
+            class="text-[calc(0.9375rem*var(--text-scale))] font-semibold text-foreground"
+            :class="isQuestions ? 'leading-tight' : 'leading-[1.4]'"
+          >{{ headerTitle }}</h2>
+          <p
+            v-if="!isQuestions && !isPlan && originParts.length"
+            class="mt-0.5 flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground"
+          >
+            <Bot class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+            <span class="min-w-0 break-words">
+              <template v-for="(part, i) in originParts" :key="part.key">
+                <template v-if="i > 0"> · </template>
+                <span :title="part.title">{{ part.text }}</span>
+              </template>
+            </span>
+          </p>
           <p v-if="isPlan" class="text-xs text-foreground/60 mt-0.5">
             {{ t('permission.planReviewHint') }}
           </p>
@@ -477,8 +515,8 @@ function onKeydown(e: KeyboardEvent) {
               >
                 <ChevronLeft class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('common.back') }}
               </Button>
-              <Button variant="destructive" class="w-full @[26rem]/footer:w-auto" @click="emit('decide', 'deny', false)">
-                <X class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.controller.cancel') }}
+              <Button variant="outline" class="w-full @[26rem]/footer:w-auto" @click="emit('decide', 'deny', false)">
+                {{ t('permission.controller.cancel') }}
               </Button>
               <Button
                 v-if="!isLastStep"
@@ -499,7 +537,7 @@ function onKeydown(e: KeyboardEvent) {
                 class="w-full @[26rem]/footer:w-auto"
                 @click="emit('decide', 'deny', false)"
               >
-                <X class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.keepPlanning') }}
+                {{ t('permission.keepPlanning') }}
               </Button>
               <Button
                 variant="primary"
@@ -511,11 +549,11 @@ function onKeydown(e: KeyboardEvent) {
             </template>
             <template v-else>
               <Button
-                variant="destructive"
+                variant="outline"
                 class="w-full @[26rem]/footer:w-auto"
                 @click="emit('decide', 'deny', false)"
               >
-                <X class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.deny') }}
+                {{ t('permission.deny') }}
               </Button>
               <Button
                 v-if="canRemember"
@@ -524,7 +562,7 @@ function onKeydown(e: KeyboardEvent) {
                 @click="emit('decide', 'deny', true)"
                 :title="t('permission.denyAlwaysTitle')"
               >
-                <X class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.denyAlways') }}
+                {{ t('permission.denyAlways') }}
               </Button>
               <Button
                 v-if="canRemember"
@@ -533,14 +571,14 @@ function onKeydown(e: KeyboardEvent) {
                 @click="emit('decide', 'allow', true)"
                 :title="t('permission.allowAlwaysTitle')"
               >
-                <Check class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.always') }}
+                {{ t('permission.always') }}
               </Button>
               <Button
                 variant="primary"
                 class="w-full @[26rem]/footer:w-auto"
                 @click="emit('decide', 'allow', false)"
               >
-                <Check class="h-3.5 w-3.5" :stroke-width="2" /> {{ t('permission.allow') }}
+                {{ t('permission.allow') }}
               </Button>
             </template>
           </div>

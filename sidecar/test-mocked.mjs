@@ -271,6 +271,22 @@ const tests = {
     }
   },
 
+  // The request names the sub-agent that asked (SDK agentID), null for the main agent.
+  async 'permission request carries the sub-agent id'() {
+    for (const [env, want] of [[{ MOCK_AGENT_ID: 'agent-7' }, 'agent-7'], [{}, null]]) {
+      const { messages } = await runSidecar('permission', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') startPrompt(ctl)
+        if (msg.type === '_puppeteer_permission_request') {
+          ctl.send({ type: 'permission_response', requestId: msg.requestId, decision: 'allow' })
+          ctl.closeInput()
+        }
+      }, 10_000, env)
+      const req = of(messages, '_puppeteer_permission_request')[0]
+      assert.ok(req && 'agent_id' in req, 'agent_id key is always sent')
+      assert.equal(req.agent_id, want)
+    }
+  },
+
   // Rewind: a resumed session goes on from the entry the broker names.
   async 'resume after a rewind continues from the given entry'() {
     const rewound = await runSidecar('permission', (msg, ctl) => {

@@ -1,7 +1,14 @@
 {
   "headerPlanFinished": "Claude đã lập xong kế hoạch",
   "headerQuestion": "Claude có một câu hỏi",
-  "headerRequest": "Claude yêu cầu quyền",
+  "headerRequest": "{engine} yêu cầu quyền",
+  "headerRequestNoEngine": "Yêu cầu quyền",
+  "by": {
+    "justNow": "vừa xong",
+    "main": "agent chính",
+    "sub": "sub-agent",
+    "subNamed": "sub-agent “{name}”"
+  },
   "planReviewHint": "Xem kế hoạch bên dưới rồi phê duyệt để bắt đầu — hoặc tiếp tục lập kế hoạch để tinh chỉnh.",
   "allowHint": "Cho phép lệnh gọi công cụ này tiếp tục? Bạn có thể chặn hoặc cho phép trong run này.",
   "selectAll": "Chọn tất cả mục phù hợp",
@@ -70,11 +77,11 @@
   "window": {
     "title": "Quyền — Puppeteer",
     "osTitlePrefix": "Xin quyền",
-    "headerLabel": "Claude — Quyền",
-    "pinned": "Đã ghim",
-    "pin": "Ghim",
+    "headerLabel": "{engine} — Quyền",
+    "headerLabelNoEngine": "Quyền",
     "pinnedTitle": "Đang ghim trên cùng — bấm để bỏ ghim",
     "pinTitle": "Ghim luôn trên cùng",
+    "pinFailed": "Không đổi được chế độ ghim trên cùng của cửa sổ này.",
     "emptyTitle": "Chưa có yêu cầu nào đang chờ.",
     "emptyBody": "Câu hỏi / xin quyền của run đang xem sẽ hiện ở đây."
   },

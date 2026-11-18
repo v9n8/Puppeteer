@@ -23,7 +23,8 @@
 //                              // existing stream-json parsing works unchanged.
 //   { "type": "_puppeteer_ready", "capabilities": { "heartbeat_ms": 30000 } }
 //   { "type": "_puppeteer_permission_request", requestId, tool_name, tool_input,
-//        tool_use_id, title, description, display_name }
+//        tool_use_id, title, description, display_name,
+//        agent_id }             // the SDK's agentID inside a sub-agent, else null
 //   { "type": "_puppeteer_stderr", "text": "..." }
 //   { "type": "_puppeteer_usage", usage }  // structured /usage data (plan rate-limit
 //                                      // utilization + reset windows), captured at
@@ -566,6 +567,7 @@ function startQuery(firstText, opts = {}, firstImages) {
       title: options?.title ?? null,
       description: options?.description ?? null,
       display_name: options?.displayName ?? null,
+      agent_id: options?.agentID ?? null,
     })
     const decision = await new Promise((resolve) => {
       pendingPermissions.set(requestId, resolve)

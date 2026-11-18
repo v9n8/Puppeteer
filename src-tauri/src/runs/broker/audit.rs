@@ -231,6 +231,10 @@ mod tests {
             description: None,
             display_name: None,
             once_only: false,
+            engine: None,
+            model: None,
+            agent: None,
+            requested_at: None,
         }
     }
 

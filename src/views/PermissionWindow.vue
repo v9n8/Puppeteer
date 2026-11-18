@@ -13,14 +13,17 @@ import { useI18n } from 'vue-i18n'
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Pin, PinOff, Inbox, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-vue-next'
-import { Button } from '@/components/ui'
+import { Button, ToastHost } from '@/components/ui'
+import { useToast } from '@/composables/useToast'
 // The main window owns the popped-out state and listens to this window's
 // 'tauri://destroyed' lifecycle event to re-dock, so this window doesn't need
 // to announce its own close.
 import PermissionPrompt, { type PermissionRequest } from '@/components/PermissionPrompt.vue'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 import { useMarkdown } from '@/lib/markdown'
+import { engineLabel } from '@/lib/permissionOrigin'
 const { t } = useI18n()
+const { toast } = useToast()
 
 const { renderText, loadMarkdown } = useMarkdown()
 
@@ -142,11 +145,14 @@ function onAnswer(answers: Record<string, string>) {
 }
 
 async function togglePin() {
-  pinned.value = !pinned.value
+  const next = !pinned.value
   try {
-    await getCurrentWindow().setAlwaysOnTop(pinned.value)
-  } catch {
-    /* window api unavailable */
+    await getCurrentWindow().setAlwaysOnTop(next)
+    pinned.value = next
+  } catch (e) {
+    // The button must not claim a state the window did not take.
+    console.error('[PermissionWindow] cannot change always-on-top', e)
+    toast.error(t('permission.window.pinFailed'))
   }
 }
 </script>
@@ -155,13 +161,13 @@ async function togglePin() {
   <div class="flex h-screen w-screen flex-col bg-background text-foreground overflow-hidden">
     <!-- Slim titlebar: pin toggle so the user can drop always-on-top if it
          gets in the way while comparing against the chat on another monitor. -->
-    <div class="flex items-center gap-2 px-3 h-11 border-b border-border/60 shrink-0">
+    <div class="flex items-center gap-2 min-h-11 py-1 pr-2 pl-4 border-b border-border shrink-0">
       <div class="flex min-w-0 flex-col leading-tight">
         <!-- Project on top, session name below; generic label until the first sync. -->
-        <span class="truncate text-2xs uppercase tracking-wide text-foreground/50" :title="session?.project">
-          {{ session?.project || t('permission.window.headerLabel') }}
+        <span class="truncate text-xs text-muted-foreground" :title="session?.project">
+          {{ session?.project || engineLabel(request?.engine, (engine) => t('permission.window.headerLabel', { engine }), t('permission.window.headerLabelNoEngine')) }}
         </span>
-        <span v-if="session" class="truncate text-xs font-medium text-foreground/85" :title="session.name">
+        <span v-if="session" class="truncate text-xs font-semibold text-foreground" :title="session.name">
           {{ session.name }}
         </span>
       </div>
@@ -190,15 +196,15 @@ async function togglePin() {
         </Button>
       </div>
       <Button
-        :variant="pinned ? 'primary' : 'outline'"
-        size="xs"
-        :class="queue.length > 1 ? 'shrink-0' : 'ml-auto shrink-0'"
+        variant="ghost"
+        size="icon-sm"
+        :class="[queue.length > 1 ? 'shrink-0' : 'ml-auto shrink-0', pinned ? 'bg-accent text-foreground' : '']"
         :aria-pressed="pinned"
         :title="pinned ? t('permission.window.pinnedTitle') : t('permission.window.pinTitle')"
+        :aria-label="pinned ? t('permission.window.pinnedTitle') : t('permission.window.pinTitle')"
         @click="togglePin"
       >
-        <component :is="pinned ? Pin : PinOff" class="h-3 w-3" :stroke-width="1.75" />
-        {{ pinned ? t('permission.window.pinned') : t('permission.window.pin') }}
+        <component :is="pinned ? Pin : PinOff" class="h-4 w-4" :stroke-width="1.75" />
       </Button>
     </div>
 
@@ -235,5 +241,7 @@ async function togglePin() {
         </p>
       </div>
     </div>
+    <!-- This bare window has no app-wide host; the pin reports failures here. -->
+    <ToastHost />
   </div>
 </template>

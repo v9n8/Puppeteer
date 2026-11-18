@@ -35,6 +35,51 @@ pub struct PermissionRequestEvent {
     /// answered once — there is no standing Always for a credential use.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub once_only: bool,
+    /// The run's engine ("claude" / "codex"); None for a broker prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engine: Option<String>,
+    /// Model id from the run's latest `system.init`; None before the first one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Which agent asked; None when the engine has no sub-agents (Codex) or
+    /// the source does not say (broker).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<PermissionAgent>,
+    /// When the request arrived. The pending store reuses it, so the UI and
+    /// the watchdog read one clock.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// The agent behind a permission request. The SDK hands `canUseTool` only the
+/// sub-agent's id, never its name, so `name` stays None until a source has it.
+#[derive(Debug, Serialize, Clone, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PermissionAgent {
+    Main,
+    Sub {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+    },
+}
+
+/// The agent of a `_puppeteer_permission_request` payload. Claude's sidecar
+/// always sends `agent_id` (null for the main agent); Codex has no sub-agents.
+pub fn agent_of(engine: &str, v: &Value) -> Option<PermissionAgent> {
+    if engine != "claude" {
+        return None;
+    }
+    match v.get("agent_id").and_then(Value::as_str) {
+        Some(id) if !id.is_empty() => Some(PermissionAgent::Sub { id: Some(id.to_string()), name: None }),
+        _ => Some(PermissionAgent::Main),
+    }
+}
+
+/// The model to show on a request: the last `system.init` model, if any.
+pub fn model_of(last_model: Option<&str>) -> Option<String> {
+    last_model.filter(|m| !m.is_empty()).map(str::to_string)
 }
 
 /// A permission request the sidecar is still blocked on.
@@ -52,11 +97,9 @@ fn pending_store() -> &'static Mutex<HashMap<String, Vec<PendingPermission>>> {
 
 /// Record a request the drain just emitted.
 pub fn track_pending(event: PermissionRequestEvent) {
+    let requested_at = event.requested_at.unwrap_or_else(chrono::Utc::now);
     let mut map = pending_store().lock().unwrap_or_else(|e| e.into_inner());
-    map.entry(event.run_id.clone()).or_default().push(PendingPermission {
-        event,
-        requested_at: chrono::Utc::now(),
-    });
+    map.entry(event.run_id.clone()).or_default().push(PendingPermission { event, requested_at });
 }
 
 /// Withdraw a request that ends without an answer: the sidecar settled it
@@ -151,7 +194,83 @@ mod tests {
             description: None,
             display_name: None,
             once_only: false,
+            engine: None,
+            model: None,
+            agent: None,
+            requested_at: None,
         }
+    }
+
+    fn at() -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339("2026-11-18T10:51:00Z").unwrap().into()
+    }
+
+    #[test]
+    fn origin_fields_serialize_only_when_present() {
+        let full = PermissionRequestEvent {
+            engine: Some("claude".to_string()),
+            model: Some("claude-opus-4-5".to_string()),
+            agent: Some(PermissionAgent::Main),
+            requested_at: Some(at()),
+            ..evt("r", "a")
+        };
+        let json = serde_json::to_value(&full).unwrap();
+        assert_eq!(json["engine"], "claude");
+        assert_eq!(json["model"], "claude-opus-4-5");
+        assert_eq!(json["agent"], serde_json::json!({ "kind": "main" }));
+        assert_eq!(json["requested_at"], "2026-11-18T10:51:00Z");
+
+        let sub = PermissionAgent::Sub { id: Some("ag-1".to_string()), name: None };
+        assert_eq!(serde_json::to_value(&sub).unwrap(), serde_json::json!({ "kind": "sub", "id": "ag-1" }));
+
+        let bare = serde_json::to_value(evt("r", "a")).unwrap();
+        for key in ["engine", "model", "agent", "requested_at"] {
+            assert!(bare.get(key).is_none(), "{key} must be absent when None");
+        }
+    }
+
+    #[test]
+    fn agent_of_reads_agent_id_for_claude_only() {
+        let sub = Some(PermissionAgent::Sub { id: Some("ag-1".to_string()), name: None });
+        assert_eq!(agent_of("claude", &serde_json::json!({ "agent_id": "ag-1" })), sub);
+        assert_eq!(agent_of("claude", &serde_json::json!({})), Some(PermissionAgent::Main));
+        assert_eq!(agent_of("claude", &serde_json::json!({ "agent_id": null })), Some(PermissionAgent::Main));
+        assert_eq!(agent_of("claude", &serde_json::json!({ "agent_id": "" })), Some(PermissionAgent::Main));
+        assert_eq!(agent_of("codex", &serde_json::json!({ "agent_id": "ag-1" })), None);
+        assert_eq!(agent_of("", &serde_json::json!({})), None);
+    }
+
+    #[test]
+    fn model_of_drops_empty() {
+        assert_eq!(model_of(Some("gpt-5.1-codex")), Some("gpt-5.1-codex".to_string()));
+        assert_eq!(model_of(Some("")), None);
+        assert_eq!(model_of(None), None);
+    }
+
+    #[test]
+    fn pending_keeps_origin_and_reuses_requested_at() {
+        let run = "test-run-origin";
+        track_pending(PermissionRequestEvent {
+            engine: Some("codex".to_string()),
+            model: Some("gpt-5.1-codex".to_string()),
+            requested_at: Some(at()),
+            ..evt(run, "a")
+        });
+        let before = chrono::Utc::now();
+        track_pending(evt(run, "b"));
+
+        let a = peek_pending(run, "a").expect("pending");
+        assert_eq!(a.requested_at, at());
+        assert_eq!(a.event.requested_at, Some(at()));
+        assert_eq!(a.event.engine.as_deref(), Some("codex"));
+        assert_eq!(a.event.model.as_deref(), Some("gpt-5.1-codex"));
+        assert_eq!(a.event.agent, None);
+        assert_eq!(pending_for(run)[0].event.requested_at, Some(at()));
+
+        let b = peek_pending(run, "b").expect("pending");
+        assert!(b.requested_at >= before, "no event time: stamped now");
+        assert_eq!(b.event.requested_at, None);
+        clear_pending(run);
     }
 
     #[test]

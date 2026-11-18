@@ -31,7 +31,9 @@ export function query({ prompt, options }) {
     if (scenario === 'abort') setTimeout(() => ac.abort(), 200)
     // MOCK_ASK_RULE: the ask comes from a user's permissions.ask rule.
     const askRule = process.env.MOCK_ASK_RULE ? { matchedAskRule: { source: 'userSettings', toolName } } : {}
-    const res = await options.canUseTool(toolName, { file_path: 'out.txt' }, { signal: ac.signal, toolUseID: 'toolu_mock', ...askRule })
+    // MOCK_AGENT_ID: the ask comes from inside a sub-agent.
+    const agent = process.env.MOCK_AGENT_ID ? { agentID: process.env.MOCK_AGENT_ID } : {}
+    const res = await options.canUseTool(toolName, { file_path: 'out.txt' }, { signal: ac.signal, toolUseID: 'toolu_mock', ...askRule, ...agent })
     return { type: 'result', subtype: 'success', mock_tool: toolName, mock_behavior: res.behavior, mock_message: res.message ?? null }
   }
 

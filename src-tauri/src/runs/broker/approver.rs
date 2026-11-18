@@ -117,6 +117,10 @@ impl Approver for ModalApprover {
             description: Some(reason.to_string()),
             display_name: Some(format!("{} command", req.tool)),
             once_only: true,
+            engine: None,
+            model: None,
+            agent: None,
+            requested_at: Some(chrono::Utc::now()),
         };
         let topic = format!("run:permission_request:{}", self.run_id);
         // Track it like a sidecar request: the emit is lost when no webview

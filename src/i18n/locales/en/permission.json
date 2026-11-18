@@ -1,7 +1,14 @@
 {
   "headerPlanFinished": "Claude finished planning",
   "headerQuestion": "Claude has a question",
-  "headerRequest": "Claude requests permission",
+  "headerRequest": "{engine} requests permission",
+  "headerRequestNoEngine": "Permission requested",
+  "by": {
+    "justNow": "just now",
+    "main": "main agent",
+    "sub": "sub-agent",
+    "subNamed": "sub-agent “{name}”"
+  },
   "planReviewHint": "Review the plan below, then approve to start — or keep planning to refine it.",
   "allowHint": "Allow this tool call to proceed? You can block it or allow it for this run.",
   "selectAll": "Select all that apply",
@@ -70,11 +77,11 @@
   "window": {
     "title": "Permission — Puppeteer",
     "osTitlePrefix": "Permission",
-    "headerLabel": "Claude — Permission",
-    "pinned": "Pinned",
-    "pin": "Pin",
+    "headerLabel": "{engine} — Permission",
+    "headerLabelNoEngine": "Permission",
     "pinnedTitle": "Pinned on top — click to unpin",
     "pinTitle": "Keep on top",
+    "pinFailed": "Couldn't change whether this window stays on top.",
     "emptyTitle": "No pending request.",
     "emptyBody": "Questions / permission requests of the current run will appear here."
   },
