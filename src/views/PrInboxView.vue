@@ -14,7 +14,7 @@ import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { composerDefaults } from '@/lib/composerChips'
 import { useProjectsStore } from '@/stores/projects'
 import {
-  Button, Skeleton, ContextMenu, DropdownItem, DropdownSeparator, PageHeader, Banner,
+  Button, Skeleton, ContextMenu, DropdownItem, DropdownSeparator, EmptyState, PageHeader, Banner,
 } from '@/components/ui'
 import PrInboxCard from '@/components/prInbox/PrInboxCard.vue'
 import PrInboxFiltersPopover, { type PrFilterDimension } from '@/components/prInbox/PrInboxFiltersPopover.vue'
@@ -565,19 +565,18 @@ async function reviewAll(group: PrGroup) {
       </Banner>
 
       <!-- Empty state -->
-      <div v-else-if="store.items.length === 0" class="flex flex-col items-center justify-center h-full min-h-80 text-center">
-        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted mb-4">
-          <GitPullRequest class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <p class="text-sm font-medium">{{ t('prInbox.emptyTitle') }}</p>
-        <p class="text-xs text-muted-foreground mt-1 max-w-64">
-          {{ t('prInbox.emptyBody') }}
-        </p>
-        <Button class="mt-4" @click="store.refresh()">
+      <EmptyState
+        v-else-if="store.items.length === 0"
+        fill
+        :icon="GitPullRequest"
+        :title="t('prInbox.emptyTitle')"
+        :hint="t('prInbox.emptyBody')"
+      >
+        <Button @click="store.refresh()">
           <RefreshCw class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('common.refresh') }}
         </Button>
-      </div>
+      </EmptyState>
 
       <!-- PR list, grouped per the toolbar. `none` mode is one headerless
            group. When every PR is a hidden bot PR there are no groups, only

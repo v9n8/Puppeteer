@@ -33,7 +33,7 @@ function seeAll() {
 </script>
 
 <template>
-  <div v-if="displayRows.length > 0" class="px-2 pb-2 border-t border-border/50 pt-2">
+  <div v-if="displayRows.length > 0" class="px-2 pb-2 border-t border-border pt-2">
     <!-- One line: the text opens the popup, the chevron expands the dock. -->
     <div v-if="mode === 'compact'" class="flex h-8 items-center gap-1">
       <ActiveRunsPopup side="top">

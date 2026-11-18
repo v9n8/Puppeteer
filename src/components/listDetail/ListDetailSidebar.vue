@@ -13,7 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Folder, Plus, RotateCw, Search, X } from 'lucide-vue-next'
 import { Banner, Button, Input, SegmentedControl } from '@/components/ui'
 import { parseCollapsed, type RowGroup } from '@/lib/listGroups'
-import { groupClass, groupHeaderClass, rowClass, rowListClass } from './rowStyles'
+import { groupClass, groupHeaderClass, listPaneClass, listPaneHeadClass, rowClass, rowListClass } from './rowStyles'
 
 const props = withDefaults(
   defineProps<{
@@ -108,8 +108,8 @@ function showHeaders(): boolean {
 </script>
 
 <template>
-  <aside class="flex w-[280px] shrink-0 flex-col border-r border-border/60 bg-sidebar">
-    <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
+  <aside class="w-[280px]" :class="listPaneClass">
+    <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
           <Search
@@ -169,7 +169,7 @@ function showHeaders(): boolean {
         <div v-if="showHeaders()" :class="groupHeaderClass">
           <button
             type="button"
-            class="flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 px-1.5 py-1 text-left text-xs font-semibold text-foreground"
+            class="flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left text-xs font-semibold text-foreground"
             :aria-expanded="!collapsed.has(g.key)"
             @click="toggle(g.key)"
           >
@@ -184,17 +184,14 @@ function showHeaders(): boolean {
               {{ g.rows.length }}
             </span>
           </button>
-          <div class="mr-1 flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/folder:opacity-100">
+          <div class="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/folder:opacity-100">
             <slot name="group-actions" :group="g" />
           </div>
         </div>
 
         <ul v-if="!showHeaders() || !collapsed.has(g.key)" :class="rowListClass">
           <li v-for="row in g.rows" :key="row.id">
-            <div
-              class="group/row gap-1 pr-2"
-              :class="[rowClass(row.id === selectedId), showHeaders() ? 'pl-6' : 'pl-3']"
-            >
+            <div class="group/row" :class="rowClass(row.id === selectedId)">
               <button
                 type="button"
                 class="flex min-w-0 flex-1 cursor-pointer flex-col text-left"

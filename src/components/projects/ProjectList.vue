@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Eye, EyeOff, GripVertical, Plus, RotateCw, Search, X } from 'lucide-vue-next'
 import { Badge, Banner, Button, Input } from '@/components/ui'
-import { rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components/listDetail/rowStyles'
+import { listPaneHeadClass, rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components/listDetail/rowStyles'
 import { useDragSort } from '@/composables/useDragSort'
 import { projectIcon, projectTileClass } from '@/lib/projectAppearance'
 import { filterProjects } from '@/lib/projectList'
@@ -62,8 +62,8 @@ function onListClickCapture(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col bg-sidebar">
-    <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
+  <div class="flex h-full min-h-0 flex-col">
+    <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
           <Search
@@ -142,10 +142,10 @@ function onListClickCapture(e: MouseEvent) {
           :class="dragFrom === index && 'relative rounded-md bg-card shadow-xl ring-1 ring-primary/40'"
           :style="itemStyle(index)"
         >
-          <div class="group/row gap-1 pl-2 pr-1" :class="rowClass(project.id === selectedId)">
+          <div class="group/row" :class="rowClass(project.id === selectedId)">
             <button
               type="button"
-              class="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 text-left"
+              class="flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-left"
               :class="{ 'opacity-60': project.hidden }"
               :aria-current="project.id === selectedId ? 'true' : undefined"
               @click="emit('select', project.id)"
@@ -197,6 +197,6 @@ function onListClickCapture(e: MouseEvent) {
       </ul>
     </div>
 
-    <p class="shrink-0 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">{{ t('projects.dotsLegend') }}</p>
+    <p class="shrink-0 border-t border-border px-3 py-2 text-2xs text-muted-foreground">{{ t('projects.dotsLegend') }}</p>
   </div>
 </template>

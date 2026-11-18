@@ -26,7 +26,7 @@ defineSlots<{
 </script>
 
 <template>
-  <div class="flex h-12 shrink-0 items-center justify-between gap-2.5 border-b border-border/60 px-3">
+  <div class="flex h-12 shrink-0 items-center justify-between gap-2.5 border-b border-border px-3">
     <div class="flex min-w-0 items-center gap-2.5">
       <slot name="leading" />
       <h1 class="text-[length:calc(0.9375rem*var(--text-scale))] font-semibold leading-[calc(1.3125rem*var(--text-scale))] text-muted-foreground" :class="truncate ? 'min-w-0 truncate' : 'shrink-0'" :title="truncate ? title : undefined">

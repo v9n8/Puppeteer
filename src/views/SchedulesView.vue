@@ -8,8 +8,8 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-vue-next'
-import { AppSelect, Badge, Banner, Button, Input, Modal, PageHeader, Textarea, ToggleSwitch } from '@/components/ui'
+import { CalendarClock, Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-vue-next'
+import { AppSelect, Badge, Banner, Button, EmptyState, Input, Modal, PageHeader, Textarea, ToggleSwitch } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -226,9 +226,7 @@ async function remove(s: Schedule) {
         <Banner v-if="remote" tone="info">{{ t('schedules.remote') }}</Banner>
         <Banner v-if="error" tone="destructive">{{ error }}</Banner>
 
-        <p v-if="!loading && !error && schedules.length === 0" class="text-xs text-muted-foreground">
-          {{ t('schedules.empty') }}
-        </p>
+        <EmptyState v-if="!loading && !error && schedules.length === 0" :icon="CalendarClock" :title="t('schedules.empty')" />
 
         <div v-if="schedules.length > 0" class="divide-y divide-border/40 rounded-card border border-border bg-card">
           <div v-for="s in schedules" :key="s.id" class="flex items-start gap-3 px-3 py-2.5 text-xs">

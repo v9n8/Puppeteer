@@ -122,7 +122,12 @@ Every icon-only button needs `:title` and `:aria-label`.
 - **List-detail screen** (Skills, Rules, MCP, Servers, Notes/Todos, Slack, Secret
   notes): `listDetail/ListDetailSidebar` (280px) + right pane with
   `listDetail/DetailHeader`, body of `listDetail/DetailSection`s, and
-  `listDetail/DetailEmpty` when nothing is selected.
+  `listDetail/DetailEmpty` when nothing is selected. Pane shell, folder headers
+  and rows come from `listDetail/rowStyles` (card pane, solid divider; 6px rows
+  `px-2 py-1.5`, solid `bg-accent` on hover / selection, no dividers between rows).
+- **Empty state**: `EmptyState` (48px muted icon tile, 13px semibold title, muted
+  hint, actions in the slot; `fill` centres it in a whole page) — never a
+  hand-copied block.
 - **Switchers** (filters, view modes, auth method): `SegmentedControl` — 30px bordered track, 24px segments; `radio` gives a `radiogroup` (Trash search mode).
 - **Dropdowns**: `AppSelect` for values, `DropdownMenu` + `DropdownItem` for actions.
 - **Dialogs**: `Modal`, `ConfirmModal`, `PromptModal`, `Drawer` — never a custom overlay.

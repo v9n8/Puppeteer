@@ -112,7 +112,7 @@ function badgeTip(id: string): string | undefined {
 <template>
   <aside
     v-if="visible"
-    class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border/50"
+    class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border"
     :class="rail ? 'w-[52px]' : 'w-[216px]'"
   >
     <div class="h-full flex flex-col" :class="rail ? 'w-[52px]' : 'w-[216px]'">
@@ -175,7 +175,7 @@ function badgeTip(id: string): string | undefined {
 
       <!-- Version footer; the rail keeps only the Remote dot. -->
       <div
-        class="flex items-center border-t border-border/50"
+        class="flex items-center border-t border-border"
         :class="rail ? 'justify-center py-3' : 'justify-between gap-2 px-4 py-3'"
       >
         <button

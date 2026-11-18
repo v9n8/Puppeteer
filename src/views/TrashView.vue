@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { RotateCw, Trash2 } from 'lucide-vue-next'
-import { Banner, Button, PageHeader } from '@/components/ui'
+import { Banner, Button, EmptyState, PageHeader } from '@/components/ui'
 import { useFeaturesStore } from '@/stores/features'
 import TrashGroupCard from '@/components/trash/TrashGroupCard.vue'
 import TrashToolbar from '@/components/trash/TrashToolbar.vue'
@@ -386,16 +386,13 @@ function openProject(group: TrashEntry['full']) {
     />
 
     <div class="flex-1 overflow-auto p-6">
-      <div
+      <EmptyState
         v-if="!loading && !error && groups.length === 0"
-        class="flex flex-col items-center justify-center h-full min-h-80 text-center"
-      >
-        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted mb-4">
-          <Trash2 class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <p class="text-sm font-medium">{{ t('trash.empty.title') }}</p>
-        <p class="text-xs text-muted-foreground mt-1 max-w-80">{{ t('trash.empty.hint') }}</p>
-      </div>
+        fill
+        :icon="Trash2"
+        :title="t('trash.empty.title')"
+        :hint="t('trash.empty.hint')"
+      />
 
       <div v-else class="max-w-4xl space-y-4">
         <p class="text-xs text-muted-foreground">{{ t('trash.hint') }}</p>

@@ -9,7 +9,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarClock, ChevronDown, ChevronRight, RefreshCw, Target, TriangleAlert } from 'lucide-vue-next'
-import { Banner, Button, Card, SegmentedControl, Skeleton } from '@/components/ui'
+import { Banner, Button, Card, EmptyState, SegmentedControl, Skeleton } from '@/components/ui'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
 import FocusDialogs from '@/components/focus/FocusDialogs.vue'
 import FocusAiDialogs from '@/components/focus/FocusAiDialogs.vue'
@@ -327,14 +327,15 @@ defineExpose({ showTodo, openTodo })
     </div>
 
     <!-- Empty -->
-    <div v-else-if="store.items.length === 0" class="flex min-h-80 flex-1 flex-col items-center justify-center text-center">
-      <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-        <Target class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <p class="text-sm font-medium">{{ t('focus.empty.title') }}</p>
-      <p class="mt-1 max-w-96 text-xs text-muted-foreground">{{ t('focus.empty.hint') }}</p>
-      <div class="mt-4"><AddTodoButton button-variant="primary" size="sm" /></div>
-    </div>
+    <EmptyState
+      v-else-if="store.items.length === 0"
+      class="min-h-80 flex-1"
+      :icon="Target"
+      :title="t('focus.empty.title')"
+      :hint="t('focus.empty.hint')"
+    >
+      <AddTodoButton button-variant="primary" size="sm" />
+    </EmptyState>
 
     <p v-else-if="visible.length === 0" class="py-12 text-center text-sm text-muted-foreground">{{ t('focus.empty.filtered') }}</p>
 

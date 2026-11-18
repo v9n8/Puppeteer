@@ -23,21 +23,32 @@ import {
   ChevronRight,
   Folder,
   Link2,
+  ListTodo,
   Pin,
   PinOff,
   Plus,
   RotateCw,
   Search,
+  StickyNote,
   Trash2,
   X,
 } from 'lucide-vue-next'
-import { AppSelect, Banner, Button, Input, SegmentedControl, Skeleton } from '@/components/ui'
+import { AppSelect, Banner, Button, EmptyState, Input, SegmentedControl, Skeleton } from '@/components/ui'
 import { relativeAge } from '@/lib/itemText'
 import { formatDate, ymdToDate } from '@/lib/dateValue'
 import { dueStatus, localYmd } from '@/lib/todoDue'
 import { formatFullDate } from '@/lib/slackThreadUtils'
 import type { ItemRow } from './itemRow'
-import { groupClass, groupHeaderClass, rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components/listDetail/rowStyles'
+import {
+  groupClass,
+  groupHeaderClass,
+  listPaneClass,
+  listPaneHeadClass,
+  rowClass,
+  rowListClass,
+  rowSubClass,
+  rowTitleClass,
+} from '@/components/listDetail/rowStyles'
 
 const props = defineProps<{
   kind: 'note' | 'todo'
@@ -164,9 +175,9 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <aside class="flex w-[280px] shrink-0 flex-col border-r border-border/60 bg-sidebar">
+  <aside class="w-[280px]" :class="listPaneClass">
     <!-- Search + pin / reload, filter + new -->
-    <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
+    <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
           <Search
@@ -251,14 +262,12 @@ const groups = computed(() => {
       <div v-if="loading && !error" class="space-y-2 px-1 py-2">
         <Skeleton v-for="i in 6" :key="i" class="h-8 w-full rounded" />
       </div>
-      <div v-else-if="emptyStore && !error" class="px-3 py-8 text-center">
-        <p class="text-xs text-muted-foreground">
-          {{ kind === 'note' ? t('item.emptyNote') : t('item.emptyTodo') }}
-        </p>
-        <p class="mt-1 text-2xs text-muted-foreground/70">
-          {{ kind === 'note' ? t('item.emptyNoteHint') : t('item.emptyTodoHint') }}
-        </p>
-      </div>
+      <EmptyState
+        v-else-if="emptyStore && !error"
+        :icon="kind === 'note' ? StickyNote : ListTodo"
+        :title="kind === 'note' ? t('item.emptyNote') : t('item.emptyTodo')"
+        :hint="kind === 'note' ? t('item.emptyNoteHint') : t('item.emptyTodoHint')"
+      />
       <p v-else-if="rows.length === 0" class="px-3 py-8 text-center text-2xs text-muted-foreground">
         {{ t('item.noResults') }}
       </p>
@@ -267,7 +276,7 @@ const groups = computed(() => {
         <div :class="groupHeaderClass">
           <button
             type="button"
-            class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 px-1.5 py-1 text-left text-xs font-semibold text-foreground"
+            class="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left text-xs font-semibold text-foreground"
             :aria-expanded="!collapsed.has(g.key)"
             @click="toggle(g.key)"
           >
@@ -285,7 +294,7 @@ const groups = computed(() => {
           <Button
             variant="destructive-ghost"
             size="icon-xs"
-            class="mr-1 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/folder:opacity-100"
+            class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/folder:opacity-100"
             :title="t('item.deleteFolder')"
             :aria-label="t('item.deleteFolder')"
             @click="emit('deleteGroup', g.key === NONE ? null : g.key, g.label)"
@@ -296,10 +305,7 @@ const groups = computed(() => {
 
         <ul v-if="!collapsed.has(g.key)" :class="rowListClass">
           <li v-for="row in g.rows" :key="row.id">
-            <div
-              class="gap-2 pl-6 pr-2"
-              :class="rowClass(row.id === selectedId)"
-            >
+            <div class="pl-6" :class="rowClass(row.id === selectedId)">
               <button
                 v-if="kind === 'todo'"
                 type="button"

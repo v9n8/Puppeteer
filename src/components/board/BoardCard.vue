@@ -71,7 +71,7 @@ function onKeydown(ev: KeyboardEvent) {
     :data-card-id="run.id"
     class="flex min-h-[2.75rem] w-full cursor-pointer flex-col gap-1 rounded-md border bg-card px-2.5 py-2 text-left transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="[
-      state === 'lifted' ? 'border-primary shadow-md ring-2 ring-primary/40' : 'border-border/60',
+      state === 'lifted' ? 'border-primary shadow-md ring-2 ring-primary/40' : 'border-border',
       state === 'dragging' ? 'opacity-40' : '',
     ]"
     :title="t('board.card.open')"

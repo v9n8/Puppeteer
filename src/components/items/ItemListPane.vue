@@ -26,6 +26,7 @@ import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ListTodo, StickyNote } from 'lucide-vue-next'
 import AddTodoButton from '@/components/focus/AddTodoButton.vue'
+import { EmptyState } from '@/components/ui'
 import ItemSidebar from '@/components/items/ItemSidebar.vue'
 import ItemHeader from '@/components/items/ItemHeader.vue'
 import ItemBody from '@/components/items/ItemBody.vue'
@@ -669,22 +670,18 @@ onBeforeUnmount(() => {
       </div>
     </section>
     <div v-else class="flex min-w-0 flex-1 items-center justify-center p-6">
-      <div class="flex flex-col items-center text-center">
-        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-          <component
-            :is="kind === 'note' ? StickyNote : ListTodo"
-            class="h-6 w-6 text-muted-foreground"
-            :stroke-width="1.5"
-          />
-        </div>
-        <template v-if="embedded && emptyStore && ready">
-          <p class="text-sm font-medium">{{ t('tasks.emptyTitle') }}</p>
-          <AddTodoButton class="mt-3" button-variant="primary" size="sm" />
-        </template>
-        <p v-else class="text-xs text-muted-foreground">
-          {{ kind === 'note' ? t('item.noSelectionNote') : t('tasks.pickOne') }}
-        </p>
-      </div>
+      <EmptyState
+        v-if="embedded && emptyStore && ready"
+        :icon="kind === 'note' ? StickyNote : ListTodo"
+        :title="t('tasks.emptyTitle')"
+      >
+        <AddTodoButton button-variant="primary" size="sm" />
+      </EmptyState>
+      <EmptyState
+        v-else
+        :icon="kind === 'note' ? StickyNote : ListTodo"
+        :hint="kind === 'note' ? t('item.noSelectionNote') : t('tasks.pickOne')"
+      />
     </div>
 
   </div>

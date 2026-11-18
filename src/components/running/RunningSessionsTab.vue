@@ -10,7 +10,7 @@ import {
   Activity, AlertTriangle, ArrowUpRight, CircleCheck, CircleSlash, CircleStop, CircleX, Ellipsis,
   LoaderCircle, Network, ShieldAlert,
 } from 'lucide-vue-next'
-import { AppSelect, Button, DropdownItem, DropdownMenu, SegmentedControl, Skeleton } from '@/components/ui'
+import { AppSelect, Button, DropdownItem, DropdownMenu, EmptyState, SegmentedControl, Skeleton } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useRunningRows } from '@/composables/useRunningRows'
@@ -197,14 +197,15 @@ defineExpose({ canStopAll, stopAll })
     </div>
 
     <!-- Nothing running -->
-    <div v-else-if="empty" class="flex h-full min-h-80 flex-col items-center justify-center text-center">
-      <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-        <Activity class="h-6 w-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <p class="text-sm font-medium">{{ t('processes.running.empty.title') }}</p>
-      <p class="mt-1 max-w-96 text-xs text-muted-foreground">{{ t('processes.running.empty.hint') }}</p>
-      <Button variant="outline" class="mt-4" @click="openProjects">{{ t('processes.running.empty.openProjects') }}</Button>
-    </div>
+    <EmptyState
+      v-else-if="empty"
+      fill
+      :icon="Activity"
+      :title="t('processes.running.empty.title')"
+      :hint="t('processes.running.empty.hint')"
+    >
+      <Button variant="outline" @click="openProjects">{{ t('processes.running.empty.openProjects') }}</Button>
+    </EmptyState>
 
     <template v-else>
       <!-- Filters -->

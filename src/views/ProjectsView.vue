@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
 import { visibleProjects } from '@/lib/projectAppearance'
 import { projectPlace, selectedProjectId, type ProjectPlace } from '@/lib/projectList'
+import { listPaneClass } from '@/components/listDetail/rowStyles'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useAwsAccountsStore } from '@/stores/awsAccounts'
@@ -243,7 +244,7 @@ async function confirmAdd() {
 
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-[240px] shrink-0 flex-col border-r border-border/60 min-[1024px]:w-[280px]">
+    <aside class="w-[240px] min-[1024px]:w-[280px]" :class="listPaneClass">
       <ProjectList v-model:search="search" v-model:show-hidden="showHidden" v-bind="listProps" v-on="listEvents" />
     </aside>
 

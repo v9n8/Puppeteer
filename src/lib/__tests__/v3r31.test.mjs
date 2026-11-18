@@ -32,7 +32,7 @@ test('Windows overlay: closing / minimizing one card toasts a failure', () => {
 })
 
 test('List-detail group title button is 28px high itself', () => {
-  assert.match(sidebar, /class="flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 px-1\.5 py-1 text-left/)
+  assert.match(sidebar, /class="flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1\.5 text-left/)
 })
 
 test('Server detail: auth switch, remove-tag button and tag box reach 28px', () => {

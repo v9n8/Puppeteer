@@ -62,7 +62,7 @@ function viewProcesses(runId: string) {
         </Button>
       </template>
     </PageHeader>
-    <div class="flex shrink-0 gap-1 border-b border-border/60 px-6" role="tablist">
+    <div class="flex shrink-0 gap-1 border-b border-border px-6" role="tablist">
       <button
         v-for="x in tabs"
         :key="x.id"

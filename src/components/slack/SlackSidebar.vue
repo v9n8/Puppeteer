@@ -27,6 +27,7 @@ import { relativeAge } from '@/lib/itemText'
 import { formatFullDate, groupThreads } from '@/lib/slackThreadUtils'
 import type { SlackThreadProgress, SlackThreadSummary } from '@/stores/slackThreads'
 import SlackStatusIcon from './SlackStatusIcon.vue'
+import { listPaneClass, listPaneHeadClass } from '@/components/listDetail/rowStyles'
 
 const props = defineProps<{
   /** Already filtered by project / search. */
@@ -105,9 +106,9 @@ function rowAgeTitle(th: SlackThreadSummary): string {
 </script>
 
 <template>
-  <aside class="flex w-[260px] shrink-0 flex-col border-r border-border/60 bg-sidebar">
+  <aside class="w-[260px]" :class="listPaneClass">
     <!-- Search + pin / reload, filter + add -->
-    <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
+    <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
           <Search

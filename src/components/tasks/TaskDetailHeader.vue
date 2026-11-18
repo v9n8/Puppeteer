@@ -77,7 +77,7 @@ const metaTitle = computed(() => t('item.createdAt', { date: formatFullDate(prop
 </script>
 
 <template>
-  <div class="shrink-0 border-b border-border/60 px-5 py-3">
+  <div class="shrink-0 border-b border-border px-5 py-3">
     <div class="flex items-center gap-2">
       <button
         type="button"

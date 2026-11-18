@@ -139,7 +139,7 @@ async function toggleHidden() {
       </template>
     </DetailHeader>
 
-    <div class="flex shrink-0 overflow-x-auto border-b border-border/60 px-5 text-xs font-medium" role="tablist">
+    <div class="flex shrink-0 overflow-x-auto border-b border-border px-5 text-xs font-medium" role="tablist">
       <button
         v-for="id in PROJECT_TABS"
         :key="id"
@@ -156,7 +156,7 @@ async function toggleHidden() {
 
     <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
       <!-- Sections of the tab -->
-      <div class="flex flex-wrap gap-x-1 border-b border-border/40" role="tablist" :aria-label="t(`projectDetail.groups.${place.tab}`)">
+      <div class="flex flex-wrap gap-x-1 border-b border-border" role="tablist" :aria-label="t(`projectDetail.groups.${place.tab}`)">
         <button
           v-for="s in sections"
           :key="s.id"

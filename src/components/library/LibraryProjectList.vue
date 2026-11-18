@@ -6,7 +6,14 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-vue-next'
 import { Button, Input } from '@/components/ui'
-import { rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components/listDetail/rowStyles'
+import {
+  listPaneClass,
+  listPaneHeadClass,
+  rowClass,
+  rowListClass,
+  rowSubClass,
+  rowTitleClass,
+} from '@/components/listDetail/rowStyles'
 import { projectIcon, projectTileClass } from '@/lib/projectAppearance'
 import { filterProjects } from '@/lib/projectList'
 import type { Project } from '@/stores/projects'
@@ -28,7 +35,7 @@ const rows = computed(() => filterProjects(props.projects, search.value))
 </script>
 
 <template>
-  <aside v-if="collapsed" class="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-border/60 bg-sidebar py-2">
+  <aside v-if="collapsed" class="w-11 items-center gap-1 py-2" :class="listPaneClass">
     <Button
       variant="ghost"
       size="icon-sm"
@@ -55,8 +62,8 @@ const rows = computed(() => filterProjects(props.projects, search.value))
     </div>
   </aside>
 
-  <aside v-else class="flex w-56 shrink-0 flex-col border-r border-border/60 bg-sidebar">
-    <div class="flex shrink-0 items-center gap-1.5 border-b border-border/60 px-3 py-3">
+  <aside v-else class="w-56" :class="listPaneClass">
+    <div class="flex items-center gap-1.5 px-3 py-3" :class="listPaneHeadClass">
       <div class="relative min-w-0 flex-1">
         <Search
           class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
@@ -99,7 +106,7 @@ const rows = computed(() => filterProjects(props.projects, search.value))
         <li v-for="project in rows" :key="project.id">
           <button
             type="button"
-            class="cursor-pointer gap-2.5 pl-2 pr-1 text-left"
+            class="cursor-pointer text-left"
             :class="rowClass(project.id === selectedId)"
             :aria-current="project.id === selectedId ? 'true' : undefined"
             @click="emit('select', project.id)"

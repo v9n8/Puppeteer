@@ -44,7 +44,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
     class="relative flex min-h-0 flex-col rounded-card border bg-muted/30"
     :class="[
       collapsed ? 'w-11 shrink-0' : 'min-w-[12.25rem] max-w-[20rem] flex-1 basis-[12.25rem]',
-      drop === 'target' ? 'border-dashed border-primary bg-accent' : drop === 'blocked' ? 'cursor-not-allowed border-dashed border-destructive/60' : 'border-border/60',
+      drop === 'target' ? 'border-dashed border-primary bg-accent' : drop === 'blocked' ? 'cursor-not-allowed border-dashed border-destructive/60' : 'border-border',
     ]"
     :aria-label="`${label} · ${count}`"
     :title="drop === 'blocked' ? blockedReason : column.kind === 'own' ? ownLock : undefined"

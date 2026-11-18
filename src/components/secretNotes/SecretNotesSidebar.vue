@@ -26,6 +26,7 @@ import { relativeAge } from '@/lib/itemText'
 import { formatFullDate } from '@/lib/slackThreadUtils'
 import type { SecretNoteMeta } from '@/lib/secretVault'
 import { AUTO_LOCK_CHOICES } from '@/lib/secretVaultTimers'
+import { listPaneClass, listPaneHeadClass } from '@/components/listDetail/rowStyles'
 
 const props = defineProps<{
   /** Already filtered. */
@@ -114,9 +115,9 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <aside class="flex w-[280px] shrink-0 max-[901px]:w-[256px] flex-col border-r border-border/60 bg-sidebar">
+  <aside class="w-[280px] max-[901px]:w-[256px]" :class="listPaneClass">
     <!-- Search + pin / lock, filter + new -->
-    <div class="shrink-0 space-y-2 border-b border-border/60 px-3 py-3">
+    <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
           <Search
@@ -246,7 +247,7 @@ const groups = computed(() => {
     </div>
 
     <!-- The vault: auto-lock + change password. -->
-    <div class="flex shrink-0 flex-col gap-1.5 border-t border-border/60 px-3 py-2 text-2xs text-muted-foreground">
+    <div class="flex shrink-0 flex-col gap-1.5 border-t border-border px-3 py-2 text-2xs text-muted-foreground">
       <i18n-t keypath="secretNotes.autoLock" tag="div" class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
         <template #choice>
           <AppSelect

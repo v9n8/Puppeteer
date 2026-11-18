@@ -245,7 +245,7 @@ function manageFlags() {
         <template #trigger>
           <button
             type="button"
-            class="inline-flex h-8 min-w-0 max-w-[14rem] cursor-pointer items-center gap-1.5 rounded-md border border-border/60 px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="inline-flex h-8 min-w-0 max-w-[14rem] cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :title="t('board.project.tooltip', { name: choiceName })"
             :aria-label="t('board.project.tooltip', { name: choiceName })"
             aria-haspopup="menu"
@@ -273,7 +273,7 @@ function manageFlags() {
         <input
           v-model="query"
           type="text"
-          class="h-8 w-full rounded-md border border-border/60 bg-background pl-7 pr-2 text-sm placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-sm placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :placeholder="t('board.filter.placeholder')"
           :aria-label="t('board.filter.label')"
         />
@@ -353,7 +353,7 @@ function manageFlags() {
       </div>
       <!-- Not loaded yet (or it failed): empty frames, the count is a dash. -->
       <div v-else class="flex h-full min-w-min gap-3" :aria-busy="board.loading">
-        <div v-for="n in 4" :key="n" class="flex min-w-[12.25rem] max-w-[20rem] flex-1 basis-[12.25rem] flex-col gap-2 rounded-lg border border-border/60 bg-muted/30 p-2.5">
+        <div v-for="n in 4" :key="n" class="flex min-w-[12.25rem] max-w-[20rem] flex-1 basis-[12.25rem] flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
           <div class="flex items-center justify-between"><Skeleton class="h-4 w-24" /><span class="font-mono text-2xs text-muted-foreground">{{ board.loading ? '' : '—' }}</span></div>
           <template v-if="board.loading">
             <Skeleton class="h-14 w-full" />
@@ -363,7 +363,7 @@ function manageFlags() {
       </div>
     </div>
 
-    <p class="h-8 shrink-0 truncate border-t border-border/60 px-4 text-2xs leading-8 text-muted-foreground" role="status" aria-live="polite">
+    <p class="h-8 shrink-0 truncate border-t border-border px-4 text-2xs leading-8 text-muted-foreground" role="status" aria-live="polite">
       {{ statusLine }}
     </p>
 
