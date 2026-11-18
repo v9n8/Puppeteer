@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { RotateCw, Trash2 } from 'lucide-vue-next'
-import { Banner, Button, EmptyState, PageHeader } from '@/components/ui'
+import { Banner, Button, EmptyState, PageHeader, Skeleton } from '@/components/ui'
 import { useFeaturesStore } from '@/stores/features'
 import TrashGroupCard from '@/components/trash/TrashGroupCard.vue'
 import TrashToolbar from '@/components/trash/TrashToolbar.vue'
@@ -397,7 +397,15 @@ function openProject(group: TrashEntry['full']) {
       <div v-else class="max-w-4xl space-y-4">
         <p class="text-xs text-muted-foreground">{{ t('trash.hint') }}</p>
         <Banner v-if="remote" tone="info">{{ t('trash.remote') }}</Banner>
-        <Banner v-if="error" tone="destructive">{{ error }}</Banner>
+        <Banner v-if="error" tone="destructive">
+          {{ error }}
+          <template #actions>
+            <Button variant="outline" size="xs" :disabled="loading" @click="load">{{ t('common.retry') }}</Button>
+          </template>
+        </Banner>
+        <div v-if="loading && groups.length === 0" class="space-y-2" aria-busy="true">
+          <Skeleton v-for="n in 3" :key="n" class="h-14 w-full" />
+        </div>
         <Banner v-if="mode === 'content' && contentState === 'error'" tone="destructive" live>
           {{ t('trash.content.error', { error: contentError }) }}
           <template #actions>

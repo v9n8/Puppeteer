@@ -89,7 +89,7 @@ function onEnter() {
     </Button>
     <DropdownMenu>
       <template #trigger="{ open }">
-        <Button variant="outline" size="sm" class="shrink-0" aria-haspopup="menu" :aria-expanded="open">
+        <Button variant="outline" size="sm" class="shrink-0 pl-2.5 pr-2" aria-haspopup="menu" :aria-expanded="open">
           {{ t('trash.sortLabel', { sort: sortLabel }) }}
           <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
         </Button>

@@ -224,12 +224,17 @@ async function remove(s: Schedule) {
       <div class="max-w-4xl space-y-4">
         <p class="text-xs text-muted-foreground">{{ t('schedules.hint') }}</p>
         <Banner v-if="remote" tone="info">{{ t('schedules.remote') }}</Banner>
-        <Banner v-if="error" tone="destructive">{{ error }}</Banner>
+        <Banner v-if="error" tone="destructive">
+          {{ error }}
+          <template #actions>
+            <Button variant="outline" size="xs" :disabled="loading" @click="load">{{ t('common.retry') }}</Button>
+          </template>
+        </Banner>
 
         <EmptyState v-if="!loading && !error && schedules.length === 0" :icon="CalendarClock" :title="t('schedules.empty')" />
 
-        <div v-if="schedules.length > 0" class="divide-y divide-border/40 rounded-card border border-border bg-card">
-          <div v-for="s in schedules" :key="s.id" class="flex items-start gap-3 px-3 py-2.5 text-xs">
+        <div v-if="schedules.length > 0" class="rounded-card border border-border bg-card">
+          <div v-for="s in schedules" :key="s.id" class="flex items-start gap-3 px-3.5 py-3 text-xs">
             <ToggleSwitch
               class="mt-0.5"
               :checked="s.enabled"

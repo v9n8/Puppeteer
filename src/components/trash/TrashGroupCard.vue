@@ -108,9 +108,9 @@ function unlistedWorkers(s: TrashSession): number {
       <p v-if="group.sessions.length === 0" class="px-3 py-2.5 text-xs text-muted-foreground">
         {{ t('trash.noSessions') }}
       </p>
-      <div v-else class="divide-y divide-border/40">
+      <div v-else>
         <div v-for="s in group.sessions" :key="s.run.id">
-          <div class="flex items-center gap-3 px-3 py-2 text-[13px]">
+          <div class="flex items-center gap-2.5 px-3 py-1.5 text-sm leading-[1.4]">
             <component
               :is="runStatusIcon(s.run.status)"
               class="h-3.5 w-3.5 shrink-0"

@@ -41,7 +41,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
 <template>
   <section
     :data-board-column="column.id"
-    class="relative flex min-h-0 flex-col rounded-card border bg-muted/30"
+    class="relative flex min-h-0 flex-col rounded-card border bg-muted/50"
     :class="[
       collapsed ? 'w-11 shrink-0' : 'min-w-[12.25rem] max-w-[20rem] flex-1 basis-[12.25rem]',
       drop === 'target' ? 'border-dashed border-primary bg-accent' : drop === 'blocked' ? 'cursor-not-allowed border-dashed border-destructive/60' : 'border-border',
@@ -64,11 +64,11 @@ const ownLock = computed(() => t('board.column.ownLock'))
     </button>
 
     <template v-else>
-      <header class="flex h-9 shrink-0 items-center gap-2 px-2.5">
+      <header class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border py-1 pl-2.5 pr-1.5 font-semibold">
         <CircleDashed v-if="column.kind === 'none'" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         <Lock v-else-if="column.kind === 'own'" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         <span v-else-if="column.flag" class="h-2.5 w-2.5 shrink-0 rounded-full" :class="swatchClass(column.flag.color)" aria-hidden="true" />
-        <h2 class="min-w-0 flex-1 truncate text-sm font-medium" :title="label">{{ label }}</h2>
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold" :title="label">{{ label }}</h2>
         <span class="shrink-0 font-mono text-2xs text-muted-foreground" :title="t('board.column.cardCount', { n: total })">{{ count }}</span>
         <button
           v-if="column.kind === 'none'"

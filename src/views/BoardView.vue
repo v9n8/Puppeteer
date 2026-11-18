@@ -239,13 +239,13 @@ function manageFlags() {
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <PageHeader :title="t('board.title')">
+    <PageHeader :title="t('board.title')" class="bg-card text-muted-foreground">
       <template #meta>
       <DropdownMenu align="left" class="min-w-0">
         <template #trigger>
           <button
             type="button"
-            class="inline-flex h-8 min-w-0 max-w-[14rem] cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="inline-flex h-8 w-[150px] min-w-0 cursor-pointer items-center gap-2 rounded-md border border-input bg-card pl-2.5 pr-2 text-sm text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :title="t('board.project.tooltip', { name: choiceName })"
             :aria-label="t('board.project.tooltip', { name: choiceName })"
             aria-haspopup="menu"
@@ -268,12 +268,12 @@ function manageFlags() {
         </div>
       </DropdownMenu>
 
-      <label class="relative block w-[220px] shrink min-[901px]:min-w-[220px] max-[901px]:w-[150px]">
-        <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" :stroke-width="1.75" />
+      <label class="flex h-8 w-[220px] shrink items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-sm transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/15 min-[901px]:min-w-[220px] max-[901px]:w-[150px]">
+        <Search class="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         <input
           v-model="query"
           type="text"
-          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-sm placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           :placeholder="t('board.filter.placeholder')"
           :aria-label="t('board.filter.label')"
         />
@@ -281,14 +281,14 @@ function manageFlags() {
       </template>
 
       <template #actions>
-        <Button variant="outline" size="sm" :disabled="board.loading" :title="t('board.refresh')" @click="board.reload()">
+        <Button variant="ghost" size="xs" class="px-2" :disabled="board.loading" :title="t('board.refresh')" @click="board.reload()">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': board.loading }" :stroke-width="1.75" />
           <span class="max-[901px]:hidden">{{ t('board.refresh') }}</span>
         </Button>
         <Button
           v-if="manageTarget"
-          variant="outline"
-          size="icon"
+          variant="ghost"
+          size="icon-sm"
           :title="t('board.manageFlagsTip')"
           :aria-label="t('board.manageFlags')"
           @click="manageFlags"
@@ -315,7 +315,7 @@ function manageFlags() {
     <!-- The board scrolls sideways; every column scrolls its cards by itself. -->
     <div
       ref="boardEl"
-      class="min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-4"
+      class="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4 pt-3"
       :class="{ 'select-none': drag }"
       @keydown="onBoardKeydown"
       @focusout="onBoardFocusOut"
@@ -363,7 +363,7 @@ function manageFlags() {
       </div>
     </div>
 
-    <p class="h-8 shrink-0 truncate border-t border-border px-4 text-2xs leading-8 text-muted-foreground" role="status" aria-live="polite">
+    <p class="h-8 shrink-0 truncate border-t border-border px-4 text-sm leading-8 text-muted-foreground" role="status" aria-live="polite">
       {{ statusLine }}
     </p>
 

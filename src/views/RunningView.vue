@@ -62,14 +62,14 @@ function viewProcesses(runId: string) {
         </Button>
       </template>
     </PageHeader>
-    <div class="flex shrink-0 gap-1 border-b border-border px-6" role="tablist">
+    <div class="flex shrink-0 gap-1 bg-card px-4" role="tablist">
       <button
         v-for="x in tabs"
         :key="x.id"
         type="button"
         role="tab"
         :aria-selected="tab === x.id"
-        class="-mb-px flex h-9 cursor-pointer items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="-mb-px flex h-9 cursor-pointer items-center gap-1.5 border-b-2 px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :class="tab === x.id
           ? 'border-primary text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground'"

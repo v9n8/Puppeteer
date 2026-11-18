@@ -69,7 +69,7 @@ function onKeydown(ev: KeyboardEvent) {
   <button
     type="button"
     :data-card-id="run.id"
-    class="flex min-h-[2.75rem] w-full cursor-pointer flex-col gap-1 rounded-md border bg-card px-2.5 py-2 text-left transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex min-h-[2.75rem] w-full cursor-pointer flex-col gap-1.5 rounded-md border bg-card px-2.5 py-2 text-left transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="[
       state === 'lifted' ? 'border-primary shadow-md ring-2 ring-primary/40' : 'border-border',
       state === 'dragging' ? 'opacity-40' : '',
@@ -92,14 +92,14 @@ function onKeydown(ev: KeyboardEvent) {
         :aria-label="statusTitle"
       />
       <Pin v-if="run.pinned" class="mt-0.5 h-3 w-3 shrink-0 text-primary" :stroke-width="2" />
-      <span class="line-clamp-2 min-w-0 flex-1 break-words text-sm font-medium leading-snug">{{ title }}</span>
+      <span class="line-clamp-2 min-w-0 flex-1 break-words text-sm font-medium leading-5">{{ title }}</span>
     </span>
     <span v-if="showProject" class="truncate pl-4 text-2xs text-muted-foreground">{{ run.project_name }}</span>
     <span v-if="ownFlag" class="flex items-center gap-1.5 pl-4 text-2xs text-muted-foreground" :title="t('board.card.ownFlag', { name: flagName })">
       <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(ownFlag.color)" aria-hidden="true" />
       <span class="truncate">{{ flagName }}</span>
     </span>
-    <span class="flex items-center gap-3 pl-4 text-2xs text-muted-foreground">
+    <span class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-2xs leading-[1.4] text-muted-foreground">
       <span class="flex items-center gap-1" :title="t('board.card.updated', { age })">
         <Clock class="h-3 w-3" :stroke-width="1.75" />{{ age }}
       </span>
