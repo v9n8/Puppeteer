@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { CircleStop } from 'lucide-vue-next'
-import { Button, PageHeader } from '@/components/ui'
+import { Button, CountPill, PageHeader } from '@/components/ui'
 import RunningSessionsTab from '@/components/running/RunningSessionsTab.vue'
 import BackgroundProcessesTab from '@/components/running/BackgroundProcessesTab.vue'
 import { useRunningRows } from '@/composables/useRunningRows'
@@ -76,7 +76,7 @@ function viewProcesses(runId: string) {
         @click="select(x.id)"
       >
         {{ x.label }}
-        <span class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1.5 text-2xs font-medium text-muted-foreground">{{ x.count }}</span>
+        <CountPill>{{ x.count }}</CountPill>
       </button>
     </div>
     <div class="min-h-0 flex-1">

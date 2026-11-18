@@ -7,7 +7,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Check, ChevronDown, Folder, RefreshCw, Search, Settings2 } from 'lucide-vue-next'
-import { Banner, Button, ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator, Skeleton } from '@/components/ui'
+import { Banner, Button, ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator, PageHeader, Skeleton } from '@/components/ui'
 import RunActionItems from '@/components/RunActionItems.vue'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import BoardCard from '@/components/board/BoardCard.vue'
@@ -239,9 +239,8 @@ function manageFlags() {
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <header class="flex h-12 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-      <h1 class="shrink-0 text-sm font-semibold">{{ t('board.title') }}</h1>
-
+    <PageHeader :title="t('board.title')">
+      <template #meta>
       <DropdownMenu align="left" class="min-w-0">
         <template #trigger>
           <button
@@ -279,8 +278,9 @@ function manageFlags() {
           :aria-label="t('board.filter.label')"
         />
       </label>
+      </template>
 
-      <div class="ml-auto flex shrink-0 items-center gap-1.5">
+      <template #actions>
         <Button variant="outline" size="sm" :disabled="board.loading" :title="t('board.refresh')" @click="board.reload()">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': board.loading }" :stroke-width="1.75" />
           <span class="max-[901px]:hidden">{{ t('board.refresh') }}</span>
@@ -295,8 +295,8 @@ function manageFlags() {
         >
           <Settings2 class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
-      </div>
-    </header>
+      </template>
+    </PageHeader>
 
     <div v-if="board.error" class="shrink-0 px-4 pt-3">
       <Banner tone="destructive" live>

@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch, type Component } from 
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Ban, Check, ChevronDown, Eye, FolderOpen, Plus, X } from 'lucide-vue-next'
-import { Button, ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
+import { Button, ContextMenu, CountPill, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
@@ -281,10 +281,7 @@ async function jumpTo(projectId: string) {
         <span class="truncate">{{ projectName(tab.projectId) }}</span>
 
         <!-- pending-permission badge (summed across the project's runs) -->
-        <span
-          v-if="stateOf(tab.projectId).pending > 0"
-          class="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warning px-1 text-2xs font-medium text-warning-foreground leading-none shrink-0"
-        >{{ stateOf(tab.projectId).pending }}</span>
+        <CountPill v-if="stateOf(tab.projectId).pending > 0" tone="warning">{{ stateOf(tab.projectId).pending }}</CountPill>
 
         <!-- close -->
         <span

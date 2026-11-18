@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import CountPill from './CountPill.vue'
 // Top bar of a full-page view (Projects, Stats, Focus, PR Inbox, …): fixed
-// h-13 strip with the page title, an optional count pill, free-form content
+// h-12 strip with the page title, an optional count pill, free-form content
 // after the title (slot `meta`) and right-aligned actions (slot `actions`).
 // List-detail screens use `listDetail/DetailHeader` for their right pane instead.
 withDefaults(defineProps<{
@@ -25,19 +26,13 @@ defineSlots<{
 </script>
 
 <template>
-  <div class="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border/60 px-6">
-    <div class="flex min-w-0 items-center gap-2">
+  <div class="flex h-12 shrink-0 items-center justify-between gap-2.5 border-b border-border/60 px-3">
+    <div class="flex min-w-0 items-center gap-2.5">
       <slot name="leading" />
-      <h1 class="text-sm font-semibold" :class="truncate ? 'min-w-0 truncate' : 'shrink-0'" :title="truncate ? title : undefined">
+      <h1 class="text-[length:calc(0.9375rem*var(--text-scale))] font-semibold leading-[calc(1.3125rem*var(--text-scale))] text-muted-foreground" :class="truncate ? 'min-w-0 truncate' : 'shrink-0'" :title="truncate ? title : undefined">
         {{ title }}
       </h1>
-      <span
-        v-if="count !== null && count !== undefined"
-        class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-2xs font-medium text-muted-foreground"
-        :title="countTitle"
-      >
-        {{ count }}
-      </span>
+      <CountPill v-if="count !== null && count !== undefined" :title="countTitle">{{ count }}</CountPill>
       <slot name="meta" />
     </div>
     <div v-if="$slots.actions" class="flex shrink-0 items-center gap-2">
