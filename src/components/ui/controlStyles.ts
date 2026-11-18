@@ -20,6 +20,8 @@ export const selectSize = {
   xs: 'pl-2.5 pr-2 py-0 text-2xs',
   sm: 'pl-2.5 pr-2 py-0 text-xs',
   md: 'pl-2.5 pr-2 py-0 text-sm',
+  /** A chip beside text (the vault's auto-lock): `0 6px`, 6px radius. */
+  chip: 'rounded-sm px-1.5 py-0 text-2xs text-foreground',
 } as const
 
 /** AppSelect dropdown options (unchanged from the old `sm` / `md`). */
@@ -40,6 +42,7 @@ export const controlHeight = {
   xs: 'h-7',
   sm: 'h-8',
   md: 'h-9',
+  chip: 'h-6',
 } as const
 
 /**

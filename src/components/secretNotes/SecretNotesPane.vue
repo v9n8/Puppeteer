@@ -44,6 +44,7 @@ import {
   REVEAL_SECS,
   contentBytes,
   filterSecretNotes,
+  lockOutcome,
   onVaultChanged,
   passwordProblem,
   secretNoteCopy,
@@ -124,8 +125,22 @@ function forgetOpen() {
 }
 
 async function lockNow() {
-  await vaultLock().catch(() => {})
+  let lockError: unknown = null
+  try {
+    await vaultLock()
+  } catch (e) {
+    lockError = e
+  }
   await refresh()
+  if (lockError === null) return
+  // The status read decides, not the lock result: auto-lock can race the command.
+  const outcome = lockOutcome({
+    lockFailed: true,
+    statusKnown: loadError.value === '',
+    unlocked: !!status.value?.unlocked,
+  })
+  if (outcome === 'locked') return
+  toast.error(t(outcome === 'failed-open' ? 'secretNotes.lockFailed' : 'secretNotes.lockFailedUnknown', { error: errText(lockError) }))
 }
 
 function onCreated(key: string) {

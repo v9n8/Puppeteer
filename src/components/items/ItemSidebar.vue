@@ -46,6 +46,8 @@ import {
   listPaneHeadClass,
   rowClass,
   rowListClass,
+  noteRowSubClass,
+  noteRowTitleClass,
   rowSubClass,
   rowTitleClass,
 } from '@/components/listDetail/rowStyles'
@@ -305,7 +307,7 @@ const groups = computed(() => {
 
         <ul v-if="!collapsed.has(g.key)" :class="rowListClass">
           <li v-for="row in g.rows" :key="row.id">
-            <div class="pl-6" :class="rowClass(row.id === selectedId)">
+            <div class="pl-6" :class="rowClass(row.id === selectedId, kind === 'note')">
               <button
                 v-if="kind === 'todo'"
                 type="button"
@@ -330,7 +332,7 @@ const groups = computed(() => {
                 <span class="flex w-full min-w-0 items-center gap-1.5">
                   <span
                     class="min-w-0 flex-1 truncate"
-                    :class="[rowTitleClass, row.done && 'text-muted-foreground line-through']"
+                    :class="[kind === 'note' ? noteRowTitleClass : rowTitleClass, row.done && 'text-muted-foreground line-through']"
                   >
                     {{ row.title || t('item.untitled') }}
                   </span>
@@ -355,7 +357,7 @@ const groups = computed(() => {
                     {{ relativeAge(row.at) }}
                   </span>
                 </span>
-                <span v-if="row.preview" class="block w-full" :class="rowSubClass">
+                <span v-if="row.preview" class="block w-full" :class="kind === 'note' ? noteRowSubClass : rowSubClass">
                   {{ row.preview }}
                 </span>
               </button>

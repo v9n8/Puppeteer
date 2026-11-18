@@ -92,7 +92,7 @@ const metaTitle = computed(() => {
         />
         <h1
           v-else
-          class="min-w-0 cursor-text truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug transition-colors hover:bg-accent/50"
+          class="min-w-0 cursor-text truncate rounded text-base font-semibold leading-snug transition-colors hover:bg-accent/50"
           :title="`${heading}\n${t('item.renameHint')}`"
           @click="emit('startRename')"
         >

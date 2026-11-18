@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<{
   // Mirrors Input's sizing (see controlStyles). Default 'sm' so a bare
   // <AppSelect> matches a bare <Input> on every screen. 'xs' sits in a row of
   // xs buttons: its menu keeps the 'sm' rows and is at least 12rem wide.
-  size?: 'xs' | 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md' | 'chip'
   // 'outline' matches Button's outline variant, for a select sitting in a row
   // of chips (the detail windows' project chip): bordered, raised, clearly a control.
   variant?: 'default' | 'ghost' | 'outline'
@@ -68,6 +68,8 @@ function updatePosition() {
   // Flip the menu above the trigger when there isn't room below but there is
   // above — so a composer pinned to the bottom of the screen isn't clipped.
   const openUp = spaceBelow < MAX_DROPDOWN_HEIGHT && spaceAbove > spaceBelow
+  // The compact sizes are narrower than their option labels.
+  const minMenuWidth = props.size === 'xs' || props.size === 'chip' ? '12rem' : null
   const available = Math.max(120, (openUp ? spaceAbove : spaceBelow) - 8)
   dropdownStyle.value = openUp
     ? {
@@ -75,7 +77,7 @@ function updatePosition() {
         bottom: `${window.innerHeight - rect.top + 4}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
-        ...(props.size === 'xs' ? { minWidth: '12rem' } : {}),
+        ...(minMenuWidth ? { minWidth: minMenuWidth } : {}),
         maxHeight: `${Math.min(MAX_DROPDOWN_HEIGHT, available)}px`,
       }
     : {
@@ -83,7 +85,7 @@ function updatePosition() {
         top: `${rect.bottom + 4}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
-        ...(props.size === 'xs' ? { minWidth: '12rem' } : {}),
+        ...(minMenuWidth ? { minWidth: minMenuWidth } : {}),
         maxHeight: `${Math.min(MAX_DROPDOWN_HEIGHT, available)}px`,
       }
 }
@@ -217,9 +219,10 @@ watch(isOpen, (val) => {
       :aria-haspopup="'listbox'"
       :aria-expanded="isOpen"
       :aria-label="ariaLabel ?? displayLabel"
-      class="flex w-full items-center gap-2 rounded-md border transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+      class="flex w-full items-center border transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
       :class="[
         selectSize[size],
+        size === 'chip' ? 'gap-0.5' : 'gap-2 rounded-md',
         // Same fixed height as Button / Input of this size.
         controlHeight[size],
         variant === 'ghost'
@@ -244,7 +247,7 @@ watch(isOpen, (val) => {
         class="shrink-0 text-muted-foreground transition-transform duration-200"
         :class="[
           isOpen && 'rotate-180',
-          size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3',
+          size === 'md' || size === 'chip' ? 'h-3.5 w-3.5' : 'h-3 w-3',
         ]"
         :stroke-width="2"
       />

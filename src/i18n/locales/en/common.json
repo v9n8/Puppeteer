@@ -19,6 +19,7 @@
   "copy": "Copy",
   "copied": "Copied",
   "copyToClipboard": "Copy to clipboard",
+  "copyFailed": "Could not copy to the clipboard",
   "showMore": "Show more",
   "showLess": "Show less",
   "back": "Back",

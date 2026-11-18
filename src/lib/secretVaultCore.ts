@@ -77,3 +77,17 @@ export function filterSecretNotes(
     return !q || n.title.toLowerCase().includes(q)
   })
 }
+
+/**
+ * What the user must be told after "Lock now". The lock command's own result is
+ * not trusted (auto-lock can race it): the vault status read afterwards decides.
+ */
+export function lockOutcome(r: {
+  lockFailed: boolean
+  statusKnown: boolean
+  unlocked: boolean
+}): 'locked' | 'failed-open' | 'failed-unknown' {
+  if (!r.lockFailed) return 'locked'
+  if (!r.statusKnown) return 'failed-unknown'
+  return r.unlocked ? 'failed-open' : 'locked'
+}

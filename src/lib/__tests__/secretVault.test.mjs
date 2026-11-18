@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/secretVault.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { contentBytes, filterSecretNotes, passwordProblem, vaultError } from '../secretVaultCore.ts'
+import { contentBytes, filterSecretNotes, lockOutcome, passwordProblem, vaultError } from '../secretVaultCore.ts'
 
 test('vaultError reads bare codes and the throttle delay', () => {
   assert.deepEqual(vaultError('vault_locked'), { code: 'vault_locked', wait: null })
@@ -34,4 +34,11 @@ test('filterSecretNotes by project and title', () => {
   assert.deepEqual(filterSecretNotes(notes, 'aws', '', '__none__').map((n) => n.id), ['1'])
   assert.deepEqual(filterSecretNotes(notes, '', '__none__', '__none__').map((n) => n.id), ['2'])
   assert.deepEqual(filterSecretNotes(notes, '', 'p1', '__none__').map((n) => n.id), ['1'])
+})
+
+test('lockOutcome trusts the status read after a failed lock', () => {
+  assert.equal(lockOutcome({ lockFailed: false, statusKnown: true, unlocked: false }), 'locked')
+  assert.equal(lockOutcome({ lockFailed: true, statusKnown: true, unlocked: false }), 'locked')
+  assert.equal(lockOutcome({ lockFailed: true, statusKnown: true, unlocked: true }), 'failed-open')
+  assert.equal(lockOutcome({ lockFailed: true, statusKnown: false, unlocked: true }), 'failed-unknown')
 })

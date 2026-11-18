@@ -89,7 +89,7 @@ const metaTitle = computed(() =>
         />
         <template v-else>
           <h1
-            class="min-w-0 cursor-text truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug transition-colors hover:bg-accent/50"
+            class="min-w-0 cursor-text truncate rounded-sm px-1.5 py-1 -mx-1.5 text-base font-semibold leading-snug transition-colors hover:bg-accent/50"
             :title="`${thread.title}\n${t('slackThread.header.renameHint')}`"
             @click="emit('startRename')"
           >

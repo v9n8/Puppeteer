@@ -20,10 +20,10 @@ export const rowListClass = 'mt-1 space-y-0.5'
 
 const rowBase = 'relative flex w-full items-start gap-2 rounded-sm px-2 py-1.5 transition-colors'
 
-export function rowClass(selected: boolean): string {
+export function rowClass(selected: boolean, plain = false): string {
   return selected
     ? `${rowBase} bg-accent text-foreground before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-primary`
-    : `${rowBase} text-foreground/85 hover:bg-accent`
+    : `${rowBase} ${plain ? 'text-foreground' : 'text-foreground/85'} hover:bg-accent`
 }
 
 /** A row's main line. */
@@ -31,3 +31,7 @@ export const rowTitleClass = 'text-sm font-medium leading-snug'
 
 /** A row's secondary line (description, preview, user@host…). */
 export const rowSubClass = 'mt-1 truncate text-2xs text-muted-foreground/70'
+
+/** Notes list only: the mockup's regular 14px title and full-strength secondary line. */
+export const noteRowTitleClass = 'text-md font-normal leading-snug'
+export const noteRowSubClass = 'mt-1 truncate text-2xs text-muted-foreground'

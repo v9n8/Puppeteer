@@ -10,12 +10,15 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { PageHeader } from '@/components/ui'
 import DetachButton from '@/components/app/DetachButton.vue'
 import ItemListPane from '@/components/items/ItemListPane.vue'
+import { pageCount } from '@/lib/pageCount'
+import { useNotesStore } from '@/stores/notes'
 import { notesTarget, openNotesWindow } from '@/lib/itemListWindow'
 import { NOTES_PATH, notesPath, parseItemQuery } from '@/lib/screenRoutes'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const notesStore = useNotesStore()
 
 const initial = parseItemQuery(route.query)
 const pane = ref<InstanceType<typeof ItemListPane> | null>(null)
@@ -68,7 +71,7 @@ onBeforeRouteLeave(() => askedForDetach || confirmLeave())
 
 <template>
   <div class="flex h-full min-h-0 flex-col bg-background">
-    <PageHeader :title="t('item.navNotes')">
+    <PageHeader :title="t('item.navNotes')" :count="pageCount(notesStore.loaded, notesStore.error, notesStore.notes.length)">
       <template #actions>
         <DetachButton :target="detachTarget" :confirm-leave="confirmDetach" />
       </template>

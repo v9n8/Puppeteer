@@ -253,8 +253,7 @@ const groups = computed(() => {
           <AppSelect
             :model-value="String(autoLockMinutes)"
             :options="autoLockOptions"
-            size="sm"
-            class="w-28"
+            size="chip"
             :aria-label="t('secretNotes.autoLockLabel')"
             @update:model-value="emit('setAutoLock', Number($event))"
           />
@@ -262,7 +261,7 @@ const groups = computed(() => {
       </i18n-t>
       <button
         type="button"
-        class="cursor-pointer self-start underline-offset-2 hover:text-foreground hover:underline"
+        class="inline-flex min-h-7 cursor-pointer items-center self-start px-0.5 py-1 leading-[1.4] underline-offset-2 hover:text-foreground hover:underline"
         @click="emit('changePassword')"
       >
         {{ t('secretNotes.password.title') }}

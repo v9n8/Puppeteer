@@ -51,7 +51,7 @@ function commit(value: string) {
         />
         <h1
           v-else
-          class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-base font-bold leading-snug"
+          class="min-w-0 truncate rounded px-0.5 -mx-0.5 text-base font-semibold leading-snug"
           :class="[
             renamable && 'cursor-text transition-colors hover:bg-accent/50',
             !title && 'text-muted-foreground',

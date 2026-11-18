@@ -27,6 +27,8 @@ export interface Note {
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref<Note[]>([])
   const loading = ref(false)
+  /** True after the first successful fetch: empty `notes` alone can't tell "not loaded" from "none". */
+  const loaded = ref(false)
   const error = ref<string | null>(null)
 
   async function fetchNotes(projectId?: string | null) {
@@ -34,6 +36,7 @@ export const useNotesStore = defineStore('notes', () => {
     error.value = null
     try {
       notes.value = await invoke<Note[]>('list_notes', { projectId: projectId ?? null })
+      loaded.value = true
     } catch (e) {
       error.value = String(e)
     } finally {
@@ -142,5 +145,5 @@ export const useNotesStore = defineStore('notes', () => {
     }
   }
 
-  return { notes, loading, error, fetchNotes, add, update, setProject, remove, removeMany, reorder }
+  return { notes, loading, loaded, error, fetchNotes, add, update, setProject, remove, removeMany, reorder }
 })

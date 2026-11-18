@@ -19,6 +19,7 @@
   "copy": "Chép",
   "copied": "Đã chép",
   "copyToClipboard": "Chép vào clipboard",
+  "copyFailed": "Không chép được vào clipboard",
   "showMore": "Xem thêm",
   "showLess": "Thu gọn",
   "back": "Quay lại",
