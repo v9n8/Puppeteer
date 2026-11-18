@@ -266,7 +266,7 @@ function copyPath(tab: FileTab) {
       :aria-label="blocked ? blockedTip : t('run.splitView.splitTip')"
       @click="splitHere()"
     >
-      <Columns2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+      <Columns2 class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
       <span v-if="wideBar">{{ t('run.splitView.split') }}</span>
     </button>
     <button
@@ -277,7 +277,7 @@ function copyPath(tab: FileTab) {
       :aria-label="t('run.splitView.unsplitTip')"
       @click="tabsStore.stopSplit(runId)"
     >
-      <PanelRightClose class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+      <PanelRightClose class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
       <span v-if="wideBar">{{ t('run.splitView.unsplit') }}</span>
     </button>
 
@@ -352,6 +352,8 @@ function copyPath(tab: FileTab) {
   background: hsl(var(--card));
   color: hsl(var(--foreground));
   font-weight: 500;
+  margin-bottom: -1px;
+  border-bottom: 1px solid hsl(var(--card));
   box-shadow: inset 0 2px 0 hsl(var(--primary));
 }
 .session-tab-btn {
@@ -389,7 +391,7 @@ function copyPath(tab: FileTab) {
   outline-offset: 1px;
 }
 .split-btn:disabled {
-  opacity: 0.5;
+  color: hsl(var(--muted-foreground));
   cursor: not-allowed;
 }
 .session-tab-btn.is-pin {

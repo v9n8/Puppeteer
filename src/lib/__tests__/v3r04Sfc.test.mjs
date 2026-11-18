@@ -21,10 +21,10 @@ test('F-R2-2: the cut mark is skipped by page find', () => {
   assert.match(read('TurnCutMark.vue'), /class="turn-cut-mark search-skip /)
 })
 
-test('F-R2-4 / F-U1-R2-1: title edit resets on Session change; button is 28px', () => {
+test('F-R2-4 / F-U1-R2-1: title edit resets on Session change; button is 32px', () => {
   const s = read('SessionTitle.vue')
   assert.match(s, /watch\(\(\) => currentRun\.value\?\.id, cancel\)/)
-  assert.match(s, /rounded px-1 py-1 text-left/)
+  assert.match(s, /rounded-sm border border-transparent px-1.5 text-left/)
 })
 
 test('F-U1-R2-2: Esc is heard on the document and removed on unmount', () => {

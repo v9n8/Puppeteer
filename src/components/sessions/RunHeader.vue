@@ -55,7 +55,7 @@ if (isSessionWindow) {
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-3 px-4 h-12 border-b border-border/60 shrink-0">
+  <div class="flex items-center justify-between gap-2 px-3 h-12 border-b border-border bg-card shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <SessionTitle />
       <SessionFlagChip />
@@ -69,12 +69,13 @@ if (isSessionWindow) {
       <!-- ⌘F opens the same bar (App.vue dispatches the key); this is its button. -->
       <Button
         v-if="runFind.enabled.value"
-        variant="outline"
-        size="icon-xs"
+        variant="ghost"
+        size="icon-sm"
+        class="border-0"
         :title="t('run.findInSession')"
         :aria-label="t('run.findInSession')"
         :aria-pressed="runFind.open.value"
-        :class="{ 'bg-primary/15 text-primary border-primary/30': runFind.open.value }"
+        :class="{ 'bg-primary/15 text-primary hover:text-primary': runFind.open.value }"
         @click="runFind.open.value ? runFind.closeFind() : runFind.openFind()"
       >
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -82,8 +83,9 @@ if (isSessionWindow) {
       <!-- Pop out here; "back to main window" in the session's own window (QĐ-08). -->
       <Button
         v-if="currentRun"
-        variant="outline"
-        size="icon"
+        variant="ghost"
+        size="icon-sm"
+        class="border-0"
         :title="isSessionWindow ? t('run.dockToMain') : t('run.popOut')"
         :aria-label="isSessionWindow ? t('run.dockToMain') : t('run.popOut')"
         @click="isSessionWindow ? dock() : popoutSession(currentRun.id)"

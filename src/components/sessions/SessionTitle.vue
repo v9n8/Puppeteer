@@ -88,11 +88,11 @@ async function save() {
     <button
       v-if="canRename"
       type="button"
-      class="block max-w-full truncate rounded px-1 py-1 text-left font-semibold transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-text"
+      class="inline-flex h-8 max-w-full items-center gap-1.5 rounded-sm border border-transparent px-1.5 text-left font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-text"
       :title="`${label} · ${t('run.sessionTitle.renameHint')}`"
       @click="start"
     >
-      {{ label }}
+      <span class="truncate">{{ label }}</span>
     </button>
     <span v-else class="block truncate px-1 py-1">{{ label }}</span>
   </h1>

@@ -39,21 +39,21 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
 </script>
 
 <template>
-  <div class="w-72 shrink-0 border-r border-border/60 flex flex-col overflow-hidden bg-card/20">
+  <div class="w-[272px] max-[1099px]:w-60 shrink-0 border-r border-border flex flex-col overflow-hidden bg-card">
 
     <!-- Rail tab switcher: Session (controls + history) vs Files (tree). -->
-    <div class="flex shrink-0 border-b border-border/60 text-xs font-medium">
+    <div class="flex h-10 shrink-0 border-b border-border text-xs">
       <button
-        class="flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer"
-        :class="leftTab === 'session' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'"
+        class="flex-1 flex h-10 -mb-px items-center justify-center gap-1.5 border-b-2 font-medium transition-colors cursor-pointer"
+        :class="leftTab === 'session' ? 'text-foreground border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'"
         @click="leftTab = 'session'"
       >
         <MessageSquare class="h-3.5 w-3.5" :stroke-width="2" />
         {{ t('run.session') }}
       </button>
       <button
-        class="flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer"
-        :class="leftTab === 'files' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'"
+        class="flex-1 flex h-10 -mb-px items-center justify-center gap-1.5 border-b-2 font-medium transition-colors cursor-pointer"
+        :class="leftTab === 'files' ? 'text-foreground border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'"
         @click="leftTab = 'files'"
       >
         <FolderTree class="h-3.5 w-3.5" :stroke-width="2" />
@@ -64,7 +64,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
     <!-- Compact top toolbar: one New session button (every session is a
          conductor) and the Fetch issue/PR popover. Row density is set in
          Settings › General. -->
-    <div v-show="leftTab === 'session'" class="p-3 border-b border-border/60">
+    <div v-show="leftTab === 'session'" class="p-3 border-b border-border">
       <div class="relative flex items-center gap-1.5">
         <Button class="flex-1" :disabled="creatingSession" @click="handleNewSession">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
@@ -74,6 +74,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           <Button
             variant="outline"
             size="icon"
+            class="h-8 w-8 rounded-sm font-normal text-muted-foreground"
             :class="{ 'bg-accent text-foreground': fetchOpen }"
             :title="t('run.fetchIssuePr')"
             :aria-label="t('run.fetchIssuePr')"
@@ -164,10 +165,10 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
          rows below it scroll, so the filter and the bulk action stay
          reachable no matter how far down the list the user is. -->
     <div v-show="leftTab === 'session'" class="flex-1 min-h-0 flex flex-col">
-      <div class="shrink-0 border-b border-border/40">
-        <div v-if="runsStore.runs.length > 0" class="px-3 pt-2.5">
+      <div class="shrink-0 border-b border-border">
+        <div v-if="runsStore.runs.length > 0" class="px-2 pt-2.5">
           <div class="relative">
-            <Search class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.75" />
+            <Search class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" :stroke-width="1.75" />
             <Input
               v-model="sessionSearch"
               :placeholder="t('run.searchSessionsPlaceholder')"
@@ -186,8 +187,8 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
             </Button>
           </div>
         </div>
-        <div class="flex items-center justify-between gap-1 px-4 py-0.5">
-          <p class="shrink-0 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div class="flex h-10 items-center justify-between gap-2 px-3 pt-2 pb-1 text-muted-foreground">
+          <p class="shrink-0 text-2xs font-normal text-muted-foreground uppercase tracking-wider">
             {{ t('run.history') }}<span v-if="displayRuns.length" class="font-normal"> · {{ displayRuns.length }}</span>
           </p>
           <HistoryFlagFilter />
@@ -212,7 +213,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           </button>
         </div>
       </div>
-      <div ref="sessionListEl" class="flex-1 min-h-0 overflow-auto" @contextmenu.prevent>
+      <div ref="sessionListEl" class="flex-1 min-h-0 overflow-auto flex flex-col gap-0.5 px-1.5 py-0.5" @contextmenu.prevent>
         <div v-if="runsStore.loading" class="px-4 py-3 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
         <div v-else-if="runsStore.runs.length === 0" class="px-4 py-6 text-center text-xs text-muted-foreground">
           {{ t('run.noSessionsYet') }}
@@ -225,39 +226,44 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           v-for="{ run } in pagedRuns.items"
           :key="run.id"
           :data-run-id="run.id"
-          class="group relative border-b border-border/30 transition-colors hover:bg-accent/40 focus-within:bg-accent/40"
-          :class="{ 'bg-accent/60': currentRunId === run.id, 'bg-accent/40': contextMenu?.runId === run.id }"
+          class="group relative shrink-0 rounded-sm"
           @contextmenu.prevent.stop="openRowMenu(run.id, $event.clientX, $event.clientY)"
         >
           <!-- Selected indicator bar -->
           <span
             v-if="currentRunId === run.id"
-            class="absolute left-0 inset-y-0 w-0.5 bg-primary"
+            class="absolute left-0 inset-y-2 w-0.5 rounded-r-sm bg-primary"
           />
           <!-- Row layout follows uiLayout.listDensity:
                comfortable = title line + badges/timestamp block,
                compact     = title line (+ relative time) + "account · model",
                dense       = one line; the rest lives in the row tooltip. -->
           <button
-            class="w-full text-left px-3 cursor-pointer rounded-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
-            :class="historyDensity === 'comfortable' ? 'py-3' : historyDensity === 'compact' ? 'py-2' : 'py-1.5'"
+            class="flex w-full gap-2 text-left px-2 py-1.5 cursor-pointer rounded-sm transition-colors group-hover:bg-accent group-focus-within:bg-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
+            :class="[
+              historyDensity === 'dense' ? 'items-center' : 'items-start',
+              { 'bg-accent': currentRunId === run.id || contextMenu?.runId === run.id },
+            ]"
             :title="historyDensity === 'dense' ? runDenseTooltip(run) : undefined"
             @click="loadRunLog(run.id)"
             @keydown="onRowKeydown($event, run.id)"
           >
-            <!-- Title line: status · badges · title · workers · markers · time -->
+            <!-- Status icon sits beside the text block, as the mockup's row does. -->
+            <component
+              :is="runIcon(run)"
+              class="shrink-0"
+              :class="[
+                historyDensity === 'comfortable' ? 'h-4 w-4' : 'h-3.5 w-3.5',
+                historyDensity === 'dense' ? '' : 'mt-0.5',
+                runIconColorClass(run),
+                { 'animate-spin': runIsRunning(run) },
+              ]"
+              :stroke-width="1.75"
+              :title="runStatusTitle(run)"
+            />
+            <div class="min-w-0 flex-1">
+            <!-- Title line: badges · title · workers · markers · time -->
             <div class="flex items-center" :class="historyDensity === 'comfortable' ? 'gap-2' : 'gap-1.5'">
-              <component
-                :is="runIcon(run)"
-                class="shrink-0"
-                :class="[
-                  historyDensity === 'comfortable' ? 'h-4 w-4' : 'h-3.5 w-3.5',
-                  runIconColorClass(run),
-                  { 'animate-spin': runIsRunning(run) },
-                ]"
-                :stroke-width="1.75"
-                :title="runStatusTitle(run)"
-              />
               <!-- Pin / protect badges grouped so they stay tightly aligned
                    when both are shown (own gap, not the row's gap). -->
               <span
@@ -292,8 +298,8 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                 :stroke-width="1.75"
               />
               <span
-                class="flex-1 min-w-0 truncate font-medium leading-tight"
-                :class="historyDensity === 'dense' ? 'text-xs' : 'text-sm'"
+                class="flex-1 min-w-0 truncate text-foreground leading-[1.4]"
+                :class="[historyDensity === 'dense' ? 'text-xs' : 'text-sm', { 'font-medium': currentRunId === run.id }]"
                 :title="historyDensity === 'dense' ? undefined : runLabel(run)"
               >{{ runLabel(run) }}</span>
               <!-- Dense rows have no meta line: the flag is only its dot (name in the tooltip). -->
@@ -333,7 +339,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                    takes this slot on hover, so the time steps aside. -->
               <span
                 v-if="historyDensity !== 'comfortable'"
-                class="shrink-0 min-w-[1.25rem] text-right font-mono text-2xs text-muted-foreground/70"
+                class="shrink-0 min-w-[1.25rem] text-right font-mono text-2xs text-muted-foreground"
                 :class="historyDensity === 'dense'
                   ? ['group-hover:invisible group-focus-within:invisible', { invisible: actionsMenuRunId === run.id }]
                   : ''"
@@ -346,12 +352,12 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                  `pr-6` keeps it clear of the hover actions (⋯). -->
             <p
               v-if="historyDensity === 'compact'"
-              class="mt-0.5 pl-5 pr-6 truncate text-2xs leading-tight text-muted-foreground/70"
+              class="truncate text-2xs leading-[1.4] text-muted-foreground"
               :class="{ invisible: !runStarted(run) && !runFlag(run) }"
               :title="runAccountModelLine(run, false)"
             >
               <template v-if="runFlag(run)">
-                <span class="inline-flex items-center gap-1" :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })">
+                <span class="inline-flex items-center gap-1 align-top" :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })">
                   <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(runFlag(run)!.color)" />{{ runFlag(run)!.label }}
                 </span>
                 <template v-if="runAccountModelLine(run)"> · </template>
@@ -363,7 +369,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                  its own line underneath. -->
             <div
               v-else-if="historyDensity === 'comfortable'"
-              class="mt-2 pl-6 pr-3 text-2xs text-muted-foreground/70"
+              class="mt-1 text-2xs text-muted-foreground"
               :class="{ invisible: !runStarted(run) && !runFlag(run) }"
             >
               <span
@@ -378,7 +384,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                    known Claude account (the name implies Claude); Codex and
                    legacy/account-less runs show just the model. `pr-6` keeps
                    the badges clear of the hover actions (⋯) at the row's end. -->
-              <div class="flex flex-wrap items-center gap-1.5 pr-6" :class="{ invisible: !runStarted(run) }">
+              <div class="flex flex-wrap items-center gap-1.5" :class="{ invisible: !runStarted(run) }">
                 <span
                   v-if="runClaudeAccountLabel(run)"
                   class="shrink-0 truncate max-w-[10rem] px-1.5 py-0.5 rounded bg-primary/10 text-2xs font-medium tracking-wide text-primary"
@@ -399,13 +405,14 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                 {{ runTimestamp(runActivityAt(run)) }}
               </span>
             </div>
+            </div>
           </button>
           <!-- Actions: a single overflow (⋯) menu revealed on hover/focus, so
                the row's meta info stays fully visible. The trigger also stays
                put while its menu is open (actionsMenuRunId). Running sessions
                get a safe subset — delete/refetch are hidden while live. -->
           <div
-            class="absolute flex items-center opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+            class="absolute flex items-center rounded-sm bg-accent opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
             :class="[
               historyDensity === 'comfortable' ? 'right-2 bottom-2'
               : historyDensity === 'compact' ? 'right-2 bottom-1'
@@ -462,7 +469,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
       <!-- Pager (UX-62): only shown once there is more than one page. -->
       <div
         v-if="pagedRuns.totalPages > 1"
-        class="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-2 py-1"
+        class="flex shrink-0 items-center justify-between gap-2 border-t border-border px-2 py-1"
       >
         <Button
           variant="ghost"

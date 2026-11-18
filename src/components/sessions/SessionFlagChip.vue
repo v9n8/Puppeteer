@@ -31,18 +31,18 @@ watch(projectId, load)
     <template #trigger>
       <button
         type="button"
-        class="inline-flex h-7 max-w-[132px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        class="inline-flex h-7 max-w-[132px] min-w-0 cursor-pointer items-center gap-0.5 rounded-[999px] pl-2 pr-1.5 text-xs transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         :class="flag
-          ? 'border border-border bg-card text-foreground hover:bg-accent'
+          ? 'border border-input bg-card text-foreground hover:bg-accent'
           : 'border border-dashed border-border text-muted-foreground hover:bg-accent hover:text-foreground'"
         :title="flag ? t('sessionFlags.chip.tooltip', { name }) : t('sessionFlags.chip.tooltipNone')"
         :aria-label="flag ? t('sessionFlags.chip.tooltip', { name }) : t('sessionFlags.chip.tooltipNone')"
         aria-haspopup="menu"
       >
-        <span v-if="flag" class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(flag.color)" aria-hidden="true" />
+        <span v-if="flag" class="mr-1 h-2 w-2 shrink-0 rounded-full" :class="swatchClass(flag.color)" aria-hidden="true" />
         <Flag v-else class="h-3 w-3 shrink-0" :stroke-width="1.75" />
         <span class="min-w-0 truncate">{{ flag ? name : t('sessionFlags.chip.add') }}</span>
-        <ChevronDown class="h-3 w-3 shrink-0 text-muted-foreground" :stroke-width="1.75" />
+        <ChevronDown class="ml-0.5 h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
       </button>
     </template>
     <FlagMenuItems :run-id="currentRun.id" :project-id="projectId" :flag-id="currentRun.flag_id" />
