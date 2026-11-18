@@ -25,7 +25,7 @@ const hasMenus = computed(
 
 <template>
   <footer
-    class="flex h-8 shrink-0 items-center gap-1 border-t border-border bg-card/40 px-2 min-w-0"
+    class="flex h-8 shrink-0 items-center gap-0.5 border-t border-border bg-background px-2 min-w-0"
     :aria-label="t('run.statusBar.label')"
   >
     <!-- Usage slot: one plan usage ring per account (UX-23). Unmounting the

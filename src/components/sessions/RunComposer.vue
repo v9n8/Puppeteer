@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
-  Paperclip, Navigation, Clock, Pencil, Gauge, MessageSquareText,
+  Paperclip, Clock, Pencil, Gauge, MessageSquareText,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
@@ -236,13 +236,13 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
         <div
           v-for="file in pendingFiles"
           :key="file.id"
-          class="group flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-md border border-border bg-muted/40 text-xs max-w-64"
+          class="group flex items-center gap-1 h-6 pl-2 pr-0.5 rounded-sm border border-border bg-muted text-xs max-w-64"
           :title="file.path"
         >
           <FileText class="h-3.5 w-3.5 shrink-0 opacity-60" :stroke-width="2" />
           <span class="truncate font-mono">{{ file.name }}</span>
           <button
-            class="h-4 w-4 rounded-full flex items-center justify-center text-foreground/50 hover:text-foreground hover:bg-background cursor-pointer shrink-0"
+            class="h-5 w-5 rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background cursor-pointer shrink-0"
             :title="t('run.removeFile')"
             @click="removePendingFile(file.id)"
           >
@@ -252,7 +252,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
       </div>
 
       <!-- Prompt input card: textarea on top, controls toolbar below -->
-      <div class="relative rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-ring transition-colors">
+      <div class="relative rounded-lg border border-input bg-card focus-within:ring-1 focus-within:ring-ring transition-colors">
         <!-- Top-edge handle (UX-65): drag up to make the composer taller, double-click
              to let it follow its text again. -->
         <div
@@ -261,7 +261,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           @pointerdown="startComposerDrag"
           @dblclick="resetComposerHeight"
         >
-          <span class="mt-0.5 h-1 w-8 rounded-full bg-border opacity-0 transition-opacity group-hover/grip:opacity-100" />
+          <span class="mt-0.5 h-1 w-9 rounded-xs bg-border transition-colors group-hover/grip:bg-muted-foreground" />
         </div>
         <!-- Drag-and-drop hint: shown while an OS file is dragged over the window -->
         <div
@@ -272,14 +272,14 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           {{ t('run.dropFileToAttach') }}
         </div>
         <!-- `@path` chips are drawn by a layer under the textarea (VF-13) -->
-        <div class="relative">
+        <div class="chat-text relative">
           <ComposerMentionOverlay :text="followUpInput" :textarea="composerEl" :resolve="fileMatcher" />
           <textarea
             ref="composerEl"
             v-model="followUpInput"
-            rows="2"
+            rows="1"
             :placeholder="chatPlaceholder"
-            :class="[COMPOSER_TEXT, 'relative z-[1] w-full resize-none bg-transparent focus:outline-none min-h-[2.75rem]']"
+            :class="[COMPOSER_TEXT, 'relative z-[1] w-full resize-none bg-transparent focus:outline-none min-h-[52px]']"
             :disabled="sendingFollowUp"
             @keydown="onComposerKeydown"
             @input="onComposerInput"
@@ -291,7 +291,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
         </div>
 
         <!-- Footer toolbar: attachments/actions plus compact run settings menu -->
-        <div class="flex items-center gap-1.5 px-1.5 pb-1.5">
+        <div class="flex items-center gap-1.5 border-t border-border px-2 py-1.5">
           <Button
             variant="ghost"
             size="icon"
@@ -331,9 +331,9 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             @keydown.esc.stop="closeRunSettingsMenu"
           >
             <Button
-              variant="ghost"
-              size="sm"
-              class="px-2.5 text-foreground/70"
+              variant="outline"
+              size="xs"
+              class="gap-1.5 px-2 font-normal"
               :title="runSettingsTitle"
               :aria-label="runSettingsTitle"
               aria-haspopup="dialog"
@@ -341,7 +341,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               @click.stop="toggleRunSettingsMenu"
             >
               <component :is="engineBadgeIcon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-              <span class="text-xs font-medium shrink-0">{{ engineBadgeLabel }}</span>
+              <span class="text-xs shrink-0">{{ engineBadgeLabel }}</span>
               <span
                 v-if="composerModelLabel"
                 class="max-w-[9rem] truncate font-mono text-2xs text-muted-foreground"
@@ -427,41 +427,39 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
             <Button
               v-if="currentStatus === 'running'"
-              variant="destructive"
-              class="shrink-0"
+              variant="outline"
+              class="shrink-0 rounded-md"
               :title="stopping ? t('run.stopNowTitle') : t('run.cancelRunningTurn')"
               @click="handleCancel"
             >
-              <Square class="h-3.5 w-3.5" :stroke-width="2" fill="currentColor" />
+              <Square class="h-4 w-4" :stroke-width="2" fill="currentColor" />
               {{ stopping ? t('run.stopping') : t('run.cancel') }}
             </Button>
             <!-- While running, Cancel is the only action unless there is a
                  follow-up typed. Then the split action: Steer puts it into the
                  turn now (both engines take input mid-turn, D4-06 spike), Queue
                  (Enter) sends it once the turn ends. -->
-            <div v-if="currentStatus === 'running' && !primaryDisabled && !editingMessage" class="inline-flex shrink-0">
+            <div v-if="currentStatus === 'running' && !primaryDisabled && !editingMessage" class="inline-flex shrink-0 gap-1.5">
               <Button
                 v-if="features.isOn('sessions.steer')"
                 variant="outline"
-                class="rounded-r-none border-r-0"
+                class="rounded-md"
                 :title="t('run.steerTitle')"
                 @click="handleSendFollowUp(true)"
               >
-                <Navigation class="h-3.5 w-3.5" :stroke-width="2" />
                 {{ t('run.steer') }}
               </Button>
               <Button
-                :class="{ 'rounded-l-none': features.isOn('sessions.steer') }"
+                class="rounded-md"
                 :title="t('run.queueTitle')"
                 @click="handleQueue"
               >
-                <Clock class="h-3.5 w-3.5" :stroke-width="2" />
                 {{ t('run.queue') }}
               </Button>
             </div>
             <Button
               v-if="currentStatus !== 'running'"
-              class="shrink-0"
+              class="shrink-0 rounded-md"
               :disabled="primaryDisabled"
               @click="handlePrimaryAction"
               :title="currentStatus === 'fetched'

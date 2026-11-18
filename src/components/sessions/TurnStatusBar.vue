@@ -41,7 +41,7 @@ const tone = computed(() => {
   const k = status.value.kind
   if (k === 'permission' || k === 'question') return 'border-warning/40 bg-warning/10 text-warning'
   if (k === 'error') return 'border-destructive/40 bg-destructive/10 text-destructive'
-  return 'border-border bg-card/40 text-foreground/80'
+  return 'border-border bg-background text-foreground'
 })
 
 const todoText = () => (todo.value.total ? t('run.turnStatus.todo', todo.value) : '')
@@ -204,7 +204,7 @@ const todoIconClass = { completed: 'text-emerald-500', in_progress: 'text-primar
     <div class="flex h-8 min-w-0 items-stretch border-t" :class="tone" role="status" :aria-label="t('run.turnStatus.label')">
       <button
         type="button"
-        class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-3 text-left text-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        class="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-4 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         :title="mainTitle"
         :aria-expanded="action ? undefined : open"
         :aria-controls="action ? undefined : listId"

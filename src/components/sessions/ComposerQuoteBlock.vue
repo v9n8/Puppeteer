@@ -25,7 +25,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const ROW_PX = 32
+const ROW_PX = 38
 
 const rootEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
@@ -144,7 +144,7 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
 
 <template>
   <section ref="rootEl" class="mb-1.5 rounded-[10px] border border-border bg-muted text-xs">
-    <header class="flex h-8 items-center gap-1 px-2">
+    <header class="flex min-h-8 items-center gap-2 py-0.5 pl-1 pr-2.5">
       <component
         :is="multiple ? 'button' : 'div'"
         class="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left"
@@ -180,14 +180,14 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
     <template v-if="!collapsed">
       <ol
         ref="listEl"
-        class="overflow-y-auto border-t border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        class="space-y-1 overflow-y-auto px-1.5 pb-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         :style="multiple ? { maxHeight: `${listHeight}px`, height: `${listHeight}px` } : undefined"
         tabindex="0"
         :aria-label="t('run.quotes.listAria')"
       >
-        <li v-for="(q, qi) in quotes" :key="q.id" class="px-2">
-          <div class="flex h-8 items-center gap-2">
-            <span class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-2xs font-semibold text-primary">{{ qi + 1 }}</span>
+        <li v-for="(q, qi) in quotes" :key="q.id" class="rounded-md border border-border bg-card">
+          <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
+            <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-foreground">{{ qi + 1 }}</span>
             <span class="min-w-0 flex-1 truncate font-mono text-foreground/80" :title="q.excerpt">{{ q.excerpt }}</span>
             <span v-if="q.kind === 'file'" class="max-w-[30%] shrink-0 truncate font-mono text-2xs text-muted-foreground" :title="fileLabel(q)">{{ fileLabel(q) }}</span>
             <span
