@@ -4,7 +4,7 @@
 </script>
 
 <template>
-  <kbd class="inline-flex h-5 items-center rounded-[4px] border border-border px-[5px] py-[3px] font-sans text-[12px] font-medium text-muted-foreground">
+  <kbd class="inline-flex h-5 items-center leading-none rounded-[4px] border border-border px-[5px] py-[3px] font-sans text-[12px] font-medium text-muted-foreground">
     <slot />
   </kbd>
 </template>

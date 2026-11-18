@@ -12,7 +12,7 @@ import { isTopModal, pushModal, removeModal } from '@/lib/modalStack'
 const props = withDefaults(defineProps<{
   open: boolean
   title?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'
+  size?: 'sm' | 'md' | 'wide' | 'lg' | 'xl' | '2xl' | 'full'
   /** When false, hides the X and disables Esc / overlay-click dismissal. */
   closable?: boolean
   /** When false, clicking the dimmed overlay won't close it (X / Esc still do).
@@ -38,7 +38,7 @@ const slots = useSlots()
 const { t } = useI18n()
 const titleId = useId()
 
-const SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl', '2xl': 'max-w-[1100px]', full: 'max-w-[96vw]' }
+const SIZES = { sm: 'max-w-md', md: 'max-w-lg', wide: 'max-w-[640px]', lg: 'max-w-2xl', xl: 'max-w-3xl', '2xl': 'max-w-[1100px]', full: 'max-w-[96vw]' }
 // `2xl` and `full` keep a fixed height with `scrollBody`, so a body that switches
 // tabs doesn't make the panel jump; the others fit their content up to 80vh.
 const panelClass = computed(() =>
@@ -104,7 +104,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
   <div
     v-if="open"
-    class="ui-backdrop fixed inset-0 flex items-center justify-center bg-black/60 p-4"
+    class="ui-backdrop fixed inset-0 flex items-center justify-center bg-black/50 p-4"
     :style="{ zIndex }"
     @click.self="onOverlayClick"
   >

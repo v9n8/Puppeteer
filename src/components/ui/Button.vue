@@ -16,7 +16,7 @@ const button = cva(
         primary: 'bg-primary text-primary-foreground hover:opacity-90 active:scale-[.97]',
         // Hover only swaps the fill; the border stays put.
         outline: 'border border-input bg-card text-foreground hover:bg-accent active:scale-[.97]',
-        ghost: 'text-foreground hover:bg-accent active:scale-[.97]',
+        ghost: 'border-0 text-foreground hover:bg-accent active:scale-[.97]',
         // Tinted by default: the warning reads before the click without shouting.
         destructive: 'bg-destructive/10 text-destructive hover:bg-destructive/15',
         // Solid red only where the design draws it (empty the Trash); every other destructive action stays tinted.
@@ -25,9 +25,9 @@ const button = cva(
         subtle: 'bg-muted text-muted-foreground border border-border/60',
       },
       size: {
-        xs: 'h-7 gap-1 px-2.5 text-2xs',
-        sm: 'h-8 gap-1.5 px-3 text-xs',
-        md: 'h-9 gap-2 px-3.5 text-md',
+        xs: 'h-7 gap-1.5 rounded-md px-2 text-2xs',
+        sm: 'h-8 gap-1.5 rounded-md px-3 text-xs',
+        md: 'h-9 gap-1.5 px-3.5 text-md',
         icon: 'h-7 w-7 font-normal',
         'icon-sm': 'h-7 w-7 font-normal',
         /** Dense spots only (banner retry, chip ×, folder-header actions inside a h-8 bar). */

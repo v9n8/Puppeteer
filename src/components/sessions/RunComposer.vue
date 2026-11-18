@@ -333,7 +333,8 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             <Button
               variant="outline"
               size="xs"
-              class="min-w-0 gap-1.5 px-2 font-normal"
+              class="min-w-0 rounded-sm font-normal"
+              :class="compactChips ? 'gap-0.5 px-1.5' : 'gap-1.5 px-2'"
               :title="runSettingsTitle"
               :aria-label="runSettingsTitle"
               aria-haspopup="dialog"
@@ -341,9 +342,9 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               @click.stop="toggleRunSettingsMenu"
             >
               <component :is="engineBadgeIcon" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-              <span class="text-xs shrink-0">{{ engineBadgeLabel }}</span>
+              <span v-if="!compactChips" class="text-xs shrink-0">{{ engineBadgeLabel }}</span>
               <span
-                v-if="composerModelLabel"
+                v-if="composerModelLabel && !compactChips"
                 class="max-w-[9rem] truncate font-mono text-2xs text-muted-foreground"
                 :title="composerModelLabel"
               >· {{ composerModelLabel }}</span>
@@ -428,7 +429,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             <Button
               v-if="currentStatus === 'running'"
               variant="outline"
-              class="shrink-0 rounded-md"
+              class="shrink-0"
               :title="stopping ? t('run.stopNowTitle') : t('run.cancelRunningTurn')"
               @click="handleCancel"
             >
@@ -443,15 +444,13 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               <Button
                 v-if="features.isOn('sessions.steer')"
                 variant="outline"
-                class="rounded-md"
-                :title="t('run.steerTitle')"
+                                :title="t('run.steerTitle')"
                 @click="handleSendFollowUp(true)"
               >
                 {{ t('run.steer') }}
               </Button>
               <Button
-                class="rounded-md"
-                :title="t('run.queueTitle')"
+                                :title="t('run.queueTitle')"
                 @click="handleQueue"
               >
                 {{ t('run.queue') }}
@@ -459,7 +458,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             </div>
             <Button
               v-if="currentStatus !== 'running'"
-              class="shrink-0 rounded-md"
+              class="shrink-0"
               :disabled="primaryDisabled"
               @click="handlePrimaryAction"
               :title="currentStatus === 'fetched'

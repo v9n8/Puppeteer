@@ -13,7 +13,7 @@ import { Button } from '@/components/ui'
 import ResponseStyleModal from '@/components/settings/ResponseStyleModal.vue'
 import { useRunSession } from './useRunSession'
 
-defineProps<{ compact?: boolean }>()
+const props = defineProps<{ compact?: boolean }>()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -49,7 +49,8 @@ function manageAccounts() {
     <Button
       variant="outline"
       size="xs"
-      class="min-w-0 gap-1.5 px-2 font-normal"
+      class="min-w-0 rounded-sm font-normal"
+      :class="props.compact ? 'gap-0.5 px-1.5' : 'gap-1.5 px-2'"
       :title="accountChipTitle"
       :aria-label="accountChipTitle"
       aria-haspopup="dialog"
@@ -57,8 +58,9 @@ function manageAccounts() {
       @click="toggleAccountMenu"
     >
       <UserCircle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-      <span class="max-w-[10rem] truncate text-foreground">{{ accountChipLabel }}</span>
+      <span v-if="!props.compact" class="max-w-[10rem] truncate text-foreground">{{ accountChipLabel }}</span>
       <ChevronDown
+        v-if="!props.compact"
         class="h-3 w-3 shrink-0 transition-transform duration-200"
         :class="{ 'rotate-180': accountMenuOpen }"
         :stroke-width="2"
@@ -188,7 +190,7 @@ function manageAccounts() {
     :model-value="styleValue"
     size="xs"
     variant="outline"
-    class="shrink-0 max-w-[11rem] [&>button]:gap-1.5 [&>button]:rounded-sm [&>button]:pl-2"
+    class="shrink-0 [&>button]:gap-1.5 [&>button]:rounded-sm [&>button]:pl-2 max-w-[11rem]"
     :options="styleOptions"
     :trigger-label="styleChipLabel"
     :aria-label="styleChipTitle"

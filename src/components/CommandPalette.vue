@@ -178,7 +178,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Modal :open="open" size="md" hide-header @close="close">
+  <Modal :open="open" size="wide" hide-header @close="close">
     <div class="flex max-h-[70vh] flex-col">
       <div class="flex h-12 items-center gap-2.5 border-b border-border px-3.5 text-muted-foreground">
         <Search

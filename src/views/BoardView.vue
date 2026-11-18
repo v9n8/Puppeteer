@@ -239,7 +239,7 @@ function manageFlags() {
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <PageHeader :title="t('board.title')" class="bg-card text-muted-foreground">
+    <PageHeader :title="t('board.title')">
       <template #meta>
       <DropdownMenu align="left" class="min-w-0">
         <template #trigger>
