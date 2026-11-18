@@ -88,6 +88,7 @@
   --text-sm--line-height: 1.4;
   --text-md: 0.875rem;
   --text-md--line-height: 1.4;
+  --text-stat: 1.375rem;
 }
 
 /* Text sizes follow Settings › General (lib/appFonts): --app-text-scale for the
@@ -109,6 +110,7 @@
   --text-base: calc(1rem * var(--text-scale));
   --text-lg: calc(1.125rem * var(--text-scale));
   --text-xl: calc(1.25rem * var(--text-scale));
+  --text-stat: calc(1.375rem * var(--text-scale));
   --text-2xl: calc(1.5rem * var(--text-scale));
   --text-3xl: calc(1.875rem * var(--text-scale));
   --text-4xl: calc(2.25rem * var(--text-scale));

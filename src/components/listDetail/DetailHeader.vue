@@ -37,7 +37,7 @@ function commit(value: string) {
 </script>
 
 <template>
-  <div class="flex shrink-0 items-center gap-3 border-b border-border px-5 py-2.5">
+  <div class="flex shrink-0 items-center gap-2.5 border-b border-border bg-card px-5 py-2">
     <div class="min-w-[6rem] flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
         <slot name="leading" />

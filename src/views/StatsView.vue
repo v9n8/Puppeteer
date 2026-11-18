@@ -23,7 +23,7 @@ import KeyboardChart from '@/components/stats/KeyboardChart.vue'
 import {
   Coins, DollarSign, Play, Repeat, RefreshCw, Trash2, Loader2, Info, AlertTriangle, HardDrive, Gauge,
 } from 'lucide-vue-next'
-import { Button, Input, Card, AppSelect, PageHeader } from '@/components/ui'
+import { Button, Input, Card, AppSelect, PageHeader, Banner } from '@/components/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { errorText } from '@/lib/featureGate'
@@ -434,24 +434,26 @@ async function loadStorage() {
     <div class="flex-1 overflow-auto p-6 space-y-5">
       <!-- Filters -->
       <div class="flex flex-wrap items-center gap-2">
-        <AppSelect v-model="range" :options="RANGE_OPTIONS" size="sm" class="w-40" />
-        <AppSelect v-model="engine" :options="engineOptions" size="sm" class="w-40" />
-        <AppSelect v-model="projectId" :options="projectOptions" size="sm" class="w-52" />
-        <AppSelect v-if="hasAccounts" v-model="accountId" :options="accountOptions" size="sm" class="w-52" />
+        <AppSelect v-model="range" :options="RANGE_OPTIONS" class="w-[150px]" />
+        <AppSelect v-model="engine" :options="engineOptions" class="w-[150px]" />
+        <AppSelect v-model="projectId" :options="projectOptions" class="w-[150px]" />
+        <AppSelect v-if="hasAccounts" v-model="accountId" :options="accountOptions" class="w-[150px]" />
         <span v-if="loading" class="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Loader2 class="h-3.5 w-3.5 animate-spin" /> {{ t('common.loading') }}
         </span>
       </div>
 
       <p v-if="actionMsg" class="text-xs text-muted-foreground">{{ actionMsg }}</p>
-      <p v-if="error" class="text-xs text-destructive">{{ error }}</p>
+      <Banner v-if="error" tone="destructive" live>{{ error }}
+        <template #actions><Button variant="outline" size="xs" :disabled="loading" @click="load">{{ t('common.retry') }}</Button></template>
+      </Banner>
 
       <!-- Real subscription plan usage (independent of token stats) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Claude subscription plan usage (from /usage) -->
-        <Card body-class="p-4 space-y-3">
+        <Card body-class="px-4 py-3.5 space-y-3">
           <div>
-            <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <h2 class="flex items-center gap-1.5 text-md font-semibold text-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.claudeTitle') }}
             </h2>
             <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
@@ -492,9 +494,9 @@ async function loadStorage() {
         </Card>
 
         <!-- Codex subscription plan usage (from account/rateLimits) -->
-        <Card body-class="p-4 space-y-3">
+        <Card body-class="px-4 py-3.5 space-y-3">
           <div>
-            <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <h2 class="flex items-center gap-1.5 text-md font-semibold text-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.codexTitle') }}
             </h2>
             <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
@@ -548,7 +550,7 @@ async function loadStorage() {
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Coins class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.totalTokens') }}
             </div>
-            <p class="text-xl font-semibold tabular-nums">{{ fmtNum(stats.summary.total_tokens) }}</p>
+            <p class="text-stat font-semibold tabular-nums">{{ fmtNum(stats.summary.total_tokens) }}</p>
             <p class="text-2xs text-muted-foreground/70 mt-1">
               {{ t('stats.summary.tokensBreakdown', { input: fmtCompact(stats.summary.total_input), output: fmtCompact(stats.summary.total_output), cache: fmtCompact(stats.summary.total_cache) }) }}
             </p>
@@ -560,7 +562,7 @@ async function loadStorage() {
                 <Info class="h-3 w-3 text-muted-foreground/50" />
               </span>
             </div>
-            <p class="text-xl font-semibold tabular-nums">{{ fmtCost(stats.summary.total_cost) }}</p>
+            <p class="text-stat font-semibold tabular-nums">{{ fmtCost(stats.summary.total_cost) }}</p>
             <p class="text-2xs text-muted-foreground/70 mt-1">
               {{ t('stats.summary.estimated', { cost: fmtCost(stats.summary.estimated_cost) }) }}
             </p>
@@ -569,13 +571,13 @@ async function loadStorage() {
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Play class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.runs') }}
             </div>
-            <p class="text-xl font-semibold tabular-nums">{{ fmtNum(stats.summary.total_runs) }}</p>
+            <p class="text-stat font-semibold tabular-nums">{{ fmtNum(stats.summary.total_runs) }}</p>
           </Card>
           <Card body-class="px-3.5 py-3">
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
               <Repeat class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.summary.turns') }}
             </div>
-            <p class="text-xl font-semibold tabular-nums">{{ fmtNum(stats.summary.total_turns) }}</p>
+            <p class="text-stat font-semibold tabular-nums">{{ fmtNum(stats.summary.total_turns) }}</p>
           </Card>
         </div>
 

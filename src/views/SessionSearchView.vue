@@ -200,6 +200,7 @@ function openHit(g: SessionHitGroup, offset: number) {
               autofocus
               :placeholder="t('sessionSearch.placeholder')"
               :aria-label="t('sessionSearch.placeholder')"
+              size="md"
               class="pl-8 pr-8"
               @keydown.esc="query = ''"
               @keydown="onResultKey"
@@ -216,7 +217,7 @@ function openHit(g: SessionHitGroup, offset: number) {
               <X class="h-3.5 w-3.5" :stroke-width="2" />
             </Button>
           </div>
-          <AppSelect v-model="projectFilter" :options="projectOptions" class="w-48 shrink-0" />
+          <AppSelect v-model="projectFilter" :options="projectOptions" class="w-40 shrink-0" />
         </div>
 
         <Banner v-if="error" tone="destructive">{{ error }}</Banner>
@@ -236,10 +237,10 @@ function openHit(g: SessionHitGroup, offset: number) {
           <div
             v-for="(g, gi) in groups"
             :key="g.runId"
-            class="rounded-lg border border-border bg-card"
+            class="rounded-card border border-border bg-card"
             :class="searching && 'opacity-60'"
           >
-            <div class="flex items-center gap-2 border-b border-border/50 px-3 py-2 text-xs">
+            <div class="flex items-center gap-2 h-10 border-b border-border px-3 py-1.5 text-xs">
               <span class="min-w-0 truncate font-semibold" :title="runLabel(g)">{{ runLabel(g) }}</span>
               <span class="shrink-0 text-2xs text-muted-foreground">({{ g.hits.length }})</span>
               <span class="ml-auto shrink-0 truncate text-2xs text-muted-foreground">{{ g.projectName }}</span>
@@ -248,13 +249,13 @@ function openHit(g: SessionHitGroup, offset: number) {
                 {{ relativeAge(g.activityAt, t('run.relNow')) }}
               </span>
             </div>
-            <div class="py-1">
+            <div class="px-1.5 py-1">
               <button
                 v-for="(hit, hi) in g.hits"
                 :key="hit.offset"
                 type="button"
                 :data-hit="groupStarts[gi] + hi"
-                class="w-full px-3 py-1.5 text-left text-xs text-foreground/80 break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                class="w-full rounded-sm px-2 py-1.5 text-left text-xs text-foreground break-words line-clamp-2 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 :class="groupStarts[gi] + hi === cursor && 'ring-2 ring-ring ring-inset bg-accent/60 text-foreground'"
                 :title="t('sessionSearch.openHit')"
                 @click="openHit(g, hit.offset)"

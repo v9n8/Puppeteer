@@ -94,7 +94,7 @@ function onListClickCapture(e: MouseEvent) {
           <component :is="showHidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
       </div>
-      <Button size="sm" class="w-full" :disabled="addDisabled" @click="emit('add')">
+      <Button size="xs" class="w-full" :disabled="addDisabled" @click="emit('add')">
         <Plus class="h-3.5 w-3.5" :stroke-width="2" />
         {{ addLabel }}
       </Button>
