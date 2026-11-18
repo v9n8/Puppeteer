@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
+import VueInspector from 'vite-plugin-vue-inspector'
 import { fileURLToPath, URL } from 'node:url'
 
 const host = process.env.TAURI_DEV_HOST
@@ -9,6 +10,9 @@ export default defineConfig(async () => ({
   plugins: [
     vue(),
     tailwindcss(),
+    // Dev only (the plugin skips `vite build`): adds data-v-inspector="file:line:col"
+    // to every element so the Web Inspector shows where it comes from.
+    VueInspector(),
   ],
   resolve: {
     // Remote desktop: every `invoke` / `listen` the UI makes goes through the
