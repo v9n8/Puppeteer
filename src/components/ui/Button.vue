@@ -25,7 +25,7 @@ const button = cva(
         subtle: 'bg-muted text-muted-foreground border border-border/60',
       },
       size: {
-        xs: 'h-7 gap-1.5 rounded-md px-2 text-2xs',
+        xs: 'h-7 gap-1.5 rounded-md px-2.5 text-2xs',
         sm: 'h-8 gap-1.5 rounded-md px-3 text-xs',
         md: 'h-9 gap-1.5 px-3.5 text-md',
         icon: 'h-7 w-7 font-normal',

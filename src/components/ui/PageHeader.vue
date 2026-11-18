@@ -27,7 +27,7 @@ defineSlots<{
 
 <template>
   <div class="flex h-12 shrink-0 items-center justify-between gap-2.5 border-b border-border bg-card px-3 text-muted-foreground">
-    <div class="flex min-w-0 items-center gap-2.5">
+    <div class="flex min-w-0 items-center gap-2.5 text-foreground">
       <slot name="leading" />
       <h1 class="text-[length:calc(0.9375rem*var(--text-scale))] font-semibold leading-[calc(1.3125rem*var(--text-scale))] text-muted-foreground" :class="truncate ? 'min-w-0 truncate' : 'shrink-0'" :title="truncate ? title : undefined">
         {{ title }}
@@ -35,7 +35,7 @@ defineSlots<{
       <CountPill v-if="count !== null && count !== undefined" :title="countTitle">{{ count }}</CountPill>
       <slot name="meta" />
     </div>
-    <div v-if="$slots.actions" class="flex shrink-0 items-center gap-2">
+    <div v-if="$slots.actions" class="flex shrink-0 items-center gap-2 text-foreground">
       <slot name="actions" />
     </div>
   </div>
