@@ -36,6 +36,7 @@ import { useMainWindowEvents } from '@/composables/useMainWindowEvents'
 import { useVaultOpenGuard } from '@/composables/useVaultOpenGuard'
 import { useFindShortcut } from '@/composables/usePageFind'
 import { normalizeColorTheme } from '@/lib/colorThemes'
+import { applyThemeMode } from '@/lib/themeMode'
 import { openItemCreateWindow } from '@/lib/itemWindow'
 import { openItemListWindow } from '@/lib/itemListWindow'
 import { openSecretNotes } from '@/lib/secretNotesWindow'
@@ -399,22 +400,16 @@ onMounted(() => {
 
 const isDark = ref(false)
 
+let stopThemeListener = () => {}
+
 function applyTheme(theme: string) {
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark')
-    isDark.value = true
-  } else if (theme === 'light') {
-    document.documentElement.classList.remove('dark')
-    isDark.value = false
-  } else {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    document.documentElement.classList.toggle('dark', dark)
-    isDark.value = dark
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      document.documentElement.classList.toggle('dark', e.matches)
-      isDark.value = e.matches
-    })
-  }
+  stopThemeListener()
+  stopThemeListener = applyThemeMode(
+    theme,
+    document.documentElement,
+    window.matchMedia('(prefers-color-scheme: dark)'),
+    (dark) => (isDark.value = dark),
+  )
 }
 
 // Named color palette. Sets the `data-theme` attribute on <html> (see main.css);

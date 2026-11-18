@@ -7,6 +7,7 @@
 // windows, so another machine's look never leaks into this machine's windows.
 import { emit, listen } from '@tauri-apps/api/event'
 import { normalizeColorTheme } from './colorThemes.ts'
+import { resolveDark } from './themeMode.ts'
 
 export const APPEARANCE_CHANGED = 'appearance:changed'
 
@@ -40,7 +41,7 @@ export interface AppearanceRoot {
 /** Applies theme and palette to `root`, like App.vue does at start. `prefersDark` decides 'system'. */
 export function applyAppearance(change: AppearanceChange, root: AppearanceRoot, prefersDark: boolean): void {
   if (change.theme !== undefined) {
-    root.classList.toggle('dark', change.theme === 'dark' || (change.theme !== 'light' && prefersDark))
+    root.classList.toggle('dark', resolveDark(change.theme, prefersDark))
   }
   if (change.colorTheme !== undefined) {
     // The default (indigo) palette uses no attribute: it falls back to :root / .dark.

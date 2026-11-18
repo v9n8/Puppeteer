@@ -89,18 +89,18 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="min-h-dvh flex items-center justify-center px-4 py-10 bg-background text-foreground">
-    <div class="w-full max-w-sm space-y-6">
+    <div class="w-full max-w-[360px] space-y-5">
       <div class="text-center space-y-2">
         <div class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary">
           <MonitorSmartphone class="h-6 w-6" :stroke-width="1.75" />
         </div>
         <h1 class="text-lg font-semibold">{{ t('remote.desktop.login.title') }}</h1>
-        <p class="text-sm text-foreground/60">{{ t('remote.desktop.login.subtitle') }}</p>
+        <p class="text-md text-muted-foreground">{{ t('remote.desktop.login.subtitle') }}</p>
       </div>
 
       <form class="space-y-3" @submit.prevent="submit">
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground">{{ t('remote.desktop.login.device') }}</label>
+          <label class="block text-xs font-medium text-muted-foreground">{{ t('remote.desktop.login.device') }}</label>
           <Input
             v-model="device"
             autocomplete="off"
@@ -111,7 +111,7 @@ async function submit(): Promise<void> {
           />
         </div>
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground">{{ t('remote.desktop.login.password') }}</label>
+          <label class="block text-xs font-medium text-muted-foreground">{{ t('remote.desktop.login.password') }}</label>
           <Input
             v-model="password"
             type="password"
@@ -120,7 +120,7 @@ async function submit(): Promise<void> {
             :disabled="loggingIn"
           />
         </div>
-        <Button type="submit" variant="primary" class="w-full" :disabled="loggingIn || loadingRelay">
+        <Button type="submit" variant="primary" size="md" class="w-full px-3.5 text-md" :disabled="loggingIn || loadingRelay">
           <Loader2 v-if="loggingIn" class="h-3.5 w-3.5 animate-spin" :stroke-width="1.75" />
           <KeyRound v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
           {{ loggingIn ? t('remote.desktop.login.working') : t('remote.desktop.login.submit') }}
@@ -128,7 +128,7 @@ async function submit(): Promise<void> {
       </form>
 
       <p v-if="error" class="text-sm text-destructive text-center">{{ error }}</p>
-      <p class="text-2xs leading-relaxed text-foreground/40 text-center">
+      <p class="text-2xs leading-relaxed text-muted-foreground text-center">
         <template v-if="relayUrl">{{ t('remote.desktop.login.relayVia', { url: relayUrl }) }}</template>
         <template v-else-if="!loadingRelay">{{ t('remote.desktop.login.noRelay') }}</template>
       </p>

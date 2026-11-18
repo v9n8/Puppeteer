@@ -37,9 +37,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-screen w-screen flex-col gap-2 overflow-hidden bg-background p-3 text-foreground">
-    <header class="flex shrink-0 items-center gap-3 px-1">
-      <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{{ t('fileTransfer.title') }}</h1>
+  <div class="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+    <header class="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-sidebar px-2.5">
+      <h1 class="min-w-0 flex-1 truncate text-md font-semibold">{{ t('fileTransfer.title') }}</h1>
       <MergeBackButton
         screen="file-transfer"
         :path="FILE_TRANSFER_PATH"
@@ -47,7 +47,7 @@ watch(
         :locked-tip="lockedTip"
       />
     </header>
-    <FileTransferScreen ref="screen" class="min-h-0 flex-1" />
+    <div class="flex min-h-0 flex-1 flex-col p-3"><FileTransferScreen ref="screen" class="min-h-0 flex-1" /></div>
     <ConfirmModal />
     <PromptModal />
     <ToastHost />

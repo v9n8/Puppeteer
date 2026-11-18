@@ -142,10 +142,10 @@ onBeforeUnmount(() => {
           v-for="tabItem in tabs"
           :key="tabItem.key"
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors"
+          class="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-sm px-2.5 py-0 text-xs font-medium transition-colors"
           :class="tab === tabItem.key
             ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
           @click="tab = tabItem.key"
         >
           <component :is="tabItem.icon" class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -160,8 +160,8 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Submit bar: the shortcut on the left, the capture form's submit on the right. -->
-    <div class="flex shrink-0 items-center gap-2 border-t border-border/60 px-3 py-2.5">
-      <span class="mr-auto text-2xs text-muted-foreground/70">⌘/Ctrl + Enter</span>
+    <div class="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2.5">
+      <span class="mr-auto text-2xs text-muted-foreground">⌘/Ctrl + Enter</span>
       <Button
         variant="primary"
         size="sm"

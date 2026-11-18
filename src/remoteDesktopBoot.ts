@@ -15,6 +15,9 @@
 import { createApp, type App } from 'vue'
 import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-real/core'
+import { applyThemeMode } from './lib/themeMode'
+import { applyAppearance } from './lib/appearanceSync'
 import { i18n } from './i18n'
 import { installRemoteIpc, startRemoteIpc } from './lib/ipc/remote'
 import { startMuxClient, startMuxHost } from './lib/ipc/muxTransport'
@@ -32,7 +35,23 @@ async function closeRemotePopouts(): Promise<void> {
   }
 }
 
-export function bootRemoteDesktop(mountApp: () => App): void {
+/**
+ * The login window mounts without App.vue, so it reads the look itself (before
+ * mounting: no light flash). A failure leaves the system look and never blocks sign-in.
+ */
+async function applyStoredAppearance(): Promise<void> {
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  let settings: { theme?: string; color_theme?: string } = {}
+  try {
+    settings = await invoke<{ theme?: string; color_theme?: string }>('get_settings')
+  } catch (e) {
+    console.error('[remoteDesktop] get_settings failed', e)
+  }
+  applyThemeMode(settings.theme ?? 'system', document.documentElement, media)
+  applyAppearance({ colorTheme: settings.color_theme }, document.documentElement, media.matches)
+}
+
+export function bootRemoteDesktop(mountApp: () => App): void | Promise<void> {
   const label = getCurrentWindow().label
   if (label !== REMOTE_OWNER_LABEL) {
     // Calls are queued until the main remote-desktop window answers.
@@ -46,8 +65,9 @@ export function bootRemoteDesktop(mountApp: () => App): void {
   const session = loadRemoteDesktopSession()
   if (!session) {
     void closeRemotePopouts()
-    createApp(RemoteDesktopLogin).use(i18n).mount('#app')
-    return
+    return applyStoredAppearance().then(() => {
+      createApp(RemoteDesktopLogin).use(i18n).mount('#app')
+    })
   }
 
   // Calls made from here on are queued until the session authenticates.
