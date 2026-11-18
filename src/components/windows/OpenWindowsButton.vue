@@ -27,10 +27,10 @@ const tip = computed(() => {
   <button
     v-if="!isRemoteMode()"
     type="button"
-    class="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="store.open
-      ? 'border-input bg-accent text-foreground'
-      : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'"
+      ? 'bg-accent text-foreground ring-1 ring-inset ring-input'
+      : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
     :title="tip"
     :aria-label="tip"
     :aria-pressed="store.open"

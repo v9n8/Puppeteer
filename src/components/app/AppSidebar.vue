@@ -125,9 +125,9 @@ function badgeTip(id: string): string | undefined {
         <section
           v-for="(group, i) in mainGroups"
           :key="group.id"
-          :class="rail ? ['space-y-0.5', i > 0 && 'border-t border-border pt-1'] : 'space-y-0.5'"
+          :class="rail ? ['space-y-0.5', i > 0 && 'border-t border-border pt-1'] : 'flex flex-col gap-0.5'"
         >
-          <h2 v-if="group.labelKey && !rail" class="px-3 pb-1 text-[13px] font-medium text-muted-foreground">
+          <h2 v-if="group.labelKey && !rail" class="mb-0.5 px-2 text-sm font-semibold text-muted-foreground">
             {{ t(group.labelKey) }}
           </h2>
           <SidebarNavItem
@@ -175,13 +175,14 @@ function badgeTip(id: string): string | undefined {
 
       <!-- Version footer; the rail keeps only the Remote dot. -->
       <div
-        class="flex items-center border-t border-border"
-        :class="rail ? 'justify-center py-3' : 'justify-between gap-2 px-4 py-3'"
+        class="mb-2 flex items-center"
+        :class="rail ? 'justify-center' : 'justify-between gap-2 mx-4'"
       >
+        <!-- Drawn 13px tall; the ::after pad keeps a 28px+ hit area. -->
         <button
           v-if="appVersion && !rail"
           type="button"
-          class="-mx-1.5 h-7 rounded-sm px-1.5 text-2xs text-muted-foreground/70 font-mono hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="relative font-mono text-xs leading-none text-muted-foreground after:absolute after:-inset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :title="t('about.openHint')"
           @click="router.push('/settings/about').catch(() => {})"
         >

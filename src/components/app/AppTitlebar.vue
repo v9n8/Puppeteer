@@ -15,7 +15,7 @@ const { t } = useI18n()
 
 <template>
   <header
-    class="app-titlebar flex items-center gap-2 h-10 px-3 shrink-0 bg-sidebar border-b border-border"
+    class="app-titlebar flex items-center gap-2 h-10 px-2.5 shrink-0 bg-sidebar border-b border-border"
   >
     <img src="/logo.png" alt="Puppeteer" class="h-4 w-4 rounded shrink-0 mr-1" />
 

@@ -248,13 +248,14 @@ async function jumpTo(projectId: string) {
         :key="tab.projectId"
         type="button"
         :data-drag-index="index"
-        class="group relative flex h-7 min-w-0 shrink items-center gap-2 pl-3 pr-2 rounded-sm text-sm max-w-[200px] transition-colors select-none touch-none"
+        class="group relative flex h-7 min-w-0 shrink items-center gap-1.5 px-2.5 border rounded-sm text-sm max-w-[200px] transition-colors select-none touch-none"
         :class="[
+          tab.projectId === activeProjectId && 'font-medium',
           dragFrom === index
-            ? 'bg-accent text-foreground shadow-md cursor-grabbing'
+            ? 'border-border bg-card text-foreground shadow-md cursor-grabbing'
             : tab.projectId === activeProjectId
-              ? 'bg-accent text-foreground cursor-pointer'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 cursor-pointer',
+              ? 'border-border bg-card text-foreground cursor-pointer'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer',
         ]"
         :style="tabStyle(index)"
         :title="`${projectName(tab.projectId)} — ${t('misc.tabs.dragToReorder')}`"
@@ -278,7 +279,12 @@ async function jumpTo(projectId: string) {
           :class="tabLooks[tab.projectId].tint || 'opacity-70'"
           :stroke-width="1.75"
         />
-        <span class="truncate">{{ projectName(tab.projectId) }}</span>
+        <!-- The hidden bold copy reserves the selected tab's width, so picking
+             another tab does not shift the strip sideways. -->
+        <span class="grid min-w-0">
+          <span class="col-start-1 row-start-1 truncate">{{ projectName(tab.projectId) }}</span>
+          <span class="invisible col-start-1 row-start-1 h-0 truncate font-medium" aria-hidden="true">{{ projectName(tab.projectId) }}</span>
+        </span>
 
         <!-- pending-permission badge (summed across the project's runs) -->
         <CountPill v-if="stateOf(tab.projectId).pending > 0" tone="warning">{{ stateOf(tab.projectId).pending }}</CountPill>
@@ -355,8 +361,9 @@ async function jumpTo(projectId: string) {
         <template v-if="menuProject">
           <DropdownSeparator />
           <div class="px-2.5 py-1.5">
-            <p class="mb-1.5 text-2xs font-medium text-muted-foreground">{{ t('projectDetail.colorLabel') }}</p>
-            <div class="-mx-1 flex items-center">
+            <p class="mb-1.5 text-sm font-medium text-muted-foreground">{{ t('projectDetail.colorLabel') }}</p>
+            <!-- 20px row as drawn; the 28px hit areas spill into the padding around it. -->
+            <div class="-mx-1 flex h-5 items-center">
               <!-- 28px hit area around the 16px dot -->
               <button
                 v-for="color in PROJECT_COLORS"

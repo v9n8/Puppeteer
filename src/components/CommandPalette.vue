@@ -180,16 +180,16 @@ onBeforeUnmount(() => {
 <template>
   <Modal :open="open" size="md" hide-header @close="close">
     <div class="flex max-h-[70vh] flex-col">
-      <div class="relative border-b border-border">
+      <div class="flex h-12 items-center gap-2.5 border-b border-border px-3.5 text-muted-foreground">
         <Search
-          class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          class="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground"
           :stroke-width="1.75"
         />
         <input
           ref="inputEl"
           v-model="query"
           type="text"
-          class="h-11 w-full bg-transparent pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           :placeholder="t('palette.placeholder')"
           :aria-label="t('palette.placeholder')"
           @keydown="onInputKeydown"

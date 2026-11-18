@@ -30,11 +30,11 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const ROW =
-  'relative flex h-8 w-full items-center gap-2.5 rounded-sm px-3 text-md transition-colors cursor-pointer select-none ' +
+  'relative flex h-8 w-full items-center gap-2.5 rounded-sm px-2 text-md transition-colors cursor-pointer select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-const IDLE = 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+const IDLE = 'text-muted-foreground hover:text-foreground hover:bg-accent'
 const RAIL =
-  'relative flex h-9 w-full items-center justify-center rounded-sm transition-colors cursor-pointer select-none ' +
+  'relative flex h-9 w-full items-center justify-center gap-2.5 rounded-sm text-md transition-colors cursor-pointer select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const CURRENT = 'is-active bg-accent text-foreground font-medium'
 
@@ -59,12 +59,12 @@ const tip = computed(() => {
     <component :is="icon" class="h-4 w-4 shrink-0" :stroke-width="1.75" />
     <template v-if="!compact">
       <span class="flex-1 truncate text-left">{{ label }}</span>
-      <span v-if="inOwnWindow" class="shrink-0 opacity-70" :title="t('nav.openInWindow')" :aria-label="t('nav.openInWindow')">
-        <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
+      <span v-if="inOwnWindow" class="shrink-0" :title="t('nav.openInWindow')" :aria-label="t('nav.openInWindow')">
+        <ArrowUpRight class="h-4 w-4" :stroke-width="1.75" />
       </span>
       <SidebarBadge :badge="badge" />
     </template>
-    <ArrowUpRight v-else-if="inOwnWindow" class="absolute right-1 top-1 h-2.5 w-2.5 opacity-70" :stroke-width="2" />
+    <ArrowUpRight v-else-if="inOwnWindow" class="absolute right-px top-px h-3 w-3" :stroke-width="2" />
     <span v-if="inOwnWindow" class="sr-only">({{ t('nav.opensInWindow') }})</span>
   </button>
   <RouterLink
@@ -81,11 +81,11 @@ const tip = computed(() => {
     <component :is="icon" class="h-4 w-4 shrink-0" :stroke-width="1.75" />
     <template v-if="!compact">
       <span class="flex-1 truncate">{{ label }}</span>
-      <span v-if="inOwnWindow" class="shrink-0 opacity-70" :title="t('nav.openInWindow')" :aria-label="t('nav.openInWindow')">
-        <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
+      <span v-if="inOwnWindow" class="shrink-0" :title="t('nav.openInWindow')" :aria-label="t('nav.openInWindow')">
+        <ArrowUpRight class="h-4 w-4" :stroke-width="1.75" />
       </span>
       <SidebarBadge :badge="badge" />
     </template>
-    <ArrowUpRight v-else-if="inOwnWindow" class="absolute right-1 top-1 h-2.5 w-2.5 opacity-70" :stroke-width="2" />
+    <ArrowUpRight v-else-if="inOwnWindow" class="absolute right-px top-px h-3 w-3" :stroke-width="2" />
   </RouterLink>
 </template>

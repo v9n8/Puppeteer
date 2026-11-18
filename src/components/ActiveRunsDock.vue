@@ -34,14 +34,15 @@ function seeAll() {
 
 <template>
   <div v-if="displayRows.length > 0" class="px-2 pb-2 border-t border-border pt-2">
-    <!-- One line: the text opens the popup, the chevron expands the dock. -->
-    <div v-if="mode === 'compact'" class="flex h-8 items-center gap-1">
+    <!-- One bordered line: the text opens the popup, the chevron (laid over the
+         line's right end, a separate button) expands the dock. -->
+    <div v-if="mode === 'compact'" class="relative">
       <ActiveRunsPopup side="top">
         <button
           type="button"
-          class="flex h-8 min-w-0 flex-1 cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-left text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-8 w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-sm border border-border pl-2 pr-8 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Activity class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+          <Activity class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="2" />
           <span class="min-w-0 flex-1 truncate text-xs">
             {{ t('misc.activeRuns.compactLabel', { n: displayRows.length }, displayRows.length) }}
           </span>
@@ -57,7 +58,7 @@ function seeAll() {
       </ActiveRunsPopup>
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="absolute inset-y-px right-px flex w-7 cursor-pointer items-center justify-center rounded-r-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :title="t('misc.activeRuns.expand')"
         :aria-label="t('misc.activeRuns.expand')"
         @click="$emit('toggle')"
@@ -67,10 +68,9 @@ function seeAll() {
     </div>
 
     <template v-else>
-      <div class="flex items-center gap-1.5 pl-2 mb-1">
-        <Activity class="h-3 w-3 text-muted-foreground" :stroke-width="2" />
-        <span class="min-w-0 flex-1 truncate text-2xs font-semibold text-muted-foreground">
-          {{ t('misc.activeRuns.heading') }}
+      <div class="mx-1 mb-0.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+        <span class="flex h-7 min-w-0 flex-1 items-center">
+          <span class="truncate">{{ t('misc.activeRuns.heading') }}</span>
         </span>
         <span
           v-if="waitingCount > 0"

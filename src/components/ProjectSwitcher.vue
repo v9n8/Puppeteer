@@ -26,7 +26,7 @@ const projects = useProjectsStore()
 const tabs = useWorkspaceTabsStore()
 const { open, currentProjectId, openProject, newSession } = useProjectSwitcher()
 
-const PANEL_WIDTH = 384
+const PANEL_WIDTH = 400
 const EDGE_MARGIN = 8
 
 const trigger = ref<HTMLElement | null>(null)
@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
         ref="panel"
         role="dialog"
         :aria-label="t('projectSwitcher.button')"
-        class="ui-popover fixed z-[100] flex max-h-[min(480px,calc(100vh-64px))] flex-col rounded-md border border-border bg-popover shadow-lg shadow-black/20"
+        class="ui-popover fixed z-[100] flex max-h-[min(480px,calc(100vh-64px))] flex-col rounded-card border border-popover-border bg-popover"
         :style="{ left: `${pos.x}px`, top: `${pos.y}px`, width: `min(${PANEL_WIDTH}px, calc(100vw - ${EDGE_MARGIN * 2}px))` }"
       >
         <!-- Search: sticky above the list -->
@@ -265,8 +265,8 @@ onBeforeUnmount(() => {
               :data-row="index"
               role="option"
               :aria-selected="index === active"
-              class="group flex cursor-pointer items-center gap-2 rounded px-2 py-1.5"
-              :class="index === active ? 'bg-accent text-foreground' : 'text-foreground/90 hover:bg-accent/50'"
+              class="group flex min-h-11 cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1"
+              :class="index === active ? 'bg-accent text-foreground' : 'text-foreground/90 hover:bg-accent'"
               @mousemove="active = index"
               @click="choose(row.project.id)"
             >

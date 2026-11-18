@@ -25,7 +25,7 @@ const { t } = useI18n()
   <button
     type="button"
     data-run-item
-    class="w-full flex items-center gap-2 py-1.5 px-2 rounded-sm text-left transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="w-full flex items-center gap-2 py-1 px-2 rounded-sm text-left transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="active
       ? 'bg-accent text-foreground'
       : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'"
@@ -49,8 +49,8 @@ const { t } = useI18n()
       />
     </span>
     <span class="min-w-0 flex-1">
-      <span class="block truncate text-sm leading-tight">{{ label }}</span>
-      <span class="block truncate text-2xs text-muted-foreground/70 leading-tight">{{ project }}</span>
+      <span class="block truncate text-sm">{{ label }}</span>
+      <span class="block truncate text-2xs text-muted-foreground/70">{{ project }}</span>
     </span>
     <span
       v-if="item.row.stuck"
