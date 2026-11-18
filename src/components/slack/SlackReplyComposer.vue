@@ -171,7 +171,7 @@ function onKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="shrink-0 border-t border-border bg-background px-4 py-3" @keydown="onKeydown">
+  <div class="shrink-0 border-t border-border bg-background px-4 pb-3 pt-2.5" @keydown="onKeydown">
     <Textarea
       :model-value="source"
       rows="2"

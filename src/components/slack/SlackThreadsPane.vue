@@ -269,7 +269,7 @@ async function copyId() {
     setTimeout(() => (copiedId.value = false), 1500)
     toast.success(t('item.idCopied'))
   } catch {
-    /* clipboard unavailable */
+    toast.error(t('common.copyFailed'))
   }
 }
 

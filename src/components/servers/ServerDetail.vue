@@ -285,7 +285,7 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
     <DetailHeader :title="label" :placeholder="t('servers.detail.newTitle')">
       <template #meta>{{ meta }}</template>
       <template #actions>
-        <Button size="sm" :disabled="!canSave" :title="t('servers.detail.saveHint')" @click="handleSave">
+        <Button size="xs" :disabled="!canSave" :title="t('servers.detail.saveHint')" @click="handleSave">
           {{ saving ? t('servers.editor.saving') : t('common.save') }}
         </Button>
         <DropdownMenu v-if="server" align="right">

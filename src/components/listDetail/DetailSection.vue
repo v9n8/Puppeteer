@@ -14,7 +14,7 @@ defineSlots<{
 </script>
 
 <template>
-  <section class="space-y-3 border-b border-border/60 py-4 last:border-b-0">
+  <section class="space-y-3 border-b border-border py-4 last:border-b-0">
     <div class="flex items-center gap-2">
       <h2 class="flex-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{{ title }}</h2>
       <slot name="actions" />

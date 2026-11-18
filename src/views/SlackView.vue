@@ -11,9 +11,12 @@ import { PageHeader } from '@/components/ui'
 import DetachButton from '@/components/app/DetachButton.vue'
 import SlackThreadsPane from '@/components/slack/SlackThreadsPane.vue'
 import { openSlackThreadsWindow, slackTarget } from '@/lib/slackWindow'
+import { pageCount } from '@/lib/pageCount'
+import { useSlackThreadsStore } from '@/stores/slackThreads'
 import { SLACK_PATH, parseSlackQuery, slackPath } from '@/lib/screenRoutes'
 
 const { t } = useI18n()
+const store = useSlackThreadsStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -53,7 +56,10 @@ const detachTarget = computed(() => ({
 
 <template>
   <div class="flex h-full min-h-0 flex-col bg-background">
-    <PageHeader :title="t('slackThread.nav')">
+    <PageHeader
+      :title="t('slackThread.nav')"
+      :count="pageCount(store.loaded, store.error, store.threads.length)"
+    >
       <template #actions>
         <DetachButton :target="detachTarget" />
       </template>

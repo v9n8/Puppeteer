@@ -412,9 +412,9 @@ const emptyTitle = computed(() => {
 
       <div
         class="flex shrink-0 flex-col border-r border-border/60 bg-sidebar"
-        :class="narrow ? 'w-[240px]' : 'w-[380px]'"
+        :class="narrow ? 'w-[240px]' : 'w-56'"
       >
-        <div v-if="scope === 'global' || activeProjectId" class="shrink-0 px-3 pt-2">
+        <div v-if="scope === 'global' || activeProjectId" class="shrink-0 px-4">
           <LibraryKindTabs v-model="kind" :kinds="kinds" :counts="counts" :compact="narrow" />
         </div>
         <ListDetailSidebar

@@ -234,10 +234,10 @@ function rowAgeTitle(th: SlackThreadSummary): string {
               <li v-for="th in ch.threads" :key="th.id">
                 <button
                   type="button"
-                  class="group flex w-full cursor-pointer items-center gap-1.5 rounded-md py-1.5 pl-8 pr-2 text-left transition-colors"
+                  class="group flex w-full cursor-pointer items-center gap-1.5 min-h-8 rounded-sm py-0 pl-7 pr-2 text-left transition-colors"
                   :class="th.id === selectedId
-                    ? 'bg-primary/15 text-foreground'
-                    : 'text-foreground/85 hover:bg-accent/50'"
+                    ? 'bg-accent text-foreground'
+                    : 'text-foreground/85 hover:bg-accent'"
                   :title="th.preview || th.title"
                   @click="emit('select', th.id)"
                 >

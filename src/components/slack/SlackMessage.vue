@@ -71,7 +71,7 @@ async function copy() {
     setTimeout(() => (copied.value = false), 1500)
     toast.success(t('slackThread.message.copied'))
   } catch {
-    /* clipboard unavailable */
+    toast.error(t('common.copyFailed'))
   }
 }
 
@@ -91,8 +91,8 @@ function onBodyClick(e: MouseEvent) {
 
 <template>
   <div
-    class="group relative flex gap-2 px-5 transition-colors hover:bg-accent/30"
-    :class="continued ? 'py-0.5' : 'pt-2 pb-1'"
+    class="group relative flex gap-3 px-4 transition-colors hover:bg-accent/30"
+    :class="continued ? 'py-0.5' : 'py-1.5'"
   >
     <!-- Gutter: avatar, or the time on hover for a grouped message. -->
     <div class="w-9 shrink-0">
@@ -113,7 +113,7 @@ function onBodyClick(e: MouseEvent) {
 
     <div class="min-w-0 flex-1">
       <div v-if="!continued" class="flex items-baseline gap-1.5">
-        <span class="truncate text-sm font-bold text-foreground" :title="user?.realName ?? undefined">
+        <span class="truncate text-md font-semibold text-foreground" :title="user?.realName ?? undefined">
           {{ name }}
         </span>
         <span
@@ -137,7 +137,7 @@ function onBodyClick(e: MouseEvent) {
         <!-- Sanitized by renderSlackMrkdwn (DOMPurify). -->
         <div
           v-if="shownText"
-          class="slack-body whitespace-pre-wrap break-words text-sm leading-[1.46] text-foreground"
+          class="slack-body whitespace-pre-wrap break-words text-md leading-[1.55] text-foreground"
           @click="onBodyClick"
           v-html="bodyHtml"
         />

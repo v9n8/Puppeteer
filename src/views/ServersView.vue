@@ -309,7 +309,7 @@ async function handleDelete(server: VpsServer) {
         </span>
       </template>
       <template #footer>
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+        <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-2xs text-muted-foreground">
           <span>{{ t('servers.list.statusLegend') }}</span>
           <span v-for="tone in legendTones" :key="tone" class="flex items-center gap-1.5">
             <ServerStatusDot :dot="serverDot(tone, false)" />

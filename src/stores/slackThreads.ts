@@ -195,6 +195,8 @@ export const useSlackThreadsStore = defineStore('slackThreads', () => {
   const links = ref<SlackThreadRunLink[]>([])
   const progress = ref<Record<string, SlackThreadProgress>>({})
   const loading = ref(false)
+  /** True once a list load succeeded (a pill count of 0 must not mean "not loaded yet"). */
+  const loaded = ref(false)
   /** Last list load failure (cleared by the next successful load). */
   const error = ref<string | null>(null)
   /** Last failure loading the open thread (cleared on success / selection change). */
@@ -217,6 +219,7 @@ export const useSlackThreadsStore = defineStore('slackThreads', () => {
       })
       if (seq !== listSeq) return
       threads.value = rows
+      loaded.value = true
       error.value = null
     } catch (e) {
       if (seq === listSeq) error.value = String(e)
@@ -428,6 +431,7 @@ export const useSlackThreadsStore = defineStore('slackThreads', () => {
     links,
     progress,
     loading,
+    loaded,
     error,
     viewError,
     query,

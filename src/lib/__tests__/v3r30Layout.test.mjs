@@ -8,7 +8,7 @@ const read = (p) => readFileSync(new URL(`../../components/${p}`, import.meta.ur
 
 test('V3-49 AC-1: tab padding is tight enough for 5 tabs in a 349px column', () => {
   const src = read('library/LibraryKindTabs.vue')
-  assert.match(src, /border-b-2 px-1 text-xs/)
+  assert.match(src, /border-b-2 px-2 text-xs/)
 })
 
 test('V3-49 AC-9: an empty project shows libraryFilesEmpty under the tabs', () => {
