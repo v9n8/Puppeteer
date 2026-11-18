@@ -5,6 +5,7 @@ import type { CalEvent } from '@/stores/googleCalendar'
 import { startOfWeek, addDays, sameDay, minutesOfDay, parseEventTime } from '@/lib/calendar'
 import { lunarInfo } from '@/lib/lunar'
 import { isOngoing, nowLineTop } from '@/lib/calendarNow'
+import { allDayByDay } from '@/lib/calendarAllDay'
 import { useMinuteClock } from '@/composables/useMinuteClock'
 
 const props = defineProps<{
@@ -57,11 +58,7 @@ const parsed = computed<Parsed[]>(() =>
 )
 
 // ── All-day events: shown in the header strip, on each covered day of the week ──
-function allDayFor(day: Date) {
-  return parsed.value.filter(
-    p => p.allDay && day >= new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate()) && day <= p.end,
-  )
-}
+const allDayCells = computed(() => allDayByDay(parsed.value, weekDays.value))
 
 // ── Timed events: positioned blocks with overlap-aware lane packing ──
 interface Block {
@@ -146,43 +143,45 @@ onMounted(() => {
 <template>
   <div class="flex flex-col h-full">
     <!-- Day header + all-day strip -->
-    <div class="flex border-b border-border/60 shrink-0">
-      <div class="w-12 shrink-0" />
+    <div class="flex shrink-0 border-b border-border">
+      <div class="w-14 shrink-0" />
       <div class="grid grid-cols-7 flex-1">
         <div
           v-for="(d, i) in weekDays"
           :key="i"
-          class="border-l border-border/40 px-1 py-1"
+          class="flex flex-col items-center gap-0.5 border-l border-border px-1 py-1.5"
         >
-          <div class="flex items-center justify-center gap-1 text-2xs">
-            <span class="text-muted-foreground">{{ WEEKDAYS[i] }}</span>
-            <span
-              :class="sameDay(d, today)
-                ? 'flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold'
-                : 'font-medium'"
-            >{{ d.getDate() }}</span>
-          </div>
-          <div
+          <span class="text-xs leading-none text-muted-foreground">{{ WEEKDAYS[i] }}</span>
+          <span
+            class="inline-grid h-[26px] min-w-[26px] place-items-center rounded-full text-md font-semibold"
+            :class="sameDay(d, today) ? 'bg-primary text-primary-foreground' : ''"
+          >{{ d.getDate() }}</span>
+          <span
             v-if="showLunar"
-            class="text-center text-2xs leading-none tabular-nums"
-            :class="lunarInfo(d).highlight
-              ? 'font-bold text-red-500 dark:text-red-400'
-              : 'font-normal text-muted-foreground/60'"
-          >
-            {{ lunarInfo(d).label }}
-          </div>
-          <!-- all-day events -->
-          <div class="mt-1 flex flex-col gap-0.5 min-h-0">
-            <button
-              v-for="p in allDayFor(d)"
-              :key="p.ev.id + p.ev.calendar_id"
-              type="button"
-              class="truncate rounded px-1 py-0.5 text-left text-2xs text-white"
-              :style="{ backgroundColor: colorFor(p.ev.account_id) }"
-              :title="p.ev.title"
-              @click="emit('select', p.ev)"
-            >{{ p.ev.title }}</button>
-          </div>
+            class="text-xs leading-none tabular-nums"
+            :class="lunarInfo(d).highlight ? 'font-semibold text-destructive' : 'text-muted-foreground'"
+          >{{ lunarInfo(d).label }}</span>
+        </div>
+      </div>
+    </div>
+    <!-- All-day row -->
+    <div class="flex min-h-[30px] shrink-0 border-b border-border">
+      <div class="flex w-14 shrink-0 items-center justify-end whitespace-nowrap pr-1.5 text-xs text-muted-foreground">{{ t('calendar.view.allDay') }}</div>
+      <div class="grid grid-cols-7 flex-1">
+        <div
+          v-for="(cell, i) in allDayCells"
+          :key="i"
+          class="flex min-w-0 flex-col gap-0.5 border-l border-border px-0.5 py-[3px]"
+        >
+          <button
+            v-for="p in cell"
+            :key="p.ev.id + p.ev.calendar_id"
+            type="button"
+            class="truncate rounded px-1 py-0.5 text-left text-2xs text-white"
+            :style="{ backgroundColor: colorFor(p.ev.account_id) }"
+            :title="p.ev.title"
+            @click="emit('select', p.ev)"
+          >{{ p.ev.title }}</button>
         </div>
       </div>
     </div>
@@ -191,11 +190,11 @@ onMounted(() => {
     <div ref="scrollBody" class="flex-1 overflow-y-auto min-h-0">
       <div class="flex" :style="{ height: `${24 * HOUR_HEIGHT}px` }">
         <!-- Hour labels -->
-        <div class="relative w-12 shrink-0">
+        <div class="relative w-14 shrink-0">
           <!-- "Now" time sits in the gutter, so it never covers an event -->
           <span
             v-if="weekDays.some((d) => sameDay(d, today))"
-            class="pointer-events-none absolute right-1 z-10 -translate-y-1/2 rounded bg-primary px-1 text-2xs leading-tight text-primary-foreground tabular-nums"
+            class="pointer-events-none absolute right-1.5 z-10 -translate-y-1/2 rounded bg-primary px-1 text-2xs leading-tight text-primary-foreground tabular-nums"
             :style="{ top: `${nowLineTop(today, 0, HOUR_HEIGHT)}px` }"
           >{{ nowLabel() }}</span>
           <div
@@ -215,7 +214,7 @@ onMounted(() => {
           <div
             v-for="(d, i) in weekDays"
             :key="i"
-            class="relative border-l border-border/40 cursor-pointer"
+            class="relative border-l border-border cursor-pointer"
             @click="onColumnClick(d, $event)"
           >
             <!-- hour lines -->

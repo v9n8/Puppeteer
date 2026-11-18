@@ -301,7 +301,7 @@ defineExpose({ showTodo, openTodo })
     </div>
 
     <!-- Toolbar: the three ways to read the board -->
-    <div class="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/60 px-6 py-2">
+    <div class="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-1.5">
       <SegmentedControl
         v-model="view"
         :options="viewOptions"
@@ -341,9 +341,9 @@ defineExpose({ showTodo, openTodo })
 
     <!-- By time -->
     <div v-else-if="view === 'time'" class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-      <Card v-if="top.length" class="border-primary/30" body-class="p-2">
-        <h2 class="flex items-center gap-1.5 px-2 pb-1 pt-0.5 text-2xs font-semibold uppercase tracking-wide text-primary">
-          <Target class="h-3.5 w-3.5" :stroke-width="2" />
+      <Card v-if="top.length" body-class="p-1.5">
+        <h2 class="mx-1.5 mb-1 mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <Target class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="2" />
           {{ t('focus.nowSection') }}
         </h2>
         <FocusTodoRow

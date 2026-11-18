@@ -31,7 +31,7 @@ const viewModeOptions = computed<{ value: ViewMode, label: string, title: string
     >
       <ChevronLeft class="h-3.5 w-3.5" :stroke-width="1.75" />
     </Button>
-    <Button variant="outline" size="sm" :title="t('calendar.view.todayKey')" @click="store.today()">
+    <Button variant="outline" size="xs" class="px-2" :title="t('calendar.view.todayKey')" @click="store.today()">
       {{ t('calendar.view.today') }}
     </Button>
     <Button

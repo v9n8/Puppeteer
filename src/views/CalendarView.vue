@@ -424,7 +424,7 @@ function openForAccount(url: string) {
     <!-- Header: title + current range (left), settings popover (right) -->
     <PageHeader :title="t('calendar.title')" :count="store.accounts.length ? visibleCount : null">
       <template #meta>
-        <span v-if="store.accounts.length" class="text-sm font-medium text-foreground truncate">
+        <span v-if="store.accounts.length" class="text-md font-medium text-muted-foreground truncate">
           {{ rangeLabel }}
         </span>
       </template>

@@ -82,9 +82,9 @@ const DUE_TONE = {
 
 <template>
   <div
-    class="group relative flex cursor-pointer rounded-md transition-colors hover:bg-accent/50"
+    class="group relative flex cursor-pointer transition-colors hover:bg-accent/50"
     :class="[
-      layout === 'row' ? 'items-center gap-2 px-2 py-1.5' : 'flex-col gap-1 border border-border/60 bg-card px-2.5 py-2',
+      layout === 'row' ? 'min-h-9 items-center gap-2 rounded-sm px-2 py-0.5' : 'rounded-md flex-col gap-1 border border-border/60 bg-card px-2.5 py-2',
       doing && layout === 'card' ? 'border-l-2 border-l-primary' : '',
       selected ? 'before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary' : '',
     ]"

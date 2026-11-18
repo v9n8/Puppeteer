@@ -68,7 +68,7 @@ export function useFocusActions() {
   }
 
   function openSource(todo: FocusTodo) {
-    if (todo.source_url) void openUrl(todo.source_url).catch(() => {})
+    if (todo.source_url) void openUrl(todo.source_url).catch(() => toast.error(t('focus.toast.openSourceFailed')))
   }
 
   return { done, undone, start, backToTodo, waiting, snooze, remove, openSource, timeText, actualPrompt, customSnooze }

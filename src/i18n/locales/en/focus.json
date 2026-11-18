@@ -138,6 +138,7 @@
     "added": "Todo added",
     "saved": "Saved",
     "deleted": "Todo deleted",
+    "openSourceFailed": "Could not open the source link",
     "snoozed": "Snoozed until {time}"
   },
   "actual": {

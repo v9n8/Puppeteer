@@ -138,6 +138,7 @@
     "added": "Đã thêm todo",
     "saved": "Đã lưu",
     "deleted": "Đã xoá todo",
+    "openSourceFailed": "Không mở được liên kết nguồn",
     "snoozed": "Đã hoãn đến {time}"
   },
   "actual": {

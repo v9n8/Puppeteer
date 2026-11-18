@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
     </PageHeader>
 
     <!-- One filter for both views -->
-    <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-6 py-2">
+    <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-1.5">
       <div class="w-44">
         <AppSelect v-model="filter.projectId" :options="projectOptions" size="xs" variant="outline" :aria-label="t('tasks.filterProject')" />
       </div>
