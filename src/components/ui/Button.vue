@@ -27,7 +27,7 @@ const button = cva(
       size: {
         xs: 'h-7 gap-1 px-2.5 text-2xs',
         sm: 'h-8 gap-1.5 px-3 text-xs',
-        md: 'h-9 gap-2 px-4 text-sm',
+        md: 'h-9 gap-2 px-3.5 text-md',
         icon: 'h-7 w-7 font-normal',
         'icon-sm': 'h-7 w-7 font-normal',
         /** Dense spots only (banner retry, chip ×, folder-header actions inside a h-8 bar). */

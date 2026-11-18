@@ -53,6 +53,7 @@ onBeforeUnmount(() => unregister?.())
   <Button
     variant="ghost"
     size="sm"
+    class="rounded-md"
     :title="tooltip"
     :aria-label="tooltip"
     :disabled="busy || !!lockedTip"

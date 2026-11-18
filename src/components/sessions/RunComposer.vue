@@ -333,7 +333,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             <Button
               variant="outline"
               size="xs"
-              class="gap-1.5 px-2 font-normal"
+              class="min-w-0 gap-1.5 px-2 font-normal"
               :title="runSettingsTitle"
               :aria-label="runSettingsTitle"
               aria-haspopup="dialog"

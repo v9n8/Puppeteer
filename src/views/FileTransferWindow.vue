@@ -39,7 +39,7 @@ watch(
 <template>
   <div class="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
     <header class="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-sidebar px-2.5">
-      <h1 class="min-w-0 flex-1 truncate text-md font-semibold">{{ t('fileTransfer.title') }}</h1>
+      <h1 class="min-w-0 flex-1 truncate text-md leading-[1.5714] font-semibold">{{ t('fileTransfer.title') }}</h1>
       <MergeBackButton
         screen="file-transfer"
         :path="FILE_TRANSFER_PATH"
