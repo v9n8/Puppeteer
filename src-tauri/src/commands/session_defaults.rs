@@ -130,6 +130,30 @@ pub fn fallback_permission_mode(project: Option<&str>, global: &str) -> String {
         .to_string()
 }
 
+/// The permission defaults for a phone's `engine_model_options` frame, so it
+/// stars the mode a run without a pick takes (UR-40): the global one resolved
+/// like a run's, and per project id the projects that set a valid one.
+pub async fn wire_permission_modes(db: &Db) -> (String, std::collections::BTreeMap<String, String>) {
+    let global = crate::remote::get_setting(db, "default_permission_mode").await.unwrap_or_default();
+    let rows = sqlx::query(
+        "SELECT id, default_permission_mode FROM projects WHERE deleted_at IS NULL AND default_permission_mode IS NOT NULL",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(event = "project_permission_modes_read_failed", error = %e);
+        Vec::new()
+    });
+    let projects = rows
+        .iter()
+        .filter_map(|r| {
+            let mode = r.get::<String, _>("default_permission_mode").trim().to_string();
+            crate::commands::runs::is_valid_permission_mode(&mode).then(|| (r.get("id"), mode))
+        })
+        .collect();
+    (fallback_permission_mode(None, &global), projects)
+}
+
 fn clean(value: Option<String>) -> Option<String> {
     value.map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }

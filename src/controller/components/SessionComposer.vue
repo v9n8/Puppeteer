@@ -61,6 +61,8 @@ const props = withDefaults(
     engine?: string
     model?: string
     permissionMode?: string
+    /** The mode a run without a pick takes; '' = an older Host that does not say. */
+    defaultPermissionMode?: string
     /** True while the bound run is executing (drives Send vs Run + Cancel). */
     running?: boolean
     /** True while a turn is being sent (disables the primary button). */
@@ -78,6 +80,7 @@ const props = withDefaults(
     engine: '',
     model: '',
     permissionMode: '',
+    defaultPermissionMode: '',
     running: false,
     sending: false,
     disabled: false,
@@ -117,12 +120,18 @@ const modelOptions = computed(() =>
     codexLabel: 'Codex',
   }),
 )
-// The Host reports an empty mode for a run with no pick of its own and does not
-// send the settings default it resolves to, so the Default row stays here.
-const permissionOptions = computed(() => [
-  { value: '', label: t('controller.composer.modelDefault') },
-  ...permissionModeOptions(t),
-])
+// A run with no pick of its own reports an empty mode: the select shows the
+// default the Host resolves it to, marked ★. An older Host does not send that
+// default, so the Default row stays then.
+const permissionDefault = computed(() =>
+  permissionModeOptions(t).some((o) => o.value === props.defaultPermissionMode) ? props.defaultPermissionMode : '',
+)
+const shownPermissionMode = computed(() => props.permissionMode || permissionDefault.value)
+const permissionOptions = computed(() =>
+  permissionDefault.value
+    ? markDefault(permissionModeOptions(t), permissionDefault.value)
+    : [{ value: '', label: t('controller.composer.modelDefault') }, ...permissionModeOptions(t)],
+)
 // Engine implied by the current pick; falls back to the run's engine (from Host
 // meta) when Default is selected, so Claude-only UI still keys off the right one.
 const selectedEngine = computed(
@@ -753,7 +762,7 @@ function onKeydown(e: KeyboardEvent): void {
                     {{ t('controller.composer.permissionSetting') }}
                   </p>
                   <AppSelect
-                    :model-value="permissionMode"
+                    :model-value="shownPermissionMode"
                     size="sm"
                     :options="permissionOptions"
                     :disabled="running"

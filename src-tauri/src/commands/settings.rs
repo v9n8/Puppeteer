@@ -337,7 +337,8 @@ pub async fn update_setting(
         return crate::features::commands::write_legacy(&app, db.inner(), set_setting(db.inner(), &key, &value)).await;
     }
     set_setting(db.inner(), &key, &value).await?;
-    if key == crate::model_policy::SETTING {
+    // A paired phone gets the models and the default permission mode again (UR-40).
+    if key == crate::model_policy::SETTING || key == "default_permission_mode" {
         crate::model_policy::notify_changed(&app);
     }
     Ok(())

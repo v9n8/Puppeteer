@@ -618,6 +618,7 @@ pub async fn send_engine_model_options(
             email: r.get("email"),
         })
         .collect();
+    let (default_mode, project_modes) = crate::commands::session_defaults::wire_permission_modes(db).await;
 
     let payload = StreamPayload::EngineModelOptions {
         engines: engine_model_options(),
@@ -627,6 +628,8 @@ pub async fn send_engine_model_options(
         claude_accounts,
         enabled_models: crate::model_policy::wire(db).await,
         project_enabled_models: crate::model_policy::wire_projects(db).await,
+        default_permission_mode: Some(default_mode),
+        project_permission_modes: project_modes,
     };
     if let Some(env) = seal_stream(session, room_id, &payload, seq.next()) {
         let _ = out.send(env);

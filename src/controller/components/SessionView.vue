@@ -60,6 +60,8 @@ const props = defineProps<{
   engine: string
   model: string
   permissionMode: string
+  /** The mode a run without a pick takes ('' = older Host). */
+  defaultPermissionMode: string
   sending: boolean
   /** Context-window occupancy (tokens) for the usage bar. */
   contextTokens: number
@@ -343,6 +345,7 @@ onUnmounted(() => {
       :engine="engine"
       :model="model"
       :permission-mode="permissionMode"
+      :default-permission-mode="defaultPermissionMode"
       :running="running"
       :sending="sending"
       :disabled="!isActive"

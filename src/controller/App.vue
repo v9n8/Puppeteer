@@ -405,11 +405,20 @@ const browserProjectId = ref<string | null>(null)
 // exists once the Host accepts the first turn (the ack carries the new run id).
 const draftProjectId = ref<string | null>(null)
 
+const sessionProjectId = computed(() =>
+  runId.value ? store.state.runList.find((r) => r.id === runId.value)?.project_id : draftProjectId.value,
+)
 // The models this session may pick: the Host's list narrowed by the list of the
 // session's project, when it has one (Project › Model, V3-64).
 const sessionEnabledModels = computed(() => {
-  const projectId = runId.value ? store.state.runList.find((r) => r.id === runId.value)?.project_id : draftProjectId.value
+  const projectId = sessionProjectId.value
   return intersectEnabled(store.state.enabledModels, projectId ? store.state.projectEnabledModels[projectId] : null)
+})
+// The mode this session runs with without a pick: its project's, else the Host's
+// ('' = an older Host that does not say).
+const sessionDefaultPermissionMode = computed(() => {
+  const projectId = sessionProjectId.value
+  return (projectId && store.state.projectPermissionModes[projectId]) || store.state.defaultPermissionMode
 })
 
 function startNewSession(projectId: string): void {
@@ -996,6 +1005,7 @@ function onRequestFiles(): void {
     :engine="engine"
     :model="model"
     :permission-mode="permissionMode"
+    :default-permission-mode="sessionDefaultPermissionMode"
     :sending="sending"
     :context-tokens="contextTokens"
     :context-model="contextModel"

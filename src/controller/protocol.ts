@@ -14,6 +14,7 @@
 
 import type { FetchedModel } from '@/lib/engineOptions'
 import { parseModelLists, type EnabledModels } from '../lib/enabledModels.ts'
+import { parsePermissionDefaults, type PermissionDefaults } from '../lib/permissionDefaults.ts'
 
 /** Re-exported so controller modules import wire types from one place. */
 export type { FetchedModel }
@@ -284,7 +285,7 @@ export interface EngineModelOption {
   default_model?: string | null
 }
 /** The engine/model options the Host offers (composer footer selectors). */
-export interface EngineModelOptionsKind {
+export interface EngineModelOptionsKind extends PermissionDefaults {
   kind: 'engine_model_options'
   /** LEGACY: the Host's copy of the curated alias table. We render our own
    * bundled copy instead, so this is parsed but unused. */
@@ -734,6 +735,7 @@ export function parseStreamPayload(json: unknown): StreamPayload | null {
         codex_models: models(o.codex_models),
         claude_accounts: accounts,
         ...parseModelLists(o),
+        ...parsePermissionDefaults(o),
       }
     }
     case 'project_file_list':

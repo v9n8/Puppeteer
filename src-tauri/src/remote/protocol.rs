@@ -354,6 +354,15 @@ pub enum StreamPayload {
         /// the open run's project. An older controller ignores it.
         #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
         project_enabled_models: std::collections::BTreeMap<String, EnabledModelsWire>,
+        /// The permission mode a run without a pick of its own takes (Settings ›
+        /// Defaults for new sessions), so the controller stars it (UR-40). `None`
+        /// only from an older Host. An older controller ignores it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        default_permission_mode: Option<String>,
+        /// Per project id, the project's own default mode; only the projects that
+        /// set one. It wins over `default_permission_mode` for the project's runs.
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        project_permission_modes: std::collections::BTreeMap<String, String>,
     },
     /// A bounded listing of files under the bound run's project path (for
     /// @mention completion in the controller composer).
@@ -882,6 +891,8 @@ mod tests {
             claude_accounts: Vec::new(),
             enabled_models,
             project_enabled_models: Default::default(),
+            default_permission_mode: None,
+            project_permission_modes: Default::default(),
         };
         let all_on = serde_json::to_value(frame(None)).unwrap();
         assert!(all_on.get("enabled_models").is_none(), "{all_on}");
@@ -906,6 +917,8 @@ mod tests {
             claude_accounts: Vec::new(),
             enabled_models: None,
             project_enabled_models,
+            default_permission_mode: None,
+            project_permission_modes: Default::default(),
         };
         let none = serde_json::to_value(frame(Default::default())).unwrap();
         assert!(none.get("project_enabled_models").is_none(), "{none}");
@@ -915,6 +928,35 @@ mod tests {
         )]);
         let some = serde_json::to_value(frame(lists)).unwrap();
         assert_eq!(some["project_enabled_models"], serde_json::json!({ "p1": { "claude": ["claude-haiku-4-5"], "codex": null } }));
+    }
+
+    #[test]
+    fn engine_model_options_carry_permission_defaults_only_when_set() {
+        let frame = |default_permission_mode, project_permission_modes| StreamPayload::EngineModelOptions {
+            engines: Vec::new(),
+            claude_models: Vec::new(),
+            codex_models: Vec::new(),
+            claude_accounts: Vec::new(),
+            enabled_models: None,
+            project_enabled_models: Default::default(),
+            default_permission_mode,
+            project_permission_modes,
+        };
+        let none = serde_json::to_value(frame(None, Default::default())).unwrap();
+        assert!(none.get("default_permission_mode").is_none(), "{none}");
+        assert!(none.get("project_permission_modes").is_none(), "{none}");
+        let modes = std::collections::BTreeMap::from([("p1".to_string(), "plan".to_string())]);
+        let some = serde_json::to_value(frame(Some("acceptEdits".into()), modes)).unwrap();
+        assert_eq!(some["default_permission_mode"], "acceptEdits");
+        assert_eq!(some["project_permission_modes"], serde_json::json!({ "p1": "plan" }));
+        // A frame from an older host, without the fields, still reads.
+        let old: StreamPayload =
+            serde_json::from_value(serde_json::json!({ "kind": "engine_model_options", "engines": [] })).unwrap();
+        assert!(matches!(
+            old,
+            StreamPayload::EngineModelOptions { default_permission_mode: None, ref project_permission_modes, .. }
+                if project_permission_modes.is_empty()
+        ));
     }
 
     #[test]

@@ -4,6 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { draftQuoteLink } from '../quote.ts'
+import { parseStreamPayload } from '../../controller/protocol.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
@@ -293,4 +294,29 @@ test('UR-04: the empty flags hint does not hard-code the number of default flags
     const body = JSON.parse(read(`../../i18n/locales/${l}/sessionFlags.json`)).settings.emptyBody
     assert.doesNotMatch(body, /\d/, `${l} emptyBody has no number`)
   }
+})
+
+test('UR-40: the phone reads the Host\'s default permission mode, and an older Host still parses', () => {
+  const frame = parseStreamPayload({
+    kind: 'engine_model_options',
+    engines: [],
+    default_permission_mode: 'acceptEdits',
+    project_permission_modes: { p1: 'plan', bad: 3 },
+  })
+  assert.equal(frame.default_permission_mode, 'acceptEdits')
+  assert.deepEqual(frame.project_permission_modes, { p1: 'plan' })
+  const old = parseStreamPayload({ kind: 'engine_model_options', engines: [] })
+  assert.equal(old.default_permission_mode, undefined)
+  assert.equal(old.project_permission_modes, undefined)
+  const app = read('../../controller/App.vue')
+  assert.match(app, /store\.state\.projectPermissionModes\[projectId\]\) \|\| store\.state\.defaultPermissionMode/)
+  assert.match(app, /:default-permission-mode="sessionDefaultPermissionMode"/)
+})
+
+test('UR-40: the phone composer stars the default permission instead of a Default row', () => {
+  const composer = read('../../controller/components/SessionComposer.vue')
+  assert.match(composer, /:model-value="shownPermissionMode"/)
+  assert.match(composer, /const shownPermissionMode = computed\(\(\) => props\.permissionMode \|\| permissionDefault\.value\)/)
+  // The Default row stays only for an older Host that does not send the default.
+  assert.match(composer, /permissionDefault\.value\s*\? markDefault\(permissionModeOptions\(t\), permissionDefault\.value\)\s*: \[\{ value: '', label: t\('controller\.composer\.modelDefault'\) \}/)
 })

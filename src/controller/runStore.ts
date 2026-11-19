@@ -199,6 +199,10 @@ export interface RunStoreState {
   /** Per project id, the project's own list (Project › Model, V3-64); a project left
    * out follows `enabledModels`. Empty from an older Host. */
   projectEnabledModels: Record<string, EnabledModels>
+  /** The Host's default permission mode (UR-40); '' from an older Host, which
+   * does not send it. A project's own one, per project id, wins. */
+  defaultPermissionMode: string
+  projectPermissionModes: Record<string, string>
   /** Subscription plan-usage badges, mirrored from the desktop `BudgetBadge`. */
   claudeBudget: PlanBudget | null
   codexBudget: PlanBudget | null
@@ -233,6 +237,8 @@ export function createRunStore() {
     claudeAccountChoices: [],
     enabledModels: { ...ALL_MODELS_ON },
     projectEnabledModels: {},
+    defaultPermissionMode: '',
+    projectPermissionModes: {},
     claudeBudget: null,
     codexBudget: null,
     claudeAccount: null,
@@ -351,6 +357,8 @@ export function createRunStore() {
         state.claudeAccountChoices = payload.claude_accounts ?? []
         state.enabledModels = payload.enabled_models ?? { ...ALL_MODELS_ON }
         state.projectEnabledModels = payload.project_enabled_models ?? {}
+        state.defaultPermissionMode = payload.default_permission_mode ?? ''
+        state.projectPermissionModes = payload.project_permission_modes ?? {}
         break
       case 'project_file_list':
         state.projectFiles = payload.files
@@ -580,6 +588,8 @@ export function createRunStore() {
     state.claudeAccountChoices = []
     state.enabledModels = { ...ALL_MODELS_ON }
     state.projectEnabledModels = {}
+    state.defaultPermissionMode = ''
+    state.projectPermissionModes = {}
     state.claudeAccounts = []
   }
 
