@@ -48,7 +48,6 @@
     "searchSection": "Tìm {section}…",
     "noMatchSection": "Không có kết quả",
     "remove": "Bỏ bộ lọc {filter}",
-    "clearSearchAndFilters": "Xoá tìm kiếm và bộ lọc",
     "applyOnSearch": "Áp khi bấm Tìm"
   },
   "status": {

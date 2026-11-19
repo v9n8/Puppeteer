@@ -99,7 +99,6 @@
   "cancelRename": "Hủy đổi tên",
   "toggleContentPanel": "Bật/tắt panel Content",
   "content": "Content",
-  "createNewSessionHint": "Tạo Session mới để bắt đầu làm việc với AI trong Project này.",
   "fetchToBegin": "fetch một issue hoặc PR để bắt đầu",
   "loadingContent": "Đang tải nội dung…",
   "couldNotLoadContent": "Không tải được nội dung",

@@ -5,14 +5,14 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
-  Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus,
+  Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2,
   ChevronsUp, ChevronsDown,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import TurnCutMark from './TurnCutMark.vue'
 import InlinePermissionBlock from '@/components/permission/InlinePermissionBlock.vue'
-import { Button, DropdownMenu, DropdownItem } from '@/components/ui'
+import { DropdownMenu, DropdownItem } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
 import { fallbackLastTurnCut } from '@/lib/turnCut'
 import { vMermaid } from '@/lib/mermaid'
@@ -35,7 +35,7 @@ const {
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
-  jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
+  jumpToLogHit, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
   jumpToQuote, session, project,
 } = useRunSession()
 // Which prompt (Lượt n) each hit of the whole log sits in.
@@ -112,14 +112,7 @@ function onOpenUrl(url: string) {
   <div v-if="noSession" class="flex-1 flex items-center justify-center p-6">
     <div class="text-center max-w-xs">
       <MessageSquare class="h-10 w-10 text-foreground/20 mx-auto mb-4" :stroke-width="1" />
-      <p class="text-sm font-medium text-foreground/70 mb-1.5">{{ t('run.noSessionsYet') }}</p>
-      <p class="text-xs text-foreground/40 leading-relaxed mb-4">
-        {{ t('run.createNewSessionHint') }}
-      </p>
-      <Button :disabled="creatingSession" @click="handleNewSession">
-        <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-        {{ creatingSession ? t('run.creating') : t('run.newSession') }}
-      </Button>
+      <p class="text-sm font-medium text-foreground/70">{{ t('run.noSessionsYet') }}</p>
     </div>
   </div>
 

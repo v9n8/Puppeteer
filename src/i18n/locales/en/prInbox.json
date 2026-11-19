@@ -48,7 +48,6 @@
     "searchSection": "Search {section}…",
     "noMatchSection": "No matches",
     "remove": "Remove filter {filter}",
-    "clearSearchAndFilters": "Clear search & filters",
     "applyOnSearch": "Applied on Search"
   },
   "status": {

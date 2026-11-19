@@ -1,22 +1,19 @@
 <script setup lang="ts">
-// Search row of the PR inbox: a wide box + "Search" button + "Clear filters",
+// Search row of the PR inbox: a wide box + "Search" button,
 // then the Filters / Display popovers in the `trailing` slot. What is typed
 // (`draft`) stays apart from what the list uses (`applied`): only the button
 // or Enter applies it (lib/prInboxSearch). The size container lets the
 // popover buttons drop to icon-only when the content pane is narrow.
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button, Input, Kbd } from '@/components/ui'
 import { IS_MAC } from '@/lib/appMenu'
-import type { PrFilters } from '@/lib/prInboxFilters'
-import { applySearch, canClear } from '@/lib/prInboxSearch'
+import { applySearch } from '@/lib/prInboxSearch'
 import { Search, X } from 'lucide-vue-next'
 
 const props = defineProps<{
   /** The text the list is filtered by right now. */
   applied: string
-  /** Filters that currently apply (decides whether "Clear filters" shows). */
-  filters: PrFilters
 }>()
 
 const emit = defineEmits<{
@@ -24,8 +21,6 @@ const emit = defineEmits<{
   apply: [text: string]
   /** Esc / x in the box: drop the text and the text filter. */
   clear: []
-  /** "Clear filters": drop every filter and the text. */
-  clearAll: []
 }>()
 
 const { t } = useI18n()
@@ -36,7 +31,6 @@ watch(() => props.applied, v => { draft.value = v })
 const wrap = ref<HTMLElement | null>(null)
 const inputEl = () => wrap.value?.querySelector('input') ?? null
 const keyLabel = IS_MAC ? '⌘F' : 'Ctrl+F'
-const clearable = computed(() => canClear({ draft: draft.value, applied: props.applied }, props.filters))
 
 function submit() {
   emit('apply', applySearch({ draft: draft.value, applied: props.applied }).applied)
@@ -100,9 +94,6 @@ defineExpose({
       <Button variant="outline" :title="t('prInbox.searchTitle')" @click="submit">
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
         {{ t('prInbox.searchButton') }}
-      </Button>
-      <Button v-if="clearable" variant="ghost" @click="emit('clearAll')">
-        {{ t('prInbox.filters.clearAll') }}
       </Button>
       <span class="h-5 w-px shrink-0 bg-border/60" aria-hidden="true" />
       <div class="flex shrink-0 items-center gap-2">

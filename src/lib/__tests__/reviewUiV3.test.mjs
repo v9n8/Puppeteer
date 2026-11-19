@@ -580,3 +580,21 @@ test('UR-24: the log find bar floats top-right with its hits, not a full-width s
   assert.ok(at('<FindBar :find="runFind"') < at('v-if="logSearchActive"'))
   assert.ok(at('v-if="logSearchActive"') < at('<!-- Log viewer'))
 })
+
+test('UR-46: duplicate buttons are gone (empty project log, PR inbox clear-all)', () => {
+  const log = read('../../components/sessions/RunLogPane.vue')
+  const empty = log.slice(log.indexOf('v-if="noSession"'), log.indexOf('<!-- Split container -->'))
+  assert.match(empty, /run\.noSessionsYet/)
+  assert.doesNotMatch(empty, /<Button|handleNewSession/)
+  const bar = read('../../components/prInbox/PrInboxSearchBar.vue')
+  assert.doesNotMatch(bar, /clearAll|clear-all/)
+  const view = read('../../views/PrInboxView.vue')
+  assert.doesNotMatch(view, /clearSearchAndFilters|@clear-all/)
+  // Still one in the chip row and one in the filter popover.
+  assert.match(view, /@click="clearAllFilters"/)
+  assert.match(read('../../components/prInbox/PrInboxFiltersPopover.vue'), /prInbox\.filters\.clearAll/)
+  for (const lang of ['en', 'vi']) {
+    const pr = json(`../../i18n/locales/${lang}/prInbox.json`)
+    assert.equal(pr.filters.clearSearchAndFilters, undefined)
+  }
+})

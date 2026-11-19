@@ -99,7 +99,6 @@
   "cancelRename": "Cancel rename",
   "toggleContentPanel": "Toggle Content panel",
   "content": "Content",
-  "createNewSessionHint": "Create a new session to start working with AI in this project.",
   "fetchToBegin": "fetch an issue or PR to begin",
   "loadingContent": "Loading content…",
   "couldNotLoadContent": "Could not load content",

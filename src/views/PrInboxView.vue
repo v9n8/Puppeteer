@@ -463,10 +463,8 @@ async function reviewAll(group: PrGroup) {
       v-if="store.items.length > 0"
       ref="searchBar"
       :applied="search"
-      :filters="activeFilters"
       @apply="applySearchAndFilters"
       @clear="search = ''"
-      @clear-all="clearAllFilters"
     >
       <template #trailing>
         <PrInboxFiltersPopover
@@ -593,10 +591,6 @@ async function reviewAll(group: PrGroup) {
         >
           <SearchX class="h-4 w-4 shrink-0" :stroke-width="1.75" />
           <span>{{ t('prInbox.filters.noMatch') }}</span>
-          <span class="text-muted-foreground/50">·</span>
-          <button type="button" class="font-medium text-primary hover:underline cursor-pointer" @click="clearAllFilters">
-            {{ t('prInbox.filters.clearSearchAndFilters') }}
-          </button>
         </div>
 
         <section v-for="group in grouped.groups" :key="group.key" class="flex flex-col gap-2">
