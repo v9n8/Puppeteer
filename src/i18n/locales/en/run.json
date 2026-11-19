@@ -320,7 +320,8 @@
     "noteKeys": "↵ save · Esc cancel",
     "listAria": "Quote list, scrolls inside the block",
     "resize": "Drag to resize the Quote block · double-click to reset",
-    "sourceNotLoaded": "The quoted message is not loaded in the log. Scroll the log to load it, then click again."
+    "sourceNotLoaded": "The quoted message is not loaded in the log. Scroll the log to load it, then click again.",
+    "notLoadedShort": "Not loaded"
   },
   "startRunEnter": "Start run (Enter — empty uses the default prompt)",
   "resumeAndSend": "Resume session and send (Enter)",

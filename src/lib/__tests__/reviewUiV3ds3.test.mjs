@@ -31,3 +31,15 @@ test('UR-48: StreamLog draws sent quotes with SentQuoteCard; hover changes only 
   assert.match(card, /mt-1 block whitespace-pre-wrap pl-2\.5 text-md leading-\[1\.6\] text-foreground/)
   assert.match(card, /group-hover:opacity-100[^"]*group-focus-visible:opacity-100/)
 })
+
+test('UR-49: composer rows use the Quote style; hover changes the border, a dead row says why', () => {
+  const src = read('../../components/sessions/ComposerQuoteBlock.vue')
+  assert.match(src, /<QuoteExcerpt :text="q\.excerpt" truncate :mono="q\.kind === 'file'"/)
+  assert.doesNotMatch(src, /hover:bg-accent\/60/)
+  assert.match(src, /:class="linkOf\(q\) \? 'transition-colors hover:border-primary\/60' : ''"/)
+  assert.match(src, /class="truncate pl-2\.5 text-xs text-foreground"/)
+  assert.match(src, /<History v-if="missing\(q\) === 'notLoaded'"[\s\S]*?<Unlink v-else[\s\S]*?t\('run\.quotes\.notLoadedShort'\) : t\('streamLog\.quotes\.sourceGone'\)/)
+  for (const [lang, text] of [['en', 'Not loaded'], ['vi', 'Chưa nạp']]) {
+    assert.equal(JSON.parse(read(`../../i18n/locales/${lang}/run.json`)).quotes.notLoadedShort, text)
+  }
+})

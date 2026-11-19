@@ -9,10 +9,11 @@
 // fresh each time the list goes empty.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, ChevronRight, Pencil, Quote, X } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, History, Pencil, Quote, Unlink, X } from 'lucide-vue-next'
 import { useConfirm } from '@/composables/useConfirm'
 import type { DraftQuote, DraftQuoteLink } from '@/lib/quote'
 import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight } from '@/lib/quoteBlockHeight'
+import QuoteExcerpt from '../QuoteExcerpt.vue'
 
 const props = defineProps<{
   quotes: DraftQuote[]
@@ -59,6 +60,11 @@ function fileLabel(q: DraftQuote): string {
 function linkOf(q: DraftQuote): DraftQuoteLink | null {
   const link = props.links.get(q.id)
   return link && link.to !== 'none' ? link : null
+}
+// Why a row leads nowhere, said beside it (the tooltip has the long form).
+function missing(q: DraftQuote): 'notLoaded' | 'gone' | null {
+  const link = props.links.get(q.id)
+  return link?.to === 'none' ? link.reason : null
 }
 function rowTitle(q: DraftQuote): string {
   const link = props.links.get(q.id)
@@ -246,24 +252,35 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
         tabindex="0"
         :aria-label="t('run.quotes.listAria')"
       >
-        <li v-for="(q, qi) in quotes" :key="q.id" class="rounded-md border border-border bg-card">
+        <!-- Hover changes only the border (DS-3): an accent fill hardly shows on the card in the dark theme. -->
+        <li
+          v-for="(q, qi) in quotes"
+          :key="q.id"
+          class="rounded-md border border-border bg-card"
+          :class="linkOf(q) ? 'transition-colors hover:border-primary/60' : ''"
+        >
           <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
-            <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-foreground">{{ qi + 1 }}</span>
+            <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-muted-foreground">{{ qi + 1 }}</span>
             <component
               :is="linkOf(q) ? 'button' : 'div'"
               class="min-w-0 flex-1 rounded py-1 text-left"
-              :class="linkOf(q) ? 'cursor-pointer px-1 -mx-1 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''"
+              :class="linkOf(q) ? 'cursor-pointer px-1 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''"
               v-bind="linkOf(q) ? { type: 'button' } : {}"
               :title="rowTitle(q)"
               @click="follow(q)"
             >
               <div class="flex items-center gap-2">
-                <span class="min-w-0 flex-1 truncate font-mono text-foreground/80">{{ q.excerpt }}</span>
+                <QuoteExcerpt :text="q.excerpt" truncate :mono="q.kind === 'file'" class="flex-1" />
                 <span v-if="q.kind === 'file'" class="max-w-[40%] shrink-0 truncate font-mono text-2xs text-muted-foreground">{{ fileLabel(q) }}</span>
+                <span v-else-if="missing(q)" class="flex shrink-0 items-center gap-1 text-2xs italic text-muted-foreground">
+                  <History v-if="missing(q) === 'notLoaded'" class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+                  <Unlink v-else class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+                  {{ missing(q) === 'notLoaded' ? t('run.quotes.notLoadedShort') : t('streamLog.quotes.sourceGone') }}
+                </span>
               </div>
               <div
                 v-if="q.note?.trim()"
-                class="truncate text-2xs text-muted-foreground"
+                class="truncate pl-2.5 text-xs text-foreground"
                 :title="t('run.quotes.noteTitle', { note: q.note })"
               >{{ q.note }}</div>
             </component>
