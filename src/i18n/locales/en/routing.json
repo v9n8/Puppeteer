@@ -25,5 +25,36 @@
       "retried": "Retried",
       "byAgent": "Chosen by agent"
     }
+  },
+  "update": {
+    "now": "Update now",
+    "unchanged": "The routing policy stays as it is: the results do not call for a change.",
+    "proposed": "Changes found. Automatic updates are off, so they are listed as a proposal."
+  },
+  "proposal": {
+    "title": "Proposed changes to v{n}",
+    "hint": "Automatic updates are off. Turn on \"Update the policy automatically\" and press Update now to apply changes like these."
+  },
+  "versions": {
+    "title": "Policy versions",
+    "hint": "Each version applies to sessions started after it; open sessions and their workers keep the version they started with.",
+    "current": "Current",
+    "viewText": "View full text",
+    "textTitle": "Routing policy v{n}",
+    "revert": "Go back to this version",
+    "revertTitle": "Go back to v{n}?",
+    "revertMessage": "A new version is made with the task kinds and tiers of v{n}, for new sessions.\nAutomatic updates are switched off, so the change you leave does not come straight back. You can switch them on again here.",
+    "reverted": "Routing policy v{n} made from v{from}. Automatic updates are off.",
+    "noChanges": "No change from the version before.",
+    "basis": "{successes} of {samples} succeeded, {failures} failed",
+    "sources": {
+      "default": "Built-in",
+      "auto": "Automatic",
+      "revert": "Reverted"
+    }
+  },
+  "notice": {
+    "updated": "Routing policy updated to v{n}: {summary}",
+    "open": "Open Routing"
   }
 }

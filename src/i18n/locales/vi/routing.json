@@ -25,5 +25,36 @@
       "retried": "Chạy lại",
       "byAgent": "Agent tự chọn"
     }
+  },
+  "update": {
+    "now": "Cập nhật ngay",
+    "unchanged": "Chính sách định tuyến giữ nguyên: kết quả chưa cần thay đổi.",
+    "proposed": "Có thay đổi. Tự cập nhật đang tắt nên thay đổi được ghi thành đề xuất."
+  },
+  "proposal": {
+    "title": "Đề xuất thay đổi cho v{n}",
+    "hint": "Tự cập nhật đang tắt. Bật \"Tự cập nhật chính sách\" rồi bấm Cập nhật ngay để áp dụng các thay đổi kiểu này."
+  },
+  "versions": {
+    "title": "Các phiên bản chính sách",
+    "hint": "Mỗi phiên bản áp cho session bắt đầu sau nó; session đang mở và worker của nó giữ phiên bản lúc bắt đầu.",
+    "current": "Hiện hành",
+    "viewText": "Xem toàn văn",
+    "textTitle": "Chính sách định tuyến v{n}",
+    "revert": "Quay lại phiên bản này",
+    "revertTitle": "Quay lại v{n}?",
+    "revertMessage": "App tạo một phiên bản mới có loại việc và bậc giống v{n}, cho session mới.\nTự cập nhật sẽ tắt để thay đổi vừa bỏ không quay lại ngay. Bạn có thể bật lại ở đây.",
+    "reverted": "Đã tạo chính sách định tuyến v{n} từ v{from}. Tự cập nhật đã tắt.",
+    "noChanges": "Không đổi so với phiên bản trước.",
+    "basis": "{successes} / {samples} thành công, {failures} hỏng",
+    "sources": {
+      "default": "Có sẵn",
+      "auto": "Tự động",
+      "revert": "Quay lại"
+    }
+  },
+  "notice": {
+    "updated": "Chính sách định tuyến đã lên v{n}: {summary}",
+    "open": "Mở Định tuyến"
   }
 }

@@ -92,3 +92,92 @@ export function adoptionRates(a: RoutingAdoption): { model: string; effort: stri
     both: percent(a.with_both, a.calls),
   }
 }
+
+// ---- Policy versions (QO-T17; src-tauri/src/runs/routing/update.rs) ----------
+
+export interface RoutingTier {
+  model: string
+  effort: string
+}
+
+/** The counted results a move rests on. */
+export interface RoutingBasis {
+  samples: number
+  successes: number
+  failures: number
+}
+
+/** One task kind's move; `basis` is null for a version made by going back. */
+export interface RoutingChange {
+  kind: string
+  from: RoutingTier | null
+  to: RoutingTier | null
+  basis: RoutingBasis | null
+}
+
+export interface RoutingPolicyVersion {
+  version: number
+  created_at: string
+  /** `default` | `auto` | `revert`. */
+  source: string
+  changes: RoutingChange[]
+  /** The full policy text new sessions of this version read. */
+  text: string
+}
+
+/** Changes a recompute found while automatic updates were off. */
+export interface RoutingProposal {
+  based_on: number
+  created_at: string
+  changes: RoutingChange[]
+}
+
+export interface RoutingPolicies {
+  /** Newest first: the first is the current one. */
+  versions: RoutingPolicyVersion[]
+  proposal: RoutingProposal | null
+}
+
+/** An automatic version the user has not been told about (`take_routing_notice`). */
+export interface RoutingNotice {
+  version: number
+  changes: RoutingChange[]
+}
+
+/** What "Update now" did. */
+export type RoutingRecomputed =
+  | { result: 'skipped' | 'unchanged' }
+  | { result: 'created'; version: number; changes: RoutingChange[] }
+  | { result: 'proposed'; changes: RoutingChange[] }
+
+/** Emitted by the backend when a recompute made a new version. */
+export const ROUTING_UPDATED_EVENT = 'routing:policy_updated'
+
+/** `sonnet/low`; a kind with no tier (`other`) reads `—`. */
+export function tierText(tier: RoutingTier | null): string {
+  return tier ? `${tier.model}/${tier.effort}` : '—'
+}
+
+/** `test: sonnet/medium → sonnet/low`. */
+export function changeText(c: RoutingChange): string {
+  return `${c.kind}: ${tierText(c.from)} → ${tierText(c.to)}`
+}
+
+/** The `{summary}` of the update toast: every move, `; ` between. */
+export function noticeSummary(changes: RoutingChange[]): string {
+  return changes.map(changeText).join('; ')
+}
+
+/** i18n key of a version's source; null for one this build does not know (shown as stored). */
+export function sourceLabelKey(source: string): string | null {
+  return source === 'default' || source === 'auto' || source === 'revert' ? `routing.versions.sources.${source}` : null
+}
+
+/**
+ * Whether a notice is one to show: the backend hands each out once, and this
+ * also keeps the window from showing a version again when the start-up read
+ * and the event race.
+ */
+export function isNewNotice(notice: RoutingNotice | null | undefined, lastShown: number): notice is RoutingNotice {
+  return !!notice && Number.isFinite(notice.version) && notice.version > lastShown
+}

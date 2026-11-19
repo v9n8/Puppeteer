@@ -100,6 +100,7 @@ export const SETTINGS_SEARCH_ROWS: Record<SettingsSectionId, SearchRow[]> = {
     { id: 'routing-escalation', labelKey: 'routing.switches.escalation', keywordsKey: kw('routing') },
     { id: 'routing-autoUpdate', labelKey: 'routing.switches.autoUpdate', keywordsKey: kw('routing') },
     { id: 'routing-report', labelKey: 'routing.report.title', keywordsKey: kw('routing') },
+    { id: 'routing-updateNow', labelKey: 'routing.update.now', keywordsKey: kw('routing') },
   ],
   connections: [
     { id: 'connections-list', labelKey: 'settings.connections.title', keywordsKey: kw('connections') },

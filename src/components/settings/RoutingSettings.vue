@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Settings → "Routing" (QO-06): the three routing switches (`routing.*` keys of
 // the settings form) and the routing report of the last 7 / 30 days
-// (`get_routing_report`, src-tauri/src/runs/routing/report.rs).
+// (`get_routing_report`, src-tauri/src/runs/routing/report.rs), then the policy
+// versions (RoutingPolicyVersions).
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Route, ChartBar } from 'lucide-vue-next'
@@ -14,9 +15,10 @@ import {
 } from '@/lib/routing'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
+import RoutingPolicyVersions from './RoutingPolicyVersions.vue'
 
 const { t, te } = useI18n()
-const { settings } = useSettingsForm()
+const { settings, load: reloadSettings } = useSettingsForm()
 
 const SWITCHES: { key: RoutingSwitch; id: string; label: string; hint: string }[] = [
   { key: 'routing.policy_enabled', id: 'routing-policy', label: 'routing.switches.policy', hint: 'routing.switches.policyHint' },
@@ -109,5 +111,8 @@ const COLUMNS = ['kind', 'model', 'effort', 'runs', 'success', 'avgTokens', 'ret
         {{ t('routing.report.adoption', { calls: report.adoption.calls, model: adoption.model, effort: adoption.effort, both: adoption.both }) }}
       </p>
     </Card>
+
+    <!-- Going back switched automatic updates off in the backend: read the form again. -->
+    <RoutingPolicyVersions @reverted="reloadSettings" />
   </div>
 </template>

@@ -77,3 +77,37 @@ test('a switch is on unless it says false', () => {
   assert.equal(switchOn('false'), false)
   assert.equal(switchOn(' false '), false)
 })
+
+const { changeText, isNewNotice, noticeSummary, sourceLabelKey, tierText } = await import('../routing.ts')
+
+const change = (kind, from, to, basis = null) => ({ kind, from, to, basis })
+const tier = (model, effort) => ({ model, effort })
+
+test('QO-AC63: the toast sums up every move of the new version', () => {
+  const changes = [
+    change('test', tier('sonnet', 'medium'), tier('sonnet', 'low'), { samples: 20, successes: 19, failures: 1 }),
+    change('review', tier('sonnet', 'medium'), tier('sonnet', 'high')),
+  ]
+  assert.equal(noticeSummary(changes), 'test: sonnet/medium → sonnet/low; review: sonnet/medium → sonnet/high')
+  assert.equal(noticeSummary([]), '')
+})
+
+test('a kind with no tier reads as a dash', () => {
+  assert.equal(tierText(null), '—')
+  assert.equal(changeText(change('other', null, tier('haiku', 'low'))), 'other: — → haiku/low')
+})
+
+test('a notice is shown once, even when the start-up read and the event race', () => {
+  const notice = { version: 3, changes: [] }
+  assert.equal(isNewNotice(notice, 0), true)
+  assert.equal(isNewNotice(notice, 3), false, 'already shown')
+  assert.equal(isNewNotice(null, 0), false, 'take_routing_notice gave nothing: it was taken before')
+  assert.equal(isNewNotice(undefined, 0), false)
+})
+
+test('version sources have labels; an unknown one is shown as stored', () => {
+  assert.equal(sourceLabelKey('default'), 'routing.versions.sources.default')
+  assert.equal(sourceLabelKey('auto'), 'routing.versions.sources.auto')
+  assert.equal(sourceLabelKey('revert'), 'routing.versions.sources.revert')
+  assert.equal(sourceLabelKey('manual'), null)
+})

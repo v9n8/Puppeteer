@@ -31,6 +31,7 @@ import { openSlackWindow } from '@/lib/slackWindow'
 import { useToast } from '@/composables/useToast'
 import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
 import { useMainWindowEvents } from '@/composables/useMainWindowEvents'
+import { useRoutingNotice } from '@/composables/useRoutingNotice'
 import { useVaultOpenGuard } from '@/composables/useVaultOpenGuard'
 import { useFindShortcut } from '@/composables/usePageFind'
 import { normalizeColorTheme } from '@/lib/colorThemes'
@@ -169,6 +170,7 @@ if (!isPopoutWindow && !isSessionWindow) {
 // Tray rows and pop-outs asking the main window to open a run / a screen / a
 // new session (attached in onMounted, main window only).
 const { listenMainWindowEvents } = useMainWindowEvents()
+const startRoutingNotice = useRoutingNotice()
 
 // The page on screen whose feature was just switched off (Settings, another
 // window, a remote desktop) moves away, as the router guard would on entry.
@@ -472,6 +474,8 @@ onMounted(async () => {
   void refreshTray()
 
   await listenMainWindowEvents()
+  // An automatic routing policy version made while the app was closed or starting.
+  void startRoutingNotice()
 
   // Load projects up front so app-wide UI (e.g. permission notifications) can
   // resolve project names without waiting for the Projects view to open.
