@@ -15,7 +15,7 @@ import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const { projectId, projectFlags, flagFilter, flagCounts, flagOptions } = useRunSession()
-const { canManage, canOpenProjectFlags, openManage, openProjectFlags } = useFlagTargets()
+const { canOpenProjectFlags, openProjectFlags } = useFlagTargets()
 
 const features = useFeaturesStore()
 const router = useRouter()
@@ -81,12 +81,11 @@ const groups = computed(() => [
         <span class="font-mono text-2xs text-muted-foreground">{{ flagCounts.none }}</span>
         <Check class="h-3.5 w-3.5 shrink-0 text-primary" :class="{ invisible: flagFilter !== 'none' }" :stroke-width="2" />
       </DropdownItem>
-      <template v-if="canManage || canOpenProjectFlags || boardOn">
+      <template v-if="canOpenProjectFlags || boardOn">
         <DropdownSeparator />
         <DropdownItem v-if="boardOn" @click="openBoard">{{ t('board.viewAsBoard') }}</DropdownItem>
-        <DropdownItem v-if="canManage" @click="openManage()">{{ t('sessionFlags.menu.manage') }}</DropdownItem>
         <DropdownItem v-if="canOpenProjectFlags" @click="openProjectFlags(projectId)">
-          {{ t('sessionFlags.filter.projectFlags') }}
+          {{ t('sessionFlags.menu.manage') }}
         </DropdownItem>
       </template>
     </div>

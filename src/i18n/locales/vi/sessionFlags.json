@@ -30,8 +30,7 @@
     "title": "Lọc theo flag",
     "all": "Mọi flag",
     "none": "Không flag",
-    "tooltip": "Lọc theo flag: {name}",
-    "projectFlags": "Flag của Project này…"
+    "tooltip": "Lọc theo flag: {name}"
   },
   "settings": {
     "title": "Flag chung",

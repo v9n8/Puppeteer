@@ -30,8 +30,7 @@
     "title": "Filter by flag",
     "all": "All flags",
     "none": "No flag",
-    "tooltip": "Filter by flag: {name}",
-    "projectFlags": "This project's flags…"
+    "tooltip": "Filter by flag: {name}"
   },
   "settings": {
     "title": "Shared flags",

@@ -398,3 +398,13 @@ test('UR-15: compact rows show only the flag tag on line 2; the time steps aside
   assert.match(rail, /:aria-label="t\('run\.resortSessionsTitle'\)"/)
   for (const lang of ['en', 'vi']) assert.equal(json(`../../i18n/locales/${lang}/run.json`).resortSessions, undefined, lang)
 })
+
+test('UR-43: the History flag filter has one "Manage flags" entry, which opens the project\'s flags', () => {
+  const src = read('../../components/sessions/HistoryFlagFilter.vue')
+  const template = src.slice(src.indexOf('<template>'))
+  assert.equal((template.match(/sessionFlags\.menu\.manage/g) ?? []).length, 1)
+  assert.match(template, /openProjectFlags\(projectId\)/)
+  assert.doesNotMatch(src, /openManage|canManage|filter\.projectFlags/)
+  assert.match(template, /board\.viewAsBoard/)
+  for (const lang of ['en', 'vi']) assert.equal(json(`../../i18n/locales/${lang}/sessionFlags.json`).filter.projectFlags, undefined, lang)
+})
