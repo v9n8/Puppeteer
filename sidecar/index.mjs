@@ -46,6 +46,7 @@
 //   { "type": "_puppeteer_limit_reached", kind: "turns", limit }
 //                                      // PUPPETEER_MAX_TURNS ended the turn (AC-23),
 //                                      // right before its `error_max_turns` result
+//   { "type": "_puppeteer_routing_clamp", tool_use_id, from, to }  // see routing-hook.mjs
 //
 // Control messages are namespaced with a `_puppeteer_` prefix so they never collide
 // with real stream-json message types.
@@ -60,6 +61,7 @@ import { randomUUID } from 'node:crypto'
 import readline from 'node:readline'
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { withRoutingCeiling } from './routing-hook.mjs'
 
 // --- Orphan guard ------------------------------------------------------------
 // Puppeteer spawns this sidecar as the leader of its own process group and says so
@@ -633,6 +635,8 @@ function startQuery(firstText, opts = {}, firstImages) {
   if (maxTurns > 0 && opts.noTools !== true) options.maxTurns = maxTurns
   // Verify before done (AC-24): a Conductor worker's or an unattended turn.
   if (process.env.PUPPETEER_VERIFY_ON_STOP === '1' && opts.noTools !== true) options.hooks = verifyOnStopHooks()
+  // Sub-agent ceiling (QO-06): no `Agent` call above the session's model family.
+  if (process.env.PUPPETEER_ROUTING_CEILING === '1' && opts.noTools !== true) options.hooks = withRoutingCeiling(options.hooks, options.model, send)
   if (opts.cwd) options.cwd = opts.cwd
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).

@@ -7,7 +7,8 @@
 //! the `Agent` calls of the main thread are recorded, since the policy only
 //! reaches the main agent. The `tool_use` carries the input the agent asked
 //! for; a hook may have changed it since, so the model that really ran comes
-//! from the result's `resolvedModel`.
+//! from the result's `resolvedModel`. The sidecar's ceiling hook says when it
+//! lowered one (`_puppeteer_routing_clamp`, stored as `clamp`).
 
 use std::collections::HashMap;
 
@@ -95,6 +96,8 @@ pub enum Event {
     /// A `result` with no `origin`: the user's turn ended with this reply (a
     /// background task's wake-up turn has an origin).
     TurnEnded { text: Option<String> },
+    /// The sidecar's ceiling hook lowered the call's model: `"from→to"`.
+    Clamped { tool_use_id: String, clamp: String },
 }
 
 fn text(v: &Value, key: &str) -> Option<String> {
@@ -163,6 +166,10 @@ pub fn parse(v: &Value) -> Vec<Event> {
             }]
         }
         Some("result") if v.get("origin").is_none_or(Value::is_null) => vec![Event::TurnEnded { text: text(v, "result") }],
+        Some("_puppeteer_routing_clamp") => {
+            let (Some(id), Some(from), Some(to)) = (text(v, "tool_use_id"), text(v, "from"), text(v, "to")) else { return Vec::new() };
+            vec![Event::Clamped { tool_use_id: id, clamp: format!("{from}→{to}") }]
+        }
         _ => Vec::new(),
     }
 }
@@ -209,6 +216,9 @@ pub struct Recorder {
     open: Vec<String>,
     /// [`work_key`] → (row id, tier asked for) of the latest call.
     work: HashMap<String, (String, (Option<Model>, Option<Effort>))>,
+    /// tool_use_id → clamp reported before the call's `tool_use` was read: the
+    /// SDK runs the hook as soon as the CLI asks, maybe ahead of the stream.
+    clamps: HashMap<String, String>,
 }
 
 impl Recorder {
@@ -221,6 +231,7 @@ impl Recorder {
             rows: HashMap::new(),
             open: Vec::new(),
             work: HashMap::new(),
+            clamps: HashMap::new(),
         }
     }
 
@@ -280,6 +291,17 @@ impl Recorder {
         let now = chrono::Utc::now().to_rfc3339();
         match event {
             Event::Spawn(spawn) => self.spawned(spawn, &now).await?,
+            Event::Clamped { tool_use_id, clamp } => {
+                let Some(id) = self.rows.get(&tool_use_id) else {
+                    self.clamps.insert(tool_use_id, clamp);
+                    return Ok(());
+                };
+                sqlx::query("UPDATE routing_decisions SET clamp = ? WHERE id = ?")
+                    .bind(clamp)
+                    .bind(id)
+                    .execute(&self.db)
+                    .await?;
+            }
             // A worker's reply says how its checks went (QO-FR35).
             Event::TurnEnded { text } => {
                 if self.meta().await.is_worker {
@@ -367,8 +389,8 @@ impl Recorder {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO routing_decisions (id, run_id, project_id, created_at, kind, decided_by, agent_type, task_kind, \
-             requested_model, requested_effort, effort_source, policy_version, description, tool_use_id) \
-             VALUES (?, ?, ?, ?, 'subagent', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             requested_model, requested_effort, effort_source, policy_version, description, tool_use_id, clamp) \
+             VALUES (?, ?, ?, ?, 'subagent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(&self.run_id)
@@ -383,6 +405,7 @@ impl Recorder {
         .bind(policy_version)
         .bind(spawn.description.chars().take(DESCRIPTION_CHARS).collect::<String>())
         .bind(&spawn.tool_use_id)
+        .bind(self.clamps.remove(&spawn.tool_use_id))
         .execute(&self.db)
         .await?;
         if let Some(earlier) = escalated_from {
@@ -646,6 +669,27 @@ ran and the result. If no check applies, say why on that line.";
         let mut next = Recorder::new(&db, "r1", "claude");
         next.observe(Some(&call("d", "[review] check auth diff", "opus", "high"))).await;
         assert_eq!(rows(&db).await[3].decided_by, "agent");
+    }
+
+    /// The ceiling hook's report, read before or after the call it lowered.
+    #[tokio::test]
+    async fn a_clamp_is_stored_on_its_call_in_either_order() {
+        let db = recorder_db().await;
+        let mut recorder = Recorder::new(&db, "r1", "claude");
+        let clamp = |id: &str| serde_json::json!({"type": "_puppeteer_routing_clamp", "tool_use_id": id, "from": "opus", "to": "sonnet"});
+        recorder.observe(Some(&clamp("early"))).await;
+        recorder.observe(Some(&agent_call("early", serde_json::json!({"description": "[review] a", "model": "opus"})))).await;
+        recorder.observe(Some(&agent_call("late", serde_json::json!({"description": "[review] b", "model": "opus"})))).await;
+        recorder.observe(Some(&agent_call("none", serde_json::json!({"description": "[review] c", "model": "haiku"})))).await;
+        recorder.observe(Some(&clamp("late"))).await;
+        // Half a report, or one for a call never recorded (a nested agent's).
+        recorder.observe(Some(&serde_json::json!({"type": "_puppeteer_routing_clamp", "tool_use_id": "none", "from": "opus"}))).await;
+        recorder.observe(Some(&clamp("nested"))).await;
+        let got: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT tool_use_id, clamp FROM routing_decisions ORDER BY rowid").fetch_all(&db).await.unwrap();
+        let want = [("early", Some("opus→sonnet")), ("late", Some("opus→sonnet")), ("none", None)];
+        assert_eq!(got, want.map(|(id, c)| (id.to_string(), c.map(str::to_string))));
+        assert_eq!(rows(&db).await[0].requested_model.as_deref(), Some("opus"), "the model asked for stays");
     }
 
     /// QO-AC50: no column can hold a prompt, and none of it is stored.

@@ -1088,6 +1088,8 @@ pub async fn drain_sidecar(
                             // ---- control: lifecycle (swallow) -------------------
                             (Some(_), "_puppeteer_ready") => timing.on_ready(now.into_std()),
                             (Some(_), "_puppeteer_done") => {}
+                            // The ceiling hook's report: for the routing recorder only.
+                            (Some(_), "_puppeteer_routing_clamp") => {}
                             // The session is torn down for good (finished, or the
                             // engine died). Release stdin so the sidecar can exit,
                             // and make sure it does: a sidecar lingering here would

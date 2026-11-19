@@ -21,6 +21,10 @@
 //!
 //! Both keys are portable and a Remote Control controller may set them, like
 //! `claude_model` / `default_effort`: they lower cost, they are no safety limit.
+//!
+//! The same turns get [`CEILING_ENV`] while the routing policy is on (QO-06):
+//! the sidecar then lowers an `Agent` call that asks for a model family above
+//! the session's (`sidecar/routing-hook.mjs`).
 
 use tokio::process::Command;
 
@@ -36,6 +40,8 @@ pub const SETTING_EFFORT: &str = "claude_subagent_effort";
 pub const MODEL_ENV: &str = "CLAUDE_CODE_SUBAGENT_MODEL";
 pub const EFFORT_ENV: &str = "CLAUDE_CODE_SUBAGENT_EFFORT";
 pub const DEFAULT_EFFORT: &str = "medium";
+/// Turns on the sidecar's sub-agent ceiling hook.
+pub const CEILING_ENV: &str = "PUPPETEER_ROUTING_CEILING";
 /// "Same as the session" for the effort: "" already means "unset → medium".
 /// It is also the word the CLI reads as "not set", but the env is removed anyway.
 pub const INHERIT: &str = "inherit";
@@ -118,6 +124,12 @@ impl SubagentEnv {
 pub async fn apply(db: &Db, project_id: &str, cmd: &mut Command) -> Option<String> {
     let env = load(db, project_id).await;
     env.apply_to(cmd);
+    // One switch for routing: the ceiling goes with the policy's (read per turn).
+    if crate::runs::routing::policy::enabled(db).await {
+        cmd.env(CEILING_ENV, "1");
+    } else {
+        cmd.env_remove(CEILING_ENV);
+    }
     env.note()
 }
 
@@ -177,6 +189,14 @@ mod tests {
         let (cmd, _) = spawn_env(&db).await;
         assert_eq!(env(&cmd, MODEL_ENV), Some(None));
         assert_eq!(env(&cmd, EFFORT_ENV), Some(None), "same as the session");
+    }
+
+    #[tokio::test]
+    async fn the_ceiling_follows_the_routing_policy_switch() {
+        let db = db().await;
+        assert_eq!(env(&spawn_env(&db).await.0, CEILING_ENV), Some(Some("1".into())), "unset = on");
+        set_setting(&db, crate::runs::routing::policy::ENABLED_SETTING, "false").await.unwrap();
+        assert_eq!(env(&spawn_env(&db).await.0, CEILING_ENV), Some(None), "removed, so an inherited value never leaks");
     }
 
     #[test]

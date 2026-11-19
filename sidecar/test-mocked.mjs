@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
+import { clampModel } from './routing-hook.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -664,6 +665,44 @@ const tests = {
     assert.equal(plain.hooks, undefined)
     assert.deepEqual(plain.stops[0], pass)
     assert.equal((await stopsOf([{ tools: [edit] }], { permissionMode: 'default', noTools: true })).hooks, undefined)
+  },
+
+  // QO-06 ceiling: with PUPPETEER_ROUTING_CEILING an `Agent` call above the
+  // session's model family runs on the session's, and the app is told.
+  async 'routing ceiling lowers an Agent call above the session model'() {
+    const callsIn = async (model, calls, { env = { PUPPETEER_ROUTING_CEILING: '1' }, noTools } = {}) => {
+      const options = { permissionMode: 'bypassPermissions', ...(model ? { model } : {}), ...(noTools ? { noTools } : {}) }
+      const { messages, code } = await runSidecar('agent-calls', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', options })
+        if (msg.type === 'result') ctl.closeInput()
+      }, 10_000, { ...env, MOCK_AGENT_CALLS: JSON.stringify(calls) })
+      assert.equal(code, 0)
+      const init = messages.find((m) => m.type === 'system' && m.subtype === 'init')
+      return { hooks: init.mock_options.hooks, pre: of(messages, 'result')[0].mock_pre, clamps: of(messages, '_puppeteer_routing_clamp') }
+    }
+    const asked = { subagent_type: 'general-purpose', description: '[review] x', prompt: 'p', model: 'opus', effort: 'high', run_in_background: true }
+    const sonnet = await callsIn('sonnet', [asked, { ...asked, model: 'haiku' }, { ...asked, model: 'sonnet' }, { prompt: 'p' }])
+    assert.deepEqual(sonnet.pre[0], { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...asked, model: 'sonnet' } } })
+    assert.ok(!('permissionDecision' in sonnet.pre[0].hookSpecificOutput), 'no permission is decided')
+    assert.deepEqual(sonnet.pre.slice(1), [{}, {}, {}], 'at or below the ceiling, or no model: left as asked')
+    assert.deepEqual(sonnet.clamps, [{ type: '_puppeteer_routing_clamp', tool_use_id: 'toolu_0', from: 'opus', to: 'sonnet' }])
+    assert.deepEqual(sonnet.hooks.PreToolUse.map((m) => m.matcher), ['Agent|Task'])
+    // An id session, a Fable session (counts as Opus), the CLI's default model.
+    assert.deepEqual((await callsIn('claude-haiku-5-5', [{ model: 'claude-sonnet-5-5' }])).clamps.map((c) => [c.from, c.to]), [['claude-sonnet-5-5', 'haiku']])
+    assert.deepEqual((await callsIn('claude-fable-5-2', [asked])).clamps, [])
+    assert.deepEqual((await callsIn(undefined, [asked])).clamps, [])
+    for (const [requested, session, want] of [['OPUS', 'sonnet', 'sonnet'], ['inherit', 'haiku', undefined], ['opus', 'opus[1m]', undefined], [undefined, 'haiku', undefined]]) {
+      assert.equal(clampModel(requested, session), want, `${requested} in ${session}`)
+    }
+    // Next to the Stop hook: each event keeps its own list.
+    const both = await callsIn('sonnet', [asked], { env: { PUPPETEER_ROUTING_CEILING: '1', PUPPETEER_VERIFY_ON_STOP: '1' } })
+    assert.deepEqual(Object.keys(both.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop'])
+    assert.equal(both.clamps.length, 1)
+    // No env, or a side task: no hook at all.
+    for (const off of [await callsIn('sonnet', [asked], { env: {} }), await callsIn('haiku', [asked], { noTools: true })]) {
+      assert.equal(off.hooks, undefined)
+      assert.deepEqual([off.pre, off.clamps], [[], []])
+    }
   },
 }
 

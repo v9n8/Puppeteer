@@ -149,7 +149,7 @@ pub async fn text_of(db: &Db, version: i64) -> Option<String> {
 /// `update_setting`): it changes cost, it is no safety limit.
 pub const ENABLED_SETTING: &str = "routing.policy_enabled";
 
-async fn enabled(db: &Db) -> bool {
+pub(crate) async fn enabled(db: &Db) -> bool {
     let value: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
         .bind(ENABLED_SETTING)
         .fetch_optional(db)

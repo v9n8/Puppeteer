@@ -21,6 +21,9 @@
 //                 block: `afterBlock` tools, then Stop again with
 //                 `stop_hook_active` set, unless the turn says `activeFlag: false`).
 //                 The result lists every Stop hook output (`mock_stops`).
+//   agent-calls — one turn: every `Agent` input in MOCK_AGENT_CALLS (JSON list)
+//                 goes through the PreToolUse hooks (tool_use_id `toolu_<i>`); the
+//                 result lists each hook output (`mock_pre`).
 //   validate    — a model check (`validate_model`): writes the options to
 //                 MOCK_OPTIONS_FILE (the check sends no init message to echo them
 //                 in), passes MOCK_STDERR to `options.stderr`, then succeeds.
@@ -104,6 +107,17 @@ export function query({ prompt, options }) {
         yield { type: 'result', subtype: 'success', mock_turn: i, mock_stops: stops }
         if ((await input.next()).done) return
       }
+    }
+    if (scenario === 'agent-calls') {
+      const pre = []
+      for (const [i, tool_input] of JSON.parse(process.env.MOCK_AGENT_CALLS || '[]').entries()) {
+        for (const hook of hooksFor('PreToolUse', 'Agent')) {
+          pre.push(await hook({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input, tool_use_id: `toolu_${i}` }, `toolu_${i}`, { signal: new AbortController().signal }))
+        }
+      }
+      yield { type: 'result', subtype: 'success', mock_pre: pre }
+      while (!(await input.next()).done) { /* until stdin closes */ }
+      return
     }
     if (scenario === 'echo') {
       for (let next = await input.next(); !next.done; next = await input.next()) {
