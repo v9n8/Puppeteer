@@ -1384,6 +1384,7 @@ pub async fn drain_sidecar(
     }
 
     routing.close().await;
+    routing.hold_if_failed(&app);
     // Drain any trailing stderr after stdout closed — bounded: a descendant may
     // hold stderr open long after the session ended. (Skipped when we already
     // stopped waiting on the pipes.)

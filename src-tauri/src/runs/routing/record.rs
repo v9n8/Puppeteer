@@ -219,6 +219,8 @@ pub struct Recorder {
     /// tool_use_id → clamp reported before the call's `tool_use` was read: the
     /// SDK runs the hook as soon as the CLI asks, maybe ahead of the stream.
     clamps: HashMap<String, String>,
+    /// This worker's last turn ended `Verification: FAIL`.
+    failed: bool,
 }
 
 impl Recorder {
@@ -232,6 +234,7 @@ impl Recorder {
             open: Vec::new(),
             work: HashMap::new(),
             clamps: HashMap::new(),
+            failed: false,
         }
     }
 
@@ -257,6 +260,16 @@ impl Recorder {
                 .execute(&self.db)
                 .await
                 .map_err(|e| tracing::warn!(event = "routing_record_failed", run_id = %self.run_id, error = %e));
+        }
+    }
+
+    /// Called before the drain writes the run's final status: a worker that
+    /// failed its check may be retried (`escalate`), so its conductor's tools
+    /// keep seeing it running until the wake consumer decides.
+    pub fn hold_if_failed(&self, app: &tauri::AppHandle) {
+        use tauri::Manager;
+        if let Some(cst) = app.try_state::<crate::conductor::ConductorState>().filter(|_| self.failed) {
+            cst.hold_for_retry(&self.run_id);
         }
     }
 
@@ -306,6 +319,7 @@ impl Recorder {
             Event::TurnEnded { text } => {
                 if self.meta().await.is_worker {
                     let verification = parse_verification(text.as_deref().unwrap_or_default());
+                    self.failed = verification == Verification::Fail;
                     super::worker::verified(&self.db, &self.run_id, verification).await;
                 }
             }
@@ -725,6 +739,23 @@ ran and the result. If no check applies, say why on that line.";
         assert_eq!(parse(&task).len(), 1, "the older tool name too");
     }
 
+    /// QO-AC51: only a worker whose last turn said FAIL is held for a retry.
+    #[tokio::test]
+    async fn a_workers_failed_turn_is_remembered_for_the_hold() {
+        let db = recorder_db().await;
+        sqlx::query("UPDATE runs SET role = 'worker' WHERE id = 'r1'").execute(&db).await.unwrap();
+        let mut recorder = Recorder::new(&db, "r1", "claude");
+        let result = |text: &str| serde_json::json!({"type": "result", "subtype": "success", "result": text});
+        recorder.observe(Some(&result("Verification: FAIL — red"))).await;
+        assert!(recorder.failed);
+        recorder.observe(Some(&result("Verification: PASS"))).await;
+        assert!(!recorder.failed, "the last turn wins");
+        sqlx::query("UPDATE runs SET role = NULL WHERE id = 'r1'").execute(&db).await.unwrap();
+        let mut top = Recorder::new(&db, "r1", "claude");
+        top.observe(Some(&result("Verification: FAIL"))).await;
+        assert!(!top.failed, "not a worker");
+    }
+
     /// The stream only passes through the drain, so its source is checked: one
     /// recorder per drain, fed every stdout line, closed when the loop ends,
     /// before the run's status is written (and the conductor told).
@@ -735,8 +766,10 @@ ran and the result. If no check applies, say why on that line.";
         let new = drain.find("let mut routing = crate::runs::routing::record::Recorder::new(&db_pool, &run_id, &engine);").unwrap();
         let observe = drain.find("routing.observe(parsed.as_ref()).await;").unwrap();
         let close = drain.find("routing.close().await;").unwrap();
+        let hold = drain.find("routing.hold_if_failed(&app);").unwrap();
         let status = drain.find("UPDATE runs SET status = ?").unwrap();
-        assert!(new < observe && observe < close && close < status);
+        let notify = drain.rfind("cst.notify_run_finished(run_id.clone());").unwrap();
+        assert!(new < observe && observe < close && close < hold && hold < status && status < notify);
         assert!(drain[..observe].ends_with("let parsed = serde_json::from_str::<Value>(&l).ok();\n                        "));
         assert_eq!(src.matches("routing.observe(").count(), 1);
     }

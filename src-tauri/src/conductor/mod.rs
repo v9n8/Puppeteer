@@ -268,6 +268,11 @@ struct Inner {
     /// The permission mode each worker was last launched with by a
     /// `session_*` tool or an escalation, so a resume keeps it (QO-07).
     worker_modes: HashMap<String, String>,
+    /// Workers whose turn ended `Verification: FAIL`, from just before their
+    /// drain writes the final status until the wake consumer has decided on a
+    /// retry (QO-06 3b). The conductor's tools see them as still running, so it
+    /// cannot act on a failure the app is about to retry.
+    retrying: HashSet<String>,
 }
 
 /// Managed Tauri state: the conductor registry + the MCP server's bound port.
@@ -299,6 +304,7 @@ impl ConductorState {
                 pending_wake: HashSet::new(),
                 wake_tx: None,
                 worker_modes: HashMap::new(),
+                retrying: HashSet::new(),
             })),
             start_lock: Arc::new(tokio::sync::Mutex::new(())),
             server: Arc::new(tokio::sync::Mutex::new(None)),
@@ -418,6 +424,28 @@ impl ConductorState {
     /// The mode a worker was last launched with; `None` after an app restart.
     pub fn worker_mode(&self, worker_id: &str) -> Option<String> {
         self.inner.lock().ok().and_then(|g| g.worker_modes.get(worker_id).cloned())
+    }
+
+    /// Hold a failed worker as running until [`Self::release_retry`]. Only a
+    /// worker of a live conductor, and only with the wake consumer installed:
+    /// the consumer is what releases it.
+    pub fn hold_for_retry(&self, worker_id: &str) {
+        if let Ok(mut g) = self.inner.lock() {
+            let owned = g.sessions.values().any(|s| s.worker_ids.iter().any(|w| w == worker_id));
+            if owned && g.wake_tx.is_some() {
+                g.retrying.insert(worker_id.to_string());
+            }
+        }
+    }
+
+    pub fn is_retrying(&self, worker_id: &str) -> bool {
+        self.inner.lock().map(|g| g.retrying.contains(worker_id)).unwrap_or(false)
+    }
+
+    pub fn release_retry(&self, worker_id: &str) {
+        if let Ok(mut g) = self.inner.lock() {
+            g.retrying.remove(worker_id);
+        }
     }
 
     /// Install the finished-run channel sender (called once when the MCP server's

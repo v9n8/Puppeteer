@@ -356,7 +356,7 @@ async fn session_poll(
     let db = db(state);
     let mut out = Vec::new();
     for id in ids {
-        let status = worker_status(&db, &id).await?;
+        let status = super::defaults::live_status(&db, &state.conductor, &id).await?;
         let entry = json!({ "worker_id": id, "status": normalize_status(&status) });
         out.push(with_awaiting_permission(entry, &id));
     }
@@ -397,7 +397,7 @@ pub(crate) async fn wait_snapshot(
     let mut done = Vec::new();
     let mut pending = Vec::new();
     for id in ids {
-        let status = worker_status(&db, id).await?;
+        let status = super::defaults::live_status(&db, &state.conductor, id).await?;
         if status == "running" {
             pending.push(id.clone());
         } else {
@@ -550,6 +550,7 @@ async fn session_send(
 
     let db = db(state);
     let reg = registry(state);
+    super::defaults::ensure_not_retrying(&state.conductor, &worker_id)?;
     let status = worker_status(&db, &worker_id).await?;
 
     // A worker's turn ends by exiting its sidecar, so a follow-up first resumes
@@ -557,36 +558,40 @@ async fn session_send(
     // Resuming makes it running again, so it must fit under the cap too.
     if status != "running" {
         let _start_guard = state.conductor.lock_worker_start().await;
-        let max_workers = state
-            .conductor
-            .session(conductor_run_id)
-            .map(|s| s.max_workers)
-            .ok_or_else(|| "unknown session".to_string())?;
-        if count_running_workers(&db, conductor_run_id).await? >= max_workers {
-            return Err(cap_reached(max_workers));
+        // Again under the lock: a FAIL retry (QO-06 3b) may have held or resumed it since.
+        super::defaults::ensure_not_retrying(&state.conductor, &worker_id)?;
+        if worker_status(&db, &worker_id).await? != "running" {
+            let max_workers = state
+                .conductor
+                .session(conductor_run_id)
+                .map(|s| s.max_workers)
+                .ok_or_else(|| "unknown session".to_string())?;
+            if count_running_workers(&db, conductor_run_id).await? >= max_workers {
+                return Err(cap_reached(max_workers));
+            }
+            // A resume would otherwise fall back to the global default mode, which
+            // may be looser than the conductor's; the worker keeps its own (QO-07).
+            let engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
+                .bind(&worker_id)
+                .fetch_one(&db)
+                .await
+                .map_err(|e| e.to_string())?;
+            let permission_mode =
+                super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine).await?;
+            crate::commands::runs::resume_run_with(
+                state.app.clone(),
+                state.app.state::<Db>(),
+                state.app.state::<RunRegistry>(),
+                worker_id.clone(),
+                Some(permission_mode),
+                None,
+                None,
+                None,
+                Some(false),
+                false,
+            )
+            .await?;
         }
-        // A resume would otherwise fall back to the global default mode, which
-        // may be looser than the conductor's; the worker keeps its own (QO-07).
-        let engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
-            .bind(&worker_id)
-            .fetch_one(&db)
-            .await
-            .map_err(|e| e.to_string())?;
-        let permission_mode =
-            super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine).await?;
-        crate::commands::runs::resume_run_with(
-            state.app.clone(),
-            state.app.state::<Db>(),
-            state.app.state::<RunRegistry>(),
-            worker_id.clone(),
-            Some(permission_mode),
-            None,
-            None,
-            None,
-            Some(false),
-            false,
-        )
-        .await?;
     }
 
     crate::commands::runs::send_user_message_inner(
@@ -681,7 +686,7 @@ fn cap_reached(max_workers: usize) -> String {
     )
 }
 
-async fn worker_status(db: &Db, worker_id: &str) -> Result<String, String> {
+pub(super) async fn worker_status(db: &Db, worker_id: &str) -> Result<String, String> {
     sqlx::query_scalar::<_, String>("SELECT status FROM runs WHERE id = ?")
         .bind(worker_id)
         .fetch_optional(db)

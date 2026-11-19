@@ -213,8 +213,17 @@ pub async fn log_skipped(db: &Db, conductor_run_id: &str, worker_run_id: &str, r
 /// Called by `conductor::tools::on_run_finished` for every finished run that
 /// is not a conductor, before its conductor would be woken. Closes the
 /// worker's row; `true` when the worker was resumed one tier up, so the
-/// conductor must not be woken yet.
+/// conductor must not be woken yet. Either way the hold its drain put on a
+/// failed worker ends here, once it is running again or will not be.
 pub async fn on_worker_finished(app: &tauri::AppHandle, run_id: &str) -> bool {
+    let retried = retry_if_failed(app, run_id).await;
+    if let Some(cst) = app.try_state::<crate::conductor::ConductorState>() {
+        cst.release_retry(run_id);
+    }
+    retried
+}
+
+async fn retry_if_failed(app: &tauri::AppHandle, run_id: &str) -> bool {
     let db = app.state::<Db>().inner().clone();
     let Some(closed) = close_and_read(&db, run_id).await else {
         return false;
@@ -526,7 +535,9 @@ mod tests {
         );
         assert!(!finished.contains("routing::worker::finished("), "closed once, by the escalation");
         let own = include_str!("escalate.rs").replace("\r\n", "\n");
-        let hook = section(&own, "pub async fn on_worker_finished(", "\n}\n");
+        let wrapper = section(&own, "pub async fn on_worker_finished(", "\n}\n");
+        order(wrapper, &["retry_if_failed(app, run_id).await", "cst.release_retry(run_id);"]);
+        let hook = section(&own, "async fn retry_if_failed(", "\n}\n");
         order(
             hook,
             &[

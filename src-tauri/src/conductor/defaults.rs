@@ -124,6 +124,26 @@ pub async fn worker_resume_mode(
     Ok(mode)
 }
 
+/// A worker's status as the conductor's tools see it: one held for a FAIL
+/// retry (QO-06 3b) is still `running`, so `session_wait` / `session_poll`
+/// don't hand the conductor a failure the app is about to retry.
+pub async fn live_status(db: &Db, conductor: &super::ConductorState, worker_id: &str) -> Result<String, String> {
+    if conductor.is_retrying(worker_id) {
+        return Ok("running".to_string());
+    }
+    super::tools::worker_status(db, worker_id).await
+}
+
+/// `session_send` must not resume a worker the app is about to retry.
+pub fn ensure_not_retrying(conductor: &super::ConductorState, worker_id: &str) -> Result<(), String> {
+    if conductor.is_retrying(worker_id) {
+        return Err(format!(
+            "worker {worker_id} failed its check and is being retried one tier up — session_wait for it first"
+        ));
+    }
+    Ok(())
+}
+
 /// The cap a launch starts with: the one it names (clamped), else the setting.
 pub async fn initial_max_workers(db: &Db, requested: Option<u32>) -> usize {
     match requested {
@@ -282,6 +302,42 @@ mod tests {
         let send = &tools[tools.find("async fn session_send(").unwrap()..tools.find("async fn session_cancel(").unwrap()];
         assert!(send.contains("super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine)"));
         assert!(include_str!("../runs/routing/escalate.rs").contains("crate::conductor::defaults::worker_resume_mode(&db, &cst, &conductor_run_id, run_id, &engine)"));
+    }
+
+    /// QO-AC51: between a failed worker's drain and the retry decision, the
+    /// conductor's tools see it running and `session_send` refuses it.
+    #[tokio::test]
+    async fn a_worker_held_for_a_retry_reads_running() {
+        let db = db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'proj', '/tmp/p1', 'c')").execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO runs (id, project_id, type, status, engine, created_at, role) VALUES ('w', 'p1', 'session', 'done', 'claude', 'c', 'worker')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let cst = super::super::ConductorState::new();
+        cst.register_session("c", "p1", 3);
+        assert!(cst.add_worker("c", "w", 0));
+        // No wake consumer to release it: never held.
+        cst.hold_for_retry("w");
+        assert!(!cst.is_retrying("w"));
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        cst.set_wake_sender(tx);
+        cst.hold_for_retry("stranger");
+        assert!(!cst.is_retrying("stranger"), "not a worker of a live conductor");
+
+        cst.hold_for_retry("w");
+        assert_eq!(live_status(&db, &cst, "w").await.as_deref(), Ok("running"));
+        assert!(ensure_not_retrying(&cst, "w").unwrap_err().contains("being retried"));
+        cst.release_retry("w");
+        assert_eq!(live_status(&db, &cst, "w").await.as_deref(), Ok("done"));
+        assert!(ensure_not_retrying(&cst, "w").is_ok());
+        // All three tools ask through it; `session_send` again under the lock.
+        let tools = include_str!("tools.rs");
+        assert_eq!(tools.matches("super::defaults::live_status(&db, &state.conductor,").count(), 2);
+        let send = &tools[tools.find("async fn session_send(").unwrap()..tools.find("async fn session_cancel(").unwrap()];
+        let lock = send.find("lock_worker_start().await").unwrap();
+        let checks: Vec<usize> = send.match_indices("ensure_not_retrying(&state.conductor, &worker_id)?").map(|(i, _)| i).collect();
+        assert!(checks.len() == 2 && checks[0] < lock && lock < checks[1]);
     }
 
     /// QO-AC73: both descriptions say what an omitted mode means.
