@@ -7,6 +7,7 @@ import {
   closeOthers as closeOthersIn,
   closeTab,
   emptyState,
+  moveTab,
   openChangedTab,
   openTab,
   parse,
@@ -124,6 +125,11 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     put(runId, togglePinIn(stateFor(runId), id))
   }
 
+  /** Drag to reorder (UR-33): `toIndex` in the shown order; saved like any other change. */
+  function move(runId: string, id: SessionTabId, toIndex: number) {
+    put(runId, moveTab(stateFor(runId), id, toIndex))
+  }
+
   /** Split view (V3-27): `tabId` goes on the right (default: the selected file tab). */
   function startSplit(runId: string, tabId?: SessionTabId) {
     put(runId, startSplitIn(stateFor(runId), tabId))
@@ -183,5 +189,5 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     /* running outside the Tauri shell */
   })
 
-  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, startSplit, stopSplit, setRatio, resetRatio, rename, removeUnder, forget, flush }
+  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, move, startSplit, stopSplit, setRatio, resetRatio, rename, removeUnder, forget, flush }
 })

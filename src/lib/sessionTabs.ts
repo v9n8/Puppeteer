@@ -147,6 +147,24 @@ export function togglePin(state: SessionTabsState, id: SessionTabId): SessionTab
   return { ...flipped, tabs: orderedTabs(flipped) }
 }
 
+/**
+ * Drag to reorder (UR-33): move `id` to `toIndex` of the shown order (orderedTabs,
+ * Conversation not counted). A tab stays in its own group — pinned or not — so
+ * `toIndex` is clamped to that group's span; Conversation never moves.
+ */
+export function moveTab(state: SessionTabsState, id: SessionTabId, toIndex: number): SessionTabsState {
+  const order = orderedTabs(state)
+  const from = order.findIndex((t) => t.id === id)
+  if (from === -1 || !Number.isFinite(toIndex)) return state
+  const pinnedCount = order.filter((t) => t.pinned).length
+  const [min, max] = order[from].pinned ? [0, pinnedCount - 1] : [pinnedCount, order.length - 1]
+  const to = Math.min(max, Math.max(min, Math.trunc(toIndex)))
+  if (to === from) return state
+  const tabs = order.filter((t) => t.id !== id)
+  tabs.splice(to, 0, order[from])
+  return { ...state, tabs }
+}
+
 /** Close the tab of a deleted file, or the tabs of the files under a deleted folder. */
 export function removeTabsUnder(state: SessionTabsState, path: string): SessionTabsState {
   let next = state

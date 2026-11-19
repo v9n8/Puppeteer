@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import {
   CONVERSATION, MAX_SESSIONS, clampRatio, closeOthers, closeTab, effectiveLayout, emptyState, fileAreaTab, fileTabIcon, hiddenTabIndexes,
   openChangedTab, openTab, orderedTabs, ratioLimits, resetRatio, setRatio, splitBlockedReason, startSplit, stopSplit,
-  parse, prune, removeTabsUnder, renameTab, selectTab, serialize, tabLabel, togglePin,
+  moveTab, parse, prune, removeTabsUnder, renameTab, selectTab, serialize, tabLabel, togglePin,
 } from '../sessionTabs.ts'
 
 const ids = (s) => orderedTabs(s).map((t) => t.id)
@@ -321,4 +321,30 @@ test('removeTabsUnder: closes the file and the files under a deleted folder, not
 test('removeTabsUnder: nothing covered returns the same state', () => {
   const s = three()
   assert.equal(removeTabsUnder(s, 'zzz'), s)
+})
+
+test('moveTab: moves a tab to an index of the shown order; input is not mutated', () => {
+  const before = three() // a, b, c
+  const s = moveTab(before, 'file:c.ts', 0)
+  assert.deepEqual(ids(s), ['file:c.ts', 'file:a.ts', 'file:b.ts'])
+  assert.deepEqual(ids(before), ['file:a.ts', 'file:b.ts', 'file:c.ts'])
+  assert.deepEqual(ids(moveTab(s, 'file:c.ts', 2)), ['file:a.ts', 'file:b.ts', 'file:c.ts'])
+  assert.equal(s.active, before.active)
+})
+
+test('moveTab: a tab stays in its group, pinned or not; Conversation, unknown ids and no-ops return the same state', () => {
+  const s = togglePin(togglePin(three(), 'file:b.ts'), 'file:c.ts') // b, c (pinned) | a
+  assert.deepEqual(ids(moveTab(s, 'file:c.ts', 0)), ['file:c.ts', 'file:b.ts', 'file:a.ts'])
+  // Past the pinned group: clamped to its last slot.
+  assert.equal(moveTab(s, 'file:c.ts', 2), s)
+  assert.deepEqual(ids(moveTab(s, 'file:b.ts', 9)), ['file:c.ts', 'file:b.ts', 'file:a.ts'])
+  // An unpinned tab cannot go before the pinned ones.
+  assert.equal(moveTab(s, 'file:a.ts', 0), s)
+  assert.equal(moveTab(s, CONVERSATION, 1), s)
+  assert.equal(moveTab(s, 'file:zz.ts', 0), s)
+})
+
+test('moveTab: the new order survives serialize / parse', () => {
+  const s = moveTab(three(), 'file:a.ts', 2)
+  assert.deepEqual(ids(parse(serialize({ r: s })).r), ['file:b.ts', 'file:c.ts', 'file:a.ts'])
 })

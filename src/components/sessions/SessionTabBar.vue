@@ -7,6 +7,7 @@
 // stores/sessionTabs; the rules in lib/sessionTabs.
 // Split view (V3-27): `group` 'all' is the one bar; 'left' only Conversation;
 // 'right' the file tabs with "Unsplit". 'all' ends with the "Split" button (icon only).
+// File tabs drag to reorder (UR-33) within their group, pinned or not.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -20,6 +21,7 @@ import {
 } from '@/lib/sessionTabs'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { requestCompare } from '@/composables/useFileCompare'
+import { useDragSort } from '@/composables/useDragSort'
 import FileTabMenuItems from '@/components/files/FileTabMenuItems.vue'
 import { useChangedFilesCount } from './useChangedFiles'
 import SessionTabTools from './SessionTabTools.vue'
@@ -115,6 +117,47 @@ watch(() => [runId.value, activeId.value] as const, () => nextTick(() => {
 }))
 watch([shownTabs, changedCount], () => nextTick(measure))
 
+// ── Drag to reorder ────────────────────────────────────────────────────────
+// One sortable per group, so a pinned tab only lands among pinned ones and the
+// rest among the rest; each bar has its own scroller, so a split drags within
+// its own bar. Indexes are within the group; the store wants the shown order.
+const pinnedCount = computed(() => shownTabs.value.filter((tab) => tab.pinned).length)
+const pinnedDrag = useDragSort({
+  container: scroller,
+  itemSelector: '[data-drag-group="pinned"]',
+  onDrop: (from, to) => moveTo(from, to),
+})
+const restDrag = useDragSort({
+  container: scroller,
+  itemSelector: '[data-drag-group="rest"]',
+  onDrop: (from, to) => moveTo(pinnedCount.value + from, pinnedCount.value + to),
+})
+
+function moveTo(from: number, to: number) {
+  const tab = shownTabs.value[from]
+  if (tab && runId.value) tabsStore.move(runId.value, tab.id, to)
+}
+function dragOf(tab: SessionTab) {
+  return tab.pinned ? pinnedDrag : restDrag
+}
+function groupIndex(tab: SessionTab, i: number): number {
+  return tab.pinned ? i : i - pinnedCount.value
+}
+function startDrag(tab: SessionTab, i: number, e: PointerEvent) {
+  dragOf(tab).start(groupIndex(tab, i), e)
+}
+function isDragged(tab: SessionTab, i: number): boolean {
+  return dragOf(tab).dragFrom.value === groupIndex(tab, i)
+}
+function tabStyle(tab: SessionTab, i: number) {
+  return dragOf(tab).itemStyle(groupIndex(tab, i))
+}
+/** The click that ends a drag drops the tab; it does not select it. */
+function onTabClick(id: SessionTabId) {
+  if (pinnedDrag.clickWasDrag() || restDrag.clickWasDrag()) return
+  select(id)
+}
+
 // ── Keyboard: ← → move between tabs, Enter selects, Delete closes ──────────
 const focusedId = ref<SessionTabId | null>(null)
 const tabStop = computed(() => (focusedId.value && allIds.value.includes(focusedId.value) ? focusedId.value : activeId.value))
@@ -190,16 +233,19 @@ function compareTab(tab: FileTab) {
       </div>
 
       <div
-        v-for="tab in shownTabs"
+        v-for="(tab, i) in shownTabs"
         :key="tab.id"
         role="tab"
         :data-tab-id="tab.id"
+        :data-drag-group="tab.pinned ? 'pinned' : 'rest'"
         :aria-selected="activeId === tab.id"
         :tabindex="tabStop === tab.id ? 0 : -1"
         :title="tabTip(tab)"
         class="session-tab pr-1.5"
-        :class="{ 'is-active': activeId === tab.id }"
-        @click="select(tab.id)"
+        :class="{ 'is-active': activeId === tab.id, 'is-dragging': isDragged(tab, i) }"
+        :style="tabStyle(tab, i)"
+        @pointerdown="startDrag(tab, i, $event)"
+        @click="onTabClick(tab.id)"
         @focus="focusedId = tab.id"
         @keydown="onKeydown($event, tab.id)"
         @contextmenu.prevent="openMenu($event, tab)"
@@ -213,6 +259,7 @@ function compareTab(tab: FileTab) {
           class="session-tab-btn is-pin"
           :title="t('run.sessionTabs.unpinTab')"
           :aria-label="t('run.sessionTabs.unpinTab')"
+          @pointerdown.stop
           @click.stop="tabsStore.togglePin(runId, tab.id)"
         >
           <Pin class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -223,6 +270,7 @@ function compareTab(tab: FileTab) {
           class="session-tab-btn"
           :title="t('run.sessionTabs.closeTab')"
           :aria-label="t('run.sessionTabs.closeTab')"
+          @pointerdown.stop
           @click.stop="close(tab.id)"
         >
           <X class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -329,6 +377,8 @@ function compareTab(tab: FileTab) {
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+  /* WebKit (the Tauri webview) still needs the prefix; else a drag selects the label. */
+  -webkit-user-select: none;
   user-select: none;
 }
 .session-tab:hover {
@@ -346,6 +396,12 @@ function compareTab(tab: FileTab) {
   margin-bottom: -1px;
   border-bottom: 1px solid hsl(var(--card));
   box-shadow: inset 0 2px 0 hsl(var(--primary));
+}
+.session-tab.is-dragging {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.18);
+  cursor: grabbing;
 }
 .session-tab-btn {
   display: grid;
@@ -386,8 +442,9 @@ function compareTab(tab: FileTab) {
 .session-tab-btn.is-pin {
   color: hsl(var(--foreground));
 }
+/* foreground/10, not muted: on the selected tab (card) muted barely shows in dark (RA D8). */
 .session-tab-btn:hover {
-  background: hsl(var(--muted));
+  background: hsl(var(--foreground) / 0.1);
   color: hsl(var(--foreground));
 }
 </style>
