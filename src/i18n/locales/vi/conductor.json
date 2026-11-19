@@ -60,6 +60,7 @@
     "openWorker": "Mở worker",
     "openChanged": "Xem file đã đổi",
     "nudge": "Tin gửi conductor",
-    "inTrash": "Worker đã ở Thùng rác"
+    "inTrash": "Worker đã ở Thùng rác",
+    "retried": "Đã chạy lại trên {to} sau khi kiểm hỏng trên {from}"
   }
 }

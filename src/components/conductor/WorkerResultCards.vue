@@ -10,7 +10,7 @@ import { Button } from '@/components/ui'
 import { changedFiles } from '@/lib/editStats'
 import { runStatusColorClass } from '@/lib/runDisplay'
 import { parseStreamLogWindow } from '@/lib/streamEvents'
-import { shortWorkerId, workerResultLine, type WorkerEdits, type WorkerResult } from '@/lib/workerResults'
+import { shortWorkerId, workerResultLine, workerRetriedLine, type WorkerEdits, type WorkerResult } from '@/lib/workerResults'
 import { useRunsStore } from '@/stores/runs'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { useRunSessionOptional } from '@/components/sessions/useRunSession'
@@ -67,6 +67,7 @@ const cards = computed(() => props.workers.map((w) => {
   return {
     w,
     line: workerResultLine(w, e, t),
+    retried: workerRetriedLine(w, t),
     canSeeFiles: !!e && e.files > 0,
     trashed: inTrash(w.id),
     statusLabel: t(`conductor.result.status.${w.status === 'failed' || w.status === 'cancelled' ? w.status : 'done'}`),
@@ -101,6 +102,7 @@ function openChanged(id: string) {
         </span>
       </div>
       <div v-if="c.line" class="mt-1 min-w-0 text-foreground/60 [overflow-wrap:anywhere]">{{ c.line }}</div>
+      <div v-if="c.retried" class="mt-1 min-w-0 text-foreground/60 [overflow-wrap:anywhere]">{{ c.retried }}</div>
       <div v-if="session" class="mt-2 flex flex-wrap items-center gap-2">
         <Button
           size="sm"

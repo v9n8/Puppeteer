@@ -14,7 +14,7 @@ register(
         }
       }`),
 )
-const { attachCards, attachNudge, formatDuration, parseWorkerResults, shortWorkerId, workerResultLine } = await import('../workerResults.ts')
+const { attachCards, attachNudge, formatDuration, parseWorkerResults, shortWorkerId, workerResultLine, workerRetriedLine } = await import('../workerResults.ts')
 const { parseStreamLogWindow } = await import('../streamEvents.ts')
 
 // A translator that shows the key and its params, so the test reads the structure.
@@ -48,6 +48,26 @@ test('parseWorkerResults drops rows without an id and keeps absent numbers absen
   const got = parseWorkerResults({ workers: [{ id: 'w1', title: 'X', status: 'failed', finished_at: 'z', total_tokens: 5 }, { title: 'no id' }, null] })
   assert.deepEqual(got, [{ id: 'w1', title: 'X', status: 'failed', finished_at: 'z', total_tokens: 5 }])
   assert.deepEqual(parseWorkerResults({}), [])
+})
+
+test('a worker the app retried says on which tier, in the card text', async () => {
+  const [w, plain, junk] = parseWorkerResults({
+    workers: [
+      { id: 'w1', status: 'done', retried: { from: 'sonnet/medium', to: 'opus/medium' } },
+      { id: 'w2', status: 'done' },
+      { id: 'w3', status: 'done', retried: { from: 'sonnet' } },
+    ],
+  })
+  assert.deepEqual(w.retried, { from: 'sonnet/medium', to: 'opus/medium' })
+  assert.equal(workerRetriedLine(w, t), 'retried{"from":"sonnet/medium","to":"opus/medium"}')
+  assert.equal('retried' in plain, false)
+  assert.equal(workerRetriedLine(plain, t), '')
+  assert.equal('retried' in junk, false)
+  const { readFile } = await import('node:fs/promises')
+  const en = JSON.parse(await readFile(new URL('../../i18n/locales/en/conductor.json', import.meta.url), 'utf8'))
+  const vi = JSON.parse(await readFile(new URL('../../i18n/locales/vi/conductor.json', import.meta.url), 'utf8'))
+  assert.equal(en.result.retried, 'Retried on {to} after a failed check on {from}')
+  assert.equal(vi.result.retried, 'Đã chạy lại trên {to} sau khi kiểm hỏng trên {from}')
 })
 
 test('attachNudge takes only a session nudge that directly follows a card record', () => {

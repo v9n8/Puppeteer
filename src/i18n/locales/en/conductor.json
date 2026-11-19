@@ -60,6 +60,7 @@
     "openWorker": "Open worker",
     "openChanged": "View changed files",
     "nudge": "Message to the session",
-    "inTrash": "Worker is in the Trash"
+    "inTrash": "Worker is in the Trash",
+    "retried": "Retried on {to} after a failed check on {from}"
   }
 }

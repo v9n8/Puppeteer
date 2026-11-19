@@ -15,6 +15,8 @@ export interface WorkerResult {
   finished_at: string
   duration_ms?: number
   total_tokens?: number
+  /** Set when the app ran the worker again one tier up after its check failed (QO-06). */
+  retried?: { from: string; to: string }
 }
 
 /** What the worker's edit records add up to (the Changed files tab's own numbers). */
@@ -62,6 +64,18 @@ export function workerResultLine(w: WorkerResult, edits: WorkerEdits | null, t: 
   return parts.join(' · ')
 }
 
+/** "Retried on opus/medium after a failed check on sonnet/medium"; empty when it was not retried. */
+export function workerRetriedLine(w: WorkerResult, t: Translate): string {
+  if (!w.retried) return ''
+  return t('conductor.result.retried', { from: w.retried.from, to: w.retried.to })
+}
+
+function parseRetried(raw: unknown): WorkerResult['retried'] {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  return typeof r.from === 'string' && typeof r.to === 'string' ? { from: r.from, to: r.to } : undefined
+}
+
 /** Read the record's `workers`, dropping anything that is not a worker row. */
 export function parseWorkerResults(e: Record<string, unknown>): WorkerResult[] {
   if (!Array.isArray(e.workers)) return []
@@ -77,6 +91,7 @@ export function parseWorkerResults(e: Record<string, unknown>): WorkerResult[] {
       finished_at: typeof w.finished_at === 'string' ? w.finished_at : '',
       ...(typeof w.duration_ms === 'number' ? { duration_ms: w.duration_ms } : {}),
       ...(typeof w.total_tokens === 'number' ? { total_tokens: w.total_tokens } : {}),
+      ...(parseRetried(w.retried) ? { retried: parseRetried(w.retried) } : {}),
     })
   }
   return out
