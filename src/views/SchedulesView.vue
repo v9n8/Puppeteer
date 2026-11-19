@@ -215,9 +215,8 @@ async function remove(s: Schedule) {
   <div class="flex flex-col h-full">
     <PageHeader :title="t('schedules.title')" :count="schedules.length || null">
       <template #actions>
-        <Button variant="ghost" size="xs" :disabled="loading" @click="load">
+        <Button variant="ghost" size="icon-xs" :disabled="loading" :title="t('schedules.refresh')" :aria-label="t('schedules.refresh')" @click="load">
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
-          {{ t('schedules.refresh') }}
         </Button>
         <Button size="xs" :disabled="projects.projects.length === 0" @click="openNew">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />

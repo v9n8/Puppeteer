@@ -297,9 +297,8 @@ function relativeTime(iso: string | null): string {
           />
           {{ t('gantt.days') }}
         </label>
-        <Button variant="outline" :disabled="store.loading || !selectedProjectId" @click="store.refresh(selectedProjectId, { force: true })">
+        <Button variant="outline" size="icon" :disabled="store.loading || !selectedProjectId" :title="t('common.refresh')" :aria-label="t('common.refresh')" @click="store.refresh(selectedProjectId, { force: true })">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': store.loading }" :stroke-width="1.75" />
-          {{ t('common.refresh') }}
         </Button>
         <MergeBackButton v-if="isGanttWindow" screen="gantt" :path="ganttPath(selectedProjectId)" />
         <DetachButton v-else :target="detachTarget" />

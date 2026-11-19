@@ -287,9 +287,8 @@ function manageFlags() {
       </template>
 
       <template #actions>
-        <Button variant="ghost" size="xs" class="px-2" :disabled="board.loading" :title="t('board.refresh')" @click="board.reload()">
+        <Button variant="ghost" size="icon-xs" :disabled="board.loading" :title="t('board.refresh')" :aria-label="t('board.refresh')" @click="board.reload()">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': board.loading }" :stroke-width="1.75" />
-          <span class="max-[901px]:hidden">{{ t('board.refresh') }}</span>
         </Button>
         <Button
           v-if="manageTarget"

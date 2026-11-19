@@ -448,9 +448,8 @@ async function reviewAll(group: PrGroup) {
         >
           <component :is="floating.pinned.value ? Pin : PinOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
-        <Button variant="outline" :disabled="store.loading || bulk !== null" @click="store.refresh()">
+        <Button variant="outline" size="icon" :disabled="store.loading || bulk !== null" :title="t('common.refresh')" :aria-label="t('common.refresh')" @click="store.refresh()">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': store.loading }" :stroke-width="1.75" />
-          {{ t('common.refresh') }}
         </Button>
         <MergeBackButton v-if="standalone" screen="pr-inbox" :path="PR_INBOX_PATH" />
         <DetachButton v-else :target="prInboxTarget" />

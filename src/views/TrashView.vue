@@ -364,9 +364,8 @@ function openProject(group: TrashEntry['full']) {
   <div class="flex flex-col h-full">
     <PageHeader :title="t('trash.title')" :count="totals.sessions || null" :count-title="sessionCount(totals.sessions)">
       <template #actions>
-        <Button variant="ghost" size="xs" :disabled="loading" @click="load">
+        <Button variant="ghost" size="icon-xs" :disabled="loading" :title="t('trash.refresh')" :aria-label="t('trash.refresh')" @click="load">
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
-          {{ t('trash.refresh') }}
         </Button>
         <Button v-if="!remote" variant="destructive-solid" size="xs" :disabled="busy || groups.length === 0" @click="emptyTrash">
           <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />

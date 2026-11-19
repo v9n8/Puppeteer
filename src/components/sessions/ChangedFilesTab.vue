@@ -61,14 +61,14 @@ function openFile(path: string) {
       >{{ t('run.changedFiles.subtitle') }}</span>
       <Button
         variant="ghost"
-        size="sm"
+        size="icon-sm"
         class="ml-auto shrink-0"
         :disabled="loading"
         :title="t('run.changedFiles.reload')"
+        :aria-label="t('run.changedFiles.reload')"
         @click="reload"
       >
         <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" :stroke-width="1.75" aria-hidden="true" />
-        <span class="max-[901px]:hidden">{{ t('run.changedFiles.reload') }}</span>
       </Button>
     </div>
 
@@ -102,7 +102,7 @@ function openFile(path: string) {
             @click="selectedPath = f.path"
           >
             <span
-              class="w-8 shrink-0 text-2xs"
+              class="min-w-8 shrink-0 whitespace-nowrap text-2xs"
               :class="f.kind === 'create' ? 'text-success' : 'text-warning'"
             >{{ t(f.kind === 'create' ? 'run.changedFiles.create' : 'run.changedFiles.edit') }}</span>
             <!-- rtl + isolate: the "…" cuts the start of a long path, and the end stays readable -->

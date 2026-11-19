@@ -166,3 +166,23 @@ test('UR-44: menu group headings use DropdownLabel, sentence case, no tracked up
   }
   assert.match(read('../../views/CalendarView.vue'), /<DropdownLabel class="mb-1.5">/)
 })
+
+test('UR-42: header refresh buttons are icon-only with title and aria-label; the change kind never shrinks', () => {
+  const views = [
+    ['../../views/BoardView.vue', 'board.refresh'],
+    ['../../views/PrInboxView.vue', 'common.refresh'],
+    ['../../views/IssuesGanttView.vue', 'common.refresh'],
+    ['../../views/SchedulesView.vue', 'schedules.refresh'],
+    ['../../views/TrashView.vue', 'trash.refresh'],
+    ['../../components/sessions/ChangedFilesTab.vue', 'run.changedFiles.reload'],
+  ]
+  for (const [file, key] of views) {
+    const src = read(file)
+    assert.match(src, new RegExp(`:title="t\\('${key}'\\)"\\s+:aria-label="t\\('${key}'\\)"`), file)
+    // The label may only appear as an attribute, never as visible text (PrInbox keeps one in its error retry).
+    if (!file.includes('PrInbox')) assert.doesNotMatch(src, new RegExp(`\\{\\{ t\\('${key}'\\) \\}\\}`), file)
+  }
+  const changed = read('../../components/sessions/ChangedFilesTab.vue')
+  assert.match(changed, /min-w-8 shrink-0 whitespace-nowrap/)
+  assert.doesNotMatch(changed, /class="w-8 shrink-0/)
+})
