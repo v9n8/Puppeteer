@@ -196,7 +196,7 @@ onBeforeUnmount(unregisterMergeBack)
         <Button
           v-if="originRunId"
           variant="ghost"
-          size="sm"
+          size="icon-sm"
           class="shrink-0"
           :title="t('files.viewer.dockBackTip')"
           :aria-label="t('files.viewer.dockBackTip')"
@@ -204,7 +204,6 @@ onBeforeUnmount(unregisterMergeBack)
           @click="dockBack"
         >
           <SquareArrowDownLeft class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
-          <span class="max-[901px]:hidden">{{ t('files.viewer.dockBack') }}</span>
         </Button>
         <Button
           variant="ghost"

@@ -295,3 +295,21 @@ test('UR-19: the header block around the session title takes the free width so t
   assert.match(src, /<div class="flex flex-1 items-center gap-2 min-w-0">\s*<SessionTitle \/>/)
   assert.match(read('../../components/sessions/SessionTitle.vue'), /<form v-if="editing" class="flex min-w-0 flex-1 /)
 })
+
+test('UR-10: detach / merge-back / dock-back buttons are icon-only with a tooltip and no label span', () => {
+  for (const f of ['app/DetachButton.vue', 'app/MergeBackButton.vue', 'sessions/FileTabView.vue']) {
+    const src = read(`../../components/${f}`)
+    assert.doesNotMatch(src, /max-\[901px\]:hidden/, f)
+    assert.match(src, /size="icon-sm"/, f)
+    assert.match(src, /:aria-label=/, f)
+  }
+  const win = read('../../views/FileViewerWindow.vue')
+  assert.doesNotMatch(win, /files\.viewer\.dockBack['"]/)
+  assert.match(win, /:aria-label="t\('files\.viewer\.dockBackTip'\)"/)
+  assert.doesNotMatch(read('../../components/sessions/FileTabView.vue'), /nav\.detachWindow['"]/)
+  for (const lang of ['en', 'vi']) {
+    assert.equal(json(`../../i18n/locales/${lang}/nav.json`).detachWindow, undefined, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/files.json`).viewer.dockBack, undefined, lang)
+    assert.ok(json(`../../i18n/locales/${lang}/files.json`).viewer.dockBackTip, lang)
+  }
+})
