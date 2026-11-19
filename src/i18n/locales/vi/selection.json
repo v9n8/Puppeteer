@@ -3,7 +3,7 @@
   "quoteTitle": "Quote đoạn đã chọn vào {target}",
   "quoteNote": {
     "notePlaceholder": "Thêm ghi chú (không bắt buộc)",
-    "notePlaceholderKeys": "Thêm ghi chú (không bắt buộc) — ↵ lưu, ⇧↵ xuống dòng",
+    "notePlaceholderKeys": "Thêm ghi chú (không bắt buộc)\n↵ lưu\n⇧↵ xuống dòng",
     "move": "Kéo để di chuyển",
     "resize": "Kéo để đổi kích thước"
   },

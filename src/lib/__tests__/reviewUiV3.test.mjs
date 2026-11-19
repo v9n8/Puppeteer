@@ -58,7 +58,8 @@ test('UR-12: the Quote note popover shows its keys in the placeholder, not a row
   assert.match(src, /:placeholder="t\('selection\.quoteNote\.notePlaceholderKeys'\)"/)
   assert.doesNotMatch(src, /keysSave|keysNewline/)
   for (const lang of ['en', 'vi']) {
-    assert.match(json(`../../i18n/locales/${lang}/selection.json`).quoteNote.notePlaceholderKeys, /↵.*⇧↵/, lang)
+    // Three lines: the note prompt, ↵ save, ⇧↵ new line.
+    assert.equal(json(`../../i18n/locales/${lang}/selection.json`).quoteNote.notePlaceholderKeys.split('\n').length, 3, lang)
   }
 })
 
