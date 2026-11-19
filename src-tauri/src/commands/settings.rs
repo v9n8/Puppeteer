@@ -29,6 +29,9 @@ pub struct AppSettings {
     /// Response style of new sessions: a built-in key or a style id, "" for none.
     /// A run's own pick or stored style wins (`response_styles::resolve_run_style`).
     pub default_style: String,
+    /// Worker cap of a new conductor, a whole number 1–100 as a string. Unset =
+    /// `conductor::DEFAULT_MAX_WORKERS`; see `conductor::defaults::max_workers`.
+    pub default_max_workers: String,
     /// Terminal app to open a project folder with, one of this OS's (`projects::terminal_apps`):
     /// "terminal" (Terminal.app) or "iterm" on macOS.
     pub terminal_app: String,
@@ -126,6 +129,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "default_permission_mode",
     "default_effort",
     "default_style",
+    "default_max_workers",
     "terminal_app",
     "context_warn_percent",
     "context_limit_override",
@@ -195,6 +199,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         default_permission_mode: "default".to_string(),
         default_effort: String::new(),
         default_style: String::new(),
+        default_max_workers: crate::conductor::DEFAULT_MAX_WORKERS.to_string(),
         terminal_app: String::new(),
         context_warn_percent: "80".to_string(),
         context_limit_override: "".to_string(),
@@ -238,6 +243,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "default_permission_mode" => settings.default_permission_mode = value,
             "default_effort" => settings.default_effort = value,
             "default_style" => settings.default_style = value,
+            "default_max_workers" => settings.default_max_workers = value,
             "terminal_app" => settings.terminal_app = value,
             "context_warn_percent" => settings.context_warn_percent = value,
             "context_limit_override" => settings.context_limit_override = value,

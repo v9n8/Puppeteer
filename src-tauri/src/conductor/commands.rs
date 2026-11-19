@@ -5,7 +5,8 @@ use sqlx::Row;
 use tauri::{AppHandle, State};
 
 use super::worktree::{self, MergeOutcome, WorkerDiff};
-use super::{ConductorLaunch, ConductorState, DEFAULT_MAX_WORKERS, FEATURE};
+use super::defaults::{self, MAX_MAX_WORKERS, MIN_MAX_WORKERS};
+use super::{ConductorLaunch, ConductorState, FEATURE};
 use crate::commands::runs::{start_run_inner, ImageAttachment, StartRunPayload};
 use crate::db::Db;
 use crate::runs::RunRegistry;
@@ -23,7 +24,8 @@ pub struct ConductorStarted {
 /// DB-only upgrade of a run into a conductor: mark its role and make sure its
 /// `conductor_sessions` row exists and is `running` (so `reconnect_running`
 /// restores it after a restart). Idempotent. `goal` / `max_workers` only
-/// overwrite the stored values when given.
+/// overwrite the stored values when given; a new row without `max_workers`
+/// takes the `default_max_workers` setting.
 async fn upgrade_run_to_conductor(
     db: &Db,
     run_id: &str,
@@ -32,6 +34,10 @@ async fn upgrade_run_to_conductor(
     max_workers: Option<usize>,
 ) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
+    let initial_cap = match max_workers {
+        Some(m) => m,
+        None => defaults::max_workers(db).await,
+    };
     sqlx::query("UPDATE runs SET role = 'conductor' WHERE id = ? AND (role IS NULL OR role != 'conductor')")
         .bind(run_id)
         .execute(db)
@@ -43,7 +49,7 @@ async fn upgrade_run_to_conductor(
     )
     .bind(run_id)
     .bind(project_id)
-    .bind(max_workers.unwrap_or(DEFAULT_MAX_WORKERS) as i64)
+    .bind(initial_cap as i64)
     .bind(&now)
     .execute(db)
     .await
@@ -279,9 +285,7 @@ pub async fn start_conductor(
             _ => String::new(),
         }
     };
-    let max_workers = max_workers
-        .map(|m| m.clamp(MIN_MAX_WORKERS, MAX_MAX_WORKERS) as usize)
-        .unwrap_or(DEFAULT_MAX_WORKERS);
+    let max_workers = defaults::initial_max_workers(db.inner(), max_workers).await;
 
     let conductor_token = launch_token(
         db.inner(),
@@ -512,10 +516,6 @@ pub async fn get_conductor_detail(
     })
 }
 
-/// Bounds for the worker cap, mirrored by the composer/sidebar number inputs.
-const MIN_MAX_WORKERS: u32 = 1;
-const MAX_MAX_WORKERS: u32 = 100;
-
 /// Change a conductor's concurrent-worker cap while it is running (or after).
 ///
 /// Persists the new cap to `conductor_sessions` (so a resume/reconnect keeps it)
@@ -620,6 +620,7 @@ pub async fn reconnect_running(db: &Db, conductor: &ConductorState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conductor::DEFAULT_MAX_WORKERS;
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn setup() -> Db {
@@ -831,15 +832,15 @@ mod tests {
         assert!(cst.session("live").is_none(), "a trashed project's sessions stay down too");
     }
 
-    /// The column default (6, `0001_init.sql`) must never decide the cap:
-    /// `DEFAULT_MAX_WORKERS` is the one source.
+    /// The column default (6, `0001_init.sql`) must never decide the cap: the
+    /// `default_max_workers` setting, else `DEFAULT_MAX_WORKERS`, is the one source.
     #[tokio::test]
     async fn insert_always_binds_max_workers() {
         let db = setup().await;
         add_run(&db, "a", "session", "done", None, None).await;
         add_run(&db, "b", "session", "done", None, None).await;
         upgrade_run_to_conductor(&db, "a", "p1", None, None).await.unwrap();
-        upgrade_run_to_conductor(&db, "b", "p1", None, Some(3)).await.unwrap();
+        upgrade_run_to_conductor(&db, "b", "p1", None, Some(4)).await.unwrap();
         let cap = |id: &'static str| {
             let db = db.clone();
             async move {
@@ -852,7 +853,68 @@ mod tests {
         };
         assert_eq!(cap("a").await, DEFAULT_MAX_WORKERS as i64);
         assert_ne!(DEFAULT_MAX_WORKERS, 6, "would hide a missing bind");
-        assert_eq!(cap("b").await, 3);
+        assert_eq!(cap("b").await, 4);
+    }
+
+    /// A conductor created without a cap takes the `default_max_workers`
+    /// setting, on every path (the composer's launch, an auto-upgraded run).
+    #[tokio::test]
+    async fn a_new_conductor_takes_the_default_cap_setting() {
+        let db = setup().await;
+        crate::commands::settings::set_setting(&db, defaults::MAX_WORKERS_SETTING, "5").await.unwrap();
+        add_run(&db, "s", "session", "fetched", None, None).await;
+        add_run(&db, "legacy", "session", "done", None, None).await;
+        let cst = ConductorState::new();
+
+        // start_conductor with no cap from the composer.
+        let cap = defaults::initial_max_workers(&db, None).await;
+        launch_token(&db, &cst, "s", "p1", "goal", cap).await.unwrap().unwrap();
+        let launch = ensure_conductor_launch(&db, &cst, "s").await.unwrap().unwrap();
+        assert_eq!(launch.max_workers, 5);
+        assert!(super::super::conductor_framing(launch.max_workers)
+            .ends_with("Your worker cap for this session is 5 concurrent workers."));
+        // Remote Control / rerun / a legacy session: upgraded on its launch.
+        assert_eq!(ensure_conductor_launch(&db, &cst, "legacy").await.unwrap().unwrap().max_workers, 5);
+    }
+
+    /// Changing the setting never touches a conductor that already has a cap:
+    /// its resume keeps the cap, and so its framing byte for byte.
+    #[tokio::test]
+    async fn an_existing_conductor_keeps_its_cap_when_the_setting_changes() {
+        let db = setup().await;
+        add_run(&db, "c", "session", "done", None, None).await;
+        upgrade_run_to_conductor(&db, "c", "p1", None, Some(10)).await.unwrap();
+        let cst = ConductorState::new();
+        let before = resume_framing(&db, Some(&cst), "c").await.unwrap().framing;
+        crate::commands::settings::set_setting(&db, defaults::MAX_WORKERS_SETTING, "3").await.unwrap();
+        let after = resume_framing(&db, Some(&cst), "c").await.unwrap();
+        assert_eq!(after.launch.unwrap().max_workers, 10);
+        assert_eq!(after.framing, before);
+        assert!(before.unwrap().contains("is 10 concurrent workers"));
+    }
+
+    /// At the default cap of 3 a fourth spawn is refused as before: same error,
+    /// no new run row.
+    #[tokio::test]
+    async fn the_default_cap_refuses_a_fourth_running_worker() {
+        let db = setup().await;
+        add_run(&db, "c", "session", "running", None, None).await;
+        let cst = ConductorState::new();
+        let launch = ensure_conductor_launch(&db, &cst, "c").await.unwrap().unwrap();
+        assert_eq!(launch.max_workers, 3);
+        cst.set_permission_mode("c", "default");
+        for w in ["w1", "w2", "w3"] {
+            add_run(&db, w, "session", "running", Some("worker"), Some("c")).await;
+        }
+        let runs = || async {
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM runs").fetch_one(&db).await.unwrap()
+        };
+        let before = runs().await;
+        let err = super::super::tools::reserve_worker(&db, &cst, "c", "codex", "[w] task", None, None)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "worker cap reached (3 running max) — wait for or cancel a running worker first");
+        assert_eq!(runs().await, before);
     }
 
     #[tokio::test]

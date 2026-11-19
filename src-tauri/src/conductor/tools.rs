@@ -198,7 +198,7 @@ async fn session_spawn(
 /// Create a worker's run row and take its slot under the conductor's cap.
 /// Returns the worker id and the permission mode it starts with. Nothing is
 /// written when a check fails.
-async fn reserve_worker(
+pub(super) async fn reserve_worker(
     db: &Db,
     conductor: &ConductorState,
     conductor_run_id: &str,

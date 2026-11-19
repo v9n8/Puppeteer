@@ -13,6 +13,7 @@
 //! that conductor touch workers it spawned. The listener binds to loopback only.
 
 pub mod commands;
+pub mod defaults;
 mod framing;
 pub mod mcp_http;
 pub mod tools;
@@ -132,9 +133,11 @@ pub fn worker_instruction(instruction: Option<&str>) -> String {
     }
 }
 
-/// Default concurrent-worker cap for a conductor that was never given one
-/// (fresh start without `max_workers`, or a legacy session auto-upgraded).
-pub const DEFAULT_MAX_WORKERS: usize = 10;
+/// Concurrent-worker cap of a new conductor while the `default_max_workers`
+/// setting is unset or unreadable ([`defaults::max_workers`]). Low on purpose:
+/// the framing invites parallel workers, so the cap is usually used in full,
+/// and every worker spends quota in the same 5-hour window.
+pub const DEFAULT_MAX_WORKERS: usize = 3;
 
 /// Claude permission-rule pattern matching every tool of the built-in
 /// `conductor` MCP server. Auto-allowed for conductor runs that are NOT in
