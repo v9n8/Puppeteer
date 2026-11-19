@@ -314,11 +314,12 @@ onBeforeUnmount(() => {
     <div class="absolute inset-0 bg-black/50" @click="close" />
 
     <div class="relative my-3 flex w-[calc(100%-24px)] max-w-[1120px] flex-col overflow-hidden rounded-xl border border-popover-border bg-popover text-popover-foreground">
-      <header class="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
-        <h2 class="text-md font-semibold">{{ t('windows.title') }}</h2>
-        <span class="text-md text-muted-foreground tabular-nums">· {{ query ? `${flat.length} / ${total}` : total }}</span>
+      <!-- One row: the filter gives up width (down to 150px) rather than push a button to a second row. -->
+      <header class="flex items-center gap-2 border-b border-border px-3 py-2.5">
+        <h2 class="whitespace-nowrap text-md font-semibold">{{ t('windows.title') }}</h2>
+        <span class="whitespace-nowrap text-md text-muted-foreground tabular-nums">· {{ query ? `${flat.length} / ${total}` : total }}</span>
 
-        <label class="ml-2 flex h-8 w-[240px] max-[901px]:w-[150px] items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+        <label class="ml-2 flex h-8 w-[240px] min-w-[150px] max-[901px]:w-[150px] items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
           <Search class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
           <input
             ref="filterInput"
@@ -330,7 +331,7 @@ onBeforeUnmount(() => {
           />
         </label>
 
-        <div class="flex h-[30px] gap-0.5 rounded-md border border-border bg-muted p-0.5 text-sm font-normal" role="group">
+        <div class="flex h-[30px] shrink-0 gap-0.5 rounded-md border border-border bg-muted p-0.5 text-sm font-normal" role="group">
           <button
             v-for="mode in (['type', 'project'] as const)"
             :key="mode"
@@ -368,7 +369,7 @@ onBeforeUnmount(() => {
           <span class="max-[1100px]:hidden">{{ t('windows.closeAll') }}</span>
           <span class="min-[1100px]:hidden">{{ t('windows.closeAllShort') }}</span>
         </Button>
-        <Button variant="ghost" size="icon-sm" :title="t('windows.exit')" :aria-label="t('windows.exit')" @click="close">
+        <Button variant="ghost" size="icon-sm" class="shrink-0" :title="t('windows.exit')" :aria-label="t('windows.exit')" @click="close">
           <X class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
         </Button>
       </header>
