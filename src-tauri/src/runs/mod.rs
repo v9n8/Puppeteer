@@ -14,6 +14,7 @@ pub mod pricing;
 pub mod quota_stop;
 pub mod quotes;
 pub mod rewind;
+pub mod routing;
 pub mod session_watcher;
 pub mod sidecar;
 pub mod snapshots;

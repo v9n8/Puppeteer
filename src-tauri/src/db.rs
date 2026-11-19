@@ -21,6 +21,10 @@ pub async fn init_db(db_path: &Path) -> Result<Db> {
     if let Err(e) = crate::runs::usage_cost::reprice_estimates(&pool).await {
         eprintln!("[db] run_usage estimate re-pricing failed: {e}");
     }
+    // Best effort too: a session started without it seeds it on its first bind.
+    if let Err(e) = crate::runs::routing::policy::ensure_seeded(&pool).await {
+        eprintln!("[db] routing policy seed failed: {e}");
+    }
     Ok(pool)
 }
 
@@ -454,6 +458,32 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(rows, vec![("r1".into(), None, 0), ("r2".into(), None, 0)]);
+    }
+
+    /// QO-06: runs from before 0026 are bound to no routing policy, and the
+    /// tables start empty until the startup seed writes version 1.
+    #[tokio::test]
+    async fn existing_runs_get_no_routing_policy() {
+        let db = db_at_0001().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c')",
+            "INSERT INTO runs (id, project_id, type, status, created_at, session_id) VALUES
+                ('r1', 'p1', 'session', 'done', 'c', 's1'), ('r2', 'p1', 'session', 'fetched', 'c', NULL)",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let versions: Vec<(String, Option<i64>)> =
+            sqlx::query_as("SELECT id, routing_policy_version FROM runs ORDER BY id").fetch_all(&db).await.unwrap();
+        assert_eq!(versions, vec![("r1".into(), None), ("r2".into(), None)]);
+        for table in ["routing_policies", "routing_decisions"] {
+            let n: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}")).fetch_one(&db).await.unwrap();
+            assert_eq!(n, 0, "{table}");
+        }
+        crate::runs::routing::policy::ensure_seeded(&db).await.unwrap();
+        let seeded: Vec<(i64, String)> =
+            sqlx::query_as("SELECT version, source FROM routing_policies").fetch_all(&db).await.unwrap();
+        assert_eq!(seeded, vec![(1, "default".into())]);
     }
 
     /// HD-10: phones subscribed before 0022 get `stuck` switched on, once, and
