@@ -474,11 +474,9 @@
     "detachTip": "Tách cửa sổ: mở tệp này ở cửa sổ riêng"
   },
   "splitView": {
-    "split": "Chia đôi",
     "splitTip": "Chia đôi: Hội thoại bên trái, tab file bên phải",
     "blockedNoFile": "Mở một file để chia đôi",
     "blockedNarrow": "Cửa sổ hẹp hơn 1100px: không chia đôi được",
-    "unsplit": "Bỏ chia",
     "unsplitTip": "Bỏ chia: tab file về lại thanh tab chung",
     "openRight": "Mở bên phải",
     "dividerLabel": "Đổi độ rộng giữa Hội thoại và file",

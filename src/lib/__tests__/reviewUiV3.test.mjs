@@ -111,3 +111,21 @@ test('UR-34: the three shared components show their explanation in an InfoTip, n
   // The warning that must stay readable opts in to the visible line.
   assert.match(read('../../components/projects/ProjectOverview.vue'), /overview\.removeHint'\)" hint-visible>/)
 })
+
+test('UR-07: the Conversation tools sit at the right of the session tab bar, icon only, and the log has no tool row', () => {
+  const log = read('../../components/sessions/RunLogPane.vue')
+  assert.doesNotMatch(log, /MentionedFiles|run\.fork\.from|toggleContentPanel/)
+  const bar = read('../../components/sessions/SessionTabBar.vue')
+  assert.match(bar, /<SessionTabTools v-if="group !== 'right'" \/>/)
+  assert.ok(bar.indexOf('<SessionTabTools') < bar.indexOf('class="split-btn"'))
+  assert.doesNotMatch(bar, /splitView\.split'|splitView\.unsplit'|wideBar/)
+  const tools = read('../../components/sessions/SessionTabTools.vue')
+  for (const need of ['run.fork.fromTitle', 'streamLog.activity.expandAll', 'run.toggleContentPanel', '<MentionedFiles']) assert.ok(tools.includes(need), need)
+  const mentioned = read('../../components/MentionedFiles.vue')
+  assert.match(mentioned, /hover:bg-accent/)
+  assert.doesNotMatch(mentioned, /hover:bg-card/)
+  for (const lang of ['en', 'vi']) {
+    const sv = json(`../../i18n/locales/${lang}/run.json`).splitView
+    assert.equal('split' in sv || 'unsplit' in sv, false, lang)
+  }
+})

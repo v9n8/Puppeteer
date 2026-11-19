@@ -6,7 +6,7 @@
 // and "+N ▾" lists the ones out of view. Tabs per Session live in
 // stores/sessionTabs; the rules in lib/sessionTabs.
 // Split view (V3-27): `group` 'all' is the one bar; 'left' only Conversation;
-// 'right' the file tabs with "Unsplit". 'all' ends with the "Split" button.
+// 'right' the file tabs with "Unsplit". 'all' ends with the "Split" button (icon only).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -21,6 +21,7 @@ import {
 } from '@/lib/sessionTabs'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { useChangedFilesCount } from './useChangedFiles'
+import SessionTabTools from './SessionTabTools.vue'
 import { useRunSession } from './useRunSession'
 
 const props = withDefaults(defineProps<{ group?: 'all' | 'left' | 'right' }>(), { group: 'all' })
@@ -46,8 +47,6 @@ const allIds = computed<SessionTabId[]>(() => [
 ])
 const blocked = computed(() => splitBlockedReason(state.value, uiLayout.windowWidth))
 const blockedTip = computed(() => (blocked.value === 'narrow' ? t('run.splitView.blockedNarrow') : t('run.splitView.blockedNoFile')))
-// Under 700px the Split / Unsplit buttons keep only their icon.
-const wideBar = ref(true)
 const changedCount = useChangedFilesCount()
 
 function tabName(tab: SessionTab): string {
@@ -97,15 +96,10 @@ function pickHidden(id: SessionTabId) {
 }
 
 let observer: ResizeObserver | null = null
-const root = ref<HTMLElement | null>(null)
 onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && scroller.value) {
-    observer = new ResizeObserver(() => {
-      wideBar.value = (root.value?.clientWidth ?? 700) >= 700
-      measure()
-    })
+    observer = new ResizeObserver(measure)
     observer.observe(scroller.value)
-    if (root.value) observer.observe(root.value)
   }
   nextTick(() => {
     reveal(activeId.value)
@@ -167,7 +161,7 @@ function copyPath(tab: FileTab) {
 </script>
 
 <template>
-  <div ref="root" class="flex h-9 shrink-0 min-w-0 items-stretch border-b border-border bg-background">
+  <div class="flex h-9 shrink-0 min-w-0 items-stretch border-b border-border bg-background">
     <div
       ref="scroller"
       role="tablist"
@@ -256,6 +250,9 @@ function copyPath(tab: FileTab) {
       </DropdownItem>
     </DropdownMenu>
 
+    <!-- Conversation tools (UR-07): not in the right bar, which is only file tabs. -->
+    <SessionTabTools v-if="group !== 'right'" />
+
     <!-- Split (V3-27): enabled with a file tab open and a window of 1100px or more. -->
     <button
       v-if="group === 'all'"
@@ -267,7 +264,6 @@ function copyPath(tab: FileTab) {
       @click="splitHere()"
     >
       <Columns2 class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
-      <span v-if="wideBar">{{ t('run.splitView.split') }}</span>
     </button>
     <button
       v-else-if="group === 'right'"
@@ -278,7 +274,6 @@ function copyPath(tab: FileTab) {
       @click="tabsStore.stopSplit(runId)"
     >
       <PanelRightClose class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
-      <span v-if="wideBar">{{ t('run.splitView.unsplit') }}</span>
     </button>
 
     <ContextMenu :open="!!menu" :x="menu?.x ?? 0" :y="menu?.y ?? 0" @close="menu = null">
@@ -371,16 +366,14 @@ function copyPath(tab: FileTab) {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  margin: auto 6px;
-  padding: 0 8px;
+  margin: auto 6px auto 2px;
   border: 1px solid hsl(var(--input));
   border-radius: 6px;
   background: hsl(var(--card));
   color: hsl(var(--foreground));
-  font-size: 13px;
-  white-space: nowrap;
   cursor: pointer;
 }
 .split-btn:hover:not(:disabled) {

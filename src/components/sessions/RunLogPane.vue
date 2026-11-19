@@ -1,21 +1,19 @@
 <script setup lang="ts">
 // The run screen's main pane: the issue/PR Content column and the AI result
-// (tool row, ⌘F bar, history log or live output, jump buttons). State lives in useRunSession.
+// (⌘F bar, history log or live output, jump buttons). State lives in useRunSession.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Terminal, FileText, MessageSquare, ChevronDown, ChevronUp, Loader2, Plus,
-  ChevronsDownUp, ChevronsUpDown, ChevronsUp, ChevronsDown, GitFork,
+  ChevronsUp, ChevronsDown,
 } from 'lucide-vue-next'
 import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import TurnCutMark from './TurnCutMark.vue'
-import MentionedFiles from '@/components/MentionedFiles.vue'
 import InlinePermissionBlock from '@/components/permission/InlinePermissionBlock.vue'
 import { Button, DropdownMenu, DropdownItem } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
-import { forkSource } from '@/lib/runFork'
 import { fallbackLastTurnCut } from '@/lib/turnCut'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
@@ -26,36 +24,25 @@ import { useUILayoutStore } from '@/stores/uiLayout'
 
 const { t } = useI18n()
 const {
-  currentRunId, currentRun, currentIsSession, liveEntries, liveHasStream, currentStatus, runLabel,
+  currentRunId, currentRun, currentIsSession, liveEntries, liveHasStream, currentStatus,
   outputEl, historyEl, historyEntries, historyHasStream, historyLoading, HISTORY_PAGE_STEP,
   historyHasMore, historyLoadingMore, historyHasMoreBelow, showEarlierHistory, showLaterHistory,
   inputContent, inputContentError, inputContentLoading, renderText, isViewingHistory,
-  mentionedFileEntries, hasLiveOutput, splitContainerEl, isResizing, resultSplitEl, showContent,
-  canToggleContent, contentVisible, showResizeHandle, noSession, contentWidth, resultWidth,
+  hasLiveOutput, splitContainerEl, isResizing, resultSplitEl,
+  contentVisible, showResizeHandle, noSession, contentWidth, resultWidth,
   startResize, liveLegacyHtml, historyLegacyHtml, stickToBottom, scrollOutputToBottom,
   onOutputScroll, navTurns, showTurnNav, activeTurnSeq, onTurnMenuToggle, turnPositionTracked,
   currentTurnSeq, turnAwayFromTop, scrollToFirstTurn, jumpToSessionTurn, prevTurn, nextTurn,
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, creatingSession, handleNewSession, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
-  jumpToQuote, runsStore, loadRunLog, isSessionWindow, session, project,
+  jumpToQuote, session, project,
 } = useRunSession()
 // Which prompt (Lượt n) each hit of the whole log sits in.
 const logHitTurns = computed(() => {
   const offsets = navTurns.value.map((turn) => turn.offset)
   return logHits.value.map((hit) => turnAtOffset(offsets, hit.offset))
 })
-// A fork names the session it came from, and opens it (not from a pop-out,
-// which stays on its one session).
-const forkedFrom = computed(() => forkSource(currentRun.value, runsStore.runs))
-const forkSourceRun = computed(() => (forkedFrom.value && forkedFrom.value !== 'gone' ? forkedFrom.value : null))
-const forkLinkable = computed(() => !!forkSourceRun.value && !isSessionWindow)
-const forkedFromLabel = computed(() =>
-  forkSourceRun.value ? t('run.fork.from', { title: runLabel(forkSourceRun.value) }) : t('run.fork.fromGone'),
-)
-function openForkSource() {
-  if (forkLinkable.value && forkSourceRun.value) void loadRunLog(forkSourceRun.value.id)
-}
 const uiLayout = useUILayoutStore()
 // A log from before the marks existed: its last turn's cut comes from the run's own record.
 const historyFallbackCut = computed(() =>
@@ -241,55 +228,6 @@ function onOpenUrl(url: string) {
             <div v-if="logHitsTruncated" class="px-2.5 py-1 text-2xs text-foreground/50">
               {{ t('find.sessionHitsTruncated', { n: logHits.length }) }}
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-card border-b border-border shrink-0">
-        <!-- Tool row (the title lives in RunHeader). Fixed h-8 so it never
-             grows when the mentioned-files / re-dock controls appear. -->
-        <div class="flex items-center gap-2 px-3 h-8">
-          <component
-            :is="forkLinkable ? 'button' : 'span'"
-            v-if="forkedFrom"
-            :type="forkLinkable ? 'button' : undefined"
-            class="flex min-w-0 items-center gap-1 text-2xs text-muted-foreground"
-            :class="{ 'cursor-pointer hover:text-foreground hover:underline': forkLinkable }"
-            :title="forkSourceRun ? t('run.fork.fromTitle') : t('run.fork.fromGoneTitle')"
-            @click="openForkSource"
-          >
-            <GitFork class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-            <span class="truncate">{{ forkedFromLabel }}</span>
-          </component>
-          <div class="ml-auto flex items-center gap-1.5 shrink-0">
-            <!-- Show the steps of every turn, or fold finished turns (the
-                 default). Remembered for this viewer. -->
-            <button
-              v-if="isViewingHistory ? historyHasStream : liveHasStream"
-              type="button"
-              class="flex items-center h-6 rounded border border-border px-1 text-foreground/60 transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer"
-              :class="{ 'bg-primary/15 text-primary border-primary/30': uiLayout.stepsExpanded }"
-              :title="uiLayout.stepsExpanded ? t('streamLog.activity.collapseAll') : t('streamLog.activity.expandAll')"
-              :aria-pressed="uiLayout.stepsExpanded"
-              @click="uiLayout.setStepsExpanded(!uiLayout.stepsExpanded)"
-            >
-              <component :is="uiLayout.stepsExpanded ? ChevronsDownUp : ChevronsUpDown" class="h-3.5 w-3.5" :stroke-width="1.75" />
-            </button>
-            <!-- Issue / PR runs only: opens the fetched Content as a left
-                 split column. Sessions have no Content to show. -->
-            <button
-              v-if="canToggleContent"
-              type="button"
-              class="flex items-center gap-1 rounded h-6 px-1.5 text-2xs font-medium transition-colors cursor-pointer"
-              :class="contentVisible ? 'bg-primary/15 text-primary' : 'text-foreground/50 hover:text-foreground/80 hover:bg-accent/60'"
-              :title="t('run.toggleContentPanel')"
-              :aria-pressed="contentVisible"
-              @click="showContent = !showContent"
-            >
-              <FileText class="h-3.5 w-3.5" :stroke-width="1.75" />
-              {{ t('run.content') }}
-            </button>
-            <MentionedFiles :entries="mentionedFileEntries" />
           </div>
         </div>
       </div>

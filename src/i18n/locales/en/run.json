@@ -474,11 +474,9 @@
     "detachTip": "Open in new window: show this file in its own window"
   },
   "splitView": {
-    "split": "Split",
     "splitTip": "Split: Conversation on the left, file tabs on the right",
     "blockedNoFile": "Open a file to split",
     "blockedNarrow": "Window narrower than 1100px: can't split",
-    "unsplit": "Unsplit",
     "unsplitTip": "Unsplit: file tabs go back to the shared tab bar",
     "openRight": "Open on the right",
     "dividerLabel": "Resize Conversation and file panes",

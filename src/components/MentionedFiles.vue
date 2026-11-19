@@ -42,11 +42,12 @@ function openTab() {
   <button
     v-if="count"
     type="button"
-    class="flex h-6 cursor-pointer items-center gap-1.5 rounded-md px-2 text-2xs font-medium leading-none text-foreground/50 transition-colors hover:bg-card hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="flex h-7 min-w-7 cursor-pointer items-center justify-center gap-1 rounded-md px-1.5 text-2xs font-medium leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :title="t('misc.mentionedFiles.countTitle', { count })"
+    :aria-label="t('misc.mentionedFiles.button', { count })"
     @click="openTab"
   >
-    <FileDiff class="h-3.5 w-3.5" :stroke-width="1.75" />
-    <span>{{ t('misc.mentionedFiles.button', { count }) }}</span>
+    <FileDiff class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+    <span>{{ count }}</span>
   </button>
 </template>
