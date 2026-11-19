@@ -29,6 +29,9 @@ export interface AppSettings {
   default_effort: string
   default_style: string
   default_max_workers: string
+  worker_effort: string
+  claude_subagent_model: string
+  claude_subagent_effort: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string
@@ -81,6 +84,9 @@ export function createSettingsForm(): SettingsForm {
     default_effort: '',
     default_style: '',
     default_max_workers: String(DEFAULT_WORKER_CAP),
+    worker_effort: 'medium',
+    claude_subagent_model: '',
+    claude_subagent_effort: 'medium',
     terminal_app: TERMINAL_APPS[desktopOs(navigator.userAgent)][0].value,
     context_warn_percent: '80',
     context_limit_override: '',

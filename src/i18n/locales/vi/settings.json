@@ -408,7 +408,15 @@
     "styleMissing": "Style đã bị xoá (không dùng style nào)",
     "styleHint": "Được thêm vào system prompt của session mới. Tự viết style riêng ở",
     "defaultMaxWorkers": "Worker tối đa mặc định",
-    "maxWorkersHint": "Số worker một session mới được chạy cùng lúc (1–100). Sửa riêng cho một session ở panel worker của nó. Session đã có giữ giá trị của nó."
+    "maxWorkersHint": "Số worker một session mới được chạy cùng lúc (1–100). Sửa riêng cho một session ở panel worker của nó. Session đã có giữ giá trị của nó.",
+    "workerEffort": "Effort của worker",
+    "sameAsNewSessions": "Giống session mới",
+    "workerEffortHint": "Effort của worker mà một session tạo ra, trừ khi session tự chọn mức. Worker giữ effort của nó khi được chạy tiếp.",
+    "subagentModel": "Model của sub-agent",
+    "sameAsSession": "Giống session",
+    "subagentModelHint": "Model cho các sub-agent mà một session Claude gọi. File agent tự ghi model thì giữ model đó. Giá trị trong khối env của settings.json của Claude Code thắng giá trị này.",
+    "subagentEffort": "Effort của sub-agent",
+    "subagentEffortHint": "Effort cho các sub-agent mà một session Claude gọi, khi cả file agent lẫn lần gọi đều không ghi mức."
   },
   "translate": {
     "title": "Dịch",

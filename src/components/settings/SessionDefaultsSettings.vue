@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Settings → "Defaults for new sessions": engine, the model of each engine,
-// permission mode, effort, response style and worker cap a new session starts with. The one
+// permission mode, effort, response style, worker cap and effort, and the model
+// and effort of its sub-agents a new session starts with. The one
 // place these keys are edited; Settings › Model scans the model lists and picks
 // the models offered here. Translation has its own section (TranslateSettings).
 import { computed, onMounted, ref, watch } from 'vue'
@@ -9,7 +10,7 @@ import { ArrowUpRight, Sparkles } from 'lucide-vue-next'
 import { AppSelect, Button, Card, InfoTip, Input } from '@/components/ui'
 import { EFFORT_LEVELS, effortLevelsFor, permissionModeOptions, type SelectOption } from '@/lib/engineOptions'
 import { shownStyles } from '@/lib/responseStyles'
-import { defaultEffortChoices, defaultStyleChoices } from '@/lib/sessionDefaults'
+import { INHERIT, SUBAGENT_EFFORT_LEVELS, defaultEffortChoices, defaultStyleChoices, inheritEffortChoices } from '@/lib/sessionDefaults'
 import { DEFAULT_WORKER_CAP, MAX_WORKER_CAP, MIN_WORKER_CAP, defaultWorkerCap } from '@/lib/workerCap'
 import type { SettingsSectionId } from '@/lib/settingsSections'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
@@ -25,7 +26,7 @@ const { t } = useI18n()
 const { settings } = useSettingsForm()
 const modelCatalog = useModelCatalogStore()
 const styles = useResponseStylesStore()
-const { claudeModelOptions, claudeFallbackOptions, codexModelOptions } = useModelOptions()
+const { claudeModelOptions, claudeFallbackOptions, claudeSubagentOptions, codexModelOptions } = useModelOptions()
 
 onMounted(() => {
   // The global styles; Settings › Response styles loads the same list.
@@ -44,6 +45,17 @@ const effortOptions = computed<SelectOption[]>(() =>
     const label = (EFFORT_LEVELS as readonly string[]).includes(c.value) ? t(`settings.ai.effort.${c.value}`) : c.value
     return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
   }),
+)
+
+// Worker and sub-agent effort: `inherit` ("same as …") first, then the levels.
+const levelLabel = (v: string) => ((EFFORT_LEVELS as readonly string[]).includes(v) ? t(`settings.ai.effort.${v}`) : v)
+const inheritOptions = (levels: readonly string[], current: string, sameLabel: string): SelectOption[] =>
+  inheritEffortChoices(levels, current).map((v) => ({ value: v, label: v === INHERIT ? sameLabel : levelLabel(v) }))
+const workerEffortOptions = computed(() =>
+  inheritOptions(EFFORT_LEVELS, settings.value.worker_effort, t('settings.ai.sameAsNewSessions')),
+)
+const subagentEffortOptions = computed(() =>
+  inheritOptions(SUBAGENT_EFFORT_LEVELS, settings.value.claude_subagent_effort, t('settings.ai.sameAsSession')),
 )
 
 // The worker cap is typed into a draft and saved clamped once the field is left,
@@ -152,6 +164,15 @@ const styleOptions = computed(() => {
           :placeholder="String(DEFAULT_WORKER_CAP)"
           @change="commitMaxWorkers"
         />
+      </SettingsRow>
+      <SettingsRow search-id="ai-workerEffort" :label="t('settings.ai.workerEffort')" :hint="t('settings.ai.workerEffortHint')">
+        <AppSelect size="sm" v-model="settings.worker_effort" :options="workerEffortOptions" />
+      </SettingsRow>
+      <SettingsRow search-id="ai-subagentModel" :label="t('settings.ai.subagentModel')" :hint="t('settings.ai.subagentModelHint')">
+        <AppSelect size="sm" v-model="settings.claude_subagent_model" :options="claudeSubagentOptions" />
+      </SettingsRow>
+      <SettingsRow search-id="ai-subagentEffort" :label="t('settings.ai.subagentEffort')" :hint="t('settings.ai.subagentEffortHint')">
+        <AppSelect size="sm" v-model="settings.claude_subagent_effort" :options="subagentEffortOptions" />
       </SettingsRow>
   </Card>
   </div>

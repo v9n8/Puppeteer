@@ -3,8 +3,8 @@
 // Run: node --test src/lib/__tests__/sessionDefaults.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultEffortChoices, defaultStyleChoices } from '../sessionDefaults.ts'
-import { effortLevelsFor } from '../engineOptions.ts'
+import { defaultEffortChoices, defaultStyleChoices, inheritEffortChoices, subagentModelChoices } from '../sessionDefaults.ts'
+import { EFFORT_LEVELS, MODEL_OPTIONS, effortLevelsFor } from '../engineOptions.ts'
 
 const values = (choices) => choices.map((c) => c.value)
 
@@ -49,4 +49,21 @@ test('style: a saved value that resolves to nothing stays listed as missing', ()
   assert.deepEqual(defaultStyleChoices(mine, 's2').at(-1), { kind: 'missing', value: 's2' })
   assert.deepEqual(defaultStyleChoices([], 'code_review').at(-1), { kind: 'missing', value: 'code_review' })
   assert.equal(defaultStyleChoices(mine, 'concise').length, 3)
+})
+
+test('sub-agent model: same as the session, the sonnet alias, then the Claude model list', () => {
+  const same = { value: '', label: 'Same as the session' }
+  const sonnet = { value: 'sonnet', label: 'sonnet' }
+  const choices = subagentModelChoices(MODEL_OPTIONS.claude, same, sonnet)
+  assert.deepEqual(values(choices), ['', 'sonnet', ...values(MODEL_OPTIONS.claude).filter((v) => v !== '')])
+  assert.equal(choices[0], same)
+  // A list that already offers the alias does not show it twice.
+  assert.deepEqual(values(subagentModelChoices([{ value: '' }, { value: 'sonnet' }, { value: 'claude-x' }], same, sonnet)), ['', 'sonnet', 'claude-x'])
+})
+
+test('sub-agent and worker effort: inherit first, then the levels; a saved odd value stays', () => {
+  assert.deepEqual(inheritEffortChoices(['low', 'medium', 'high'], 'medium'), ['inherit', 'low', 'medium', 'high'])
+  assert.deepEqual(inheritEffortChoices(EFFORT_LEVELS, 'inherit'), ['inherit', ...EFFORT_LEVELS])
+  assert.deepEqual(inheritEffortChoices(['low', 'medium', 'high'], 'max'), ['inherit', 'low', 'medium', 'high', 'max'])
+  assert.deepEqual(inheritEffortChoices(['low'], ''), ['inherit', 'low'])
 })

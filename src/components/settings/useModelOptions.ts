@@ -1,10 +1,11 @@
 // Claude / Codex model choices shared by Settings → "Defaults for new sessions"
-// (the default model of each engine, Claude's fallback model) and Settings →
+// (the default model of each engine, Claude's fallback and sub-agent models) and Settings →
 // "Translation" (the translate model), so the selects offer the same list.
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { MODEL_OPTIONS, withCurrentModel, type SelectOption } from '@/lib/engineOptions'
+import { subagentModelChoices } from '@/lib/sessionDefaults'
 import { useSettingsForm } from './useSettingsForm'
 
 export function useModelOptions() {
@@ -56,6 +57,25 @@ export function useModelOptions() {
       current,
     )
   })
+  // Sub-agent model choices (QO-01): same as the session, the `sonnet` alias,
+  // then the "Claude model" list, filtered and annotated the same way.
+  const claudeSubagentOptions = computed(() => {
+    const current = settings.value.claude_subagent_model
+    return modelCatalog.enabledOnly(
+      'claude',
+      modelCatalog.withValidation(
+        withCurrentModel(
+          subagentModelChoices(
+            CLAUDE_MODEL_OPTIONS,
+            { value: '', label: t('settings.ai.sameAsSession') },
+            { value: 'sonnet', label: 'sonnet', description: t('settings.ai.fallbackSonnetAlias') },
+          ),
+          current,
+        ),
+      ),
+      current,
+    )
+  })
   const codexModelOptions = computed(() => codexOptionsFor(settings.value.codex_model))
   // The translate model follows the translate engine.
   const translateModelOptions = computed(() =>
@@ -69,5 +89,5 @@ export function useModelOptions() {
     modelCatalog.ensureLoaded().catch(() => {})
   })
 
-  return { claudeModelOptions, claudeFallbackOptions, codexModelOptions, translateModelOptions }
+  return { claudeModelOptions, claudeFallbackOptions, claudeSubagentOptions, codexModelOptions, translateModelOptions }
 }

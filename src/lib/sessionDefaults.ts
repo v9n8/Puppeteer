@@ -1,6 +1,6 @@
-// Settings › "Defaults for new sessions" (UX-18): the choices of its effort and
-// response style selects, kept pure so tests can cover them.
-import type { EffortLevel } from './engineOptions.ts'
+// Settings › "Defaults for new sessions" (UX-18): the choices of its effort,
+// response style and sub-agent / worker selects, kept pure so tests can cover them.
+import type { EffortLevel, SelectOption } from './engineOptions.ts'
 import { NO_STYLE } from './responseStyles.ts'
 
 export interface EffortChoice {
@@ -49,5 +49,34 @@ export function defaultStyleChoices(
       .map((s) => ({ kind: 'mine' as const, value: s.id, name: s.name, description: s.description })),
   ]
   if (saved && !out.some((c) => c.value === saved)) out.push({ kind: 'missing', value: saved })
+  return out
+}
+
+/** What the sub-agent effort and worker effort selects store for "same as the session". */
+export const INHERIT = 'inherit'
+/** Sub-agent effort levels (QO-02): the aim is to lower cost, so none above High. */
+export const SUBAGENT_EFFORT_LEVELS = ['low', 'medium', 'high'] as const
+
+/**
+ * The sub-agent model select (QO-01): "same as the session" (''), the `sonnet`
+ * alias (the pinned table has no current Sonnet; the alias follows it), then the
+ * choices of the "Claude model" select without its "engine default" entry.
+ */
+export function subagentModelChoices(
+  claudeChoices: readonly SelectOption[],
+  same: SelectOption,
+  sonnet: SelectOption,
+): SelectOption[] {
+  return [same, sonnet, ...claudeChoices.filter((o) => o.value !== '' && o.value !== sonnet.value)]
+}
+
+/**
+ * The sub-agent / worker effort selects (QO-02): `inherit` first, then `levels`.
+ * A saved value outside them stays listed, so opening the screen never rewrites it.
+ */
+export function inheritEffortChoices(levels: readonly string[], current: string | null | undefined): string[] {
+  const out = [INHERIT, ...levels]
+  const saved = current?.trim()
+  if (saved && !out.includes(saved)) out.push(saved)
   return out
 }

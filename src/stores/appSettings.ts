@@ -27,6 +27,12 @@ export interface AppSettings {
   default_style: string
   /** Worker cap of a new session, '1'–'100' (default '3'); read with `defaultWorkerCap` (lib/workerCap.ts). */
   default_max_workers: string
+  /** Effort of a worker a session starts without naming one: a level, or 'inherit' (default 'medium'). */
+  worker_effort: string
+  /** Model of a Claude session's sub-agents ('' = the session's); sets CLAUDE_CODE_SUBAGENT_MODEL. */
+  claude_subagent_model: string
+  /** Effort of those sub-agents: 'low' | 'medium' | 'high' | 'inherit' (default 'medium'). */
+  claude_subagent_effort: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string

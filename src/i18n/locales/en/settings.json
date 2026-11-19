@@ -408,7 +408,15 @@
     "styleMissing": "Deleted style (none is used)",
     "styleHint": "Added to the system prompt of new sessions. Write your own styles in",
     "defaultMaxWorkers": "Default max workers",
-    "maxWorkersHint": "How many workers a new session may run at once (1–100). Change it for one session in its worker panel. Sessions that already exist keep their own."
+    "maxWorkersHint": "How many workers a new session may run at once (1–100). Change it for one session in its worker panel. Sessions that already exist keep their own.",
+    "workerEffort": "Worker effort",
+    "sameAsNewSessions": "Same as new sessions",
+    "workerEffortHint": "Effort of a worker a session starts, unless the session names one. A worker keeps its effort when it is resumed.",
+    "subagentModel": "Sub-agent model",
+    "sameAsSession": "Same as the session",
+    "subagentModelHint": "Model for the sub-agents a Claude session starts. An agent file that names its own model keeps it. A value in the env block of Claude Code's own settings.json wins over this one.",
+    "subagentEffort": "Sub-agent effort",
+    "subagentEffortHint": "Effort for the sub-agents a Claude session starts, when neither the agent file nor the call names one."
   },
   "translate": {
     "title": "Translation",

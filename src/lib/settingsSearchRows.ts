@@ -68,6 +68,9 @@ export const SETTINGS_SEARCH_ROWS: Record<SettingsSectionId, SearchRow[]> = {
     { id: 'ai-defaultEffort', labelKey: 'settings.ai.defaultEffort' },
     { id: 'ai-defaultStyle', labelKey: 'settings.ai.defaultStyle' },
     { id: 'ai-defaultMaxWorkers', labelKey: 'settings.ai.defaultMaxWorkers' },
+    { id: 'ai-workerEffort', labelKey: 'settings.ai.workerEffort' },
+    { id: 'ai-subagentModel', labelKey: 'settings.ai.subagentModel', keywordsKey: kw('model') },
+    { id: 'ai-subagentEffort', labelKey: 'settings.ai.subagentEffort' },
   ],
   styles: [
     { id: 'styles-mine', labelKey: 'responseStyles.mineTitle' },
