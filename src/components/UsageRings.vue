@@ -1,15 +1,16 @@
 <script setup lang="ts">
-// Plan usage on the session status bar (UX-23, replaces BudgetBadge): one
-// UsageRing per Claude account (or the single global Claude snapshot when no
-// accounts are set up), the shared Codex login and each Codex account (UX-41).
-// An account's ring shows even before it has plan data (lib/usageRing
-// visibleUsageRings); the global Claude and shared Codex rings wait for theirs. This component also keeps
-// the numbers fresh and raises the quota warning toast (UX-13), so both stop
-// while the bar hides usage.
+// Plan usage on the session status bar (UX-23, replaces BudgetBadge): a usage
+// row per Claude account (or the single global Claude snapshot when no
+// accounts are set up), the shared Codex login and each Codex account (UX-41),
+// drawn as one block (UsageSummary, DS-1). An account's row shows even before
+// it has plan data (lib/usageRing visibleUsageRings); the global Claude and
+// shared Codex rows wait for theirs unless the Session runs on them. This
+// component also keeps the numbers fresh and raises the quota warning toast
+// (UX-13), so both stop while the bar hides usage.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import UsageRing from '@/components/UsageRing.vue'
+import UsageSummary from '@/components/UsageSummary.vue'
 import { useBudgetStore } from '@/stores/budget'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
@@ -21,6 +22,13 @@ import {
   parsePercentSetting, usageWindows, visibleUsageRings,
   type UsageRingAccount, type UsageThresholds,
 } from '@/lib/usageRing'
+
+const props = defineProps<{
+  /** Row of the account this Session runs on (lib/usageRing currentUsageKey). */
+  currentKey: string | null
+  /** Rows of the accounts a run gets when it picks none (★ in the panel). */
+  defaultKeys: string[]
+}>()
 
 const { t } = useI18n()
 const budget = useBudgetStore()
@@ -110,7 +118,15 @@ const rows = computed<UsageRow[]>(() => {
   }, ...codexAccountRows]
 })
 
-const visibleRows = computed(() => visibleUsageRings(rows.value))
+const visibleRows = computed(() => visibleUsageRings(rows.value, props.currentKey))
+
+function refreshRow(key: string) {
+  void rows.value.find((r) => r.key === key)?.refresh()
+}
+// Every row the panel lists; each is a live probe of its own login.
+function refreshAll() {
+  void Promise.all(visibleRows.value.filter((r) => !r.refreshing).map((r) => r.refresh()))
+}
 
 const thresholds = computed<UsageThresholds>(() => ({
   warnPercent: parsePercentSetting(app.settings?.quota_warn_percent),
@@ -237,14 +253,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="visibleRows.length > 0" class="flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden">
-    <UsageRing
-      v-for="r in visibleRows"
-      :key="r.key"
-      :account="r"
+  <div v-if="visibleRows.length > 0" class="flex min-w-0 items-center overflow-hidden">
+    <UsageSummary
+      :rows="visibleRows"
       :thresholds="thresholds"
       :now="now"
-      @refresh="r.refresh"
+      :current-key="currentKey"
+      :default-keys="defaultKeys"
+      @refresh="refreshRow"
+      @refresh-all="refreshAll"
     />
   </div>
 </template>

@@ -224,7 +224,8 @@ test('UR-39: hover and pinned states differ from the surface behind them', () =>
   const composer = read('../../components/sessions/RunComposer.vue')
   assert.equal(composer.match(/hover:bg-foreground\/10/g)?.length, 4)
   assert.doesNotMatch(composer, /rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background/)
-  const ring = read('../../components/UsageRing.vue')
+  // DS-1: the usage rings became one block; its button keeps the hover / pinned look.
+  const ring = read('../../components/UsageSummary.vue')
   assert.match(ring, /hover:bg-accent hover:text-foreground/)
   assert.match(ring, /'bg-accent text-foreground': pinned/)
   assert.match(read('../../components/projects/ProjectList.vue'), /cursor-grab[^"]*hover:bg-foreground\/10/)

@@ -19,9 +19,7 @@
     "window5h": "cửa sổ 5h",
     "windowWeek": "cửa sổ tuần",
     "quotaWarnToast": "{label} đã dùng {percent}% {window}.",
-    "ringLabel": "Mức dùng plan {label}: {percent}%",
     "ringLabelNoData": "Mức dùng plan {label}: chưa có số liệu",
-    "noData": "Chưa đọc được mức dùng plan của tài khoản này. Bấm làm mới để đọc ngay.",
     "windows": {
       "five_hour": "Cửa sổ 5h",
       "seven_day": "Tuần (tất cả model)",
@@ -29,7 +27,24 @@
       "seven_day_sonnet": "Tuần (Sonnet)"
     },
     "windowReset": "đã reset; cập nhật ở lần chạy tới",
-    "updated": "Cập nhật {ago}"
+    "updated": "Cập nhật {ago}",
+    "usage": {
+      "title": "Mức dùng plan",
+      "summaryTitle": "Mức dùng plan · bấm để xem mọi tài khoản",
+      "col5h": "5h · reset sau",
+      "colWeek": "Tuần · reset sau",
+      "using": "Đang dùng ở Session này",
+      "refreshAll": "Làm mới mọi tài khoản",
+      "noData": "Chưa có số liệu",
+      "refresh": "Làm mới",
+      "windowOf": "{label}: {percent}% ({window})",
+      "more": "+{n} tài khoản khác",
+      "inDaysHours": "{days}n {hours}g",
+      "inDays": "{days}n",
+      "inHoursMins": "{hours}g {minutes}p",
+      "inHours": "{hours}g",
+      "inMins": "{minutes}p"
+    }
   },
   "tabs": {
     "project": "Project",

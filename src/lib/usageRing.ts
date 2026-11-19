@@ -1,6 +1,6 @@
-// Usage rings on the session status bar (UX-23): one donut per account with
-// plan usage (each Claude account, the shared Codex login and each Codex
-// account). These helpers turn a stored plan
+// Plan usage on the session status bar (UX-23; one block since DS-1): a row per
+// account with plan usage (each Claude account, the shared Codex login and
+// each Codex account). These helpers turn a stored plan
 // snapshot (`get_plan_usage` / `get_plan_usage_codex`, the `/usage` and
 // `/status` data) into the windows a ring and its card show, and decide their
 // colour from the quota settings.

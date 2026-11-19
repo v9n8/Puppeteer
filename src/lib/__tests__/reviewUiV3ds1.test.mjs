@@ -27,3 +27,33 @@ test('UR-55: the account menu lists names only — no usage figures, email, "Def
     assert.equal(run.claudeAccountDefaultWith, undefined, lang)
   }
 })
+
+test('UR-57: one usage block — a summary button and a panel with a bordered block per engine', () => {
+  const rings = read('../../components/UsageRings.vue')
+  assert.match(rings, /<UsageSummary/)
+  assert.doesNotMatch(rings, /v-for="r in visibleRows"/)
+  // the data, timers and quota toast stay
+  assert.match(rings, /budget\.takeQuotaWarnings/)
+  assert.match(rings, /setInterval\(reloadAll, 60_000\)/)
+  const summary = read('../../components/UsageSummary.vue')
+  assert.match(summary, /inline-flex h-7 min-w-0 shrink-0 items-center gap-1\.5 rounded px-1\.5 text-2xs text-muted-foreground/)
+  assert.match(summary, /rounded-full border border-border px-1\.5/)
+  assert.match(summary, /max-\[901px\]:hidden/)
+  assert.match(summary, /summaryRows\(/)
+  assert.match(summary, /<Teleport to="body">/)
+  const panel = read('../../components/UsagePanel.vue')
+  assert.match(panel, /w-\[460px\][^"]*bg-popover p-3/)
+  assert.match(panel, /overflow-hidden rounded-md border border-border bg-card/)
+  assert.match(panel, /h-8 border-b border-border bg-muted/)
+  assert.match(panel, /divide-y divide-border/)
+  assert.match(panel, /grid-cols-\[minmax\(0,1fr\)_112px_112px\]/)
+  assert.match(panel, /t\('run\.accountMenu\.manage'\)/)
+  assert.match(panel, /usageColumns\(/)
+  // UsageRing is the shared donut only
+  assert.doesNotMatch(read('../../components/UsageRing.vue'), /Teleport|pinned/)
+  const keys = ['title', 'summaryTitle', 'col5h', 'colWeek', 'using', 'refreshAll', 'noData', 'refresh', 'windowOf', 'more']
+  for (const lang of ['en', 'vi']) {
+    const usage = json(`../../i18n/locales/${lang}/misc.json`).budget.usage
+    for (const k of keys) assert.equal(typeof usage[k], 'string', `${lang} misc.budget.usage.${k}`)
+  }
+})

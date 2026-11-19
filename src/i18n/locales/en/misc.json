@@ -19,9 +19,7 @@
     "window5h": "5-hour window",
     "windowWeek": "weekly window",
     "quotaWarnToast": "{label} has used {percent}% of its {window}.",
-    "ringLabel": "{label} plan usage: {percent}%",
     "ringLabelNoData": "{label} plan usage: no data yet",
-    "noData": "No plan usage read for this account yet. Refresh to read it now.",
     "windows": {
       "five_hour": "5-hour window",
       "seven_day": "Weekly (all models)",
@@ -29,7 +27,24 @@
       "seven_day_sonnet": "Weekly (Sonnet)"
     },
     "windowReset": "reset; updates on the next run",
-    "updated": "Updated {ago}"
+    "updated": "Updated {ago}",
+    "usage": {
+      "title": "Plan usage",
+      "summaryTitle": "Plan usage · click to see every account",
+      "col5h": "5h · resets in",
+      "colWeek": "Week · resets in",
+      "using": "Used by this Session",
+      "refreshAll": "Refresh every account",
+      "noData": "No data yet",
+      "refresh": "Refresh",
+      "windowOf": "{label}: {percent}% ({window})",
+      "more": "+{n} more accounts",
+      "inDaysHours": "{days}d {hours}h",
+      "inDays": "{days}d",
+      "inHoursMins": "{hours}h {minutes}m",
+      "inHours": "{hours}h",
+      "inMins": "{minutes}m"
+    }
   },
   "tabs": {
     "project": "Project",
