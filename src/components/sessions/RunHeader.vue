@@ -1,45 +1,27 @@
 <script setup lang="ts">
-// The run screen's header: the session's name (click to rename), the Bookmarks and Find buttons and the ⋯ menu.
-// Connections and links live in the info bar under the composer. State lives in useRunSession.
+// The run screen's header: the session's name (click to rename), then Bookmarks, Find, the flag chip and pop-out.
+// A session's own window adds a ⋯ menu with the session's actions. Connections and links live in the info bar
+// under the composer. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
-import {
-  Terminal, Settings, Code2, Folder, FolderOpen, MoreHorizontal, Search,
-  SquareArrowOutUpRight, SquareArrowDownLeft,
-} from 'lucide-vue-next'
+import { MoreHorizontal, Search, SquareArrowOutUpRight, SquareArrowDownLeft } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
-import { Button, DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
+import { Button, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import SessionTitle from '@/components/sessions/SessionTitle.vue'
 import SessionFlagChip from '@/components/sessions/SessionFlagChip.vue'
 import SessionBookmarksMenu from '@/components/sessions/SessionBookmarksMenu.vue'
 import { useRunSession } from './useRunSession'
-import { computed, onBeforeUnmount } from 'vue'
-import { emit as emitEvent } from '@tauri-apps/api/event'
-import { projectPageQuery, type ProjectSectionId } from '@/lib/projectSections'
+import { onBeforeUnmount } from 'vue'
 import { sessionHeaderMenu } from '@/lib/sessionHeaderMenu'
 import { dockSessionToMain } from '@/lib/sessionWindow'
 import { registerMergeBack } from '@/lib/windowsOverlay'
-import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute } from '@/lib/detachedScreens'
 import { titleEditRequest } from './titleEditRequest'
 
 const { t } = useI18n()
 const {
-  router, projectId, project, isSessionWindow, currentRun, handleOpenInVscode,
-  handleOpenInFolder, handleOpenInTerminal, popoutSession, runActionProps, runActionHandlers, runFind,
+  projectId, isSessionWindow, currentRun, popoutSession, runActionProps, runActionHandlers, runFind,
 } = useRunSession()
 
-const menuBlocks = computed(() => sessionHeaderMenu({ isSessionWindow, hasProject: !!project.value }))
-
-// "View project" / "Project settings" open the Project screen. A session window has no router: the main
-// window opens it (and comes forward).
-function openProjectScreen(section?: ProjectSectionId) {
-  const query = projectPageQuery(projectId.value, section)
-  if (isSessionWindow) {
-    const path = `/projects?${new URLSearchParams(query)}`
-    void emitEvent(SCREEN_OPEN_ROUTE, { path } satisfies ScreenOpenRoute)
-  } else {
-    void router.push({ path: '/projects', query })
-  }
-}
+const menuBlocks = sessionHeaderMenu({ isSessionWindow })
 
 function dock() {
   if (currentRun.value) void dockSessionToMain(currentRun.value.id, projectId.value)
@@ -58,12 +40,9 @@ if (isSessionWindow) {
   <div class="flex items-center justify-between gap-2 px-3 h-12 border-b border-border bg-card shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <SessionTitle />
-      <SessionFlagChip />
     </div>
-    <!-- Icon-only actions, then one ⋯ menu for the rest. Labels live in the tooltips so the header stays
-         short no matter how narrow the pane gets.
-         Bookmarks and Find stay in a session pop-out; the rest is hidden there
-         for now (that window is a bare conversation view). -->
+    <!-- Icon-only actions; labels live in the tooltips so the header stays short no matter how narrow the
+         pane gets. The flag chip comes last before pop-out so a long flag name never pushes the buttons around. -->
     <div class="flex items-center gap-1 shrink-0">
       <SessionBookmarksMenu />
       <!-- ⌘F opens the same bar (App.vue dispatches the key); this is its button. -->
@@ -79,6 +58,7 @@ if (isSessionWindow) {
       >
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
+      <SessionFlagChip />
       <!-- Pop out here; "back to main window" in the session's own window (QĐ-08). -->
       <Button
         v-if="currentRun"
@@ -90,9 +70,9 @@ if (isSessionWindow) {
       >
         <component :is="isSessionWindow ? SquareArrowDownLeft : SquareArrowOutUpRight" class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
-      <!-- One ⋯ menu for the rest; the blocks come from sessionHeaderMenu: the main window's is short
-           (the History row has the session's actions), a session window's carries them too. -->
-      <DropdownMenu align="right">
+      <!-- A session's own window has no History column, so its ⋯ menu carries the session's actions and
+           Delete; the main window has no ⋯ (the History row has them). -->
+      <DropdownMenu v-if="menuBlocks.length" align="right">
         <template #trigger>
           <Button
             variant="outline"
@@ -107,44 +87,13 @@ if (isSessionWindow) {
         <div class="min-w-[15rem]">
           <template v-for="(block, i) in menuBlocks" :key="block">
             <DropdownSeparator v-if="i > 0 && block !== 'delete'" />
-            <template v-if="block === 'openProjectIn'">
-              <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium text-muted-foreground/70">
-                {{ t('run.openProjectIn') }}
-              </div>
-              <DropdownItem :disabled="!project" @click="handleOpenInVscode">
-                <Code2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-                VS Code
-              </DropdownItem>
-              <DropdownItem :disabled="!project" @click="handleOpenInFolder">
-                <FolderOpen class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-                {{ t('run.folder') }}
-              </DropdownItem>
-              <DropdownItem :disabled="!project" @click="handleOpenInTerminal">
-                <Terminal class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-                {{ t('run.terminal') }}
-              </DropdownItem>
-            </template>
-
             <!-- This session (same list as its History row); Rename edits the header name in place. -->
             <RunActionItems
-              v-else-if="block === 'runActions' && currentRun"
+              v-if="block === 'runActions' && currentRun"
               v-bind="runActionProps(currentRun)"
               section="actions"
               v-on="runActionHandlers(currentRun, () => titleEditRequest++)"
             />
-
-            <DropdownItem v-else-if="block === 'viewProject'" @click="openProjectScreen()">
-              <Folder class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-              {{ t('run.viewProject') }}
-            </DropdownItem>
-            <DropdownItem
-              v-else-if="block === 'projectSettings'"
-              :title="t('run.projectSettingsTitle')"
-              @click="openProjectScreen('session')"
-            >
-              <Settings class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-              {{ t('run.projectSettings') }}
-            </DropdownItem>
 
             <RunActionItems
               v-else-if="block === 'delete' && currentRun"

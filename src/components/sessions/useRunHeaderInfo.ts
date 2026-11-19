@@ -30,7 +30,7 @@ export interface ConnectionGroup { id: ConnectionKind; rows: ConnectionRow[] }
 export function useRunHeaderInfo(core: RunSessionCore) {
   const { t } = useI18n()
   const {
-    projectStore, runsStore, ghStore, glStore, serversStore, awsStore, azureStore, toast, projectId,
+    ghStore, glStore, serversStore, awsStore, azureStore, projectId,
     project, currentRunId,
   } = core
 
@@ -176,41 +176,8 @@ export function useRunHeaderInfo(core: RunSessionCore) {
     { immediate: true },
   )
 
-  async function handleOpenInVscode() {
-    if (!project.value) return
-    try {
-      // Reveal the most recently loaded issue/PR markdown alongside the project folder.
-      const run = currentRunId.value
-        ? runsStore.runs.find(r => r.id === currentRunId.value)
-        : null
-      await projectStore.openInVscode(project.value.path, run?.input_path ?? undefined)
-    } catch (e) {
-      toast.error(String(e))
-    }
-  }
-
-  async function handleOpenInFolder() {
-    if (!project.value) return
-    try {
-      await projectStore.openInFolder(project.value.path)
-    } catch (e) {
-      toast.error(String(e))
-    }
-  }
-
-  async function handleOpenInTerminal() {
-    if (!project.value) return
-    try {
-      const settings = await invoke<{ terminal_app: string }>('get_settings')
-      await projectStore.openInTerminal(project.value.path, settings.terminal_app)
-    } catch (e) {
-      toast.error(String(e))
-    }
-  }
-
   return {
-    connectionGroups, loadProjectServers, captureContext, openQuickCapture, linked, handleOpenInVscode,
-    handleOpenInFolder, handleOpenInTerminal,
+    connectionGroups, loadProjectServers, captureContext, openQuickCapture, linked,
   }
 }
 

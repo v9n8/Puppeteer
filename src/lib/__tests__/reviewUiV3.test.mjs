@@ -146,3 +146,21 @@ test('UR-03: the shared flags card drops the long note and opens Settings › Fl
     assert.equal(project.settingsLink, undefined, lang)
   }
 })
+
+test('UR-06: header order is title, bookmarks, find, flag chip, pop-out; ⋯ only in a session window', () => {
+  const src = read('../../components/sessions/RunHeader.vue')
+  const t = src.slice(src.indexOf('<template>'))
+  const at = (s) => t.indexOf(s)
+  assert.ok(at('<SessionTitle') < at('<SessionBookmarksMenu') && at('<SessionBookmarksMenu') < at('run.findInSession'))
+  assert.ok(at('run.findInSession') < at('<SessionFlagChip') && at('<SessionFlagChip') < at('run.dockToMain'))
+  assert.ok(at('run.dockToMain') < at('<DropdownMenu'))
+  // The ⋯ menu only renders when the window has blocks (the main window has none).
+  assert.match(t, /<DropdownMenu v-if="menuBlocks\.length"/)
+  assert.doesNotMatch(src, /openProjectIn|viewProject|projectSettings|handleOpenIn/)
+  for (const lang of ['en', 'vi']) {
+    const run = json(`../../i18n/locales/${lang}/run.json`)
+    for (const k of ['openProjectIn', 'viewProject', 'projectSettings', 'projectSettingsTitle', 'folder', 'terminal']) {
+      assert.equal(run[k], undefined, `${lang} ${k}`)
+    }
+  }
+})

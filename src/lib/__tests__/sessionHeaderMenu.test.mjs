@@ -4,21 +4,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { sessionHeaderMenu } from '../sessionHeaderMenu.ts'
 
-test('main window: open in, view and settings of the project; no session actions or delete', () => {
-  assert.deepEqual(
-    sessionHeaderMenu({ isSessionWindow: false, hasProject: true }),
-    ['openProjectIn', 'viewProject', 'projectSettings'],
-  )
+test('main window: no ⋯ menu', () => {
+  assert.deepEqual(sessionHeaderMenu({ isSessionWindow: false }), [])
 })
 
-test('session window: open in, the session actions, project screens, then delete last', () => {
-  assert.deepEqual(
-    sessionHeaderMenu({ isSessionWindow: true, hasProject: true }),
-    ['openProjectIn', 'runActions', 'viewProject', 'projectSettings', 'delete'],
-  )
-})
-
-test('no project: the project screens drop out in both windows', () => {
-  assert.deepEqual(sessionHeaderMenu({ isSessionWindow: false, hasProject: false }), ['openProjectIn'])
-  assert.deepEqual(sessionHeaderMenu({ isSessionWindow: true, hasProject: false }), ['openProjectIn', 'runActions', 'delete'])
+test('session window: the session actions, then delete last', () => {
+  assert.deepEqual(sessionHeaderMenu({ isSessionWindow: true }), ['runActions', 'delete'])
 })
