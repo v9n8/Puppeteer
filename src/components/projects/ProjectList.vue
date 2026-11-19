@@ -187,7 +187,7 @@ function onListClickCapture(e: MouseEvent) {
             </button>
             <button
               type="button"
-              class="flex h-6 w-6 shrink-0 cursor-grab touch-none items-center justify-center self-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 active:cursor-grabbing"
+              class="flex h-6 w-6 shrink-0 cursor-grab touch-none items-center justify-center self-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 active:cursor-grabbing"
               :class="dragFrom === index ? 'opacity-100' : 'opacity-0'"
               :title="t('projects.dragToReorder')"
               :aria-label="t('projects.dragToReorder')"

@@ -161,7 +161,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                 <Paperclip class="h-3 w-3" :stroke-width="2" />{{ msg.attachments }}
               </span>
               <button
-                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer"
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-foreground/10 cursor-pointer"
                 :title="t('run.queuedEdit')"
                 :aria-label="t('run.queuedEdit')"
                 @click="startQueuedEdit(msg.id)"
@@ -169,7 +169,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                 <Pencil class="h-3 w-3" :stroke-width="2" />
               </button>
               <button
-                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-foreground/10 cursor-pointer disabled:opacity-40 disabled:cursor-default"
                 :disabled="sendingFollowUp"
                 :title="t('run.queuedSendNow')"
                 :aria-label="t('run.queuedSendNow')"
@@ -178,7 +178,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                 <Send class="h-3 w-3" :stroke-width="2" />
               </button>
               <button
-                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-background cursor-pointer"
+                class="h-5 w-5 shrink-0 rounded flex items-center justify-center hover:bg-foreground/10 cursor-pointer"
                 :title="t('run.queuedRemove')"
                 :aria-label="t('run.queuedRemove')"
                 @click="removeQueuedMessage(msg.id)"
@@ -258,7 +258,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
           <FileText class="h-3.5 w-3.5 shrink-0 opacity-60" :stroke-width="2" />
           <span class="truncate font-mono">{{ file.name }}</span>
           <button
-            class="h-5 w-5 rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background cursor-pointer shrink-0"
+            class="h-5 w-5 rounded-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/10 cursor-pointer shrink-0"
             :title="t('run.removeFile')"
             @click="removePendingFile(file.id)"
           >

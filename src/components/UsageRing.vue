@@ -163,8 +163,8 @@ onBeforeUnmount(() => {
   <button
     ref="trigger"
     type="button"
-    class="inline-flex h-7 min-w-0 shrink-0 items-center gap-1 rounded px-1.5 text-2xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-    :class="{ 'bg-muted text-foreground': pinned }"
+    class="inline-flex h-7 min-w-0 shrink-0 items-center gap-1 rounded px-1.5 text-2xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    :class="{ 'bg-accent text-foreground': pinned }"
     :title="cardVisible ? undefined : ringTitle"
     :aria-label="ringTitle"
     aria-haspopup="dialog"
