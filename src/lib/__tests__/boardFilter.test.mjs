@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   defaultFilter, filterColumns, hiddenCount, isDefaultFilter, listedFlags, parseFilter, reconcileFilter, sameFilter,
-  serializeFilter, toggleColumn, ALL_SCOPE, SHARED_GROUP,
+  reorderFlags, reorderGroups, serializeFilter, toggleColumn, ALL_SCOPE, SHARED_GROUP,
 } from '../boardFilter.ts'
 
 const flag = (id, extra = {}) => ({
@@ -55,6 +55,24 @@ test('reorder: the columns follow the group and flag order the filter holds', ()
   assert.deepEqual(ids(filterColumns(f, all, ALL_SCOPE)), ['a', 'b', 'p', 'p-2', 'q'])
   const moved = { ...f, groups: [SHARED_GROUP, 'p2', 'p1'], flags: { ...f.flags, p1: ['p-2', 'p'] } }
   assert.deepEqual(ids(filterColumns(moved, all, ALL_SCOPE)), ['a', 'b', 'q', 'p-2', 'p'])
+})
+
+test('reorderGroups / reorderFlags (UR-62): the board columns follow the dropped order', () => {
+  const f = { ...defaultFilter(all, ALL_SCOPE, order), on: ['none', 'a', 'b', 'p', 'p-2', 'q'] }
+  const g = reorderGroups(f, ['p2', SHARED_GROUP, 'p1'])
+  assert.deepEqual(g.groups, ['p2', SHARED_GROUP, 'p1'])
+  assert.deepEqual(ids(filterColumns(g, all, ALL_SCOPE)), ['none', 'q', 'a', 'b', 'p', 'p-2'])
+  // A group the popover does not show stays, at the end.
+  assert.deepEqual(reorderGroups({ ...f, groups: [...f.groups, 'empty'] }, ['p1', SHARED_GROUP, 'p2']).groups,
+    ['p1', SHARED_GROUP, 'p2', 'empty'])
+  const fl = reorderFlags(g, 'p1', ['p-2', 'p'])
+  assert.deepEqual(ids(filterColumns(fl, all, ALL_SCOPE)), ['none', 'q', 'a', 'b', 'p-2', 'p'])
+  // A flag of another group cannot be moved in.
+  assert.deepEqual(reorderFlags(f, 'p1', ['q', 'p-2', 'p']).flags.p1, ['p-2', 'p'])
+  assert.deepEqual(reorderFlags(f, 'p1', ['q', 'p-2', 'p']).flags.p2, ['q'])
+  // The input is left as it was (the popover's undo needs the old draft).
+  assert.deepEqual(f.groups, [SHARED_GROUP, 'p1', 'p2'])
+  assert.equal(sameFilter(f, fl), false)
 })
 
 test('reconcileFilter: nothing saved is the default', () => {

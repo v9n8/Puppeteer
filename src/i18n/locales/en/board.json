@@ -17,7 +17,9 @@
     "revert": "Undo changes",
     "confirmTitle": "Apply the filter changes?",
     "confirmBody": "You changed the filter but did not apply it.",
-    "discard": "Discard"
+    "discard": "Discard",
+    "drag": "Drag to reorder",
+    "dragGroup": "Drag to reorder the group"
   },
   "refresh": "Refresh",
   "manageFlags": "Manage flags",

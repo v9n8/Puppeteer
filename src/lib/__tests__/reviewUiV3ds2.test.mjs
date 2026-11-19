@@ -22,11 +22,21 @@ test('UR-61: the popover keeps ticks as a draft and asks with three buttons befo
   assert.match(pop, /class="absolute left-0 top-full z-50 mt-1\.5 w-\[280px\]/)
   assert.match(pop, /max-h-\[420px\] overflow-y-auto/)
   assert.match(pop, /inline-flex h-6 min-w-0 items-center gap-1\.5 rounded-full bg-muted px-2\.5 text-2xs text-muted-foreground/)
-  assert.match(pop, /class="pl-5"/)
+  assert.match(pop, /class="(?:group )?pl-5"/)
   assert.match(pop, /rounded-full bg-primary\/12 px-1\.5 text-2xs font-medium text-primary/)
   assert.match(pop, /altLabel: t\('board\.filter\.discard'\)/)
   assert.match(pop, /:disabled="!dirty" @click="revert"/)
   assert.match(pop, /:disabled="!dirty" @click="apply"/)
   // The confirm box owns Esc while it is up.
   assert.match(pop, /if \(e\.key !== 'Escape' \|\| confirming\.value\) return/)
+})
+
+test('UR-62: groups and flags reorder with useDragSort by their grips; only the board filter changes', () => {
+  const pop = read('../../components/board/BoardFilterPopover.vue')
+  assert.match(pop, /useDragSort\(\{\s+container: groupList,\s+itemSelector: '\[data-group-index\]'/)
+  assert.match(pop, /useDragSort\(\{\s+container: flagList,\s+itemSelector: '\[data-flag-index\]'/)
+  assert.equal((pop.match(/<GripVertical class="h-3\.5 w-3\.5 text-muted-foreground\/50 group-hover:text-muted-foreground"/g) ?? []).length, 2)
+  assert.match(pop, /@click\.capture="onListClick"/)
+  // The board order is its own: Settings' flag order is never written from here.
+  assert.doesNotMatch(pop, /reorder_session_flags|sessionFlags\.reorder|useSessionFlagsStore/)
 })

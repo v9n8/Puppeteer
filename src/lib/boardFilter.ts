@@ -116,6 +116,21 @@ export function toggleColumn(filter: BoardFilter, id: string): BoardFilter {
   return { ...filter, on }
 }
 
+/**
+ * The filter with the groups in a new order (UR-62). `ids`: the groups the popover
+ * shows, as dropped; a group it does not show (no flag) keeps its place at the end.
+ */
+export function reorderGroups(filter: BoardFilter, ids: readonly string[]): BoardFilter {
+  return { ...filter, groups: [...ids, ...filter.groups.filter((g) => !ids.includes(g))] }
+}
+
+/** The filter with one group's flags in a new order; a flag only moves inside its own group. */
+export function reorderFlags(filter: BoardFilter, group: string, ids: readonly string[]): BoardFilter {
+  const own = filter.flags[group] ?? []
+  const kept = ids.filter((id) => own.includes(id))
+  return { ...filter, flags: { ...filter.flags, [group]: [...kept, ...own.filter((id) => !kept.includes(id))] } }
+}
+
 /** How many cards have no column on the board (the status line counts them). */
 export function hiddenCount(cards: readonly { flag_id?: string | null }[], columns: readonly BoardColumn[]): number {
   const ids = new Set(columns.map((c) => c.id))

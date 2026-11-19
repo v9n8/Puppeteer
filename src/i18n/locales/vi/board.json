@@ -17,7 +17,9 @@
     "revert": "Hủy thay đổi",
     "confirmTitle": "Áp dụng thay đổi bộ lọc?",
     "confirmBody": "Bạn đã đổi bộ lọc nhưng chưa bấm Áp dụng.",
-    "discard": "Bỏ thay đổi"
+    "discard": "Bỏ thay đổi",
+    "drag": "Kéo để đổi thứ tự",
+    "dragGroup": "Kéo để đổi thứ tự nhóm"
   },
   "refresh": "Làm mới",
   "manageFlags": "Quản lý flag",
