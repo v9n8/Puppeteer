@@ -300,6 +300,9 @@ const AUDITED_COMMANDS: &[&str] = &[
     "set_project_tool_permission",
     // Models that are on: saving moves the defaults (global and per project) off a model now off.
     "save_enabled_models",
+    // Routing policy (QO-06): "Update now" and "Go back to this version" change what new sessions read.
+    "recompute_routing_policy",
+    "revert_routing_policy",
 ];
 
 /// Vault commands too frequent or too bland to audit (status polls, the idle

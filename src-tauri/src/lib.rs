@@ -305,6 +305,7 @@ pub fn run() {
             // Watch the shared Claude transcript store so sessions created or
             // continued outside Puppeteer (claude CLI / VS Code) mirror in live.
             runs::session_watcher::start(db.clone(), app.handle().clone());
+            runs::routing::update::start(app.handle().clone());
 
             // Materialize per-project AWS sandboxes for already-linked projects
             // and sweep the legacy per-run `aws-runs` dirs. Runs only read these
@@ -746,6 +747,10 @@ pub fn run() {
             conductor::commands::conductor_worker_merge,
             get_usage_stats,
             runs::routing::commands::get_routing_report,
+            runs::routing::commands::recompute_routing_policy,
+            runs::routing::commands::revert_routing_policy,
+            runs::routing::commands::list_routing_policies,
+            runs::routing::commands::take_routing_notice,
             translate_text,
             cancel_translate,
             prewarm_translate,

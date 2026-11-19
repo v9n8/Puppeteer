@@ -17,4 +17,5 @@ pub mod policy;
 pub mod record;
 pub mod report;
 pub mod tier;
+pub mod update;
 pub mod worker;
