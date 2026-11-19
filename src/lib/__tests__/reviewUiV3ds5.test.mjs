@@ -78,7 +78,8 @@ const dragSrc = read('components/windows/useWindowsDrag.ts')
 
 test('UR-54: a 40px dashed strip stuck at the top of the grid; accent while dragging, amber when refused', () => {
   assert.match(overlay, /<template v-else>\s*<WindowsDropStrip /)
-  assert.match(stripSrc, /class="sticky -top-3 /)
+  // Same colour as the overlay panel (bg-popover), or the strip's backing shows as a band.
+  assert.match(stripSrc, /class="sticky -top-3 [^"]*bg-popover /)
   assert.match(stripSrc, /data-windows-drop\s+class="flex h-10 [^"]*border-2 border-dashed/)
   assert.match(stripSrc, /idle: 'border-input text-muted-foreground'/)
   assert.match(stripSrc, /merge: 'border-primary bg-primary\/10 text-primary'/)

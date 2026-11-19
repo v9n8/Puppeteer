@@ -33,10 +33,10 @@ const text = computed(() => {
 
 <template>
   <!-- Opaque, and stuck over the grid's top padding too: the cards scrolling under it stay hidden. -->
-  <div class="sticky -top-3 z-[2] -mt-3 mb-3 select-none bg-background pt-3">
+  <div class="sticky -top-3 z-[2] -mt-3 mb-3 select-none bg-popover pt-3">
     <div
       data-windows-drop
-      class="flex h-10 items-center justify-center gap-2 rounded-[10px] border-2 border-dashed px-3 text-sm"
+      class="flex h-10 items-center justify-center gap-2 rounded-card border-2 border-dashed px-3 text-sm"
       :class="{
         idle: 'border-input text-muted-foreground',
         merge: 'border-primary bg-primary/10 text-primary',
