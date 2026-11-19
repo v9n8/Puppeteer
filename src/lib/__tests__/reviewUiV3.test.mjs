@@ -289,3 +289,9 @@ test('UR-04: a new migration resets the flags to the five work-status defaults, 
   }
   assert.equal(json('../../i18n/locales/en/sessionFlags.json').builtin.todo, 'To Do')
 })
+
+test('UR-19: the header block around the session title takes the free width so the rename field can grow', () => {
+  const src = read('../../components/sessions/RunHeader.vue')
+  assert.match(src, /<div class="flex flex-1 items-center gap-2 min-w-0">\s*<SessionTitle \/>/)
+  assert.match(read('../../components/sessions/SessionTitle.vue'), /<form v-if="editing" class="flex min-w-0 flex-1 /)
+})

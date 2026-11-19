@@ -38,7 +38,8 @@ if (isSessionWindow) {
 
 <template>
   <div class="flex items-center justify-between gap-2 px-3 h-12 border-b border-border bg-card shrink-0">
-    <div class="flex items-center gap-2 min-w-0">
+    <!-- flex-1 so the rename field can grow to the free space; the actions below are shrink-0. -->
+    <div class="flex flex-1 items-center gap-2 min-w-0">
       <SessionTitle />
     </div>
     <!-- Icon-only actions; labels live in the tooltips so the header stays short no matter how narrow the
