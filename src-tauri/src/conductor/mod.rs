@@ -118,10 +118,14 @@ Rules:
 
 /// Appended to every worker's role instruction (AC-24): the conductor takes the
 /// worker's reply as its result, so the reply has to say how the work was
-/// checked. A Claude worker's `Stop` hook also asks for the check once.
+/// checked. A Claude worker's `Stop` hook also asks for the check once. The
+/// line has a fixed form so the app can read the outcome too
+/// (`runs::routing::record::parse_verification`, QO-06); a worker made before
+/// keeps the wording it was stored with.
 pub const WORKER_VERIFICATION: &str = "Before you finish a turn in which you changed files, run the project's tests \
-or checks (test, lint, build) for the files you changed. End your reply with a `Verification:` line saying what \
-you ran and the result. If no check applies, say why on that line.";
+or checks (test, lint, build) for the files you changed. End your reply with one `Verification:` line as its last \
+line, in exactly one of these forms: `Verification: PASS — <what you ran>` when every check passed, \
+`Verification: FAIL — <what failed>` when any check failed, or `Verification: NONE — <why no check applies>`.";
 
 /// A worker's role instruction as persisted and launched with: the conductor's
 /// instruction (if any), then [`WORKER_VERIFICATION`]. Persisted, so a resume
@@ -752,7 +756,9 @@ mod tests {
             worker_instruction(Some(" You are a reviewer. ")),
             format!("You are a reviewer.\n\n{WORKER_VERIFICATION}")
         );
-        assert!(WORKER_VERIFICATION.contains("`Verification:` line"));
+        for form in ["`Verification: PASS — ", "`Verification: FAIL — ", "`Verification: NONE — "] {
+            assert!(WORKER_VERIFICATION.contains(form), "{form}");
+        }
     }
 
     #[test]

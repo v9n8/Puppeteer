@@ -12,4 +12,5 @@
 //! levels, task kinds).
 
 pub mod policy;
+pub mod record;
 pub mod tier;
