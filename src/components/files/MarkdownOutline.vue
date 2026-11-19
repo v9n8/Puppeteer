@@ -9,7 +9,10 @@
 // preview's markup changes (new content, markdown renderer finishing its load).
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { X } from 'lucide-vue-next'
+import { Button } from '@/components/ui'
 import { markdownOutline, type OutlineItem } from '@/lib/markdownOutline'
+import { useUILayoutStore } from '@/stores/uiLayout'
 
 const props = defineProps<{
   source: string
@@ -20,6 +23,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const ui = useUILayoutStore()
 
 interface Found { item: OutlineItem; el: HTMLElement }
 const found = shallowRef<Found[]>([])
@@ -103,7 +107,12 @@ function go(f: Found) {
 
 <template>
   <nav class="md-outline sticky top-0 shrink-0 flex flex-col gap-0.5 px-2 py-3 border-r border-border overflow-y-auto" :aria-label="t('files.outline.title')">
-    <p class="mx-2 mb-1 text-[13px] font-semibold text-foreground">{{ t('files.outline.title') }}</p>
+    <div class="mx-2 mb-1 flex items-center justify-between gap-1">
+      <p class="min-w-0 truncate text-[13px] font-semibold text-foreground">{{ t('files.outline.title') }}</p>
+      <Button variant="ghost" size="icon-sm" class="shrink-0" :title="t('files.outline.hide')" :aria-label="t('files.outline.hide')" @click="ui.setFileOutlineOpen(false)">
+        <X class="h-3.5 w-3.5" :stroke-width="1.75" />
+      </Button>
+    </div>
     <button
       v-for="f in found"
       :key="f.item.slug"

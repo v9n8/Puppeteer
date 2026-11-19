@@ -63,6 +63,16 @@ test('UR-12: the Quote note popover shows its keys in the placeholder, not a row
   }
 })
 
+test('UR-11: the Contents button leaves the toolbar; closed it sits above the markdown, open its close button is in the column title', () => {
+  const viewer = read('../../components/FileViewer.vue')
+  assert.doesNotMatch(viewer, /<OutlineToggle v-if="hasOutline" \/>/)
+  assert.match(viewer, /<OutlineToggle v-if="hasOutline && !uiLayout\.fileOutlineOpen" \/>/)
+  assert.match(read('../../components/files/OutlineToggle.vue'), /ui\.setFileOutlineOpen\(true\)/)
+  const outline = read('../../components/files/MarkdownOutline.vue')
+  assert.match(outline, /ui\.setFileOutlineOpen\(false\)/)
+  assert.match(outline, /t\('files\.outline\.hide'\)/)
+})
+
 test('UR-26: a dragged board card is drawn under the pointer, offset by where it was grabbed', () => {
   const drag = read('../../components/board/useBoardDrag.ts')
   assert.match(drag, /grabX: rect \? e\.clientX - rect\.left : 0/)

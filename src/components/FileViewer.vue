@@ -839,7 +839,6 @@ defineExpose({ onRevealInFolder, onOpenInApp })
     <div class="sticky top-0 z-10 flex flex-wrap items-center gap-1.5 border-b border-border min-h-11 pl-3.5 pr-2.5 py-1.5 shrink-0">
       <FileCode2 class="h-4 w-4 text-primary shrink-0" :stroke-width="1.75" />
       <span class="text-sm font-mono text-foreground truncate grow basis-32" :title="curPath">{{ curPath }}</span>
-      <OutlineToggle v-if="hasOutline" />
       <!-- Raw / rendered toggle, only meaningful for markdown and HTML files -->
       <SegmentedControl
         v-if="previewable && !editing && !loading && !error && (content || isHtml)"
@@ -1177,16 +1176,19 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       <!-- Rendered markdown preview -->
       <div v-else-if="isMarkdown && mode === 'preview'" class="flex items-start min-h-full">
         <MarkdownOutline v-if="uiLayout.fileOutlineOpen && hasOutline" :source="content" :preview-el="mdEl" :scroll-el="viewerBodyEl" />
-        <div
-          ref="mdEl"
-          v-file-links
-          v-mermaid
-          v-copy-code
-          v-html="renderText(content)"
-          class="markdown-output p-4 leading-relaxed text-foreground flex-1 min-w-0"
-          :style="{ fontSize: fontSize + 'px' }"
-          @click="onProseClick"
-        />
+        <div class="flex-1 min-w-0">
+          <OutlineToggle v-if="hasOutline && !uiLayout.fileOutlineOpen" />
+          <div
+            ref="mdEl"
+            v-file-links
+            v-mermaid
+            v-copy-code
+            v-html="renderText(content)"
+            class="markdown-output p-4 leading-relaxed text-foreground"
+            :style="{ fontSize: fontSize + 'px' }"
+            @click="onProseClick"
+          />
+        </div>
       </div>
       <!-- Raw, line-numbered source -->
       <div
