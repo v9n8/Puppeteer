@@ -5,6 +5,7 @@
 // - `stretch` (default) spreads segments over the full width (sidebar filters).
 // - `radio` makes it a `radiogroup` of `radio`s (`aria-checked`) instead of a
 //   `group` of toggle buttons; pass the group's `aria-label` as an attribute.
+// - Labels never wrap: they truncate, and `title` (default `label`) shows the full text.
 // - `iconOnly` renders just the icon; `label` becomes the tooltip/aria-label.
 import type { Component } from 'vue'
 import { cn } from '@/lib/utils'
@@ -44,7 +45,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
       v-for="o in options"
       :key="String(o.value)"
       type="button"
-      class="relative flex h-6 cursor-pointer items-center justify-center rounded-sm transition-colors before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      class="relative flex h-6 min-w-0 cursor-pointer items-center whitespace-nowrap justify-center rounded-sm transition-colors before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         stretch && 'flex-1',
         iconOnly ? 'w-6 before:-inset-x-0.5' : 'px-2.5',
@@ -53,7 +54,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
           ? 'is-active bg-card font-medium text-foreground ring-1 ring-input'
           : 'text-muted-foreground hover:text-foreground',
       ]"
-      :title="o.title ?? (iconOnly ? o.label : undefined)"
+      :title="o.title ?? o.label"
       :aria-label="iconOnly ? o.label : undefined"
       :role="radio ? 'radio' : undefined"
       :aria-pressed="radio ? undefined : modelValue === o.value"
@@ -62,7 +63,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
       @click="emit('update:modelValue', o.value)"
     >
       <component :is="o.icon" v-if="o.icon" :class="iconOnly ? 'h-3.5 w-3.5' : 'h-3 w-3'" :stroke-width="iconOnly ? 1.75 : 2" />
-      <template v-if="!iconOnly">{{ o.label }}</template>
+      <span v-if="!iconOnly" class="min-w-0 truncate">{{ o.label }}</span>
     </button>
   </div>
 </template>

@@ -428,3 +428,10 @@ test('UR-14: the MCP section explains when a change applies through an InfoTip, 
   // The tip sits beside the title, before the server list.
   assert.ok(template.indexOf('<InfoTip') < template.indexOf('<ul'))
 })
+
+test('UR-23: segmented control labels never wrap; they truncate and keep a full-text title', () => {
+  const src = read('../../components/ui/SegmentedControl.vue')
+  assert.match(src, /whitespace-nowrap/)
+  assert.match(src, /<span v-if="!iconOnly" class="min-w-0 truncate">\{\{ o\.label \}\}<\/span>/)
+  assert.match(src, /:title="o\.title \?\? o\.label"/)
+})
