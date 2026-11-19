@@ -167,6 +167,12 @@ function blockedReason(c: Column): string {
   return run ? t('board.column.blocked', { project: run.project_name }) : ''
 }
 
+/** The dragged card came from the "own flags" column, so its copy shows that flag too. */
+const dragFromOwn = computed(() => {
+  const d = drag.value
+  return !!d && columns.value.find((c) => c.id === columnOfRun(d.run))?.kind === 'own'
+})
+
 function cardState(run: BoardRun): 'idle' | 'lifted' | 'dragging' {
   if (drag.value?.run.id === run.id) return 'dragging'
   return keys.value.lifted?.runId === run.id ? 'lifted' : 'idle'
@@ -362,6 +368,25 @@ function manageFlags() {
         </div>
       </div>
     </div>
+
+    <!-- The card being dragged, following the pointer from where it was grabbed. -->
+    <Teleport to="body">
+      <div
+        v-if="drag && drag.width"
+        class="pointer-events-none fixed left-0 top-0 z-[90] rotate-[1.5deg] shadow-lg shadow-black/20"
+        :style="{ width: `${drag.width}px`, translate: `${drag.x - drag.grabX}px ${drag.y - drag.grabY}px` }"
+        aria-hidden="true"
+      >
+        <BoardCard
+          :run="drag.run"
+          :waiting="!!live.get(drag.run.id)?.permissionQueue[0]"
+          :saving="false"
+          :show-project="mode === 'all'"
+          :own-flag="dragFromOwn ? ownFlagOf(drag.run) : null"
+          state="lifted"
+        />
+      </div>
+    </Teleport>
 
     <p class="h-8 shrink-0 truncate border-t border-border px-4 text-sm leading-8 text-muted-foreground" role="status" aria-live="polite">
       {{ statusLine }}

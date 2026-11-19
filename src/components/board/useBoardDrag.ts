@@ -1,7 +1,9 @@
 // Dragging a board card with the pointer. The webview keeps native HTML5 drag for
 // dropping files, so (like useDragSort) this runs on raw pointer events: a press
 // that travels a few pixels becomes a drag, the column under the pointer is found
-// from `data-board-column`, and the board scrolls sideways near its edges.
+// from `data-board-column`, and the board scrolls sideways near its edges. The
+// card's size and where it was grabbed are kept so a copy can follow the pointer
+// (BoardView draws it; the card itself stays put, faded, to mark where it came from).
 import { onBeforeUnmount, ref, type Ref } from 'vue'
 import type { BoardRun } from '@/stores/flagBoard'
 
@@ -15,6 +17,10 @@ export interface BoardDragState {
   y: number
   /** The column under the pointer, if any. */
   over: string | null
+  /** Where the card was grabbed, from its top-left corner, and its width. */
+  grabX: number
+  grabY: number
+  width: number
 }
 
 export function useBoardDrag(options: {
@@ -27,7 +33,7 @@ export function useBoardDrag(options: {
   columnOf: (run: BoardRun) => string
 }) {
   const drag = ref<BoardDragState | null>(null)
-  let press: { run: BoardRun; x: number; y: number } | null = null
+  let press: { run: BoardRun; x: number; y: number; grabX: number; grabY: number; width: number } | null = null
   let swallowClick = false
   let raf = 0
 
@@ -60,7 +66,8 @@ export function useBoardDrag(options: {
     if (!press) return
     if (!drag.value) {
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < THRESHOLD) return
-      drag.value = { run: press.run, x: e.clientX, y: e.clientY, over: null }
+      const { run, grabX, grabY, width } = press
+      drag.value = { run, x: e.clientX, y: e.clientY, over: null, grabX, grabY, width }
       raf = requestAnimationFrame(scrollNearEdge)
     }
     drag.value.x = e.clientX
@@ -96,7 +103,15 @@ export function useBoardDrag(options: {
 
   function onCardPointerDown(e: PointerEvent, run: BoardRun) {
     if (e.button !== 0) return
-    press = { run, x: e.clientX, y: e.clientY }
+    const rect = (e.target as Element | null)?.closest('[data-card-id]')?.getBoundingClientRect()
+    press = {
+      run,
+      x: e.clientX,
+      y: e.clientY,
+      grabX: rect ? e.clientX - rect.left : 0,
+      grabY: rect ? e.clientY - rect.top : 0,
+      width: rect?.width ?? 0,
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', cancel)
