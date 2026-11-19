@@ -203,11 +203,11 @@ function onOpenUrl(url: string) {
            space the moment the question panel appears/disappears — no
            intermediate frame where the column is stuck at a fixed width). -->
       <div class="relative flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
-      <!-- ⌘F bar, right under the header; on the history pane, with the hits of
-           the whole log. -->
-      <div v-if="findOpen" class="shrink-0 border-b border-border bg-card px-3 py-2">
+      <!-- ⌘F bar floats over the top-right of the log (like the Slack thread);
+           on the history pane, the hits of the whole log hang under it. -->
+      <div v-if="findOpen" class="absolute top-2 right-4 z-20 flex w-fit max-w-[calc(100%-2rem)] flex-col gap-2">
         <FindBar :find="runFind" />
-        <div v-if="logSearchActive" class="mt-2 rounded-md border border-border bg-background text-xs">
+        <div v-if="logSearchActive" class="w-0 min-w-full rounded-md border border-border bg-card text-xs shadow-lg shadow-black/30">
           <div
             v-if="logSearching || !logHits.length"
             class="px-2.5 py-1.5 text-2xs text-foreground/50"

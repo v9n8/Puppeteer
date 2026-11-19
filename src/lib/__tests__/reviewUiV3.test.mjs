@@ -569,3 +569,14 @@ test('UR-13: Quote block has a top handle, content-sized list, two-line cards an
   assert.match(src, /async function removeOne\(id: string\) \{[\s\S]*?await confirm\(/)
   assert.doesNotMatch(src, /hover:bg-background/)
 })
+
+test('UR-24: the log find bar floats top-right with its hits, not a full-width strip', () => {
+  const src = read('../../components/sessions/RunLogPane.vue')
+  const tpl = src.slice(src.indexOf('<template>'))
+  assert.match(tpl, /<div v-if="findOpen" class="absolute top-2 right-4 z-20 [^"]*w-fit/)
+  assert.doesNotMatch(tpl, /v-if="findOpen" class="shrink-0 border-b/)
+  // Hits sit inside the floating block, right after the bar.
+  const at = (s) => tpl.indexOf(s)
+  assert.ok(at('<FindBar :find="runFind"') < at('v-if="logSearchActive"'))
+  assert.ok(at('v-if="logSearchActive"') < at('<!-- Log viewer'))
+})
