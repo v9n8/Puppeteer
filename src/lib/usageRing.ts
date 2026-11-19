@@ -185,6 +185,63 @@ export interface UsageRingAccount {
  * (an empty ring offers its refresh), so no account goes missing; the global
  * Claude row and the shared Codex login only once they have numbers.
  */
-export function visibleUsageRings<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(rows: readonly R[]): R[] {
-  return rows.filter((r) => r.windows.length > 0 || r.key.includes(':'))
+export function visibleUsageRings<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(rows: readonly R[], keepKey?: string | null): R[] {
+  // `keepKey`: the Session's own account always shows (DS-1), numbers or not.
+  return rows.filter((r) => r.windows.length > 0 || r.key.includes(':') || r.key === keepKey)
+}
+
+// ── One usage block on the status bar (DS-1, option A) ──────────────────────
+
+/**
+ * The window the collapsed block names: the most used one, so a weekly window
+ * close to its limit shows even while the 5h one is low. A tie keeps the 5h.
+ */
+export function topWindow(windows: UsageWindow[]): UsageWindow | null {
+  return windows.reduce<UsageWindow | null>((best, w) => (best && best.percent >= w.percent ? best : w), null)
+}
+
+/**
+ * The two columns of the open panel: the 5h window and the most used weekly
+ * one (any weekly window over its block stops new turns), plus every weekly
+ * window for the Week cell's tooltip.
+ */
+export function usageColumns(windows: UsageWindow[]): { fiveHour: UsageWindow | null; week: UsageWindow | null; weekAll: UsageWindow[] } {
+  const weekAll = windows.filter((w) => w.period === 'week')
+  return { fiveHour: windows.find((w) => w.period === '5h') ?? null, week: topWindow(weekAll), weekAll }
+}
+
+/**
+ * What the collapsed block shows: `current` is the Session's account (the
+ * first row when it is not among them); `hot` are the other accounts at the
+ * warning tier or over, most used first; `restCount` the accounts left out.
+ */
+export function summaryRows<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(
+  rows: readonly R[],
+  th: UsageThresholds,
+  currentKey: string | null,
+): { current: R | null; hot: R[]; restCount: number } {
+  const current = rows.find((r) => r.key === currentKey) ?? rows[0] ?? null
+  const pct = (r: R) => topWindow(r.windows)?.percent ?? 0
+  const hot = rows
+    .filter((r) => r !== current && ringSeverity(r.windows, th) !== 'ok')
+    .sort((a, b) => pct(b) - pct(a))
+  return { current, hot, restCount: Math.max(0, rows.length - (current ? 1 : 0) - hot.length) }
+}
+
+/** A run's account fields (`RunRecord`). */
+export interface UsageRunAccounts {
+  claude_account_id?: string | null
+  codex_account_id?: string | null
+}
+
+/**
+ * The usage row of the account a Session runs `defaults.engine` on: the run's
+ * own pick, else the Project's (or global default) Claude account
+ * (`defaults.claudeAccountId`), the shared login for Codex. With no run, the
+ * defaults.
+ */
+export function currentUsageKey(run: UsageRunAccounts | null | undefined, defaults: { engine: string; claudeAccountId: string }): string {
+  if (defaults.engine === 'codex') return run?.codex_account_id ? `codex:${run.codex_account_id}` : 'codex'
+  const id = run?.claude_account_id || defaults.claudeAccountId
+  return id ? `claude:${id}` : 'claude'
 }

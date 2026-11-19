@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown, usageSummary,
-  visibleUsageRings,
+  visibleUsageRings, topWindow, usageColumns, summaryRows, currentUsageKey,
   planUsageRead,
 } from '../usageRing.ts'
 
@@ -126,4 +126,69 @@ test('visibleUsageRings: every account shows, data or not; global rows wait for 
     { key: 'claude', windows: w },
   ]
   assert.deepEqual(visibleUsageRings(rows).map((r) => r.key), ['claude:a', 'claude:b', 'codex:c', 'claude'])
+})
+
+// ── DS-1: one usage block ──
+const rowOf = (key, windows) => ({ key, windows })
+const keysOf = (list) => list.map((r) => r.key)
+
+test('topWindow: the most used window, a tie keeps the 5h; none without data', () => {
+  assert.equal(topWindow([w('five_hour', 12), w('seven_day', 42)]).key, 'seven_day', 'week above 5h')
+  assert.equal(topWindow([w('five_hour', 86), w('seven_day', 61)]).key, 'five_hour')
+  assert.equal(topWindow([w('five_hour', 40), w('seven_day', 40)]).key, 'five_hour', 'tie keeps 5h')
+  assert.equal(topWindow([w('five_hour', 10), w('seven_day', 30), w('seven_day_opus', 97)]).key, 'seven_day_opus')
+  assert.equal(topWindow([]), null, 'no data')
+})
+
+test('usageColumns: 5h, the most used weekly window, and every weekly one for the tooltip', () => {
+  const c = usageColumns([w('five_hour', 5), w('seven_day', 20), w('seven_day_opus', 60), w('seven_day_sonnet', 10)])
+  assert.equal(c.fiveHour.percent, 5)
+  assert.equal(c.week.key, 'seven_day_opus')
+  assert.deepEqual(keysOf(c.weekAll), ['seven_day', 'seven_day_opus', 'seven_day_sonnet'])
+  assert.deepEqual(usageColumns([w('seven_day', 11)]), { fiveHour: null, week: w('seven_day', 11), weekAll: [w('seven_day', 11)] }, 'Codex: weekly only')
+  assert.deepEqual(usageColumns([]), { fiveHour: null, week: null, weekAll: [] })
+})
+
+test('summaryRows: current first, hot accounts by % (warning tier or over), the rest counted', () => {
+  const rows = [
+    rowOf('claude:a', [w('five_hour', 12), w('seven_day', 42)]),
+    rowOf('claude:b', [w('five_hour', 86), w('seven_day', 61)]),
+    rowOf('claude:c', [w('five_hour', 40), w('seven_day', 97)]),
+    rowOf('codex', [w('five_hour', 5), w('seven_day', 11)]),
+    rowOf('codex:x', []),
+  ]
+  const s = summaryRows(rows, th(), 'claude:a')
+  assert.equal(s.current.key, 'claude:a')
+  assert.deepEqual(keysOf(s.hot), ['claude:c', 'claude:b'], 'sorted by the most used window')
+  assert.equal(s.restCount, 2)
+  // the warning tier comes from quota_warn_percent
+  assert.deepEqual(keysOf(summaryRows(rows, th(90), 'claude:a').hot), ['claude:c'])
+  // the current account is never a chip, even when hot
+  assert.deepEqual(keysOf(summaryRows(rows, th(), 'claude:b').hot), ['claude:c'])
+})
+
+test('summaryRows: current without numbers still leads; unknown key falls back to the first row', () => {
+  const rows = [rowOf('claude:a', []), rowOf('claude:b', [w('five_hour', 95)])]
+  const s = summaryRows(rows, th(), 'claude:a')
+  assert.equal(s.current.key, 'claude:a')
+  assert.deepEqual(keysOf(s.hot), ['claude:b'])
+  assert.equal(s.restCount, 0)
+  assert.equal(summaryRows(rows, th(), 'claude:zz').current.key, 'claude:a')
+  assert.deepEqual(summaryRows([], th(), 'claude:a'), { current: null, hot: [], restCount: 0 })
+})
+
+test('currentUsageKey: the run pick, else the Project / global default, else the shared row', () => {
+  const d = { engine: 'claude', claudeAccountId: 'p1' }
+  assert.equal(currentUsageKey({ claude_account_id: 'a2' }, d), 'claude:a2')
+  assert.equal(currentUsageKey({ claude_account_id: null }, d), 'claude:p1', 'no pick follows the Project')
+  assert.equal(currentUsageKey(null, d), 'claude:p1', 'no run: the default')
+  assert.equal(currentUsageKey(null, { engine: 'claude', claudeAccountId: '' }), 'claude', 'no account set up')
+  assert.equal(currentUsageKey({ codex_account_id: 'x1' }, { engine: 'codex', claudeAccountId: 'p1' }), 'codex:x1')
+  assert.equal(currentUsageKey({ codex_account_id: null }, { engine: 'codex', claudeAccountId: 'p1' }), 'codex', 'shared Codex login')
+  assert.equal(currentUsageKey(null, { engine: 'codex', claudeAccountId: '' }), 'codex')
+})
+
+test('visibleUsageRings: keepKey keeps the Session account row without numbers', () => {
+  const rows = [rowOf('claude', []), rowOf('codex', []), rowOf('codex:c', [])]
+  assert.deepEqual(keysOf(visibleUsageRings(rows, 'codex')), ['codex', 'codex:c'])
 })
