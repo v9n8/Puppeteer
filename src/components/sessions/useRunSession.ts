@@ -64,7 +64,7 @@ function useRunViewLifecycle(s: RunSession) {
     currentRunId, loadMarkdown, scrollMemory, onTurnNavKey, onWindowPointerUp, openRouteSearchHit,
     loadRunLog, loadProjectServers, repos, onRunSettingsPointerDown, onAccountMenuPointerDown, handleNewSession,
     isDraggingFile, addDroppedPaths, composerVisible, autoResizeComposer, ensureProjectFiles,
-    setupMentionBridge,
+    setupMentionBridge, clearActiveRunState, currentStatus, router,
   } = s
 
   onMounted(async () => {
@@ -174,8 +174,15 @@ function useRunViewLifecycle(s: RunSession) {
     )
     // Sessions moved to / out of the Trash elsewhere (another window, the Trash
     // screen, a remote desktop): History follows.
-    trashChangedUnlisten = await listen(EVT_TRASH_CHANGED, () => {
-      runsStore.fetchRuns(projectId.value)
+    trashChangedUnlisten = await listen(EVT_TRASH_CHANGED, async () => {
+      await runsStore.fetchRuns(projectId.value)
+      // The open session may have been trashed elsewhere (e.g. "delete all" on the
+      // Project overview): drop its log and composer binding like handleDeleteRun.
+      const openId = currentRunId.value
+      if (openId && !runsStore.runs.some(r => r.id === openId) && currentStatus.value !== 'running') {
+        clearActiveRunState()
+        if (activeRunId.value === openId) router.replace(`/projects/${projectId.value}`)
+      }
     })
   })
 

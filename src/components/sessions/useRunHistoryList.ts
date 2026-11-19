@@ -699,7 +699,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     runTimestamp, sessionSearch, projectFlags, flagFilter, flagCounts, flagOptions, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
     runGithubUrl, handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId,
     renameDraft, setRenameInputRef, cancelRename, commitRename, applyRename, renameViaPrompt, runActionProps,
-    runActionHandlers, handleRefInput,
+    runActionHandlers, handleRefInput, clearActiveRunState,
   }
 }
 

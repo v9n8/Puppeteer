@@ -7,6 +7,12 @@ import { draftQuoteLink } from '../quote.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
+test('UR-01: deleting every session also clears the open one when the trash event arrives', () => {
+  const src = read('../../components/sessions/useRunSession.ts')
+  assert.match(src, /listen\(EVT_TRASH_CHANGED, async \(\) => \{\s*await runsStore\.fetchRuns\(projectId\.value\)[\s\S]*?!runsStore\.runs\.some\(r => r\.id === openId\)[\s\S]*?clearActiveRunState\(\)[\s\S]*?router\.replace\(/)
+  assert.match(read('../../components/sessions/useRunHistoryList.ts'), /runActionHandlers, handleRefInput, clearActiveRunState,/)
+})
+
 test('UR-47: line gutter follows the digit count and the floating bars hang off a zero-height anchor', () => {
   const src = read('../../components/FileViewer.vue')
   assert.match(src, /const gutterWidth = computed\(\(\) => `calc\(\$\{Math\.max\(String\(lines\.value\.length\)\.length, 2\)\}ch \+ 1\.25rem\)`\)/)
