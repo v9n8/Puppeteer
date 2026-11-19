@@ -37,6 +37,7 @@ import {
 } from '@/composables/useSelectionSurface'
 import { useFeaturesStore } from '@/stores/features'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { IS_POPOUT_WINDOW, IS_SESSION_WINDOW } from '@/lib/windowMode'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -70,10 +71,12 @@ const ICONS = {
   saveTodo: ListTodo,
 } as const
 
-// Quote names its target on the button itself, so a quote never lands in a
-// session the user did not mean.
+// The main window shows a short "Quote" (the tooltip still names the target);
+// a window of its own (file viewer, pop-out) names its target on the button, so
+// a quote never lands in a session the user did not mean.
+const ownWindow = IS_POPOUT_WINDOW || IS_SESSION_WINDOW
 function label(action: SelectionAction): string {
-  if (action === 'quote') return t('selection.quote', { target: bar.value?.quoteTarget?.label ?? '' })
+  if (action === 'quote') return ownWindow ? t('selection.quote', { target: bar.value?.quoteTarget?.label ?? '' }) : t('selection.quoteShort')
   return t(`selection.${action}`)
 }
 

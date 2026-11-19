@@ -164,3 +164,14 @@ test('UR-06: header order is title, bookmarks, find, flag chip, pop-out; ⋯ onl
     }
   }
 })
+
+test('UR-09: the main window shows a short "Quote", own windows name the target; the tooltip always does', () => {
+  const src = read('../../components/SelectionToolbar.vue')
+  assert.match(src, /ownWindow = IS_POPOUT_WINDOW \|\| IS_SESSION_WINDOW/)
+  assert.match(src, /ownWindow \? t\('selection\.quote', .*: t\('selection\.quoteShort'\)/)
+  assert.match(src, /t\('selection\.quoteTitle', \{ target/)
+  for (const l of ['en', 'vi']) {
+    const s = json(`../../i18n/locales/${l}/selection.json`)
+    assert.ok(s.quoteShort && s.quote.includes('{target}') && s.quoteTitle.includes('{target}'))
+  }
+})

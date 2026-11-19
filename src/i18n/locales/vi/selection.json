@@ -1,5 +1,6 @@
 {
   "quote": "Quote → {target}",
+  "quoteShort": "Quote",
   "quoteTitle": "Quote đoạn đã chọn vào {target}",
   "quoteNote": {
     "notePlaceholder": "Thêm ghi chú (không bắt buộc)",
