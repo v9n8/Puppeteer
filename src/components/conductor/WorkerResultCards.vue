@@ -100,7 +100,7 @@ function openChanged(id: string) {
           {{ c.statusLabel }}
         </span>
       </div>
-      <div v-if="c.line" class="mt-1 text-foreground/60">{{ c.line }}</div>
+      <div v-if="c.line" class="mt-1 min-w-0 text-foreground/60 [overflow-wrap:anywhere]">{{ c.line }}</div>
       <div v-if="session" class="mt-2 flex flex-wrap items-center gap-2">
         <Button
           size="sm"
@@ -128,7 +128,7 @@ function openChanged(id: string) {
         <ChevronRight class="h-3 w-3 transition-transform" :class="{ 'rotate-90': showNudge }" :stroke-width="2" />
         {{ t('conductor.result.nudge') }}
       </button>
-      <div v-if="showNudge" class="mt-1 whitespace-pre-wrap rounded-lg border border-border bg-muted/40 px-3 py-2.5 leading-relaxed">{{ nudge }}</div>
+      <div v-if="showNudge" class="mt-1 min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap rounded-lg border border-border bg-muted/40 px-3 py-2.5 leading-relaxed">{{ nudge }}</div>
     </div>
   </div>
 </template>

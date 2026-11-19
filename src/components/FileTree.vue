@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
       @scroll="hideTip"
       @mouseleave="hideTip"
     >
-      <div v-if="rootError" class="px-3 py-2 text-xs text-destructive">{{ rootError }}</div>
+      <div v-if="rootError" class="px-3 py-2 text-xs text-destructive break-all">{{ rootError }}</div>
       <div v-else-if="rootLoading && rootEntries.length === 0" class="px-3 py-2 text-xs text-muted-foreground">{{ t('common.loading') }}</div>
       <div v-else-if="rootEntries.length === 0" class="px-3 py-6 text-xs text-muted-foreground" @contextmenu.prevent="openRootMenu">{{ t('files.tree.emptyFolder') }}</div>
       <FileTreeNode

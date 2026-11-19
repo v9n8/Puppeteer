@@ -86,7 +86,7 @@ const splitRows = computed(() => (props.split ? splitDiffRows(result.value.rows)
         >{{ row.type === 'add' ? '+' : row.type === 'del' ? '−' : '' }}</span>
         <!-- Line text -->
         <span
-          class="flex-1 px-2 whitespace-pre-wrap break-words"
+          class="min-w-0 flex-1 px-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
           :class="{
             'text-emerald-700 dark:text-emerald-100/90': row.type === 'add',
             'text-red-700 dark:text-red-200/90': row.type === 'del',

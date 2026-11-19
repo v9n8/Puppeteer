@@ -197,7 +197,7 @@ async function unlinkBoard() {
         </div>
 
         <div v-else-if="project.github_project_board_url" class="text-2xs text-muted-foreground">
-          {{ t('projectDetail.savedBoardPrefix') }} <span class="text-foreground">{{ project.github_project_board_url }}</span>.
+          {{ t('projectDetail.savedBoardPrefix') }} <span class="text-foreground break-all">{{ project.github_project_board_url }}</span>.
           {{ t('projectDetail.savedBoardSuffix') }}
           <div class="pt-2">
             <Button variant="ghost" size="sm" :disabled="savingBoard" @click="unlinkBoard">{{ t('projectDetail.unlink') }}</Button>

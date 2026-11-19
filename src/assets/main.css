@@ -563,6 +563,10 @@
 .markdown-output .code-copy-wrap {
   margin: 0 0 0.8rem;
 }
+/* Leave room for the copy button so it never covers the end of the first line. */
+.code-copy-wrap > pre {
+  padding-right: 2.6rem;
+}
 
 /* Copy button injected into fenced code blocks and mermaid diagrams (see
    src/lib/copyCode.ts). Global (not under .markdown-output) so it also works in

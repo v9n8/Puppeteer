@@ -199,9 +199,9 @@ watch([rows, types], () => {
       >
         <component :is="connectionType(row.type).icon" class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.5" />
         <div class="min-w-0 flex-1">
-          <div class="text-sm font-medium truncate flex items-center gap-1.5">
-            {{ row.label }}
-            <span v-if="row.isDefault" class="text-2xs font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
+          <div class="text-sm font-medium flex items-center gap-1.5">
+            <span class="min-w-0 truncate">{{ row.label }}</span>
+            <span v-if="row.isDefault" class="shrink-0 text-2xs font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
           </div>
           <div class="text-2xs text-muted-foreground truncate">
             <span>{{ t(connectionType(row.type).labelKey) }}</span>

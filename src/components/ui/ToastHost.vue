@@ -44,7 +44,7 @@ const TONES: Record<ToastVariant, string> = {
             :class="TONES[t.variant]"
             :stroke-width="2"
           />
-          <span class="flex-1 text-foreground leading-snug">{{ t.message }}</span>
+          <span class="min-w-0 flex-1 text-foreground leading-snug [overflow-wrap:anywhere]">{{ t.message }}</span>
           <button
             v-if="t.action"
             type="button"

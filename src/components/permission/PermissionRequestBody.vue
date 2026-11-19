@@ -103,13 +103,13 @@ function splitLines(s: string): string[] {
         <div v-if="part.before" class="bg-red-500/10 dark:bg-red-500/5">
           <div v-for="(ln, li) in splitLines(part.before)" :key="'b' + li" class="flex">
             <span class="w-5 shrink-0 select-none bg-red-500/15 text-center text-red-600 dark:bg-red-500/10 dark:text-red-400/70">-</span>
-            <span class="whitespace-pre-wrap break-words px-2 text-red-700 dark:text-red-200/90">{{ ln || ' ' }}</span>
+            <span class="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-2 text-red-700 dark:text-red-200/90">{{ ln || ' ' }}</span>
           </div>
         </div>
         <div v-if="part.after" class="bg-emerald-500/10 dark:bg-emerald-500/5">
           <div v-for="(ln, li) in splitLines(part.after)" :key="'a' + li" class="flex">
             <span class="w-5 shrink-0 select-none bg-emerald-500/15 text-center text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400/70">+</span>
-            <span class="whitespace-pre-wrap break-words px-2 text-emerald-700 dark:text-emerald-100/90">{{ ln || ' ' }}</span>
+            <span class="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-2 text-emerald-700 dark:text-emerald-100/90">{{ ln || ' ' }}</span>
           </div>
         </div>
       </div>

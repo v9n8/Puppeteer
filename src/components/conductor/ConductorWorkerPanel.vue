@@ -400,7 +400,7 @@ onBeforeUnmount(onDragEnd)
         </p>
         <div v-for="(e, i) in events" :key="i" class="flex items-start gap-2 text-2xs">
           <span class="font-mono text-muted-foreground/70 shrink-0">{{ formatWhen(e.ts) }}</span>
-          <span class="text-foreground/80">{{ eventSummary(e) }}</span>
+          <span class="min-w-0 text-foreground/80 [overflow-wrap:anywhere]">{{ eventSummary(e) }}</span>
         </div>
       </div>
     </div>

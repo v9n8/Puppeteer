@@ -32,7 +32,7 @@ watch(
       >
         <AlertTriangle class="h-4 w-4" :stroke-width="1.75" />
       </div>
-      <p class="text-sm text-muted-foreground whitespace-pre-line self-center">{{ state.message }}</p>
+      <p class="text-sm text-muted-foreground whitespace-pre-line self-center min-w-0 [overflow-wrap:anywhere]">{{ state.message }}</p>
     </div>
     <template #footer>
       <!-- Wraps when a second action and a long label don't fit on one line. -->

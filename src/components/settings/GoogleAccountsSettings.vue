@@ -179,10 +179,10 @@ onMounted(loadGoogleStatus)
         <template v-if="googleEditing !== acc.id">
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
-              <div class="text-sm font-medium truncate flex items-center gap-1.5">
-                <CheckCircle2 class="h-3.5 w-3.5 text-success" :stroke-width="1.75" />
-                {{ acc.label }}
-                <span v-if="acc.is_default" class="text-2xs font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
+              <div class="text-sm font-medium flex items-center gap-1.5">
+                <CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-success" :stroke-width="1.75" />
+                <span class="min-w-0 truncate">{{ acc.label }}</span>
+                <span v-if="acc.is_default" class="shrink-0 text-2xs font-medium text-primary border border-primary/40 rounded px-1">{{ t('settings.google.default') }}</span>
               </div>
               <div class="text-2xs text-muted-foreground truncate">{{ acc.email || t('settings.google.driveGmail') }}</div>
             </div>

@@ -443,3 +443,28 @@ test('UR-21: the context chip keeps /compact as one short label and moves the hi
   assert.doesNotMatch(src, /<span[^>]*>\{\{ t\('run\.infoBar\.context\.compactHint'\) \}\}<\/span>/)
   for (const lang of ['en', 'vi']) assert.match(read(`../../i18n/locales/${lang}/run.json`), /"compactHint": "/)
 })
+
+test('UR-38: long unbroken text wraps inside flex rows instead of overflowing', () => {
+  const wraps = [
+    ['../../components/DiffView.vue', /class="min-w-0 flex-1 px-2 whitespace-pre-wrap break-words \[overflow-wrap:anywhere\]"/],
+    ['../../components/permission/PermissionRequestBody.vue', /min-w-0 whitespace-pre-wrap break-words \[overflow-wrap:anywhere\] px-2 text-red/],
+    ['../../components/permission/PermissionRequestBody.vue', /min-w-0 whitespace-pre-wrap break-words \[overflow-wrap:anywhere\] px-2 text-emerald/],
+    ['../../components/ui/ToastHost.vue', /min-w-0 flex-1 text-foreground leading-snug \[overflow-wrap:anywhere\]/],
+    ['../../components/ui/ConfirmModal.vue', /self-center min-w-0 \[overflow-wrap:anywhere\]/],
+    ['../../components/conductor/WorkerResultCards.vue', /mt-1 min-w-0 text-foreground\/60 \[overflow-wrap:anywhere\]/],
+    ['../../components/conductor/WorkerResultCards.vue', /mt-1 min-w-0 \[overflow-wrap:anywhere\] whitespace-pre-wrap/],
+    ['../../components/conductor/ConductorWorkerPanel.vue', /min-w-0 text-foreground\/80 \[overflow-wrap:anywhere\]/],
+    ['../../components/FileTree.vue', /text-destructive break-all">\{\{ rootError/],
+    ['../../components/projects/ProjectBoard.vue', /text-foreground break-all">\{\{ project\.github_project_board_url/],
+  ]
+  for (const [file, re] of wraps) assert.match(read(file), re, file)
+  // Account rows: only the label truncates; the "default" tag keeps its width.
+  for (const file of ['../../components/settings/ConnectionsSettings.vue', '../../components/settings/GoogleAccountsSettings.vue']) {
+    const src = read(file)
+    assert.match(src, /<span class="min-w-0 truncate">\{\{ (row|acc)\.label \}\}<\/span>/, file)
+    assert.match(src, /shrink-0 text-2xs font-medium text-primary/, file)
+    assert.doesNotMatch(src, /text-sm font-medium truncate flex items-center gap-1\.5/, file)
+  }
+  // The copy button gets its own gutter so it does not cover the end of the first code line.
+  assert.match(read('../../assets/main.css'), /\.code-copy-wrap > pre \{\s*padding-right: 2\.6rem;/)
+})
