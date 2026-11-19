@@ -89,8 +89,7 @@
     "allFailed": "{count} review không bắt đầu được"
   },
   "display": {
-    "button": "Hiển thị",
-    "hideBotsHint": "Gộp PR của bot vào một dòng tóm tắt"
+    "button": "Hiển thị"
   },
   "clearSearch": "Xoá tìm kiếm",
   "reviewAs": "Review bằng {account}",

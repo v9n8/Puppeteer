@@ -6,7 +6,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ZoomIn, ZoomOut, ArrowLeftRight, X } from 'lucide-vue-next'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { Button } from '@/components/ui'
+import { Button, InfoTip } from '@/components/ui'
 
 const props = defineProps<{
   projectPath: string
@@ -109,6 +109,7 @@ function onDblClick() {
     <!-- Header -->
     <div class="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5 shrink-0">
       <span class="text-xs font-semibold text-foreground/90 shrink-0">{{ t('files.compare.title') }}</span>
+      <InfoTip :text="t('files.compare.hint')" />
       <div class="flex-1 min-w-0 flex items-center gap-2 text-2xs font-mono text-foreground/60">
         <span class="truncate flex-1 text-right" :title="left">{{ basename(left) }}</span>
         <span class="text-foreground/30 shrink-0">↔</span>
@@ -201,11 +202,6 @@ function onDblClick() {
           @dblclick="onDblClick"
         />
       </div>
-    </div>
-
-    <!-- Hint -->
-    <div class="shrink-0 border-t border-border px-4 py-1.5 text-2xs text-foreground/40 text-center">
-      {{ t('files.compare.hint') }}
     </div>
   </div>
 </template>

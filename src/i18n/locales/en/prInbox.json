@@ -89,8 +89,7 @@
     "allFailed": "{count} review failed to start | {count} reviews failed to start"
   },
   "display": {
-    "button": "Display",
-    "hideBotsHint": "Collapse bot PRs into one summary row"
+    "button": "Display"
   },
   "clearSearch": "Clear search",
   "reviewAs": "Review as {account}",

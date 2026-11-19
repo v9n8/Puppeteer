@@ -58,8 +58,7 @@
     "restored": "Đã khôi phục {n} flag mặc định"
   },
   "color": {
-    "title": "Màu của “{name}”",
-    "footer": "Hai flag trùng màu vẫn được; tên giúp phân biệt."
+    "title": "Màu của “{name}”"
   },
   "editor": {
     "newTitle": "Flag mới",

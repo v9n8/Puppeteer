@@ -480,9 +480,6 @@ function openForAccount(url: string) {
                 <Moon class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.lunarCalendar') }}</span>
-                  <span class="block text-2xs text-muted-foreground truncate">
-                    {{ t('calendar.view.lunarHint') }}
-                  </span>
                 </span>
                 <span
                   class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
@@ -533,15 +530,13 @@ function openForAccount(url: string) {
                 type="button"
                 role="switch"
                 :aria-checked="store.autoTranslate"
+                :title="t('calendar.view.autoTranslateHint', { lang: targetLangName })"
                 class="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 @click="toggleAutoTranslate"
               >
                 <Languages class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.autoTranslate') }}</span>
-                  <span class="block text-2xs text-muted-foreground truncate">
-                    {{ t('calendar.view.autoTranslateHint', { lang: targetLangName }) }}
-                  </span>
                 </span>
                 <Loader2 v-if="store.translating" class="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
                 <!-- toggle track -->
@@ -569,9 +564,6 @@ function openForAccount(url: string) {
                 <Bell class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm text-foreground">{{ t('calendar.view.eventReminders') }}</span>
-                  <span class="block text-2xs text-muted-foreground truncate">
-                    {{ t('calendar.view.eventRemindersHint') }}
-                  </span>
                 </span>
                 <span
                   class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"

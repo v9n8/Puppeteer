@@ -222,3 +222,51 @@ test('UR-39: hover and pinned states differ from the surface behind them', () =>
   assert.match(ring, /'bg-accent text-foreground': pinned/)
   assert.match(read('../../components/projects/ProjectList.vue'), /cursor-grab[^"]*hover:bg-foreground\/10/)
 })
+
+test('UR-37: remaining screens put their explanations behind an InfoTip and drop the restating lines', () => {
+  const tips = [
+    ['views/SchedulesView.vue', 'schedules.hint'],
+    ['views/TrashView.vue', 'trash.hint'],
+    ['views/TrashView.vue', 'trash.search.hint'],
+    ['views/TrashView.vue', 'trash.content.hint'],
+    ['components/running/BackgroundProcessesTab.vue', 'processes.subtitle'],
+    ['components/running/BackgroundProcessesTab.vue', 'processes.sections.servicesHint'],
+    ['components/processes/DevServersCard.vue', 'processes.devServers.hint'],
+    ['views/StatsView.vue', 'stats.storage.note'],
+    ['components/prInbox/PrInboxBotAccountsModal.vue', 'prInbox.botAccounts.hint'],
+    ['components/ImageCompareView.vue', 'files.compare.hint'],
+    ['components/fileTransfer/FileTransferScreen.vue', 'fileTransfer.hint'],
+    ['components/focus/FocusAiDialogs.vue', 'focus.ai.pickProjectHint'],
+    ['components/calendar/EventEditorModal.vue', 'calendar.editor.attendeesEditHint'],
+    ['components/calendar/EventEditorModal.vue', 'calendar.editor.remindersEditHint'],
+    ['components/calendar/EventEditorModal.vue', 'calendar.editor.recurrenceEditHint'],
+  ]
+  for (const [file, key] of tips) {
+    const src = read(`../../${file}`)
+    const k = key.replace(/\./g, '\\.')
+    assert.ok(new RegExp(`<InfoTip[^>]*t\\('${k}'`).test(src), `${file} shows ${key} in an InfoTip`)
+    assert.doesNotMatch(src, new RegExp(`<p[^>]*>\\s*\\{\\{ t\\('${k}'`), `${file} no longer prints ${key} as a paragraph`)
+  }
+  // The Stats plan sentences are joined from their i18n pieces for the tip.
+  const stats = read('../../views/StatsView.vue')
+  assert.match(stats, /<InfoTip :text="claudePlanHint"/)
+  assert.match(stats, /<InfoTip :text="codexPlanHint"/)
+  // The services header toggle is a button, so its tip sits beside it, not inside it.
+  assert.match(read('../../components/running/BackgroundProcessesTab.vue'), /<\/button>\s*<InfoTip :text="t\('processes.sections.servicesHint'\)"/)
+  // Lines that only restated the switch label are gone together with their keys.
+  const dropped = [
+    ['views/CalendarView.vue', 'calendar.view.lunarHint'],
+    ['views/CalendarView.vue', 'calendar.view.eventRemindersHint'],
+    ['components/prInbox/PrInboxDisplayPopover.vue', 'prInbox.display.hideBotsHint'],
+    ['components/flags/FlagColorPopover.vue', 'sessionFlags.color.footer'],
+  ]
+  for (const [file, key] of dropped) {
+    assert.ok(!read(`../../${file}`).includes(key), `${file} no longer uses ${key}`)
+    const [ns, ...path] = key.split('.')
+    for (const l of ['en', 'vi']) {
+      let node = JSON.parse(read(`../../i18n/locales/${l}/${ns}.json`))
+      for (const p of path) node = node?.[p]
+      assert.equal(node, undefined, `${l}/${ns}.json dropped ${key}`)
+    }
+  }
+})

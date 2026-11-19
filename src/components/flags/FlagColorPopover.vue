@@ -71,6 +71,5 @@ onBeforeUnmount(() => {
       </span>
       <Check v-if="flag.color === color" class="h-3.5 w-3.5 shrink-0 text-primary" :class="sharedWith(color) ? '' : 'ml-auto'" :stroke-width="2.25" />
     </button>
-    <p class="px-1.5 pt-1.5 text-2xs text-muted-foreground">{{ t('sessionFlags.color.footer') }}</p>
   </div>
 </template>

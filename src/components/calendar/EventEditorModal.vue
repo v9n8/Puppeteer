@@ -8,7 +8,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, X, Video, CalendarClock } from 'lucide-vue-next'
-import { Modal, Button, Input, Textarea, Badge, AppSelect, DatePicker } from '@/components/ui'
+import { Modal, Button, InfoTip, Input, Textarea, Badge, AppSelect, DatePicker } from '@/components/ui'
 import {
   useGoogleCalendarStore,
   isAuthError,
@@ -423,10 +423,10 @@ const isEdit = computed(() => props.mode === 'edit')
 
       <!-- Attendees -->
       <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.attendees') }}</label>
-        <p v-if="isEdit" class="text-2xs text-muted-foreground">
-          {{ t('calendar.editor.attendeesEditHint') }}
-        </p>
+        <div class="flex items-center gap-1.5">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.attendees') }}</label>
+          <InfoTip v-if="isEdit" :text="t('calendar.editor.attendeesEditHint')" />
+        </div>
         <div v-if="form.attendees.length" class="flex flex-wrap gap-1.5">
           <Badge v-for="email in form.attendees" :key="email" tone="neutral" size="sm">
             {{ email }}
@@ -458,10 +458,10 @@ const isEdit = computed(() => props.mode === 'edit')
 
       <!-- Reminders -->
       <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.reminders') }}</label>
-        <p v-if="isEdit" class="text-2xs text-muted-foreground">
-          {{ t('calendar.editor.remindersEditHint') }}
-        </p>
+        <div class="flex items-center gap-1.5">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.reminders') }}</label>
+          <InfoTip v-if="isEdit" :text="t('calendar.editor.remindersEditHint')" />
+        </div>
         <div v-for="(r, i) in form.reminders" :key="i" class="flex items-center gap-2">
           <AppSelect
             :model-value="r.method"
@@ -491,10 +491,10 @@ const isEdit = computed(() => props.mode === 'edit')
 
       <!-- Recurrence -->
       <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.recurrence') }}</label>
-        <p v-if="isEdit" class="text-2xs text-muted-foreground">
-          {{ t('calendar.editor.recurrenceEditHint') }}
-        </p>
+        <div class="flex items-center gap-1.5">
+          <label class="text-xs font-medium text-muted-foreground">{{ t('calendar.editor.recurrence') }}</label>
+          <InfoTip v-if="isEdit" :text="t('calendar.editor.recurrenceEditHint')" />
+        </div>
         <AppSelect
           v-model="form.recurrencePreset"
           :options="RECURRENCE_OPTIONS"

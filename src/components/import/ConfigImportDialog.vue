@@ -11,7 +11,7 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RotateCw } from 'lucide-vue-next'
-import { AppSelect, Badge, Banner, Button, Input, Modal } from '@/components/ui'
+import { AppSelect, Badge, Banner, Button, InfoTip, Input, Modal } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import {
@@ -255,7 +255,10 @@ function outcomeText(o: ImportOutcome): string {
     @update:open="emit('update:open', $event)"
   >
     <template #header>
-      <h3 class="flex-1 text-sm font-semibold">{{ t('configImport.title') }}</h3>
+      <h3 class="text-sm font-semibold">{{ t('configImport.title') }}</h3>
+      <span class="flex flex-1 items-center">
+        <InfoTip :text="into === 'mcp' ? t('configImport.hintMcp') : t('configImport.hintLibrary')" />
+      </span>
       <Button
         variant="ghost"
         size="icon"
@@ -269,9 +272,6 @@ function outcomeText(o: ImportOutcome): string {
     </template>
 
     <div class="space-y-4 p-4">
-      <p class="text-xs text-muted-foreground">
-        {{ into === 'mcp' ? t('configImport.hintMcp') : t('configImport.hintLibrary') }}
-      </p>
       <p v-if="into === 'library' && destLabel" class="truncate text-xs" :title="destLabel">
         <span class="text-muted-foreground">{{ t('configImport.into') }}</span>
         <span class="ml-1 font-mono">{{ destLabel }}</span>

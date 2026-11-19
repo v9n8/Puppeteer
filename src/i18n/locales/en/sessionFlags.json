@@ -58,8 +58,7 @@
     "restored": "Restored {n} default flags"
   },
   "color": {
-    "title": "Colour of “{name}”",
-    "footer": "Two flags can share a colour; the name tells them apart."
+    "title": "Colour of “{name}”"
   },
   "editor": {
     "newTitle": "New flag",

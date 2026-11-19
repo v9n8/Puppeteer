@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { RotateCw, Trash2 } from 'lucide-vue-next'
-import { Banner, Button, EmptyState, PageHeader, Skeleton } from '@/components/ui'
+import { Banner, Button, EmptyState, InfoTip, PageHeader, Skeleton } from '@/components/ui'
 import { useFeaturesStore } from '@/stores/features'
 import TrashGroupCard from '@/components/trash/TrashGroupCard.vue'
 import TrashToolbar from '@/components/trash/TrashToolbar.vue'
@@ -363,6 +363,7 @@ function openProject(group: TrashEntry['full']) {
 <template>
   <div class="flex flex-col h-full">
     <PageHeader :title="t('trash.title')" :count="totals.sessions || null" :count-title="sessionCount(totals.sessions)">
+      <template #meta><InfoTip :text="t('trash.hint')" /></template>
       <template #actions>
         <Button variant="ghost" size="icon-xs" :disabled="loading" :title="t('trash.refresh')" :aria-label="t('trash.refresh')" @click="load">
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
@@ -394,7 +395,6 @@ function openProject(group: TrashEntry['full']) {
       />
 
       <div v-else class="max-w-4xl space-y-4">
-        <p class="text-xs text-muted-foreground">{{ t('trash.hint') }}</p>
         <Banner v-if="remote" tone="info">{{ t('trash.remote') }}</Banner>
         <Banner v-if="error" tone="destructive">
           {{ error }}
@@ -419,7 +419,7 @@ function openProject(group: TrashEntry['full']) {
           </template>
           <template v-else>
             {{ t('trash.search.found', { sessions: sessionCount(matchedSessions), projects: t('trash.projectCount', { count: entries.length }, entries.length), query: query.trim() }) }}
-            <span class="block text-xs">{{ t('trash.search.hint') }}</span>
+            <InfoTip :text="t('trash.search.hint')" />
           </template>
         </p>
         <p v-else-if="mode === 'content' && contentState === 'idle' && query.trim()" class="text-sm text-muted-foreground" role="status">
@@ -435,7 +435,7 @@ function openProject(group: TrashEntry['full']) {
           </template>
           <template v-else>
             {{ t('trash.content.found', { sessions: sessionCount(matchedSessions), projects: t('trash.projectCount', { count: entries.length }, entries.length), query: searchedQuery }) }}
-            <span class="block text-xs">{{ t('trash.content.hint') }}</span>
+            <InfoTip :text="t('trash.content.hint')" />
             <span v-if="contentTruncated" class="block text-xs">{{ t('trash.content.truncated', { count: 200 }) }}</span>
           </template>
         </p>

@@ -9,7 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { CalendarClock, Pencil, Play, Plus, RotateCw, Trash2 } from 'lucide-vue-next'
-import { AppSelect, Badge, Banner, Button, EmptyState, Input, Modal, PageHeader, Textarea, ToggleSwitch } from '@/components/ui'
+import { AppSelect, Badge, Banner, Button, EmptyState, InfoTip, Input, Modal, PageHeader, Textarea, ToggleSwitch } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -214,6 +214,7 @@ async function remove(s: Schedule) {
 <template>
   <div class="flex flex-col h-full">
     <PageHeader :title="t('schedules.title')" :count="schedules.length || null">
+      <template #meta><InfoTip :text="t('schedules.hint')" /></template>
       <template #actions>
         <Button variant="ghost" size="icon-xs" :disabled="loading" :title="t('schedules.refresh')" :aria-label="t('schedules.refresh')" @click="load">
           <RotateCw class="h-3.5 w-3.5" :class="loading && 'animate-spin'" :stroke-width="2" />
@@ -227,7 +228,6 @@ async function remove(s: Schedule) {
 
     <div class="flex-1 overflow-auto p-6">
       <div class="max-w-4xl space-y-4">
-        <p class="text-xs text-muted-foreground">{{ t('schedules.hint') }}</p>
         <Banner v-if="remote" tone="info">{{ t('schedules.remote') }}</Banner>
         <Banner v-if="error" tone="destructive">
           {{ error }}

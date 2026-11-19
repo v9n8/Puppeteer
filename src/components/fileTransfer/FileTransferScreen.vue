@@ -13,7 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-vue-next'
-import { Button } from '@/components/ui'
+import { Button, InfoTip } from '@/components/ui'
 import FileTransferPane from '@/components/fileTransfer/FileTransferPane.vue'
 import FileTransferQueue from '@/components/fileTransfer/FileTransferQueue.vue'
 import FileTransferConflict from '@/components/fileTransfer/FileTransferConflict.vue'
@@ -233,11 +233,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-full min-h-0 flex-col gap-2">
-    <p class="flex shrink-0 items-center gap-2 px-1 text-xs text-muted-foreground">
-      <span class="truncate">{{ t('fileTransfer.hint', { device }) }}</span>
-      <Loader2 v-if="planning" class="h-3.5 w-3.5 shrink-0 animate-spin" />
-    </p>
-
     <div class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2">
       <FileTransferPane
         ref="localPane"
@@ -247,6 +242,10 @@ onBeforeUnmount(() => {
         @drag-start="(entries, x, y) => onDragStart('local', entries, x, y)"
       />
       <div class="flex max-w-[11rem] flex-col items-stretch justify-center gap-2">
+        <div class="flex items-center justify-center gap-2 text-muted-foreground">
+          <InfoTip :text="t('fileTransfer.hint', { device })" />
+          <Loader2 v-if="planning" class="h-3.5 w-3.5 shrink-0 animate-spin" />
+        </div>
         <Button
           size="sm"
           class="w-full truncate"

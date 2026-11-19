@@ -6,7 +6,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePrInboxStore } from '@/stores/prInbox'
-import { Modal, Button, Input } from '@/components/ui'
+import { Modal, Button, InfoTip, Input } from '@/components/ui'
 import { Plus, X } from 'lucide-vue-next'
 
 defineProps<{ open: boolean }>()
@@ -28,13 +28,13 @@ function add() {
 <template>
   <Modal :open="open" :title="t('prInbox.botAccounts.title')" size="sm" @close="emit('close')">
     <div class="flex flex-col gap-3 px-4 py-4">
-      <p class="text-xs text-muted-foreground">{{ t('prInbox.botAccounts.hint') }}</p>
       <form class="flex items-center gap-2" @submit.prevent="add">
         <Input v-model="draft" :placeholder="t('prInbox.botAccounts.placeholder')" class="flex-1" />
         <Button type="submit" :disabled="!draft.trim()">
           <Plus class="h-3.5 w-3.5" :stroke-width="2" />
           {{ t('prInbox.botAccounts.add') }}
         </Button>
+        <InfoTip :text="t('prInbox.botAccounts.hint')" />
       </form>
       <p v-if="store.botLogins.length === 0" class="text-xs text-muted-foreground/70">
         {{ t('prInbox.botAccounts.empty') }}

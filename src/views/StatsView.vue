@@ -23,7 +23,7 @@ import KeyboardChart from '@/components/stats/KeyboardChart.vue'
 import {
   Coins, DollarSign, Play, Repeat, RefreshCw, Trash2, Loader2, Info, AlertTriangle, HardDrive, Gauge,
 } from 'lucide-vue-next'
-import { Button, Input, Card, AppSelect, PageHeader, Banner } from '@/components/ui'
+import { Button, Input, Card, AppSelect, PageHeader, Banner, InfoTip } from '@/components/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { errorText } from '@/lib/featureGate'
@@ -306,6 +306,14 @@ function planRowsFor(u: PlanUsageData | null, windows: typeof PLAN_WINDOWS) {
     }
   }).filter((r) => r.utilization != null)
 }
+// The i18n pieces are the sentence around the bold "real" and the slash command.
+const claudePlanHint = computed(() =>
+  `${t('stats.plan.claudeDescPrefix')} ${t('stats.plan.real')} ${t('stats.plan.claudeDescSuffix')} /usage ${t('stats.plan.claudeDescEnd')}`,
+)
+const codexPlanHint = computed(() =>
+  `${t('stats.plan.codexDescPrefix')} ${t('stats.plan.real')} ${t('stats.plan.codexDescSuffix')} /status${t('stats.plan.codexDescEnd')}`,
+)
+
 // One block per managed account (default first); a single unlabeled block otherwise.
 const claudePlanGroups = computed(() => {
   if (!hasAccounts.value) {
@@ -455,11 +463,8 @@ async function loadStorage() {
           <div>
             <h2 class="flex items-center gap-1.5 text-md font-semibold text-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.claudeTitle') }}
+              <InfoTip :text="claudePlanHint" />
             </h2>
-            <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
-              {{ t('stats.plan.claudeDescPrefix') }} <b>{{ t('stats.plan.real') }}</b> {{ t('stats.plan.claudeDescSuffix') }}
-              <code class="font-mono bg-muted px-1 rounded">/usage</code> {{ t('stats.plan.claudeDescEnd') }}
-            </p>
           </div>
           <div v-for="g in claudePlanGroups" :key="g.key" class="space-y-2">
             <p v-if="g.label" class="flex items-center gap-1.5 text-2xs font-semibold">
@@ -498,11 +503,8 @@ async function loadStorage() {
           <div>
             <h2 class="flex items-center gap-1.5 text-md font-semibold text-foreground">
               <Gauge class="h-3.5 w-3.5" :stroke-width="1.75" /> {{ t('stats.plan.codexTitle') }}
+              <InfoTip :text="codexPlanHint" />
             </h2>
-            <p class="text-2xs text-muted-foreground/70 leading-relaxed mt-1">
-              {{ t('stats.plan.codexDescPrefix') }} <b>{{ t('stats.plan.real') }}</b> {{ t('stats.plan.codexDescSuffix') }}
-              <code class="font-mono bg-muted px-1 rounded">/status</code>{{ t('stats.plan.codexDescEnd') }}
-            </p>
           </div>
           <div v-if="planRowsCodex.length" class="space-y-2">
             <div v-for="row in planRowsCodex" :key="row.label" class="space-y-1">
@@ -700,6 +702,7 @@ async function loadStorage() {
             <span v-if="storage" class="text-muted-foreground/60">
               {{ t('stats.storage.totalSuffix', { bytes: fmtBytes(storage.total_bytes) }) }}
             </span>
+            <InfoTip :text="t('stats.storage.note')" />
           </h2>
           <Button variant="ghost" size="sm" :disabled="storageLoading" @click="loadStorage">
             <Loader2 v-if="storageLoading" class="h-3.5 w-3.5 animate-spin" />
@@ -740,9 +743,6 @@ async function loadStorage() {
             </tr>
           </tbody>
         </table>
-        <p class="text-2xs text-muted-foreground/70 mt-3">
-          {{ t('stats.storage.note') }}
-        </p>
       </Card>
     </div>
 

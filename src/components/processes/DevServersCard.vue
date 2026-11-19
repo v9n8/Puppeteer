@@ -6,7 +6,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FileText, Play, RefreshCw, Server, Square } from 'lucide-vue-next'
-import { AppSelect, Badge, Banner, Button, Card } from '@/components/ui'
+import { AppSelect, Badge, Banner, Button, Card, InfoTip } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import { useConfirm } from '@/composables/useConfirm'
@@ -151,7 +151,7 @@ onMounted(() => {
     <template #header>
       <Server class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
       <span class="text-xs font-semibold">{{ t('processes.devServers.title') }}</span>
-      <span class="ml-2 min-w-0 flex-1 truncate text-2xs text-muted-foreground">{{ t('processes.devServers.hint') }}</span>
+      <span class="flex min-w-0 flex-1 items-center"><InfoTip :text="t('processes.devServers.hint')" /></span>
       <AppSelect
         v-if="projectOptions.length > 0"
         v-model="projectId"

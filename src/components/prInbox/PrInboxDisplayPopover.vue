@@ -122,7 +122,6 @@ function manageBots() {
           <EyeOff class="h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
           <span class="min-w-0 flex-1">
             <span class="block text-sm text-foreground">{{ t('prInbox.hideBots') }}</span>
-            <span class="block text-2xs text-muted-foreground truncate">{{ t('prInbox.display.hideBotsHint') }}</span>
           </span>
           <span
             class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"

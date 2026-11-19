@@ -10,7 +10,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ChevronRight, Cpu, RefreshCw, Trash2 } from 'lucide-vue-next'
-import { Button, Card, Banner } from '@/components/ui'
+import { Button, Card, Banner, InfoTip } from '@/components/ui'
 import ProcessEntryRow from '@/components/processes/ProcessEntryRow.vue'
 import DevServersCard from '@/components/processes/DevServersCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -192,6 +192,7 @@ const sections = computed(() => [
   <div class="flex flex-col h-full">
     <!-- Toolbar -->
     <div class="flex shrink-0 items-center justify-end gap-2 px-6 pt-4">
+      <span class="mr-auto flex items-center"><InfoTip :text="t('processes.subtitle')" /></span>
       <Button variant="outline" size="icon" :title="t('processes.refresh')" :aria-label="t('processes.refresh')" @click="store.refresh()">
         <RefreshCw class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
@@ -236,8 +237,6 @@ const sections = computed(() => [
       </div>
 
       <div v-else class="max-w-4xl space-y-4">
-        <p class="text-xs text-muted-foreground">{{ t('processes.subtitle') }}</p>
-
         <template v-for="s in sections" :key="s.key">
           <Card v-if="s.items.length > 0" body-class="divide-y divide-border/50">
             <template #header>
@@ -247,7 +246,7 @@ const sections = computed(() => [
               />
               <span class="text-xs font-semibold">{{ s.title }}</span>
               <span class="text-2xs text-muted-foreground">({{ s.items.length }})</span>
-              <span v-if="s.hint" class="ml-2 truncate text-2xs text-muted-foreground">{{ s.hint }}</span>
+              <InfoTip v-if="s.hint" :text="s.hint" />
             </template>
             <div v-for="e in s.items" :key="e.id" :data-run-id="e.run_id ?? undefined">
               <ProcessEntryRow
@@ -268,7 +267,7 @@ const sections = computed(() => [
           <template #header>
             <button
               type="button"
-              class="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
+              class="flex min-w-0 items-center gap-2 text-left cursor-pointer"
               :aria-expanded="servicesOpen"
               @click="servicesOpen = !servicesOpen"
             >
@@ -279,8 +278,8 @@ const sections = computed(() => [
               />
               <span class="text-xs font-semibold">{{ t('processes.sections.services') }}</span>
               <span class="text-2xs text-muted-foreground">({{ groups.services.length }})</span>
-              <span class="ml-2 truncate text-2xs text-muted-foreground">{{ t('processes.sections.servicesHint') }}</span>
             </button>
+            <InfoTip :text="t('processes.sections.servicesHint')" />
           </template>
           <template v-if="servicesOpen">
             <ProcessEntryRow
