@@ -14,8 +14,8 @@
     "set": "Gắn flag",
     "shared": "Flag chung",
     "project": "Project này",
-    "remove": "Bỏ flag",
-    "manage": "Quản lý flag…"
+    "none": "Không flag",
+    "manage": "Quản lý flag"
   },
   "chip": {
     "add": "Gắn flag",

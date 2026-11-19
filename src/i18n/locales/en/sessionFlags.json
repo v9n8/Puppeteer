@@ -14,8 +14,8 @@
     "set": "Flag",
     "shared": "Shared flags",
     "project": "This project",
-    "remove": "Remove flag",
-    "manage": "Manage flags…"
+    "none": "No flag",
+    "manage": "Manage flags"
   },
   "chip": {
     "add": "Add flag",
