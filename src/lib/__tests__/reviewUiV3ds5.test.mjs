@@ -39,3 +39,36 @@ test('UR-52: toast strings in both languages', () => {
     assert.match(w.mergedSkipped, /\{count\}[\s\S]*\{skipped\}/)
   }
 })
+
+const cardSrc = read('components/windows/WindowCard.vue')
+const barSrc = read('components/windows/WindowsSelectionBar.vue')
+
+test('UR-53: round checkbox top-left, "This window" moved right of it, a mark for windows that cannot move back', () => {
+  assert.match(cardSrc, /role="checkbox"[\s\S]{0,200}class="absolute left-1\.5 top-1\.5 z-\[1\] flex h-5 w-5[^"]*rounded-full/)
+  assert.match(cardSrc, /marked\s*\? 'bg-primary text-primary-foreground ring-2 ring-card'/)
+  assert.match(cardSrc, /markMode \? 'opacity-100' : 'opacity-0 group-hover:opacity-100'/)
+  assert.match(cardSrc, /v-if="card\.isHere"\s*class="absolute left-8 top-1\.5/)
+  assert.match(cardSrc, /v-if="!card\.canMerge"[\s\S]{0,200}:title="t\('windows\.cannotMerge'\)"/)
+  // Marked: a plain click marks, it does not open the window.
+  assert.match(cardSrc, /if \(e\.shiftKey \|\| meta \|\| props\.markMode\) emit\('mark'/)
+})
+
+test('UR-53: the selection bar takes the footer, 28px buttons; Esc drops the marks first', () => {
+  assert.match(overlay, /<WindowsSelectionBar\s+v-if="marks\.size > 0"/)
+  assert.match(overlay, /<footer v-else /)
+  assert.equal((barSrc.match(/<Button [^>]*size="xs"/g) ?? []).length, 4)
+  assert.match(overlay, /if \(marks\.value\.size\) clearMarks\(\)\s*else if \(query\.value\) query\.value = ''\s*else close\(\)/)
+  assert.match(overlay, /confirm\.titleSome/)
+})
+
+test('UR-53: Space / ⌘A stay text keys while the filter has text; ⌘A marks only the cards on screen', () => {
+  assert.match(overlay, /const typingInFilter = e\.target === filterInput\.value && query\.value !== ''/)
+  assert.match(overlay, /=== ' ' && !typingInFilter/)
+  assert.match(overlay, /'KeyA'[^\n]*!typingInFilter\) \{\s*e\.preventDefault\(\)\s*marks\.value = markAll\(flat\.value\)/)
+  for (const lang of ['vi', 'en']) {
+    const w = json(lang)
+    for (const k of ['count', 'skip', 'merge', 'close', 'clear']) assert.ok(w.sel[k], `${lang}.sel.${k}`)
+    for (const k of ['mark', 'markAll', 'clear']) assert.ok(w.foot[k], `${lang}.foot.${k}`)
+    assert.ok(w.cannotMerge && w.mark && w.confirm.titleSome, lang)
+  }
+})

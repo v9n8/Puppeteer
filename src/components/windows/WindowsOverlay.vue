@@ -10,7 +10,8 @@ import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Minus, Search, SquareArrowDownLeft, SquareArrowOutUpRight, TriangleAlert, X } from 'lucide-vue-next'
 import { Button, ContextMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
-import WindowCard from '@/components/windows/WindowCard.vue'
+import WindowCard, { type MarkClick } from '@/components/windows/WindowCard.vue'
+import WindowsSelectionBar from '@/components/windows/WindowsSelectionBar.vue'
 import { useToast } from '@/composables/useToast'
 import { IS_MAC, effectiveKeymap, hasNativeMenu } from '@/lib/appMenu'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -23,7 +24,7 @@ import {
   isCloseCardKey, runMergeBack, cycleSelection, filterCards, flattenGroups, groupCards, initialSelection,
   moveSelection, parseGroupBy, selectionAfterClose, type GroupBy, type MoveDirection, type WindowTargeted,
 } from '@/lib/windowsOverlay'
-import { mergePlan } from '@/lib/windowsSelection'
+import { markAll, mergePlan, pruneMarks, rangeMark, toggleMark } from '@/lib/windowsSelection'
 import { useOpenWindowsStore } from '@/stores/openWindows'
 
 const props = withDefaults(defineProps<{
@@ -39,7 +40,11 @@ const query = ref('')
 const selected = ref<string | null>(null)
 const groupBy = ref<GroupBy>('type')
 const menu = ref<{ x: number; y: number; label: string } | null>(null)
-const confirmAll = ref(false)
+/** The close question on screen: about every window, or the marked ones. */
+const confirmClose = ref<'all' | 'marked' | null>(null)
+/** Cards marked for the actions on several windows; the last one marked anchors a ⇧-click range. */
+const marks = ref<Set<string>>(new Set())
+let markAnchor: string | null = null
 const root = ref<HTMLElement | null>(null)
 const filterInput = ref<HTMLInputElement | null>(null)
 let returnFocusTo: HTMLElement | null = null
@@ -64,8 +69,17 @@ const menuCard = computed(() => (menu.value ? store.cards.find((c) => c.label ==
 
 const keysClose = computed(() => formatAccelerator('CmdOrCtrl+W', IS_MAC))
 const closeTip = computed(() => t('windows.closeWindowTip', { keys: keysClose.value }))
-const hereIsPrivate = computed(() => store.cards.some((c) => c.isHere))
+const keysMarkAll = computed(() => formatAccelerator('CmdOrCtrl+A', IS_MAC))
 const canMergeAny = computed(() => store.cards.some((c) => c.canMerge))
+const mergeableMarks = computed(() => store.cards.filter((c) => c.canMerge && marks.value.has(c.label)).length)
+const closeLabels = computed(() =>
+  confirmClose.value === 'marked' ? [...marks.value] : store.cards.map((c) => c.label),
+)
+const confirmTitle = computed(() =>
+  confirmClose.value === 'marked'
+    ? t('windows.confirm.titleSome', { count: closeLabels.value.length }, closeLabels.value.length)
+    : t('windows.confirm.title'),
+)
 
 function groupName(g: { key: string; isNone: boolean }): string {
   if (g.isNone) return t('windows.group.none')
@@ -81,7 +95,8 @@ watch(
       returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
       query.value = ''
       menu.value = null
-      confirmAll.value = false
+      confirmClose.value = null
+      clearMarks()
       await store.refresh()
       // Not awaited: the cards are usable (Enter included) while the pictures come in.
       void store.refreshThumbs()
@@ -100,9 +115,12 @@ watch(() => store.cycleTick, () => {
 })
 
 // A card gone (its window closed) or filtered out: select a card that is still there.
+// The same for the marks: a card no longer on screen is not acted on.
 watch(flat, (cards) => {
   if (!store.open) return
   if (!cards.some((c) => c.label === selected.value)) selected.value = cards[0]?.label ?? null
+  const kept = pruneMarks(marks.value, cards)
+  if (kept.size !== marks.value.size) marks.value = kept
 })
 watch(query, () => {
   selected.value = flat.value[0]?.label ?? null
@@ -156,11 +174,13 @@ async function mergeCard(label: string) {
   close()
 }
 
-async function closeAllWindows() {
-  const labels = store.cards.map((c) => c.label)
+/** After the close question: every window, or the marked ones (the layer stays for the rest then). */
+async function closeWindows() {
+  const labels = closeLabels.value
   const here = labels.includes(store.here) ? store.here : null
-  confirmAll.value = false
-  close()
+  if (confirmClose.value === 'all' || here) close()
+  confirmClose.value = null
+  clearMarks()
   // Closing this window too: the main one comes to the front first.
   if (here) await raiseWindow('main')
   await Promise.all(
@@ -205,6 +225,30 @@ function mergeAllWindows() {
   void mergeWindows(store.cards.map((c) => c.label))
 }
 
+// ── Marking several cards ──────────────────────────────────────────────────
+
+function clearMarks() {
+  marks.value = new Set()
+  markAnchor = null
+}
+
+function markCard(label: string, click: MarkClick) {
+  marks.value = click.shift
+    ? rangeMark(marks.value, flat.value, markAnchor ?? selected.value, label)
+    : toggleMark(marks.value, label)
+  markAnchor = label
+  selected.value = label
+}
+
+async function minimizeMarked() {
+  const failed = await Promise.all([...marks.value].map((l) => minimizeWindow(l).then(() => false, (e) => {
+    console.error('[WindowsOverlay] cannot minimize', l, e)
+    return true
+  })))
+  if (failed.some(Boolean)) toast.error(t('windows.minimizeFailed'))
+  void store.refresh()
+}
+
 function openMenu(e: MouseEvent, label: string) {
   menu.value = { x: e.clientX, y: e.clientY, label }
 }
@@ -240,17 +284,31 @@ function onKeydown(e: KeyboardEvent) {
   if (!store.open) return
   // A dialog or menu on top takes its own keys (the context menu closes on Esc itself).
   if (menu.value) return
-  if (confirmAll.value) {
+  if (confirmClose.value) {
     if (e.key === 'Escape') {
       e.preventDefault()
-      confirmAll.value = false
+      confirmClose.value = null
     }
     return
   }
   if (e.key === 'Escape') {
     e.preventDefault()
-    if (query.value) query.value = ''
+    // The marks go first, so a second Esc is needed to clear the filter or leave.
+    if (marks.value.size) clearMarks()
+    else if (query.value) query.value = ''
     else close()
+    return
+  }
+  // Space / ⌘A are text keys while the filter has text in it; Space on a button presses it.
+  const typingInFilter = e.target === filterInput.value && query.value !== ''
+  if (e.key === ' ' && !typingInFilter && !(e.target instanceof HTMLButtonElement) && selected.value) {
+    e.preventDefault()
+    markCard(selected.value, { shift: false, meta: false })
+    return
+  }
+  if ((IS_MAC ? e.metaKey : e.ctrlKey) && e.code === 'KeyA' && !e.shiftKey && !e.altKey && !typingInFilter) {
+    e.preventDefault()
+    marks.value = markAll(flat.value)
     return
   }
   const direction = ARROWS[e.key]
@@ -264,7 +322,6 @@ function onKeydown(e: KeyboardEvent) {
     void activate(selected.value)
     return
   }
-  const typingInFilter = e.target === filterInput.value && query.value !== ''
   if (isCloseCardKey(e, IS_MAC, typingInFilter) && selected.value) {
     e.preventDefault()
     void closeCard(selected.value)
@@ -363,7 +420,7 @@ onBeforeUnmount(() => {
           class="text-[13px]"
           :disabled="total === 0"
           :title="`${t('windows.closeAll')} · ${t('windows.closeAllTip')}`"
-          @click="confirmAll = true"
+          @click="confirmClose = 'all'"
         >
           <X class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
           <span class="max-[1100px]:hidden">{{ t('windows.closeAll') }}</span>
@@ -405,7 +462,10 @@ onBeforeUnmount(() => {
               :thumb="thumbFor(card, store.thumbs, store.thumbStatus[card.label])"
               :selected="card.label === selected"
               :close-tip="closeTip"
+              :marked="marks.has(card.label)"
+              :mark-mode="marks.size > 0"
               @activate="activate(card.label)"
+              @mark="markCard(card.label, $event)"
               @close="closeCard(card.label)"
               @select="selected = card.label"
               @menu="openMenu($event, card.label)"
@@ -415,9 +475,20 @@ onBeforeUnmount(() => {
         </template>
       </div>
 
-      <footer class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 text-[13px] text-muted-foreground">
+      <WindowsSelectionBar
+        v-if="marks.size > 0"
+        :count="marks.size"
+        :mergeable="mergeableMarks"
+        @merge="mergeWindows(marks)"
+        @minimize="minimizeMarked"
+        @close="confirmClose = 'marked'"
+        @clear="clearMarks"
+      />
+      <footer v-else class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 text-[13px] text-muted-foreground">
         <span><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> {{ t('windows.foot.select') }}</span>
         <span><kbd>Enter</kbd> {{ t('windows.foot.open') }}</span>
+        <span><kbd>Space</kbd> {{ t('windows.foot.mark') }}</span>
+        <span><kbd>{{ keysMarkAll }}</kbd> {{ t('windows.foot.markAll') }}</span>
         <span><kbd>{{ keysClose }}</kbd> / <kbd>Delete</kbd> {{ t('windows.foot.close') }}</span>
         <span>{{ t('windows.foot.type') }}</span>
         <span><kbd>Esc</kbd> {{ t('windows.foot.exit') }}</span>
@@ -446,15 +517,15 @@ onBeforeUnmount(() => {
       </DropdownItem>
     </ContextMenu>
 
-    <div v-if="confirmAll" class="absolute inset-0 z-10 flex items-center justify-center bg-black/40" @click.self="confirmAll = false">
-      <div class="w-[420px] max-w-[calc(100%-24px)] rounded-xl border border-border bg-background p-5 shadow-2xl" role="alertdialog" :aria-label="t('windows.confirm.title')">
-        <h3 class="text-sm font-semibold">{{ t('windows.confirm.title') }}</h3>
+    <div v-if="confirmClose" class="absolute inset-0 z-10 flex items-center justify-center bg-black/40" @click.self="confirmClose = null">
+      <div class="w-[420px] max-w-[calc(100%-24px)] rounded-xl border border-border bg-background p-5 shadow-2xl" role="alertdialog" :aria-label="confirmTitle">
+        <h3 class="text-sm font-semibold">{{ confirmTitle }}</h3>
         <p class="mt-2 text-[13px] text-muted-foreground">
-          {{ t(hereIsPrivate ? 'windows.confirm.bodyHere' : 'windows.confirm.body', { count: total }, total) }}
+          {{ t(closeLabels.includes(store.here) ? 'windows.confirm.bodyHere' : 'windows.confirm.body', { count: closeLabels.length }, closeLabels.length) }}
         </p>
         <div class="mt-4 flex justify-end gap-2">
-          <Button variant="outline" size="sm" class="text-[13px]" @click="confirmAll = false">{{ t('windows.confirm.cancel') }}</Button>
-          <Button variant="destructive" size="sm" class="bg-destructive text-[13px] text-white hover:bg-destructive hover:opacity-90" @click="closeAllWindows">{{ t('windows.confirm.action', { count: total }, total) }}</Button>
+          <Button variant="outline" size="sm" class="text-[13px]" @click="confirmClose = null">{{ t('windows.confirm.cancel') }}</Button>
+          <Button variant="destructive" size="sm" class="bg-destructive text-[13px] text-white hover:bg-destructive hover:opacity-90" @click="closeWindows">{{ t('windows.confirm.action', { count: closeLabels.length }, closeLabels.length) }}</Button>
         </div>
       </div>
     </div>

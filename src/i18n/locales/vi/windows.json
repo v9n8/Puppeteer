@@ -16,6 +16,15 @@
   "mergeAllTip": "Gộp mọi cửa sổ riêng gộp được về cửa sổ chính; cửa sổ không gộp được giữ nguyên",
   "merged": "Đã gộp {count} cửa sổ về cửa sổ chính",
   "mergedSkipped": "Đã gộp {count} cửa sổ về cửa sổ chính, bỏ qua {skipped} (không gộp được)",
+  "cannotMerge": "Không gộp về cửa sổ chính được",
+  "mark": "Đánh dấu (Space)",
+  "sel": {
+    "count": "Đã chọn {count}",
+    "skip": "{count} cửa sổ không gộp được, sẽ bỏ qua",
+    "merge": "Gộp về cửa sổ chính ({count})",
+    "close": "Đóng ({count})",
+    "clear": "Bỏ chọn"
+  },
   "exit": "Thoát (Esc)",
   "group": {
     "session": "Session",
@@ -48,6 +57,7 @@
   "clearFilter": "Xóa lọc",
   "confirm": {
     "title": "Đóng tất cả cửa sổ riêng?",
+    "titleSome": "Đóng {count} cửa sổ đã chọn?",
     "body": "Đóng {count} cửa sổ riêng. Cửa sổ chính vẫn mở. Session đang chạy vẫn chạy tiếp, mở lại được từ dock Run hoặc màn Đang chạy.",
     "bodyHere": "Đóng {count} cửa sổ riêng. Cửa sổ này cũng đóng; cửa sổ chính vẫn mở và lên trước. Session đang chạy vẫn chạy tiếp, mở lại được từ dock Run hoặc màn Đang chạy.",
     "action": "Đóng {count} cửa sổ",
@@ -59,6 +69,9 @@
     "open": "mở",
     "close": "đóng thẻ đang chọn",
     "type": "Gõ chữ để lọc",
-    "exit": "thoát"
+    "exit": "thoát",
+    "mark": "đánh dấu",
+    "markAll": "đánh dấu tất cả",
+    "clear": "bỏ chọn"
   }
 }

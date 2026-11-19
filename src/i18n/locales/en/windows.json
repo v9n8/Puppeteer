@@ -16,6 +16,15 @@
   "mergeAllTip": "Move every private window that can go back into the main window; the others stay",
   "merged": "Moved {count} window to the main window | Moved {count} windows to the main window",
   "mergedSkipped": "Moved {count} window to the main window, skipped {skipped} (cannot move back) | Moved {count} windows to the main window, skipped {skipped} (cannot move back)",
+  "cannotMerge": "Cannot move back to the main window",
+  "mark": "Mark (Space)",
+  "sel": {
+    "count": "{count} selected",
+    "skip": "{count} cannot move back, will be skipped",
+    "merge": "Move to main window ({count})",
+    "close": "Close ({count})",
+    "clear": "Clear selection"
+  },
   "exit": "Exit (Esc)",
   "group": {
     "session": "Sessions",
@@ -48,6 +57,7 @@
   "clearFilter": "Clear filter",
   "confirm": {
     "title": "Close all windows?",
+    "titleSome": "Close {count} selected window? | Close {count} selected windows?",
     "body": "Closes {count} window. The main window stays open. Running sessions keep running; reopen them from the Run dock or the Running screen. | Closes {count} windows. The main window stays open. Running sessions keep running; reopen them from the Run dock or the Running screen.",
     "bodyHere": "Closes {count} window. This window closes too; the main window stays open and comes to the front. Running sessions keep running; reopen them from the Run dock or the Running screen. | Closes {count} windows. This window closes too; the main window stays open and comes to the front. Running sessions keep running; reopen them from the Run dock or the Running screen.",
     "action": "Close {count} window | Close {count} windows",
@@ -59,6 +69,9 @@
     "open": "open",
     "close": "close the selected card",
     "type": "Type to filter",
-    "exit": "exit"
+    "exit": "exit",
+    "mark": "mark",
+    "markAll": "mark all",
+    "clear": "clear selection"
   }
 }

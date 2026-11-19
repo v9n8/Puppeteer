@@ -2,14 +2,22 @@
 // One private window in the "Open windows" overlay: a thumbnail of the window (macOS) or
 // else a big icon of its kind, its name, a second line and, for a session, what it
 // is doing. The vault's card is the lock icon and nothing else (see cardsFrom).
+// A round checkbox marks it for the actions on several windows (WindowsSelectionBar).
 import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  AppWindow, ArrowLeftRight, CalendarDays, FileText, GanttChartSquare, GitPullRequest, ListTodo,
-  LockKeyhole, MessageSquare, Monitor, Settings, Slack, StickyNote, Target, X,
+  AppWindow, ArrowLeftRight, CalendarDays, Check, FileText, GanttChartSquare, GitPullRequest, ListTodo,
+  LockKeyhole, MessageSquare, Monitor, Settings, Slack, SquareArrowDownLeft, StickyNote, Target, X,
 } from 'lucide-vue-next'
 import type { Thumb } from '@/lib/windowThumbs'
 import type { WindowCard } from '@/lib/windowsOverlay'
+
+export interface MarkClick {
+  /** ⇧: mark the range from the last marked card. */
+  shift: boolean
+  /** ⌘ / Ctrl. */
+  meta: boolean
+}
 
 const props = defineProps<{
   card: WindowCard
@@ -17,13 +25,23 @@ const props = defineProps<{
   selected: boolean
   /** The close button's tooltip, with the key. */
   closeTip: string
+  marked: boolean
+  /** Some card is marked: every checkbox shows, and a plain click marks instead of opening (no window opened by mistake). */
+  markMode: boolean
 }>()
 const emit = defineEmits<{
   activate: []
   close: []
   select: []
+  mark: [click: MarkClick]
   menu: [event: MouseEvent]
 }>()
+
+function onClick(e: MouseEvent) {
+  const meta = e.metaKey || e.ctrlKey
+  if (e.shiftKey || meta || props.markMode) emit('mark', { shift: e.shiftKey, meta })
+  else emit('activate')
+}
 
 const { t } = useI18n()
 
@@ -71,9 +89,9 @@ const badge = computed(() => {
     role="option"
     :aria-selected="selected"
     :data-window-label="card.label"
-    class="group relative flex w-full cursor-pointer flex-col rounded-card border border-border bg-card text-left transition-colors hover:bg-accent"
-    :class="selected ? 'ring-2 ring-ring' : ''"
-    @click="emit('activate')"
+    class="group relative flex w-full cursor-pointer flex-col rounded-card border bg-card text-left transition-colors hover:bg-accent"
+    :class="[marked ? 'border-primary' : 'border-border', selected ? 'ring-2 ring-ring' : '']"
+    @click="onClick"
     @contextmenu.prevent="emit('select'); emit('menu', $event)"
   >
     <div class="flex min-w-0 flex-col gap-1 p-2">
@@ -94,8 +112,31 @@ const badge = computed(() => {
         >{{ badge.text }}</span>
       </span>
       <span
+        v-if="!card.canMerge"
+        class="absolute bottom-1.5 right-1.5 flex h-[22px] items-center gap-1 rounded-full bg-card px-1.5 text-muted-foreground"
+        :title="t('windows.cannotMerge')"
+      >
+        <SquareArrowDownLeft class="h-3.5 w-3.5" :stroke-width="1.75" aria-hidden="true" />
+        <X class="h-3 w-3" :stroke-width="2.5" aria-hidden="true" />
+        <span class="sr-only">{{ t('windows.cannotMerge') }}</span>
+      </span>
+      <button
+        type="button"
+        role="checkbox"
+        :aria-checked="marked"
+        :title="t('windows.mark')"
+        :aria-label="t('windows.mark')"
+        class="absolute left-1.5 top-1.5 z-[1] flex h-5 w-5 cursor-pointer items-center justify-center rounded-full transition-opacity before:absolute before:-inset-1 before:content-[''] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        :class="marked
+          ? 'bg-primary text-primary-foreground ring-2 ring-card'
+          : ['border-2 border-card bg-background/80 ring-1 ring-input', markMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100']"
+        @click.stop="emit('mark', { shift: $event.shiftKey, meta: $event.metaKey || $event.ctrlKey })"
+      >
+        <Check v-if="marked" class="h-3.5 w-3.5" :stroke-width="3" aria-hidden="true" />
+      </button>
+      <span
         v-if="card.isHere"
-        class="absolute left-1.5 top-1.5 inline-flex h-[22px] items-center rounded-full bg-primary/12 px-2 text-[13px] font-medium text-primary"
+        class="absolute left-8 top-1.5 inline-flex h-[22px] items-center rounded-full bg-primary/12 px-2 text-[13px] font-medium text-primary"
       >{{ t('windows.here') }}</span>
       <button
         type="button"
