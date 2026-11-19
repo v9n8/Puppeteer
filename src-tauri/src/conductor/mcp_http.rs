@@ -405,7 +405,9 @@ fn tool_specs() -> Value {
                     "instruction": { "type": "string", "description": "Optional role/system framing appended to the worker's system prompt." },
                     "engine": { "type": "string", "enum": ["claude", "codex"], "description": "Engine for the worker. Defaults to project default." },
                     "model": { "type": "string", "description": "Optional model override. Must belong to the worker's engine; a mismatched id is ignored and the worker uses that engine's global default model. Omit to use the global default." },
-                    "permission_mode": { "type": "string", "enum": ["default", "acceptEdits", "plan"], "description": "Worker permission mode; never looser than your own mode (a looser one is refused). Defaults to the project's default, lowered to your own mode; the human answers any prompts in the permission drawer." }
+                    "permission_mode": { "type": "string", "enum": ["default", "acceptEdits", "plan"], "description": "Worker permission mode; never looser than your own mode (a looser one is refused). Defaults to the project's default, lowered to your own mode; the human answers any prompts in the permission drawer." },
+                    "effort": { "type": "string", "enum": super::defaults::SPAWN_EFFORT_LEVELS, "description": "Optional reasoning effort for the worker. Set it only when your instructions tell you how to pick one; omit it to use the user's worker default." },
+                    "task_kind": { "type": "string", "enum": super::defaults::TASK_KINDS, "description": "Optional kind of work this worker does, for the user's usage stats." }
                 },
                 "required": ["prompt"]
             }
@@ -502,6 +504,20 @@ mod tests {
         assert!(specs.as_array().is_some_and(|s| !s.is_empty()));
         let missing = tools_missing_from(CONDUCTOR_SYSTEM_PROMPT, &specs);
         assert!(missing.is_empty(), "CONDUCTOR_SYSTEM_PROMPT never names these tools: {missing:?}");
+    }
+
+    #[test]
+    fn spawn_takes_an_optional_effort_and_task_kind() {
+        let specs = tool_specs();
+        let spawn = &specs.as_array().unwrap()[0];
+        assert_eq!(spawn["name"], "session_spawn");
+        let props = &spawn["inputSchema"]["properties"];
+        assert_eq!(props["effort"]["enum"], json!(["low", "medium", "high"]));
+        assert_eq!(
+            props["task_kind"]["enum"],
+            json!(["search", "plan", "implement", "review", "test", "docs", "other"])
+        );
+        assert_eq!(spawn["inputSchema"]["required"], json!(["prompt"]));
     }
 
     #[test]

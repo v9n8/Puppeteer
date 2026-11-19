@@ -994,7 +994,7 @@ pub(crate) const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "m
 /// The effort a run falls back to without a pick: its own stored level (so a
 /// resume keeps it), else the project's default, else the global setting.
 /// Unknown levels count as unset.
-fn fallback_effort<'a>(run_effort: Option<&'a str>, project: Option<&'a str>, global: &'a str) -> &'a str {
+pub(crate) fn fallback_effort<'a>(run_effort: Option<&'a str>, project: Option<&'a str>, global: &'a str) -> &'a str {
     [run_effort, project]
         .into_iter()
         .flatten()
@@ -1006,7 +1006,7 @@ fn fallback_effort<'a>(run_effort: Option<&'a str>, project: Option<&'a str>, gl
 /// Resolve a run's reasoning effort: the per-run pick, else the global
 /// `default_effort` setting, else `None` (the engine decides). An unknown level
 /// counts as unset, like an invalid permission mode.
-fn resolve_effort(override_effort: Option<String>, default_effort: &str) -> Option<String> {
+pub(crate) fn resolve_effort(override_effort: Option<String>, default_effort: &str) -> Option<String> {
     let valid = |s: &str| EFFORT_LEVELS.contains(&s);
     override_effort
         .map(|s| s.trim().to_string())

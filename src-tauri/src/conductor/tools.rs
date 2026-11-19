@@ -165,14 +165,16 @@ async fn session_spawn(
         }
     };
 
+    // The conductor's pick, else Settings › Worker effort; `None` lets the worker
+    // take the default effort (project, else global), like its engine's model.
+    let (effort, _effort_source) = super::defaults::worker_effort(&db, arg_str(&args, "effort").as_deref()).await;
     let payload = StartRunPayload {
         run_id: worker_id.clone(),
         engine_override: Some(engine.clone()),
         permission_mode_override: Some(permission_mode),
         prompt_override: Some(prompt.clone()),
         model_override: model,
-        // A worker takes the default effort (project, else global), like its engine's model.
-        effort_override: None,
+        effort_override: effort,
         // …and the run's own / default response style.
         style_override: None,
         images: Vec::new(),
