@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Ban, Check, ChevronDown, FolderOpen, Plus, Settings, X } from 'lucide-vue-next'
 import { Button, ContextMenu, CountPill, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
+import ColorSwatchGrid from '@/components/ColorSwatchGrid.vue'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useProjectsStore } from '@/stores/projects'
@@ -11,7 +12,7 @@ import { useDragSort } from '@/composables/useDragSort'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useToast } from '@/composables/useToast'
 import {
-  PROJECT_COLORS, PROJECT_ICONS, projectColor, projectIcon, projectTextClass, swatchClass,
+  PROJECT_ICONS, projectColor, projectIcon, projectTextClass, swatchClass,
   type ProjectColor, type ProjectIcon,
 } from '@/lib/projectAppearance'
 import { tabsToClose, type TabCloseScope } from '@/lib/projectSwitcher'
@@ -373,27 +374,9 @@ async function jumpTo(projectId: string) {
           <DropdownSeparator />
           <div class="px-2.5 py-1.5">
             <p class="mb-1.5 text-sm font-medium text-muted-foreground">{{ t('projectDetail.colorLabel') }}</p>
-            <!-- 20px row as drawn; the 28px hit areas spill into the padding around it. -->
-            <div class="-mx-1 flex h-5 items-center">
-              <!-- 28px hit area around the 16px dot -->
-              <button
-                v-for="color in PROJECT_COLORS"
-                :key="color"
-                type="button"
-                class="flex h-7 w-7 items-center justify-center rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                :title="t(`projectDetail.colors.${color}`)"
-                :aria-label="t(`projectDetail.colors.${color}`)"
-                :aria-pressed="projectColor(menuProject.color) === color"
-                @click="setColor(color)"
-              >
-                <span
-                  class="h-4 w-4 rounded-full border-2 transition-transform"
-                  :class="[
-                    projectColor(menuProject.color) === color ? 'border-foreground scale-110' : 'border-transparent',
-                    swatchClass(color),
-                  ]"
-                />
-              </button>
+            <!-- 6 × 2 grid + "clear" on the right, top-aligned: 188 + 4 + 28px fits the 250px menu. -->
+            <div class="flex items-start gap-1">
+              <ColorSwatchGrid :selected="projectColor(menuProject.color)" @select="setColor" />
               <button
                 type="button"
                 class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:pointer-events-none"

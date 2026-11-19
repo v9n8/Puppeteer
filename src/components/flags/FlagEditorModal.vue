@@ -5,9 +5,10 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button, Input, Modal } from '@/components/ui'
+import ColorSwatchGrid from '@/components/ColorSwatchGrid.vue'
 import { useToast } from '@/composables/useToast'
 import { useSessionFlagsStore } from '@/stores/sessionFlags'
-import { PROJECT_COLORS, swatchClass, type ProjectColor } from '@/lib/projectAppearance'
+import { swatchClass, type ProjectColor } from '@/lib/projectAppearance'
 import { backendNameErrorKey, validateFlagName } from '@/lib/flagEditor'
 import { FLAG_NAME_MAX, flagLabel, type SessionFlag } from '@/lib/sessionFlags'
 
@@ -106,19 +107,7 @@ async function save() {
 
       <div class="space-y-1.5">
         <span class="block text-xs text-muted-foreground">{{ t('sessionFlags.editor.color') }}</span>
-        <div class="flex items-center gap-2">
-          <button
-            v-for="c in PROJECT_COLORS"
-            :key="c"
-            type="button"
-            class="h-7 w-7 rounded-full border-2 transition-transform cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :class="[color === c ? 'border-foreground scale-110' : 'border-transparent', swatchClass(c)]"
-            :title="t(`projectDetail.colors.${c}`)"
-            :aria-label="t(`projectDetail.colors.${c}`)"
-            :aria-pressed="color === c"
-            @click="color = c"
-          />
-        </div>
+        <ColorSwatchGrid :selected="color" @select="color = $event" />
       </div>
 
       <div class="flex items-center gap-2 text-xs text-muted-foreground">

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // Colour palette of one flag, floating at its row (V3-20; Project › Flag reuses it).
-// Picking a colour saves at once. A colour another flag uses shows that flag's name:
-// two flags may share a colour, the name tells them apart.
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+// Picking a colour saves at once. A colour another flag uses shows that flag's name
+// (line under the grid, for the colour pointed at or else the flag's own): two flags
+// may share a colour, the name tells them apart.
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check } from 'lucide-vue-next'
-import { PROJECT_COLORS, swatchClass, type ProjectColor } from '@/lib/projectAppearance'
+import ColorSwatchGrid from '@/components/ColorSwatchGrid.vue'
+import { projectColor, type ProjectColor } from '@/lib/projectAppearance'
 import { colorUsers } from '@/lib/flagEditor'
 import { flagLabel, type SessionFlag } from '@/lib/sessionFlags'
 
@@ -18,6 +19,9 @@ const emit = defineEmits<{ select: [color: ProjectColor]; close: [] }>()
 
 const { t } = useI18n()
 const root = ref<HTMLElement | null>(null)
+/** The colour under the pointer / focus; the line under the grid describes it. */
+const active = ref<ProjectColor | null>(null)
+const shown = computed(() => active.value ?? projectColor(props.flag.color))
 
 function sharedWith(color: ProjectColor): string {
   return colorUsers(props.flags, color, props.flag.id).map((f) => flagLabel(f, t)).join(', ')
@@ -51,25 +55,23 @@ onBeforeUnmount(() => {
     ref="root"
     role="dialog"
     :aria-label="t('sessionFlags.color.title', { name: flagLabel(flag, t) })"
-    class="absolute left-3 top-full z-40 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-popover-border bg-popover p-2 shadow-xl shadow-black/20"
+    class="absolute left-3 top-full z-40 mt-1 w-fit rounded-lg border border-popover-border bg-popover p-2 shadow-xl shadow-black/20"
   >
-    <p class="truncate px-1.5 pb-1.5 text-xs font-semibold text-foreground">
+    <!-- w-0 min-w-full: text lines take the grid's width instead of widening the popover. -->
+    <p class="w-0 min-w-full truncate px-1 pb-1.5 text-xs font-semibold text-foreground">
       {{ t('sessionFlags.color.title', { name: flagLabel(flag, t) }) }}
     </p>
-    <button
-      v-for="color in PROJECT_COLORS"
-      :key="color"
-      type="button"
-      class="flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left text-xs transition-colors cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      :aria-pressed="flag.color === color"
-      @click="emit('select', color)"
-    >
-      <span class="h-4 w-4 shrink-0 rounded-full" :class="swatchClass(color)" />
-      <span class="text-foreground">{{ t(`projectDetail.colors.${color}`) }}</span>
-      <span v-if="sharedWith(color)" class="ml-auto min-w-0 truncate text-2xs text-muted-foreground" :title="sharedWith(color)">
-        {{ sharedWith(color) }}
+    <ColorSwatchGrid
+      :selected="projectColor(flag.color)"
+      :hint="sharedWith"
+      @select="emit('select', $event)"
+      @active="active = $event"
+    />
+    <p v-if="shown" class="flex w-0 min-w-full items-center gap-2 px-1 pt-1.5 text-xs" data-color-info>
+      <span class="shrink-0 text-foreground">{{ t(`projectDetail.colors.${shown}`) }}</span>
+      <span v-if="sharedWith(shown)" class="ml-auto min-w-0 truncate text-2xs text-muted-foreground" :title="sharedWith(shown)">
+        {{ sharedWith(shown) }}
       </span>
-      <Check v-if="flag.color === color" class="h-3.5 w-3.5 shrink-0 text-primary" :class="sharedWith(color) ? '' : 'ml-auto'" :stroke-width="2.25" />
-    </button>
+    </p>
   </div>
 </template>
