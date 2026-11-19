@@ -2,7 +2,8 @@
 // rules that have no pure function to test, in the style of reviewUiV3b.test.mjs.
 // UR-58 moved the style from option A (left bar, border hover) to option B (quote
 // mark + italic, note under a dashed line with a corner arrow, foreground/5 hover
-// fill), so the class pins of UR-48/49 below follow B.
+// fill), so the class pins of UR-48/49 below follow B. UR-59 then gave the composer
+// rows an accent hover: foreground/5 over bg-card barely showed in the dark theme.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -38,17 +39,24 @@ test('UR-48/58: StreamLog draws sent quotes with SentQuoteCard; hover tints the 
   assert.match(card, /group-hover:opacity-100[^"]*group-focus-visible:opacity-100/)
 })
 
-test('UR-49/58: composer rows use the Quote style; hover tints the row, a dead row says why', () => {
+test('UR-49/58/59: composer rows use the Quote style; hover fills the row with accent, a dead row says why', () => {
   const src = read('../../components/sessions/ComposerQuoteBlock.vue')
   assert.match(src, /<QuoteExcerpt :text="q\.excerpt" truncate :mono="q\.kind === 'file'"/)
-  assert.doesNotMatch(src, /hover:bg-accent\/60/)
-  assert.match(src, /:class="linkOf\(q\) \? 'transition-colors hover:bg-foreground\/5' : ''"/)
+  assert.doesNotMatch(src, /hover:bg-accent\/60|hover:bg-foreground\/5/)
+  assert.match(src, /:class="linkOf\(q\) \? 'transition-colors hover:bg-accent' : ''"/)
   assert.match(src, /class="mt-1 flex gap-1\.5 border-t border-dashed border-border pt-1 text-foreground"[\s\S]*?<CornerDownRight class="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-muted-foreground"[\s\S]*?class="block min-w-0 truncate text-xs"/)
   assert.doesNotMatch(src, /pl-2\.5 text-xs text-foreground/)
   assert.match(src, /<History v-if="missing\(q\) === 'notLoaded'"[\s\S]*?<Unlink v-else[\s\S]*?t\('run\.quotes\.notLoadedShort'\) : t\('streamLog\.quotes\.sourceGone'\)/)
   for (const [lang, text] of [['en', 'Not loaded'], ['vi', 'Chưa nạp']]) {
     assert.equal(JSON.parse(read(`../../i18n/locales/${lang}/run.json`)).quotes.notLoadedShort, text)
   }
+})
+
+test('UR-59: the composer list starts as tall as its first rows are on screen', () => {
+  const src = read('../../components/sessions/ComposerQuoteBlock.vue')
+  assert.match(src, /defaultQuoteListHeight\(rowsBox\.value, ROW_PX, conversationPx\.value\)/)
+  assert.match(src, /const rows = lis\.map\(\(li\) => li\.offsetHeight\)/)
+  assert.match(src, /watch\(\(\) => \[props\.quotes, editingId\.value, collapsed\.value\], measureRows/)
 })
 
 test('UR-50: the Quote note popover follows the v3 popover frame and shows the excerpt in the Quote style', () => {

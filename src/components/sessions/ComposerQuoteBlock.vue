@@ -12,7 +12,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, CornerDownRight, History, Pencil, Quote, Unlink, X } from 'lucide-vue-next'
 import { useConfirm } from '@/composables/useConfirm'
 import type { DraftQuote, DraftQuoteLink } from '@/lib/quote'
-import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight } from '@/lib/quoteBlockHeight'
+import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight, type QuoteListBox } from '@/lib/quoteBlockHeight'
 import QuoteExcerpt from '../QuoteExcerpt.vue'
 
 const props = defineProps<{
@@ -32,6 +32,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { confirm } = useConfirm()
 
+// One arrow-key step and the shortest the list goes; the default height comes
+// from the rows as drawn (UR-59), since a row with a note is taller than this.
 const ROW_PX = 38
 
 const rootEl = ref<HTMLElement | null>(null)
@@ -40,10 +42,11 @@ const userHeight = ref<number | null>(null)
 const collapsed = ref(false)
 const conversationPx = ref(480)
 const dragging = ref(false)
+const rowsBox = ref<QuoteListBox | null>(null)
 
 const withNotes = computed(() => props.quotes.filter((q) => q.note?.trim()).length)
 const multiple = computed(() => props.quotes.length > 1)
-const defaultHeight = computed(() => defaultQuoteListHeight(ROW_PX, conversationPx.value))
+const defaultHeight = computed(() => defaultQuoteListHeight(rowsBox.value, ROW_PX, conversationPx.value))
 const listHeight = computed(() =>
   userHeight.value == null ? defaultHeight.value : clampQuoteListHeight(userHeight.value, ROW_PX, conversationPx.value),
 )
@@ -86,7 +89,21 @@ function follow(q: DraftQuote) {
 // height is added back so growing the list does not shrink its own limit.
 // The composer's parent is only its grid cell, so it cannot stand for the frame.
 let observer: ResizeObserver | null = null
+function measureRows() {
+  const ol = listEl.value
+  if (!ol) return
+  const lis = [...ol.children].filter((n): n is HTMLElement => n instanceof HTMLLIElement)
+  const rows = lis.map((li) => li.offsetHeight)
+  const gap = lis.length > 1 ? lis[1].offsetTop - lis[0].offsetTop - lis[0].offsetHeight : 0
+  const cs = getComputedStyle(ol)
+  const box = { rows, gap, padTop: parseFloat(cs.paddingTop) || 0, padBottom: parseFloat(cs.paddingBottom) || 0 }
+  const old = rowsBox.value
+  if (old && old.gap === box.gap && old.padTop === box.padTop && old.padBottom === box.padBottom
+    && old.rows.length === rows.length && old.rows.every((h, i) => h === rows[i])) return
+  rowsBox.value = box
+}
 function measure() {
+  measureRows()
   const composer = rootEl.value?.closest<HTMLElement>('[data-run-composer]')
   const column = composer?.closest<HTMLElement>('[data-run-frame]')
   if (!composer || !column) return
@@ -159,6 +176,8 @@ function onHandleKey(e: KeyboardEvent) {
 const editingId = ref<string | null>(null)
 const editText = ref('')
 const noteInput = ref<HTMLTextAreaElement[] | HTMLTextAreaElement | null>(null)
+// Rows change height when quotes or notes come and go, or a note is being edited.
+watch(() => [props.quotes, editingId.value, collapsed.value], measureRows, { deep: true, flush: 'post' })
 function startEdit(q: DraftQuote) {
   editingId.value = q.id
   editText.value = q.note ?? ''
@@ -252,12 +271,12 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
         tabindex="0"
         :aria-label="t('run.quotes.listAria')"
       >
-        <!-- Hover tints with foreground/5 (DS-3): an accent fill hardly shows on the card in the dark theme. -->
+        <!-- Hover fills with accent (UR-59): a foreground/5 tint over bg-card hardly shows in the dark theme. -->
         <li
           v-for="(q, qi) in quotes"
           :key="q.id"
           class="rounded-md border border-border bg-card"
-          :class="linkOf(q) ? 'transition-colors hover:bg-foreground/5' : ''"
+          :class="linkOf(q) ? 'transition-colors hover:bg-accent' : ''"
         >
           <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
             <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-muted-foreground">{{ qi + 1 }}</span>
