@@ -14,6 +14,7 @@ import ColorThemePicker from '@/components/ColorThemePicker.vue'
 import { useToast } from '@/composables/useToast'
 import { changeAppearance } from '@/lib/appearanceSync'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
+import { markDefault } from '@/lib/defaultMark'
 import { useUILayoutStore, type ListDensity } from '@/stores/uiLayout'
 import {
   APP_FONT_SIZES, CHAT_FONT_SIZES, DEFAULT_FONT_PREFS, FONT_WEIGHTS, resolveSmoothing, supportsWeight,
@@ -101,7 +102,7 @@ const previewSummary = computed(() => {
 // Only this OS's terminals: the backend reads any other value as this OS's default.
 const terminalApps = TERMINAL_APPS[desktopOs(navigator.userAgent)]
 const terminalAppOptions = computed(() =>
-  terminalApps.map((a) => ({ value: a.value, label: t(`settings.general.${a.labelKey}`) })),
+  markDefault(terminalApps.map((a) => ({ value: a.value, label: t(`settings.general.${a.labelKey}`) })), terminalApps[0].value),
 )
 
 // Launch at login lives in the OS's login item, not in the settings table, so

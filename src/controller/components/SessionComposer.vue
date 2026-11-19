@@ -28,6 +28,7 @@ import {
   type FetchedModel,
   type SelectOption,
 } from '@/lib/engineOptions'
+import { markDefault } from '@/lib/defaultMark'
 import type { ClaudeAccountChoice } from '../protocol'
 import type { EnabledModels } from '@/lib/enabledModels'
 import type { CmdAttachment, SlashCommand } from '../protocol'
@@ -155,7 +156,11 @@ const showAccountSelect = computed(
     (props.claudeAccounts.length > 0 || !!props.claudeAccountId),
 )
 
-const accountOptions = computed<SelectOption[]>(() => {
+// The default account (★): the Host's default one, else the global ~/.claude ('').
+const defaultAccountId = computed(() => props.claudeAccounts.find((a) => a.is_default)?.id ?? '')
+// No pick of its own: the select shows the default account, not a "Default" row.
+const shownAccountId = computed(() => props.claudeAccountId || defaultAccountId.value)
+const accountOptions = computed(() => {
   const opts: SelectOption[] = props.claudeAccounts.map((a) => ({
     value: a.id,
     label: a.label + (a.email ? ` · ${a.email}` : ''),
@@ -165,17 +170,9 @@ const accountOptions = computed<SelectOption[]>(() => {
   if (props.claudeAccountId && !opts.some((o) => o.value === props.claudeAccountId)) {
     opts.unshift({ value: props.claudeAccountId, label: props.claudeAccountId })
   }
-  // One Default tier (empty = let the Host follow its settings), surfacing the
-  // configured default account so the choice is never opaque — mirrors desktop.
-  opts.unshift({ value: '', label: defaultAccountLabel.value })
-  return opts
-})
-
-const defaultAccountLabel = computed(() => {
-  const def = props.claudeAccounts.find((a) => a.is_default)
-  return def
-    ? t('controller.composer.claudeAccountDefaultWith', { account: def.label })
-    : t('controller.composer.globalClaudeAccount')
+  // The global ~/.claude is listed only while it is the default (no default account).
+  if (!defaultAccountId.value) opts.unshift({ value: '', label: t('controller.composer.globalClaudeAccount') })
+  return markDefault(opts, defaultAccountId.value)
 })
 
 /** Trigger-button label: the engine, or the account when one is chosen — that is
@@ -741,7 +738,7 @@ function onKeydown(e: KeyboardEvent): void {
                     {{ t('controller.composer.claudeAccountSetting') }}
                   </p>
                   <AppSelect
-                    :model-value="claudeAccountId"
+                    :model-value="shownAccountId"
                     size="sm"
                     :options="accountOptions"
                     :disabled="running"

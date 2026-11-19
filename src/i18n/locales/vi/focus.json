@@ -247,7 +247,6 @@
       "title": "Google Calendar",
       "hint": "Các sự kiện bận hôm nay (trừ sự kiện cả ngày, \"rảnh\", đã từ chối) được trừ khỏi giờ làm việc còn lại để biết hôm nay có quá tải không.",
       "noAccount": "Chưa kết nối tài khoản Google — thêm ở Cài đặt → Google.",
-      "defaultAccount": "Tài khoản Google mặc định",
       "loading": "Đang tải danh sách lịch…",
       "busyCalendars": "Lịch tính là bận",
       "primary": "chính"

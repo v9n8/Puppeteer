@@ -121,8 +121,9 @@ const subscriptionsFailed = ref<Record<string, boolean>>({})
 function subscriptionOptions(id: string) {
   return (subscriptions.value[id] ?? []).map((s) => ({
     value: s.id,
-    label: s.is_default ? `${s.name} (${t('settings.azure.subscriptionDefault')})` : s.name,
+    label: s.name,
     description: s.id,
+    isDefault: s.is_default,
   }))
 }
 

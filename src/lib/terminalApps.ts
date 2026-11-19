@@ -13,10 +13,10 @@ export function desktopOs(userAgent: string): DesktopOs {
   return 'linux'
 }
 
-/** `terminal_app` values and their label keys (`settings.general.*`), the OS default first. */
+/** `terminal_app` values and their label keys (`settings.general.*`), the OS default first (★ in the picker). */
 export const TERMINAL_APPS: Record<DesktopOs, readonly { value: string; labelKey: string }[]> = {
   macos: [
-    { value: 'terminal', labelKey: 'terminalDefault' },
+    { value: 'terminal', labelKey: 'terminalMacos' },
     { value: 'iterm', labelKey: 'terminalIterm' },
   ],
   windows: [

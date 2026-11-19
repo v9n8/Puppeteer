@@ -49,3 +49,12 @@ export function resolveAppearance(host: Appearance | null, override: AppearanceO
     color_theme: normalizeColorTheme(override.color_theme !== FOLLOW_HOST ? override.color_theme : base.color_theme),
   }
 }
+
+/**
+ * The override a pick in the theme sheet stores: the desktop's own value (the
+ * one marked ★) means "follow the desktop", so it keeps following a later
+ * change there; any other value is this phone's own.
+ */
+export function overrideForPick(value: string, hostValue: string): string {
+  return value === hostValue ? FOLLOW_HOST : value
+}

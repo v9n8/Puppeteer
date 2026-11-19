@@ -23,7 +23,6 @@
   "deleteMessage": "\"{name}\" sẽ ngừng chạy. Các Session nó đã mở vẫn được giữ.",
   "newTitle": "Lịch mới",
   "editTitle": "Sửa lịch",
-  "engineDefault": "Engine mặc định",
   "cancel": "Huỷ",
   "save": "Lưu",
   "saveHint": "Lịch mới tạo ra ở trạng thái tắt: bật nó trong danh sách.",

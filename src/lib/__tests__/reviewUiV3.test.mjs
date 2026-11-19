@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { markDefault, projectDefaultSelect } from '../defaultMark.ts'
 import { composerModelChoices, shownModel } from '../composerChips.ts'
+import { FOLLOW_HOST, overrideForPick } from '../controllerAppearance.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 const json = (p) => JSON.parse(read(p))
@@ -515,5 +516,37 @@ test('UR-28: the open file has no ⋯ menu; its tab and its toolbar name share o
     const files = json(`../../i18n/locales/${lang}/files.json`)
     assert.equal(files.viewer.find, undefined, lang)
     assert.equal(files.viewer.moreActions, undefined, lang)
+  }
+})
+
+test('UR-40: picking the desktop\'s (starred) look on the phone follows the desktop; another look is the phone\'s own', () => {
+  assert.equal(overrideForPick('dark', 'dark'), FOLLOW_HOST)
+  assert.equal(overrideForPick('light', 'dark'), 'light')
+})
+
+test('UR-40: the other selects star the default instead of a default row or a "(default)" label', () => {
+  const focus = read('../../components/FocusSettings.vue')
+  assert.match(focus, /markDefault\(/)
+  assert.doesNotMatch(focus, /calendar\.defaultAccount/)
+  const schedules = read('../../views/SchedulesView.vue')
+  assert.match(schedules, /projectDefaultSelect\(\[\{ value: 'claude'/)
+  assert.doesNotMatch(schedules, /schedules\.engineDefault/)
+  assert.match(read('../../components/AzureAccountsSettings.vue'), /isDefault: s\.is_default/)
+  assert.match(read('../../components/settings/GeneralSettings.vue'), /markDefault\(terminalApps\.map/)
+  const theme = read('../../controller/components/ThemeSheet.vue')
+  assert.doesNotMatch(theme, /FOLLOW_HOST|followHost/)
+  assert.equal((theme.match(/<Star/g) ?? []).length, 2)
+  const composer = read('../../controller/components/SessionComposer.vue')
+  assert.match(composer, /:model-value="shownAccountId"/)
+  assert.match(composer, /markDefault\(opts, defaultAccountId\.value\)/)
+  for (const lang of ['en', 'vi']) {
+    const settings = json(`../../i18n/locales/${lang}/settings.json`)
+    for (const key of ['terminalMacos', 'terminalPowershell']) assert.doesNotMatch(settings.general[key], /default|mặc định/i, `${lang} ${key}`)
+    assert.equal(settings.azure.subscriptionDefault, undefined, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/focus.json`).settings.calendar.defaultAccount, undefined, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/schedules.json`).engineDefault, undefined, lang)
+    const controller = json(`../../i18n/locales/${lang}/controller.json`)
+    assert.equal(controller.theme.followHostValue, undefined, lang)
+    assert.equal(controller.composer.claudeAccountDefaultWith, undefined, lang)
   }
 })

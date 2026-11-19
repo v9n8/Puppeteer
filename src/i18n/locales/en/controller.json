@@ -36,7 +36,6 @@
     "modelSetting": "Model",
     "modelDefault": "Default (from settings)",
     "globalClaudeAccount": "Global (~/.claude)",
-    "claudeAccountDefaultWith": "Default · {account}",
     "settingsLockedRunning": "Settings are locked while the run is executing"
   },
   "session": {
@@ -284,9 +283,7 @@
     "title": "Appearance",
     "mode": "Theme",
     "palette": "Color palette",
-    "followHost": "Same as desktop",
-    "followHostValue": "Same as desktop ({value})",
-    "hint": "Only changes this device — the desktop keeps its own look.",
+    "hint": "Only changes this device — the desktop keeps its own look. ★ marks the desktop's choice.",
     "close": "Close"
   }
 }

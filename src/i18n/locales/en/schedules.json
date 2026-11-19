@@ -23,7 +23,6 @@
   "deleteMessage": "\"{name}\" stops running. Sessions it already opened are kept.",
   "newTitle": "New schedule",
   "editTitle": "Edit schedule",
-  "engineDefault": "Default engine",
   "cancel": "Cancel",
   "save": "Save",
   "saveHint": "A new schedule starts off: switch it on in the list.",

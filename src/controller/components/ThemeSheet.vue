@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
  * Bottom sheet for this phone's look: light / dark / system and the color
- * palette, each either following the desktop or picked here. The choice is
- * stored on this device only (see ../appearance.ts) — nothing goes to the Host.
+ * palette, each either following the desktop or picked here. Each list shows
+ * the value in force and ★ marks the desktop's. The choice is stored on this
+ * device only (see ../appearance.ts) — nothing goes to the Host.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui'
-import { Check } from 'lucide-vue-next'
-import { COLOR_THEMES, FOLLOW_HOST, THEME_MODES } from '@/lib/controllerAppearance'
+import { Check, Star } from 'lucide-vue-next'
+import { COLOR_THEMES, NO_OVERRIDE, THEME_MODES, overrideForPick, resolveAppearance } from '@/lib/controllerAppearance'
 import { colorThemeLabelKey } from '@/lib/colorThemes'
 import { appearanceOverride, hostAppearance, setAppearanceOverride } from '../appearance'
 
@@ -25,27 +26,19 @@ function paletteLabel(palette: string): string {
   return t(colorThemeLabelKey(palette))
 }
 
-/** "Same as desktop (Dark)" once the Host's value is known. */
-function followLabel(value: string | undefined, label: (v: string) => string): string {
-  return value ? t('controller.theme.followHostValue', { value: label(value) }) : t('controller.theme.followHost')
-}
+// The desktop's look (★; the built-in defaults until a Host is seen) and the one shown.
+const desktop = computed(() => resolveAppearance(hostAppearance.value, NO_OVERRIDE))
+const current = computed(() => resolveAppearance(hostAppearance.value, appearanceOverride.value))
 
-const modeOptions = computed(() => [
-  { value: FOLLOW_HOST, label: followLabel(hostAppearance.value?.theme, modeLabel) },
-  ...THEME_MODES.map((m) => ({ value: m, label: modeLabel(m) })),
-])
-
-const paletteOptions = computed(() => [
-  { value: FOLLOW_HOST, label: followLabel(hostAppearance.value?.color_theme, paletteLabel) },
-  ...COLOR_THEMES.map((p) => ({ value: p, label: paletteLabel(p) })),
-])
+const modeOptions = computed(() => THEME_MODES.map((m) => ({ value: m, label: modeLabel(m) })))
+const paletteOptions = computed(() => COLOR_THEMES.map((p) => ({ value: p, label: paletteLabel(p) })))
 
 function setMode(theme: string): void {
-  setAppearanceOverride({ ...appearanceOverride.value, theme })
+  setAppearanceOverride({ ...appearanceOverride.value, theme: overrideForPick(theme, desktop.value.theme) })
 }
 
 function setPalette(color_theme: string): void {
-  setAppearanceOverride({ ...appearanceOverride.value, color_theme })
+  setAppearanceOverride({ ...appearanceOverride.value, color_theme: overrideForPick(color_theme, desktop.value.color_theme) })
 }
 </script>
 
@@ -68,17 +61,22 @@ function setPalette(color_theme: string): void {
             v-for="o in modeOptions"
             :key="o.value"
             type="button"
-            class="rounded-md border px-2 py-2 text-sm transition-colors cursor-pointer"
-            :class="[
-              o.value === FOLLOW_HOST ? 'col-span-full' : '',
-              appearanceOverride.theme === o.value
-                ? 'border-primary bg-primary/10 text-primary font-medium'
-                : 'border-border bg-secondary text-foreground hover:bg-accent',
-            ]"
-            :aria-pressed="appearanceOverride.theme === o.value"
+            class="flex min-w-0 items-center justify-center gap-1 rounded-md border px-2 py-2 text-sm transition-colors cursor-pointer"
+            :class="current.theme === o.value
+              ? 'border-primary bg-primary/10 text-primary font-medium'
+              : 'border-border bg-secondary text-foreground hover:bg-accent'"
+            :aria-pressed="current.theme === o.value"
             @click="setMode(o.value)"
           >
-            {{ o.label }}
+            <Star
+              v-if="o.value === desktop.theme"
+              class="h-3 w-3 shrink-0 text-primary"
+              :stroke-width="2"
+              fill="currentColor"
+              role="img"
+              :aria-label="t('common.default')"
+            />
+            <span class="truncate">{{ o.label }}</span>
           </button>
         </div>
 
@@ -91,17 +89,24 @@ function setPalette(color_theme: string): void {
             :key="o.value"
             type="button"
             class="flex w-full items-center gap-2.5 border-b border-border/60 px-3 py-2.5 text-left text-sm last:border-b-0 transition-colors cursor-pointer hover:bg-accent"
-            :aria-pressed="appearanceOverride.color_theme === o.value"
+            :aria-pressed="current.color_theme === o.value"
             @click="setPalette(o.value)"
           >
             <span
-              v-if="o.value !== FOLLOW_HOST"
               :data-theme="o.value === 'default' ? undefined : o.value"
               class="theme-scope h-4 w-4 shrink-0 rounded-full border border-black/10 bg-primary"
             />
             <span class="min-w-0 flex-1 truncate">{{ o.label }}</span>
+            <Star
+              v-if="o.value === desktop.color_theme"
+              class="h-3.5 w-3.5 shrink-0 text-primary"
+              :stroke-width="2"
+              fill="currentColor"
+              role="img"
+              :aria-label="t('common.default')"
+            />
             <Check
-              v-if="appearanceOverride.color_theme === o.value"
+              v-if="current.color_theme === o.value"
               class="h-4 w-4 shrink-0 text-primary"
               :stroke-width="2.5"
             />

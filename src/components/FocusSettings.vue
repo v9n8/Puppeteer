@@ -17,6 +17,7 @@ import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
 import type { CalendarMeta, GoogleAccount } from '@/stores/googleCalendar'
 import { DEFAULT_FOCUS_SETTINGS, NOTIFY_KINDS, notifyKindsOf, type FocusSettings } from '@/lib/focus'
+import { markDefault } from '@/lib/defaultMark'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -48,22 +49,25 @@ const calendars = ref<CalendarMeta[]>([])
 const calendarsLoading = ref(false)
 const calendarsError = ref<string | null>(null)
 
-/** "" = the default Google account. */
+// No saved account (null) uses the default Google account, else the first one.
+const defaultAccountId = computed(() => accounts.value.find((a) => a.is_default)?.id ?? accounts.value[0]?.id ?? null)
+const effectiveAccountId = computed(() => form.value.calendar_account_id ?? defaultAccountId.value)
+// The select shows the account in force and ★ marks the default; picking one
+// saves it, and the calendars are cleared only when the account changes.
 const accountValue = computed({
-  get: () => form.value.calendar_account_id ?? '',
+  get: () => effectiveAccountId.value ?? '',
   set: (v: string) => {
-    if ((form.value.calendar_account_id ?? '') === v) return
+    const changed = v !== (effectiveAccountId.value ?? '')
     form.value.calendar_account_id = v || null
-    form.value.calendar_ids = []
+    if (changed) form.value.calendar_ids = []
   },
 })
-const effectiveAccountId = computed(
-  () => form.value.calendar_account_id ?? accounts.value.find((a) => a.is_default)?.id ?? accounts.value[0]?.id ?? null,
+const accountOptions = computed(() =>
+  markDefault(
+    accounts.value.map((a) => ({ value: a.id, label: a.email ? `${a.label} · ${a.email}` : a.label })),
+    defaultAccountId.value ?? '',
+  ),
 )
-const accountOptions = computed(() => [
-  { value: '', label: t('focus.settings.calendar.defaultAccount') },
-  ...accounts.value.map((a) => ({ value: a.id, label: a.email ? `${a.label} · ${a.email}` : a.label })),
-])
 
 async function loadAccounts() {
   if (!calendarOn.value) return

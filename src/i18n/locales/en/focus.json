@@ -247,7 +247,6 @@
       "title": "Google Calendar",
       "hint": "Busy events of today (not all-day, not \"free\", not declined) are subtracted from the working hours left to show whether today is overloaded.",
       "noAccount": "No Google account connected — add one in Settings → Google.",
-      "defaultAccount": "Default Google account",
       "loading": "Loading calendars…",
       "busyCalendars": "Calendars that count as busy",
       "primary": "primary"

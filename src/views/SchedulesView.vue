@@ -16,6 +16,9 @@ import { isRemoteMode } from '@/lib/ipc/remote'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
+import { useAppSettingsStore } from '@/stores/appSettings'
+import { composerDefaults } from '@/lib/composerChips'
+import { projectDefaultSelect } from '@/lib/defaultMark'
 import {
   CMD_DELETE_SCHEDULE,
   CMD_LIST_SCHEDULES,
@@ -43,6 +46,7 @@ defineOptions({ name: 'SchedulesView' })
 const { t, locale } = useI18n()
 const router = useRouter()
 const projects = useProjectsStore()
+const appSettings = useAppSettingsStore()
 const { confirm } = useConfirm()
 const { toast } = useToast()
 const remote = isRemoteMode()
@@ -61,11 +65,13 @@ const formErr = ref<string | null>(null)
 
 const projectName = (id: string) => projects.projects.find((p) => p.id === id)?.name ?? id
 const projectOptions = computed(() => projects.projects.map((p) => ({ value: p.id, label: p.name })))
-const engineOptions = computed(() => [
-  { value: '', label: t('schedules.engineDefault') },
-  { value: 'claude', label: 'Claude' },
-  { value: 'codex', label: 'Codex' },
-])
+// No engine of its own: the run uses the project's default engine, else the
+// global one; the select shows it and ★ marks it (picking any saves it).
+const engineSelect = computed(() => {
+  const project = projects.projects.find((p) => p.id === form.value?.project_id)
+  const def = composerDefaults({ settings: appSettings.settings, project: project?.session_defaults }).engine
+  return projectDefaultSelect([{ value: 'claude', label: 'Claude' }, { value: 'codex', label: 'Codex' }], form.value?.engine, def)
+})
 const modeOptions = computed(() => PERMISSION_MODES.map((m) => ({ value: m, label: t(`schedules.mode.${m}`) })))
 const kindOptions = computed(() => TIMING_KINDS.map((k) => ({ value: k, label: t(`schedules.kind.${k}`) })))
 const WEEK = [1, 2, 3, 4, 5, 6, 0]
@@ -304,7 +310,7 @@ async function remove(s: Schedule) {
           </label>
           <label class="block space-y-1">
             <span class="text-muted-foreground">{{ t('schedules.field.engine') }}</span>
-            <AppSelect v-model="form.engine" :options="engineOptions" />
+            <AppSelect :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="form.engine = $event === 'codex' ? 'codex' : 'claude'" />
           </label>
           <label class="block space-y-1">
             <span class="text-muted-foreground">{{ t('schedules.field.mode') }}</span>

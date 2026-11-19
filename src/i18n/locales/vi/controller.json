@@ -36,7 +36,6 @@
     "modelSetting": "Model",
     "modelDefault": "Mặc định (theo cài đặt)",
     "globalClaudeAccount": "Chung (~/.claude)",
-    "claudeAccountDefaultWith": "Mặc định · {account}",
     "settingsLockedRunning": "Không đổi được thiết lập khi run đang chạy"
   },
   "session": {
@@ -284,9 +283,7 @@
     "title": "Giao diện",
     "mode": "Chế độ",
     "palette": "Bảng màu",
-    "followHost": "Giống máy tính",
-    "followHostValue": "Giống máy tính ({value})",
-    "hint": "Chỉ đổi trên thiết bị này — máy tính vẫn giữ giao diện của nó.",
+    "hint": "Chỉ đổi trên thiết bị này — máy tính vẫn giữ giao diện của nó. ★ đánh dấu lựa chọn của máy tính.",
     "close": "Đóng"
   }
 }
