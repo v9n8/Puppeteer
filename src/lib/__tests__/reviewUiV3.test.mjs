@@ -383,3 +383,18 @@ test('UR-01: "Clear all" leaves History and lives in the Project overview, which
     assert.ok(json(`../../i18n/locales/${lang}/projects.json`).overview.clearSessions, lang)
   }
 })
+
+test('UR-15: compact rows show only the flag tag on line 2; the time steps aside on hover; re-sort is an icon', () => {
+  const rail = read('../../components/sessions/RunSessionRail.vue')
+  const compact = rail.slice(rail.indexOf("v-if=\"historyDensity === 'compact'\""), rail.indexOf("v-else-if=\"historyDensity === 'comfortable'\""))
+  assert.doesNotMatch(compact, /runAccountModelLine|runModelLabel|runClaudeAccountLabel/)
+  assert.match(compact, /projectTileClass\(runFlag\(run\)!\.color\)/)
+  assert.match(compact, /rounded-full/)
+  assert.match(compact, /invisible: !runFlag\(run\)/)
+  // Relative time hides while the ⋯ block shows, in compact as well as dense.
+  assert.match(rail, /:class="\['group-hover:invisible group-focus-within:invisible'/)
+  // Re-sort: icon button, tooltip kept, no visible label.
+  assert.doesNotMatch(rail, /run\.resortSessions['"]/)
+  assert.match(rail, /:aria-label="t\('run\.resortSessionsTitle'\)"/)
+  for (const lang of ['en', 'vi']) assert.equal(json(`../../i18n/locales/${lang}/run.json`).resortSessions, undefined, lang)
+})

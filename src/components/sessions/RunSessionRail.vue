@@ -13,7 +13,7 @@ import RunActionItems from '@/components/RunActionItems.vue'
 import HistoryFlagFilter from '@/components/sessions/HistoryFlagFilter.vue'
 import FileTree from '@/components/FileTree.vue'
 import { Button, Input, DropdownMenu, ContextMenu } from '@/components/ui'
-import { swatchClass } from '@/lib/projectAppearance'
+import { projectTileClass, swatchClass } from '@/lib/projectAppearance'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
@@ -21,7 +21,7 @@ const {
   runsStore, project, currentRunId, runLabel, sessionListEl, loadRunLog, repos, refInput,
   detectedRef, fetching, fetchOpen, fetchPanelEl, fetchTriggerEl, historyDensity,
   leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
-  runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
+  runIcon, runStatusTitle, runWorkerCount, runRefIcon, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
   runTimestamp, sessionSearch, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
   handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId, renameDraft,
@@ -192,15 +192,17 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
             {{ t('run.history') }}<span v-if="displayRuns.length" class="font-normal"> · {{ displayRuns.length }}</span>
           </p>
           <HistoryFlagFilter />
-          <button
+          <Button
             v-if="runsStore.orderStale"
-            class="ml-auto mr-3 flex shrink-0 items-center gap-1 whitespace-nowrap text-2xs text-primary/80 hover:text-primary transition-colors cursor-pointer"
+            variant="ghost"
+            size="icon-xs"
+            class="ml-auto shrink-0 text-primary/80 hover:text-primary"
             :title="t('run.resortSessionsTitle')"
+            :aria-label="t('run.resortSessionsTitle')"
             @click="runsStore.sortRuns()"
           >
-            <ArrowUpDown class="h-2.5 w-2.5" :stroke-width="1.75" />
-            {{ t('run.resortSessions') }}
-          </button>
+            <ArrowUpDown class="h-3.5 w-3.5" :stroke-width="1.75" />
+          </Button>
         </div>
       </div>
       <div ref="sessionListEl" class="flex-1 min-h-0 overflow-auto flex flex-col gap-0.5 px-1.5 py-0.5" @contextmenu.prevent>
@@ -325,41 +327,39 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
                   :stroke-width="2"
                 />
               </span>
-              <!-- Relative age (compact/dense). In dense mode the ⋯ trigger
-                   takes this slot on hover, so the time steps aside. -->
+              <!-- Relative age (compact/dense). The ⋯ trigger takes the row's
+                   end on hover, so the time steps aside. -->
               <span
                 v-if="historyDensity !== 'comfortable'"
                 class="shrink-0 min-w-[1.25rem] text-right font-mono text-2xs text-muted-foreground"
-                :class="historyDensity === 'dense'
-                  ? ['group-hover:invisible group-focus-within:invisible', { invisible: actionsMenuRunId === run.id }]
-                  : ''"
+                :class="['group-hover:invisible group-focus-within:invisible', { invisible: actionsMenuRunId === run.id }]"
                 :title="historyDensity === 'dense' ? undefined : runTimestamp(runActivityAt(run))"
               >{{ runRelativeTime(runActivityAt(run)) }}</span>
             </div>
-            <!-- Compact: "account · model" (model without its "claude-"
-                 prefix; full value in the tooltip). Kept in the layout but
-                 invisible for an unstarted session so rows share one height.
-                 `pr-6` keeps it clear of the hover actions (⋯). -->
+            <!-- Compact: the flag as a tinted tag, nothing else. Kept in the
+                 layout but invisible for a Session without a flag so rows
+                 share one height. `pr-8` keeps it clear of the hover actions (⋯). -->
             <p
               v-if="historyDensity === 'compact'"
-              class="truncate text-2xs leading-[1.4] text-muted-foreground"
-              :class="{ invisible: !runStarted(run) && !runFlag(run) }"
-              :title="runAccountModelLine(run, false)"
+              class="flex h-[18px] items-center pr-8 text-2xs leading-[1.4]"
+              :class="{ invisible: !runFlag(run) }"
             >
-              <template v-if="runFlag(run)">
-                <span class="inline-flex items-center gap-1 align-top" :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })">
-                  <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(runFlag(run)!.color)" />{{ runFlag(run)!.label }}
-                </span>
-                <template v-if="runAccountModelLine(run)"> · </template>
-              </template>
-              {{ runAccountModelLine(run) || (runFlag(run) ? '' : '\u00a0') }}
+              <span
+                v-if="runFlag(run)"
+                class="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border px-1.5"
+                :class="projectTileClass(runFlag(run)!.color)"
+                :title="t('sessionFlags.row.tooltip', { name: runFlag(run)!.label })"
+              >
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="swatchClass(runFlag(run)!.color)" />
+                <span class="min-w-0 truncate">{{ runFlag(run)!.label }}</span>
+              </span>
             </p>
             <!-- Comfortable meta: the AI badges (account + model) on top so a
                  long model id gets the full row width, with the timestamp on
                  its own line underneath. -->
             <div
               v-else-if="historyDensity === 'comfortable'"
-              class="mt-1 text-2xs text-muted-foreground"
+              class="mt-1 pr-8 text-2xs text-muted-foreground"
               :class="{ invisible: !runStarted(run) && !runFlag(run) }"
             >
               <span

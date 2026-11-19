@@ -694,7 +694,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   return {
     repos, refInput, detectedRef, fetching, fetchOpen, fetchPanelEl, fetchTriggerEl, historyDensity,
     leftTab, fetchError, needsLinkedIssue, linkedIssueInput, runIsRunning,
-    runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
+    runIcon, runStatusTitle, runWorkerCount, runRefIcon, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
     runTimestamp, sessionSearch, projectFlags, flagFilter, flagCounts, flagOptions, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
     runGithubUrl, handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId,
