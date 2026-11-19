@@ -25,6 +25,12 @@
     "close": "Close ({count})",
     "clear": "Clear selection"
   },
+  "drop": {
+    "idle": "Drag a card here to move it back to the main window",
+    "one": "Drop to move “{name}” to the main window",
+    "many": "Drop to move {count} window to the main window | Drop to move {count} windows to the main window",
+    "refused": "“{name}” cannot move back to the main window"
+  },
   "exit": "Exit (Esc)",
   "group": {
     "session": "Sessions",

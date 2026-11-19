@@ -11,7 +11,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Minus, Search, SquareArrowDownLeft, SquareArrowOutUpRight, TriangleAlert, X } from 'lucide-vue-next'
 import { Button, ContextMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
 import WindowCard, { type MarkClick } from '@/components/windows/WindowCard.vue'
+import WindowsDropStrip from '@/components/windows/WindowsDropStrip.vue'
 import WindowsSelectionBar from '@/components/windows/WindowsSelectionBar.vue'
+import { useWindowsDrag } from '@/components/windows/useWindowsDrag'
 import { useToast } from '@/composables/useToast'
 import { IS_MAC, effectiveKeymap, hasNativeMenu } from '@/lib/appMenu'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -249,6 +251,13 @@ async function minimizeMarked() {
   void store.refresh()
 }
 
+// Cards dragged onto the drop strip move back to the main window.
+const { drag, dragged, lead: dragLead, onCardPointerDown, consumeClick } = useWindowsDrag({
+  cards: () => flat.value,
+  marks: () => marks.value,
+  onDrop: (labels) => void mergeWindows(labels),
+})
+
 function openMenu(e: MouseEvent, label: string) {
   menu.value = { x: e.clientX, y: e.clientY, label }
 }
@@ -282,6 +291,8 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
   if (!store.open) return
+  // Esc while dragging cancels the drag (useWindowsDrag), nothing else.
+  if (drag.value) return
   // A dialog or menu on top takes its own keys (the context menu closes on Esc itself).
   if (menu.value) return
   if (confirmClose.value) {
@@ -441,13 +452,14 @@ onBeforeUnmount(() => {
         <Button variant="outline" size="sm" class="text-[13px]" @click="store.refreshThumbs()">{{ t('windows.thumb.retry') }}</Button>
       </div>
 
-      <div class="min-h-[160px] flex-1 overflow-y-auto px-4 pt-3 pb-4">
+      <div class="min-h-[160px] flex-1 scroll-pt-14 overflow-y-auto px-4 pt-3 pb-4" :class="drag ? 'cursor-grabbing select-none' : ''">
         <p v-if="total === 0" class="py-10 text-center text-sm text-muted-foreground">{{ t('windows.empty') }}</p>
         <p v-else-if="flat.length === 0" class="py-10 text-center text-sm text-muted-foreground">
           {{ t('windows.noMatch', { query: query.trim() }) }}
           <Button variant="ghost" size="sm" class="text-[13px]" @click="query = ''">{{ t('windows.clearFilter') }}</Button>
         </p>
         <template v-else>
+        <WindowsDropStrip :dragged="dragged.length" :mergeable="dragged.filter((c) => c.canMerge).length" :name="dragLead?.title ?? ''" />
         <section v-for="g in groups" :key="g.key" class="mb-4 last:mb-0">
           <h3 class="mb-2 text-sm font-semibold text-muted-foreground">{{ groupName(g) }} · {{ g.cards.length }}</h3>
           <div
@@ -464,8 +476,10 @@ onBeforeUnmount(() => {
               :close-tip="closeTip"
               :marked="marks.has(card.label)"
               :mark-mode="marks.size > 0"
-              @activate="activate(card.label)"
-              @mark="markCard(card.label, $event)"
+              :dragging="!!drag?.labels.includes(card.label)"
+              @press="onCardPointerDown($event, card.label)"
+              @activate="consumeClick() || activate(card.label)"
+              @mark="consumeClick() || markCard(card.label, $event)"
               @close="closeCard(card.label)"
               @select="selected = card.label"
               @menu="openMenu($event, card.label)"
@@ -493,6 +507,17 @@ onBeforeUnmount(() => {
         <span>{{ t('windows.foot.type') }}</span>
         <span><kbd>Esc</kbd> {{ t('windows.foot.exit') }}</span>
       </footer>
+    </div>
+
+    <!-- The dragged card, under the pointer. -->
+    <div
+      v-if="drag && dragLead"
+      class="pointer-events-none fixed z-[3] rotate-2 rounded-[10px] shadow-xl shadow-black/30"
+      :style="{ left: `${drag.x - drag.dx}px`, top: `${drag.y - drag.dy}px`, width: `${drag.width}px` }"
+      aria-hidden="true"
+      inert
+    >
+      <WindowCard :card="dragLead" :thumb="thumbFor(dragLead, store.thumbs, store.thumbStatus[dragLead.label])" :selected="false" :close-tip="closeTip" :marked="false" :mark-mode="false" />
     </div>
 
     <ContextMenu :open="!!menu" :x="menu?.x ?? 0" :y="menu?.y ?? 0" @close="menu = null">

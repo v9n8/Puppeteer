@@ -72,3 +72,30 @@ test('UR-53: Space / ⌘A stay text keys while the filter has text; ⌘A marks o
     assert.ok(w.cannotMerge && w.mark && w.confirm.titleSome, lang)
   }
 })
+
+const stripSrc = read('components/windows/WindowsDropStrip.vue')
+const dragSrc = read('components/windows/useWindowsDrag.ts')
+
+test('UR-54: a 40px dashed strip stuck at the top of the grid; accent while dragging, amber when refused', () => {
+  assert.match(overlay, /<template v-else>\s*<WindowsDropStrip /)
+  assert.match(stripSrc, /class="sticky -top-3 /)
+  assert.match(stripSrc, /data-windows-drop\s+class="flex h-10 [^"]*border-2 border-dashed/)
+  assert.match(stripSrc, /idle: 'border-input text-muted-foreground'/)
+  assert.match(stripSrc, /merge: 'border-primary bg-primary\/10 text-primary'/)
+  assert.match(stripSrc, /refused: '[^']*border-warning bg-warning\/10 text-warning'/)
+  assert.match(stripSrc, /tone === 'refused' \? Ban : SquareArrowDownLeft/)
+  for (const lang of ['vi', 'en']) {
+    const d = json(lang).drop
+    assert.ok(d.idle && d.one.includes('{name}') && d.many.includes('{count}') && d.refused.includes('{name}'), lang)
+  }
+})
+
+test('UR-54: pointer drag (no HTML5 drag), a threshold, Esc cancels, the click after a drag is swallowed', () => {
+  assert.doesNotMatch(overlay + cardSrc, /draggable="true"|@dragstart/)
+  assert.match(dragSrc, /const THRESHOLD = 4/)
+  assert.match(dragSrc, /'Escape' \|\| !drag\.value\) return/)
+  assert.match(dragSrc, /overStrip\(e\.clientX, e\.clientY\) && dragged\.value\.some\(\(c\) => c\.canMerge\)/)
+  assert.match(overlay, /if \(drag\.value\) return/)
+  assert.match(overlay, /@activate="consumeClick\(\) \|\| activate\(card\.label\)"/)
+  assert.match(cardSrc, /dragging \? 'opacity-40' : ''/)
+})

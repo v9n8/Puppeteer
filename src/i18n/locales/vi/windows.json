@@ -25,6 +25,12 @@
     "close": "Đóng ({count})",
     "clear": "Bỏ chọn"
   },
+  "drop": {
+    "idle": "Kéo thẻ vào đây để gộp về cửa sổ chính",
+    "one": "Thả để gộp “{name}” về cửa sổ chính",
+    "many": "Thả để gộp {count} cửa sổ về cửa sổ chính",
+    "refused": "“{name}” không gộp về cửa sổ chính được"
+  },
   "exit": "Thoát (Esc)",
   "group": {
     "session": "Session",

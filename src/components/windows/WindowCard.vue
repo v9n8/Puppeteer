@@ -2,7 +2,8 @@
 // One private window in the "Open windows" overlay: a thumbnail of the window (macOS) or
 // else a big icon of its kind, its name, a second line and, for a session, what it
 // is doing. The vault's card is the lock icon and nothing else (see cardsFrom).
-// A round checkbox marks it for the actions on several windows (WindowsSelectionBar).
+// A round checkbox marks it for the actions on several windows (WindowsSelectionBar);
+// dragged onto the drop strip it moves back to the main window (useWindowsDrag).
 import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -28,12 +29,15 @@ const props = defineProps<{
   marked: boolean
   /** Some card is marked: every checkbox shows, and a plain click marks instead of opening (no window opened by mistake). */
   markMode: boolean
+  /** Lifted by a drag (useWindowsDrag): the card stays in place, faded. */
+  dragging?: boolean
 }>()
 const emit = defineEmits<{
   activate: []
   close: []
   select: []
   mark: [click: MarkClick]
+  press: [event: PointerEvent]
   menu: [event: MouseEvent]
 }>()
 
@@ -90,7 +94,8 @@ const badge = computed(() => {
     :aria-selected="selected"
     :data-window-label="card.label"
     class="group relative flex w-full cursor-pointer flex-col rounded-card border bg-card text-left transition-colors hover:bg-accent"
-    :class="[marked ? 'border-primary' : 'border-border', selected ? 'ring-2 ring-ring' : '']"
+    :class="[marked ? 'border-primary' : 'border-border', selected ? 'ring-2 ring-ring' : '', dragging ? 'opacity-40' : '']"
+    @pointerdown="emit('press', $event)"
     @click="onClick"
     @contextmenu.prevent="emit('select'); emit('menu', $event)"
   >
