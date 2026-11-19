@@ -106,16 +106,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
           v-model="note"
           rows="3"
           class="min-h-0 flex-1 resize-none"
-          :placeholder="t('selection.quoteNote.notePlaceholder')"
+          :placeholder="t('selection.quoteNote.notePlaceholderKeys')"
           :aria-label="t('selection.quoteNote.notePlaceholder')"
           @keydown="onNoteKeydown"
         />
-        <div class="flex shrink-0 items-center gap-1.5 pr-2">
-          <span class="flex min-w-0 flex-1 items-center gap-1 truncate text-2xs text-muted-foreground">
-            <span><kbd class="font-sans">↵</kbd> {{ t('selection.quoteNote.keysSave') }}</span>
-            <span aria-hidden="true">·</span>
-            <span><kbd class="font-sans">⇧↵</kbd> {{ t('selection.quoteNote.keysNewline') }}</span>
-          </span>
+        <!-- The keys (↵ save · ⇧↵ new line) live in the placeholder: a row of its own was cut off in a narrow popover. -->
+        <div class="flex shrink-0 items-center justify-end gap-1.5 pr-2">
           <Button variant="ghost" size="xs" @click="emit('close')">{{ t('common.close') }}</Button>
           <Button size="xs" @click="save">{{ t('common.save') }}</Button>
         </div>

@@ -3,8 +3,7 @@
   "quoteTitle": "Quote the selection into {target}",
   "quoteNote": {
     "notePlaceholder": "Add a note (optional)",
-    "keysSave": "save",
-    "keysNewline": "new line",
+    "notePlaceholderKeys": "Add a note (optional) — ↵ save, ⇧↵ new line",
     "move": "Drag to move",
     "resize": "Drag to resize"
   },

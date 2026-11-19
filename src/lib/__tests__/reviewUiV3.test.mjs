@@ -52,3 +52,12 @@ test('UR-08: scroll column is Top · prompt navigator · Latest, sized by its co
   // Both log scrollers leave room for the floating column.
   assert.equal(src.match(/overflow-auto pl-6 pr-14 py-5/g)?.length, 2)
 })
+
+test('UR-12: the Quote note popover shows its keys in the placeholder, not a row of their own', () => {
+  const src = read('../../components/QuoteNotePopover.vue')
+  assert.match(src, /:placeholder="t\('selection\.quoteNote\.notePlaceholderKeys'\)"/)
+  assert.doesNotMatch(src, /keysSave|keysNewline/)
+  for (const lang of ['en', 'vi']) {
+    assert.match(json(`../../i18n/locales/${lang}/selection.json`).quoteNote.notePlaceholderKeys, /↵.*⇧↵/, lang)
+  }
+})
