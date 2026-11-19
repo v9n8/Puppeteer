@@ -175,3 +175,53 @@ test('UR-09: the main window shows a short "Quote", own windows name the target;
     assert.ok(s.quoteShort && s.quote.includes('{target}') && s.quoteTitle.includes('{target}'))
   }
 })
+
+test('UR-16: a thinking block shows its first line until opened, stays open while streamed, opens on a ⌘F hit', async () => {
+  const { thinkingFindHits, thinkingOpen, thinkingPreview } = await import('../thinkingFold.ts')
+  assert.equal(thinkingPreview('\n  First idea\nsecond'), 'First idea')
+  // Streaming opens it; once done it folds itself unless the reader chose.
+  assert.equal(thinkingOpen({ streaming: true }), true)
+  assert.equal(thinkingOpen({ streaming: false }), false)
+  assert.equal(thinkingOpen({ streaming: true, choice: false }), false)
+  assert.equal(thinkingOpen({ choice: true }), true)
+  assert.equal(thinkingOpen({ findHit: true }), true)
+  const entries = [{ kind: 'user', text: 'Needle' }, { kind: 'thinking', text: 'a needle here' }, { kind: 'thinking', text: 'none' }]
+  assert.deepEqual([...thinkingFindHits(entries, 'NEEDLE')], [1])
+  assert.deepEqual([...thinkingFindHits(entries, 'NEEDLE', true)], [])
+  assert.equal(thinkingFindHits(entries, '').size, 0)
+  const block = read('../../components/sessions/ThinkingBlock.vue')
+  assert.match(block, /:aria-expanded="open"/)
+  assert.match(block, /<div v-if="open" class="[^"]*\[overflow-wrap:anywhere\]/)
+  const log = read('../../components/StreamLog.vue')
+  assert.match(log, /<ThinkingBlock v-else-if="entry\.kind === 'thinking'" [^>]*:find-hit="thinkingHits\.has\(i\)"/)
+  // The memoised entry re-renders when a search hits its thinking.
+  assert.match(log, /v-memo="\[entry, .*, thinkingHits\.has\(i\)\]"/)
+})
+
+test('UR-16: long text in the log wraps instead of scrolling the conversation sideways', () => {
+  const log = read('../../components/StreamLog.vue')
+  // No avatar beside the user's bubble; the bubble and its text break anywhere.
+  assert.doesNotMatch(log, /streamLog\.you|<User\b/)
+  assert.match(log, /class="min-w-0 max-w-\[82%\] [^"]*\[overflow-wrap:anywhere\]"/)
+  assert.match(log, /class="min-w-0 whitespace-pre-wrap \[overflow-wrap:anywhere\]"><template/)
+  // The @path chip fits the bubble, truncates, and hovers apart from the bubble colour.
+  assert.match(log, /inline-flex max-w-full [^"]*hover:bg-primary\/10 hover:border-primary\/40/)
+  assert.match(log, /<span class="min-w-0 truncate">\{\{ seg\.text \}\}<\/span>/)
+  // stderr, AskUserQuestion, TodoWrite and the fullscreen question.
+  assert.match(log, /<span class="min-w-0 whitespace-pre-wrap break-all">\{\{ entry\.text \}\}<\/span>\n {6}<\/div>\n\n {6}<!-- the turn went on/)
+  assert.match(log, /text-foreground\/85 \[overflow-wrap:anywhere\]">\{\{ q\.question \}\}/)
+  assert.match(log, /<div class="min-w-0 \[overflow-wrap:anywhere\]"><span class="font-medium text-foreground\/80">\{\{ opt\.label \}\}/)
+  assert.match(log, /<span class="min-w-0 \[overflow-wrap:anywhere\]" :class="\{\n\s*'line-through/)
+  assert.match(log, /v-else-if="fullscreen\.plain" class="min-w-0 [^"]*\[overflow-wrap:anywhere\]"/)
+  // A local command's output folds to 3 lines and opens on a click; its args chip truncates.
+  const cmd = read('../../components/sessions/LocalCommandMark.vue')
+  assert.match(cmd, /whitespace-pre-wrap break-all/)
+  assert.match(cmd, /:class="\{ 'line-clamp-3': !expanded \}"/)
+  assert.match(cmd, /@click="expanded = !expanded"/)
+  assert.match(cmd, /class="min-w-0 truncate font-mono[^"]*" :title="args"/)
+  for (const lang of ['en', 'vi']) {
+    const s = json(`../../i18n/locales/${lang}/streamLog.json`)
+    assert.equal(s.you, undefined, lang)
+    for (const k of ['showThinking', 'hideThinking', 'showOutput', 'hideOutput']) assert.ok(s[k], `${lang}.${k}`)
+  }
+})

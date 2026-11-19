@@ -1,12 +1,13 @@
 {
   "session": "session",
   "tools": "{count} tools",
-  "you": "Bạn",
   "hideSummary": "Ẩn tóm tắt",
   "showSummary": "Hiện tóm tắt",
   "contextCompacted": "Đã nén Context",
   "showInjected": "Xem nội dung",
   "hideInjected": "Ẩn nội dung",
+  "showOutput": "Hiện toàn bộ output",
+  "hideOutput": "Gập output",
   "injected": {
     "skill": "Đã nạp Skill",
     "session": "Worker đã xong lượt",
@@ -14,6 +15,8 @@
   },
   "bgBadge": "nền",
   "thinking": "đang nghĩ",
+  "showThinking": "Hiện toàn bộ suy nghĩ",
+  "hideThinking": "Gập suy nghĩ",
   "openFile": "Mở {path}",
   "moreFiles": "+{count} file khác",
   "running": "đang chạy…",

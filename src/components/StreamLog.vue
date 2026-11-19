@@ -2,8 +2,8 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  ChevronRight, Wrench, Sparkles, CheckCircle2, XCircle, Cpu, Brain, AlertTriangle, Info,
-  Terminal, FilePen, FilePlus2, FileText, Search, Globe, ListTodo, User, Archive, Copy, Check,
+  ChevronRight, Wrench, Sparkles, CheckCircle2, XCircle, Cpu, AlertTriangle, Info,
+  Terminal, FilePen, FilePlus2, FileText, Search, Globe, ListTodo, Archive, Copy, Check,
   Bot, MessageCircleQuestion, Circle, CircleDot, ClipboardList, Server, BookOpen, BellRing,
 } from 'lucide-vue-next'
 import type { LiveStatus, StreamEntry, TaskProgress } from '@/lib/streamEvents'
@@ -18,6 +18,8 @@ import MessageFullscreen from './sessions/MessageFullscreen.vue'
 import TurnActivityHeader from './sessions/TurnActivityHeader.vue'
 import WorkerResultCards from './conductor/WorkerResultCards.vue'
 import TurnCutMark from './sessions/TurnCutMark.vue'
+import ThinkingBlock from './sessions/ThinkingBlock.vue'
+import LocalCommandMark from './sessions/LocalCommandMark.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionQuoteNote, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
@@ -25,6 +27,7 @@ import { turnAnswerText, turnFooters, turnPromptAt, type TurnAction, type TurnFo
 import {
   activityMatches, activityOpen, formatActivityDuration, turnActivity, type TurnActivity, type TurnActivityMap,
 } from '@/lib/turnActivity'
+import { thinkingFindHits } from '@/lib/thinkingFold'
 import { stripQuotePrefix, type QuoteCard, type QuoteSetView, type RunQuote } from '@/lib/quote'
 import { QUOTE_BLOCK_ATTR, QUOTE_SRC_ATTR, type QuoteAnchor } from '@/lib/quoteAnchor'
 import { codePathCandidate, findPlainPaths, hrefFileRef, linkPlainPaths, parseLineRef, splitLineRef, type PathChecker } from '@/lib/fileLinks'
@@ -1008,6 +1011,8 @@ watch(findHits, (hits) => {
   }
   if (changed) blockChoice.value = next
 })
+// Thinking folds inside an open block too: a hit in its text opens it.
+const thinkingHits = computed(() => thinkingFindHits(props.entries, props.findQuery, !!props.findCaseSensitive))
 
 const blockOpen = computed(() =>
   activity.value.blocks.map((b, bi) =>
@@ -1100,7 +1105,7 @@ function toolResult(e: StreamEntry): unknown {
         v-entry-size
         :data-user-turn="entry.kind === 'user' ? i : undefined"
         :class="{ 'stream-entry': running && i !== entries.length - 1, 'turn-step-wrap': stepClass(i) === 'turn-step' }"
-        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry), fileListVersion, entry.kind === 'user' ? promptPathsVersion : 0]"
+        v-memo="[entry, toolResult(entry), expanded[i], expandedCompacts.has(i), copiedCmd[i], expandedMessageIndices.has(i), running && i === entries.length - 1, i === streamingTextIndex ? shownLength : -1, footerKey(i), stepClass(i), quoteSetOf(entry), fileListVersion, entry.kind === 'user' ? promptPathsVersion : 0, thinkingHits.has(i)]"
       >
       <div :class="stepClass(i)">
       <!-- System init banner -->
@@ -1114,10 +1119,10 @@ function toolResult(e: StreamEntry): unknown {
         <span v-if="entry.tools?.length" class="text-foreground/30">· {{ t('streamLog.tools', { count: entry.tools.length }) }}</span>
       </div>
 
-      <!-- User follow-up — right-aligned chat bubble with avatar -->
+      <!-- User follow-up — right-aligned chat bubble -->
       <div v-else-if="entry.kind === 'user'" class="flex justify-end items-end gap-2 pl-10 my-1">
         <div
-          class="max-w-[82%] rounded-lg bg-secondary border border-border px-3 py-2.5 text-md leading-[1.6] text-foreground"
+          class="min-w-0 max-w-[82%] rounded-lg bg-secondary border border-border px-3 py-2.5 text-md leading-[1.6] text-foreground [overflow-wrap:anywhere]"
         >
           <div
             v-if="entry.ideContext?.length"
@@ -1163,26 +1168,20 @@ function toolResult(e: StreamEntry): unknown {
             />
           </div>
           <CollapsibleMessage v-if="bubbleText(entry)" :max-height="256" fade="hsl(var(--secondary))" :disabled="expandedMessageIndices.has(i)">
-            <div class="whitespace-pre-wrap"><template
+            <div class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"><template
                 v-for="(seg, si) in userSegments(bubbleText(entry))"
                 :key="si"
               ><span
                   v-if="seg.path"
-                  class="inline-flex items-center gap-1 align-baseline rounded border border-border bg-card px-1.5 font-mono text-xs text-foreground no-underline cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="inline-flex max-w-full items-center gap-1 align-baseline rounded border border-border bg-card px-1.5 font-mono text-xs text-foreground no-underline cursor-pointer hover:bg-primary/10 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   :title="t('streamLog.openFile', { path: seg.path })"
                   :data-file-path="seg.path"
                   role="button"
                   tabindex="0"
                   @click="emit('open-file', seg.path!, seg.line)"
                   @keydown.enter.prevent="emit('open-file', seg.path!, seg.line)"
-                ><FileText class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
+                ><FileText class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" /><span class="min-w-0 truncate">{{ seg.text }}</span></span><template v-else>{{ seg.text }}</template></template></div>
           </CollapsibleMessage>
-        </div>
-        <div
-          class="shrink-0 h-7 w-7 rounded-full bg-muted border border-border flex items-center justify-center"
-          :title="t('streamLog.you')"
-        >
-          <User class="h-3.5 w-3.5 text-primary/70" :stroke-width="2" />
         </div>
       </div>
 
@@ -1220,18 +1219,7 @@ function toolResult(e: StreamEntry): unknown {
         />
       </div>
 
-      <!-- Local slash command the user ran: a slim marker -->
-      <div v-else-if="entry.kind === 'command'" class="my-1.5 flex flex-col items-center gap-1">
-        <div
-          v-if="entry.name"
-          class="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border px-2.5 py-1 text-2xs"
-        >
-          <Terminal class="h-3 w-3 text-foreground/50" :stroke-width="1.75" />
-          <span class="font-mono font-medium text-foreground/75">{{ entry.name }}</span>
-          <span v-if="entry.args" class="font-mono text-foreground/55">{{ entry.args }}</span>
-        </div>
-        <div v-if="entry.stdout" class="text-2xs font-mono text-foreground/45">{{ entry.stdout }}</div>
-      </div>
+      <LocalCommandMark v-else-if="entry.kind === 'command'" :name="entry.name" :args="entry.args" :stdout="entry.stdout" />
 
       <WorkerResultCards v-else-if="entry.kind === 'worker_results'" :workers="entry.workers" :nudge="entry.nudge" />
       <TurnCutMark v-else-if="entry.kind === 'turn_cut'" :cut="entry" />
@@ -1278,17 +1266,7 @@ function toolResult(e: StreamEntry): unknown {
         />
       </div>
 
-      <!-- Thinking -->
-      <div
-        v-else-if="entry.kind === 'thinking'"
-        class="text-xs italic text-foreground/40 border-l-2 border-foreground/10 pl-3 py-1"
-      >
-        <div class="flex items-center gap-1 mb-1 text-2xs uppercase tracking-wider not-italic">
-          <Brain class="h-3 w-3" :stroke-width="1.5" />
-          {{ t('streamLog.thinking') }}
-        </div>
-        <div class="whitespace-pre-wrap">{{ entry.text }}</div>
-      </div>
+      <ThinkingBlock v-else-if="entry.kind === 'thinking'" :text="entry.text" :streaming="!!entry.streaming" :find-hit="thinkingHits.has(i)" />
 
       <!-- Bash-family tool call — terminal-style card: purpose headline, the real
            command in a copyable terminal block, then its output. -->
@@ -1486,10 +1464,10 @@ function toolResult(e: StreamEntry): unknown {
         </button>
         <div v-if="expanded[i]" class="border-t border-border px-3 py-2 space-y-3">
           <div v-for="(q, qi) in askQuestions(entry.input)" :key="qi" class="space-y-1.5">
-            <div class="text-xs font-medium text-foreground/85">{{ q.question }}</div>
+            <div class="min-w-0 text-xs font-medium text-foreground/85 [overflow-wrap:anywhere]">{{ q.question }}</div>
             <div v-for="(opt, oi) in q.options" :key="oi" class="flex gap-2 text-2xs pl-2">
               <Circle class="h-3 w-3 mt-0.5 shrink-0 text-foreground/30" :stroke-width="1.75" />
-              <div><span class="font-medium text-foreground/80">{{ opt.label }}</span><span v-if="opt.description" class="text-foreground/45"> — {{ opt.description }}</span></div>
+              <div class="min-w-0 [overflow-wrap:anywhere]"><span class="font-medium text-foreground/80">{{ opt.label }}</span><span v-if="opt.description" class="text-foreground/45"> — {{ opt.description }}</span></div>
             </div>
           </div>
           <div v-if="entry.result" class="pt-1 border-t border-border">
@@ -1517,7 +1495,7 @@ function toolResult(e: StreamEntry): unknown {
             <CheckCircle2 v-if="t.status === 'completed'" class="h-3.5 w-3.5 mt-0.5 shrink-0 text-success" :stroke-width="1.75" />
             <CircleDot v-else-if="t.status === 'in_progress'" class="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning animate-pulse" :stroke-width="1.75" />
             <Circle v-else class="h-3.5 w-3.5 mt-0.5 shrink-0 text-foreground/30" :stroke-width="1.75" />
-            <span :class="{
+            <span class="min-w-0 [overflow-wrap:anywhere]" :class="{
               'line-through text-foreground/40': t.status === 'completed',
               'text-foreground/85 font-medium': t.status === 'in_progress',
               'text-foreground/70': t.status === 'pending',
@@ -1750,7 +1728,7 @@ function toolResult(e: StreamEntry): unknown {
         class="flex items-start gap-2 text-xs font-mono text-warning"
       >
         <AlertTriangle class="h-3 w-3 mt-0.5 shrink-0" :stroke-width="1.75" />
-        <span class="whitespace-pre-wrap">{{ entry.text }}</span>
+        <span class="min-w-0 whitespace-pre-wrap break-all">{{ entry.text }}</span>
       </div>
 
       <!-- the turn went on on the fallback model (AC-17) -->
@@ -1834,7 +1812,7 @@ function toolResult(e: StreamEntry): unknown {
           @open-file="(path, line) => emit('open-file', path, line)"
           @open-url="(url) => emit('open-url', url)"
         />
-        <div v-else-if="fullscreen.plain" class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ fullscreen.text }}</div>
+        <div v-else-if="fullscreen.plain" class="min-w-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">{{ fullscreen.text }}</div>
         <div
           v-else
           v-file-links

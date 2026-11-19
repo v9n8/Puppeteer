@@ -1,12 +1,13 @@
 {
   "session": "session",
   "tools": "{count} tools",
-  "you": "You",
   "hideSummary": "Hide summary",
   "showSummary": "Show summary",
   "contextCompacted": "Context compacted",
   "showInjected": "Show content",
   "hideInjected": "Hide content",
+  "showOutput": "Show the full output",
+  "hideOutput": "Fold the output",
   "injected": {
     "skill": "Skill loaded",
     "session": "Worker finished a turn",
@@ -14,6 +15,8 @@
   },
   "bgBadge": "bg",
   "thinking": "thinking",
+  "showThinking": "Show the full thinking",
+  "hideThinking": "Fold the thinking",
   "openFile": "Open {path}",
   "moreFiles": "+{count} more",
   "running": "running…",
