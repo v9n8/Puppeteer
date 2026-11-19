@@ -435,3 +435,11 @@ test('UR-23: segmented control labels never wrap; they truncate and keep a full-
   assert.match(src, /<span v-if="!iconOnly" class="min-w-0 truncate">\{\{ o\.label \}\}<\/span>/)
   assert.match(src, /:title="o\.title \?\? o\.label"/)
 })
+
+test('UR-21: the context chip keeps /compact as one short label and moves the hint into its title', () => {
+  const src = read('../../components/sessions/SessionContextChip.vue')
+  assert.match(src, /<DropdownItem[^>]*:title="t\('run\.infoBar\.context\.compactHint'\)"[^>]*sendSlashCommand\('\/compact'\)/)
+  // The hint is no longer a second line inside the menu row.
+  assert.doesNotMatch(src, /<span[^>]*>\{\{ t\('run\.infoBar\.context\.compactHint'\) \}\}<\/span>/)
+  for (const lang of ['en', 'vi']) assert.match(read(`../../i18n/locales/${lang}/run.json`), /"compactHint": "/)
+})
