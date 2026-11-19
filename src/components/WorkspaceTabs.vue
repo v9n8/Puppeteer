@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Ban, Check, ChevronDown, Eye, FolderOpen, Plus, X } from 'lucide-vue-next'
+import { Ban, Check, ChevronDown, FolderOpen, Plus, Settings, X } from 'lucide-vue-next'
 import { Button, ContextMenu, CountPill, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
@@ -11,7 +11,8 @@ import { useDragSort } from '@/composables/useDragSort'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useToast } from '@/composables/useToast'
 import {
-  PROJECT_COLORS, projectColor, projectIcon, projectTextClass, swatchClass, type ProjectColor,
+  PROJECT_COLORS, PROJECT_ICONS, projectColor, projectIcon, projectTextClass, swatchClass,
+  type ProjectColor, type ProjectIcon,
 } from '@/lib/projectAppearance'
 import { tabsToClose, type TabCloseScope } from '@/lib/projectSwitcher'
 import { projectPageQuery } from '@/lib/projectSections'
@@ -173,7 +174,7 @@ function openMenu(projectId: string, e: MouseEvent) {
   menu.value = { projectId, x: e.clientX, y: e.clientY }
 }
 
-// Opens the Projects screen on this project (its Overview tab).
+// Opens the Projects screen on this project (its Overview tab, where the settings live).
 function viewProject(projectId: string) {
   router.push({ path: '/projects', query: projectPageQuery(projectId) }).catch(() => {})
 }
@@ -184,6 +185,16 @@ async function setColor(color: ProjectColor | null) {
   try {
     // Saves and refetches the projects, so the tab and the Projects list repaint at once.
     await projectsStore.updateAppearance(project, { color })
+  } catch (e) {
+    toast.error(String(e))
+  }
+}
+
+async function setIcon(icon: ProjectIcon | null) {
+  const project = menuProject.value
+  if (!project || (project.icon ?? null) === icon) return
+  try {
+    await projectsStore.updateAppearance(project, { icon })
   } catch (e) {
     toast.error(String(e))
   }
@@ -355,7 +366,7 @@ async function jumpTo(projectId: string) {
         </DropdownItem>
         <DropdownSeparator />
         <DropdownItem :disabled="!menuProject" @click="viewProject(menu.projectId)">
-          <Eye class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+          <Settings class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           {{ t('misc.tabs.viewProject') }}
         </DropdownItem>
         <template v-if="menuProject">
@@ -390,6 +401,36 @@ async function jumpTo(projectId: string) {
                 :title="t('misc.tabs.clearColor')"
                 :aria-label="t('misc.tabs.clearColor')"
                 @click="setColor(null)"
+              >
+                <Ban class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </button>
+            </div>
+          </div>
+          <div class="px-2.5 pb-1.5">
+            <p class="mb-1.5 text-sm font-medium text-muted-foreground">{{ t('projectDetail.iconLabel') }}</p>
+            <div class="-mx-1 flex flex-wrap items-center">
+              <button
+                v-for="icon in PROJECT_ICONS"
+                :key="icon"
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                :class="menuProject.icon === icon
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+                :title="t(`projectDetail.icons.${icon}`)"
+                :aria-label="t(`projectDetail.icons.${icon}`)"
+                :aria-pressed="menuProject.icon === icon"
+                @click="setIcon(icon)"
+              >
+                <component :is="projectIcon(icon)" class="h-3.5 w-3.5" :stroke-width="1.75" />
+              </button>
+              <button
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:pointer-events-none"
+                :disabled="!menuProject.icon"
+                :title="t('misc.tabs.clearIcon')"
+                :aria-label="t('misc.tabs.clearIcon')"
+                @click="setIcon(null)"
               >
                 <Ban class="h-3.5 w-3.5" :stroke-width="1.75" />
               </button>

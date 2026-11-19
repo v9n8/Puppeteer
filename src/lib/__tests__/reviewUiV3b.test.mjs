@@ -36,6 +36,17 @@ test('UR-45: frames shrink to their content and the editors follow the real them
   assert.doesNotMatch(banner, /#actions/)
 })
 
+test('UR-17: the project tab menu says "Project settings" and sets the icon under the colour row', () => {
+  const src = read('../../components/WorkspaceTabs.vue')
+  assert.match(src, /projectsStore\.updateAppearance\(project, \{ icon \}\)/)
+  assert.match(src, /v-for="icon in PROJECT_ICONS"/)
+  assert.match(src, /t\('misc\.tabs\.clearIcon'\)/)
+  assert.ok(src.indexOf("t('projectDetail.colorLabel')") < src.indexOf("t('projectDetail.iconLabel')"))
+  assert.equal(json('../../i18n/locales/en/misc.json').tabs.viewProject, 'Project settings')
+  assert.equal(json('../../i18n/locales/vi/misc.json').tabs.viewProject, 'Cài đặt Project')
+  for (const lang of ['en', 'vi']) assert.ok(json(`../../i18n/locales/${lang}/misc.json`).tabs.clearIcon, lang)
+})
+
 test('UR-33: session file tabs drag to reorder within their group; Conversation stays put', () => {
   const src = read('../../components/sessions/SessionTabBar.vue')
   const template = src.slice(src.indexOf('<template>'), src.indexOf('<style'))
