@@ -1,28 +1,28 @@
 <script setup lang="ts">
 // The composer toolbar's always-visible chips (UX-26): account (its menu lists
-// the accounts and their plan usage, UX-47), permission mode, effort (only when
-// the next turn's engine + model take one) and response style. Effort and style
-// fold into Run options when `compact` (V3-34). State and defaults:
-// useComposerChips; the menu's rows: useRunComposer.
+// the account names only, UR-55: plan usage is the status bar's), permission
+// mode, effort (only when the next turn's engine + model take one) and response
+// style. Effort and style fold into Run options when `compact` (V3-34). State
+// and defaults: useComposerChips; the menu's accounts: useRunComposer, its
+// ✓ / ★: lib/accountMenu.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { Check, ChevronDown, Gauge, Lock, MessageSquareText, Settings, UserCircle } from 'lucide-vue-next'
+import { Check, ChevronDown, Gauge, Lock, MessageSquareText, Star, UserCircle } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
-import { Button } from '@/components/ui'
+import { Button, DropdownLabel } from '@/components/ui'
 import ResponseStyleModal from '@/components/settings/ResponseStyleModal.vue'
+import { accountMenuRows } from '@/lib/accountMenu'
 import { useRunSession } from './useRunSession'
 
 const props = defineProps<{ compact?: boolean }>()
 
 const { t } = useI18n()
-const router = useRouter()
 const {
   permissionMode, modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle, effortPick, effortValue, effortLevelsNow, effortOptions,
   effortChipLabel, effortChipTitle, styleValue, styleOptions, styleChipLabel, styleChipTitle,
-  accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, accountUsage, accountExpired,
+  accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, accountExpired,
   accountModelLabel, composerModelLabel, accountChoices, selectedAccountId, accountSelectDisabled, handleAccountChange,
-  effectiveEngine, projectId, styleDialogOpen, pickStyle, onStyleSaved,
+  effectiveProjectClaudeAccountId, effectiveEngine, projectId, styleDialogOpen, pickStyle, onStyleSaved,
 } = useRunSession()
 
 const engineName = computed(() => (effectiveEngine.value === 'codex' ? 'Codex' : 'Claude'))
@@ -33,14 +33,20 @@ const accountChipLabel = computed(() => {
 })
 const accountChipTitle = computed(() => t('run.accountMenu.chipTitle', { account: accountChipLabel.value }))
 
+// ★ = the account a run with no pick runs on: the Project's (else the global
+// default) Claude account, the shared login for Codex.
+const accountRows = computed(() =>
+  accountMenuRows(
+    accountChoices.value,
+    effectiveEngine.value === 'codex' ? '' : effectiveProjectClaudeAccountId.value,
+    selectedAccountId.value,
+    accountExpired,
+  ),
+)
+
 function pickAccount(value: string) {
   closeAccountMenu()
   void handleAccountChange(value)
-}
-// The engine's card in Settings is the one place to add, sign in or remove accounts.
-function manageAccounts() {
-  closeAccountMenu()
-  router.push({ path: '/settings', query: { section: 'engines' } }).catch(() => {})
 }
 </script>
 
@@ -75,76 +81,49 @@ function manageAccounts() {
       <div
         v-if="accountMenuOpen"
         role="dialog"
-        class="absolute bottom-full left-0 z-30 mb-2 w-[380px] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-2 shadow-lg shadow-black/20"
+        class="absolute bottom-full left-0 z-30 mb-2 w-[240px] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-1 text-xs shadow-lg shadow-black/20"
         :aria-label="t('run.accountMenu.heading', { engine: engineName })"
       >
-        <h4 class="px-2 pb-1 pt-0.5 text-xs font-semibold">{{ t('run.accountMenu.heading', { engine: engineName }) }}</h4>
-        <ul class="max-h-72 overflow-y-auto text-xs">
-          <li v-for="a in accountChoices" :key="a.value ?? a.label">
+        <DropdownLabel class="px-2 pb-1 pt-1">{{ t('run.accountMenu.heading', { engine: engineName }) }}</DropdownLabel>
+        <ul class="max-h-72 overflow-y-auto">
+          <li v-for="a in accountRows" :key="a.value ?? a.label">
             <component
               :is="a.value === null ? 'div' : 'button'"
               :type="a.value === null ? undefined : 'button'"
-              class="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left"
+              class="flex h-8 w-full items-center gap-2 rounded px-2 text-left"
               :class="a.value === null
                 ? ''
-                : accountExpired(a.usageKey)
+                : a.expired
                   ? 'cursor-not-allowed opacity-60'
                   : 'cursor-pointer hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent'"
+              :title="a.expired ? t('run.accountMenu.expired') : a.label"
               :disabled="a.value === null ? undefined : accountSelectDisabled"
-              :aria-current="a.value === null || a.value === selectedAccountId ? 'true' : undefined"
-              :aria-disabled="accountExpired(a.usageKey) ? 'true' : undefined"
-              @click="a.value !== null && !accountExpired(a.usageKey) && pickAccount(a.value)"
+              :aria-current="a.isCurrent ? 'true' : undefined"
+              :aria-disabled="a.expired ? 'true' : undefined"
+              @click="a.pick !== null ? pickAccount(a.pick) : !a.expired && closeAccountMenu()"
             >
-              <Lock v-if="accountExpired(a.usageKey)" class="mt-0.5 h-3 w-3 shrink-0 text-warning" :stroke-width="2" />
+              <Lock v-if="a.expired" class="h-3 w-3 shrink-0 text-warning" :stroke-width="2" />
               <Check
                 v-else
-                class="mt-0.5 h-3 w-3 shrink-0 text-primary"
-                :class="a.value === null || a.value === selectedAccountId ? 'opacity-100' : 'opacity-0'"
+                class="h-3 w-3 shrink-0 text-primary"
+                :class="a.isCurrent ? 'opacity-100' : 'opacity-0'"
                 :stroke-width="2.5"
               />
-              <span class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate" :title="a.label">{{ a.label }}</span>
-                <span
-                  v-if="accountExpired(a.usageKey)"
-                  class="text-2xs leading-tight text-warning"
-                >{{ t('run.accountMenu.expired') }}</span>
-                <span
-                  v-else-if="a.detail"
-                  class="truncate text-2xs leading-tight text-muted-foreground"
-                  :title="a.detail"
-                >{{ a.detail }}</span>
-                <span
-                  v-else-if="a.value === '' && effectiveEngine === 'claude'"
-                  class="text-2xs leading-tight text-muted-foreground"
-                >{{ t('run.accountMenu.followsProject') }}</span>
+              <span class="min-w-0 truncate">{{ a.label }}</span>
+              <span
+                v-if="a.isDefault"
+                class="inline-flex shrink-0"
+                role="img"
+                :title="t('common.default')"
+                :aria-label="t('common.default')"
+              >
+                <Star class="h-3 w-3 fill-primary text-primary" :stroke-width="2" />
               </span>
-              <span class="flex shrink-0 gap-3">
-                <span
-                  v-for="u in accountUsage(a.usageKey)"
-                  :key="u.key"
-                  class="flex flex-col items-end"
-                  :title="u.reset ? `${u.title} · ${u.reset}` : u.title"
-                >
-                  <span class="tabular-nums">
-                    <span class="text-muted-foreground">{{ u.label }}</span>
-                    <span class="ml-1 font-medium" :class="u.color">{{ u.percent }}%</span>
-                  </span>
-                  <span v-if="u.reset" class="text-2xs leading-tight text-muted-foreground">{{ u.reset }}</span>
-                </span>
-              </span>
+              <span class="flex-1" />
+              <span v-if="a.expired" class="shrink-0 text-2xs text-warning">{{ t('run.accountMenu.expiredShort') }}</span>
             </component>
           </li>
         </ul>
-        <div class="mt-1 border-t border-border pt-1">
-          <button
-            type="button"
-            class="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground/80 hover:bg-muted"
-            @click="manageAccounts"
-          >
-            <Settings class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-            {{ t('run.accountMenu.manage') }}
-          </button>
-        </div>
       </div>
     </transition>
   </div>

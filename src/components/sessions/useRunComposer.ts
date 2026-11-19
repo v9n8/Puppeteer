@@ -422,16 +422,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   const selectedClaudeAccountId = computed(() => {
     const run = currentRun.value
     if (!run) return ''
-    // Empty = the Default tier (follows project/global). Only a run-level
+    // Empty = no pick (follows project/global). Only a run-level
     // override pins a concrete account for this session.
     return run.claude_account_id || ''
-  })
-  // Label for the Default account entry: resolves to the project/global default
-  // account so the choice is never opaque. Falls back to "Global ~/.claude" only
-  // when no default account is configured at all.
-  const defaultClaudeAccountLabel = computed(() => {
-    const acc = claudeStore.accounts.find((a) => a.id === effectiveProjectClaudeAccountId.value)
-    return acc ? t('run.claudeAccountDefaultWith', { account: acc.label }) : t('run.globalClaudeAccount')
   })
   const showClaudeAccountSelect = computed(() =>
     !!currentRun.value
@@ -469,12 +462,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       .filter(Boolean)
       .join(' · '),
   )
-  // The Account tab of the account · model menu (UX-47). `value` null: the one
-  // login there is, shown but not a choice (Codex or Claude with no managed
-  // account). `usageKey` names the usage row it shows, as the status bar's
-  // usage rings key them.
+  // The account menu's accounts (UR-55; ✓ / ★: lib/accountMenu). `value` null:
+  // the one login there is, shown but not a choice (Codex or Claude with no
+  // managed account). `usageKey` names the account's usage row.
   const accountChoices = computed(() => {
-    type Choice = { value: string | null; label: string; detail?: string; usageKey: string | null }
+    type Choice = { value: string | null; label: string; usageKey: string | null }
     if (effectiveEngine.value === 'codex') {
       if (!showCodexAccountSelect.value) {
         return [{ value: null, label: t('run.accountMenu.sharedCodexLogin'), usageKey: 'codex' }] as Choice[]
@@ -485,22 +477,21 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         out.push({ value: currentId, label: t('run.missingCodexAccount'), usageKey: null })
       }
       for (const acc of codexStore.accounts) {
-        out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: `codex:${acc.id}` })
+        out.push({ value: acc.id, label: acc.label, usageKey: `codex:${acc.id}` })
       }
       return out
     }
     if (!showClaudeAccountSelect.value) {
       return [{ value: null, label: t('run.globalClaudeAccount'), usageKey: 'claude' }] as Choice[]
     }
-    // The Default tier first, so a per-session pick can be cleared back to
-    // "follow project/global"; its account's figures show on that account's row.
-    const out: Choice[] = [{ value: '', label: defaultClaudeAccountLabel.value, usageKey: null }]
+    // No "Default" row: picking the ★ account clears the pick (lib/accountMenu).
+    const out: Choice[] = []
     const currentId = currentRun.value?.claude_account_id
     if (currentId && !claudeStore.accounts.some((acc) => acc.id === currentId)) {
       out.push({ value: currentId, label: t('run.missingClaudeAccount'), usageKey: null })
     }
     for (const acc of claudeStore.accounts) {
-      out.push({ value: acc.id, label: acc.label, detail: acc.email || undefined, usageKey: `claude:${acc.id}` })
+      out.push({ value: acc.id, label: acc.label, usageKey: `claude:${acc.id}` })
     }
     return out
   })
@@ -1712,7 +1703,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
     sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedAccountId,
-    accountChoices, accountModelLabel, accountSelectDisabled,
+    accountChoices, accountModelLabel, accountSelectDisabled, effectiveProjectClaudeAccountId,
     handleAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
     primaryDisabled, handlePrimaryAction, sendSlashCommand, autoResizeComposer,

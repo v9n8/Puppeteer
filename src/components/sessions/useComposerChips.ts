@@ -9,8 +9,7 @@ import { ref, computed, watch } from 'vue'
 import { ShieldQuestion, ShieldAlert, ListChecks } from 'lucide-vue-next'
 import { invoke } from '@/lib/tauri'
 import {
-  parsePercentSetting, planUsageRead, resetCountdown, usageSummary, usageWindows, windowSeverity,
-  type PlanUsageSnapshot, type UsageSeverity, type UsageThresholds, type UsageWindow,
+  parsePercentSetting, planUsageRead, type PlanUsageSnapshot, type UsageThresholds,
 } from '@/lib/usageRing'
 import {
   EFFORT_LEVELS, effortLevelsFor, permissionModeOptions, resolvePermissionMode, type SelectOption,
@@ -186,10 +185,10 @@ export function useComposerChips(core: RunSessionCore) {
   }
 
   // Plan usage per row key (`claude:<id>`, `claude`, `codex`, `codex:<id>`, as
-  // the status bar's usage rings key them), read from the stored snapshots each
-  // time the menu opens: local reads, no engine call.
+  // the status bar's usage block keys them), read from the stored snapshots for
+  // the quota notice: local reads, no engine call. The account menu shows names
+  // only (UR-55); the figures live in the status bar's usage panel.
   const usageSnapshots = ref<Record<string, PlanUsageSnapshot | null>>({})
-  const usageNow = ref(Date.now())
   async function loadUsage(key: string) {
     try {
       const read = planUsageRead(key)
@@ -198,16 +197,6 @@ export function useComposerChips(core: RunSessionCore) {
       // keep the previous figures on a transient error
     }
   }
-  watch(accountMenuOpen, (open) => {
-    if (!open) return
-    usageNow.value = Date.now()
-    const keys = [
-      'codex', 'claude',
-      ...claudeStore.accounts.map((a) => `claude:${a.id}`),
-      ...codexStore.accounts.map((a) => `codex:${a.id}`),
-    ]
-    void Promise.all(keys.map(loadUsage))
-  })
   // A login that needs signing in again (the accounts' stored check result).
   function accountExpired(usageKey: string | null) {
     const [engine, id] = (usageKey ?? '').split(':')
@@ -220,33 +209,11 @@ export function useComposerChips(core: RunSessionCore) {
     block5hPercent: parsePercentSetting(appSettings.settings?.budget_5h_percent),
     blockWeekPercent: parsePercentSetting(appSettings.settings?.budget_week_percent),
   }))
-  const SEVERITY_TEXT: Record<UsageSeverity, string> = { ok: 'text-info', warn: 'text-warning', over: 'text-destructive' }
-  function usageResetText(w: UsageWindow): string {
-    if (w.rolledOver) return t('misc.budget.windowReset')
-    const c = resetCountdown(w.reset, usageNow.value)
-    if (!c) return ''
-    if (c.due) return t('misc.budget.resetsSoon')
-    if (c.days > 0) return c.hours > 0 ? t('misc.budget.resetsInDaysHours', c) : t('misc.budget.resetsInDays', c)
-    if (c.hours > 0) return c.minutes > 0 ? t('misc.budget.resetsInHoursMins', c) : t('misc.budget.resetsInHours', c)
-    return t('misc.budget.resetsInMins', c)
-  }
-  /** The 5h and weekly figures of one usage row, coloured like its ring. */
-  function accountUsage(key: string | null) {
-    if (!key) return []
-    return usageSummary(usageWindows(usageSnapshots.value[key], usageNow.value)).map((w) => ({
-      key: w.key,
-      label: t(w.period === '5h' ? 'run.accountMenu.fiveHour' : 'run.accountMenu.week'),
-      percent: w.percent,
-      color: SEVERITY_TEXT[windowSeverity(w, usageThresholds.value)],
-      reset: usageResetText(w),
-      title: `${t(`misc.budget.windows.${w.key}`)}: ${w.percent}%`,
-    }))
-  }
 
   return {
     chipOverrides, carryPicks,
     accountMenuOpen, accountMenuRoot, toggleAccountMenu, closeAccountMenu, onAccountMenuPointerDown,
-    accountUsage, accountExpired, usageSnapshots, usageThresholds, loadUsage,
+    accountExpired, usageSnapshots, usageThresholds, loadUsage,
     modeValue, modeOptions, modeChipLabel, modeChipIcon, modeChipTitle,
     effortPick, effortValue, effortLevelsNow, effortOptions, effortChipLabel, effortChipTitle,
     stylePick, styleValue, styleOptions, styleChipLabel, styleChipTitle,
