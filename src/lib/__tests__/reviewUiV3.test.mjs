@@ -550,3 +550,22 @@ test('UR-40: the other selects star the default instead of a default row or a "(
     assert.equal(controller.composer.claudeAccountDefaultWith, undefined, lang)
   }
 })
+
+test('UR-13: Quote block has a top handle, content-sized list, two-line cards and confirmed removal', () => {
+  const src = read('../../components/sessions/ComposerQuoteBlock.vue')
+  const template = src.slice(src.indexOf('<template>'))
+  // The handle sits on the top edge, before the header, and dragging up grows the list.
+  assert.match(template, /role="separator"[\s\S]*?class="group absolute inset-x-0 -top-1 /)
+  assert.ok(template.indexOf('role="separator"') < template.indexOf('<header'))
+  assert.match(src, /dragStartHeight \+ dragStartY - e\.clientY/)
+  // Only maxHeight until the first drag, so two short quotes leave no empty space.
+  assert.match(template, /maxHeight: `\$\{listHeight\}px`, \.\.\.\(userHeight == null \? \{\} : \{ height/)
+  // Note on the second line, no pencil icon in front of it (the edit button keeps its own).
+  assert.match(template, /v-if="q\.note\?\.trim\(\)"\s+class="truncate text-2xs text-muted-foreground"/)
+  assert.equal((template.match(/<Pencil /g) ?? []).length, 1)
+  // Removing one quote and "Remove all" both ask first; buttons hover to accent.
+  assert.match(src, /@click="removeOne\(q\.id\)"/)
+  assert.match(src, /async function removeAll\(\) \{[\s\S]*?await confirm\(/)
+  assert.match(src, /async function removeOne\(id: string\) \{[\s\S]*?await confirm\(/)
+  assert.doesNotMatch(src, /hover:bg-background/)
+})

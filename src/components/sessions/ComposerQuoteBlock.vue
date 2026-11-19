@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The Quote card above the composer (V3-33): the quotes that go ahead of the
 // message, one row each, in a list that scrolls inside the card. The card folds,
-// "Remove all" clears it, and its bottom handle sizes the list on its own,
+// "Remove all" clears it, and its top handle sizes the list on its own,
 // apart from the composer's handle. A dragged height and the folded state are
 // kept only until the message is sent, the quotes are gone or the session
 // changes; this component is mounted only while quotes exist, so it starts
@@ -9,6 +9,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Pencil, Quote, X } from 'lucide-vue-next'
+import { useConfirm } from '@/composables/useConfirm'
 import type { DraftQuote } from '@/lib/quote'
 import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight } from '@/lib/quoteBlockHeight'
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const ROW_PX = 38
 
@@ -79,22 +81,38 @@ function reset() {
 watch(() => props.runId, reset)
 watch(() => props.sending, (now, before) => { if (before && !now) reset() })
 
-function removeAll() {
+async function removeOne(id: string) {
+  if (!(await confirm({
+    title: t('run.quotes.removeConfirmTitle'),
+    message: t('run.quotes.removeConfirmMessage'),
+    confirmLabel: t('run.quotes.remove'),
+  }))) return
+  emit('remove', id)
+}
+async function removeAll() {
+  const n = props.quotes.length
+  if (!(await confirm({
+    title: t('run.quotes.removeAllConfirmTitle'),
+    message: t('run.quotes.removeAllConfirmMessage', { n }),
+    confirmLabel: t('run.quotes.removeAll'),
+  }))) return
   for (const q of [...props.quotes]) emit('remove', q.id)
 }
 
-// Handle: drag, double-click to reset, arrow keys.
+// Handle on the top edge, like the composer's: drag up to make the list taller,
+// double-click to reset, arrow keys. The list is as tall as its rows until the
+// first drag, so the drag starts from what is on screen.
 let dragStartY = 0
 let dragStartHeight = 0
 function onHandleDown(e: PointerEvent) {
   dragging.value = true
   dragStartY = e.clientY
-  dragStartHeight = listHeight.value
+  dragStartHeight = listEl.value?.offsetHeight ?? listHeight.value
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 }
 function onHandleMove(e: PointerEvent) {
   if (!dragging.value) return
-  userHeight.value = clampQuoteListHeight(dragStartHeight + e.clientY - dragStartY, ROW_PX, conversationPx.value)
+  userHeight.value = clampQuoteListHeight(dragStartHeight + dragStartY - e.clientY, ROW_PX, conversationPx.value)
 }
 function onHandleUp() {
   dragging.value = false
@@ -102,7 +120,7 @@ function onHandleUp() {
 function onHandleKey(e: KeyboardEvent) {
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
   e.preventDefault()
-  userHeight.value = stepQuoteListHeight(listHeight.value, e.key === 'ArrowUp' ? 'up' : 'down', ROW_PX, conversationPx.value)
+  userHeight.value = stepQuoteListHeight(listEl.value?.offsetHeight ?? listHeight.value, e.key === 'ArrowUp' ? 'up' : 'down', ROW_PX, conversationPx.value)
 }
 
 // In-place note editor. Enter saves, Shift+Enter breaks the line (a note typed in
@@ -139,11 +157,29 @@ function onNoteKey(e: KeyboardEvent) {
   }
 }
 
-const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-foreground/60 hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-40'
+const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-foreground/60 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-40'
 </script>
 
 <template>
-  <section ref="rootEl" class="mb-1.5 rounded-[10px] border border-border bg-muted text-xs">
+  <section ref="rootEl" class="relative mb-1.5 rounded-[10px] border border-border bg-muted text-xs">
+    <div
+      v-if="multiple && !collapsed"
+      role="separator"
+      aria-orientation="horizontal"
+      tabindex="0"
+      :aria-valuenow="listHeight"
+      :title="t('run.quotes.resize')"
+      :aria-label="t('run.quotes.resize')"
+      class="group absolute inset-x-0 -top-1 z-10 flex h-2 cursor-ns-resize touch-none justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      @pointerdown="onHandleDown"
+      @pointermove="onHandleMove"
+      @pointerup="onHandleUp"
+      @pointercancel="onHandleUp"
+      @dblclick="userHeight = null"
+      @keydown="onHandleKey"
+    >
+      <span class="mt-0.5 h-1 w-9 rounded-full" :class="dragging ? 'bg-primary' : 'bg-border group-hover:bg-foreground/40'" />
+    </div>
     <header class="flex min-h-8 items-center gap-2 py-0.5 pl-1 pr-2.5">
       <component
         :is="multiple ? 'button' : 'div'"
@@ -168,7 +204,7 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
       <button
         v-if="multiple"
         type="button"
-        class="h-7 shrink-0 cursor-pointer rounded px-2 text-foreground/70 hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-40"
+        class="h-7 shrink-0 cursor-pointer rounded px-2 text-foreground/70 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-40"
         :title="t('run.quotes.removeAllTitle', { n: quotes.length })"
         :disabled="sending"
         @click="removeAll"
@@ -181,23 +217,24 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
       <ol
         ref="listEl"
         class="space-y-1 overflow-y-auto px-1.5 pb-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        :style="multiple ? { maxHeight: `${listHeight}px`, height: `${listHeight}px` } : undefined"
+        :style="multiple ? { maxHeight: `${listHeight}px`, ...(userHeight == null ? {} : { height: `${listHeight}px` }) } : undefined"
         tabindex="0"
         :aria-label="t('run.quotes.listAria')"
       >
         <li v-for="(q, qi) in quotes" :key="q.id" class="rounded-md border border-border bg-card">
           <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
             <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-foreground">{{ qi + 1 }}</span>
-            <span class="min-w-0 flex-1 truncate font-mono text-foreground/80" :title="q.excerpt">{{ q.excerpt }}</span>
-            <span v-if="q.kind === 'file'" class="max-w-[30%] shrink-0 truncate font-mono text-2xs text-muted-foreground" :title="fileLabel(q)">{{ fileLabel(q) }}</span>
-            <span
-              v-if="q.note?.trim()"
-              class="flex max-w-[30%] shrink-0 items-center gap-1 text-2xs text-muted-foreground"
-              :title="t('run.quotes.noteTitle', { note: q.note })"
-            >
-              <Pencil class="h-3 w-3 shrink-0" :stroke-width="2" />
-              <span class="truncate">{{ q.note }}</span>
-            </span>
+            <div class="min-w-0 flex-1 py-1">
+              <div class="flex items-center gap-2">
+                <span class="min-w-0 flex-1 truncate font-mono text-foreground/80" :title="q.excerpt">{{ q.excerpt }}</span>
+                <span v-if="q.kind === 'file'" class="max-w-[40%] shrink-0 truncate font-mono text-2xs text-muted-foreground" :title="fileLabel(q)">{{ fileLabel(q) }}</span>
+              </div>
+              <div
+                v-if="q.note?.trim()"
+                class="truncate text-2xs text-muted-foreground"
+                :title="t('run.quotes.noteTitle', { note: q.note })"
+              >{{ q.note }}</div>
+            </div>
             <button
               type="button"
               :class="btn"
@@ -214,7 +251,7 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
               :title="t('run.quotes.remove')"
               :aria-label="t('run.quotes.remove')"
               :disabled="sending"
-              @click="emit('remove', q.id)"
+              @click="removeOne(q.id)"
             >
               <X class="h-3.5 w-3.5" :stroke-width="2.5" />
             </button>
@@ -234,26 +271,6 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
           </div>
         </li>
       </ol>
-
-      <div
-        v-if="multiple"
-        role="separator"
-        aria-orientation="horizontal"
-        tabindex="0"
-        :aria-valuenow="listHeight"
-        :title="t('run.quotes.resize')"
-        :aria-label="t('run.quotes.resize')"
-        class="group flex h-4 cursor-row-resize touch-none items-center justify-center rounded-b-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        :class="dragging ? 'bg-accent' : ''"
-        @pointerdown="onHandleDown"
-        @pointermove="onHandleMove"
-        @pointerup="onHandleUp"
-        @pointercancel="onHandleUp"
-        @dblclick="userHeight = null"
-        @keydown="onHandleKey"
-      >
-        <span class="h-1 w-9 rounded-full" :class="dragging ? 'bg-primary' : 'bg-border group-hover:bg-foreground/40'" />
-      </div>
     </template>
   </section>
 </template>
