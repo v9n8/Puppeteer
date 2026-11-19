@@ -3,6 +3,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { markDefault, projectDefaultSelect } from '../defaultMark.ts'
+import { composerModelChoices, shownModel } from '../composerChips.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 const json = (p) => JSON.parse(read(p))
@@ -311,5 +313,57 @@ test('UR-10: detach / merge-back / dock-back buttons are icon-only with a toolti
     assert.equal(json(`../../i18n/locales/${lang}/nav.json`).detachWindow, undefined, lang)
     assert.equal(json(`../../i18n/locales/${lang}/files.json`).viewer.dockBack, undefined, lang)
     assert.ok(json(`../../i18n/locales/${lang}/files.json`).viewer.dockBackTip, lang)
+  }
+})
+
+test('UR-22: a default-value select shows a real value and stars the default, never a "follow" row', () => {
+  const modes = [{ value: 'auto', label: 'Auto' }, { value: 'plan', label: 'Plan' }]
+  // Nothing saved: the global value is shown and starred.
+  const unsaved = projectDefaultSelect(modes, null, 'auto')
+  assert.equal(unsaved.value, 'auto')
+  assert.deepEqual(unsaved.options.map((o) => [o.value, !!o.isDefault]), [['auto', true], ['plan', false]])
+  // Saved: the project's value is shown; the star stays on the global one.
+  assert.equal(projectDefaultSelect(modes, 'plan', 'auto').value, 'plan')
+  // An "engine decides" row ('') is listed only while it is the global value.
+  const levels = [{ value: '', label: 'Engine' }, { value: 'high', label: 'High' }]
+  assert.deepEqual(projectDefaultSelect(levels, null, 'high').options.map((o) => o.value), ['high'])
+  assert.deepEqual(projectDefaultSelect(levels, 'high', '').options.map((o) => [o.value, !!o.isDefault]), [['', true], ['high', false]])
+  // Header rows are never starred.
+  assert.equal(markDefault([{ value: 'x', label: 'X', header: true }, { value: 'x', label: 'X' }], 'x')[1].isDefault, true)
+})
+
+test('UR-22: the composer model list shows the model in force once and stars the project default', () => {
+  const opts = [
+    { value: '', label: 'Default' },
+    { value: '__group:claude', label: 'Claude', header: true },
+    { value: 'opus', label: 'opus' },
+    { value: 'sonnet', label: 'sonnet' },
+  ]
+  const listed = composerModelChoices(opts, 'opus', 'sonnet')
+  assert.deepEqual(listed.map((o) => o.value), ['__group:claude', 'opus', 'sonnet'])
+  assert.deepEqual(listed.filter((o) => o.isDefault).map((o) => o.value), ['sonnet'])
+  assert.equal(shownModel('', 'opus', listed), 'opus')
+  assert.equal(shownModel('sonnet', 'opus', listed), 'sonnet')
+  // No model configured anywhere: the Default row stays, shown and starred.
+  const none = composerModelChoices(opts, '', '')
+  assert.equal(none[0].value, '')
+  assert.equal(none[0].isDefault, true)
+  assert.equal(shownModel('', '', none), '')
+})
+
+test('UR-22: AppSelect stars isDefault rows; the project page and composer chips use it', () => {
+  const select = read('../../components/AppSelect.vue')
+  assert.match(select, /v-if="option\.isDefault"[\s\S]*?<Star /)
+  assert.match(select, /t\('common\.default'\)/)
+  const project = read('../../components/ProjectSessionDefaults.vue')
+  assert.doesNotMatch(project, /sessionDefaults\.follow/)
+  assert.equal((project.match(/projectDefaultSelect(<\w+>)?\(/g) ?? []).length, 6)
+  const chips = read('../../components/sessions/useComposerChips.ts')
+  assert.equal((chips.match(/markDefault(<\w+>)?\(/g) ?? []).length, 3)
+  assert.match(read('../../components/sessions/RunComposer.vue'), /:model-value="shownModel\(modelOverride, defaultModel, modelOptions\)"/)
+  for (const lang of ['en', 'vi']) {
+    assert.ok(json(`../../i18n/locales/${lang}/common.json`).default, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/projectDetail.json`).sessionDefaults.follow, undefined, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/run.json`).modelDefaultWith, undefined, lang)
   }
 })

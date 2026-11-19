@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { ChevronDown, Check } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
+import { ChevronDown, Check, Star } from 'lucide-vue-next'
 import { controlHeight, selectOption, selectSize } from './ui/controlStyles'
 
 interface Option {
@@ -15,6 +16,8 @@ interface Option {
   header?: boolean
   /** Draw a divider above this row (e.g. an action row closing the list). */
   separator?: boolean
+  /** The default in force: a ★ before the label marks it (the ✓ still marks the value). */
+  isDefault?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -44,6 +47,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const { t } = useI18n()
 
 const isOpen = ref(false)
 const highlightedIndex = ref(-1)
@@ -306,7 +311,18 @@ watch(isOpen, (val) => {
               :stroke-width="2.5"
             />
             <span class="flex min-w-0 flex-col">
-              <span class="truncate">{{ option.label }}</span>
+              <span class="flex min-w-0 items-center gap-1">
+                <span
+                  v-if="option.isDefault"
+                  class="inline-flex shrink-0 text-primary"
+                  role="img"
+                  :title="t('common.default')"
+                  :aria-label="t('common.default')"
+                >
+                  <Star :class="size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3'" :stroke-width="2" fill="currentColor" />
+                </span>
+                <span class="truncate">{{ option.label }}</span>
+              </span>
               <span v-if="option.description" class="truncate text-2xs leading-tight text-muted-foreground">
                 {{ option.description }}
               </span>

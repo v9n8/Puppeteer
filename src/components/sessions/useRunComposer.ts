@@ -37,7 +37,7 @@ import type { ImageAttachment } from '@/lib/streamEvents'
 import {
   withCurrentModel, combinedModelOptions, engineForModel,
 } from '@/lib/engineOptions'
-import { inheritedModel } from '@/lib/composerChips'
+import { composerModelChoices, inheritedModel } from '@/lib/composerChips'
 import { autoGrowHeight, clampDragHeight } from '@/lib/autoGrow'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
@@ -127,14 +127,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       if (eng === 'codex') codex = withCurrentModel(codex, cur)
       else claude = withCurrentModel(claude, cur)
     }
-    const def = defaultModel.value
-    return combinedModelOptions({
+    const def = sessionDefaults.value.engine === 'codex' ? sessionDefaults.value.models.codex : sessionDefaults.value.models.claude
+    return composerModelChoices(combinedModelOptions({
       claude,
       codex,
-      defaultLabel: def ? t('run.modelDefaultWith', { model: def }) : t('run.modelDefault'),
+      defaultLabel: t('run.modelDefault'),
       claudeLabel: 'Claude',
       codexLabel: 'Codex',
-    })
+    }), defaultModel.value, def)
   })
   // Picking a model drives the engine. Switching engine mid-conversation routes
   // through the handoff flow (which remembers the model to apply after the switch).
@@ -1707,7 +1707,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   return {
     runSettingsOpen, runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle,
-    toggleRunSettingsMenu, closeRunSettingsMenu, onRunSettingsPointerDown, modelOptions,
+    toggleRunSettingsMenu, closeRunSettingsMenu, onRunSettingsPointerDown, modelOptions, defaultModel,
     onModelSelect, contextTokens, contextModel, composerModelLabel, contextRateLimit,
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,

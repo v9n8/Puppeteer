@@ -14,6 +14,7 @@ import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
 import { WIDE_CHIPS_FROM as WIDE_FALLBACK, hideOptionalChips } from '@/lib/composerChipLayout'
+import { shownModel } from '@/lib/composerChips'
 import ComposerQuoteBlock from './ComposerQuoteBlock.vue'
 import ComposerMentionOverlay from './ComposerMentionOverlay.vue'
 import { COMPOSER_TEXT } from './composerTextStyle'
@@ -25,7 +26,7 @@ const { t } = useI18n()
 const {
   features, projectId, modelOverride, session, currentStatus, runSettingsOpen,
   runSettingsRoot, engineBadgeLabel, engineBadgeIcon, toggleRunSettingsMenu,
-  closeRunSettingsMenu, modelOptions, onModelSelect, composerModelLabel, followUpInput,
+  closeRunSettingsMenu, modelOptions, defaultModel, onModelSelect, composerModelLabel, followUpInput,
   sendingFollowUp, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
@@ -363,7 +364,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                       <span>{{ t('run.modelSetting') }}</span>
                     </div>
                     <AppSelect
-                      :model-value="modelOverride"
+                      :model-value="shownModel(modelOverride, defaultModel, modelOptions)"
                       @update:model-value="onModelSelect"
                       size="sm"
                       :options="modelOptions"

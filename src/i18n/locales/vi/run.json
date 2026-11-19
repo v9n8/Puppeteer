@@ -266,7 +266,6 @@
   "modelSetting": "Model",
   "modelTitle": "Model cho run này (để trống = mặc định theo engine/cài đặt)",
   "modelDefault": "Mặc định (theo cài đặt)",
-  "modelDefaultWith": "Mặc định · {model}",
   "mcpSetting": "MCP",
   "mcpEmpty": "Chưa có MCP server nào. Thêm ở màn MCP.",
   "mcpReset": "Đặt lại",

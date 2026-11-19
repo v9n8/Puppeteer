@@ -266,7 +266,6 @@
   "modelSetting": "Model",
   "modelTitle": "Model for this run (empty = engine/settings default)",
   "modelDefault": "Default (from settings)",
-  "modelDefaultWith": "Default · {model}",
   "mcpSetting": "MCP",
   "mcpEmpty": "No MCP servers yet. Add them on the MCP screen.",
   "mcpReset": "Reset",

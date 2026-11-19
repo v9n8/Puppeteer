@@ -20,6 +20,7 @@ import { shownStyles } from '@/lib/responseStyles'
 import {
   composerStyleChoices, effectiveEffort, effortForLaunch, inheritedEffort, inheritedModel, inheritedStyle,
 } from '@/lib/composerChips'
+import { markDefault } from '@/lib/defaultMark'
 import { useResponseStylesStore } from '@/stores/responseStyles'
 import type { RunSessionCore } from './useRunSessionCore'
 
@@ -83,7 +84,8 @@ export function useComposerChips(core: RunSessionCore) {
   const modeChipIcon = computed(() =>
     modeValue.value === 'bypassPermissions' ? ShieldAlert : modeValue.value === 'plan' ? ListChecks : ShieldQuestion,
   )
-  const modeOptions = computed(() => permissionModeOptions(t))
+  // ★ marks the project's (else the global) default; the ✓ the value in force.
+  const modeOptions = computed(() => markDefault(permissionModeOptions(t), defaults.value.permissionMode))
   const modeChipTitle = computed(() => {
     const full = modeOptions.value.find((o) => o.value === modeValue.value)?.label ?? modeChipLabel.value
     return chipTitle(t('run.chipMode'), full, !permissionMode.value)
@@ -97,13 +99,16 @@ export function useComposerChips(core: RunSessionCore) {
   const effortLabel = (level: string) =>
     (EFFORT_LEVELS as readonly string[]).includes(level) ? t(`settings.ai.effort.${level}`) : level
   // The levels alone: the chip ticks the level in force, the default included.
-  const effortOptions = computed<SelectOption[]>(() =>
-    defaultEffortChoices(effortLevelsNow.value, effortPick.value)
-      .filter((c) => c.value)
-      .map((c) => {
-        const label = effortLabel(c.value)
-        return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
-      }),
+  const effortOptions = computed(() =>
+    markDefault<SelectOption>(
+      defaultEffortChoices(effortLevelsNow.value, effortPick.value)
+        .filter((c) => c.value)
+        .map((c) => {
+          const label = effortLabel(c.value)
+          return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
+        }),
+      defaults.value.effort,
+    ),
   )
   const effortChipLabel = computed(() => (effortValue.value ? effortLabel(effortValue.value) : t('run.chipEffortEngine')))
   const effortChipTitle = computed(() =>
@@ -145,7 +150,7 @@ export function useComposerChips(core: RunSessionCore) {
     }
     // Last row: not a style but an action (see pickStyle).
     if (projectId.value) out.push({ value: NEW_STYLE_ACTION, label: t('run.styleCreateForProject'), separator: true })
-    return out
+    return markDefault(out, inheritedStyle(null, defaults.value.styles, knownStyle.value))
   })
   // "+ Style for this project" opens the dialog; the style it saves is picked.
   const styleDialogOpen = ref(false)

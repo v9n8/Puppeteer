@@ -180,8 +180,7 @@
   },
   "sessionDefaults": {
     "title": "Mặc định cho session mới",
-    "hint": "Giá trị một session mới của Project này dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng. \"Theo cấu hình chung\" dùng giá trị trong",
-    "follow": "Theo cấu hình chung ({value})",
+    "hint": "Giá trị một session mới của Project này dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng. ★ đánh dấu giá trị lấy từ",
     "saved": "Đã lưu mặc định session",
     "noAccount": "Không có (~/.claude chung)"
   },

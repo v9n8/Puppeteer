@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Project page › Session defaults (UX-19): the engine, model of each engine,
 // permission mode, effort and response style a new session of this project
-// starts with, and the project's Claude account. A field on "Follow global" uses
-// Settings › Defaults for new sessions; the select names that value, so the page
-// shows what applies and where it comes from. A session that already ran keeps
-// its own engine, model, effort and style.
+// starts with, and the project's Claude account. A field the project never saved
+// uses Settings › Defaults for new sessions: each select shows the value in force
+// and ★ marks the global one; picking any option saves it (review v3, Q3). A
+// session that already ran keeps its own engine, model, effort and style.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -22,6 +22,7 @@ import {
 import { composerDefaults, composerStyleChoices, type ProjectSessionDefaults } from '@/lib/composerChips'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
+import { projectDefaultSelect } from '@/lib/defaultMark'
 
 const props = defineProps<{ project: Project }>()
 
@@ -43,7 +44,6 @@ watch(() => props.project.id, (id) => {
 const own = computed<ProjectSessionDefaults>(() => props.project.session_defaults ?? {})
 const global = computed(() => composerDefaults({ settings: appSettings.settings }))
 const effective = computed(() => composerDefaults({ settings: appSettings.settings, project: own.value }))
-const follow = (value: string) => t('projectDetail.sessionDefaults.follow', { value })
 
 const saving = ref(false)
 async function save(field: keyof ProjectSessionDefaults, value: string) {
@@ -60,39 +60,43 @@ async function save(field: keyof ProjectSessionDefaults, value: string) {
 }
 
 // ── Engine and models ──
-const engineOptions = computed<SelectOption[]>(() => [
-  { value: '', label: follow(global.value.engine === 'codex' ? 'Codex' : 'Claude') },
+const engineSelect = computed(() => projectDefaultSelect<SelectOption>([
   { value: 'claude', label: 'Claude' },
   { value: 'codex', label: 'Codex' },
-])
-const modelLabel = (model: string) => model || t('settings.ai.modelDefault')
+], own.value.engine, global.value.engine))
+// '' = the engine decides; listed only while it is the global value.
+const modelDefaultOption = (): SelectOption => ({ value: '', label: t('settings.ai.modelDefault') })
 // Models turned off in Settings › Model or in Project › Model are left out; the
-// project's own pick stays, marked.
-const claudeModelOptions = computed<SelectOption[]>(() => [
-  { value: '', label: follow(modelLabel(global.value.models.claude)) },
-  ...modelCatalog.enabledOnly(
-    'claude',
-    modelCatalog.withValidation(withCurrentModel(MODEL_OPTIONS.claude.filter((o) => o.value), own.value.model_claude)),
-    own.value.model_claude,
-    props.project.id,
-  ),
-])
-const codexModelOptions = computed<SelectOption[]>(() => [
-  { value: '', label: follow(modelLabel(global.value.models.codex)) },
-  ...modelCatalog.enabledOnly(
-    'codex',
-    withCurrentModel(modelCatalog.codexOptions(MODEL_OPTIONS.codex).filter((o) => o.value), own.value.model_codex),
-    own.value.model_codex,
-    props.project.id,
-  ),
-])
+// model shown stays, marked.
+const claudeModelSelect = computed(() => {
+  const shown = own.value.model_claude || global.value.models.claude
+  return projectDefaultSelect([
+    modelDefaultOption(),
+    ...modelCatalog.enabledOnly(
+      'claude',
+      modelCatalog.withValidation(withCurrentModel(MODEL_OPTIONS.claude.filter((o) => o.value), shown)),
+      shown,
+      props.project.id,
+    ),
+  ], own.value.model_claude, global.value.models.claude)
+})
+const codexModelSelect = computed(() => {
+  const shown = own.value.model_codex || global.value.models.codex
+  return projectDefaultSelect([
+    modelDefaultOption(),
+    ...modelCatalog.enabledOnly(
+      'codex',
+      withCurrentModel(modelCatalog.codexOptions(MODEL_OPTIONS.codex).filter((o) => o.value), shown),
+      shown,
+      props.project.id,
+    ),
+  ], own.value.model_codex, global.value.models.codex)
+})
 
 // ── Permission mode ──
-const permissionOptions = computed<SelectOption[]>(() => {
-  const modes = permissionModeOptions(t)
-  const globalMode = global.value.permissionMode
-  return [{ value: '', label: follow(modes.find((o) => o.value === globalMode)?.label ?? globalMode) }, ...modes]
-})
+const permissionSelect = computed(() =>
+  projectDefaultSelect(permissionModeOptions(t), own.value.permission_mode, global.value.permissionMode),
+)
 
 // ── Effort: the levels of this project's engine + default model ──
 const effortLevels = computed(() => {
@@ -102,15 +106,16 @@ const effortLevels = computed(() => {
 })
 const effortLabel = (level: string) =>
   (EFFORT_LEVELS as readonly string[]).includes(level) ? t(`settings.ai.effort.${level}`) : level
-const effortOptions = computed<SelectOption[]>(() =>
-  defaultEffortChoices(effortLevels.value, own.value.effort).map((c) => {
-    if (!c.value) {
-      const g = global.value.effort
-      return { value: '', label: follow(g ? effortLabel(g) : t('settings.ai.effortEngineDefault')) }
-    }
-    const label = effortLabel(c.value)
-    return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
-  }),
+const effortSelect = computed(() =>
+  projectDefaultSelect<SelectOption>(
+    defaultEffortChoices(effortLevels.value, own.value.effort || global.value.effort).map((c) => {
+      if (!c.value) return { value: '', label: t('settings.ai.effortEngineDefault') }
+      const label = effortLabel(c.value)
+      return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
+    }),
+    own.value.effort,
+    global.value.effort,
+  ),
 )
 
 // ── Response style: the global styles, then this project's ──
@@ -120,15 +125,17 @@ function styleName(key: string): string {
   const found = shown.value.find((s) => s.id === key)
   return found ? found.name : styles.loaded ? t('settings.ai.styleMissing') : '…'
 }
-const styleOptions = computed(() => {
-  const out: (SelectOption & { header?: boolean })[] = [{ value: '', label: follow(styleName(global.value.style)) }]
+// A global '' and the saved "None" ('default') both mean no style.
+const globalStyle = computed(() => global.value.style || NO_STYLE)
+const styleSelect = computed(() => {
+  const out: (SelectOption & { header?: boolean })[] = []
   let group = ''
   const heading = (id: string, label: string) => {
     if (group === id) return
     group = id
     out.push({ value: `__group:${id}`, label, header: true })
   }
-  for (const c of composerStyleChoices(shown.value, props.project.id, own.value.style)) {
+  for (const c of composerStyleChoices(shown.value, props.project.id, own.value.style || globalStyle.value)) {
     if (c.kind === 'none') {
       out.push({ value: c.value, label: t('settings.ai.styleNone'), description: t('settings.ai.styleNoneHint') })
     } else if (c.kind === 'mine' || c.kind === 'project') {
@@ -138,7 +145,7 @@ const styleOptions = computed(() => {
       out.push({ value: c.value, label: styleName(c.value) })
     }
   }
-  return out
+  return projectDefaultSelect(out, own.value.style, globalStyle.value)
 })
 
 // ── Claude account (one per project; falls back to the default account) ──
@@ -175,33 +182,33 @@ async function selectClaudeAccount(accountId: string) {
       </p>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEngine') }}</label>
-        <AppSelect size="sm" :model-value="own.engine ?? ''" :options="engineOptions" @update:model-value="save('engine', $event)" />
+        <AppSelect size="sm" :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="save('engine', $event)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
-        <AppSelect size="sm" :model-value="own.model_claude ?? ''" :options="claudeModelOptions" @update:model-value="save('model_claude', $event)" />
+        <AppSelect size="sm" :model-value="claudeModelSelect.value" :options="claudeModelSelect.options" @update:model-value="save('model_claude', $event)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
-        <AppSelect size="sm" :model-value="own.model_codex ?? ''" :options="codexModelOptions" @update:model-value="save('model_codex', $event)" />
+        <AppSelect size="sm" :model-value="codexModelSelect.value" :options="codexModelSelect.options" @update:model-value="save('model_codex', $event)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <ShieldAlert class="h-3 w-3" :stroke-width="1.75" />{{ t('settings.ai.defaultPermissionMode') }}
         </label>
-        <AppSelect size="sm" :model-value="own.permission_mode ?? ''" :options="permissionOptions" @update:model-value="save('permission_mode', $event)" />
+        <AppSelect size="sm" :model-value="permissionSelect.value" :options="permissionSelect.options" @update:model-value="save('permission_mode', $event)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEffort') }}</label>
         <template v-if="effortLevels.length || own.effort">
-          <AppSelect size="sm" :model-value="own.effort ?? ''" :options="effortOptions" @update:model-value="save('effort', $event)" />
+          <AppSelect size="sm" :model-value="effortSelect.value" :options="effortSelect.options" @update:model-value="save('effort', $event)" />
           <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.effortHint') }}</p>
         </template>
         <p v-else class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.effortNotTaken') }}</p>
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultStyle') }}</label>
-        <AppSelect size="sm" :model-value="own.style ?? ''" :options="styleOptions" @update:model-value="save('style', $event)" />
+        <AppSelect size="sm" :model-value="styleSelect.value" :options="styleSelect.options" @update:model-value="save('style', $event)" />
       </div>
     </Card>
 

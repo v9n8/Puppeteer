@@ -5,6 +5,7 @@
 import { EFFORT_LEVELS, resolvePermissionMode, type EffortLevel } from './engineOptions.ts'
 import { NO_STYLE } from './responseStyles.ts'
 import type { EnabledModels } from './enabledModels.ts'
+import { markDefault } from './defaultMark.ts'
 
 export interface ComposerDefaults {
   /** The engine of a new session: 'claude' or 'codex'. */
@@ -163,4 +164,24 @@ export function composerStyleChoices(
   const cur = current?.trim()
   if (cur && !out.some((c) => c.value === cur)) out.push({ kind: 'missing', value: cur })
   return out
+}
+
+/**
+ * The composer's model list: the "Default" row ('') goes when the model a turn
+ * without a pick runs on (`inherited`) is listed, so that model shows once; ★
+ * marks the project's (else the global) default model.
+ */
+export function composerModelChoices<T extends { value: string; header?: boolean }>(
+  options: readonly T[],
+  inherited: string,
+  projectDefault: string,
+): (T & { isDefault?: boolean })[] {
+  const listed = !!inherited && options.some((o) => !o.header && o.value === inherited)
+  return markDefault(listed ? options.filter((o) => o.value !== '') : options, projectDefault)
+}
+
+/** What the composer's model select shows: the pick, else the inherited model when listed, else ''. */
+export function shownModel(pick: string, inherited: string, options: readonly { value: string; header?: boolean }[]): string {
+  if (pick) return pick
+  return inherited && options.some((o) => !o.header && o.value === inherited) ? inherited : ''
 }
