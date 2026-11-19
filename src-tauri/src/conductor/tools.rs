@@ -251,15 +251,17 @@ pub(super) async fn reserve_worker(
             .await;
         return Err(cap_reached(session.max_workers));
     }
+    conductor.set_worker_mode(&worker_id, &permission_mode);
     Ok((worker_id, permission_mode))
 }
 
-/// The permission mode a worker runs with: the requested one, else the
-/// `default_permission_mode` setting lowered to fit. A worker never gets more
+/// The permission mode a worker runs with: the requested one, else its
+/// conductor's own (QO-07), or the nearest stricter one the worker's engine
+/// has (a Codex worker of an `auto` Claude conductor). A worker never gets more
 /// than its conductor's live mode allows: the conductor's own tools run without
 /// a prompt, so a looser worker would let it (or a prompt injection) skip every
 /// prompt the user is relying on.
-pub(crate) async fn worker_permission_mode(
+pub(super) async fn worker_permission_mode(
     db: &Db,
     conductor: &ConductorState,
     conductor_run_id: &str,
@@ -272,12 +274,11 @@ pub(crate) async fn worker_permission_mode(
         .ok_or_else(|| {
             "this session's permission mode is unknown; resume it before spawning workers".to_string()
         })?;
-    let (own_engine, project_id) =
-        sqlx::query_as::<_, (String, String)>("SELECT engine, project_id FROM runs WHERE id = ?")
-            .bind(conductor_run_id)
-            .fetch_one(db)
-            .await
-            .map_err(|e| e.to_string())?;
+    let own_engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
+        .bind(conductor_run_id)
+        .fetch_one(db)
+        .await
+        .map_err(|e| e.to_string())?;
     let ceiling = permission_rank(&own, &own_engine).unwrap_or(0);
 
     if let Some(mode) = requested {
@@ -290,16 +291,8 @@ pub(crate) async fn worker_permission_mode(
         }
         return Ok(mode.to_string());
     }
-    // The project's default, else the global one; an unknown value starts as
-    // `default`, as in `start_run_inner`.
-    let project = crate::commands::session_defaults::load(db, &project_id).await;
-    let setting = Some(crate::commands::session_defaults::fallback_permission_mode(
-        project.permission_mode.as_deref(),
-        &default_permission_mode(db).await,
-    ))
-    .filter(|m| permission_rank(m, worker_engine).is_some())
-    .unwrap_or_else(|| "default".to_string());
-    let mode = [setting.as_str(), "acceptEdits", "default", "plan"]
+    // Loosest first, so the first that fits is the nearest one.
+    let mode = [own.as_str(), "bypassPermissions", "auto", "acceptEdits", "default", "plan"]
         .into_iter()
         .find(|m| permission_rank(m, worker_engine).is_some_and(|r| r <= ceiling))
         .unwrap_or("plan")
@@ -324,15 +317,6 @@ fn permission_rank(mode: &str, engine: &str) -> Option<u8> {
         "bypassPermissions" => Some(4),
         _ => None,
     }
-}
-
-async fn default_permission_mode(db: &Db) -> String {
-    sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'default_permission_mode'")
-        .fetch_optional(db)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default".to_string())
 }
 
 async fn session_list(state: &HttpState, conductor_run_id: &str) -> Result<Value, String> {
@@ -582,14 +566,14 @@ async fn session_send(
             return Err(cap_reached(max_workers));
         }
         // A resume would otherwise fall back to the global default mode, which
-        // may be looser than the conductor's.
+        // may be looser than the conductor's; the worker keeps its own (QO-07).
         let engine = sqlx::query_scalar::<_, String>("SELECT engine FROM runs WHERE id = ?")
             .bind(&worker_id)
             .fetch_one(&db)
             .await
             .map_err(|e| e.to_string())?;
         let permission_mode =
-            worker_permission_mode(&db, &state.conductor, conductor_run_id, None, &engine).await?;
+            super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine).await?;
         crate::commands::runs::resume_run_with(
             state.app.clone(),
             state.app.state::<Db>(),
@@ -1016,6 +1000,8 @@ mod tests {
             Ok("bypassPermissions")
         );
         assert_eq!(workers(&db).await, 1);
+        // QO-AC70: a stricter mode is still the conductor's to pick.
+        assert_eq!(spawn(&db, &cst, "claude", Some("default")).await.as_deref(), Ok("default"));
     }
 
     #[tokio::test]
@@ -1047,24 +1033,24 @@ mod tests {
         assert_eq!(worker_accounts(db).await, [("codex".to_string(), None)]);
     }
 
+    /// QO-AC67 – QO-AC69: an omitted mode is the conductor's own, whatever the
+    /// setting says, lowered to the nearest one the worker's engine has.
     #[tokio::test]
-    async fn the_default_mode_is_lowered_to_the_conductors() {
-        let (db, cst) = setup("claude", "default").await;
-        crate::commands::settings::set_setting(&db, "default_permission_mode", "bypassPermissions")
-            .await
-            .unwrap();
-        assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("default"));
+    async fn an_omitted_mode_is_the_conductors_own() {
+        for (own, setting) in [("bypassPermissions", "default"), ("plan", "bypassPermissions"), ("acceptEdits", "plan")] {
+            let (db, cst) = setup("claude", own).await;
+            crate::commands::settings::set_setting(&db, "default_permission_mode", setting).await.unwrap();
+            assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok(own));
+        }
+        // Claude `auto` (rank 3): Codex's `auto` runs no more than that.
+        let (db, cst) = setup("claude", "auto").await;
+        assert_eq!(spawn(&db, &cst, "codex", None).await.as_deref(), Ok("auto"));
+        // Claude `dontAsk` asks no more than `default`; Codex's would not ask.
+        let (db, cst) = setup("claude", "dontAsk").await;
         assert_eq!(spawn(&db, &cst, "codex", None).await.as_deref(), Ok("default"));
-
-        let (db, cst) = setup("claude", "acceptEdits").await;
-        crate::commands::settings::set_setting(&db, "default_permission_mode", "bypassPermissions")
-            .await
-            .unwrap();
+        // Codex `auto` (rank 2) is less than Claude's `auto` (3): the nearest is `acceptEdits`.
+        let (db, cst) = setup("codex", "auto").await;
         assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("acceptEdits"));
-        crate::commands::settings::set_setting(&db, "default_permission_mode", "plan")
-            .await
-            .unwrap();
-        assert_eq!(spawn(&db, &cst, "claude", None).await.as_deref(), Ok("plan"));
     }
 
     #[tokio::test]

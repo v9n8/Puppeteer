@@ -270,7 +270,8 @@ pub async fn on_worker_finished(app: &tauri::AppHandle, run_id: &str) -> bool {
     let model_override = model.filter(|m| Some(*m) != facts.model).map(|m| m.as_str().to_string());
     let effort_override = effort.map(|e| e.as_str().to_string());
 
-    let mode = match crate::conductor::tools::worker_permission_mode(&db, &cst, &conductor_run_id, None, &engine).await {
+    // The retry keeps the mode the worker ran with (QO-07).
+    let mode = match crate::conductor::defaults::worker_resume_mode(&db, &cst, &conductor_run_id, run_id, &engine).await {
         Ok(mode) => mode,
         Err(e) => return skipped(format!("resume_failed: {e}")).await,
     };

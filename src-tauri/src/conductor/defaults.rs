@@ -99,6 +99,31 @@ pub async fn worker_effort(db: &Db, param: Option<&str>) -> (Option<String>, Eff
     decide_worker_effort(param, setting(db, WORKER_EFFORT_SETTING).await.as_deref())
 }
 
+/// The permission mode a worker resumes with (`session_send`, an escalation):
+/// the one it last ran with while its conductor's live mode still allows it
+/// (QO-07: a worker spawned stricter stays stricter), else what a new worker
+/// would get. Remembered as the worker's mode. A conductor whose mode is
+/// unknown gets the error a spawn gets.
+pub async fn worker_resume_mode(
+    db: &Db,
+    conductor: &super::ConductorState,
+    conductor_run_id: &str,
+    worker_id: &str,
+    engine: &str,
+) -> Result<String, String> {
+    use super::tools::worker_permission_mode;
+    let kept = match conductor.worker_mode(worker_id) {
+        Some(mode) => worker_permission_mode(db, conductor, conductor_run_id, Some(&mode), engine).await.ok(),
+        None => None,
+    };
+    let mode = match kept {
+        Some(mode) => mode,
+        None => worker_permission_mode(db, conductor, conductor_run_id, None, engine).await?,
+    };
+    conductor.set_worker_mode(worker_id, &mode);
+    Ok(mode)
+}
+
 /// The cap a launch starts with: the one it names (clamped), else the setting.
 pub async fn initial_max_workers(db: &Db, requested: Option<u32>) -> usize {
     match requested {
@@ -215,5 +240,54 @@ mod tests {
         for src in [include_str!("../commands/runs.rs"), include_str!("commands.rs")] {
             assert!(!src.contains("worker_effort("));
         }
+    }
+
+    /// A conductor `c` in `mode`, with one project.
+    async fn conductor(mode: &str) -> (Db, super::super::ConductorState) {
+        let db = db().await;
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'proj', '/tmp/p1', '2026-01-01')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO runs (id, project_id, type, status, engine, created_at, role) VALUES ('c', 'p1', 'session', 'running', 'claude', 'c', 'conductor')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let cst = super::super::ConductorState::new();
+        cst.register_session("c", "p1", 5);
+        cst.set_permission_mode("c", mode);
+        (db, cst)
+    }
+
+    /// QO-AC72: a resume (an escalation's retry, a `session_send`) keeps the
+    /// mode the worker ran with, never looser than the conductor now allows.
+    #[tokio::test]
+    async fn a_resumed_worker_keeps_the_mode_it_ran_with() {
+        let (db, cst) = conductor("bypassPermissions").await;
+        let (strict, mode) = super::super::tools::reserve_worker(&db, &cst, "c", "claude", "t", None, Some("plan")).await.unwrap();
+        assert_eq!(mode, "plan");
+        let (loose, _) = super::super::tools::reserve_worker(&db, &cst, "c", "claude", "t", None, None).await.unwrap();
+        assert_eq!(worker_resume_mode(&db, &cst, "c", &strict, "claude").await.as_deref(), Ok("plan"));
+        assert_eq!(worker_resume_mode(&db, &cst, "c", &loose, "claude").await.as_deref(), Ok("bypassPermissions"));
+        // The conductor went stricter: the looser worker comes down to it.
+        cst.set_permission_mode("c", "default");
+        assert_eq!(worker_resume_mode(&db, &cst, "c", &loose, "claude").await.as_deref(), Ok("default"));
+        assert_eq!(cst.worker_mode(&loose).as_deref(), Some("default"));
+        // Not known (an app restart): the conductor's own; conductor not known: refused.
+        assert_eq!(worker_resume_mode(&db, &cst, "c", "unknown", "claude").await.as_deref(), Ok("default"));
+        cst.reregister_session("c", "p1", 5, vec![strict.clone()]);
+        assert!(worker_resume_mode(&db, &cst, "c", &strict, "claude").await.is_err());
+        // Both resume paths use it.
+        let tools = include_str!("tools.rs");
+        let send = &tools[tools.find("async fn session_send(").unwrap()..tools.find("async fn session_cancel(").unwrap()];
+        assert!(send.contains("super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine)"));
+        assert!(include_str!("../runs/routing/escalate.rs").contains("crate::conductor::defaults::worker_resume_mode(&db, &cst, &conductor_run_id, run_id, &engine)"));
+    }
+
+    /// QO-AC73: both descriptions say what an omitted mode means.
+    #[test]
+    fn the_spawn_tool_says_an_omitted_mode_is_the_sessions_own() {
+        assert!(super::super::CONDUCTOR_SYSTEM_PROMPT.contains("Omit `permission_mode` to give the worker your own mode."));
+        assert!(include_str!("mcp_http.rs").contains("Omit it to give the worker your own mode (or the nearest stricter one its engine has)"));
     }
 }

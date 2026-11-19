@@ -54,6 +54,7 @@ You control workers with these MCP tools (server `conductor`):
 - session_spawn(role_label, prompt, instruction?, engine?, model?, permission_mode?)
     -> spawns a worker and returns { worker_id }. `instruction` becomes the
        worker's role/system framing; `prompt` is its first task message.
+       Omit `permission_mode` to give the worker your own mode.
 - session_list() -> all your workers and their status.
 - session_poll(worker_ids?) -> instant status of workers (running | idle | ...).
 - session_wait(worker_ids, timeout_ms?) -> block until those workers finish their
@@ -264,6 +265,9 @@ struct Inner {
     /// from `resume_run` — `resume_run` spawns a new drain, so a direct call would
     /// make the drain future's auto-traits cyclic and un-inferrable.
     wake_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    /// The permission mode each worker was last launched with by a
+    /// `session_*` tool or an escalation, so a resume keeps it (QO-07).
+    worker_modes: HashMap<String, String>,
 }
 
 /// Managed Tauri state: the conductor registry + the MCP server's bound port.
@@ -294,6 +298,7 @@ impl ConductorState {
                 turn_active: HashSet::new(),
                 pending_wake: HashSet::new(),
                 wake_tx: None,
+                worker_modes: HashMap::new(),
             })),
             start_lock: Arc::new(tokio::sync::Mutex::new(())),
             server: Arc::new(tokio::sync::Mutex::new(None)),
@@ -401,6 +406,18 @@ impl ConductorState {
                 s.permission_mode = Some(mode.to_string());
             }
         }
+    }
+
+    /// Record the permission mode a worker was just launched with.
+    pub fn set_worker_mode(&self, worker_id: &str, mode: &str) {
+        if let Ok(mut g) = self.inner.lock() {
+            g.worker_modes.insert(worker_id.to_string(), mode.to_string());
+        }
+    }
+
+    /// The mode a worker was last launched with; `None` after an app restart.
+    pub fn worker_mode(&self, worker_id: &str) -> Option<String> {
+        self.inner.lock().ok().and_then(|g| g.worker_modes.get(worker_id).cloned())
     }
 
     /// Install the finished-run channel sender (called once when the MCP server's
@@ -530,7 +547,12 @@ impl ConductorState {
     /// wake bookkeeping, and its id from any conductor's worker list.
     pub fn unregister_session(&self, run_id: &str) {
         if let Ok(mut g) = self.inner.lock() {
-            g.sessions.remove(run_id);
+            if let Some(s) = g.sessions.remove(run_id) {
+                for w in &s.worker_ids {
+                    g.worker_modes.remove(w);
+                }
+            }
+            g.worker_modes.remove(run_id);
             g.token_index.retain(|_, owner| owner != run_id);
             g.waking.remove(run_id);
             g.turn_active.remove(run_id);
