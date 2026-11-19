@@ -745,6 +745,7 @@ pub fn run() {
             conductor::commands::conductor_worker_diff,
             conductor::commands::conductor_worker_merge,
             get_usage_stats,
+            runs::routing::commands::get_routing_report,
             translate_text,
             cancel_translate,
             prewarm_translate,

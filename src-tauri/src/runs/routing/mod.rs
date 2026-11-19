@@ -11,8 +11,10 @@
 //! [`tier`] holds the pure vocabulary all layers share (model families, effort
 //! levels, task kinds).
 
+pub mod commands;
 pub mod escalate;
 pub mod policy;
 pub mod record;
+pub mod report;
 pub mod tier;
 pub mod worker;

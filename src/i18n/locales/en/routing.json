@@ -1,0 +1,29 @@
+{
+  "title": "Routing",
+  "hint": "How sessions pick a model and effort for the work they hand to sub-agents and workers. New sessions read a short routing policy; the app records each choice and how it ended.",
+  "switches": {
+    "policy": "Use the routing policy in new sessions",
+    "policyHint": "New Claude sessions get the current policy in their system prompt and set a model and effort for each task kind. Sessions already open keep what they started with.",
+    "escalation": "Retry a failed worker once on a stronger model",
+    "escalationHint": "When a worker ends with a failed check, the app runs it once more one tier up before waking its session. Never more than once per task.",
+    "autoUpdate": "Update the policy automatically",
+    "autoUpdateHint": "At most once a day, the app moves a task kind one step up or down from the recorded results, for new sessions only. Off: changes are shown here as a proposal."
+  },
+  "report": {
+    "title": "Routing report",
+    "hint": "Delegated work per task kind and tier. Success counts finished runs with a clear result: a worker's check passed, or a sub-agent completed and was not retried.",
+    "days": "{n} days",
+    "empty": "No delegated work recorded in this period.",
+    "adoption": "Agent calls in sessions with a policy: {calls}. With a model: {model} · with an effort: {effort} · with both: {both}.",
+    "columns": {
+      "kind": "Task kind",
+      "model": "Model",
+      "effort": "Effort",
+      "runs": "Runs",
+      "success": "Success",
+      "avgTokens": "Avg tokens",
+      "retried": "Retried",
+      "byAgent": "Chosen by agent"
+    }
+  }
+}

@@ -32,6 +32,10 @@ export interface AppSettings {
   worker_effort: string
   claude_subagent_model: string
   claude_subagent_effort: string
+  /** QO-06 routing switches (Settings › Routing): "true" | "false". */
+  'routing.policy_enabled': string
+  'routing.escalation_enabled': string
+  'routing.auto_update': string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string
@@ -87,6 +91,9 @@ export function createSettingsForm(): SettingsForm {
     worker_effort: 'medium',
     claude_subagent_model: '',
     claude_subagent_effort: 'medium',
+    'routing.policy_enabled': 'true',
+    'routing.escalation_enabled': 'true',
+    'routing.auto_update': 'true',
     terminal_app: TERMINAL_APPS[desktopOs(navigator.userAgent)][0].value,
     context_warn_percent: '80',
     context_limit_override: '',

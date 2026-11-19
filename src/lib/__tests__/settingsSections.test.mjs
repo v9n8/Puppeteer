@@ -29,7 +29,7 @@ test('every section belongs to a known group, ids are unique', () => {
 test('settingsNav: all features on → four groups in order, every section listed', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(true))), [
     ['general', ['general', 'flags', 'features', 'focus', 'shortcuts']],
-    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
+    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits', 'routing']],
     ['connections', ['connections', 'mcp', 'inbox']],
     ['system', ['devices', 'about']],
   ])
@@ -38,7 +38,7 @@ test('settingsNav: all features on → four groups in order, every section liste
 test('settingsNav: features off hide their sections, ungated ones stay', () => {
   assert.deepEqual(shape(settingsNav(SETTINGS_SECTIONS, treeAll(false))), [
     ['general', ['general', 'flags', 'features']],
-    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits']],
+    ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits', 'routing']],
     ['connections', ['connections', 'mcp', 'inbox']],
     ['system', ['devices', 'about']],
   ])

@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes, Server,
+  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes, Server, Route,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -39,6 +39,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'memory', group: 'ai', labelKey: 'settings.sections.memory', icon: Brain },
   // Context, quota and unattended thresholds; was "Sessions" (V3-60).
   { id: 'limits', group: 'ai', labelKey: 'settings.sections.limits', icon: Gauge },
+  // Model / effort routing of delegated work (QO-06): switches, report, policy versions.
+  { id: 'routing', group: 'ai', labelKey: 'settings.sections.routing', icon: Route },
   // GitHub, GitLab, AWS, Azure and Google accounts (lib/connectionTypes); each type
   // is gated inside the screen, and `?section=github` etc. open it filtered.
   { id: 'connections', group: 'connections', labelKey: 'settings.sections.connections', icon: Plug },

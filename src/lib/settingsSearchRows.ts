@@ -95,6 +95,12 @@ export const SETTINGS_SEARCH_ROWS: Record<SettingsSectionId, SearchRow[]> = {
     { id: 'limits-unattendedMaxMinutes', labelKey: 'settings.sessions.unattendedMaxMinutes', tab: 'unattended', keywordsKey: kw('limits') },
     { id: 'limits-notify', labelKey: 'settings.sessions.notifyTitle', tab: 'notify', keywordsKey: kw('notify') },
   ],
+  routing: [
+    { id: 'routing-policy', labelKey: 'routing.switches.policy', keywordsKey: kw('routing') },
+    { id: 'routing-escalation', labelKey: 'routing.switches.escalation', keywordsKey: kw('routing') },
+    { id: 'routing-autoUpdate', labelKey: 'routing.switches.autoUpdate', keywordsKey: kw('routing') },
+    { id: 'routing-report', labelKey: 'routing.report.title', keywordsKey: kw('routing') },
+  ],
   connections: [
     { id: 'connections-list', labelKey: 'settings.connections.title', keywordsKey: kw('connections') },
     { id: 'connections-validateAll', labelKey: 'settings.connections.validateAll', keywordsKey: kw('connections') },

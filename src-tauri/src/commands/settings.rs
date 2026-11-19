@@ -42,6 +42,14 @@ pub struct AppSettings {
     /// Their effort: "low" | "medium" | "high", or "inherit" for the session's.
     /// Unset = "medium".
     pub claude_subagent_effort: String,
+    /// QO-06 routing switches (Settings › Routing): "true" | "false"; unset = on.
+    /// See `runs::routing::policy`, `runs::routing::escalate`, `runs::routing::update`.
+    #[serde(rename = "routing.policy_enabled")]
+    pub routing_policy_enabled: String,
+    #[serde(rename = "routing.escalation_enabled")]
+    pub routing_escalation_enabled: String,
+    #[serde(rename = "routing.auto_update")]
+    pub routing_auto_update: String,
     /// Terminal app to open a project folder with, one of this OS's (`projects::terminal_apps`):
     /// "terminal" (Terminal.app) or "iterm" on macOS.
     pub terminal_app: String,
@@ -146,6 +154,7 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     // QO-06 routing switches (`runs::routing::policy`, `runs::routing::escalate`).
     "routing.policy_enabled",
     "routing.escalation_enabled",
+    "routing.auto_update",
     "terminal_app",
     "context_warn_percent",
     "context_limit_override",
@@ -219,6 +228,9 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         worker_effort: crate::conductor::defaults::DEFAULT_WORKER_EFFORT.to_string(),
         claude_subagent_model: String::new(),
         claude_subagent_effort: crate::runs::subagent_env::DEFAULT_EFFORT.to_string(),
+        routing_policy_enabled: "true".to_string(),
+        routing_escalation_enabled: "true".to_string(),
+        routing_auto_update: "true".to_string(),
         terminal_app: String::new(),
         context_warn_percent: "80".to_string(),
         context_limit_override: "".to_string(),
@@ -266,6 +278,9 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "worker_effort" => settings.worker_effort = value,
             "claude_subagent_model" => settings.claude_subagent_model = value,
             "claude_subagent_effort" => settings.claude_subagent_effort = value,
+            "routing.policy_enabled" => settings.routing_policy_enabled = value,
+            "routing.escalation_enabled" => settings.routing_escalation_enabled = value,
+            "routing.auto_update" => settings.routing_auto_update = value,
             "terminal_app" => settings.terminal_app = value,
             "context_warn_percent" => settings.context_warn_percent = value,
             "context_limit_override" => settings.context_limit_override = value,

@@ -1,0 +1,29 @@
+{
+  "title": "Định tuyến model",
+  "hint": "Cách session chọn model và effort cho việc giao cho sub-agent và worker. Session mới đọc một chính sách định tuyến ngắn; app ghi lại mỗi lựa chọn và kết quả của nó.",
+  "switches": {
+    "policy": "Dùng chính sách định tuyến cho session mới",
+    "policyHint": "Session Claude mới nhận chính sách hiện hành trong system prompt và đặt model, effort theo loại việc. Session đang mở giữ chính sách lúc bắt đầu.",
+    "escalation": "Tự chạy lại worker hỏng một lần trên model mạnh hơn",
+    "escalationHint": "Khi worker kết thúc với kiểm hỏng, app chạy lại nó một lần ở bậc cao hơn rồi mới đánh thức session. Mỗi việc tối đa một lần.",
+    "autoUpdate": "Tự cập nhật chính sách",
+    "autoUpdateHint": "Tối đa mỗi ngày một lần, app nâng hoặc hạ một loại việc một nấc theo kết quả đã ghi, chỉ cho session mới. Tắt: thay đổi hiện ở đây dưới dạng đề xuất."
+  },
+  "report": {
+    "title": "Báo cáo định tuyến",
+    "hint": "Việc đã giao theo loại việc và bậc. Thành công tính trên các lượt có kết quả rõ: worker kiểm đạt, hoặc sub-agent chạy xong và không bị chạy lại.",
+    "days": "{n} ngày",
+    "empty": "Chưa có việc giao nào được ghi trong khoảng này.",
+    "adoption": "Lần gọi Agent ở session có chính sách: {calls}. Có model: {model} · có effort: {effort} · có cả hai: {both}.",
+    "columns": {
+      "kind": "Loại việc",
+      "model": "Model",
+      "effort": "Effort",
+      "runs": "Số lần",
+      "success": "Thành công",
+      "avgTokens": "Token TB",
+      "retried": "Chạy lại",
+      "byAgent": "Agent tự chọn"
+    }
+  }
+}
