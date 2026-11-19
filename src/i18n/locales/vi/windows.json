@@ -10,6 +10,12 @@
   },
   "closeAll": "Đóng tất cả cửa sổ riêng",
   "closeAllTip": "Đóng mọi cửa sổ riêng; cửa sổ chính vẫn mở",
+  "closeAllShort": "Đóng tất cả",
+  "mergeAll": "Gộp tất cả về cửa sổ chính",
+  "mergeAllShort": "Gộp tất cả",
+  "mergeAllTip": "Gộp mọi cửa sổ riêng gộp được về cửa sổ chính; cửa sổ không gộp được giữ nguyên",
+  "merged": "Đã gộp {count} cửa sổ về cửa sổ chính",
+  "mergedSkipped": "Đã gộp {count} cửa sổ về cửa sổ chính, bỏ qua {skipped} (không gộp được)",
   "exit": "Thoát (Esc)",
   "group": {
     "session": "Session",

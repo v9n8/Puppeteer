@@ -10,6 +10,12 @@
   },
   "closeAll": "Close all windows",
   "closeAllTip": "Close every private window; the main window stays open",
+  "closeAllShort": "Close all",
+  "mergeAll": "Move all to main window",
+  "mergeAllShort": "Move all back",
+  "mergeAllTip": "Move every private window that can go back into the main window; the others stay",
+  "merged": "Moved {count} window to the main window | Moved {count} windows to the main window",
+  "mergedSkipped": "Moved {count} window to the main window, skipped {skipped} (cannot move back) | Moved {count} windows to the main window, skipped {skipped} (cannot move back)",
   "exit": "Exit (Esc)",
   "group": {
     "session": "Sessions",

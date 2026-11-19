@@ -23,6 +23,7 @@ import {
   isCloseCardKey, runMergeBack, cycleSelection, filterCards, flattenGroups, groupCards, initialSelection,
   moveSelection, parseGroupBy, selectionAfterClose, type GroupBy, type MoveDirection, type WindowTargeted,
 } from '@/lib/windowsOverlay'
+import { mergePlan } from '@/lib/windowsSelection'
 import { useOpenWindowsStore } from '@/stores/openWindows'
 
 const props = withDefaults(defineProps<{
@@ -64,6 +65,7 @@ const menuCard = computed(() => (menu.value ? store.cards.find((c) => c.label ==
 const keysClose = computed(() => formatAccelerator('CmdOrCtrl+W', IS_MAC))
 const closeTip = computed(() => t('windows.closeWindowTip', { keys: keysClose.value }))
 const hereIsPrivate = computed(() => store.cards.some((c) => c.isHere))
+const canMergeAny = computed(() => store.cards.some((c) => c.canMerge))
 
 function groupName(g: { key: string; isNone: boolean }): string {
   if (g.isNone) return t('windows.group.none')
@@ -170,6 +172,37 @@ async function closeAllWindows() {
   await store.refresh()
   const closed = labels.length - store.cards.filter((c) => labels.includes(c.label)).length
   if (closed > 0) toast.success(t('windows.closed', { count: closed }, closed))
+}
+
+// A window moves back on its own (the main window opens what it showed), which can take
+// longer than a close: wait until they are gone, up to this long.
+const MERGE_SETTLE_MS = 2000
+const MERGE_POLL_MS = 150
+
+/** "Move back to main window" for each of `labels` that has it, no question asked; a toast says how many went. */
+async function mergeWindows(labels: Iterable<string>) {
+  const { merge, skip } = mergePlan(store.cards, labels, store.here)
+  close()
+  for (const l of merge) {
+    // One after the other, so the window running this overlay goes last.
+    await requestMergeBack(l).catch((e) => console.error('[WindowsOverlay] cannot move back', l, e))
+  }
+  // A window with unsaved changes may stay (the user kept it): count what is really gone.
+  const stillOpen = () => store.cards.filter((c) => merge.includes(c.label)).length
+  for (let waited = 0; waited < MERGE_SETTLE_MS; waited += MERGE_POLL_MS) {
+    await new Promise((r) => setTimeout(r, MERGE_POLL_MS))
+    await store.refresh()
+    if (stillOpen() === 0) break
+  }
+  const merged = merge.length - stillOpen()
+  if (merged === 0 && skip.length === 0) return
+  const key = skip.length > 0 ? 'windows.mergedSkipped' : 'windows.merged'
+  toast.success(t(key, { count: merged, skipped: skip.length }, merged))
+}
+
+function mergeAllWindows() {
+  // Every window, not only the ones the filter shows (as "Close all").
+  void mergeWindows(store.cards.map((c) => c.label))
 }
 
 function openMenu(e: MouseEvent, label: string) {
@@ -285,7 +318,7 @@ onBeforeUnmount(() => {
         <h2 class="text-md font-semibold">{{ t('windows.title') }}</h2>
         <span class="text-md text-muted-foreground tabular-nums">· {{ query ? `${flat.length} / ${total}` : total }}</span>
 
-        <label class="ml-2 flex h-8 w-[240px] max-[901px]:w-[180px] items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+        <label class="ml-2 flex h-8 w-[240px] max-[901px]:w-[150px] items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
           <Search class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
           <input
             ref="filterInput"
@@ -310,9 +343,30 @@ onBeforeUnmount(() => {
         </div>
 
         <span class="flex-1" />
-        <Button variant="outline" size="sm" class="text-[13px]" :disabled="total === 0" :title="t('windows.closeAllTip')" @click="confirmAll = true">
+        <!-- Under 1100px both take their short label (the full one is in the tooltip), so the header stays one row at 900. -->
+        <Button
+          variant="outline"
+          size="sm"
+          class="text-[13px]"
+          :disabled="!canMergeAny"
+          :title="`${t('windows.mergeAll')} · ${t('windows.mergeAllTip')}`"
+          @click="mergeAllWindows"
+        >
+          <SquareArrowDownLeft class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+          <span class="max-[1100px]:hidden">{{ t('windows.mergeAll') }}</span>
+          <span class="min-[1100px]:hidden">{{ t('windows.mergeAllShort') }}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          class="text-[13px]"
+          :disabled="total === 0"
+          :title="`${t('windows.closeAll')} · ${t('windows.closeAllTip')}`"
+          @click="confirmAll = true"
+        >
           <X class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
-          {{ t('windows.closeAll') }}
+          <span class="max-[1100px]:hidden">{{ t('windows.closeAll') }}</span>
+          <span class="min-[1100px]:hidden">{{ t('windows.closeAllShort') }}</span>
         </Button>
         <Button variant="ghost" size="icon-sm" :title="t('windows.exit')" :aria-label="t('windows.exit')" @click="close">
           <X class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
