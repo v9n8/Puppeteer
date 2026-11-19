@@ -6,11 +6,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Check, ChevronDown, Folder, RefreshCw, Search, Settings2 } from 'lucide-vue-next'
+import { Check, ChevronDown, Columns3, Folder, ListFilter, RefreshCw, Search, Settings2 } from 'lucide-vue-next'
 import { Banner, Button, ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator, PageHeader, Skeleton } from '@/components/ui'
 import RunActionItems from '@/components/RunActionItems.vue'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import BoardCard from '@/components/board/BoardCard.vue'
+import BoardFilterPopover from '@/components/board/BoardFilterPopover.vue'
 import { useBoardDrag } from '@/components/board/useBoardDrag'
 import { useBoardRunActions } from '@/components/board/useBoardRunActions'
 import { useBoardFilter } from '@/components/board/useBoardFilter'
@@ -66,7 +67,8 @@ const query = ref('')
 const flags = computed(() => board.data?.flags ?? [])
 const hidden = computed(() => board.data?.hidden ?? [])
 // Which columns show, and in what order: the board filter of this scope (UR-60).
-const { columns } = useBoardFilter({ scope: choice, flags, projectOrder: projectIds })
+const { filter, columns, isDefault, apply: applyFilter } = useBoardFilter({ scope: choice, flags, projectOrder: projectIds })
+const filterOpen = ref(false)
 const runById = computed(() => new Map((board.data?.runs ?? []).map((r) => [r.id, r])))
 
 function columnLabel(c: Column): string {
@@ -278,6 +280,15 @@ function manageFlags() {
         </div>
       </DropdownMenu>
 
+      <BoardFilterPopover
+        v-model:open="filterOpen"
+        :filter="filter"
+        :flags="flags"
+        :projects="projectStore.projects"
+        :badge="isDefault ? null : columns.length"
+        @apply="applyFilter"
+      />
+
       <label class="flex h-8 w-[220px] shrink items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-sm transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/15 min-[901px]:min-w-[220px] max-[901px]:w-[150px]">
         <Search class="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         <input
@@ -329,7 +340,7 @@ function manageFlags() {
       @keydown="onBoardKeydown"
       @focusout="onBoardFocusOut"
     >
-      <div v-if="board.data" class="flex h-full min-w-min gap-3" :class="{ 'cursor-grabbing': drag }">
+      <div v-if="board.data && columns.length" class="flex h-full min-w-min gap-3" :class="{ 'cursor-grabbing': drag }">
         <BoardColumn
           v-for="c in columns"
           :key="c.id"
@@ -359,6 +370,15 @@ function manageFlags() {
             />
           </template>
         </BoardColumn>
+      </div>
+      <!-- The filter has every column off. -->
+      <div v-else-if="board.data" data-board-empty class="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <Columns3 class="h-8 w-8 text-muted-foreground" :stroke-width="1.25" />
+        <p class="text-sm font-medium">{{ t('board.empty.title') }}</p>
+        <p class="max-w-[320px] text-sm text-muted-foreground">{{ t('board.empty.body') }}</p>
+        <Button variant="outline" class="px-3 text-sm font-normal" @click="filterOpen = true">
+          <ListFilter class="h-3.5 w-3.5" :stroke-width="1.75" />{{ t('board.empty.open') }}
+        </Button>
       </div>
       <!-- Not loaded yet (or it failed): empty frames, the count is a dash. -->
       <div v-else class="flex h-full min-w-min gap-3" :aria-busy="board.loading">

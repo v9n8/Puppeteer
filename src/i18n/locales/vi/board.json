@@ -9,7 +9,15 @@
   "filter": {
     "placeholder": "Lọc theo tên Session…",
     "label": "Lọc thẻ theo tên Session",
-    "hidden": "Ẩn {n} Session theo bộ lọc"
+    "hidden": "Ẩn {n} Session theo bộ lọc",
+    "button": "Bộ lọc",
+    "tooltip": "Chọn cột hiện trên board",
+    "shared": "Chung",
+    "apply": "Áp dụng",
+    "revert": "Hủy thay đổi",
+    "confirmTitle": "Áp dụng thay đổi bộ lọc?",
+    "confirmBody": "Bạn đã đổi bộ lọc nhưng chưa bấm Áp dụng.",
+    "discard": "Bỏ thay đổi"
   },
   "refresh": "Làm mới",
   "manageFlags": "Quản lý flag",
@@ -51,5 +59,10 @@
     "removed": "Đã bỏ flag của “{name}”",
     "undo": "Hoàn tác",
     "undone": "Đã đưa “{name}” về chỗ cũ"
+  },
+  "empty": {
+    "title": "Chưa có cột nào được chọn",
+    "body": "Mở Bộ lọc và tick các flag muốn hiện trên board.",
+    "open": "Mở bộ lọc"
   }
 }

@@ -9,7 +9,15 @@
   "filter": {
     "placeholder": "Filter by Session name…",
     "label": "Filter the cards by Session name",
-    "hidden": "{n} Sessions hidden by the filter"
+    "hidden": "{n} Sessions hidden by the filter",
+    "button": "Filter",
+    "tooltip": "Choose the columns on the board",
+    "shared": "Shared",
+    "apply": "Apply",
+    "revert": "Undo changes",
+    "confirmTitle": "Apply the filter changes?",
+    "confirmBody": "You changed the filter but did not apply it.",
+    "discard": "Discard"
   },
   "refresh": "Refresh",
   "manageFlags": "Manage flags",
@@ -51,5 +59,10 @@
     "removed": "Removed the flag from “{name}”",
     "undo": "Undo",
     "undone": "Put “{name}” back"
+  },
+  "empty": {
+    "title": "No column selected",
+    "body": "Open the filter and tick the flags to show.",
+    "open": "Open filter"
   }
 }
