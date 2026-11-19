@@ -1,15 +1,16 @@
 <script setup lang="ts">
 // Settings → "Defaults for new sessions": engine, the model of each engine,
-// permission mode, effort and response style a new session starts with. The one
+// permission mode, effort, response style and worker cap a new session starts with. The one
 // place these keys are edited; Settings › Model scans the model lists and picks
 // the models offered here. Translation has its own section (TranslateSettings).
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowUpRight, Sparkles } from 'lucide-vue-next'
-import { AppSelect, Button, Card, InfoTip } from '@/components/ui'
+import { AppSelect, Button, Card, InfoTip, Input } from '@/components/ui'
 import { EFFORT_LEVELS, effortLevelsFor, permissionModeOptions, type SelectOption } from '@/lib/engineOptions'
 import { shownStyles } from '@/lib/responseStyles'
 import { defaultEffortChoices, defaultStyleChoices } from '@/lib/sessionDefaults'
+import { DEFAULT_WORKER_CAP, MAX_WORKER_CAP, MIN_WORKER_CAP, defaultWorkerCap } from '@/lib/workerCap'
 import type { SettingsSectionId } from '@/lib/settingsSections'
 import { useModelCatalogStore } from '@/stores/modelCatalog'
 import { useResponseStylesStore } from '@/stores/responseStyles'
@@ -44,6 +45,15 @@ const effortOptions = computed<SelectOption[]>(() =>
     return c.supported ? { value: c.value, label } : { value: c.value, label, description: t('settings.ai.effortUnsupported') }
   }),
 )
+
+// The worker cap is typed into a draft and saved clamped once the field is left,
+// so "0" or "500" is stored as 1 or 100 and a half-typed number never auto-saves.
+const maxWorkersDraft = ref('')
+watch(() => settings.value.default_max_workers, (v) => { maxWorkersDraft.value = v }, { immediate: true })
+function commitMaxWorkers() {
+  settings.value.default_max_workers = String(defaultWorkerCap(maxWorkersDraft.value))
+  maxWorkersDraft.value = settings.value.default_max_workers
+}
 
 // The global styles under their heading.
 const styleOptions = computed(() => {
@@ -132,6 +142,16 @@ const styleOptions = computed(() => {
             <ArrowUpRight class="h-3.5 w-3.5" :stroke-width="1.75" />
           </Button>
         </div>
+      </SettingsRow>
+      <SettingsRow search-id="ai-defaultMaxWorkers" :label="t('settings.ai.defaultMaxWorkers')" :hint="t('settings.ai.maxWorkersHint')">
+        <Input
+          v-model="maxWorkersDraft"
+          type="number"
+          :min="MIN_WORKER_CAP"
+          :max="MAX_WORKER_CAP"
+          :placeholder="String(DEFAULT_WORKER_CAP)"
+          @change="commitMaxWorkers"
+        />
       </SettingsRow>
   </Card>
   </div>

@@ -12,6 +12,7 @@ import { useAppSettingsStore } from '@/stores/appSettings'
 import { errorText } from '@/lib/featureGate'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { normalizeColorTheme } from '@/lib/colorThemes'
+import { DEFAULT_WORKER_CAP } from '@/lib/workerCap'
 
 export interface AppSettings {
   default_engine: string
@@ -27,6 +28,7 @@ export interface AppSettings {
   default_permission_mode: string
   default_effort: string
   default_style: string
+  default_max_workers: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string
@@ -78,6 +80,7 @@ export function createSettingsForm(): SettingsForm {
     default_permission_mode: 'default',
     default_effort: '',
     default_style: '',
+    default_max_workers: String(DEFAULT_WORKER_CAP),
     terminal_app: TERMINAL_APPS[desktopOs(navigator.userAgent)][0].value,
     context_warn_percent: '80',
     context_limit_override: '',

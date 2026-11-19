@@ -406,7 +406,9 @@
     "styleNone": "Không dùng",
     "styleNoneHint": "Không thêm chữ: engine trả lời theo cách của nó.",
     "styleMissing": "Style đã bị xoá (không dùng style nào)",
-    "styleHint": "Được thêm vào system prompt của session mới. Tự viết style riêng ở"
+    "styleHint": "Được thêm vào system prompt của session mới. Tự viết style riêng ở",
+    "defaultMaxWorkers": "Worker tối đa mặc định",
+    "maxWorkersHint": "Số worker một session mới được chạy cùng lúc (1–100). Sửa riêng cho một session ở panel worker của nó. Session đã có giữ giá trị của nó."
   },
   "translate": {
     "title": "Dịch",

@@ -2,11 +2,12 @@
 // panel's open/rail choice and the worker-cap editor. Part of the RunView split
 // (see useRunSession.ts).
 import { ref, computed, watch } from 'vue'
+import { defaultWorkerCap } from '@/lib/workerCap'
 import type { RunSessionCore } from './useRunSessionCore'
 
 export function useRunConductor(core: RunSessionCore) {
   const {
-    t, runsStore, live, conductorStore, features, toast, projectId, currentRunId, currentStatus,
+    t, runsStore, live, conductorStore, features, toast, projectId, currentRunId, currentStatus, appSettings,
   } = core
 
   // ── Conductor ──────────────────────────────────────────────────────────────
@@ -109,6 +110,7 @@ export function useRunConductor(core: RunSessionCore) {
     // Pre-launch conductor: no session row yet, so just remember the launch cap.
     if (!isConductor.value) {
       conductorMaxWorkers.value = next
+      workerCapEdited = true
       return
     }
     // Target the anchored conductor — the open run may be one of its workers.
@@ -127,8 +129,14 @@ export function useRunConductor(core: RunSessionCore) {
   // Every session is a conductor: any fetched (never-started) run — a fresh
   // session or a fetched issue/PR — launches through conductorStore.start on its
   // first message. `conductorMaxWorkers` is the launch-time cap, editable from the
-  // worker sidebar before the goal is sent.
-  const conductorMaxWorkers = ref(10)
+  // worker sidebar before the goal is sent. It starts at Settings › "Default max
+  // workers" and follows that setting (it may load after this runs) until the
+  // user edits the cap here.
+  const conductorMaxWorkers = ref(defaultWorkerCap(appSettings.settings?.default_max_workers))
+  let workerCapEdited = false
+  watch(() => appSettings.settings?.default_max_workers, (raw) => {
+    if (!workerCapEdited) conductorMaxWorkers.value = defaultWorkerCap(raw)
+  })
 
   // The OPEN run is a pre-launch conductor. We surface the worker sidebar in this
   // state too so the user can set the worker limit BEFORE sending the goal.

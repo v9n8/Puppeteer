@@ -406,7 +406,9 @@
     "styleNone": "None",
     "styleNoneHint": "No extra text: the engine answers its own way.",
     "styleMissing": "Deleted style (none is used)",
-    "styleHint": "Added to the system prompt of new sessions. Write your own styles in"
+    "styleHint": "Added to the system prompt of new sessions. Write your own styles in",
+    "defaultMaxWorkers": "Default max workers",
+    "maxWorkersHint": "How many workers a new session may run at once (1–100). Change it for one session in its worker panel. Sessions that already exist keep their own."
   },
   "translate": {
     "title": "Translation",

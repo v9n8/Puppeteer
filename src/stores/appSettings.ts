@@ -25,6 +25,8 @@ export interface AppSettings {
   default_effort: string
   /** Default response style of new sessions ('' = none): a built-in key or a style id (lib/responseStyles). UI in UX-18. */
   default_style: string
+  /** Worker cap of a new session, '1'–'100' (default '3'); read with `defaultWorkerCap` (lib/workerCap.ts). */
+  default_max_workers: string
   terminal_app: string
   context_warn_percent: string
   context_limit_override: string

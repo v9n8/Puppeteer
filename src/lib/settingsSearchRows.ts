@@ -67,6 +67,7 @@ export const SETTINGS_SEARCH_ROWS: Record<SettingsSectionId, SearchRow[]> = {
     { id: 'ai-defaultPermissionMode', labelKey: 'settings.ai.defaultPermissionMode' },
     { id: 'ai-defaultEffort', labelKey: 'settings.ai.defaultEffort' },
     { id: 'ai-defaultStyle', labelKey: 'settings.ai.defaultStyle' },
+    { id: 'ai-defaultMaxWorkers', labelKey: 'settings.ai.defaultMaxWorkers' },
   ],
   styles: [
     { id: 'styles-mine', labelKey: 'responseStyles.mineTitle' },
