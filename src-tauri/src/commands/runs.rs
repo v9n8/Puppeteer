@@ -415,8 +415,9 @@ pub(crate) async fn start_run_inner(
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .or(stored_instruction);
-    let extra_system_prompt: Option<String> =
-        crate::conductor::run_framing(instruction.as_deref(), conductor_launch.as_ref());
+    let policy = crate::runs::routing::policy::bind_for_start(db, &payload.run_id, &engine, is_worker).await;
+    let extra_system_prompt: Option<String> = crate::runs::routing::policy::with_policy(
+        crate::conductor::run_framing(instruction.as_deref(), conductor_launch.as_ref()), policy.as_deref());
     // A conductor outside bypass mode still runs its own orchestration tools
     // without a modal; only real work stays permission-gated.
     let auto_allow_conductor_tools =

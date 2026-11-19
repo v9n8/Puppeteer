@@ -212,7 +212,10 @@ pub(crate) async fn resume_framing(
     let instruction: Option<String> = row.get("system_instruction");
     let seeded: i64 = row.get("framing_seeded");
     Ok(ResumeFraming {
-        framing: super::run_framing(instruction.as_deref(), launch.as_ref()),
+        framing: crate::runs::routing::policy::with_policy(
+            super::run_framing(instruction.as_deref(), launch.as_ref()),
+            crate::runs::routing::policy::text_for_resume(db, run_id).await.as_deref(),
+        ),
         launch,
         seeded: seeded != 0,
     })
