@@ -236,3 +236,16 @@ test('UR-30: the Library kind picker is always a select with counts, in both pla
     assert.doesNotMatch(read(p), /<LibraryKindTabs [^>]*:compact/)
   }
 })
+
+test('UR-31: the list sidebar puts "New" beside the search box, and on the controls row only when there is one', () => {
+  const src = read('../../components/listDetail/ListDetailSidebar.vue')
+  const template = src.slice(src.indexOf('<template>'))
+  const search = template.indexOf('<Input v-model="search"')
+  const early = template.indexOf('v-if="addable && !$slots.controls" name="add"')
+  const controlsRow = template.indexOf('v-if="$slots.controls"')
+  const late = template.indexOf('v-if="addable" name="add"')
+  assert.ok(search < early && early < controlsRow && controlsRow < late)
+  // The controls row no longer exists just to hold a lone "New" button.
+  assert.doesNotMatch(template, /v-if="addable \|\| \$slots\.controls"/)
+  assert.match(template, /\[&>\*\]:w-full/)
+})

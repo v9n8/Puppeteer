@@ -1,7 +1,8 @@
 <script setup lang="ts" generic="T extends { id: string }">
 // Left pane of the list-detail screens (Servers, Rules, Skills, MCP) — the
 // same layout as the Notes window's ItemSidebar: search (+ toolbar slot for
-// icon buttons), an optional controls row next to "+ New", an optional
+// icon buttons), "+ New" beside the search box (or, with a controls row, next
+// to those controls on the row below), an optional
 // segmented filter, then the rows in collapsible groups (remembered in
 // localStorage under `collapseKey`).
 //
@@ -128,9 +129,16 @@ function showHeaders(): boolean {
           </button>
         </div>
         <slot name="toolbar" />
+        <!-- Without a controls row, "New" sits next to the search box instead of alone on a row. -->
+        <slot v-if="addable && !$slots.controls" name="add">
+          <Button size="sm" class="shrink-0" @click="emit('add')">
+            <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+            {{ newLabel || t('common.new') }}
+          </Button>
+        </slot>
       </div>
-      <div v-if="addable || $slots.controls" class="flex items-center gap-1.5">
-        <div class="min-w-0 flex-1">
+      <div v-if="$slots.controls" class="flex items-center gap-1.5">
+        <div class="min-w-0 flex-1 [&>*]:w-full">
           <slot name="controls" />
         </div>
         <slot v-if="addable" name="add">
