@@ -561,7 +561,7 @@ test('UR-13: Quote block has a top handle, content-sized list, two-line cards an
   // Only maxHeight until the first drag, so two short quotes leave no empty space.
   assert.match(template, /maxHeight: `\$\{listHeight\}px`, \.\.\.\(userHeight == null \? \{\} : \{ height/)
   // Note on the second line, no pencil icon in front of it (the edit button keeps its own).
-  assert.match(template, /v-if="q\.note\?\.trim\(\)"\s+class="truncate pl-2\.5 text-xs text-foreground"/) // UR-49: Quote style
+  assert.match(template, /v-if="q\.note\?\.trim\(\)"\s+class="mt-1 flex gap-1\.5 border-t border-dashed border-border pt-1 text-foreground"/) // UR-58: Quote style B
   assert.equal((template.match(/<Pencil /g) ?? []).length, 1)
   // Removing one quote and "Remove all" both ask first; buttons hover to accent.
   assert.match(src, /@click="removeOne\(q\.id\)"/)

@@ -9,7 +9,7 @@
 // fresh each time the list goes empty.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, ChevronRight, History, Pencil, Quote, Unlink, X } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, CornerDownRight, History, Pencil, Quote, Unlink, X } from 'lucide-vue-next'
 import { useConfirm } from '@/composables/useConfirm'
 import type { DraftQuote, DraftQuoteLink } from '@/lib/quote'
 import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight } from '@/lib/quoteBlockHeight'
@@ -252,12 +252,12 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
         tabindex="0"
         :aria-label="t('run.quotes.listAria')"
       >
-        <!-- Hover changes only the border (DS-3): an accent fill hardly shows on the card in the dark theme. -->
+        <!-- Hover tints with foreground/5 (DS-3): an accent fill hardly shows on the card in the dark theme. -->
         <li
           v-for="(q, qi) in quotes"
           :key="q.id"
           class="rounded-md border border-border bg-card"
-          :class="linkOf(q) ? 'transition-colors hover:border-primary/60' : ''"
+          :class="linkOf(q) ? 'transition-colors hover:bg-foreground/5' : ''"
         >
           <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
             <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-muted-foreground">{{ qi + 1 }}</span>
@@ -280,9 +280,12 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
               </div>
               <div
                 v-if="q.note?.trim()"
-                class="truncate pl-2.5 text-xs text-foreground"
+                class="mt-1 flex gap-1.5 border-t border-dashed border-border pt-1 text-foreground"
                 :title="t('run.quotes.noteTitle', { note: q.note })"
-              >{{ q.note }}</div>
+              >
+                <CornerDownRight class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="2" aria-hidden="true" />
+                <span class="block min-w-0 truncate text-xs">{{ q.note }}</span>
+              </div>
             </component>
             <button
               type="button"
