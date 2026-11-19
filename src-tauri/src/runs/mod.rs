@@ -20,6 +20,7 @@ pub mod snapshots;
 pub mod ssh_access;
 pub mod stdin_writer;
 pub mod step_marks;
+pub mod subagent_env;
 pub mod transcript;
 pub mod turn_cut;
 pub mod turn_timing;

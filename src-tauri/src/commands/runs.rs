@@ -575,6 +575,9 @@ pub(crate) async fn start_run_inner(
             cmd.env("PUPPETEER_MODEL", m);
         }
         apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());
+        if let Some(note) = crate::runs::subagent_env::apply(db, &project_id, &mut cmd).await {
+            log_buf.lock().await.push_str(&note);
+        }
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
         }
@@ -5077,6 +5080,7 @@ pub(crate) async fn resume_run_with(
     .await?;
     let broker_run: Option<BrokerRunGuard> = Some(broker);
     let mcp_server_count;
+    let mut subagent_note = None;
     if let Some(codex) = &codex {
         cmd.env("PUPPETEER_PERMISSION_MODE", &permission_mode);
         cmd.env("PUPPETEER_CODEX_KEEP_OPEN", "1");
@@ -5152,6 +5156,7 @@ pub(crate) async fn resume_run_with(
             cmd.env("PUPPETEER_MODEL", m);
         }
         apply_claude_fallback_model(&mut cmd, claude_fallback_model.as_deref());
+        subagent_note = crate::runs::subagent_env::apply(db.inner(), &project_id, &mut cmd).await;
         if let Some(e) = &effort {
             cmd.env("PUPPETEER_EFFORT", e);
         }
@@ -5260,6 +5265,7 @@ pub(crate) async fn resume_run_with(
         if let Some(codex) = &codex {
             buf.push_str(&codex.log_lines());
         }
+        buf.push_str(subagent_note.as_deref().unwrap_or_default());
     }
 
     {

@@ -36,6 +36,12 @@ pub struct AppSettings {
     /// "inherit" for the new-session default. Unset = "medium"; see
     /// `conductor::defaults::worker_effort`.
     pub worker_effort: String,
+    /// Model of the sub-agents a Claude session starts, when nothing names one:
+    /// an alias or id, "" = the session's model. See `runs::subagent_env`.
+    pub claude_subagent_model: String,
+    /// Their effort: "low" | "medium" | "high", or "inherit" for the session's.
+    /// Unset = "medium".
+    pub claude_subagent_effort: String,
     /// Terminal app to open a project folder with, one of this OS's (`projects::terminal_apps`):
     /// "terminal" (Terminal.app) or "iterm" on macOS.
     pub terminal_app: String,
@@ -135,6 +141,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "default_style",
     "default_max_workers",
     "worker_effort",
+    "claude_subagent_model",
+    "claude_subagent_effort",
     "terminal_app",
     "context_warn_percent",
     "context_limit_override",
@@ -206,6 +214,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         default_style: String::new(),
         default_max_workers: crate::conductor::DEFAULT_MAX_WORKERS.to_string(),
         worker_effort: crate::conductor::defaults::DEFAULT_WORKER_EFFORT.to_string(),
+        claude_subagent_model: String::new(),
+        claude_subagent_effort: crate::runs::subagent_env::DEFAULT_EFFORT.to_string(),
         terminal_app: String::new(),
         context_warn_percent: "80".to_string(),
         context_limit_override: "".to_string(),
@@ -251,6 +261,8 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "default_style" => settings.default_style = value,
             "default_max_workers" => settings.default_max_workers = value,
             "worker_effort" => settings.worker_effort = value,
+            "claude_subagent_model" => settings.claude_subagent_model = value,
+            "claude_subagent_effort" => settings.claude_subagent_effort = value,
             "terminal_app" => settings.terminal_app = value,
             "context_warn_percent" => settings.context_warn_percent = value,
             "context_limit_override" => settings.context_limit_override = value,
