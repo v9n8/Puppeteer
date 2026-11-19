@@ -102,6 +102,27 @@ pub fn is_higher(new: (Option<Model>, Option<Effort>), old: (Option<Model>, Opti
     matches!((new.1, old.1), (Some(n), Some(o)) if n > o)
 }
 
+/// The tier a failed worker is retried on (QO-FR39): one model family up while
+/// below the ceiling (its conductor's family), keeping the effort; at the
+/// ceiling, one effort level up, to `high` at most. A family not known on
+/// either side (the engine picks) only lets the effort go up: a model the
+/// ceiling cannot be shown to allow is never picked. `None`: nothing higher
+/// that can be proved allowed, including an effort that is not set or is above
+/// `high`.
+pub fn next_up(model: Option<Model>, effort: Option<Effort>, ceiling: Option<Model>) -> Option<(Option<Model>, Option<Effort>)> {
+    if let (Some(m), Some(c)) = (model, ceiling) {
+        if m < c {
+            let up = if m == Model::Haiku { Model::Sonnet } else { Model::Opus };
+            return Some((Some(up), effort));
+        }
+    }
+    match effort? {
+        Effort::Low => Some((model, Some(Effort::Medium))),
+        Effort::Medium => Some((model, Some(Effort::High))),
+        Effort::High => None,
+    }
+}
+
 /// A task kind as named (`session_spawn`'s `task_kind`), or [`OTHER`].
 pub fn kind_or_other(kind: Option<&str>) -> &'static str {
     let kind = kind.map(|k| k.trim().to_ascii_lowercase()).unwrap_or_default();
@@ -161,6 +182,25 @@ mod tests {
         // Nothing comparable.
         assert!(!is_higher((Some(Opus), None), (None, Some(Low))));
         assert!(!is_higher((None, None), (None, None)));
+    }
+
+    /// QO-AC56, and the families no one can name.
+    #[test]
+    fn the_next_tier_is_one_family_up_then_one_effort_up() {
+        assert_eq!(next_up(Some(Haiku), Some(Low), Some(Opus)), Some((Some(Sonnet), Some(Low))));
+        assert_eq!(next_up(Some(Sonnet), Some(Medium), Some(Opus)), Some((Some(Opus), Some(Medium))));
+        assert_eq!(next_up(Some(Opus), Some(Medium), Some(Opus)), Some((Some(Opus), Some(High))));
+        assert_eq!(next_up(Some(Opus), Some(High), Some(Opus)), None);
+        // At a Sonnet ceiling a Sonnet worker only thinks harder.
+        assert_eq!(next_up(Some(Sonnet), Some(Low), Some(Sonnet)), Some((Some(Sonnet), Some(Medium))));
+        // A family the engine picked, on either side: the effort only.
+        assert_eq!(next_up(None, Some(Low), Some(Opus)), Some((None, Some(Medium))));
+        assert_eq!(next_up(Some(Haiku), Some(High), None), None);
+        // No effort to raise (unset, or above `high`) and no model to raise.
+        assert_eq!(next_up(Some(Opus), None, Some(Opus)), None);
+        assert_eq!(next_up(None, None, None), None);
+        // A model below the ceiling still goes up with no effort known.
+        assert_eq!(next_up(Some(Haiku), None, Some(Sonnet)), Some((Some(Sonnet), None)));
     }
 
     #[test]

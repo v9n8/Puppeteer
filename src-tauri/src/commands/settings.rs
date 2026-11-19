@@ -143,8 +143,9 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "worker_effort",
     "claude_subagent_model",
     "claude_subagent_effort",
-    // QO-06 routing switch (`runs::routing::policy`).
+    // QO-06 routing switches (`runs::routing::policy`, `runs::routing::escalate`).
     "routing.policy_enabled",
+    "routing.escalation_enabled",
     "terminal_app",
     "context_warn_percent",
     "context_limit_override",

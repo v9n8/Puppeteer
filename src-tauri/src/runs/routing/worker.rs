@@ -286,18 +286,16 @@ mod tests {
         &body[..body.find(to).unwrap()]
     }
 
-    /// `session_spawn` and `on_run_finished` need a running app, so their
-    /// source is checked: the row is written once the worker started, and
-    /// closed before the conductor is woken to read the result.
+    /// `session_spawn` needs a running app, so its source is checked: the row
+    /// is written once the worker started. The close, before the conductor is
+    /// woken, is checked with the escalation that reads it
+    /// (`escalate::tests::the_row_is_closed_before_anything_is_decided`).
     #[test]
-    fn the_conductor_tools_write_and_close_the_row() {
+    fn the_conductor_tools_write_the_row() {
         let tools = include_str!("../../conductor/tools.rs").replace("\r\n", "\n");
         let spawn = section(&tools, "async fn session_spawn(", "pub(super) async fn reserve_worker(");
         let start = spawn.find("start_run_inner(").unwrap();
         let record = spawn.find("crate::runs::routing::worker::spawned(&db, conductor_run_id, &worker_id, &args, effort_source).await;").unwrap();
         assert!(start < record);
-        let finished = section(&tools, "pub async fn on_run_finished(", "\n}\n");
-        let close = finished.find("crate::runs::routing::worker::finished(").unwrap();
-        assert!(close < finished.find("wake_conductor_for_worker(app, &cst, run_id).await;").unwrap());
     }
 }

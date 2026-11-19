@@ -32,6 +32,10 @@ pub struct WorkerResult {
     pub duration_ms: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<i64>,
+    /// Set when the app retried this worker one tier up after a failed check
+    /// (QO-06 escalation); the card says so.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retried: Option<crate::runs::routing::escalate::Retried>,
 }
 
 /// Workers of this conductor (not trashed, not running) that finished after the
@@ -69,16 +73,21 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
         tracing::warn!(event = "worker_results_collect_failed", run_id = %conductor_run_id, error = %e);
         Vec::new()
     });
-    rows.iter()
-        .map(|r| WorkerResult {
-            id: r.get("id"),
+    let mut results = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let id: String = r.get("id");
+        let retried = crate::runs::routing::escalate::retried(db, &id).await;
+        results.push(WorkerResult {
+            id,
             title: r.get("title"),
             status: r.get("status"),
             finished_at: r.get("finished_at"),
             duration_ms: r.get("duration_ms"),
             total_tokens: r.get("total_tokens"),
-        })
-        .collect()
+            retried,
+        });
+    }
+    results
 }
 
 /// The nudge: the `[session] ` prefix the log reader keys on, the finished
@@ -144,6 +153,7 @@ mod tests {
             finished_at: "2026-01-01T00:00:00Z".into(),
             duration_ms: None,
             total_tokens: None,
+            retried: None,
         }
     }
 
@@ -166,7 +176,7 @@ mod tests {
     #[test]
     fn record_skips_missing_numbers() {
         let v = serde_json::to_value(wr("a", "done", "t")).unwrap();
-        assert!(v.get("duration_ms").is_none() && v.get("total_tokens").is_none());
+        assert!(v.get("duration_ms").is_none() && v.get("total_tokens").is_none() && v.get("retried").is_none());
     }
 
     async fn db() -> Db {
@@ -220,6 +230,30 @@ mod tests {
         assert_eq!(ids, ["w-late", "w-later"]);
         assert_eq!((got[0].duration_ms, got[0].total_tokens), (Some(7), Some(70)));
         assert_eq!((got[1].duration_ms, got[1].total_tokens), (None, None));
+    }
+
+    /// QO-AC52 (BE): a worker the app retried carries the two tiers.
+    #[tokio::test]
+    async fn a_retried_worker_says_on_which_tier() {
+        let db = db().await;
+        run(&db, "c1", None, "running", None, None).await;
+        run(&db, "w1", Some("c1"), "done", Some("2026-01-03T00:00:00Z"), None).await;
+        run(&db, "w2", Some("c1"), "done", Some("2026-01-03T00:00:01Z"), None).await;
+        sqlx::query(
+            "INSERT INTO routing_decisions (id, run_id, created_at, kind, decided_by, resolved_model, requested_effort, worker_run_id, escalated, status) VALUES
+             ('a', 'c1', 'x', 'worker', 'default', 'claude-sonnet-5-5', 'medium', 'w1', 1, 'completed'),
+             ('b', 'c1', 'y', 'worker', 'escalation', 'opus', 'medium', 'w1', 0, 'completed'),
+             ('d', 'c1', 'x', 'worker', 'default', 'sonnet', 'low', 'w2', 0, 'completed')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let got = collect(&db, "c1").await;
+        let retried = |i: usize| got[i].retried.clone().map(|r| (r.from, r.to));
+        assert_eq!(retried(0), Some(("sonnet/medium".to_string(), "opus/medium".to_string())));
+        assert_eq!(retried(1), None);
+        let card = serde_json::to_value(&got[0]).unwrap();
+        assert_eq!(card["retried"], serde_json::json!({ "from": "sonnet/medium", "to": "opus/medium" }));
     }
 
     /// A live conductor: a `sleep` stand-in sidecar (Windows ships no `sleep`).

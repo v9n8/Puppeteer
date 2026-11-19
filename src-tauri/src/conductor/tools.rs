@@ -259,7 +259,7 @@ pub(super) async fn reserve_worker(
 /// than its conductor's live mode allows: the conductor's own tools run without
 /// a prompt, so a looser worker would let it (or a prompt injection) skip every
 /// prompt the user is relying on.
-async fn worker_permission_mode(
+pub(crate) async fn worker_permission_mode(
     db: &Db,
     conductor: &ConductorState,
     conductor_run_id: &str,
@@ -680,7 +680,7 @@ fn ensure_owned(
 
 /// Workers of this conductor whose turn is in progress. Finished, failed and
 /// cancelled workers don't occupy a slot under the cap.
-async fn count_running_workers(db: &Db, conductor_run_id: &str) -> Result<usize, String> {
+pub(crate) async fn count_running_workers(db: &Db, conductor_run_id: &str) -> Result<usize, String> {
     sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM runs WHERE conductor_run_id = ? AND role = 'worker' AND status = 'running'",
     )
@@ -802,7 +802,10 @@ pub async fn on_run_finished(app: &tauri::AppHandle, run_id: &str) {
         return;
     }
 
-    crate::runs::routing::worker::finished(&db_from(app), run_id).await;
+    // Closes the worker's routing row; a FAIL retried one tier up wakes no one yet.
+    if crate::runs::routing::escalate::on_worker_finished(app, run_id).await {
+        return;
+    }
     wake_conductor_for_worker(app, &cst, run_id).await;
 }
 
