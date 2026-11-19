@@ -415,7 +415,7 @@ const emptyTitle = computed(() => {
         :class="narrow ? 'w-[240px]' : 'w-56'"
       >
         <div v-if="scope === 'global' || activeProjectId" class="shrink-0 px-4">
-          <LibraryKindTabs v-model="kind" :kinds="kinds" :counts="counts" :compact="narrow" />
+          <LibraryKindTabs v-model="kind" :kinds="kinds" :counts="counts" />
         </div>
         <ListDetailSidebar
           v-model:search="search"

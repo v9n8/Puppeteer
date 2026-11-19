@@ -225,3 +225,14 @@ test('UR-16: long text in the log wraps instead of scrolling the conversation si
     for (const k of ['showThinking', 'hideThinking', 'showOutput', 'hideOutput']) assert.ok(s[k], `${lang}.${k}`)
   }
 })
+
+test('UR-30: the Library kind picker is always a select with counts, in both places it is used', () => {
+  const src = read('../../components/library/LibraryKindTabs.vue')
+  assert.match(src, /<AppSelect/)
+  assert.doesNotMatch(src, /role="tab"|onKeydown|compact/)
+  assert.match(src, /\(\$\{props\.counts\[k\] \?\? 0\}\)/)
+  for (const p of ['../../views/LibraryView.vue', '../../components/projects/ProjectLibrary.vue']) {
+    assert.match(read(p), /<LibraryKindTabs [^>]*\/>/)
+    assert.doesNotMatch(read(p), /<LibraryKindTabs [^>]*:compact/)
+  }
+})
