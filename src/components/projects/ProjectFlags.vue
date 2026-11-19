@@ -5,7 +5,7 @@
 // the other windows; it reloads here too when Settings changes the shared flags.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Flag, Plus } from 'lucide-vue-next'
+import { Flag, Plus, Settings } from 'lucide-vue-next'
 import { Banner, Button, Card } from '@/components/ui'
 import ProjectSharedFlagRow from '@/components/projects/ProjectSharedFlagRow.vue'
 import ProjectOwnFlagRow from '@/components/projects/ProjectOwnFlagRow.vue'
@@ -141,16 +141,12 @@ async function removeFlag(flag: SessionFlag) {
           <Flag class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
           <span class="text-xs font-semibold">{{ t('sessionFlags.project.sharedTitle') }}</span>
           <span class="text-xs tabular-nums text-muted-foreground">{{ shared.length }}</span>
+          <span v-if="canManage" class="ml-auto flex shrink-0 items-center">
+            <Button variant="ghost" size="icon-sm" :title="t('sessionFlags.project.sharedSettingsTip')" :aria-label="t('sessionFlags.project.sharedSettingsTip')" @click="openManage">
+              <Settings class="h-3.5 w-3.5" :stroke-width="1.5" />
+            </Button>
+          </span>
         </template>
-        <p class="border-b border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
-          {{ t('sessionFlags.project.sharedNote') }}
-          <button
-            v-if="canManage"
-            type="button"
-            class="cursor-pointer text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            @click="openManage"
-          >{{ t('sessionFlags.project.settingsLink') }}</button>
-        </p>
         <p v-if="!shared.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ t('sessionFlags.project.sharedEmpty') }}</p>
         <ProjectSharedFlagRow
           v-for="flag in shared"

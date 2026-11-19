@@ -129,3 +129,20 @@ test('UR-07: the Conversation tools sit at the right of the session tab bar, ico
     assert.equal('split' in sv || 'unsplit' in sv, false, lang)
   }
 })
+
+test('UR-03: the shared flags card drops the long note and opens Settings › Flag from a header icon', () => {
+  const src = read('../../components/projects/ProjectFlags.vue')
+  const template = src.slice(src.indexOf('<template>'))
+  const start = template.indexOf('sharedTitle')
+  const header = template.slice(start, template.indexOf('</template>', start))
+  // The settings button sits in the card header, shows only when Settings › Flag exists and opens it.
+  assert.match(header, /<span v-if="canManage" class="ml-auto[^"]*">\s*<Button variant="ghost" size="icon-sm"[^>]*@click="openManage">\s*<Settings /)
+  assert.match(header, /:title="t\('sessionFlags\.project\.sharedSettingsTip'\)"/)
+  assert.doesNotMatch(src, /sharedNote|settingsLink/)
+  for (const lang of ['en', 'vi']) {
+    const project = json(`../../i18n/locales/${lang}/sessionFlags.json`).project
+    assert.ok(project.sharedSettingsTip, lang)
+    assert.equal(project.sharedNote, undefined, lang)
+    assert.equal(project.settingsLink, undefined, lang)
+  }
+})
