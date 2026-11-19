@@ -10,9 +10,9 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
-  AlertCircle, CheckCircle2, Copy, CopyPlus, KeyRound, Loader2, MoreHorizontal, Plug, Trash2, Upload, X, XCircle,
+  CheckCircle2, Copy, CopyPlus, KeyRound, Loader2, MoreHorizontal, Plug, Trash2, Upload, X, XCircle,
 } from 'lucide-vue-next'
-import { Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, Input, SegmentedControl } from '@/components/ui'
+import { Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, InfoTip, Input, SegmentedControl } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import { useToast } from '@/composables/useToast'
@@ -342,14 +342,16 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
         <!-- Authentication -->
         <DetailSection :title="t('servers.editor.authentication')">
           <div class="space-y-1.5">
-            <SegmentedControl v-model="authMethod" :options="authOptions" class="max-w-md [&_button]:min-h-7" />
-            <p v-if="!isKey" class="flex items-center gap-1 text-2xs text-muted-foreground">
-              <AlertCircle class="h-3 w-3 shrink-0" :stroke-width="1.75" />
-              {{ t('servers.editor.agentHint') }}
-            </p>
+            <div class="flex items-center gap-1.5">
+              <SegmentedControl v-model="authMethod" :options="authOptions" class="max-w-md [&_button]:min-h-7" />
+              <InfoTip v-if="!isKey" :text="t('servers.editor.agentHint')" />
+            </div>
           </div>
           <div v-if="isKey" class="space-y-1.5">
-            <label :class="labelClass">{{ t('servers.editor.privateKeyFile') }}</label>
+            <div class="flex items-center gap-1.5">
+              <label :class="labelClass">{{ t('servers.editor.privateKeyFile') }}</label>
+              <InfoTip :text="t('servers.editor.keyCopiedHint')" />
+            </div>
             <div class="flex items-center gap-2">
               <div class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 text-xs">
                 <KeyRound class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
@@ -380,12 +382,12 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
               </Button>
             </div>
             <p v-if="fieldError('key')" class="text-2xs text-destructive">{{ fieldError('key') }}</p>
-            <p class="text-2xs text-muted-foreground">
-              {{ t('servers.editor.keyCopiedHint') }}
-            </p>
           </div>
           <div v-if="isKey" class="space-y-1.5">
-            <label :class="labelClass">{{ t('servers.editor.passphrase') }}</label>
+            <div class="flex items-center gap-1.5">
+              <label :class="labelClass">{{ t('servers.editor.passphrase') }}</label>
+              <InfoTip :text="t('servers.editor.passphraseHint')" />
+            </div>
             <Input
               v-model="passphrase"
               size="sm"
@@ -393,9 +395,6 @@ const labelClass = 'text-2xs font-medium text-muted-foreground uppercase trackin
               :placeholder="hasStoredPassphrase ? t('servers.editor.passphraseUnchanged') : t('servers.editor.passphraseOptional')"
               class="font-mono"
             />
-            <p class="text-2xs text-muted-foreground">
-              {{ t('servers.editor.passphraseHint') }}
-            </p>
           </div>
         </DetailSection>
 

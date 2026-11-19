@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, Settings2 } from 'lucide-vue-next'
-import { Badge, Button, ToggleSwitch } from '@/components/ui'
+import { Badge, Button, InfoTip, ToggleSwitch } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import type { CatalogEntry, McpRow } from '@/lib/mcpRows'
@@ -63,8 +63,10 @@ const meta = computed(() =>
         <DetailSection v-if="isBuiltin" :title="t('mcp.detail.status')">
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
-              <div class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</div>
-              <p class="text-2xs text-muted-foreground">{{ t('mcp.detail.enabledHint') }}</p>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</span>
+                <InfoTip :text="`${t('mcp.detail.enabledHint')}\n${t('mcp.detail.perProjectHint')}`" />
+              </div>
             </div>
             <ToggleSwitch
               :checked="!!enabled"
@@ -93,10 +95,6 @@ const meta = computed(() =>
           <ul v-if="toolGroups?.length" class="mt-2 space-y-1 text-2xs text-muted-foreground">
             <li v-for="group in toolGroups" :key="group">{{ group }}</li>
           </ul>
-        </DetailSection>
-
-        <DetailSection v-if="isBuiltin" :title="t('mcp.detail.perProject')">
-          <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('mcp.detail.perProjectHint') }}</p>
         </DetailSection>
 
         <template v-else-if="entry">

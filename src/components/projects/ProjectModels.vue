@@ -199,7 +199,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
       <!-- Follow Settings: what Settings offers now -->
       <div v-if="mode === 'follow'" class="space-y-3 px-4 pb-4 pt-2">
-        <p class="text-2xs leading-relaxed text-muted-foreground">{{ t('projectDetail.model.followText') }}</p>
         <div v-for="e in ENGINES" :key="e" class="space-y-1.5">
           <p class="text-2xs font-medium text-muted-foreground">
             {{ t('projectDetail.model.engineCount', { engine: ENGINE_LABEL[e], n: ids(e).length }, ids(e).length) }}

@@ -213,11 +213,13 @@ function onKeydown(e: KeyboardEvent) {
           <ToggleSwitch :checked="autoTranslate" :disabled="sending" @toggle="toggleAutoTranslate" />
           {{ t('slackThread.reply.autoTranslate') }}
         </label>
-        <span class="truncate text-2xs text-muted-foreground">
-          {{ autoTranslate ? t('slackThread.reply.hint') : t('slackThread.reply.hintRaw') }}
-        </span>
       </div>
-      <Button size="sm" :disabled="!canSend" @click="send">
+      <Button
+        size="sm"
+        :disabled="!canSend"
+        :title="autoTranslate ? t('slackThread.reply.hint') : t('slackThread.reply.hintRaw')"
+        @click="send"
+      >
         <Loader2 v-if="sending" class="h-3.5 w-3.5 animate-spin" />
         <SendHorizontal v-else class="h-3.5 w-3.5" />
         {{ t('slackThread.reply.send') }}

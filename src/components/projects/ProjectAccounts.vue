@@ -123,13 +123,12 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
     <Card>
       <template #header>
         <span class="text-xs font-semibold">{{ t('projectDetail.sections.accounts') }}</span>
+        <InfoTip
+          v-if="activeFilter !== 'all'"
+          :text="`${t(`projectDetail.${CONFIG[activeFilter].hint}`)} ${CONFIG[activeFilter].envVar}=<label>`"
+        />
         <RouterLink :to="manageTo" class="ml-auto inline-flex min-h-7 items-center px-1 text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
       </template>
-
-      <p v-if="activeFilter !== 'all'" class="px-4 pt-3 text-2xs text-muted-foreground leading-relaxed">
-        {{ t(`projectDetail.${CONFIG[activeFilter].hint}`) }}
-        <code class="text-primary">{{ CONFIG[activeFilter].envVar }}=&lt;label&gt;</code>.
-      </p>
 
       <Banner v-if="loadError" tone="destructive" live class="m-3">
         {{ t('projectDetail.accountsLoadError', { error: loadError }) }}

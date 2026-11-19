@@ -8,7 +8,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   AlertTriangle, Cloud, CloudCog, ExternalLink, Github, Gitlab, GitBranch, HardDrive, Plus, Trash2,
 } from 'lucide-vue-next'
-import { Badge, Button, Input } from '@/components/ui'
+import { Badge, Button, InfoTip, Input } from '@/components/ui'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import ProjectHealthCard from '@/components/projects/ProjectHealthCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
@@ -358,7 +358,10 @@ async function remove() {
           <Input :model-value="editName" size="sm" @update:model-value="onNameInput" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.colorLabel') }}</label>
+          <div class="flex items-center gap-1.5">
+            <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.colorLabel') }}</label>
+            <InfoTip :text="t('projectDetail.colorHint')" />
+          </div>
           <div class="flex items-center gap-1.5">
             <button
               v-for="color in PROJECT_COLORS"
@@ -374,7 +377,6 @@ async function remove() {
               :aria-pressed="projectColor(project.color) === color"
               @click="pickColor(color)"
             />
-            <span class="text-2xs text-muted-foreground ml-1">{{ t('projectDetail.colorHint') }}</span>
           </div>
         </div>
         <div class="space-y-1.5">

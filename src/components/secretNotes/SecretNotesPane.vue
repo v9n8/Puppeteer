@@ -29,7 +29,7 @@ import { useI18n } from 'vue-i18n'
 import { type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Eye, ShieldCheck, Timer } from 'lucide-vue-next'
-import { Button, Input, Modal, Textarea } from '@/components/ui'
+import { Button, InfoTip, Input, Modal, Textarea } from '@/components/ui'
 import SecretNotesSidebar from '@/components/secretNotes/SecretNotesSidebar.vue'
 import SecretNoteHeader from '@/components/secretNotes/SecretNoteHeader.vue'
 import VaultGate from '@/components/secretNotes/VaultGate.vue'
@@ -689,9 +689,10 @@ onBeforeUnmount(() => {
             spellcheck="false"
             :placeholder="t('secretNotes.contentPlaceholder')"
           />
-          <p class="mt-2 shrink-0 text-2xs" :class="tooLarge ? 'text-destructive' : 'text-muted-foreground'">
-            {{ tooLarge ? t('secretNotes.errors.too_large') : t('secretNotes.editHint', { save: '⌘/Ctrl+Enter', esc: 'Esc' }) }}
-          </p>
+          <p v-if="tooLarge" class="mt-2 shrink-0 text-2xs text-destructive">{{ t('secretNotes.errors.too_large') }}</p>
+          <div v-else class="mt-2 flex shrink-0 justify-end">
+            <InfoTip :text="t('secretNotes.editHint', { save: '⌘/Ctrl+Enter', esc: 'Esc' })" />
+          </div>
         </div>
 
         <!-- Reading: hidden until revealed. -->

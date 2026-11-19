@@ -6,7 +6,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Flag, Plus, Settings } from 'lucide-vue-next'
-import { Banner, Button, Card } from '@/components/ui'
+import { Banner, Button, Card, InfoTip } from '@/components/ui'
 import ProjectSharedFlagRow from '@/components/projects/ProjectSharedFlagRow.vue'
 import ProjectOwnFlagRow from '@/components/projects/ProjectOwnFlagRow.vue'
 import FlagEditorModal from '@/components/flags/FlagEditorModal.vue'
@@ -161,6 +161,7 @@ async function removeFlag(flag: SessionFlag) {
         <template #header>
           <Flag class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
           <span class="text-xs font-semibold">{{ t('sessionFlags.project.ownTitle') }}</span>
+          <InfoTip :text="t('sessionFlags.project.footer', { project: project.name })" />
           <span class="ml-auto flex shrink-0 items-center">
             <Button variant="outline" size="sm" :title="t('sessionFlags.project.addTip')" @click="editor = { flag: null }">
               <Plus class="h-3.5 w-3.5" :stroke-width="2" />
@@ -192,7 +193,6 @@ async function removeFlag(flag: SessionFlag) {
         </div>
       </Card>
 
-      <p class="text-2xs text-muted-foreground">{{ t('sessionFlags.project.footer', { project: project.name }) }}</p>
     </template>
 
     <FlagEditorModal

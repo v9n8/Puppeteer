@@ -143,7 +143,7 @@ function onKeydown(e: KeyboardEvent) {
       <div class="space-y-1.5">
         <div class="flex items-center gap-1.5">
           <span class="text-xs font-medium">{{ t('mcp.aiAdd.runOn') }}</span>
-          <InfoTip :text="t('mcp.aiAdd.runOnHint')" />
+          <InfoTip :text="`${t('mcp.aiAdd.runOnHint')}\n${t('mcp.aiAdd.privacy')}`" />
         </div>
         <div class="grid grid-cols-3 gap-2">
           <label class="min-w-0 space-y-1">
@@ -166,7 +166,6 @@ function onKeydown(e: KeyboardEvent) {
           </label>
         </div>
       </div>
-      <p class="text-2xs text-muted-foreground">{{ t('mcp.aiAdd.privacy') }}</p>
 
       <Banner v-if="error" tone="warning">{{ error }}</Banner>
 

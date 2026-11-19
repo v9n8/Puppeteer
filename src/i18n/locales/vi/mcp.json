@@ -110,7 +110,6 @@
     "purpose": "Mục đích",
     "tools": "Tools",
     "builtinHint": "Được chèn khi khởi chạy run, không lưu như một server — có thể tắt nhưng không xoá được.",
-    "perProject": "Theo Project",
     "perProjectHint": "Tắt riêng cho từng Project trong tab MCP của Project đó. Khi tắt ở đây thì mọi Project đều tắt. Có hiệu lực từ run kế tiếp.",
     "command": "Lệnh",
     "secretsToFill": "Secret cần điền",

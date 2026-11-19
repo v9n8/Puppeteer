@@ -365,9 +365,6 @@ const emptyTitle = computed(() => {
 <template>
   <div class="flex h-full flex-col overflow-hidden">
     <PageHeader :title="t('library.title')">
-      <template #meta>
-        <span class="truncate text-2xs text-muted-foreground" :title="t('library.subtitle')">{{ t('library.subtitle') }}</span>
-      </template>
       <template #actions>
         <SegmentedControl :model-value="scope" :options="scopeOptions" :stretch="false" @update:model-value="selectScope" />
         <Button

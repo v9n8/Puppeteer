@@ -13,7 +13,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { Input, Textarea } from '@/components/ui'
+import { InfoTip, Input, Textarea } from '@/components/ui'
 import { openFileWindow } from '@/lib/fileWindow'
 import { useMarkdown } from '@/lib/markdown'
 import { useToast } from '@/composables/useToast'
@@ -205,9 +205,9 @@ defineExpose({ canSave, dirty, saving, save, reset, focus, draftText })
       class="min-h-[8rem] flex-1 resize-none font-mono leading-relaxed"
       :placeholder="isNote ? t('item.notePlaceholder') : t('item.todoPlaceholder')"
     />
-    <p class="mt-2 shrink-0 text-2xs text-muted-foreground">
-      {{ t('item.hint', { save: '⌘/Ctrl+Enter', esc: 'Esc' }) }}
-    </p>
+    <div class="mt-2 flex shrink-0 justify-end">
+      <InfoTip :text="t('item.hint', { save: '⌘/Ctrl+Enter', esc: 'Esc' })" />
+    </div>
   </div>
 
   <!-- Reading: the markdown. -->

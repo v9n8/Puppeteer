@@ -4,7 +4,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckCircle2, Rocket, ShieldCheck, Trash2, XCircle } from 'lucide-vue-next'
-import { Badge, Button, Card, ToggleSwitch } from '@/components/ui'
+import { Badge, Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import type { Project } from '@/stores/projects'
@@ -175,6 +175,7 @@ watch(projectId, loadProjectServers, { immediate: true })
       <template #header>
         <ShieldCheck class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('projectDetail.toolPermissions') }}</span>
+        <InfoTip :text="t('projectDetail.toolPermsIntro')" />
         <Button
           v-if="hasToolPerms"
           variant="destructive-ghost"
@@ -183,10 +184,6 @@ watch(projectId, loadProjectServers, { immediate: true })
           @click="resetAllToolPerms"
         >{{ t('projectDetail.resetAll') }}</Button>
       </template>
-
-      <p class="px-4 py-3 text-2xs text-muted-foreground leading-relaxed">
-        {{ t('projectDetail.toolPermsIntro') }}
-      </p>
 
       <!-- Allow always -->
       <div class="px-4 py-3">

@@ -7,7 +7,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckCircle2, Circle, CircleDot, ListTodo, Plus, X } from 'lucide-vue-next'
-import { Button, DropdownMenu } from '@/components/ui'
+import { Button, DropdownMenu, InfoTip } from '@/components/ui'
 import { nextStatus, normalizeTodos, sameTodos, type TodoItem, type TodoStatus } from '@/lib/todoChecklist'
 
 const props = defineProps<{
@@ -75,8 +75,10 @@ function onApplyClick(e: MouseEvent) {
       <!-- Clicks stop here so editing doesn't close the menu. -->
       <div @click.stop>
         <div class="px-2 pt-1 pb-2">
-          <div class="text-xs font-medium text-popover-foreground">{{ t('run.checklist.heading') }}</div>
-          <div class="text-2xs text-muted-foreground">{{ t('run.checklist.hint') }}</div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-medium text-popover-foreground">{{ t('run.checklist.heading') }}</span>
+            <InfoTip :text="t('run.checklist.hint')" />
+          </div>
         </div>
         <div class="max-h-72 overflow-y-auto space-y-0.5">
           <p v-if="rows.length === 0" class="px-2.5 py-3 text-center text-2xs text-muted-foreground">

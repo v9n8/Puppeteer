@@ -622,3 +622,37 @@ test('UR-27: action labels have no trailing ellipsis, menu bar and loading text 
   assert.doesNotMatch(select, /'Select…'/)
   assert.match(select, /t\('common\.select'\)/)
 })
+
+test('UR-36: explanation text on project, MCP, library, Slack, server and note screens sits behind an info tip', () => {
+  const tips = [
+    ['projects/ProjectAccounts.vue', /<InfoTip\s+v-if="activeFilter !== 'all'"/],
+    ['projects/ProjectBoard.vue', /<InfoTip :text="`\$\{t\('projectDetail\.boardIntroPrefix'\)\}/],
+    ['projects/ProjectFlags.vue', /<InfoTip :text="t\('sessionFlags\.project\.footer'/],
+    ['projects/ProjectOverview.vue', /<InfoTip :text="t\('projectDetail\.colorHint'\)"/],
+    ['projects/ProjectServers.vue', /<InfoTip :text="t\('projectDetail\.toolPermsIntro'\)"/],
+    ['projects/ProjectList.vue', /<InfoTip :text="t\('projects\.dotsLegend'\)"/],
+    ['TodoChecklistPicker.vue', /<InfoTip :text="t\('run\.checklist\.hint'\)"/],
+    ['mcp/McpInfoDetail.vue', /<InfoTip :text="`\$\{t\('mcp\.detail\.enabledHint'\)\}/],
+    ['mcp/McpServerDetail.vue', /<InfoTip :text="t\(isNew \? 'mcp\.detail\.enabledHintDraft'/],
+    ['mcp/McpAiAddDialog.vue', /<InfoTip :text="`\$\{t\('mcp\.aiAdd\.runOnHint'\)\}\\n\$\{t\('mcp\.aiAdd\.privacy'\)\}`"/],
+    ['slack/SlackAddDialog.vue', /<InfoTip :text="t\('slackThread\.add\.urlHint'\)"/],
+    ['servers/ServerDetail.vue', /<InfoTip v-if="!isKey" :text="t\('servers\.editor\.agentHint'\)"/],
+    ['servers/ServerDetail.vue', /<InfoTip :text="t\('servers\.editor\.keyCopiedHint'\)"/],
+    ['servers/ServerDetail.vue', /<InfoTip :text="t\('servers\.editor\.passphraseHint'\)"/],
+    ['items/ItemBody.vue', /<InfoTip :text="t\('item\.hint'/],
+    ['secretNotes/SecretNotesPane.vue', /<InfoTip :text="t\('secretNotes\.editHint'/],
+  ]
+  for (const [file, re] of tips) assert.match(read(`../../components/${file}`), re, file)
+  // The visible paragraphs are gone.
+  assert.doesNotMatch(read('../../components/projects/ProjectServers.vue'), /<p[^>]*>\s*\{\{ t\('projectDetail\.toolPermsIntro'\)/)
+  assert.doesNotMatch(read('../../components/projects/ProjectList.vue'), /<p[^>]*>\{\{ t\('projects\.dotsLegend'\)/)
+  assert.doesNotMatch(read('../../components/mcp/McpAiAddDialog.vue'), /<p[^>]*>\{\{ t\('mcp\.aiAdd\.privacy'\)/)
+  // Restating the label: dropped (library subtitle) or moved to the control's title (Slack send).
+  assert.doesNotMatch(read('../../views/LibraryView.vue'), /library\.subtitle/)
+  assert.match(read('../../components/slack/SlackReplyComposer.vue'), /:title="autoTranslate \? t\('slackThread\.reply\.hint'\)/)
+  // Keys nothing uses any more are deleted in both languages.
+  for (const lang of ['en', 'vi']) {
+    assert.equal(json(`../../i18n/locales/${lang}/mcp.json`).detail.perProject, undefined)
+    assert.equal(json(`../../i18n/locales/${lang}/projectDetail.json`).model.followText, undefined)
+  }
+})

@@ -4,7 +4,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { KanbanSquare, Loader2 } from 'lucide-vue-next'
-import { AppSelect, Banner, Button, Card, Input } from '@/components/ui'
+import { AppSelect, Banner, Button, Card, InfoTip, Input } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore, type Project } from '@/stores/projects'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -137,12 +137,8 @@ async function unlinkBoard() {
       <template #header>
         <KanbanSquare class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('projectDetail.githubProjectBoard') }}</span>
+        <InfoTip :text="`${t('projectDetail.boardIntroPrefix')} read:project${t('projectDetail.boardIntroScope')}`" />
       </template>
-      <p class="text-2xs text-muted-foreground leading-relaxed">
-        {{ t('projectDetail.boardIntroPrefix') }}
-        <code class="text-primary">read:project</code>{{ t('projectDetail.boardIntroScope') }}
-      </p>
-
       <Banner v-if="!linkedAccount" tone="warning">
         {{ t('projectDetail.linkGithubFirst', { tab: t('projectDetail.githubTab') }) }}
       </Banner>

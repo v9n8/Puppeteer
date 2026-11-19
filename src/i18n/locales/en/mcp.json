@@ -110,7 +110,6 @@
     "purpose": "Purpose",
     "tools": "Tools",
     "builtinHint": "Injected at run launch, not stored as a server — it can be turned off but not deleted.",
-    "perProject": "Per project",
     "perProjectHint": "Turn it off for a single project in that project's MCP tab. When it is off here, it is off for every project. Takes effect on the next run.",
     "command": "Command",
     "secretsToFill": "Secrets to fill in",

@@ -6,7 +6,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Server } from 'lucide-vue-next'
-import { Banner, Button, Input, Modal } from '@/components/ui'
+import { Banner, Button, InfoTip, Input, Modal } from '@/components/ui'
 import ProjectSelect from '@/components/ProjectSelect.vue'
 import { checkThreadLink } from '@/lib/slackThreadUtils'
 import {
@@ -99,12 +99,14 @@ function onKeydown(e: KeyboardEvent) {
   <Modal :open="open" :title="t('slackThread.add.title')" size="md" @close="emit('close')">
     <div ref="formEl" class="space-y-3 px-4 py-4" @keydown="onKeydown">
       <div class="space-y-1">
-        <label class="text-xs font-medium text-foreground">{{ t('slackThread.add.urlLabel') }}</label>
+        <div class="flex items-center gap-1.5">
+          <label class="text-xs font-medium text-foreground">{{ t('slackThread.add.urlLabel') }}</label>
+          <InfoTip :text="t('slackThread.add.urlHint')" />
+        </div>
         <Input v-model="url" :placeholder="t('slackThread.add.urlPlaceholder')" spellcheck="false" />
         <p v-if="clientError || serverError" class="text-2xs text-destructive">
           {{ serverError ?? clientError }}
         </p>
-        <p v-else class="text-2xs text-muted-foreground">{{ t('slackThread.add.urlHint') }}</p>
       </div>
 
       <div class="space-y-1">

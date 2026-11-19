@@ -6,7 +6,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Eye, EyeOff, GripVertical, Plus, RotateCw, Search, X } from 'lucide-vue-next'
-import { Badge, Banner, Button, Input } from '@/components/ui'
+import { Badge, Banner, Button, InfoTip, Input } from '@/components/ui'
 import { listPaneHeadClass, rowClass, rowListClass, rowSubClass, rowTitleClass } from '@/components/listDetail/rowStyles'
 import { useDragSort } from '@/composables/useDragSort'
 import { projectIcon, projectTileClass } from '@/lib/projectAppearance'
@@ -94,10 +94,13 @@ function onListClickCapture(e: MouseEvent) {
           <component :is="showHidden ? Eye : EyeOff" class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
       </div>
-      <Button size="xs" class="w-full" :disabled="addDisabled" @click="emit('add')">
-        <Plus class="h-3.5 w-3.5" :stroke-width="2" />
-        {{ addLabel }}
-      </Button>
+      <div class="flex items-center gap-1.5">
+        <Button size="xs" class="min-w-0 flex-1" :disabled="addDisabled" @click="emit('add')">
+          <Plus class="h-3.5 w-3.5" :stroke-width="2" />
+          {{ addLabel }}
+        </Button>
+        <InfoTip :text="t('projects.dotsLegend')" />
+      </div>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -196,7 +199,5 @@ function onListClickCapture(e: MouseEvent) {
         </li>
       </ul>
     </div>
-
-    <p class="shrink-0 border-t border-border px-3 py-2 text-2xs text-muted-foreground">{{ t('projects.dotsLegend') }}</p>
   </div>
 </template>

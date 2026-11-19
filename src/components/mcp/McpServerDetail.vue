@@ -15,7 +15,7 @@ import {
   AlertCircle, AlertTriangle, CheckCircle2, Copy, Download, Loader2, MoreHorizontal, Plug, Plus, Trash2, X, XCircle,
 } from 'lucide-vue-next'
 import {
-  AppSelect, Badge, Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, Input, ToggleSwitch, Textarea,
+  AppSelect, Badge, Banner, Button, DropdownItem, DropdownMenu, DropdownSeparator, InfoTip, Input, ToggleSwitch, Textarea,
 } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
@@ -291,8 +291,10 @@ defineExpose({ dirty })
         <DetailSection :title="t('mcp.detail.status')">
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
-              <div class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</div>
-              <p class="text-2xs text-muted-foreground">{{ t(isNew ? 'mcp.detail.enabledHintDraft' : 'mcp.detail.enabledHint') }}</p>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-medium">{{ enabled ? t('mcp.editor.enabled') : t('mcp.editor.disabled') }}</span>
+                <InfoTip :text="t(isNew ? 'mcp.detail.enabledHintDraft' : 'mcp.detail.enabledHint')" />
+              </div>
             </div>
             <ToggleSwitch
               :checked="enabled"
