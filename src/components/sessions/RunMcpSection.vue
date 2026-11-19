@@ -8,11 +8,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Server, RotateCcw } from 'lucide-vue-next'
 import { Badge, InfoTip, ToggleSwitch } from '@/components/ui'
+import { useConfirm } from '@/composables/useConfirm'
 import { useMcpServersStore, type RunMcpEntry } from '@/stores/mcpServers'
 
 const props = defineProps<{ runId: string; running: boolean }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const mcpStore = useMcpServersStore()
 
 const entries = ref<RunMcpEntry[]>([])
@@ -52,6 +54,13 @@ async function toggle(entry: RunMcpEntry) {
 
 async function resetToProject() {
   if (saving.value) return
+  const ok = await confirm({
+    title: t('run.mcpReset'),
+    message: t('run.mcpResetAsk'),
+    confirmLabel: t('run.mcpReset'),
+    variant: 'primary',
+  })
+  if (!ok) return
   saving.value = '*'
   error.value = null
   try {

@@ -178,6 +178,8 @@
       "testSent": "Đã gửi thông báo thử tới {label}.",
       "testFailed": "Gửi thông báo thử thất bại: {reason}",
       "gone": "Push service không còn nhận thiết bị này — đã gỡ."
-    }
+    },
+    "removeTitle": "Xoá thiết bị này?",
+    "removeAsk": "“{label}” sẽ không nhận thông báo đẩy nữa cho đến khi đăng ký lại từ điện thoại."
   }
 }

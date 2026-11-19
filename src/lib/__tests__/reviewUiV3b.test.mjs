@@ -186,3 +186,29 @@ test('UR-42: header refresh buttons are icon-only with title and aria-label; the
   assert.match(changed, /min-w-8 shrink-0 whitespace-nowrap/)
   assert.doesNotMatch(changed, /class="w-8 shrink-0/)
 })
+
+test('UR-41: destructive resets and stops ask first; the sort note is an InfoTip', () => {
+  const asks = [
+    ['KeymapSettings.vue', 'keymap.resetAllAsk'],
+    ['projects/ProjectBoard.vue', 'projectDetail.unlinkAsk'],
+    ['running/RunningSessionsTab.vue', 'processes.running.confirm.stopOneMessage'],
+    ['remote/RemotePushSettings.vue', 'remote.push.removeAsk'],
+    ['fileTransfer/FileTransferQueue.vue', 'fileTransfer.queue.cancelAllAsk'],
+    ['CommandPaletteSettings.vue', 'palette.settings.resetOrderAsk'],
+    ['settings/GeneralSettings.vue', 'settings.general.resetTextAsk'],
+    ['sessions/RunMcpSection.vue', 'run.mcpResetAsk'],
+  ]
+  for (const [file, key] of asks) {
+    const src = read(`../../components/${file}`)
+    assert.match(src, /useConfirm\(\)/, file)
+    assert.ok(src.includes(`t('${key}'`), `${file} asks with ${key}`)
+    // Cancel leaves the state alone: early return, or the action only runs when confirmed.
+    assert.match(src, /if \(!ok\) return|if \(ok\) (await save|emit)/, file)
+  }
+  // The queue emits cancelAll only after the answer.
+  assert.match(read('../../components/fileTransfer/FileTransferQueue.vue'), /@click="askCancelAll"/)
+  // The Session row and the worker row go through the same ask.
+  const running = read('../../components/running/RunningSessionsTab.vue')
+  assert.match(running, /stopOne\(w, true\)/)
+  assert.match(running, /<InfoTip :text="t\('processes.running.filter.sort'\)"/)
+})

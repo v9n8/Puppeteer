@@ -13,5 +13,7 @@
     "needsModifier": "Giữ thêm {mod} để phím tắt không chạy khi đang gõ chữ.",
     "reserved": "{keys} là phím của hệ thống hoặc của thao tác soạn văn bản nên không dùng được.",
     "taken": "{keys} đang là phím tắt của “{action}”. Hãy đổi hoặc bỏ phím đó trước."
-  }
+  },
+  "resetAllTitle": "Đặt lại tất cả phím tắt?",
+  "resetAllAsk": "Mọi phím tắt bạn đã đổi sẽ về mặc định."
 }

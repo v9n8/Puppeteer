@@ -493,5 +493,6 @@
     "tab": "Files changed · {n}",
     "tabPlain": "Files changed",
     "tabTip": "Files changed in this Session"
-  }
+  },
+  "mcpResetAsk": "Every MCP server you switched for this session follows the Project again."
 }

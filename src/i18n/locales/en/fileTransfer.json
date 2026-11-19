@@ -38,7 +38,9 @@
     "queued": "Queued",
     "done": "Done",
     "canceled": "Cancelled",
-    "failed": "Failed"
+    "failed": "Failed",
+    "cancelAllTitle": "Cancel all transfers?",
+    "cancelAllAsk": "Every file that is waiting or being sent is cancelled. Files already sent stay where they are."
   },
   "conflict": {
     "title": "Already exists",

@@ -5,6 +5,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ArrowRight, Check, RotateCcw, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
+import { useConfirm } from '@/composables/useConfirm'
 import { formatSize } from '@/lib/ipc/nativeCore'
 import { itemPercent, queueProgress, type TransferItem } from '@/lib/fileTransferCore'
 
@@ -19,10 +20,20 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 
 const progress = computed(() => queueProgress(props.items))
 const busy = computed(() => progress.value.active + progress.value.queued > 0)
 const hasFinished = computed(() => props.items.some((i) => i.status !== 'queued' && i.status !== 'running'))
+
+async function askCancelAll() {
+  const ok = await confirm({
+    title: t('fileTransfer.queue.cancelAllTitle'),
+    message: t('fileTransfer.queue.cancelAllAsk'),
+    confirmLabel: t('fileTransfer.queue.cancelAll'),
+  })
+  if (ok) emit('cancelAll')
+}
 
 function statusText(it: TransferItem): string {
   switch (it.status) {
@@ -72,7 +83,7 @@ function errorText(error: string | null): string {
         <Button v-if="progress.failed" variant="ghost" size="xs" @click="emit('retryFailed')">
           <RotateCcw class="h-3 w-3" /> {{ t('fileTransfer.queue.retryFailed') }}
         </Button>
-        <Button v-if="busy" variant="ghost" size="xs" @click="emit('cancelAll')">
+        <Button v-if="busy" variant="ghost" size="xs" @click="askCancelAll">
           <X class="h-3 w-3" /> {{ t('fileTransfer.queue.cancelAll') }}
         </Button>
         <Button v-if="hasFinished" variant="ghost" size="xs" @click="emit('clear')">

@@ -23,10 +23,12 @@ import {
   type Keymap,
 } from '@/lib/keymap'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
 const appSettings = useAppSettingsStore()
+const { confirm } = useConfirm()
 const { toast } = useToast()
 
 const actions = computed(() => menuActions())
@@ -114,7 +116,14 @@ function reset(id: string) {
   void save(resetBinding(changes.value, id))
 }
 
-function resetAll() {
+async function resetAll() {
+  const ok = await confirm({
+    title: t('keymap.resetAllTitle'),
+    message: t('keymap.resetAllAsk'),
+    confirmLabel: t('keymap.resetAll'),
+    variant: 'primary',
+  })
+  if (!ok) return
   problem.value = null
   void save({})
 }

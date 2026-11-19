@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { KanbanSquare, Loader2 } from 'lucide-vue-next'
 import { AppSelect, Banner, Button, Card, InfoTip, Input } from '@/components/ui'
+import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore, type Project } from '@/stores/projects'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -12,6 +13,7 @@ import { useGithubAccountsStore } from '@/stores/githubAccounts'
 const props = defineProps<{ project: Project }>()
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const { toast } = useToast()
 const projectStore = useProjectsStore()
 const ghStore = useGithubAccountsStore()
@@ -109,6 +111,12 @@ async function saveBoard() {
 }
 
 async function unlinkBoard() {
+  const ok = await confirm({
+    title: t('projectDetail.unlinkTitle'),
+    message: t('projectDetail.unlinkAsk'),
+    confirmLabel: t('projectDetail.unlink'),
+  })
+  if (!ok) return
   savingBoard.value = true
   try {
     await projectStore.updateProject({

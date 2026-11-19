@@ -493,5 +493,6 @@
     "tab": "File đã đổi · {n}",
     "tabPlain": "File đã đổi",
     "tabTip": "File đã đổi trong Session này"
-  }
+  },
+  "mcpResetAsk": "Mọi MCP server bạn đã bật/tắt riêng cho session này sẽ theo Project trở lại."
 }

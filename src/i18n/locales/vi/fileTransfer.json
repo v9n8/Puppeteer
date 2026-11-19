@@ -38,7 +38,9 @@
     "queued": "Đang chờ",
     "done": "Xong",
     "canceled": "Đã huỷ",
-    "failed": "Lỗi"
+    "failed": "Lỗi",
+    "cancelAllTitle": "Huỷ tất cả lượt chuyển?",
+    "cancelAllAsk": "Mọi file đang chờ hoặc đang gửi sẽ bị huỷ. File đã gửi xong vẫn giữ nguyên."
   },
   "conflict": {
     "title": "Đã tồn tại",

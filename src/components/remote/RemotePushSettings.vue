@@ -7,6 +7,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button, Card, InfoTip, ToggleSwitch } from '@/components/ui'
 import SettingsRow from '@/components/settings/SettingsRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
@@ -32,6 +33,7 @@ interface PushOverview {
 const KINDS = ['pending', 'done', 'failed', 'stuck'] as const
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const { toast } = useToast()
 
 const devices = ref<PushDevice[]>([])
@@ -91,6 +93,12 @@ async function test(d: PushDevice) {
 }
 
 async function remove(d: PushDevice) {
+  const ok = await confirm({
+    title: t('remote.push.removeTitle'),
+    message: t('remote.push.removeAsk', { label: d.label }),
+    confirmLabel: t('remote.push.remove'),
+  })
+  if (!ok) return
   busyId.value = d.id
   try {
     await invoke('remote_push_remove', { id: d.id })

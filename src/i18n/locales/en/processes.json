@@ -178,7 +178,10 @@
       "withWorkers": "The running turn of each is cancelled, and so are {w} of their workers:\n{names}",
       "allTitle": "Stop all Sessions?",
       "allMessage": "Every running Session shown here is cancelled ({n}):\n{names}",
-      "more": "… and {n} more"
+      "more": "… and {n} more",
+      "stopOneTitle": "Stop this Session?",
+      "stopWorkerTitle": "Stop this worker?",
+      "stopOneMessage": "The running turn of “{name}” is cancelled."
     },
     "toast": {
       "stopped": "Stopped {n} Session | Stopped {n} Sessions",

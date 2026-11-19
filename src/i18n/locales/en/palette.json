@@ -35,6 +35,7 @@
     "unpinAll": "Unpin all",
     "unpinAllAsk": "Unpin {n} items?",
     "unhideAll": "Show all again",
-    "unhideAllAsk": "Show {n} hidden items again?"
+    "unhideAllAsk": "Show {n} hidden items again?",
+    "resetOrderAsk": "The groups go back to the original order and every group is turned on again."
   }
 }

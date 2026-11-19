@@ -178,7 +178,10 @@
       "withWorkers": "Lượt đang chạy của từng Session sẽ bị huỷ, kèm {w} worker của chúng:\n{names}",
       "allTitle": "Dừng tất cả Session?",
       "allMessage": "Mọi Session đang chạy hiện ở đây sẽ bị huỷ ({n}):\n{names}",
-      "more": "… và {n} Session nữa"
+      "more": "… và {n} Session nữa",
+      "stopOneTitle": "Dừng Session này?",
+      "stopWorkerTitle": "Dừng worker này?",
+      "stopOneMessage": "Lượt đang chạy của “{name}” sẽ bị huỷ."
     },
     "toast": {
       "stopped": "Đã dừng {n} Session | Đã dừng {n} Session",

@@ -178,6 +178,8 @@
       "testSent": "Test notification sent to {label}.",
       "testFailed": "Test notification failed: {reason}",
       "gone": "The push service no longer knows this device — it was removed."
-    }
+    },
+    "removeTitle": "Remove this device?",
+    "removeAsk": "“{label}” stops getting push notifications until it subscribes again from the phone."
   }
 }

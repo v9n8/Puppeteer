@@ -10,7 +10,7 @@ import {
   Activity, AlertTriangle, ArrowUpRight, CircleCheck, CircleSlash, CircleStop, CircleX, Ellipsis,
   LoaderCircle, Network, ShieldAlert,
 } from 'lucide-vue-next'
-import { AppSelect, Button, DropdownItem, DropdownMenu, EmptyState, SegmentedControl, Skeleton } from '@/components/ui'
+import { AppSelect, Button, DropdownItem, DropdownMenu, EmptyState, InfoTip, SegmentedControl, Skeleton } from '@/components/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useRunningRows } from '@/composables/useRunningRows'
@@ -113,7 +113,13 @@ async function cancelAll(targets: RunningRow[]): Promise<Set<string>> {
   return failed
 }
 
-async function stopOne(r: RunningRow) {
+async function stopOne(r: RunningRow, worker = false) {
+  const ok = await confirm({
+    title: t(worker ? 'processes.running.confirm.stopWorkerTitle' : 'processes.running.confirm.stopOneTitle'),
+    message: t('processes.running.confirm.stopOneMessage', { name: r.title }),
+    confirmLabel: t(worker ? 'processes.running.action.stopWorker' : 'processes.running.action.stop'),
+  })
+  if (!ok) return
   await cancelAll([r])
 }
 
@@ -218,7 +224,7 @@ defineExpose({ canStopAll, stopAll })
           :title="t('processes.running.filter.projectTitle')"
           class="w-44"
         />
-        <span class="ml-auto text-2xs text-muted-foreground max-[901px]:hidden">{{ t('processes.running.filter.sort') }}</span>
+        <span class="ml-auto inline-flex"><InfoTip :text="t('processes.running.filter.sort')" /></span>
       </div>
 
       <!-- Selection bar -->
@@ -379,7 +385,7 @@ defineExpose({ canStopAll, stopAll })
                   :disabled="stopping.has(w.runId)"
                   :title="t('processes.running.action.stopWorker')"
                   :aria-label="t('processes.running.action.stopWorker')"
-                  @click="stopOne(w)"
+                  @click="stopOne(w, true)"
                 >
                   <CircleStop class="h-4 w-4" :stroke-width="1.75" />
                 </Button>

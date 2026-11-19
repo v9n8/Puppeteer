@@ -35,6 +35,7 @@
     "unpinAll": "Bỏ ghim tất cả",
     "unpinAllAsk": "Bỏ ghim {n} mục?",
     "unhideAll": "Hiện lại tất cả",
-    "unhideAllAsk": "Hiện lại {n} mục đã ẩn?"
+    "unhideAllAsk": "Hiện lại {n} mục đã ẩn?",
+    "resetOrderAsk": "Các nhóm về thứ tự ban đầu và mọi nhóm được bật lại."
   }
 }

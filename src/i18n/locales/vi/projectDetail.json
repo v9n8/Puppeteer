@@ -243,5 +243,7 @@
     "footAfter": "phải là model đang bật ở đây",
     "footNow": " (đang là {id})",
     "footMoved": " (đã đổi sang {id})"
-  }
+  },
+  "unlinkTitle": "Bỏ liên kết board?",
+  "unlinkAsk": "Project sẽ không dùng board này nữa và phần ánh xạ trường bị xoá. Muốn dùng lại, bạn phải kết nối board và ánh xạ trường lại từ đầu."
 }

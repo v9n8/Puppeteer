@@ -131,7 +131,8 @@
     "monoFontDesc": "Code blocks, Bash commands, diffs, file paths.",
     "monoJetbrains": "JetBrains Mono",
     "monoPlexmono": "IBM Plex Mono",
-    "monoSystem": "System"
+    "monoSystem": "System",
+    "resetTextAsk": "Font family, weight, smoothing and sizes go back to their defaults. The custom font name is kept."
   },
   "google": {
     "title": "Google Account (Drive + Gmail + Calendar)",

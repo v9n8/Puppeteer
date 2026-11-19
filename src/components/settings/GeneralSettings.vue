@@ -11,6 +11,7 @@ import { invoke } from '@/lib/tauri'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { AppSelect, Button, Card, Input, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import ColorThemePicker from '@/components/ColorThemePicker.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { changeAppearance } from '@/lib/appearanceSync'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
@@ -28,6 +29,7 @@ import SizeStepper from './SizeStepper.vue'
 import TypographyPreview from './TypographyPreview.vue'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const { toast } = useToast()
 const { settings, loading } = useSettingsForm()
 
@@ -82,7 +84,14 @@ function setFamily(family: FontFamilyId) {
 // The custom font name survives a reset, so picking "Custom" again restores it.
 const RESET_KEYS = ['family', 'weight', 'smoothing', 'mono', 'appSize', 'chatSize'] as const
 const textIsDefault = computed(() => RESET_KEYS.every((k) => fonts.value[k] === DEFAULT_FONT_PREFS[k]))
-function resetText() {
+async function resetText() {
+  const ok = await confirm({
+    title: t('settings.general.resetText'),
+    message: t('settings.general.resetTextAsk'),
+    confirmLabel: t('settings.general.resetText'),
+    variant: 'primary',
+  })
+  if (!ok) return
   uiLayout.setFontPrefs({ ...DEFAULT_FONT_PREFS, customFont: fonts.value.customFont })
 }
 

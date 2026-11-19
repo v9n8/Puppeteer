@@ -131,7 +131,8 @@
     "monoFontDesc": "Khối code, lệnh Bash, diff, đường dẫn file.",
     "monoJetbrains": "JetBrains Mono",
     "monoPlexmono": "IBM Plex Mono",
-    "monoSystem": "Hệ thống"
+    "monoSystem": "Hệ thống",
+    "resetTextAsk": "Kiểu chữ, độ đậm, làm mịn và cỡ chữ về mặc định. Tên font tuỳ chọn vẫn được giữ."
   },
   "google": {
     "title": "Tài khoản Google (Drive + Gmail + Lịch)",

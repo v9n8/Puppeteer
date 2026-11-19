@@ -13,5 +13,7 @@
     "needsModifier": "Hold {mod} too, so the shortcut doesn't fire while typing.",
     "reserved": "{keys} belongs to the system or to text editing, so it can't be used.",
     "taken": "{keys} is already the shortcut of “{action}”. Change or remove that one first."
-  }
+  },
+  "resetAllTitle": "Reset all shortcuts?",
+  "resetAllAsk": "Every shortcut you changed goes back to its default."
 }

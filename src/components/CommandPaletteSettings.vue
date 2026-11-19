@@ -58,6 +58,16 @@ async function clearPart(part: 'pinned' | 'hidden') {
   if (ok) await save(resetPalettePart(config.value, part))
 }
 
+async function resetGroups() {
+  const ok = await confirm({
+    title: t('palette.settings.resetOrder'),
+    message: t('palette.settings.resetOrderAsk'),
+    confirmLabel: t('palette.settings.resetOrder'),
+    variant: 'primary',
+  })
+  if (ok) await save(resetPalettePart(config.value, 'groups'))
+}
+
 async function save(next: PaletteConfig) {
   try {
     await palette.save(next)
@@ -104,7 +114,7 @@ async function save(next: PaletteConfig) {
           size="xs"
           :disabled="isDefault('groups')"
           :title="t('palette.settings.resetOrderTitle')"
-          @click="save(resetPalettePart(config, 'groups'))"
+          @click="resetGroups"
         >
           <RotateCcw class="h-3 w-3" :stroke-width="1.75" />
           {{ t('palette.settings.resetOrder') }}

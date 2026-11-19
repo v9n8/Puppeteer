@@ -243,5 +243,7 @@
     "footAfter": "must be a model that is on here",
     "footNow": " (currently {id})",
     "footMoved": " (changed to {id})"
-  }
+  },
+  "unlinkTitle": "Unlink the board?",
+  "unlinkAsk": "This Project stops using the board and its field mapping is cleared. To use it again you connect the board and map the fields again."
 }
