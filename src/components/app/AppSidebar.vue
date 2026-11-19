@@ -7,7 +7,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getVersion } from '@tauri-apps/api/app'
-import { LockKeyhole, Trash2 } from 'lucide-vue-next'
+import { LockKeyhole, PanelLeft, Trash2 } from 'lucide-vue-next'
 import { useProjectsStore } from '@/stores/projects'
 import { useFocusStore } from '@/stores/focus'
 import { useFeaturesStore } from '@/stores/features'
@@ -18,6 +18,7 @@ import RemoteIndicator from '@/components/RemoteIndicator.vue'
 import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
 import SidebarNavItem from '@/components/app/SidebarNavItem.vue'
 import SidebarRailRuns from '@/components/app/SidebarRailRuns.vue'
+import { Button } from '@/components/ui'
 import type { NavBadge } from '@/components/app/SidebarBadge.vue'
 import { openSecretNotes } from '@/lib/secretNotesWindow'
 import { NAV_ROUTES, type NavRoute } from '@/lib/navigation'
@@ -113,10 +114,22 @@ function badgeTip(id: string): string | undefined {
     :class="rail ? 'w-[52px]' : 'w-[216px]'"
   >
     <div class="h-full flex flex-col" :class="rail ? 'w-[52px]' : 'w-[216px]'">
-      <!-- No brand header: the logo moved to the title bar, so the nav starts
-           at the very top and a view's header owns the first line alone. -->
+      <!-- Top row: the collapse / expand button lives here so it keeps its place
+           on the sidebar when the sidebar flips between full and rail. -->
+      <div class="flex h-9 shrink-0 items-center px-2" :class="rail ? 'justify-center' : 'justify-end'">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          :title="rail ? t('menu.showSidebar') : t('menu.hideSidebar')"
+          :aria-label="rail ? t('menu.showSidebar') : t('menu.hideSidebar')"
+          @click="uiLayout.toggleSidebar()"
+        >
+          <PanelLeft class="h-4 w-4" :stroke-width="1.75" />
+        </Button>
+      </div>
       <nav
-        class="flex-1 min-h-0 overflow-y-auto py-2.5"
+        class="flex-1 min-h-0 overflow-y-auto pb-2.5"
         :class="rail ? 'px-2 space-y-1' : 'px-2 space-y-3'"
       >
         <section

@@ -408,3 +408,14 @@ test('UR-43: the History flag filter has one "Manage flags" entry, which opens t
   assert.match(template, /board\.viewAsBoard/)
   for (const lang of ['en', 'vi']) assert.equal(json(`../../i18n/locales/${lang}/sessionFlags.json`).filter.projectFlags, undefined, lang)
 })
+
+test('UR-18: the sidebar toggle sits in the sidebar top row, not the title bar', () => {
+  const bar = read('../../components/app/AppTitlebar.vue')
+  assert.doesNotMatch(bar, /toggleSidebar|PanelLeft|showSidebar/)
+  const side = read('../../components/app/AppSidebar.vue')
+  const tpl = side.slice(side.indexOf('<template>'))
+  // First child of the sidebar column, before the nav; right-aligned in full, centred in the rail.
+  assert.ok(tpl.indexOf('uiLayout.toggleSidebar()') < tpl.indexOf('<nav'))
+  assert.match(tpl, /:class="rail \? 'justify-center' : 'justify-end'"/)
+  assert.match(tpl, /rail \? t\('menu\.showSidebar'\) : t\('menu\.hideSidebar'\)/)
+})
