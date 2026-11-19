@@ -6,6 +6,8 @@
 // Run: node test-mocked.mjs   (from the sidecar/ dir)
 
 import { spawn } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
@@ -53,6 +55,21 @@ function runSidecar(scenario, onMessage, timeoutMs = 10_000, extraEnv = {}) {
       resolve({ messages, code })
     })
   })
+}
+
+// Run one `validate_model` check; the mock writes the options it got to a file.
+async function validateModel(model, stderr = '') {
+  const dir = mkdtempSync(join(tmpdir(), 'sidecar-validate-'))
+  const file = join(dir, 'options.json')
+  try {
+    const { messages } = await runSidecar('validate', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'validate_model', options: { model, cwd: dir } })
+      if (msg.type === '_puppeteer_closed') ctl.closeInput()
+    }, 10_000, { MOCK_OPTIONS_FILE: file, MOCK_STDERR: stderr })
+    return { messages, options: JSON.parse(readFileSync(file, 'utf8')) }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 const startPrompt = (ctl) => ctl.send({ type: 'prompt', text: 'go', options: { permissionMode: 'default' } })
@@ -234,6 +251,31 @@ const tests = {
     ]) assert.ok(o.disallowedTools.includes(rule), rule)
     assert.equal(o.resume, undefined)
     assert.equal(o.resumeSessionAt, undefined)
+  },
+
+  // A model check runs lean: no settings, tools, MCP or skills, and a short
+  // prompt, like a side task (QO-04).
+  async 'model check loads no settings, tools or MCP'() {
+    const { options, messages } = await validateModel('sonnet')
+    assert.deepEqual(options.settingSources, [])
+    assert.deepEqual(options.tools, [])
+    assert.deepEqual(options.mcpServers, {})
+    assert.equal(options.strictMcpConfig, true)
+    assert.deepEqual(options.skills, [])
+    assert.equal(options.systemPrompt.type, 'custom')
+    assert.equal(options.permissionMode, 'dontAsk')
+    assert.equal(options.model, 'sonnet')
+    assert.equal(of(messages, '_puppeteer_valid').length, 1)
+    assert.equal(of(messages, '_puppeteer_closed').length, 1)
+  },
+
+  // The lean options keep the unknown-model verdict: the CLI still flags the id
+  // on stderr while the turn itself succeeds on a fallback.
+  async 'model check still flags an unrecognized model from stderr'() {
+    const stderr = '[claude-code:unrecognized_model] {"model":"claude-nonexistent-9","query_source":"sdk"}'
+    const { messages } = await validateModel('claude-nonexistent-9', stderr)
+    assert.equal(of(messages, '_puppeteer_valid').length, 0)
+    assert.deepEqual(of(messages, '_puppeteer_invalid').map((m) => m.error), ['Not recognized by this Claude Code version'])
   },
 
   // Auto mode: a call the classifier could not approve is declined with a

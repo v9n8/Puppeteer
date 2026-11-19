@@ -21,6 +21,11 @@
 //                 block: `afterBlock` tools, then Stop again with
 //                 `stop_hook_active` set, unless the turn says `activeFlag: false`).
 //                 The result lists every Stop hook output (`mock_stops`).
+//   validate    — a model check (`validate_model`): writes the options to
+//                 MOCK_OPTIONS_FILE (the check sends no init message to echo them
+//                 in), passes MOCK_STDERR to `options.stderr`, then succeeds.
+
+import { writeFileSync } from 'node:fs'
 
 export function query({ prompt, options }) {
   const scenario = process.env.MOCK_SCENARIO || 'permission'
@@ -63,6 +68,12 @@ export function query({ prompt, options }) {
   async function* run() {
     const first = await input.next() // the first user prompt
     if (scenario === 'throw') throw new Error('mock CLI crashed')
+    if (scenario === 'validate') {
+      if (process.env.MOCK_OPTIONS_FILE) writeFileSync(process.env.MOCK_OPTIONS_FILE, JSON.stringify(options))
+      if (process.env.MOCK_STDERR) options.stderr?.(process.env.MOCK_STDERR)
+      yield { type: 'result', subtype: 'success', num_turns: 1 }
+      return
+    }
     // Echo the (JSON-safe) options and the first prompt so tests can assert what reached the SDK.
     yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function', mock_first_input: first.value }
     if (scenario === 'max-turns') {

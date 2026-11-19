@@ -815,7 +815,6 @@ function startValidateModel(opts = {}) {
   // the print CLI uses a prose sentence. Match either so a fallback is caught.
   const UNKNOWN_MODEL_HINTS = ['unrecognized_model', 'is not a model this version of claude code recognizes']
   const options = {
-    permissionMode: 'bypassPermissions',
     includePartialMessages: false,
     stderr: (data) => {
       const text = String(data || '')
@@ -825,6 +824,10 @@ function startValidateModel(opts = {}) {
   if (opts.model) options.model = opts.model
   if (opts.cwd) options.cwd = opts.cwd
   if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
+  // `say ok` needs no tools, settings, CLAUDE.md or MCP: loading them only costs
+  // a large cache write per check. No tools also means nothing ever asks for a
+  // permission, so the deny-all of applyNoTools never blocks the check.
+  applyNoTools(options)
 
   const firstStderrLine = () => stderrAll.split('\n').map((l) => l.trim()).find(Boolean) || ''
 
