@@ -148,3 +148,21 @@ test('UR-29: a quote above the composer leads to the quoted message or file, or 
   assert.match(composer, /jumpToQuote\(link\.quote\)/)
   for (const lang of ['en', 'vi']) assert.ok(json(`../../i18n/locales/${lang}/run.json`).quotes.sourceNotLoaded, lang)
 })
+
+test('UR-44: menu group headings use DropdownLabel, sentence case, no tracked upper-case', () => {
+  const label = read('../../components/ui/DropdownLabel.vue')
+  assert.match(label, /text-2xs font-medium text-muted-foreground/)
+  assert.doesNotMatch(label, /uppercase|tracking-/)
+  assert.match(read('../../components/ui/index.ts'), /DropdownLabel/)
+  const hosts = [
+    'AppSelect.vue', 'sessions/HistoryFlagFilter.vue', 'sessions/LinkedSessionsMenu.vue',
+    'sessions/SessionTabBar.vue', 'sessions/RunLogPane.vue', 'CapturePicker.vue', 'CommandPalette.vue',
+    'ProjectSwitcher.vue', 'prInbox/PrInboxFiltersPopover.vue', 'prInbox/PrInboxDisplayPopover.vue',
+  ]
+  for (const h of hosts) {
+    const src = read(`../../components/${h}`)
+    assert.match(src, /<DropdownLabel/, h)
+    assert.doesNotMatch(src, /uppercase tracking-w/, h)
+  }
+  assert.match(read('../../views/CalendarView.vue'), /<DropdownLabel class="mb-1.5">/)
+})

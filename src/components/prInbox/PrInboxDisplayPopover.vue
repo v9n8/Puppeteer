@@ -13,7 +13,7 @@ import { useEscapeClose } from '@/composables/useEscapeClose'
 import { usePopoverFocus } from '@/composables/usePopoverFocus'
 import { usePrInboxStore, type PrInboxDensity } from '@/stores/prInbox'
 import { PR_GROUP_BY_OPTIONS, type PrGroupBy } from '@/lib/prInboxGrouping'
-import { Button, SegmentedControl } from '@/components/ui'
+import { Button, DropdownLabel, SegmentedControl } from '@/components/ui'
 import { Check, EyeOff, KeyRound, SlidersHorizontal, ChevronRight } from 'lucide-vue-next'
 
 const emit = defineEmits<{ 'manage-bots': [] }>()
@@ -79,7 +79,7 @@ function manageBots() {
     >
       <!-- Group by -->
       <div class="mb-3">
-        <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.groupByLabel') }}</div>
+        <DropdownLabel class="mb-1.5">{{ t('prInbox.groupByLabel') }}</DropdownLabel>
         <div ref="radiogroup" role="radiogroup" :aria-label="t('prInbox.groupByLabel')">
           <button
             v-for="g in PR_GROUP_BY_OPTIONS"
@@ -101,7 +101,7 @@ function manageBots() {
 
       <!-- Density -->
       <div class="mb-3">
-        <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('prInbox.density.label') }}</div>
+        <DropdownLabel class="mb-1.5">{{ t('prInbox.density.label') }}</DropdownLabel>
         <SegmentedControl
           :model-value="store.density"
           :options="densityOptions"

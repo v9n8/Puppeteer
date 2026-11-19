@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useFeaturesStore } from '@/stores/features'
 import { Check, ChevronDown, Filter } from 'lucide-vue-next'
-import { DropdownMenu, DropdownItem, DropdownSeparator } from '@/components/ui'
+import { DropdownMenu, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui'
 import { flagById, flagLabel } from '@/lib/sessionFlags'
 import { swatchClass } from '@/lib/projectAppearance'
 import { useFlagTargets } from './useFlagTargets'
@@ -54,9 +54,9 @@ const groups = computed(() => [
       </button>
     </template>
     <div class="min-w-[14rem]">
-      <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+      <DropdownLabel class="px-2.5 pb-0.5 pt-1">
         {{ t('sessionFlags.filter.title') }}
-      </div>
+      </DropdownLabel>
       <DropdownItem @click="flagFilter = 'all'">
         <span class="min-w-0 flex-1 truncate">{{ t('sessionFlags.filter.all') }}</span>
         <span class="font-mono text-2xs text-muted-foreground">{{ flagCounts.total }}</span>
@@ -64,9 +64,9 @@ const groups = computed(() => [
       </DropdownItem>
       <template v-for="group in groups" :key="group.key">
         <template v-if="group.options.length">
-          <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <DropdownLabel class="px-2.5 pb-0.5 pt-1">
             {{ group.title }}
-          </div>
+          </DropdownLabel>
           <DropdownItem v-for="{ flag, count } in group.options" :key="flag.id" @click="flagFilter = flag.id">
             <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(flag.color)" aria-hidden="true" />
             <span class="min-w-0 flex-1 truncate">{{ flagLabel(flag, t) }}</span>

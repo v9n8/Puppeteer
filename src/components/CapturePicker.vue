@@ -19,7 +19,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Check, Inbox, ListTodo, Search, Slack, StickyNote } from 'lucide-vue-next'
-import { Button, DropdownMenu, SegmentedControl, type SegmentedOption } from '@/components/ui'
+import { Button, DropdownLabel, DropdownMenu, SegmentedControl, type SegmentedOption } from '@/components/ui'
 import { linkReference, type LinkTarget } from '@/lib/sessionLinks'
 import SlackStatusIcon from '@/components/slack/SlackStatusIcon.vue'
 import { firstLine, relativeAge } from '@/lib/itemText'
@@ -375,13 +375,13 @@ onBeforeUnmount(() => {
           {{ t('item.noResults') }}
         </p>
         <template v-for="group in groups" v-else :key="group.key">
-          <div
+          <DropdownLabel
             v-if="group.label"
-            class="px-2.5 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70"
+            class="px-2.5 pb-0.5 pt-1.5"
             @click.stop
           >
             {{ group.label }}
-          </div>
+          </DropdownLabel>
           <button
             v-for="it in group.items"
             :key="it.key"

@@ -13,7 +13,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { EyeOff, Pin, PinOff, Search } from 'lucide-vue-next'
-import { Modal } from '@/components/ui'
+import { DropdownLabel, Modal } from '@/components/ui'
 import { IS_MAC, effectiveKeymap, hasNativeMenu, menuAccelerator, registerMenuAction } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
 import { hideItem, paletteSections, searchAllSection, togglePinned } from '@/lib/commandPalette'
@@ -201,9 +201,9 @@ onBeforeUnmount(() => {
           {{ t('palette.noResults') }}
         </p>
         <section v-for="section in sections" :key="section.id" class="mb-1 last:mb-0">
-          <h4 class="px-2.5 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <DropdownLabel class="px-2.5 pb-1 pt-2">
             {{ t(`palette.group.${section.id}`) }}
-          </h4>
+          </DropdownLabel>
           <div
             v-for="item in section.items"
             :key="item.id"
@@ -244,9 +244,9 @@ onBeforeUnmount(() => {
           </div>
         </section>
         <section v-if="searchSection && searchRow" class="mb-1 last:mb-0">
-          <h4 class="px-2.5 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <DropdownLabel class="px-2.5 pb-1 pt-2">
             {{ t('palette.group.search') }}
-          </h4>
+          </DropdownLabel>
           <div
             :ref="(el) => { if (el) rowEls[rowIndex(searchRow!)] = el as HTMLElement }"
             role="option"

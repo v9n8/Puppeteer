@@ -16,7 +16,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useFloatingWindow } from '@/composables/useFloatingWindow'
 import { CALENDAR_PATH, CALENDAR_WINDOW_OPEN_ROUTE, calendarTarget, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
 import { translateText } from '@/lib/translate'
-import { Button, Badge, Drawer, AppSelect, Modal, PageHeader } from '@/components/ui'
+import { Button, Badge, Drawer, DropdownLabel, AppSelect, Modal, PageHeader } from '@/components/ui'
 import { useGoogleCalendarStore, type CalEvent } from '@/stores/googleCalendar'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useConfirm } from '@/composables/useConfirm'
@@ -498,7 +498,7 @@ function openForAccount(url: string) {
 
             <!-- Account show/hide -->
             <div>
-              <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('calendar.view.accounts') }}</div>
+              <DropdownLabel class="mb-1.5">{{ t('calendar.view.accounts') }}</DropdownLabel>
               <div class="flex flex-col gap-0.5 max-h-52 overflow-auto">
                 <button
                   v-for="a in store.accounts"

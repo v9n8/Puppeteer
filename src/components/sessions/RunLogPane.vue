@@ -12,7 +12,7 @@ import FindBar from '@/components/FindBar.vue'
 import StreamLog from '@/components/StreamLog.vue'
 import TurnCutMark from './TurnCutMark.vue'
 import InlinePermissionBlock from '@/components/permission/InlinePermissionBlock.vue'
-import { DropdownMenu, DropdownItem } from '@/components/ui'
+import { DropdownMenu, DropdownItem, DropdownLabel } from '@/components/ui'
 import { turnCounterLabel } from '@/lib/turnPosition'
 import { fallbackLastTurnCut } from '@/lib/turnCut'
 import { vMermaid } from '@/lib/mermaid'
@@ -409,9 +409,9 @@ function onOpenUrl(url: string) {
               >{{ turnCounterLabel(currentTurnSeq, navTurns.length) }}</button>
             </template>
             <div class="max-h-96 w-[24rem] max-w-[80vw] overflow-y-auto">
-              <div class="px-2.5 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/40">
+              <DropdownLabel class="px-2.5 pt-1 pb-1.5">
                 {{ t('run.promptList') }}
-              </div>
+              </DropdownLabel>
               <DropdownItem
                 v-for="(turn, ti) in navTurns"
                 :key="ti"

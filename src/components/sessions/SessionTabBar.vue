@@ -14,7 +14,7 @@ import {
   ChevronDown, Columns2, File, FileCode, FileDiff, FileImage, FileJson, FileText, MessageSquare, PanelRight,
   PanelRightClose, Pin, PinOff, X,
 } from 'lucide-vue-next'
-import { ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
+import { ContextMenu, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import {
   CONVERSATION, fileTabIcon, hiddenTabIndexes, orderedTabs, splitBlockedReason, tabLabel,
   type FileTab, type FileTabIcon, type SessionTab, type SessionTabId,
@@ -291,9 +291,9 @@ function compareTab(tab: FileTab) {
           <ChevronDown class="h-3.5 w-3.5" :stroke-width="1.75" aria-hidden="true" />
         </button>
       </template>
-      <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+      <DropdownLabel class="px-2.5 pb-0.5 pt-1">
         {{ t('run.sessionTabs.hiddenTitle', { n: hidden.length }) }}
-      </div>
+      </DropdownLabel>
       <DropdownItem v-for="tab in hidden" :key="tab.id" class="max-w-72" @click="pickHidden(tab.id)">
         <component :is="tabIcon(tab)" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
         <span class="min-w-0 flex-1 truncate">{{ tabName(tab) }}</span>

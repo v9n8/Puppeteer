@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, Check, Star } from 'lucide-vue-next'
 import { controlHeight, selectOption, selectSize } from './ui/controlStyles'
+import DropdownLabel from './ui/DropdownLabel.vue'
 
 interface Option {
   value: string
@@ -282,8 +283,8 @@ watch(isOpen, (val) => {
           <li
             v-if="option.header"
             role="presentation"
-            class="px-2 pt-2 pb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground select-none"
-          >{{ option.label }}</li>
+            class="px-2 pt-2 pb-1"
+          ><DropdownLabel>{{ option.label }}</DropdownLabel></li>
           <li v-else-if="option.separator" role="presentation" class="my-1 border-t border-border" />
           <li
             v-if="!option.header"

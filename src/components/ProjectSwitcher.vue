@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import { Eye, EyeOff, FolderPlus, Plus, Search } from 'lucide-vue-next'
-import { Button } from '@/components/ui'
+import { Button, DropdownLabel } from '@/components/ui'
 import AddProjectModal from '@/components/projects/AddProjectModal.vue'
 import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
@@ -245,12 +245,12 @@ onBeforeUnmount(() => {
             {{ projects.projects.length === 0 ? t('projectSwitcher.noProjects') : t('projectSwitcher.noMatch') }}
           </p>
           <template v-for="(row, index) in rows" :key="row.project.id">
-            <p
+            <DropdownLabel
               v-if="hasRecent && (index === 0 || row.recent !== rows[index - 1].recent)"
-              class="px-2 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground"
+              class="px-2 pb-1 pt-2"
             >
               {{ row.recent ? t('projectSwitcher.recent') : t('projectSwitcher.allProjects') }}
-            </p>
+            </DropdownLabel>
             <div
               :data-row="index"
               role="option"

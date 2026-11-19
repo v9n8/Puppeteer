@@ -14,7 +14,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Link2, Search, X } from 'lucide-vue-next'
-import { Button, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
+import { Button, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { relativeAge } from '@/lib/itemText'
 import { formatFullDate } from '@/lib/slackThreadUtils'
@@ -148,9 +148,9 @@ watch(
     </template>
     <div class="w-[22rem]">
       <!-- Linked sessions -->
-      <div class="px-2.5 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+      <DropdownLabel class="px-2.5 pb-0.5 pt-1">
         {{ t('sessionLink.label') }}
-      </div>
+      </DropdownLabel>
       <p v-if="links.length === 0" class="px-2.5 py-1.5 text-2xs text-muted-foreground" @click.stop>
         {{ t('sessionLink.empty') }}
       </p>
@@ -178,9 +178,9 @@ watch(
 
       <!-- Link a session (clicks stop here: the menu stays open) -->
       <div @click.stop>
-        <div class="px-2.5 pb-1 pt-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground/70">
+        <DropdownLabel class="px-2.5 pb-1 pt-1">
           {{ t('sessionLink.linkSession') }}
-        </div>
+        </DropdownLabel>
         <p v-if="!projectId" class="px-2.5 pb-1.5 text-2xs text-muted-foreground">
           {{ t('sessionLink.needProject') }}
         </p>

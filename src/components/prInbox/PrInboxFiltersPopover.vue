@@ -9,7 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { onClickOutside } from '@vueuse/core'
 import { useEscapeClose } from '@/composables/useEscapeClose'
 import { usePopoverFocus } from '@/composables/usePopoverFocus'
-import { Button, Input } from '@/components/ui'
+import { Button, DropdownLabel, Input } from '@/components/ui'
 import type { PrFilterOption, PrFilterOptions, PrFilters } from '@/lib/prInboxFilters'
 import { Check, ListFilter } from 'lucide-vue-next'
 
@@ -105,7 +105,7 @@ function toggle(dimension: PrFilterDimension, value: string) {
     >
       <div class="min-h-0 flex-1 overflow-y-auto p-3">
         <section v-for="s in sections" :key="s.key" class="mb-3 last:mb-0">
-          <div class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{{ s.title }}</div>
+          <DropdownLabel class="mb-1.5">{{ s.title }}</DropdownLabel>
           <p v-if="s.empty" class="px-1 text-2xs text-muted-foreground/70">{{ t('prInbox.filters.noOptions') }}</p>
           <template v-else>
             <Input
