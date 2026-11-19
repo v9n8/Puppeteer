@@ -71,3 +71,19 @@ test('UR-26: a dragged board card is drawn under the pointer, offset by where it
   assert.match(view, /translate: `\$\{drag\.x - drag\.grabX\}px \$\{drag\.y - drag\.grabY\}px`/)
   assert.match(view, /class="pointer-events-none fixed/)
 })
+
+test('UR-20: the composer has no expand button; the height is still set by dragging the top edge', () => {
+  const composer = read('../../components/sessions/RunComposer.vue')
+  const hook = read('../../components/sessions/useRunComposer.ts')
+  for (const src of [composer, hook]) {
+    assert.doesNotMatch(src, /composerExpanded|toggleComposerExpand/)
+  }
+  assert.doesNotMatch(composer, /Maximize2|Minimize2/)
+  assert.match(composer, /startComposerDrag/)
+  assert.match(hook, /function startComposerDrag/)
+  for (const lang of ['en', 'vi']) {
+    const run = json(`../../i18n/locales/${lang}/run.json`)
+    assert.equal(run.expandComposer, undefined, lang)
+    assert.equal(run.collapseComposer, undefined, lang)
+  }
+})

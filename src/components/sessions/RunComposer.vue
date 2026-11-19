@@ -5,7 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, Maximize2, Minimize2, X,
+  Play, Square, FileText, Send, FolderClosed, Sparkles, ChevronDown, X,
   Paperclip, Clock, Pencil, Gauge, MessageSquareText,
 } from 'lucide-vue-next'
 import AppSelect from '@/components/AppSelect.vue'
@@ -29,7 +29,7 @@ const {
   sendingFollowUp, pendingImages, pendingFiles, isDraggingFile,
   removePendingFile, onPickFiles, onComposerPaste, removePendingImage, chatEligible,
   chatPlaceholder, chatSendLabel, primaryDisabled, handlePrimaryAction,
-  composerExpanded, toggleComposerExpand, startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen,
+  startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, fileMatcher, ensureProjectFiles,
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
   onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
@@ -315,16 +315,6 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
             :disabled="sendingFollowUp"
             @apply="applyChecklist"
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            class="shrink-0"
-            :title="composerExpanded ? t('run.collapseComposer') : t('run.expandComposer')"
-            :aria-label="composerExpanded ? t('run.collapseComposer') : t('run.expandComposer')"
-            @click="toggleComposerExpand"
-          >
-            <component :is="composerExpanded ? Minimize2 : Maximize2" class="h-3.5 w-3.5" :stroke-width="1.75" />
-          </Button>
           <div
             ref="runSettingsRoot"
             class="relative inline-flex min-w-0"

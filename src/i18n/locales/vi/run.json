@@ -221,8 +221,6 @@
     "confirm": "Rewind và gửi",
     "cannotRewind": "Không sửa và gửi lại được: hội thoại không quay về tin nhắn này được. {reason} Chưa gửi gì."
   },
-  "collapseComposer": "Thu gọn ô soạn thảo",
-  "expandComposer": "Mở rộng ô soạn thảo (dễ đọc/sửa văn bản dài)",
   "resizeComposer": "Kéo để đổi chiều cao ô soạn thảo · bấm đúp để về theo nội dung",
   "runSettingsTitle": "Tùy chọn run — đang dùng {engine}",
   "runSettingsMenu": "Tùy chọn run",

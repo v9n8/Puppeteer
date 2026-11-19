@@ -914,24 +914,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     handlePrimaryAction()
   }
 
-  // ── Composer auto-resize / expand ─────────────────────────────────────────
+  // ── Composer auto-resize ──────────────────────────────────────────────────
   // The composer grows with its content (great for pasted long text) up to a
-  // cap, then scrolls internally. "Expanded" raises that cap to most of the
-  // viewport so long text is comfortable to read and edit.
-  const composerExpanded = ref(false)
+  // cap, then scrolls internally. Dragging the top edge raises that cap.
 
   function autoResizeComposer() {
     const el = composerEl.value
     if (!el) return
-    // Expanded: pin the textarea to a large fixed height so "maximize" is
-    // immediately visible even when there's little/no content to grow into.
-    if (composerExpanded.value) {
-      const expandedPx = Math.round(window.innerHeight * 0.6)
-      el.style.height = `${expandedPx}px`
-      el.style.overflowY = 'auto'
-      return
-    }
-    // Collapsed: grow with content up to a cap, then scroll internally. A height
+    // Grow with content up to a cap, then scroll internally. A height
     // dragged from the top edge (UX-65) is the floor, and may pass the cap.
     const maxPx = 180
     el.style.height = 'auto'
@@ -941,7 +931,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
 
   // Dragging the composer's top edge sets its height (up, taller); a double
-  // click forgets it. Dragging from "expanded" takes over from it.
+  // click forgets it.
   const COMPOSER_MIN_PX = 44
   function startComposerDrag(e: PointerEvent) {
     const el = composerEl.value
@@ -949,7 +939,6 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     e.preventDefault()
     const startY = e.clientY
     const startH = el.offsetHeight
-    composerExpanded.value = false
     const max = () => Math.round(window.innerHeight * 0.7)
     const onMove = (ev: PointerEvent) => {
       el.style.height = `${clampDragHeight(startH + startY - ev.clientY, COMPOSER_MIN_PX, max())}px`
@@ -968,14 +957,6 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   function resetComposerHeight() {
     uiLayout.setComposerHeight(null)
     autoResizeComposer()
-  }
-
-  function toggleComposerExpand() {
-    composerExpanded.value = !composerExpanded.value
-    nextTick(() => {
-      autoResizeComposer()
-      composerEl.value?.focus()
-    })
   }
 
   // Reliably move focus into the composer. A single `nextTick` is not enough when
@@ -1734,8 +1715,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     accountChoices, accountModelLabel, accountSelectDisabled,
     handleAccountChange, pendingImages, pendingFiles, isDraggingFile, addDroppedPaths, removePendingFile, onPickFiles, onComposerPaste,
     removePendingImage, chatEligible, chatPlaceholder, chatSendLabel, composerVisible,
-    primaryDisabled, handlePrimaryAction, sendSlashCommand, composerExpanded, autoResizeComposer,
-    toggleComposerExpand, startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
+    primaryDisabled, handlePrimaryAction, sendSlashCommand, autoResizeComposer,
+    startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen, slashIndex, slashItems,
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,

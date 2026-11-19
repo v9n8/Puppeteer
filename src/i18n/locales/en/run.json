@@ -221,8 +221,6 @@
     "confirm": "Rewind & send",
     "cannotRewind": "Cannot edit and resend: the conversation cannot go back to this message. {reason} Nothing was sent."
   },
-  "collapseComposer": "Collapse the composer",
-  "expandComposer": "Expand the composer (easier to read/edit long text)",
   "resizeComposer": "Drag to resize the composer · double-click to fit its text again",
   "runSettingsTitle": "Run options — using {engine}",
   "runSettingsMenu": "Run options",
