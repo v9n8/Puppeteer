@@ -5,7 +5,6 @@
 export type SessionHeaderMenuBlock =
   | 'openProjectIn'
   | 'runActions'
-  | 'focusMode'
   | 'viewProject'
   | 'projectSettings'
   | 'delete'
@@ -16,5 +15,5 @@ export function sessionHeaderMenu(opts: {
 }): SessionHeaderMenuBlock[] {
   const project: SessionHeaderMenuBlock[] = opts.hasProject ? ['viewProject', 'projectSettings'] : []
   if (opts.isSessionWindow) return ['openProjectIn', 'runActions', ...project, 'delete']
-  return ['openProjectIn', 'focusMode', ...project]
+  return ['openProjectIn', ...project]
 }

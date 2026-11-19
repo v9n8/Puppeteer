@@ -61,7 +61,6 @@ interface MenuSpec {
 
 export interface MenuState {
   sidebarMode: SidebarMode
-  focusMode: boolean
 }
 
 function t(key: string): string {
@@ -190,11 +189,6 @@ function buildSpec(state: MenuState): MenuSpec {
         id: 'view.toggleSidebar',
         label: state.sidebarMode === 'rail' ? t('menu.showSidebar') : t('menu.hideSidebar'),
       },
-      {
-        kind: 'item',
-        id: 'view.toggleFocus',
-        label: state.focusMode ? t('menu.exitFocusMode') : t('menu.enterFocusMode'),
-      },
       SEPARATOR,
       // The OS full-screen item only exists on macOS; elsewhere it's a no-op,
       // so the window is toggled from the frontend instead.
@@ -261,7 +255,7 @@ function keymapChanges(): Keymap {
   return parseKeymap(useAppSettingsStore().settings?.keymap_config)
 }
 
-let lastState: MenuState = { sidebarMode: 'full', focusMode: false }
+let lastState: MenuState = { sidebarMode: 'full' }
 let lastKeymap: ReadonlyMap<string, string> = new Map()
 let nativeMenu = false
 let acceleratorsSuspended = false

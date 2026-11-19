@@ -3,7 +3,7 @@
 // Connections and links live in the info bar under the composer. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
 import {
-  Terminal, Settings, Code2, Folder, FolderOpen, Maximize2, Minimize2, Check, MoreHorizontal, Search,
+  Terminal, Settings, Code2, Folder, FolderOpen, MoreHorizontal, Search,
   SquareArrowOutUpRight, SquareArrowDownLeft,
 } from 'lucide-vue-next'
 import RunActionItems from '@/components/RunActionItems.vue'
@@ -23,7 +23,7 @@ import { titleEditRequest } from './titleEditRequest'
 
 const { t } = useI18n()
 const {
-  router, uiLayout, projectId, project, isSessionWindow, currentRun, handleOpenInVscode,
+  router, projectId, project, isSessionWindow, currentRun, handleOpenInVscode,
   handleOpenInFolder, handleOpenInTerminal, popoutSession, runActionProps, runActionHandlers, runFind,
 } = useRunSession()
 
@@ -132,16 +132,6 @@ if (isSessionWindow) {
               section="actions"
               v-on="runActionHandlers(currentRun, () => titleEditRequest++)"
             />
-
-            <DropdownItem
-              v-else-if="block === 'focusMode'"
-              :title="uiLayout.focusMode ? t('run.exitFocusMode') : t('run.enterFocusMode')"
-              @click="uiLayout.toggleFocus()"
-            >
-              <component :is="uiLayout.focusMode ? Minimize2 : Maximize2" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-              <span class="flex-1">{{ t('run.focusMode') }}</span>
-              <Check v-if="uiLayout.focusMode" class="h-3.5 w-3.5 shrink-0 text-primary" :stroke-width="2" />
-            </DropdownItem>
 
             <DropdownItem v-else-if="block === 'viewProject'" @click="openProjectScreen()">
               <Folder class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />

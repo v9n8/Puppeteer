@@ -19,10 +19,7 @@ import RemoteSessionModal from '@/components/remote/RemoteSessionModal.vue'
  * cuts the controller off and rotates its session token away, so it has to sign in
  * again), "Pair a device…" and a Settings link.
  *
- * `floating`: the bare dot pinned to a corner while focus mode hides the sidebar, shown only
- * while a Controller (another Puppeteer or a phone / web) drives this one, so that warning
- * is never invisible. The relay admits one Controller at a time, so the popover shows
- * one of the two.
+ * The relay admits one Controller at a time, so the popover shows one of the two.
  *
  * Hidden while Remote Control is off, and in remote-desktop windows (every call there
  * goes to the controlled machine: it would show its state and let it kick itself; the
@@ -30,7 +27,7 @@ import RemoteSessionModal from '@/components/remote/RemoteSessionModal.vue'
  */
 
 /** `compact`: just the dot, in the icon rail. */
-const props = defineProps<{ floating?: boolean; compact?: boolean }>()
+defineProps<{ compact?: boolean }>()
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -48,10 +45,7 @@ const pairRunId = ref<string | null>(null)
 
 const status = computed(() => store.status)
 const tone = computed(() => remoteTone(status.value))
-const visible = computed(() => {
-  if (!enabled || tone.value === 'off') return false
-  return props.floating ? isControlled(tone.value) : true
-})
+const visible = computed(() => enabled && tone.value !== 'off')
 
 const desktopSince = computed(() => {
   const v = status.value?.desktop_controlled_since
@@ -116,10 +110,6 @@ onBeforeUnmount(() => stopWatch?.())
       <button
         type="button"
         class="flex items-center gap-1.5 rounded px-1 text-2xs text-muted-foreground/70 hover:text-foreground"
-        :class="floating && [
-          'fixed bottom-3 left-3 z-[90] border bg-background/95 p-1.5 shadow-lg backdrop-blur',
-          tone === 'desktop' ? 'border-warning/40' : 'border-success/40',
-        ]"
         :title="tooltip"
         :aria-label="tooltip"
       >
@@ -131,12 +121,12 @@ onBeforeUnmount(() => stopWatch?.())
           />
           <span class="relative inline-flex h-2 w-2 rounded-full" :class="REMOTE_DOT_CLASS[tone]" />
         </span>
-        <span v-if="!floating && !compact">{{ label }}</span>
+        <span v-if="!compact">{{ label }}</span>
       </button>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent
-        :side="floating || compact ? 'right' : 'top'"
+        :side="compact ? 'right' : 'top'"
         align="end"
         :side-offset="6"
         :class="[popoverContent, 'w-64 space-y-2.5']"

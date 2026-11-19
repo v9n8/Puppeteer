@@ -48,7 +48,7 @@ type SessionTurn = { label: string; offset: number }
 
 export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   const {
-    t, route, router, runsStore, live, features, uiLayout, toast, confirm, projectId, activeRunId,
+    t, route, router, runsStore, live, features, toast, confirm, projectId, activeRunId,
     syncLoadedRunEngine, currentRunId, currentIsSession, liveEntries, liveOutputLines, liveHasStream,
     currentStatus, isSessionWindow,
   } = core
@@ -295,7 +295,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   // the fetched Content in as a left split column via the header toggle. Sessions
   // have no issue/PR content, so Content is never available for them.
   const showContent = ref(false)
-  const canToggleContent = computed(() => !uiLayout.focusMode && !currentIsSession.value)
+  const canToggleContent = computed(() => !currentIsSession.value)
   const contentVisible = computed(() => canToggleContent.value && showContent.value)
   const showResizeHandle = computed(() => contentVisible.value)
   // No run is selected AND the project has none — hide the Content / AI Result

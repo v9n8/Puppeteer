@@ -22,15 +22,9 @@ import {
 /**
  * App-wide layout visibility state shared between App.vue and RunView.
  *
- * `focusMode` collapses the app down to just the current AI run: the sidebar,
- * workspace tabs, run history and issue/PR Content are hidden, leaving only
- * Claude's output/question area and the composer. It is intentionally a
- * transient, in-memory flag — it resets on reload rather than persisting.
- *
- * `sidebarMode` is the separate, deliberate "give me more width" toggle: the
- * sidebar shrinks to an icon rail (never disappears, so every screen and badge
- * stays reachable). Unlike focus mode it applies to ALL routes and IS
- * persisted, once for wide windows and once for narrow ones (lib/sidebarMode).
+ * `sidebarMode` is the deliberate "give me more width" toggle: the sidebar
+ * shrinks to an icon rail (never disappears, so every screen and badge stays
+ * reachable). It applies to ALL routes and is persisted, once for wide windows and once for narrow ones (lib/sidebarMode).
  */
 const SIDEBAR_STORAGE_KEY = 'puppeteer.sidebar'
 // Pre-rail key: the sidebar was hidden outright. Read once, then removed.
@@ -185,7 +179,6 @@ function loadBoardNoFlagCollapsed(): boolean | null {
 }
 
 export const useUILayoutStore = defineStore('uiLayout', () => {
-  const focusMode = ref(false)
   const sidebarPrefs = ref<SidebarPrefs>(loadSidebarPrefs())
   // Only the narrow/wide side of NARROW_WIDTH matters, so listen to that one
   // media query instead of every resize event.
@@ -214,10 +207,6 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
     } catch {
       /* storage unavailable — the in-memory choice still works for this session */
     }
-  }
-
-  function toggleFocus() {
-    focusMode.value = !focusMode.value
   }
 
   function saveSidebarPrefs(next: SidebarPrefs) {
@@ -340,8 +329,6 @@ export const useUILayoutStore = defineStore('uiLayout', () => {
   }
 
   return {
-    focusMode,
-    toggleFocus,
     windowWidth,
     sidebarMode,
     toggleSidebar,

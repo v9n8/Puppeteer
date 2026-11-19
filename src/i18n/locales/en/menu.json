@@ -13,8 +13,6 @@
   "settings": "Settings…",
   "hideSidebar": "Collapse Sidebar to Icons",
   "showSidebar": "Expand Sidebar",
-  "enterFocusMode": "Enter Focus Mode",
-  "exitFocusMode": "Exit Focus Mode",
   "reload": "Reload Interface",
   "about": "About Puppeteer",
   "slackThreads": "Slack Threads",

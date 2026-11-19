@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { type UnlistenFn } from '@tauri-apps/api/event'
 import { useProjectsStore } from '@/stores/projects'
@@ -19,8 +19,6 @@ import UpdateNotifier from '@/components/UpdateNotifier.vue'
 import WhatsNewToast from '@/components/WhatsNewToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
-import RemoteIndicator from '@/components/RemoteIndicator.vue'
-import RemoteDesktopIndicator from '@/components/remote/RemoteDesktopIndicator.vue'
 import RemoteDesktopAlert from '@/components/remote/RemoteDesktopAlert.vue'
 import { ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import ImageCompareHost from '@/components/ImageCompareHost.vue'
@@ -272,10 +270,6 @@ function onSwitcherShortcut(e: KeyboardEvent) {
 // one of the keys lib/keymap.ts refuses to give an action.
 useFindShortcut()
 
-// The sidebar only disappears while focus mode collapses a run down to its
-// conversation; the user's own toggle shrinks it to an icon rail instead.
-const sidebarVisible = computed(() => !(uiLayout.focusMode && isRunRoute.value))
-
 // ── Native menu bar ─────────────────────────────────────────────────────────
 // Every menu action that isn't screen-specific is bound here, at the app root,
 // so it works from any route. New Session is bound here too, for the project on
@@ -284,19 +278,15 @@ const sidebarVisible = computed(() => !(uiLayout.focusMode && isRunRoute.value))
 const switcher = useProjectSwitcher()
 const routeCaptureContext = useRouteCaptureContext()
 
-/** Open the titlebar switcher, bringing the titlebar back first in focus mode. */
-async function openSwitcher() {
-  if (uiLayout.focusMode && isRunRoute.value) {
-    uiLayout.toggleFocus()
-    await nextTick()
-  }
+/** Open the titlebar switcher. */
+function openSwitcher() {
   switcher.open.value = true
 }
 
 function bindGlobalMenuActions() {
   const unbinds = [
     registerMenuAction(NEW_SESSION_ACTION, () => switcher.newSessionAnywhere(), { fallback: true }),
-    registerMenuAction('file.openProject', () => void openSwitcher()),
+    registerMenuAction('file.openProject', () => openSwitcher()),
     registerMenuAction(PREVIOUS_PROJECT_ACTION, () => switcher.goToPreviousProject()),
     // A NEW todo / note is ALWAYS captured in the standalone capture window, from
     // every entry point — menu, shortcut, run screen (existing ones are
@@ -322,7 +312,6 @@ function bindGlobalMenuActions() {
     registerMenuAction(OPEN_WINDOWS_ACTION, () => void openOverlayOnFocusedWindow()),
     registerMenuAction(ABOUT_ACTION, () => void router.push('/settings/about').catch(() => {})),
     registerMenuAction('view.toggleSidebar', () => uiLayout.toggleSidebar()),
-    registerMenuAction('view.toggleFocus', () => uiLayout.toggleFocus()),
     // Windows/Linux only — macOS uses the OS full-screen item (see appMenu.ts).
     registerMenuAction('view.toggleFullscreen', async () => {
       const win = getCurrentWebviewWindow()
@@ -365,14 +354,13 @@ watch(
     [
       locale.value,
       uiLayout.sidebarMode,
-      uiLayout.focusMode,
       isMenuActionBound('file.newSession'),
       features.tree,
       appSettings.settings?.keymap_config,
     ] as const,
   () => {
     if (isPopoutWindow || isSessionWindow) return
-    applyAppMenu({ sidebarMode: uiLayout.sidebarMode, focusMode: uiLayout.focusMode })
+    applyAppMenu({ sidebarMode: uiLayout.sidebarMode })
   },
 )
 
@@ -477,7 +465,7 @@ onMounted(async () => {
   } catch {
     // Ignore (e.g. running outside the Tauri shell during dev in a browser).
   }
-  applyAppMenu({ sidebarMode: uiLayout.sidebarMode, focusMode: uiLayout.focusMode })
+  applyAppMenu({ sidebarMode: uiLayout.sidebarMode })
 
   // Populate the menu-bar window switcher (just the main window at first; session
   // pop-outs re-send as they open — see lib/tray.ts / lib/sessionWindow.ts).
@@ -512,9 +500,8 @@ onMounted(async () => {
 
          This is the app's only chrome row. The sidebar has no brand header of
          its own any more, so nothing competes with a view's header for the top
-         line, and the run screen gains back ~52px of height for the conversation.
-         Hidden in focus mode, where the point is no chrome at all. -->
-    <AppTitlebar v-if="!(uiLayout.focusMode && isRunRoute)" />
+         line, and the run screen gains back ~52px of height for the conversation. -->
+    <AppTitlebar />
     <AgentStatusStrip />
 
     <div class="flex flex-1 min-h-0">
@@ -522,7 +509,7 @@ onMounted(async () => {
          52px icon rail (all routes, persisted). Only focus mode hides it, and
          only while in the run workspace, so other routes like project settings
          keep their navigation. -->
-    <AppSidebar :visible="sidebarVisible" :mode="uiLayout.sidebarMode" />
+    <AppSidebar :mode="uiLayout.sidebarMode" />
 
     <!-- Main content -->
     <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -574,7 +561,7 @@ onMounted(async () => {
     <CommandPalette v-if="features.isOn('app.command_palette')" />
 
     <!-- "Open windows" (⌘⇧E): under the title bar, so its button stays in sight. -->
-    <WindowsOverlay :top-offset="uiLayout.focusMode && isRunRoute ? 0 : 40" />
+    <WindowsOverlay :top-offset="40" />
 
     <!-- Startup prompt for processes left running by the previous app session -->
     <OrphanProcessesPrompt />
@@ -591,11 +578,6 @@ onMounted(async () => {
     <!-- App-wide toast host (see useToast) -->
     <ToastHost />
 
-    <!-- Focus mode hides the sidebar: the Remote Control dot moves to a corner while a
-         Controller drives this one, so that warning is never invisible; in a
-         remote-desktop window, the link dot does. -->
-    <RemoteIndicator v-if="!sidebarVisible" floating />
-    <RemoteDesktopIndicator v-if="!sidebarVisible" floating />
     <!-- Remote-desktop window: shown only while the link is down -->
     <RemoteDesktopAlert />
 

@@ -13,8 +13,6 @@
   "settings": "Cài đặt…",
   "hideSidebar": "Thu thanh điều hướng thành cột icon",
   "showSidebar": "Mở rộng thanh điều hướng",
-  "enterFocusMode": "Vào chế độ tập trung",
-  "exitFocusMode": "Thoát chế độ tập trung",
   "reload": "Tải lại giao diện",
   "about": "Giới thiệu Puppeteer",
   "slackThreads": "Thread Slack",

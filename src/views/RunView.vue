@@ -51,7 +51,7 @@ const hasChangedTab = computed(() => !!currentRunId.value && sessionTabs.stateFo
     <div class="flex flex-1 overflow-hidden">
       <!-- Left panel: controls + history (hidden in focus mode, and in a session
            pop-out — that window is locked to its one run, no switcher). -->
-      <RunSessionRail v-if="!uiLayout.focusMode && !isSessionWindow" />
+      <RunSessionRail v-if="!isSessionWindow" />
 
       <!-- Terminal panel (split-pane: Content | AI Result) -->
       <div class="flex-1 flex flex-col overflow-hidden bg-background">

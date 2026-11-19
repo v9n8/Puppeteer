@@ -5,7 +5,6 @@
  * label = the controlled device. The popover holds the ways out — Files,
  * reconnect after an error, sign in again, sign out.
  *
- * `floating`: the bare dot pinned to a corner while focus mode hides the sidebar.
  * Connection problems also raise components/remote/RemoteDesktopAlert.vue, so
  * they are seen without opening this.
  */
@@ -19,7 +18,7 @@ import { useEscapeClose } from '@/composables/useEscapeClose'
 import { useRemoteDesktopLink } from '@/composables/useRemoteDesktopLink'
 
 /** `compact`: just the dot, in the icon rail. */
-defineProps<{ floating?: boolean; compact?: boolean }>()
+defineProps<{ compact?: boolean }>()
 
 const { t } = useI18n()
 const link = useRemoteDesktopLink()
@@ -39,17 +38,16 @@ function run(action: () => void) {
       <button
         type="button"
         class="flex min-w-0 items-center gap-1.5 rounded px-1 text-2xs text-muted-foreground/70 hover:text-foreground"
-        :class="floating && 'fixed bottom-3 left-3 z-[90] border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur'"
         :title="`${t('remote.desktop.banner.controlling', { device: label })} · ${stateText}`"
         :aria-label="`${t('remote.desktop.banner.controlling', { device: label })} · ${stateText}`"
       >
         <span class="relative inline-flex h-2 w-2 shrink-0 rounded-full" :class="dotClass" />
-        <span v-if="!floating && !compact" class="truncate">{{ label }}</span>
+        <span v-if="!compact" class="truncate">{{ label }}</span>
       </button>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent
-        :side="floating || compact ? 'right' : 'top'"
+        :side="compact ? 'right' : 'top'"
         align="end"
         :side-offset="6"
         :class="[popoverContent, 'w-64 space-y-2.5']"

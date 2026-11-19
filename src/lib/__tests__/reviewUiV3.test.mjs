@@ -29,3 +29,14 @@ test('UR-02: flag menu labels carry no trailing ellipsis', () => {
     assert.doesNotMatch(menu.manage, /…$/, lang)
   }
 })
+
+test('UR-05: focus mode is gone from the store, the app menu and the session header', () => {
+  for (const p of ['../../stores/uiLayout.ts', '../../App.vue', '../../lib/appMenu.ts', '../../components/sessions/RunHeader.vue', '../../views/RunView.vue']) {
+    assert.doesNotMatch(read(p), /focusMode|toggleFocus\b/, p)
+  }
+  for (const lang of ['en', 'vi']) {
+    const menu = json(`../../i18n/locales/${lang}/menu.json`)
+    assert.equal(menu.enterFocusMode, undefined, lang)
+    assert.equal(json(`../../i18n/locales/${lang}/run.json`).focusMode, undefined, lang)
+  }
+})

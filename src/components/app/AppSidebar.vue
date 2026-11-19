@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The main window's sidebar: three headed groups (Work / My work / Agent), the
 // docks, and a footer with Stats, Trash, Settings and the version. App.vue
-// decides whether it shows (`visible`) and in which form (`mode`): the full
-// 216px column, or a 52px icon rail (same entries, labels as tooltips).
+// decides its form (`mode`): the full 216px column, or a 52px icon rail (same
+// entries, labels as tooltips).
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -27,8 +27,6 @@ import { useOpenModes } from '@/composables/useOpenModes'
 import { useRouteCaptureContext } from '@/composables/useRouteCaptureContext'
 
 const props = defineProps<{
-  /** Off while focus mode collapses a run down to its conversation. */
-  visible: boolean
   mode: SidebarMode
 }>()
 const rail = computed(() => props.mode === 'rail')
@@ -111,7 +109,6 @@ function badgeTip(id: string): string | undefined {
 
 <template>
   <aside
-    v-if="visible"
     class="app-sidebar shrink-0 overflow-hidden bg-sidebar border-r border-border"
     :class="rail ? 'w-[52px]' : 'w-[216px]'"
   >
