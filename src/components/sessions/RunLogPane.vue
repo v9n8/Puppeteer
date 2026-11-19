@@ -298,7 +298,7 @@ function onOpenUrl(url: string) {
       <div
         v-if="isViewingHistory"
         ref="historyEl"
-        class="chat-text flex-1 min-h-0 overflow-auto px-6 py-5 text-md leading-[1.6]"
+        class="chat-text flex-1 min-h-0 overflow-auto pl-6 pr-14 py-5 text-md leading-[1.6]"
         @scroll="onHistoryScroll"
       >
         <!-- Loading animation while the log is read + parsed from disk. -->
@@ -371,7 +371,7 @@ function onOpenUrl(url: string) {
       <div
         v-else-if="hasLiveOutput"
         ref="outputEl"
-        class="chat-text flex-1 min-h-0 overflow-auto px-6 py-5 text-md leading-[1.6]"
+        class="chat-text flex-1 min-h-0 overflow-auto pl-6 pr-14 py-5 text-md leading-[1.6]"
         @scroll="onOutputScroll"
         @pointerdown="onOutputPointerDown"
       >
@@ -433,17 +433,29 @@ function onOpenUrl(url: string) {
       <InlinePermissionBlock v-if="currentRunId" :run-id="currentRunId" />
 
       <!-- Floating column at the bottom right (after AWOG's SessionTranscript):
-           the prompt navigator — previous prompt · n/N (opens the prompt list) ·
-           next prompt — then Top and Latest. Top and Latest always keep their
-           place, dimmed while there is nowhere to go, so the navigator above
-           them never jumps. The log keeps a right gutter (pr-14) for it. -->
+           Top, the prompt navigator — previous prompt · n/N (opens the prompt
+           list) · next prompt — then Latest. Top and Latest always keep their
+           place, hidden while there is nowhere to go; Top sits above the
+           navigator so its empty slot never opens a gap between the navigator
+           and Latest. The log keeps a right gutter (pr-14) for it. -->
       <div
         v-if="isViewingHistory ? historyHasStream : hasLiveOutput"
         class="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col items-center gap-1.5"
       >
+        <button
+          type="button"
+          :class="[JUMP_BTN, !canJumpTop && JUMP_OFF]"
+          :title="t('run.scrollToTop')"
+          :aria-label="t('run.scrollToTop')"
+          :aria-hidden="!canJumpTop || undefined"
+          :tabindex="canJumpTop ? undefined : -1"
+          @click="scrollToFirstTurn"
+        >
+          <ChevronsUp class="h-4 w-4" :stroke-width="2" />
+        </button>
         <div
           v-if="showTurnNav"
-          class="pointer-events-auto flex w-8 flex-col items-center rounded-full border border-border bg-card py-0.5 shadow-md"
+          class="pointer-events-auto flex min-w-8 flex-col items-center rounded-full px-0.5 border border-border bg-card py-0.5 shadow-md"
           role="group"
           :aria-label="t('run.promptNav')"
         >
@@ -497,17 +509,6 @@ function onOpenUrl(url: string) {
             <ChevronDown class="h-3.5 w-3.5" :stroke-width="2" />
           </button>
         </div>
-        <button
-          type="button"
-          :class="[JUMP_BTN, !canJumpTop && JUMP_OFF]"
-          :title="t('run.scrollToTop')"
-          :aria-label="t('run.scrollToTop')"
-          :aria-hidden="!canJumpTop || undefined"
-          :tabindex="canJumpTop ? undefined : -1"
-          @click="scrollToFirstTurn"
-        >
-          <ChevronsUp class="h-4 w-4" :stroke-width="2" />
-        </button>
         <button
           type="button"
           :class="[JUMP_BTN, !canJumpLatest && JUMP_OFF]"

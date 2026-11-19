@@ -40,3 +40,15 @@ test('UR-05: focus mode is gone from the store, the app menu and the session hea
     assert.equal(json(`../../i18n/locales/${lang}/run.json`).focusMode, undefined, lang)
   }
 })
+
+test('UR-08: scroll column is Top · prompt navigator · Latest, sized by its counter, beside a log gutter', () => {
+  const src = read('../../components/sessions/RunLogPane.vue')
+  const top = src.indexOf('@click="scrollToFirstTurn"')
+  const nav = src.indexOf(':aria-label="t(\'run.promptNav\')"')
+  const latest = src.indexOf('@click="jumpToLatest"')
+  assert.ok(top > 0 && top < nav && nav < latest)
+  // A fixed w-8 cut "21/22" off; the pill now grows with the counter.
+  assert.doesNotMatch(src, /flex w-8 flex-col items-center rounded-full/)
+  // Both log scrollers leave room for the floating column.
+  assert.equal(src.match(/overflow-auto pl-6 pr-14 py-5/g)?.length, 2)
+})
