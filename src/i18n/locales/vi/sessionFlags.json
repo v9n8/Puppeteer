@@ -1,9 +1,10 @@
 {
   "builtin": {
-    "needs_review": "Cần xem",
+    "backlog": "Tồn đọng",
+    "todo": "Cần làm",
     "in_progress": "Đang làm",
-    "awaiting_review": "Chờ review",
-    "settled": "Đã chốt"
+    "in_review": "Đang review",
+    "done": "Xong"
   },
   "errors": {
     "nameRequired": "Flag cần có tên.",

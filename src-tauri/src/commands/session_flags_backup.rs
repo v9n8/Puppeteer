@@ -358,11 +358,11 @@ mod tests {
         // Machine A: a renamed default, a new shared flag, a project flag, a hidden
         // flag, flagged sessions (one in a project B does not have).
         let a = test_db().await;
-        update(&a, "needs_review", Some("Look again"), None).await.unwrap();
+        update(&a, "backlog", Some("Look again"), None).await.unwrap();
         let blocked = create(&a, None, "Blocked", "destructive").await.unwrap();
         let client = create(&a, Some("p1"), "Waiting on client", "neutral").await.unwrap();
         create(&a, Some("p2"), "Only on A", "info").await.unwrap();
-        set_hidden(&a, "p1", "settled", true).await.unwrap();
+        set_hidden(&a, "p1", "done", true).await.unwrap();
         add_run(&a, "r1", "p1", None).await;
         add_run(&a, "r2", "p1", None).await;
         add_run(&a, "r3", "p2", None).await;
@@ -371,7 +371,7 @@ mod tests {
         tag_run(&a, "r2", Some(&blocked.id)).await.unwrap();
         tag_run(&a, "gone", Some("in_progress")).await.unwrap();
         let mut backup = collect(&a).await.unwrap();
-        assert_eq!((backup.flags.len(), backup.hidden.len(), backup.runs.len()), (7, 1, 3));
+        assert_eq!((backup.flags.len(), backup.hidden.len(), backup.runs.len()), (8, 1, 3));
         // Through JSON, as the file carries it.
         backup = serde_json::from_str(&serde_json::to_string(&backup).unwrap()).unwrap();
         assert_eq!(backup.project_refs_mut().count(), 3);
@@ -382,7 +382,7 @@ mod tests {
         sqlx::query("DELETE FROM projects WHERE id = 'p2'").execute(&b).await.unwrap();
         sqlx::query("UPDATE projects SET id = 'b1' WHERE id = 'p1'").execute(&b).await.unwrap();
         let local_blocked = create(&b, None, "blocked", "info").await.unwrap();
-        delete(&b, "settled").await.unwrap();
+        delete(&b, "done").await.unwrap();
         add_run(&b, "x1", "b1", None).await;
         sqlx::query("UPDATE runs SET session_id = 's-r1' WHERE id = 'x1'").execute(&b).await.unwrap();
         add_run(&b, "r2", "b1", None).await;
@@ -393,20 +393,21 @@ mod tests {
         let shared = list(&b, Some("b1")).await.unwrap();
         let shown = shared.iter().map(|f| (f.name.as_str(), f.color.as_str(), f.hidden)).collect::<Vec<_>>();
         assert_eq!(shown, [
-            ("Look again", "warning", false),
-            ("In progress", "info", false),
-            ("Awaiting review", "primary", false),
-            ("Settled", "success", true),
+            ("Look again", "neutral", false),
+            ("To Do", "primary", false),
+            ("In Progress", "info", false),
+            ("In Review", "warning", false),
+            ("Done", "success", true),
             ("Blocked", "destructive", false),
             ("Waiting on client", "neutral", false),
         ]);
         // Matched by name, not added twice; the deleted default came back as itself.
-        assert_eq!(shared[4].id, local_blocked.id);
-        assert_eq!(shared[3].builtin_key.as_deref(), Some("settled"));
-        assert_eq!(run_flag(&b, "x1").await, Some(shared[5].id.clone()));
+        assert_eq!(shared[5].id, local_blocked.id);
+        assert_eq!(shared[4].builtin_key.as_deref(), Some("done"));
+        assert_eq!(run_flag(&b, "x1").await, Some(shared[6].id.clone()));
         assert_eq!(run_flag(&b, "r2").await, Some(local_blocked.id.clone()));
         let c = &report.counts[SECTION];
-        assert_eq!((c.created, c.updated, c.unchanged), (2, 2, 2), "{:?}", report.warnings);
+        assert_eq!((c.created, c.updated, c.unchanged), (2, 2, 3), "{:?}", report.warnings);
         assert!(report.warnings.iter().any(|w| w.contains("1 project flag(s) skipped")), "{:?}", report.warnings);
         assert!(report.warnings.iter().any(|w| w.contains("1 session flag(s) skipped")), "{:?}", report.warnings);
 
@@ -414,8 +415,8 @@ mod tests {
         let mut again = ImportReport::default();
         import(&b, &backup, &mut again).await;
         let c = &again.counts[SECTION];
-        assert_eq!((c.created, c.updated, c.unchanged), (0, 0, 6));
-        assert_eq!(list(&b, Some("b1")).await.unwrap().len(), 6);
+        assert_eq!((c.created, c.updated, c.unchanged), (0, 0, 7));
+        assert_eq!(list(&b, Some("b1")).await.unwrap().len(), 7);
     }
 
     #[tokio::test]
@@ -425,7 +426,7 @@ mod tests {
         add_run(&a, "r", "p2", Some("in_progress")).await;
         sqlx::query("UPDATE projects SET deleted_at = 'x' WHERE id = 'p2'").execute(&a).await.unwrap();
         let backup = collect(&a).await.unwrap();
-        assert_eq!((backup.flags.len(), backup.runs.len()), (4, 0));
+        assert_eq!((backup.flags.len(), backup.runs.len()), (5, 0));
 
         let b = test_db().await;
         let bad = SessionFlagsBackup {
@@ -442,6 +443,6 @@ mod tests {
         let mut report = ImportReport::default();
         import(&b, &bad, &mut report).await;
         assert!(report.warnings.iter().any(|w| w.contains("'Pink'")), "{:?}", report.warnings);
-        assert_eq!(list(&b, None).await.unwrap().len(), 4);
+        assert_eq!(list(&b, None).await.unwrap().len(), 5);
     }
 }

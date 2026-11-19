@@ -273,3 +273,19 @@ test('UR-32: list pane width is clamped, remembered per screen, and every list s
   const mcp = read('../../components/settings/McpSettings.vue')
   assert.ok(mcp.indexOf('row.line || ') < mcp.indexOf("t('mcp.list.claudeOnly')"))
 })
+
+test('UR-04: a new migration resets the flags to the five work-status defaults, matched in code and i18n', () => {
+  const keys = ['backlog', 'todo', 'in_progress', 'in_review', 'done']
+  const sql = read('../../../src-tauri/migrations/0025_default_flags_v2.sql')
+  // Every flag goes (0023's trigger clears the sessions and hidden marks), then the five are seeded in order.
+  assert.match(sql, /^DELETE FROM session_flags;$/m)
+  const seeded = [...sql.matchAll(/\('(\w+)', NULL, '[^']+', '(\w+)', (\d), '\1',/g)].map((m) => [m[1], m[2], Number(m[3])])
+  assert.deepEqual(seeded, [['backlog', 'neutral', 0], ['todo', 'primary', 1], ['in_progress', 'info', 2], ['in_review', 'warning', 3], ['done', 'success', 4]])
+  const rust = read('../../../src-tauri/src/commands/session_flags.rs')
+  for (const [key, color] of seeded) assert.match(rust, new RegExp(`DefaultFlag \\{ key: "${key}", name: "[^"]+", color: "${color}" \\}`), key)
+  assert.match(read('../sessionFlags.ts'), /DEFAULT_FLAG_KEYS = \['backlog', 'todo', 'in_progress', 'in_review', 'done'\]/)
+  for (const lang of ['en', 'vi']) {
+    assert.deepEqual(Object.keys(json(`../../i18n/locales/${lang}/sessionFlags.json`).builtin), keys, lang)
+  }
+  assert.equal(json('../../i18n/locales/en/sessionFlags.json').builtin.todo, 'To Do')
+})

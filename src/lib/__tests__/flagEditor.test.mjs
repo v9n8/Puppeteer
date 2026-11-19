@@ -51,7 +51,7 @@ test('moveId puts an item at its new slot', () => {
 })
 
 test('Restore is off only while every default is there', () => {
-  const all = ['needs_review', 'in_progress', 'awaiting_review', 'settled'].map((k) => flag(k, { builtin_key: k }))
+  const all = ['backlog', 'todo', 'in_progress', 'in_review', 'done'].map((k) => flag(k, { builtin_key: k }))
   assert.equal(restoreDisabled(all), true)
   assert.equal(restoreDisabled(all.slice(2)), false)
   assert.equal(restoreDisabled([]), false)

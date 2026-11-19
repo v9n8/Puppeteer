@@ -1,5 +1,5 @@
-//! Session flags (V3-18): one coloured label per session ("Needs review",
-//! "In progress", …) that the History rows show and filter by.
+//! Session flags (V3-18): one coloured label per session ("To Do",
+//! "In Progress", …) that the History rows show and filter by.
 //!
 //! Every flag is a row of `session_flags` (migration 0023): shared when
 //! `project_id` is NULL, else that project's own. A project hides shared flags
@@ -29,7 +29,7 @@ pub const CHANGED_EVENT: &str = "session-flags:changed";
 /// `src/lib/sessionFlags.ts` mirrors it.
 pub const NAME_MAX_CHARS: usize = 24;
 
-/// A default flag as migration 0023 seeds it. The name is the English UI string:
+/// A default flag as migration 0025 seeds it. The name is the English UI string:
 /// while a row still has it the UI shows the translated one.
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultFlag {
@@ -39,12 +39,13 @@ pub struct DefaultFlag {
 }
 
 /// The defaults, in the seeded order (positions 0, 1, …). Must match migration
-/// 0023 (a test checks it). A restored default goes to the end instead.
+/// 0025, which replaced the set 0023 seeded (a test checks it). A restored default goes to the end instead.
 pub const DEFAULT_FLAGS: &[DefaultFlag] = &[
-    DefaultFlag { key: "needs_review", name: "Needs review", color: "warning" },
-    DefaultFlag { key: "in_progress", name: "In progress", color: "info" },
-    DefaultFlag { key: "awaiting_review", name: "Awaiting review", color: "primary" },
-    DefaultFlag { key: "settled", name: "Settled", color: "success" },
+    DefaultFlag { key: "backlog", name: "Backlog", color: "neutral" },
+    DefaultFlag { key: "todo", name: "To Do", color: "primary" },
+    DefaultFlag { key: "in_progress", name: "In Progress", color: "info" },
+    DefaultFlag { key: "in_review", name: "In Review", color: "warning" },
+    DefaultFlag { key: "done", name: "Done", color: "success" },
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
@@ -56,7 +57,7 @@ pub struct SessionFlag {
     /// A `PROJECT_COLORS` token.
     pub color: String,
     pub position: i64,
-    /// The default this row is (`needs_review`, …); `None` for the user's flags.
+    /// The default this row is (`backlog`, …); `None` for the user's flags.
     pub builtin_key: Option<String>,
     /// A default whose name is still the seeded one: the UI shows it translated.
     #[sqlx(skip)]
@@ -523,14 +524,15 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn the_migration_seeds_the_defaults_as_in_code_and_leaves_old_runs_unflagged() {
-        // Migrate up to 0022 (through sqlx like the app does), add old data, then the rest.
+    async fn the_migrations_reset_to_the_defaults_as_in_code_and_leave_old_runs_unflagged() {
+        // Migrate up to 0024 (through sqlx like the app does), add old flags and flagged
+        // sessions, then the rest: 0025 drops them all and seeds the current defaults.
         let dir = std::env::temp_dir().join(format!("puppeteer-mig-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
         for entry in std::fs::read_dir(&source).unwrap() {
             let name = entry.unwrap().file_name().into_string().unwrap();
-            if name.as_str() < "0023" {
+            if name.as_str() < "0025" {
                 std::fs::copy(source.join(&name), dir.join(&name)).unwrap();
             }
         }
@@ -541,10 +543,25 @@ pub(crate) mod tests {
             .execute(&db)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO runs (id, project_id, type, created_at) VALUES ('old', 'p1', 'session', 'c')")
+        sqlx::query(
+            "INSERT INTO session_flags (id, project_id, name, color, position, created_at, updated_at) \
+             VALUES ('mine', 'p1', 'Mine', 'info', 0, 'c', 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO project_hidden_flags (project_id, flag_id) VALUES ('p1', 'needs_review')")
             .execute(&db)
             .await
             .unwrap();
+        sqlx::query(
+            "INSERT INTO runs (id, project_id, type, created_at, flag_id) VALUES \
+             ('old', 'p1', 'session', 'c', 'settled'), ('own', 'p1', 'session', 'c', 'mine'), \
+             ('none', 'p1', 'session', 'c', NULL)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
         sqlx::migrate!("./migrations").run(&db).await.unwrap();
 
         let flags = list(&db, None).await.unwrap();
@@ -559,7 +576,12 @@ pub(crate) mod tests {
             check_color(def.color).unwrap();
             check_name(def.name).unwrap();
         }
-        assert_eq!(run_flag(&db, "old").await, None);
+        assert_eq!(list(&db, Some("p1")).await.unwrap().len(), DEFAULT_FLAGS.len());
+        for run in ["old", "own", "none"] {
+            assert_eq!(run_flag(&db, run).await, None, "{run}");
+        }
+        let marks: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_hidden_flags").fetch_one(&db).await.unwrap();
+        assert_eq!(marks, 0);
     }
 
     #[tokio::test]
@@ -567,7 +589,7 @@ pub(crate) mod tests {
         let db = test_db().await;
         let own = create(&db, Some("p1"), "Waiting on client", "neutral").await.unwrap();
         create(&db, Some("p2"), "Other", "neutral").await.unwrap();
-        set_hidden(&db, "p1", "settled", true).await.unwrap();
+        set_hidden(&db, "p1", "done", true).await.unwrap();
         add_run(&db, "r1", "p1", Some("in_progress")).await;
         add_run(&db, "r2", "p2", Some("in_progress")).await;
         add_run(&db, "r3", "p1", Some(&own.id)).await;
@@ -576,14 +598,14 @@ pub(crate) mod tests {
         sqlx::query("UPDATE runs SET deleted_at = 'x' WHERE id = 'r4'").execute(&db).await.unwrap();
 
         let shared = list(&db, None).await.unwrap();
-        assert_eq!(ids(&shared), ["needs_review", "in_progress", "awaiting_review", "settled"]);
-        assert_eq!(shared[1].run_count, 2);
+        assert_eq!(ids(&shared), ["backlog", "todo", "in_progress", "in_review", "done"]);
+        assert_eq!(shared[2].run_count, 2);
         assert!(shared.iter().all(|f| !f.hidden));
 
         let p1 = list(&db, Some("p1")).await.unwrap();
-        assert_eq!(ids(&p1), ["needs_review", "in_progress", "awaiting_review", "settled", own.id.as_str()]);
-        assert_eq!(p1.iter().map(|f| f.hidden).collect::<Vec<_>>(), [false, false, false, true, false]);
-        assert_eq!((p1[1].run_count, p1[4].run_count), (1, 1));
+        assert_eq!(ids(&p1), ["backlog", "todo", "in_progress", "in_review", "done", own.id.as_str()]);
+        assert_eq!(p1.iter().map(|f| f.hidden).collect::<Vec<_>>(), [false, false, false, false, true, false]);
+        assert_eq!((p1[2].run_count, p1[5].run_count), (1, 1));
     }
 
     #[tokio::test]
@@ -595,11 +617,11 @@ pub(crate) mod tests {
         assert!(create(&db, None, "Blocked", "").await.is_err());
         assert!(create(&db, None, "in PROGRESS", "info").await.is_err());
         assert!(create(&db, Some("nope"), "Blocked", "info").await.is_err());
-        assert_eq!(list(&db, None).await.unwrap().len(), 4);
+        assert_eq!(list(&db, None).await.unwrap().len(), 5);
 
         let max = "é".repeat(NAME_MAX_CHARS);
         let blocked = create(&db, None, &format!("  {max} "), "destructive").await.unwrap();
-        assert_eq!((blocked.name.as_str(), blocked.position, blocked.builtin_key), (max.as_str(), 4, None));
+        assert_eq!((blocked.name.as_str(), blocked.position, blocked.builtin_key), (max.as_str(), 5, None));
         assert!(!blocked.stock_name);
         // A project may reuse a shared flag's name; its own scope starts at 0.
         let own = create(&db, Some("p1"), "In progress", "info").await.unwrap();
@@ -610,16 +632,16 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn update_keeps_missing_fields_and_checks_like_create() {
         let db = test_db().await;
-        let renamed = update(&db, "needs_review", Some(" Look again "), None).await.unwrap();
-        assert_eq!((renamed.name.as_str(), renamed.color.as_str(), renamed.stock_name), ("Look again", "warning", false));
-        let recoloured = update(&db, "settled", None, Some("neutral")).await.unwrap();
-        assert_eq!((recoloured.name.as_str(), recoloured.color.as_str(), recoloured.stock_name), ("Settled", "neutral", true));
-        assert!(update(&db, "settled", Some("in progress"), None).await.is_err());
-        assert!(update(&db, "settled", None, Some("red")).await.is_err());
-        assert!(update(&db, "settled", Some(""), None).await.is_err());
+        let renamed = update(&db, "backlog", Some(" Look again "), None).await.unwrap();
+        assert_eq!((renamed.name.as_str(), renamed.color.as_str(), renamed.stock_name), ("Look again", "neutral", false));
+        let recoloured = update(&db, "done", None, Some("info")).await.unwrap();
+        assert_eq!((recoloured.name.as_str(), recoloured.color.as_str(), recoloured.stock_name), ("Done", "info", true));
+        assert!(update(&db, "done", Some("in progress"), None).await.is_err());
+        assert!(update(&db, "done", None, Some("red")).await.is_err());
+        assert!(update(&db, "done", Some(""), None).await.is_err());
         assert!(update(&db, "missing", Some("x"), None).await.is_err());
         // Its own name in another case is fine.
-        assert_eq!(update(&db, "settled", Some("SETTLED"), None).await.unwrap().name, "SETTLED");
+        assert_eq!(update(&db, "done", Some("DONE"), None).await.unwrap().name, "DONE");
     }
 
     #[tokio::test]
@@ -628,12 +650,12 @@ pub(crate) mod tests {
         for i in 0..5 {
             add_run(&db, &format!("r{i}"), "p1", Some("in_progress")).await;
         }
-        add_run(&db, "other", "p1", Some("settled")).await;
+        add_run(&db, "other", "p1", Some("done")).await;
         set_hidden(&db, "p1", "in_progress", true).await.unwrap();
         let (outcome, scope) = delete(&db, "in_progress").await.unwrap();
         assert_eq!((outcome, scope), (DeleteFlagOutcome { cleared_runs: 5 }, None));
         assert_eq!(run_flag(&db, "r0").await, None);
-        assert_eq!(run_flag(&db, "other").await.as_deref(), Some("settled"));
+        assert_eq!(run_flag(&db, "other").await.as_deref(), Some("done"));
         let marks: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_hidden_flags").fetch_one(&db).await.unwrap();
         assert_eq!(marks, 0);
         assert!(delete(&db, "in_progress").await.is_err());
@@ -643,45 +665,45 @@ pub(crate) mod tests {
     async fn restore_puts_back_only_the_deleted_defaults_at_the_end() {
         let db = test_db().await;
         assert!(restore_defaults(&db).await.unwrap().is_empty());
-        add_run(&db, "r1", "p1", Some("needs_review")).await;
-        delete(&db, "awaiting_review").await.unwrap();
-        update(&db, "needs_review", Some("Look again"), Some("info")).await.unwrap();
+        add_run(&db, "r1", "p1", Some("backlog")).await;
+        delete(&db, "in_review").await.unwrap();
+        update(&db, "backlog", Some("Look again"), Some("info")).await.unwrap();
         let mine = create(&db, None, "Blocked", "destructive").await.unwrap();
 
         let restored = restore_defaults(&db).await.unwrap();
-        assert_eq!(ids(&restored), ["awaiting_review"]);
+        assert_eq!(ids(&restored), ["in_review"]);
         assert_eq!(
             (restored[0].name.as_str(), restored[0].color.as_str(), restored[0].builtin_key.as_deref()),
-            ("Awaiting review", "primary", Some("awaiting_review"))
+            ("In Review", "warning", Some("in_review"))
         );
         assert!(restored[0].position > mine.position);
         let shared = list(&db, None).await.unwrap();
-        assert_eq!(shared.last().unwrap().id, "awaiting_review");
-        let edited = shared.iter().find(|f| f.id == "needs_review").unwrap();
+        assert_eq!(shared.last().unwrap().id, "in_review");
+        let edited = shared.iter().find(|f| f.id == "backlog").unwrap();
         assert_eq!((edited.name.as_str(), edited.color.as_str(), edited.run_count), ("Look again", "info", 1));
         assert!(restore_defaults(&db).await.unwrap().is_empty());
 
         // A shared flag of the user's took a default's name meanwhile.
-        delete(&db, "settled").await.unwrap();
-        create(&db, None, "settled", "info").await.unwrap();
+        delete(&db, "done").await.unwrap();
+        create(&db, None, "done", "info").await.unwrap();
         let back = restore_defaults(&db).await.unwrap();
-        assert_eq!((back[0].id.as_str(), back[0].name.as_str(), back[0].stock_name), ("settled", "Settled (2)", false));
+        assert_eq!((back[0].id.as_str(), back[0].name.as_str(), back[0].stock_name), ("done", "Done (2)", false));
     }
 
     #[tokio::test]
     async fn reorder_needs_exactly_the_scopes_flags() {
         let db = test_db().await;
         let own = create(&db, Some("p1"), "Mine", "info").await.unwrap();
-        reorder(&db, None, &strings(&["settled", "needs_review", "awaiting_review", "in_progress"])).await.unwrap();
-        assert_eq!(ids(&list(&db, None).await.unwrap()), ["settled", "needs_review", "awaiting_review", "in_progress"]);
+        reorder(&db, None, &strings(&["done", "backlog", "in_review", "todo", "in_progress"])).await.unwrap();
+        assert_eq!(ids(&list(&db, None).await.unwrap()), ["done", "backlog", "in_review", "todo", "in_progress"]);
         // Missing, extra, duplicated or another scope's id: refused, nothing moves.
-        assert!(reorder(&db, None, &strings(&["settled", "needs_review", "awaiting_review"])).await.is_err());
-        let extra = strings(&["settled", "needs_review", "awaiting_review", "in_progress", &own.id]);
+        assert!(reorder(&db, None, &strings(&["done", "backlog", "in_review", "todo"])).await.is_err());
+        let extra = strings(&["done", "backlog", "in_review", "todo", "in_progress", &own.id]);
         assert!(reorder(&db, None, &extra).await.is_err());
-        assert!(reorder(&db, None, &strings(&["settled", "settled", "awaiting_review", "in_progress"])).await.is_err());
-        assert!(reorder(&db, Some("p1"), &strings(&["settled"])).await.is_err());
+        assert!(reorder(&db, None, &strings(&["done", "done", "in_review", "todo", "in_progress"])).await.is_err());
+        assert!(reorder(&db, Some("p1"), &strings(&["done"])).await.is_err());
         reorder(&db, Some("p1"), &strings(&[&own.id])).await.unwrap();
-        assert_eq!(ids(&list(&db, None).await.unwrap())[0], "settled");
+        assert_eq!(ids(&list(&db, None).await.unwrap())[0], "done");
     }
 
     #[tokio::test]
@@ -700,8 +722,8 @@ pub(crate) mod tests {
         tag_run(&db, "r", None).await.unwrap();
         assert_eq!(run_flag(&db, "r").await, None);
 
-        set_hidden(&db, "p1", "settled", true).await.unwrap();
-        assert!(tag_run(&db, "r", Some("settled")).await.is_err());
+        set_hidden(&db, "p1", "done", true).await.unwrap();
+        assert!(tag_run(&db, "r", Some("done")).await.is_err());
         assert!(tag_run(&db, "r", Some(&theirs.id)).await.is_err());
         assert!(tag_run(&db, "r", Some("gone")).await.is_err());
         assert!(tag_run(&db, "nope", None).await.is_err());
@@ -715,21 +737,21 @@ pub(crate) mod tests {
         set_hidden(&db, "p1", "in_progress", true).await.unwrap();
         set_hidden(&db, "p1", "in_progress", true).await.unwrap();
         assert_eq!(run_flag(&db, "r").await.as_deref(), Some("in_progress"));
-        assert!(list(&db, Some("p1")).await.unwrap()[1].hidden);
+        assert!(list(&db, Some("p1")).await.unwrap()[2].hidden);
         set_hidden(&db, "p1", "in_progress", false).await.unwrap();
-        assert!(!list(&db, Some("p1")).await.unwrap()[1].hidden);
+        assert!(!list(&db, Some("p1")).await.unwrap()[2].hidden);
 
         let own = create(&db, Some("p1"), "Mine", "info").await.unwrap();
         assert!(set_hidden(&db, "p1", &own.id, true).await.is_err());
         assert!(set_hidden(&db, "p1", "gone", true).await.is_err());
-        assert!(set_hidden(&db, "nope", "settled", true).await.is_err());
+        assert!(set_hidden(&db, "nope", "done", true).await.is_err());
     }
 
     #[tokio::test]
     async fn deleting_a_project_drops_its_flags_and_marks() {
         let db = test_db().await;
         let own = create(&db, Some("p1"), "Mine", "info").await.unwrap();
-        set_hidden(&db, "p1", "settled", true).await.unwrap();
+        set_hidden(&db, "p1", "done", true).await.unwrap();
         add_run(&db, "r1", "p1", Some(&own.id)).await;
         sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
         let left: i64 = sqlx::query_scalar(
@@ -741,7 +763,7 @@ pub(crate) mod tests {
         .await
         .unwrap();
         assert_eq!(left, 0);
-        assert_eq!(list(&db, None).await.unwrap().len(), 4);
+        assert_eq!(list(&db, None).await.unwrap().len(), 5);
     }
 
     #[test]

@@ -14,7 +14,7 @@ const flag = (id, extra = {}) => ({
 const t = (key) => `<${key}>`
 
 test('the defaults and the name limit match the backend', () => {
-  assert.deepEqual([...DEFAULT_FLAG_KEYS], ['needs_review', 'in_progress', 'awaiting_review', 'settled'])
+  assert.deepEqual([...DEFAULT_FLAG_KEYS], ['backlog', 'todo', 'in_progress', 'in_review', 'done'])
   assert.equal(FLAG_NAME_MAX, 24)
   const source = readFileSync(new URL('../../../src-tauri/src/commands/session_flags.rs', import.meta.url), 'utf8')
   assert.match(source, /pub const NAME_MAX_CHARS: usize = 24;/)
@@ -29,9 +29,9 @@ test('every default has a translated name in both languages', () => {
 })
 
 test('a default shows its translated name until the user renames it', () => {
-  const def = flag('settled', { name: 'Settled', builtin_key: 'settled', stock_name: true })
-  assert.equal(flagLabel(def, t), '<sessionFlags.builtin.settled>')
-  assert.equal(flagLabel({ ...def, name: 'Done', stock_name: false }, t), 'Done')
+  const def = flag('done', { name: 'Done', builtin_key: 'done', stock_name: true })
+  assert.equal(flagLabel(def, t), '<sessionFlags.builtin.done>')
+  assert.equal(flagLabel({ ...def, name: 'Shipped', stock_name: false }, t), 'Shipped')
   assert.equal(flagLabel(flag('Blocked'), t), 'Blocked')
 })
 
@@ -47,7 +47,7 @@ test('the menu offers shared then own flags, without the hidden ones', () => {
 test('restore is needed only for the deleted defaults', () => {
   const all = DEFAULT_FLAG_KEYS.map((k) => flag(k, { builtin_key: k }))
   assert.deepEqual(missingDefaultFlags(all), [])
-  assert.deepEqual(missingDefaultFlags([all[0], all[3], flag('mine')]), ['in_progress', 'awaiting_review'])
+  assert.deepEqual(missingDefaultFlags([all[0], all[2], all[4], flag('mine')]), ['todo', 'in_review'])
   assert.deepEqual(missingDefaultFlags([]), [...DEFAULT_FLAG_KEYS])
 })
 

@@ -114,7 +114,7 @@ mod tests {
     #[tokio::test]
     async fn one_project_lists_its_sessions_and_flags_without_workers_or_trash() {
         let db = test_db().await;
-        add_run(&db, "a", "p1", Some("needs_review")).await;
+        add_run(&db, "a", "p1", Some("backlog")).await;
         add_run(&db, "b", "p1", None).await;
         add_run(&db, "other", "p2", None).await;
         add_run(&db, "trashed", "p1", None).await;
@@ -137,12 +137,12 @@ mod tests {
         add_run(&db, "a", "p1", None).await;
         let own = session_flags::create(&db, Some("p1"), "Waiting client", "info").await.unwrap();
         let unused = session_flags::create(&db, Some("p2"), "Nobody here", "info").await.unwrap();
-        session_flags::set_hidden(&db, "p1", "settled", true).await.unwrap();
+        session_flags::set_hidden(&db, "p1", "done", true).await.unwrap();
 
         let data = board(&db, None).await.unwrap();
         assert!(data.flags.iter().any(|f| f.id == own.id));
         assert!(!data.flags.iter().any(|f| f.id == unused.id));
-        assert_eq!(data.hidden, [HiddenMark { project_id: "p1".into(), flag_id: "settled".into() }]);
+        assert_eq!(data.hidden, [HiddenMark { project_id: "p1".into(), flag_id: "done".into() }]);
 
         let one = board(&db, Some("p2")).await.unwrap();
         assert!(one.hidden.is_empty());

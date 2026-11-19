@@ -9,7 +9,7 @@ import type { ProjectColor } from './projectAppearance.ts'
 export const FLAG_NAME_MAX = 24
 
 /** The default flags, in their seeded order. */
-export const DEFAULT_FLAG_KEYS = ['needs_review', 'in_progress', 'awaiting_review', 'settled'] as const
+export const DEFAULT_FLAG_KEYS = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const
 export type DefaultFlagKey = (typeof DEFAULT_FLAG_KEYS)[number]
 
 export interface SessionFlag {

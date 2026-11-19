@@ -1,9 +1,10 @@
 {
   "builtin": {
-    "needs_review": "Needs review",
-    "in_progress": "In progress",
-    "awaiting_review": "Awaiting review",
-    "settled": "Settled"
+    "backlog": "Backlog",
+    "todo": "To Do",
+    "in_progress": "In Progress",
+    "in_review": "In Review",
+    "done": "Done"
   },
   "errors": {
     "nameRequired": "The flag needs a name.",
