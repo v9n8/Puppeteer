@@ -6,7 +6,6 @@
     "largerFont": "Larger font",
     "openInDefaultApp": "Open in default app",
     "reloadFromDisk": "Reload from disk",
-    "moreActions": "More actions",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "resetZoom": "Reset zoom",
@@ -31,7 +30,6 @@
     "unpin": "Unpin (float only while focused)",
     "dockBackTip": "Back to main window: show this file as a tab of its Session",
     "dockFailed": "Could not move this file back to the main window",
-    "find": "Find",
     "saveChangesShortcut": "Save changes ({key})"
   },
   "tree": {

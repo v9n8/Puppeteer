@@ -1,25 +1,26 @@
 <script setup lang="ts">
 // The Session area's tab bar (V3-24), under the header: "Conversation" first,
 // then the files this Session opened and the "Changed files" tab (V3-26); pinned
-// ones come right after it. Right-click a
-// file tab for pin / close / copy path. When the tabs overflow, the bar scrolls
-// and "+N ▾" lists the ones out of view. Tabs per Session live in
+// ones come right after it. Right-click a file tab for pin / close / split, then
+// the file's own rows (files/FileTabMenuItems). When the tabs overflow, the bar
+// scrolls and "+N ▾" lists the ones out of view. Tabs per Session live in
 // stores/sessionTabs; the rules in lib/sessionTabs.
 // Split view (V3-27): `group` 'all' is the one bar; 'left' only Conversation;
 // 'right' the file tabs with "Unsplit". 'all' ends with the "Split" button (icon only).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  ChevronDown, Columns2, File, FileCode, FileDiff, FileImage, FileJson, FileText, Link, Link2, MessageSquare, PanelRight,
+  ChevronDown, Columns2, File, FileCode, FileDiff, FileImage, FileJson, FileText, MessageSquare, PanelRight,
   PanelRightClose, Pin, PinOff, X,
 } from 'lucide-vue-next'
 import { ContextMenu, DropdownItem, DropdownMenu, DropdownSeparator } from '@/components/ui'
-import { useFileActions } from '@/lib/fileActions'
 import {
   CONVERSATION, fileTabIcon, hiddenTabIndexes, orderedTabs, splitBlockedReason, tabLabel,
   type FileTab, type FileTabIcon, type SessionTab, type SessionTabId,
 } from '@/lib/sessionTabs'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
+import { requestCompare } from '@/composables/useFileCompare'
+import FileTabMenuItems from '@/components/files/FileTabMenuItems.vue'
 import { useChangedFilesCount } from './useChangedFiles'
 import SessionTabTools from './SessionTabTools.vue'
 import { useRunSession } from './useRunSession'
@@ -28,7 +29,6 @@ const props = withDefaults(defineProps<{ group?: 'all' | 'left' | 'right' }>(), 
 const { t } = useI18n()
 const { currentRunId, project, uiLayout } = useRunSession()
 const tabsStore = useSessionTabsStore()
-const actions = useFileActions()
 
 const ICONS: Record<FileTabIcon, Component> = { code: FileCode, json: FileJson, image: FileImage, text: FileText, file: File }
 
@@ -154,9 +154,12 @@ function splitHere(id?: SessionTabId) {
   if (runId.value) tabsStore.startSplit(runId.value, id)
 }
 
-function copyPath(tab: FileTab) {
+// The tab's viewer opens its picker (useFileCompare), so show the tab first.
+function compareTab(tab: FileTab) {
   const root = project.value?.path
-  if (root) void actions.copyAbsPath(root, target(tab))
+  if (!root) return
+  select(tab.id)
+  requestCompare(root, tab.path)
 }
 </script>
 
@@ -299,16 +302,9 @@ function copyPath(tab: FileTab) {
           <PanelRight class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           {{ t('run.splitView.openRight') }}
         </DropdownItem>
-        <template v-if="menu.tab.kind === 'file'">
+        <template v-if="menu.tab.kind === 'file' && project">
           <DropdownSeparator />
-          <DropdownItem @click="copyPath(menu.tab)">
-            <Link class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-            {{ t('files.tree.copyPath') }}
-          </DropdownItem>
-          <DropdownItem @click="actions.copyRelPath(target(menu.tab))">
-            <Link2 class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-            {{ t('files.tree.copyRelativePath') }}
-          </DropdownItem>
+          <FileTabMenuItems :project-path="project.path" :target="target(menu.tab)" :can-compare-image="true" @compare="compareTab(menu.tab)" />
         </template>
       </template>
     </ContextMenu>

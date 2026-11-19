@@ -6,7 +6,6 @@
     "largerFont": "Phóng to chữ",
     "openInDefaultApp": "Mở bằng ứng dụng mặc định",
     "reloadFromDisk": "Tải lại từ ổ đĩa",
-    "moreActions": "Thao tác khác",
     "zoomIn": "Phóng to",
     "zoomOut": "Thu nhỏ",
     "resetZoom": "Đặt lại thu phóng",
@@ -31,7 +30,6 @@
     "unpin": "Bỏ ghim (chỉ nổi khi đang dùng)",
     "dockBackTip": "Về cửa sổ chính: mở tệp này thành tab của Session",
     "dockFailed": "Không đưa được tệp về cửa sổ chính",
-    "find": "Tìm",
     "saveChangesShortcut": "Lưu thay đổi ({key})"
   },
   "tree": {

@@ -489,3 +489,31 @@ test('UR-25: the switcher row has one "Open" button that leaves the flow, and "A
     assert.equal('add' in keys, false)
   }
 })
+
+test('UR-28: the open file has no ⋯ menu; its tab and its toolbar name share one right-click menu', () => {
+  const viewer = read('../../components/FileViewer.vue')
+  assert.doesNotMatch(viewer, /MoreHorizontal|DropdownMenu|FileActionsMenu/)
+  assert.match(viewer, /<ViewerFileName [^>]*@compare="fc\.openPicker"/)
+  const name = read('../../components/files/ViewerFileName.vue')
+  assert.match(name, /@contextmenu\.prevent="openMenu"/)
+  assert.match(name, /<FileTabMenuItems [^>]*@compare="emit\('compare'\)"/)
+  // "Copy content" is a toolbar icon now, only for a fully readable text file.
+  assert.match(name, /v-if="canCopy && target"[\s\S]*actions\.copyContent\(projectPath, target\)/)
+  assert.match(viewer, /:can-copy="editable"/)
+  // The tab menu uses the same rows; "Compare with…" reaches the tab's viewer.
+  const bar = read('../../components/sessions/SessionTabBar.vue')
+  assert.match(bar, /<FileTabMenuItems [^>]*@compare="compareTab\(menu\.tab\)"/)
+  assert.match(bar, /select\(tab\.id\)\s+requestCompare\(root, tab\.path\)/)
+  const rows = read('../../components/files/FileTabMenuItems.vue')
+  for (const key of ['copyPath', 'copyRelativePath', 'openInDefaultApp', 'openInVscode', 'openInChrome', 'mentionInChat', 'compareWith']) {
+    assert.match(rows, new RegExp(`files\\.tree\\.${key}`), key)
+  }
+  // "Find" leaves the menu (⌘F still opens the find bar); the viewer variant is gone.
+  assert.doesNotMatch(rows, /viewer\.find|copyContent/)
+  assert.doesNotMatch(read('../../components/FileActionsMenu.vue'), /variant === 'viewer'|ViewerFileMenu/)
+  for (const lang of ['en', 'vi']) {
+    const files = json(`../../i18n/locales/${lang}/files.json`)
+    assert.equal(files.viewer.find, undefined, lang)
+    assert.equal(files.viewer.moreActions, undefined, lang)
+  }
+})

@@ -7,7 +7,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Pencil, Save, X, Search, ZoomIn, ZoomOut, MoreHorizontal, Columns2,
+  FileCode2, AArrowDown, AArrowUp, ExternalLink, FileQuestion, FileWarning, FolderOpen, RotateCw, Code2, Pencil, Save, X, Search, ZoomIn, ZoomOut, Columns2,
 } from 'lucide-vue-next'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -15,9 +15,8 @@ import PdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorkerUrl
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import type MarkdownIt from 'markdown-it'
-import { Button, DropdownMenu, SegmentedControl } from '@/components/ui'
-import FileActionsMenu from '@/components/FileActionsMenu.vue'
-import type { FileTarget } from '@/lib/fileActions'
+import { Button, SegmentedControl } from '@/components/ui'
+import ViewerFileName from '@/components/files/ViewerFileName.vue'
 import { useSelectionSurface } from '@/composables/useSelectionSurface'
 import type { QuoteSource } from '@/lib/quote'
 import { usePageFind } from '@/composables/usePageFind'
@@ -62,12 +61,6 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const runsStore = useRunsStore()
 const projectsStore = useProjectsStore()
-
-const menuTarget = computed<FileTarget | null>(() =>
-  curPath.value
-    ? { path: curPath.value, name: curPath.value.split('/').pop() || curPath.value, isDir: false }
-    : null,
-)
 
 // ── File-type classification ──────────────────────────────────────────────
 type FileKind = 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'other'
@@ -824,7 +817,7 @@ watch(() => [props.projectPath, props.path, props.line], () => {
 })
 
 const uiLayout = useUILayoutStore()
-const fc = useFileCompare(computed(() => props.projectPath), curPath, editing)
+const fc = useFileCompare(computed(() => props.projectPath), curPath, editing, () => props.path, loading)
 const canSearch = computed(() => !!content.value && !htmlPreview.value && searchEnabled.value)
 const mdEl = ref<HTMLElement | null>(null)
 const hasOutline = computed(() => isMarkdown.value && mode.value === 'preview' && !editing.value && hasHeadings(content.value))
@@ -838,7 +831,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
     <!-- Toolbar -->
     <div class="sticky top-0 z-10 flex flex-wrap items-center gap-1.5 border-b border-border min-h-11 pl-3.5 pr-2.5 py-1.5 shrink-0">
       <FileCode2 class="h-4 w-4 text-primary shrink-0" :stroke-width="1.75" />
-      <span class="text-sm font-mono text-foreground truncate grow basis-32" :title="curPath">{{ curPath }}</span>
+      <ViewerFileName :project-path="projectPath" :path="curPath" :can-copy="editable" :can-compare-image="canCompare" @compare="fc.openPicker" />
       <!-- Raw / rendered toggle, only meaningful for markdown and HTML files -->
       <SegmentedControl
         v-if="previewable && !editing && !loading && !error && (content || isHtml)"
@@ -972,23 +965,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
           <X class="h-3.5 w-3.5" :stroke-width="1.75" />
         </Button>
       </template>
-      <!-- Overflow menu: secondary file actions, labelled with text to avoid
-           the ambiguity of look-alike copy / open icons -->
       <div class="h-4 w-px bg-border shrink-0" aria-hidden="true" />
-      <DropdownMenu align="right">
-        <template #trigger>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="shrink-0"
-            :title="t('files.viewer.moreActions')"
-            :aria-label="t('files.viewer.moreActions')"
-          >
-            <MoreHorizontal class="h-3.5 w-3.5" :stroke-width="1.75" />
-          </Button>
-        </template>
-        <FileActionsMenu variant="viewer" :project-path="projectPath" :target="menuTarget" :can-find="canSearch" :can-compare-image="canCompare" @compare="fc.openPicker" @find="openSearch" />
-      </DropdownMenu>
       <!-- Host-supplied chrome controls (full-screen, pop-out, close) -->
       <slot name="actions" />
     </div>
