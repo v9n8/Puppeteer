@@ -468,3 +468,24 @@ test('UR-38: long unbroken text wraps inside flex rows instead of overflowing', 
   // The copy button gets its own gutter so it does not cover the end of the first code line.
   assert.match(read('../../assets/main.css'), /\.code-copy-wrap > pre \{\s*padding-right: 2\.6rem;/)
 })
+
+test('UR-25: the switcher row has one "Open" button that leaves the flow, and "Add project" opens the shared modal', () => {
+  const sw = read('../../components/ProjectSwitcher.vue')
+  assert.doesNotMatch(sw, /startSession|projectSwitcher\.newSession/)
+  assert.match(sw, /variant="outline"\s+size="xs"\s+class="hidden [^"]*group-hover:flex/)
+  assert.doesNotMatch(sw, /opacity-0 group-hover/)
+  // The inline name-only form is gone: the switcher and the Projects page share one modal.
+  assert.match(sw, /<AddProjectModal :pending="pending"/)
+  assert.doesNotMatch(sw, /<form|pendingName/)
+  const page = read('../../views/ProjectsView.vue')
+  assert.match(page, /<AddProjectModal :pending="pending"/)
+  assert.doesNotMatch(page, /<Modal/)
+  const modal = read('../../components/projects/AddProjectModal.vue')
+  assert.match(modal, /projects\.projectName/)
+  assert.match(modal, /projects\.repositories/)
+  for (const lang of ['en', 'vi']) {
+    const keys = json(`../../i18n/locales/${lang}/projectSwitcher.json`)
+    assert.equal('namePlaceholder' in keys, false)
+    assert.equal('add' in keys, false)
+  }
+})

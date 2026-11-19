@@ -3,8 +3,9 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { open as pickFolder } from '@tauri-apps/plugin-dialog'
 import { Eye, EyeOff, FolderPlus, Plus, Search } from 'lucide-vue-next'
-import { Button, Input } from '@/components/ui'
-import { useProjectsStore, type DetectedProjectInfo } from '@/stores/projects'
+import { Button } from '@/components/ui'
+import AddProjectModal from '@/components/projects/AddProjectModal.vue'
+import { useProjectsStore, type DetectedProjectInfo, type DetectedRepo } from '@/stores/projects'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useToast } from '@/composables/useToast'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
@@ -24,7 +25,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 const projects = useProjectsStore()
 const tabs = useWorkspaceTabsStore()
-const { open, currentProjectId, openProject, newSession } = useProjectSwitcher()
+const { open, currentProjectId, openProject } = useProjectSwitcher()
 
 const PANEL_WIDTH = 400
 const EDGE_MARGIN = 8
@@ -54,8 +55,6 @@ const shortcut = computed(() => {
 const detecting = ref(false)
 const adding = ref(false)
 const pending = ref<DetectedProjectInfo | null>(null)
-const pendingName = ref('')
-const nameInput = ref<InstanceType<typeof Input> | null>(null)
 
 async function startAdd() {
   const selected = await pickFolder({ directory: true, multiple: false, title: t('projects.selectFolderTitle') })
@@ -71,9 +70,8 @@ async function startAdd() {
   try {
     const info = await projects.detectProjectInfo(selected)
     pending.value = info
-    pendingName.value = info.name
-    await nextTick()
-    ;(nameInput.value?.$el as HTMLInputElement | undefined)?.focus()
+    // The modal sits above the page, not inside the popover.
+    close()
   } catch (e) {
     toast.error(String(e))
   } finally {
@@ -83,28 +81,28 @@ async function startAdd() {
 
 function cancelAdd() {
   pending.value = null
-  nextTick(() => search.value?.focus())
 }
 
-async function confirmAdd() {
+async function confirmAdd({ name, repos }: { name: string; repos: DetectedRepo[] }) {
   const info = pending.value
   if (!info || adding.value) return
   adding.value = true
   const startedAt = Date.now()
   try {
-    // The detected repos go in as found; the Projects screen's modal is where they're edited.
-    const repos = info.repos.map((r) => ({
-      name: r.name,
-      path: r.path,
-      provider: r.provider,
-      github_owner: r.github_owner || undefined,
-      github_repo: r.github_repo || undefined,
-      gitlab_project_path: r.gitlab_project_path || null,
-    }))
     const project = await projects.addProject({
       path: info.path,
-      name: pendingName.value.trim() || undefined,
-      repos: repos.length > 0 ? repos : undefined,
+      name: name || undefined,
+      repos:
+        repos.length > 0
+          ? repos.map((r) => ({
+              name: r.name,
+              path: r.path,
+              provider: r.provider,
+              github_owner: r.github_owner || undefined,
+              github_repo: r.github_repo || undefined,
+              gitlab_project_path: r.gitlab_project_path || null,
+            }))
+          : undefined,
     })
     // A path whose project sits in the Trash brings it back, sessions and all (UX-06).
     if (wasRestored(project, startedAt)) toast.success(t('projectSwitcher.restored', { name: project.name }))
@@ -136,11 +134,6 @@ function choose(projectId: string) {
   openProject(projectId)
 }
 
-function startSession(projectId: string) {
-  close()
-  newSession(projectId)
-}
-
 function onDocPointer(e: Event) {
   const target = e.target
   if (!(target instanceof Node)) return
@@ -164,10 +157,7 @@ function bind(on: boolean) {
 
 watch(open, async (isOpen) => {
   bind(isOpen)
-  if (!isOpen) {
-    pending.value = null
-    return
-  }
+  if (!isOpen) return
   query.value = ''
   active.value = 0
   place()
@@ -292,40 +282,23 @@ onBeforeUnmount(() => {
                   {{ row.project.path }}
                 </span>
               </div>
-              <div
-                class="flex shrink-0 items-center gap-1"
-                :class="index === active ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'"
+              <!-- Out of the flow until hover, so it never takes the name's width -->
+              <Button
+                variant="outline"
+                size="xs"
+                class="hidden shrink-0 hover:bg-foreground/10 group-hover:flex focus-visible:flex"
+                :class="index === active ? '!flex' : ''"
+                @click.stop="choose(row.project.id)"
               >
-                <Button variant="ghost" size="xs" @click.stop="choose(row.project.id)">
-                  {{ t('projectSwitcher.open') }}
-                </Button>
-                <Button variant="ghost" size="xs" @click.stop="startSession(row.project.id)">
-                  <Plus class="h-3 w-3" :stroke-width="2" />
-                  {{ t('projectSwitcher.newSession') }}
-                </Button>
-              </div>
+                {{ t('projectSwitcher.open') }}
+              </Button>
             </div>
           </template>
         </div>
 
-        <!-- Footer: add a folder (confirm its name inline) + show hidden -->
+        <!-- Footer: add a folder (its modal is below) + show hidden -->
         <div class="border-t border-border p-1">
-          <form v-if="pending" class="flex flex-col gap-2 p-2" @submit.prevent="confirmAdd">
-            <p class="truncate text-2xs text-muted-foreground" :title="pending.path">{{ pending.path }}</p>
-            <Input
-              ref="nameInput"
-              v-model="pendingName"
-              :placeholder="t('projectSwitcher.namePlaceholder')"
-              :aria-label="t('projectSwitcher.namePlaceholder')"
-            />
-            <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="xs" :disabled="adding" @click="cancelAdd">{{ t('common.cancel') }}</Button>
-              <Button type="submit" size="xs" :disabled="adding">
-                {{ adding ? t('projects.adding') : t('projectSwitcher.add') }}
-              </Button>
-            </div>
-          </form>
-          <div v-else class="flex items-center gap-1">
+          <div class="flex items-center gap-1">
             <Button variant="ghost" size="xs" class="flex-1 justify-start" :disabled="detecting" @click="startAdd">
               <FolderPlus class="h-3.5 w-3.5" :stroke-width="2" />
               {{ detecting ? t('projects.detecting') : t('projectSwitcher.addProject') }}
@@ -345,4 +318,6 @@ onBeforeUnmount(() => {
       </div>
     </transition>
   </Teleport>
+
+  <AddProjectModal :pending="pending" :busy="adding" @cancel="cancelAdd" @confirm="confirmAdd" />
 </template>
