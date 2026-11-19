@@ -15,6 +15,7 @@ import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
 import { Button } from '@/components/ui'
 import { WIDE_CHIPS_FROM as WIDE_FALLBACK, hideOptionalChips } from '@/lib/composerChipLayout'
 import { shownModel } from '@/lib/composerChips'
+import { draftQuoteLink, type DraftQuoteLink } from '@/lib/quote'
 import ComposerQuoteBlock from './ComposerQuoteBlock.vue'
 import ComposerMentionOverlay from './ComposerMentionOverlay.vue'
 import { COMPOSER_TEXT } from './composerTextStyle'
@@ -36,6 +37,7 @@ const {
   onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
+  shownHasMessage, isViewingHistory, historyHasMore, historyHasMoreBelow, jumpToQuote, openFile,
   editingMessage, rewindingEdit, cancelEditResend,
   effortPick, effortValue, effortLevelsNow, effortOptions, pickStyle, styleValue, styleOptions,
 } = useRunSession()
@@ -66,6 +68,17 @@ const compactChips = computed(() =>
 watch(() => followUpInput.value.includes('@'), (hasAt) => {
   if (hasAt) void ensureProjectFiles()
 })
+
+// Where each quote card above the composer leads (UR-29), from what the log
+// shows now: a history window may leave the quoted message unloaded.
+const quoteLinks = computed(() => {
+  const moreLoadable = isViewingHistory.value && (historyHasMore.value || historyHasMoreBelow.value)
+  return new Map(draftQuotes.value.map((q) => [q.id, draftQuoteLink(q, shownHasMessage, moreLoadable)]))
+})
+function followQuote(link: DraftQuoteLink) {
+  if (link.to === 'file') openFile(link.path, link.line)
+  else if (link.to === 'message') void jumpToQuote(link.quote)
+}
 
 // The queued-message editor takes focus as it opens.
 const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
@@ -208,10 +221,12 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
       <ComposerQuoteBlock
         v-if="draftQuotes.length"
         :quotes="draftQuotes"
+        :links="quoteLinks"
         :run-id="currentRunId"
         :sending="sendingFollowUp"
         @remove="removeDraftQuote"
         @set-note="setDraftQuoteNote"
+        @follow="followQuote"
       />
 
       <!-- Pasted/attached image thumbnails -->

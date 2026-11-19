@@ -3,6 +3,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { draftQuoteLink } from '../quote.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
@@ -91,4 +92,39 @@ test('UR-35: Settings pages keep no explanation paragraph; kept text sits in an 
     assert.equal(d.sessions.notifyDescriptions.sound, undefined, lang)
     for (const k of Object.keys(files)) assert.ok(d[k].isolationShort, `${lang} ${k}`)
   }
+})
+
+test('UR-29: a quote above the composer leads to the quoted message or file, or says why not', () => {
+  const entry = {
+    id: 'q1', kind: 'entry', excerpt: 'quoted', run_id: 'r1', source_entry_id: 'm1', block_index: 2, start: 4, end: 10,
+  }
+  const shown = (id) => id === 'm1'
+  const toMessage = draftQuoteLink(entry, shown, false)
+  assert.equal(toMessage.to, 'message')
+  // jumpToQuote gets the same anchor a sent card would carry.
+  assert.equal(toMessage.quote.source_entry_id, 'm1')
+  assert.equal(toMessage.quote.block_index, 2)
+  assert.equal(toMessage.quote.start_offset, 4)
+  assert.equal(toMessage.quote.end_offset, 10)
+  // Off screen: not loaded while the history has more to load, gone otherwise.
+  assert.deepEqual(draftQuoteLink(entry, () => false, true), { to: 'none', reason: 'notLoaded' })
+  assert.deepEqual(draftQuoteLink(entry, () => false, false), { to: 'none', reason: 'gone' })
+  // A file quote opens at its first line; plain text leads nowhere, without a reason.
+  const file = { id: 'q2', kind: 'file', excerpt: 'x', path: 'src/a.ts', lines: { start: 12, end: 14 } }
+  assert.deepEqual(draftQuoteLink(file, shown, false), { to: 'file', path: 'src/a.ts', line: 12 })
+  assert.deepEqual(draftQuoteLink({ id: 'q3', kind: 'file', excerpt: 'x', path: 'b.md' }, shown, false), { to: 'file', path: 'b.md', line: null })
+  assert.deepEqual(draftQuoteLink({ id: 'q4', kind: 'text', excerpt: 'x' }, shown, false), { to: 'none', reason: null })
+
+  // The row is a button only when it leads somewhere; the composer follows it
+  // with the log's own jump and the file opener.
+  const block = read('../../components/sessions/ComposerQuoteBlock.vue')
+  assert.match(block, /:is="linkOf\(q\) \? 'button' : 'div'"/)
+  assert.match(block, /follow: \[link: DraftQuoteLink\]/)
+  assert.match(block, /run\.quotes\.sourceNotLoaded/)
+  assert.match(block, /streamLog\.quotes\.sourceGone/)
+  const composer = read('../../components/sessions/RunComposer.vue')
+  assert.match(composer, /@follow="followQuote"/)
+  assert.match(composer, /openFile\(link\.path, link\.line\)/)
+  assert.match(composer, /jumpToQuote\(link\.quote\)/)
+  for (const lang of ['en', 'vi']) assert.ok(json(`../../i18n/locales/${lang}/run.json`).quotes.sourceNotLoaded, lang)
 })

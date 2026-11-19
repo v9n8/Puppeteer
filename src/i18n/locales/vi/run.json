@@ -319,7 +319,8 @@
     "noteTitle": "Ghi chú: {note}",
     "noteKeys": "↵ lưu · Esc hủy",
     "listAria": "Danh sách Quote, cuộn trong khối",
-    "resize": "Kéo để đổi chiều cao khối Quote · bấm đúp để về mặc định"
+    "resize": "Kéo để đổi chiều cao khối Quote · bấm đúp để về mặc định",
+    "sourceNotLoaded": "Tin nhắn được Quote chưa được nạp trong log. Cuộn log để nạp rồi bấm lại."
   },
   "startRunEnter": "Bắt đầu run (Enter — để trống sẽ dùng prompt mặc định)",
   "resumeAndSend": "Tiếp tục Session và gửi (Enter)",

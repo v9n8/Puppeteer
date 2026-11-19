@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The Quote card above the composer (V3-33): the quotes that go ahead of the
-// message, one row each, in a list that scrolls inside the card. The card folds,
+// message, one row each, in a list that scrolls inside the card; a row leads to
+// the quoted message or file (UR-29). The card folds,
 // "Remove all" clears it, and its top handle sizes the list on its own,
 // apart from the composer's handle. A dragged height and the folded state are
 // kept only until the message is sent, the quotes are gone or the session
@@ -10,11 +11,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Pencil, Quote, X } from 'lucide-vue-next'
 import { useConfirm } from '@/composables/useConfirm'
-import type { DraftQuote } from '@/lib/quote'
+import type { DraftQuote, DraftQuoteLink } from '@/lib/quote'
 import { clampQuoteListHeight, defaultQuoteListHeight, stepQuoteListHeight } from '@/lib/quoteBlockHeight'
 
 const props = defineProps<{
   quotes: DraftQuote[]
+  /** Where each quote leads when its row is clicked (UR-29), by quote id. */
+  links: Map<string, DraftQuoteLink>
   runId: string | null
   /** True while the message is being sent: remove and note edits are locked. */
   sending: boolean
@@ -22,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   remove: [id: string]
   setNote: [id: string, note: string]
+  follow: [link: DraftQuoteLink]
 }>()
 
 const { t } = useI18n()
@@ -48,6 +52,27 @@ function fileLabel(q: DraftQuote): string {
   const l = q.lines
   if (!l) return q.path
   return l.end > l.start ? `${q.path}:${l.start}-${l.end}` : `${q.path}:${l.start}`
+}
+
+// A row that leads somewhere is a button, like the cards on a sent message; its
+// tooltip says where, or why it leads nowhere, above the full excerpt.
+function linkOf(q: DraftQuote): DraftQuoteLink | null {
+  const link = props.links.get(q.id)
+  return link && link.to !== 'none' ? link : null
+}
+function rowTitle(q: DraftQuote): string {
+  const link = props.links.get(q.id)
+  const head = !link ? ''
+    : link.to === 'message' ? t('streamLog.quotes.goToSource')
+    : link.to === 'file' ? `${t('streamLog.quotes.openFile')}: ${fileLabel(q)}`
+    : link.reason === 'notLoaded' ? t('run.quotes.sourceNotLoaded')
+    : link.reason === 'gone' ? t('streamLog.quotes.sourceGone')
+    : ''
+  return head ? `${head}\n${q.excerpt}` : q.excerpt
+}
+function follow(q: DraftQuote) {
+  const link = linkOf(q)
+  if (link) emit('follow', link)
 }
 
 // The conversation area is the Session frame (the grid that holds the
@@ -224,17 +249,24 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
         <li v-for="(q, qi) in quotes" :key="q.id" class="rounded-md border border-border bg-card">
           <div class="flex min-h-8 items-center gap-2 pl-1.5 pr-0.5">
             <span class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-[4px] bg-muted px-1 text-2xs font-semibold text-foreground">{{ qi + 1 }}</span>
-            <div class="min-w-0 flex-1 py-1">
+            <component
+              :is="linkOf(q) ? 'button' : 'div'"
+              class="min-w-0 flex-1 rounded py-1 text-left"
+              :class="linkOf(q) ? 'cursor-pointer px-1 -mx-1 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''"
+              v-bind="linkOf(q) ? { type: 'button' } : {}"
+              :title="rowTitle(q)"
+              @click="follow(q)"
+            >
               <div class="flex items-center gap-2">
-                <span class="min-w-0 flex-1 truncate font-mono text-foreground/80" :title="q.excerpt">{{ q.excerpt }}</span>
-                <span v-if="q.kind === 'file'" class="max-w-[40%] shrink-0 truncate font-mono text-2xs text-muted-foreground" :title="fileLabel(q)">{{ fileLabel(q) }}</span>
+                <span class="min-w-0 flex-1 truncate font-mono text-foreground/80">{{ q.excerpt }}</span>
+                <span v-if="q.kind === 'file'" class="max-w-[40%] shrink-0 truncate font-mono text-2xs text-muted-foreground">{{ fileLabel(q) }}</span>
               </div>
               <div
                 v-if="q.note?.trim()"
                 class="truncate text-2xs text-muted-foreground"
                 :title="t('run.quotes.noteTitle', { note: q.note })"
               >{{ q.note }}</div>
-            </div>
+            </component>
             <button
               type="button"
               :class="btn"

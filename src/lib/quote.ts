@@ -347,3 +347,26 @@ export function pendingRunQuotes(runId: string, quoteSet: string, quotes: readon
     }
   })
 }
+
+/** Where clicking a quote card above the composer leads (UR-29). */
+export type DraftQuoteLink =
+  | { to: 'message'; quote: RunQuote }
+  | { to: 'file'; path: string; line: number | null }
+  | { to: 'none'; reason: 'gone' | 'notLoaded' | null }
+
+/**
+ * A draft quote has no log offset yet, so it only leads to a message that is on
+ * screen now. One that is not may sit in a window of the history not loaded
+ * (`moreLoadable`) or be gone (cut by a rewind, from another session). A plain
+ * text quote leads nowhere and needs no reason.
+ */
+export function draftQuoteLink(
+  q: DraftQuote,
+  onScreen: (entryId: string) => boolean,
+  moreLoadable: boolean,
+): DraftQuoteLink {
+  if (q.kind === 'file') return { to: 'file', path: q.path, line: q.lines?.start ?? null }
+  if (q.kind === 'text') return { to: 'none', reason: null }
+  if (onScreen(q.source_entry_id)) return { to: 'message', quote: pendingRunQuotes(q.run_id, '', [q])[0] }
+  return { to: 'none', reason: moreLoadable ? 'notLoaded' : 'gone' }
+}

@@ -1461,7 +1461,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     rewindTarget, onRewound, closeRewind, promptNumber, forking, forkRun, runFind, findOpen, logHits,
     logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
-    loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes,
+    loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes, shownHasMessage,
   }
 }
 
