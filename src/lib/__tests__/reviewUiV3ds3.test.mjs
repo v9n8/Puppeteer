@@ -43,3 +43,15 @@ test('UR-49: composer rows use the Quote style; hover changes the border, a dead
     assert.equal(JSON.parse(read(`../../i18n/locales/${lang}/run.json`)).quotes.notLoadedShort, text)
   }
 })
+
+test('UR-50: the Quote note popover follows the v3 popover frame and shows the excerpt in the Quote style', () => {
+  const src = read('../../components/QuoteNotePopover.vue')
+  assert.match(src, /rounded-xl border border-border bg-popover shadow-xl/)
+  assert.doesNotMatch(src, /bg-card|bg-muted\/40/)
+  assert.match(src, /class="flex h-9 shrink-0 cursor-move select-none items-center gap-1\.5 border-b border-border px-3 text-sm font-medium"\s+:title="t\('selection\.quoteNote\.move'\)"\s+@pointerdown="startMove"/)
+  assert.match(src, /<Quote class="h-3\.5 w-3\.5 shrink-0 text-muted-foreground"/)
+  assert.match(src, /class="flex min-h-0 flex-1 flex-col gap-2 p-3">\s*<div class="max-h-\[8\.2em\] shrink-0 overflow-y-auto">\s*<QuoteExcerpt :text="text" class="text-md leading-\[1\.6\]" \/>/)
+  assert.match(src, /<Textarea[^>]*size="md"/)
+  assert.match(src, /class="flex shrink-0 justify-end gap-2 px-3 pb-3">\s*<Button variant="ghost" size="xs"[\s\S]*?<Button size="xs" @click="save">/)
+  assert.match(src, /@pointerdown="startResize"/)
+})

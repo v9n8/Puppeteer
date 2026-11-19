@@ -4,13 +4,16 @@
 // and by the Quote under a turn; SelectionToolbar.vue renders it. Dragged by its
 // header, resized from its bottom-right corner, always inside the window
 // (useDragPosition). Each opening starts next to where Quote was clicked: where
-// it was dragged last time is not remembered (as in AWOG).
+// it was dragged last time is not remembered (as in AWOG). Laid out as the v3
+// popovers are (36px header, 12px body, 28px buttons); the excerpt is in the one
+// Quote style at the conversation's 14px (DS-3).
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Quote } from 'lucide-vue-next'
 import { Button, Textarea } from '@/components/ui'
 import { useDragPosition } from '@/composables/useDragPosition'
 import { toolbarPosition } from '@/lib/selectionSurface'
+import QuoteExcerpt from './QuoteExcerpt.vue'
 
 const props = defineProps<{
   text: string
@@ -24,7 +27,7 @@ const emit = defineEmits<{ save: [note: string]; close: [] }>()
 
 const { t } = useI18n()
 
-const WIDTH = 280
+const WIDTH = 320
 const rootEl = ref<HTMLElement | null>(null)
 const noteField = ref<InstanceType<typeof Textarea> | null>(null)
 const note = ref('')
@@ -86,35 +89,36 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
       role="dialog"
       aria-modal="true"
       :aria-label="heading"
-      class="fixed z-[70] flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl shadow-black/30"
+      class="fixed z-[70] flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl shadow-black/30"
       :style="style"
     >
       <div
-        class="shrink-0 cursor-move select-none border-b border-border bg-muted/40 px-3 py-2"
+        class="flex h-9 shrink-0 cursor-move select-none items-center gap-1.5 border-b border-border px-3 text-sm font-medium"
         :title="t('selection.quoteNote.move')"
         @pointerdown="startMove"
       >
-        <div class="flex items-center gap-1.5 text-2xs font-semibold text-foreground/80">
-          <Quote class="h-3 w-3 shrink-0 text-primary/80" :stroke-width="2" />
-          <span class="truncate" :title="heading">{{ heading }}</span>
-        </div>
-        <p class="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-xs text-foreground/70">{{ text }}</p>
+        <Quote class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="2" />
+        <span class="truncate" :title="heading">{{ heading }}</span>
       </div>
-      <div class="flex min-h-0 flex-1 flex-col gap-2 p-2">
+      <div class="flex min-h-0 flex-1 flex-col gap-2 p-3">
+        <div class="max-h-[8.2em] shrink-0 overflow-y-auto">
+          <QuoteExcerpt :text="text" class="text-md leading-[1.6]" />
+        </div>
         <Textarea
           ref="noteField"
           v-model="note"
+          size="md"
           rows="3"
           class="min-h-0 flex-1 resize-none"
           :placeholder="t('selection.quoteNote.notePlaceholderKeys')"
           :aria-label="t('selection.quoteNote.notePlaceholder')"
           @keydown="onNoteKeydown"
         />
-        <!-- The keys (↵ save · ⇧↵ new line) live in the placeholder: a row of its own was cut off in a narrow popover. -->
-        <div class="flex shrink-0 items-center justify-end gap-1.5 pr-2">
-          <Button variant="ghost" size="xs" @click="emit('close')">{{ t('common.close') }}</Button>
-          <Button size="xs" @click="save">{{ t('common.save') }}</Button>
-        </div>
+      </div>
+      <!-- The keys (↵ save · ⇧↵ new line) live in the placeholder: a row of its own was cut off in a narrow popover. -->
+      <div class="flex shrink-0 justify-end gap-2 px-3 pb-3">
+        <Button variant="ghost" size="xs" @click="emit('close')">{{ t('common.close') }}</Button>
+        <Button size="xs" @click="save">{{ t('common.save') }}</Button>
       </div>
       <!-- Visible grip (UX-65): the note field fills the popover, so this corner sizes it. -->
       <div
