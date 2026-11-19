@@ -419,3 +419,12 @@ test('UR-18: the sidebar toggle sits in the sidebar top row, not the title bar',
   assert.match(tpl, /:class="rail \? 'justify-center' : 'justify-end'"/)
   assert.match(tpl, /rail \? t\('menu\.showSidebar'\) : t\('menu\.hideSidebar'\)/)
 })
+
+test('UR-14: the MCP section explains when a change applies through an InfoTip, not a paragraph', () => {
+  const src = read('../../components/sessions/RunMcpSection.vue')
+  const template = src.slice(src.indexOf('<template>'))
+  assert.match(template, /<InfoTip :text="running \? t\('run\.mcpAppliesAfterRun'\) : t\('run\.mcpAppliesNextMessage'\)"/)
+  assert.doesNotMatch(template, /<p[^>]*>\s*\{\{ running \?/)
+  // The tip sits beside the title, before the server list.
+  assert.ok(template.indexOf('<InfoTip') < template.indexOf('<ul'))
+})

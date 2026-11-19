@@ -7,7 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Server, RotateCcw } from 'lucide-vue-next'
-import { Badge, ToggleSwitch } from '@/components/ui'
+import { Badge, InfoTip, ToggleSwitch } from '@/components/ui'
 import { useMcpServersStore, type RunMcpEntry } from '@/stores/mcpServers'
 
 const props = defineProps<{ runId: string; running: boolean }>()
@@ -74,6 +74,7 @@ watch(() => props.runId, load)
     <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
       <Server class="h-3 w-3 shrink-0" :stroke-width="1.5" />
       <span>{{ t('run.mcpSetting') }}</span>
+      <InfoTip :text="running ? t('run.mcpAppliesAfterRun') : t('run.mcpAppliesNextMessage')" />
       <button
         v-if="overridden.length"
         type="button"
@@ -127,8 +128,5 @@ watch(() => props.runId, load)
       </li>
     </ul>
     <p v-if="error" class="text-2xs text-destructive">{{ error }}</p>
-    <p class="text-2xs text-muted-foreground leading-snug">
-      {{ running ? t('run.mcpAppliesAfterRun') : t('run.mcpAppliesNextMessage') }}
-    </p>
   </div>
 </template>
