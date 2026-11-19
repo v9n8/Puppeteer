@@ -486,7 +486,7 @@ async function remove() {
       <p v-else class="text-2xs text-muted-foreground">{{ t('projects.overview.noConnections') }}</p>
     </DetailSection>
 
-    <DetailSection :title="t('projects.removeProject')" :hint="t('projects.overview.removeHint')">
+    <DetailSection :title="t('projects.removeProject')" :hint="t('projects.overview.removeHint')" hint-visible>
       <div>
         <Button variant="destructive" size="xs" @click="remove">
           <Trash2 class="h-3 w-3" :stroke-width="1.75" />

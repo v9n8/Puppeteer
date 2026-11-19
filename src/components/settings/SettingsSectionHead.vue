@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// Heading block at the top of a Settings section: title + one-line intro.
+// Heading block at the top of a Settings section: title + ⓘ holding the intro (UR-34).
+import { InfoTip } from '@/components/ui'
+
 defineProps<{ title: string; intro: string }>()
 </script>
 
 <template>
-  <div>
+  <div class="flex items-center gap-1.5">
     <h3 class="text-lg font-semibold leading-[1.4]">{{ title }}</h3>
-    <p class="mt-0.5 max-w-[72ch] text-xs text-muted-foreground">{{ intro }}</p>
+    <InfoTip :text="intro" />
   </div>
 </template>

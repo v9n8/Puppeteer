@@ -97,3 +97,17 @@ test('UR-20: the composer has no expand button; the height is still set by dragg
     assert.equal(run.collapseComposer, undefined, lang)
   }
 })
+
+test('UR-34: the three shared components show their explanation in an InfoTip, not a paragraph', () => {
+  const row = read('../../components/settings/SettingsRow.vue')
+  assert.match(row, /<InfoTip v-if="tip" :text="tip" \/>/)
+  assert.doesNotMatch(row, /<p v-if="description"/)
+  const head = read('../../components/settings/SettingsSectionHead.vue')
+  assert.match(head, /<InfoTip :text="intro" \/>/)
+  assert.doesNotMatch(head, /<p /)
+  const section = read('../../components/listDetail/DetailSection.vue')
+  assert.match(section, /<InfoTip v-if="hint && !hintVisible" :text="hint" \/>/)
+  assert.match(section, /<p v-if="hint && hintVisible"/)
+  // The warning that must stay readable opts in to the visible line.
+  assert.match(read('../../components/projects/ProjectOverview.vue'), /overview\.removeHint'\)" hint-visible>/)
+})
