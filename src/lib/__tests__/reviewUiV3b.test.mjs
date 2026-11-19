@@ -7,6 +7,15 @@ import { draftQuoteLink } from '../quote.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
+test('UR-47: line gutter follows the digit count and the floating bars hang off a zero-height anchor', () => {
+  const src = read('../../components/FileViewer.vue')
+  assert.match(src, /const gutterWidth = computed\(\(\) => `calc\(\$\{Math\.max\(String\(lines\.value\.length\)\.length, 2\)\}ch \+ 1\.25rem\)`\)/)
+  assert.match(src, /:style="\{ width: gutterWidth \}"/)
+  assert.doesNotMatch(src, /tabular-nums[^"]*\bw-12\b/)
+  assert.doesNotMatch(src, /absolute top-14 right-4/)
+  assert.match(src, /relative z-20 h-0 shrink-0[\s\S]*<FindBar[\s\S]*absolute top-2 right-4[\s\S]*<CompareFilePicker[\s\S]*absolute top-2 right-4/)
+})
+
 test('UR-45: frames shrink to their content and the editors follow the real theme', () => {
   assert.match(read('../../components/fileTransfer/FileTransferScreen.vue'), /class="max-h-56 shrink-0"/)
   assert.match(read('../../components/remote/RemoteFileDialog.vue'), /flex flex-col max-h-\[60vh\] min-h-40/)

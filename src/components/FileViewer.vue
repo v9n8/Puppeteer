@@ -369,6 +369,9 @@ function onPanEnd(e: PointerEvent) {
 const viewerBodyEl = ref<HTMLElement | null>(null)
 
 const lines = computed(() => content.value.split('\n'))
+// Gutter grows with the digit count so 5+ digit line numbers at large font sizes never spill
+// into the code; 1.25rem is the gutter's pl-2 + pr-3.
+const gutterWidth = computed(() => `calc(${Math.max(String(lines.value.length).length, 2)}ch + 1.25rem)`)
 const isMarkdown = computed(() => /\.(md|markdown|mdx)$/i.test(curPath.value))
 const isHtml = computed(() => /\.(html?|xhtml)$/i.test(curPath.value))
 const isCsv = computed(() => /\.(csv|tsv)$/i.test(curPath.value))
@@ -970,15 +973,16 @@ defineExpose({ onRevealInFolder, onOpenInApp })
       <slot name="actions" />
     </div>
 
-    <!-- Floating in-page search bar -->
-    <FindBar
-      v-if="searchOpen"
-      :find="find"
-      :placeholder="t('files.viewer.searchPlaceholder')"
-      class="absolute top-14 right-4 z-20"
-    />
-
-    <CompareFilePicker v-if="fc.pickerOpen.value && fc.kind.value" :project-path="projectPath" :path="curPath" :kind="fc.kind.value" class="absolute top-14 right-4 z-20" @pick="fc.pick" @close="fc.pickerOpen.value = false" />
+    <!-- Zero-height anchor right under the toolbar, so the floating bars never cover it when it wraps -->
+    <div v-if="searchOpen || (fc.pickerOpen.value && fc.kind.value)" class="relative z-20 h-0 shrink-0">
+      <FindBar
+        v-if="searchOpen"
+        :find="find"
+        :placeholder="t('files.viewer.searchPlaceholder')"
+        class="absolute top-2 right-4"
+      />
+      <CompareFilePicker v-if="fc.pickerOpen.value && fc.kind.value" :project-path="projectPath" :path="curPath" :kind="fc.kind.value" class="absolute top-2 right-4" @pick="fc.pick" @close="fc.pickerOpen.value = false" />
+    </div>
     <!-- Body -->
     <div ref="viewerBodyEl" class="flex-1 overflow-auto min-h-0">
       <TextCompareView v-if="fc.second.value" :project-path="projectPath" :path="curPath" :content="truncated || error ? null : content" :other="fc.second.value" @close="fc.closeCompare" />
@@ -1127,7 +1131,7 @@ defineExpose({ onRevealInFolder, onOpenInApp })
           <thead>
             <tr>
               <th
-                class="sticky top-0 z-[1] select-none text-right tabular-nums w-12 px-2 py-1 border border-border bg-card text-foreground/30"
+                class="sticky top-0 z-[1] select-none text-right tabular-nums px-2 py-1 border border-border bg-card text-foreground/30"
               ></th>
               <th
                 v-for="col in csvColumnCount"
@@ -1182,7 +1186,8 @@ defineExpose({ onRevealInFolder, onOpenInApp })
           :class="{ 'bg-primary/15': idx + 1 === curLine }"
         >
           <span
-            class="search-skip sticky left-0 select-none text-right tabular-nums shrink-0 w-12 pr-3 pl-2 border-r border-border bg-card"
+            class="search-skip sticky left-0 select-none text-right tabular-nums shrink-0 pr-3 pl-2 border-r border-border bg-card"
+            :style="{ width: gutterWidth }"
             :class="idx + 1 === curLine ? 'text-primary' : 'text-foreground/30'"
           >{{ idx + 1 }}</span>
           <span class="px-3 whitespace-pre flex-1">
