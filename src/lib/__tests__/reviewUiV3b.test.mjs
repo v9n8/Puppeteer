@@ -282,3 +282,8 @@ test('UR-36: the project accounts card imports InfoTip because its template uses
   assert.match(src, /<InfoTip\b/)
   assert.match(src, /import \{[^}]*\bInfoTip\b[^}]*\} from '@\/components\/ui'/)
 })
+
+test('UR-17: the tab menu icon row wraps inside the menu instead of widening it', () => {
+  const src = read('../../components/WorkspaceTabs.vue')
+  assert.match(src, /class="[^"]*\bw-0 min-w-full\b[^"]*"\s*>\s*<button\s+v-for="icon in PROJECT_ICONS"/)
+})

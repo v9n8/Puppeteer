@@ -408,7 +408,7 @@ async function jumpTo(projectId: string) {
           </div>
           <div class="px-2.5 pb-1.5">
             <p class="mb-1.5 text-sm font-medium text-muted-foreground">{{ t('projectDetail.iconLabel') }}</p>
-            <div class="-mx-1 flex flex-wrap items-center">
+            <div class="flex w-0 min-w-full flex-wrap items-center">
               <button
                 v-for="icon in PROJECT_ICONS"
                 :key="icon"
