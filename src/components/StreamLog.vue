@@ -12,6 +12,7 @@ import { vCopyCode } from '@/lib/copyCode'
 import { editParts, editStats } from '@/lib/editStats'
 import { toolFileTarget, toolFileTargets } from '@/lib/toolFiles'
 import IdeContextChip from './IdeContextChip.vue'
+import SentQuoteCard from './SentQuoteCard.vue'
 import DiffView from './DiffView.vue'
 import MsgActions, { type MsgActionsState } from './sessions/MsgActions.vue'
 import MessageFullscreen from './sessions/MessageFullscreen.vue'
@@ -783,11 +784,6 @@ function bubbleText(e: Extract<StreamEntry, { kind: 'user' }>): string {
   const set = quoteSetOf(e)
   return set ? stripQuotePrefix(e.text, set.prefix) ?? e.text : e.text
 }
-function quoteSourceLabel(q: RunQuote): string {
-  if (q.kind !== 'file' || !q.path) return ''
-  if (q.line_start == null) return q.path
-  return q.line_end != null && q.line_end > q.line_start ? `${q.path}:${q.line_start}-${q.line_end}` : `${q.path}:${q.line_start}`
-}
 function openQuote(card: QuoteCard) {
   if (!card.jumpable) return
   const q = card.quote
@@ -1133,25 +1129,7 @@ function toolResult(e: StreamEntry): unknown {
           <!-- Its structured quotes (UX-29): cards leading to the source. -->
           <ol v-if="quoteSetOf(entry)" class="mb-2 flex flex-col gap-2">
             <li v-for="(card, ci) in quoteSetOf(entry)!.cards" :key="card.quote.id">
-              <button
-                type="button"
-                class="w-full flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left text-md leading-[1.6] transition-colors"
-                :class="card.jumpable ? 'cursor-pointer hover:bg-accent/60 hover:border-primary/40' : 'cursor-default opacity-80'"
-                :disabled="!card.jumpable"
-                :title="card.jumpable ? (card.quote.kind === 'file' ? t('streamLog.quotes.openFile') : t('streamLog.quotes.goToSource')) : undefined"
-                @click="openQuote(card)"
-              >
-                <span class="shrink-0 mt-px h-5 w-5 rounded bg-muted text-foreground text-xs font-semibold flex items-center justify-center">{{ ci + 1 }}</span>
-                <span class="min-w-0 flex-1">
-                  <span class="block whitespace-pre-wrap text-foreground/80 line-clamp-3">{{ card.quote.excerpt }}</span>
-                  <span v-if="card.quote.note" class="mt-0.5 block whitespace-pre-wrap text-foreground">{{ card.quote.note }}</span>
-                  <span v-if="card.quote.kind === 'file'" class="mt-0.5 block truncate font-mono text-2xs text-muted-foreground">{{ quoteSourceLabel(card.quote) }}</span>
-                  <span
-                    v-else-if="card.quote.kind === 'entry' && !card.jumpable"
-                    class="mt-0.5 block text-2xs italic text-muted-foreground"
-                  >{{ t('streamLog.quotes.sourceGone') }}</span>
-                </span>
-              </button>
+              <SentQuoteCard :card="card" :index="ci" @open="openQuote(card)" />
             </li>
           </ol>
           <div
