@@ -7,7 +7,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
-import { Badge, Banner, Card, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
+import { Badge, Banner, Card, InfoTip, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useToast } from '@/composables/useToast'
 import { connectionType, type AccountLike } from '@/lib/connectionTypes'

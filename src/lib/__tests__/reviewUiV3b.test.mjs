@@ -276,3 +276,9 @@ test('UR-37: remaining screens put their explanations behind an InfoTip and drop
     }
   }
 })
+
+test('UR-36: the project accounts card imports InfoTip because its template uses it', () => {
+  const src = read('../../components/projects/ProjectAccounts.vue')
+  assert.match(src, /<InfoTip\b/)
+  assert.match(src, /import \{[^}]*\bInfoTip\b[^}]*\} from '@\/components\/ui'/)
+})
