@@ -167,7 +167,7 @@ async fn session_spawn(
 
     // The conductor's pick, else Settings › Worker effort; `None` lets the worker
     // take the default effort (project, else global), like its engine's model.
-    let (effort, _effort_source) = super::defaults::worker_effort(&db, arg_str(&args, "effort").as_deref()).await;
+    let (effort, effort_source) = super::defaults::worker_effort(&db, arg_str(&args, "effort").as_deref()).await;
     let payload = StartRunPayload {
         run_id: worker_id.clone(),
         engine_override: Some(engine.clone()),
@@ -185,6 +185,7 @@ async fn session_spawn(
     };
 
     start_run_inner(state.app.clone(), db.clone(), registry(state), payload).await?;
+    crate::runs::routing::worker::spawned(&db, conductor_run_id, &worker_id, &args, effort_source).await;
 
     log_event(
         state,
@@ -801,6 +802,7 @@ pub async fn on_run_finished(app: &tauri::AppHandle, run_id: &str) {
         return;
     }
 
+    crate::runs::routing::worker::finished(&db_from(app), run_id).await;
     wake_conductor_for_worker(app, &cst, run_id).await;
 }
 

@@ -92,6 +92,9 @@ pub enum Event {
     Failed { tool_use_id: String },
     /// `system/task_notification`: how a (background or not) agent ended.
     Notified { tool_use_id: String, status: String, total_tokens: Option<i64>, duration_ms: Option<i64> },
+    /// A `result` with no `origin`: the user's turn ended with this reply (a
+    /// background task's wake-up turn has an origin).
+    TurnEnded { text: Option<String> },
 }
 
 fn text(v: &Value, key: &str) -> Option<String> {
@@ -159,6 +162,7 @@ pub fn parse(v: &Value) -> Vec<Event> {
                 duration_ms: v.pointer("/usage/duration_ms").and_then(Value::as_i64),
             }]
         }
+        Some("result") if v.get("origin").is_none_or(Value::is_null) => vec![Event::TurnEnded { text: text(v, "result") }],
         _ => Vec::new(),
     }
 }
@@ -188,6 +192,7 @@ struct RunMeta {
     policy_version: Option<i64>,
     /// Settings › Sub-agent effort gave the sidecar a level (`runs::subagent_env`).
     env_effort: bool,
+    is_worker: bool,
 }
 
 /// Records one sidecar drain's `Agent` calls. A drain is one process, so "the
@@ -246,8 +251,8 @@ impl Recorder {
 
     async fn meta(&mut self) -> &RunMeta {
         if self.meta.is_none() {
-            let (project_id, policy_version): (Option<String>, Option<i64>) =
-                sqlx::query_as("SELECT project_id, routing_policy_version FROM runs WHERE id = ?")
+            let (project_id, policy_version, role): (Option<String>, Option<i64>, Option<String>) =
+                sqlx::query_as("SELECT project_id, routing_policy_version, role FROM runs WHERE id = ?")
                     .bind(&self.run_id)
                     .fetch_optional(&self.db)
                     .await
@@ -258,7 +263,8 @@ impl Recorder {
                 Some(project_id) => crate::runs::subagent_env::load(&self.db, project_id).await.effort.is_some(),
                 None => false,
             };
-            self.meta = Some(RunMeta { project_id, policy_version, env_effort });
+            let is_worker = role.as_deref() == Some("worker");
+            self.meta = Some(RunMeta { project_id, policy_version, env_effort, is_worker });
         }
         self.meta.as_ref().expect("set above")
     }
@@ -274,6 +280,13 @@ impl Recorder {
         let now = chrono::Utc::now().to_rfc3339();
         match event {
             Event::Spawn(spawn) => self.spawned(spawn, &now).await?,
+            // A worker's reply says how its checks went (QO-FR35).
+            Event::TurnEnded { text } => {
+                if self.meta().await.is_worker {
+                    let verification = parse_verification(text.as_deref().unwrap_or_default());
+                    super::worker::verified(&self.db, &self.run_id, verification).await;
+                }
+            }
             Event::Result { tool_use_id, status: None, resolved_model, .. } => {
                 let Some(id) = self.rows.get(&tool_use_id) else { return Ok(()) };
                 sqlx::query("UPDATE routing_decisions SET resolved_model = COALESCE(?, resolved_model) WHERE id = ?")
