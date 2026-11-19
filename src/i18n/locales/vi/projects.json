@@ -52,6 +52,9 @@
     "claudeAccount": "Tài khoản Claude",
     "noRepos": "Chưa liên kết repository nào",
     "noConnections": "Chưa liên kết tài khoản hay máy chủ nào",
+    "clearSessions": "Xóa mọi session",
+    "clearSessionsTitle": "Xóa mọi session của Project",
+    "clearSessionsHint": "Chuyển mọi Session của Project này vào Thùng rác. Session đang chạy và được bảo vệ được bỏ qua.",
     "removeHint": "Chuyển Project và các Session của nó vào Thùng rác. File trên đĩa vẫn giữ nguyên."
   },
   "addIntro": "Chưa có Project nào đang mở. Session chạy trong thư mục của một Project, nên thêm Project trước.",

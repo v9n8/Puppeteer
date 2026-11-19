@@ -29,6 +29,8 @@ import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
 import { useGitlabAccountsStore } from '@/stores/gitlabAccounts'
 import { useLiveRunsStore } from '@/stores/liveRuns'
+import { useRunsStore } from '@/stores/runs'
+import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { useServersStore, type ProjectServer } from '@/stores/servers'
 
 const props = defineProps<{ project: Project }>()
@@ -46,6 +48,8 @@ const awsStore = useAwsAccountsStore()
 const azureStore = useAzureAccountsStore()
 const serversStore = useServersStore()
 const live = useLiveRunsStore()
+const runsStore = useRunsStore()
+const sessionTabs = useSessionTabsStore()
 
 appSettings.ensureLoaded().catch(() => {})
 if (!claudeStore.accounts.length) claudeStore.fetch().catch(() => {})
@@ -273,6 +277,32 @@ function handleOpenRepo(repo: Repo) {
   openUrl(url).catch(() => { /* opener unavailable */ })
 }
 
+const clearingSessions = ref(false)
+
+async function clearSessions() {
+  const project = props.project
+  if (!(await confirm({
+    title: t('run.deleteAllRunsTitle'),
+    message: t('run.deleteAllRunsMessage'),
+    confirmLabel: t('run.deleteAll'),
+  }))) return
+  clearingSessions.value = true
+  try {
+    // The runs store may hold another project's list; load this one so the
+    // ids to forget and the local mirror of the delete are this project's.
+    await runsStore.fetchRuns(project.id)
+    const before = runsStore.runs.map((r) => r.id)
+    await runsStore.deleteAllRuns(project.id)
+    const kept = new Set(runsStore.runs.map((r) => r.id))
+    sessionTabs.forget(before.filter((id) => !kept.has(id)))
+    toast.success(t('run.allRunsDeleted'))
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    clearingSessions.value = false
+  }
+}
+
 async function remove() {
   const project = props.project
   if (!(await confirm({
@@ -484,6 +514,15 @@ async function remove() {
         </Badge>
       </div>
       <p v-else class="text-2xs text-muted-foreground">{{ t('projects.overview.noConnections') }}</p>
+    </DetailSection>
+
+    <DetailSection :title="t('projects.overview.clearSessionsTitle')" :hint="t('projects.overview.clearSessionsHint')" hint-visible>
+      <div>
+        <Button variant="outline" size="xs" :disabled="clearingSessions" @click="clearSessions">
+          <Trash2 class="h-3 w-3" :stroke-width="1.75" />
+          {{ t('projects.overview.clearSessions') }}
+        </Button>
+      </div>
     </DetailSection>
 
     <DetailSection :title="t('projects.removeProject')" :hint="t('projects.overview.removeHint')" hint-visible>

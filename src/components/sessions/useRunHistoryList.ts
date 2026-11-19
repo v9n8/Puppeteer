@@ -365,7 +365,6 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
 
   const deletingRunId = ref<string | null>(null)
   const refetchingRunId = ref<string | null>(null)
-  const clearingAll = ref(false)
   const pinningRunId = ref<string | null>(null)
   const protectingRunId = ref<string | null>(null)
   // Which History row currently has its actions (⋯) menu open. Kept so the
@@ -627,32 +626,6 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     }
   }
 
-  async function handleClearAllRuns() {
-    if (runsStore.runs.length === 0) return
-    if (!(await confirm({
-      title: t('run.deleteAllRunsTitle'),
-      message: t('run.deleteAllRunsMessage'),
-      confirmLabel: t('run.deleteAll'),
-    }))) return
-    clearingAll.value = true
-    const before = runsStore.runs.map((r) => r.id)
-    try {
-      await runsStore.deleteAllRuns(projectId.value)
-      const kept = new Set(runsStore.runs.map((r) => r.id))
-      sessionTabs.forget(before.filter((id) => !kept.has(id)))
-      clearActiveRunState()
-      if (activeRunId.value) {
-        router.replace(`/projects/${projectId.value}`)
-      }
-      toast.success(t('run.allRunsDeleted'))
-    } catch (err) {
-      toast.error(String(err))
-    } finally {
-      clearingAll.value = false
-    }
-  }
-
-
   /** Parse an issue/PR/MR URL. Anything else — including a bare number — is null. */
   function parseIssueOrPrUrl(input: string): ParsedRef | null {
     const val = input.trim()
@@ -724,9 +697,9 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
     runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
     runTimestamp, sessionSearch, projectFlags, flagFilter, flagCounts, flagOptions, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
-    runGithubUrl, handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId,
+    runGithubUrl, handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId,
     renameDraft, setRenameInputRef, cancelRename, commitRename, applyRename, renameViaPrompt, runActionProps,
-    runActionHandlers, handleClearAllRuns, handleRefInput,
+    runActionHandlers, handleRefInput,
   }
 }
 

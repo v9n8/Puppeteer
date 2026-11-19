@@ -5,7 +5,7 @@
 import { useI18n } from 'vue-i18n'
 import { runActivityAt } from '@/stores/runs'
 import {
-  GitPullRequest, Bug, Clock, MessageSquare, Trash2, X, ShieldQuestion, MessageCircleQuestion, Pin,
+  GitPullRequest, Bug, Clock, MessageSquare, X, ShieldQuestion, MessageCircleQuestion, Pin,
   Shield, Pencil, Check, FolderTree, MoreHorizontal, Search, Network, Plus, ArrowUpDown,
   ChevronLeft, ChevronRight,
 } from 'lucide-vue-next'
@@ -24,9 +24,9 @@ const {
   runIcon, runStatusTitle, runWorkerCount, runRefIcon, runAccountModelLine, runRelativeTime,
   runDenseTooltip, runIconColorClass, runClaudeAccountLabel, runModelLabel, runStarted,
   runTimestamp, sessionSearch, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
-  handleFetch, handleSubmitLinkedIssue, clearingAll, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId, renameDraft,
+  handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId, renameDraft,
   setRenameInputRef, cancelRename, commitRename, runActionProps, runActionHandlers,
-  handleClearAllRuns, handleRefInput, creatingSession, handleNewSession, openFile,
+  handleRefInput, creatingSession, handleNewSession, openFile,
 } = useRunSession()
 
 // Shift+F10 / the Menu key on a focused row opens the row menu beside the row.
@@ -161,7 +161,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
     </div>
 
     <!-- Run history -->
-    <!-- The header (search + title/count + Clear all) is pinned: only the
+    <!-- The header (search + title/count + flag filter) is pinned: only the
          rows below it scroll, so the filter and the bulk action stay
          reachable no matter how far down the list the user is. -->
     <div v-show="leftTab === 'session'" class="flex-1 min-h-0 flex flex-col">
@@ -200,16 +200,6 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
           >
             <ArrowUpDown class="h-2.5 w-2.5" :stroke-width="1.75" />
             {{ t('run.resortSessions') }}
-          </button>
-          <button
-            v-if="runsStore.runs.length > 0"
-            class="flex shrink-0 items-center gap-1 whitespace-nowrap text-2xs text-muted-foreground/70 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="clearingAll"
-            :title="clearingAll ? t('run.clearing') : t('run.clearAllRunsTitle')"
-            @click="handleClearAllRuns"
-          >
-            <Trash2 class="h-2.5 w-2.5" :stroke-width="1.75" />
-            {{ clearingAll ? t('run.clearing') : t('run.clearAll') }}
           </button>
         </div>
       </div>

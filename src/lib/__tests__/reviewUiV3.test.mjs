@@ -367,3 +367,19 @@ test('UR-22: AppSelect stars isDefault rows; the project page and composer chips
     assert.equal(json(`../../i18n/locales/${lang}/run.json`).modelDefaultWith, undefined, lang)
   }
 })
+
+test('UR-01: "Clear all" leaves History and lives in the Project overview, which forgets the deleted tabs', () => {
+  const rail = read('../../components/sessions/RunSessionRail.vue')
+  assert.doesNotMatch(rail, /handleClearAllRuns|clearingAll|run\.clearAll/)
+  assert.doesNotMatch(read('../../components/sessions/useRunHistoryList.ts'), /handleClearAllRuns|clearingAll/)
+  const overview = read('../../components/projects/ProjectOverview.vue')
+  assert.match(overview, /runsStore\.fetchRuns\(project\.id\)/)
+  assert.match(overview, /runsStore\.deleteAllRuns\(project\.id\)/)
+  assert.match(overview, /sessionTabs\.forget\(/)
+  assert.match(overview, /@click="clearSessions"/)
+  for (const lang of ['en', 'vi']) {
+    const run = json(`../../i18n/locales/${lang}/run.json`)
+    for (const k of ['clearAll', 'clearAllRunsTitle', 'clearing']) assert.equal(run[k], undefined, `${lang} run.${k}`)
+    assert.ok(json(`../../i18n/locales/${lang}/projects.json`).overview.clearSessions, lang)
+  }
+})
