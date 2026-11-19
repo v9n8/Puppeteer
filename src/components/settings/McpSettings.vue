@@ -503,6 +503,7 @@ function dotClass(row: McpRow): string {
     <ListDetailSidebar
       v-show="!narrow || !showDetail"
       :class="narrow && '!w-full border-r-0'"
+      :resizable="!narrow"
       v-model:search="search"
       :groups="groups"
       :selected-id="isNew ? null : selectedId"
@@ -567,6 +568,14 @@ function dotClass(row: McpRow): string {
           >
             {{ row.name }}
           </span>
+        </span>
+        <span class="mt-1 truncate pl-3 font-mono text-2xs text-muted-foreground/70" :title="row.line">
+          {{ row.line || '—' }}
+        </span>
+        <span
+          v-if="(row.transport === 'sse' && defaultIsCodex) || row.kind === 'catalog'"
+          class="mt-1 flex min-w-0 flex-wrap items-center gap-1 pl-3"
+        >
           <span
             v-if="row.transport === 'sse' && defaultIsCodex"
             class="shrink-0 rounded bg-warning/15 px-1 text-2xs font-semibold text-warning"
@@ -580,9 +589,6 @@ function dotClass(row: McpRow): string {
           >
             {{ row.transport }}
           </span>
-        </span>
-        <span class="mt-1 truncate pl-3 font-mono text-2xs text-muted-foreground/70" :title="row.line">
-          {{ row.line || '—' }}
         </span>
       </template>
     </ListDetailSidebar>

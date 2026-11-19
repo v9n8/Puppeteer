@@ -249,3 +249,27 @@ test('UR-31: the list sidebar puts "New" beside the search box, and on the contr
   assert.doesNotMatch(template, /v-if="addable \|\| \$slots\.controls"/)
   assert.match(template, /\[&>\*\]:w-full/)
 })
+
+test('UR-32: list pane width is clamped, remembered per screen, and every list screen can drag it', async () => {
+  const { clampPaneWidth, parsePaneWidth, LIST_PANE_MIN, LIST_PANE_MAX } = await import('../listPaneWidth.ts')
+  assert.equal(clampPaneWidth(10), LIST_PANE_MIN)
+  assert.equal(clampPaneWidth(9999), LIST_PANE_MAX)
+  assert.equal(clampPaneWidth(300.4), 300)
+  assert.equal(parsePaneWidth(null, 280), 280)
+  assert.equal(parsePaneWidth('abc', 280), 280)
+  assert.equal(parsePaneWidth('350', 280), 350)
+  assert.equal(parsePaneWidth('50', 280), LIST_PANE_MIN)
+  // The sidebar draws the handle and stores under its collapse key; Library draws its own around the kind select.
+  const sidebar = read('../../components/listDetail/ListDetailSidebar.vue')
+  assert.match(sidebar, /useListPaneWidth\(props\.collapseKey/)
+  assert.match(sidebar, /<ListPaneResizer\s+v-if="resizable"/)
+  assert.doesNotMatch(sidebar, /w-\[280px\]/)
+  const library = read('../../views/LibraryView.vue')
+  assert.match(library, /<ListPaneResizer/)
+  assert.doesNotMatch(library, /w-\[240px\]|'w-56'/)
+  // Tags go on the last line of a row, after the description.
+  const row = library.slice(library.indexOf('#row="{ row, selected }"'))
+  assert.ok(row.indexOf('row.item.description') < row.indexOf('library.engine.'))
+  const mcp = read('../../components/settings/McpSettings.vue')
+  assert.ok(mcp.indexOf('row.line || ') < mcp.indexOf("t('mcp.list.claudeOnly')"))
+})

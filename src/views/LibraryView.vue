@@ -19,6 +19,8 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { AlertCircle, Import, Library, RotateCw, Unlink } from 'lucide-vue-next'
 import { Badge, Button, PageHeader, SegmentedControl } from '@/components/ui'
 import ListDetailSidebar from '@/components/listDetail/ListDetailSidebar.vue'
+import ListPaneResizer from '@/components/listDetail/ListPaneResizer.vue'
+import { useListPaneWidth } from '@/composables/useListPaneWidth'
 import DetailEmpty from '@/components/listDetail/DetailEmpty.vue'
 import LibraryKindTabs from '@/components/library/LibraryKindTabs.vue'
 import LibraryProjectList from '@/components/library/LibraryProjectList.vue'
@@ -67,6 +69,7 @@ const scopeOptions = computed(() => [
   { value: 'project' as const, label: t('library.tabProject') },
 ])
 
+const LIBRARY_LIST_KEY = 'puppeteer.library.collapsed'
 const COLLAPSED_KEY = 'puppeteer.library.projectsCollapsed'
 const projectsCollapsed = ref(readCollapsed())
 
@@ -80,6 +83,7 @@ function readCollapsed(): boolean {
 
 // Under 1100px the column folds by itself; opening it by hand holds until the window crosses the mark.
 const narrow = useMediaQuery(LIBRARY_NARROW_QUERY)
+const listPane = useListPaneWidth(LIBRARY_LIST_KEY, 224)
 const collapseOverride = ref<boolean | null>(null)
 watch(narrow, () => (collapseOverride.value = null))
 const projectListFolded = computed({
@@ -411,8 +415,8 @@ const emptyTitle = computed(() => {
       />
 
       <div
-        class="flex shrink-0 flex-col border-r border-border/60 bg-sidebar"
-        :class="narrow ? 'w-[240px]' : 'w-56'"
+        class="relative flex shrink-0 flex-col border-r border-border/60 bg-sidebar"
+        :style="{ width: `${listPane.width.value}px` }"
       >
         <div v-if="scope === 'global' || activeProjectId" class="shrink-0 px-4">
           <LibraryKindTabs v-model="kind" :kinds="kinds" :counts="counts" />
@@ -420,9 +424,10 @@ const emptyTitle = computed(() => {
         <ListDetailSidebar
           v-model:search="search"
           class="min-h-0 flex-1 !w-full !border-r-0"
+          :resizable="false"
           :groups="groups"
           :selected-id="selectedPath"
-          collapse-key="puppeteer.library.collapsed"
+          :collapse-key="LIBRARY_LIST_KEY"
           :search-placeholder="t('library.searchPlaceholder')"
           :loading="loading"
           :error="error"
@@ -454,6 +459,15 @@ const emptyTitle = computed(() => {
               <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
                 <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
               </span>
+            </span>
+            <span
+              v-if="row.item.description"
+              class="mt-1 truncate text-2xs text-muted-foreground/70"
+              :title="row.item.description"
+            >
+              {{ row.item.description }}
+            </span>
+            <span class="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
                 {{ t('library.missing') }}
               </Badge>
@@ -468,15 +482,14 @@ const emptyTitle = computed(() => {
               </Badge>
               <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
             </span>
-            <span
-              v-if="row.item.description"
-              class="mt-1 truncate text-2xs text-muted-foreground/70"
-              :title="row.item.description"
-            >
-              {{ row.item.description }}
-            </span>
           </template>
         </ListDetailSidebar>
+        <ListPaneResizer
+          :width="listPane.width.value"
+          @drag="listPane.drag"
+          @commit="listPane.commit"
+          @reset="listPane.reset"
+        />
       </div>
 
       <LibraryEntryDetail

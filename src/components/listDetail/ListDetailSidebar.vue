@@ -13,6 +13,9 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Folder, Plus, RotateCw, Search, X } from 'lucide-vue-next'
 import { Banner, Button, Input, SegmentedControl } from '@/components/ui'
+import { useListPaneWidth } from '@/composables/useListPaneWidth'
+import { LIST_PANE_DEFAULT } from '@/lib/listPaneWidth'
+import ListPaneResizer from './ListPaneResizer.vue'
 import { parseCollapsed, type RowGroup } from '@/lib/listGroups'
 import { groupClass, groupHeaderClass, listPaneClass, listPaneHeadClass, rowClass, rowListClass } from './rowStyles'
 
@@ -38,6 +41,10 @@ const props = withDefaults(
     flatWhenSingle?: boolean
     /** False drops "+ New" (Library: the files are made elsewhere). */
     addable?: boolean
+    /** False when the host owns the width (Library) or the pane is full width. */
+    resizable?: boolean
+    /** Width until the user drags it; remembered under `<collapseKey>.width`. */
+    defaultWidth?: number
   }>(),
   {
     newLabel: '',
@@ -50,6 +57,8 @@ const props = withDefaults(
     emptyHint: '',
     flatWhenSingle: true,
     addable: true,
+    resizable: true,
+    defaultWidth: LIST_PANE_DEFAULT,
   },
 )
 
@@ -80,6 +89,7 @@ defineSlots<{
 }>()
 
 const { t } = useI18n()
+const pane = useListPaneWidth(props.collapseKey, props.defaultWidth)
 
 const collapsed = ref<Set<string>>(parseCollapsed(readStorage()))
 
@@ -109,7 +119,7 @@ function showHeaders(): boolean {
 </script>
 
 <template>
-  <aside class="w-[280px]" :class="listPaneClass">
+  <aside class="relative" :class="listPaneClass" :style="{ width: `${pane.width.value}px` }">
     <div class="space-y-2 px-3 py-3" :class="listPaneHeadClass">
       <div class="flex items-center gap-1.5">
         <div class="relative min-w-0 flex-1">
@@ -222,5 +232,13 @@ function showHeaders(): boolean {
     <div v-if="$slots.footer" class="shrink-0 border-t border-border px-3 py-2">
       <slot name="footer" />
     </div>
+
+    <ListPaneResizer
+      v-if="resizable"
+      :width="pane.width.value"
+      @drag="pane.drag"
+      @commit="pane.commit"
+      @reset="pane.reset"
+    />
   </aside>
 </template>
