@@ -38,7 +38,6 @@ const props = withDefaults(defineProps<{
   // Accessible name of the trigger when its text alone is too terse.
   ariaLabel?: string
 }>(), {
-  placeholder: 'Select…',
   size: 'sm',
   variant: 'default',
   disabled: false,
@@ -100,7 +99,7 @@ const selectedOption = computed(() =>
 )
 
 const displayLabel = computed(() =>
-  selectedOption.value?.label ?? props.placeholder
+  selectedOption.value?.label ?? (props.placeholder ?? t('common.select'))
 )
 
 function isSelectable(i: number): boolean {

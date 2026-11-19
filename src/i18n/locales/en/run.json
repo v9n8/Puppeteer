@@ -228,7 +228,7 @@
   "codexAccountUpdateFailed": "Could not change Codex account: {error}",
   "accountMenu": {
     "heading": "Account · {engine}",
-    "manage": "Manage accounts…",
+    "manage": "Manage accounts",
     "expired": "Sign-in expired — sign in again in Settings › Engines & accounts",
     "followsProject": "Follows the Project's account",
     "chipTitle": "Account: {account} — click to switch account",

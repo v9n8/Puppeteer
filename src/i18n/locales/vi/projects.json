@@ -58,5 +58,5 @@
     "removeHint": "Chuyển Project và các Session của nó vào Thùng rác. File trên đĩa vẫn giữ nguyên."
   },
   "addIntro": "Chưa có Project nào đang mở. Session chạy trong thư mục của một Project, nên thêm Project trước.",
-  "chooseFolder": "Chọn thư mục…"
+  "chooseFolder": "Chọn thư mục"
 }

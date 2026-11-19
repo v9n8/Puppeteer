@@ -598,3 +598,27 @@ test('UR-46: duplicate buttons are gone (empty project log, PR inbox clear-all)'
     assert.equal(pr.filters.clearSearchAndFilters, undefined)
   }
 })
+
+test('UR-27: action labels have no trailing ellipsis, menu bar and loading text keep it', () => {
+  const dropped = [
+    'projectSwitcher.addProject', 'run.accountMenu.manage', 'files.tree.compareWith',
+    'focus.snooze.custom', 'interruptedRuns.choose', 'settings.general.fontCustom',
+    'settings.backup.export.button', 'settings.backup.import.choose', 'projects.chooseFolder',
+    'windows.openWindows', 'misc.remoteIndicator.pair',
+  ]
+  for (const lang of ['en', 'vi']) {
+    for (const key of dropped) {
+      const [file, ...path] = key.split('.')
+      const value = path.reduce((o, k) => o?.[k], json(`../../i18n/locales/${lang}/${file}.json`))
+      assert.equal(typeof value, 'string', `${lang} ${key}`)
+      assert.ok(!value.endsWith('…'), `${lang} ${key} still ends with an ellipsis`)
+    }
+    // The menu bar / tray keep "…" (Q12); in-progress text keeps it too.
+    assert.ok(Object.values(json(`../../i18n/locales/${lang}/menu.json`)).some((v) => v.endsWith('…')))
+    assert.ok(json(`../../i18n/locales/${lang}/common.json`).loading.endsWith('…'))
+  }
+  // AppSelect's default placeholder comes from i18n, not a hardcoded string.
+  const select = read('../../components/AppSelect.vue')
+  assert.doesNotMatch(select, /'Select…'/)
+  assert.match(select, /t\('common\.select'\)/)
+})

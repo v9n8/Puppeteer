@@ -52,7 +52,7 @@
     "openInVscode": "Mở bằng VSCode",
     "openInChrome": "Mở bằng Chrome",
     "mentionInChat": "Nhắc trong chat",
-    "compareWith": "So sánh với…",
+    "compareWith": "So sánh với",
     "fileNameLabel": "Tên tệp",
     "folderNameLabel": "Tên thư mục",
     "fileNamePlaceholder": "vd. index.ts",

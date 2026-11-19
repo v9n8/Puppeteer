@@ -8,7 +8,7 @@
   "open": "Open",
   "newSession": "New session",
   "hiddenBadge": "Hidden",
-  "addProject": "Add project…",
+  "addProject": "Add project",
   "alreadyAdded": "\"{name}\" is already a project — opened it",
   "restored": "Restored \"{name}\" from the Trash, with its sessions"
 }

@@ -107,7 +107,7 @@
     "desktopSince": "Another Puppeteer since {time}",
     "controller": "A phone / web controller is signed in",
     "nobody": "No controller connected",
-    "pair": "Pair a device…",
+    "pair": "Pair a device",
     "settings": "Remote Control settings"
   },
   "ide": {

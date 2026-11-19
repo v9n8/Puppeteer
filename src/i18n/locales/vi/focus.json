@@ -123,7 +123,7 @@
     "afternoon": "Chiều nay (14:00)",
     "tomorrow": "Mai {time}",
     "nextWeek": "Tuần sau (T2 {time})",
-    "custom": "Chọn thời gian…",
+    "custom": "Chọn thời gian",
     "wake": "Bỏ hoãn",
     "customTitle": "Hoãn đến",
     "until": "Hoãn đến {time}",

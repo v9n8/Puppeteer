@@ -2,7 +2,7 @@
   "title": "{n} session was cut off when the app closed | {n} sessions were cut off when the app closed",
   "message": "Nothing resumes until you choose: a session may have stopped half-way through writing a file.",
   "resumeAll": "Resume all",
-  "choose": "Choose…",
+  "choose": "Choose",
   "dismiss": "Dismiss",
   "workers": "{n} worker | {n} workers",
   "mode": "resumes in mode {mode}",

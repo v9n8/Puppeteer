@@ -8,7 +8,7 @@
   "open": "Mở",
   "newSession": "Session mới",
   "hiddenBadge": "Đã ẩn",
-  "addProject": "Thêm Project…",
+  "addProject": "Thêm Project",
   "alreadyAdded": "\"{name}\" đã là Project — đã mở nó",
   "restored": "Đã khôi phục \"{name}\" từ Thùng rác, kèm các Session của nó"
 }

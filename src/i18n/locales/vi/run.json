@@ -228,7 +228,7 @@
   "codexAccountUpdateFailed": "Đổi tài khoản Codex thất bại: {error}",
   "accountMenu": {
     "heading": "Tài khoản · {engine}",
-    "manage": "Quản lý tài khoản…",
+    "manage": "Quản lý tài khoản",
     "expired": "Đăng nhập đã hết hạn — đăng nhập lại ở Cài đặt › Engine & tài khoản",
     "followsProject": "Theo tài khoản của Project",
     "chipTitle": "Tài khoản: {account} — bấm để đổi tài khoản",

@@ -123,7 +123,7 @@
     "afternoon": "This afternoon (14:00)",
     "tomorrow": "Tomorrow {time}",
     "nextWeek": "Next week (Mon {time})",
-    "custom": "Pick a time…",
+    "custom": "Pick a time",
     "wake": "Wake up now",
     "customTitle": "Snooze until",
     "until": "Snoozed until {time}",

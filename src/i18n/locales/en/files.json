@@ -52,7 +52,7 @@
     "openInVscode": "Open in VSCode",
     "openInChrome": "Open in Chrome",
     "mentionInChat": "Mention in Chat",
-    "compareWith": "Compare with…",
+    "compareWith": "Compare with",
     "fileNameLabel": "File name",
     "folderNameLabel": "Folder name",
     "fileNamePlaceholder": "e.g. index.ts",
