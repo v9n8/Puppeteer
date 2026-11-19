@@ -287,3 +287,10 @@ test('UR-17: the tab menu icon row wraps inside the menu instead of widening it'
   const src = read('../../components/WorkspaceTabs.vue')
   assert.match(src, /class="[^"]*\bw-0 min-w-full\b[^"]*"\s*>\s*<button\s+v-for="icon in PROJECT_ICONS"/)
 })
+
+test('UR-04: the empty flags hint does not hard-code the number of default flags', () => {
+  for (const l of ['en', 'vi']) {
+    const body = JSON.parse(read(`../../i18n/locales/${l}/sessionFlags.json`)).settings.emptyBody
+    assert.doesNotMatch(body, /\d/, `${l} emptyBody has no number`)
+  }
+})

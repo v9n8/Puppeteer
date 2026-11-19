@@ -46,7 +46,7 @@
     "dragLabel": "Reorder “{name}”: Space to lift, arrows to move, Space to drop, Esc to cancel",
     "footer": "Drag ⋮⋮ to reorder: this order is used in the Set flag menu and in the History column's filter.",
     "emptyTitle": "No flags yet",
-    "emptyBody": "Sessions run as usual, you just cannot flag or filter them. Add a flag, or restore the 4 default flags.",
+    "emptyBody": "Sessions run as usual, you just cannot flag or filter them. Add a flag, or restore the default flags.",
     "loadError": "Could not load flags.",
     "retry": "Try again",
     "deleteTitle": "Delete flag “{name}”?",

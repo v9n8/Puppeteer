@@ -46,7 +46,7 @@
     "dragLabel": "Đổi thứ tự “{name}”: Space để nhấc, mũi tên để dời, Space để thả, Esc để huỷ",
     "footer": "Kéo ⋮⋮ để đổi thứ tự: thứ tự này dùng ở menu Gắn flag và dropdown lọc của cột History.",
     "emptyTitle": "Chưa có flag nào",
-    "emptyBody": "Session vẫn chạy bình thường, chỉ không gắn và lọc theo flag được. Thêm flag mới, hoặc khôi phục 4 flag mặc định.",
+    "emptyBody": "Session vẫn chạy bình thường, chỉ không gắn và lọc theo flag được. Thêm flag mới, hoặc khôi phục các flag mặc định.",
     "loadError": "Không tải được flag.",
     "retry": "Thử lại",
     "deleteTitle": "Xóa flag “{name}”?",
