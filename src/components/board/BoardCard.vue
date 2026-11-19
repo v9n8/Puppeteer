@@ -9,9 +9,7 @@ import { relativeAge } from '@/lib/runDisplay'
 import { runActivityAt } from '@/stores/runs'
 import { runStatusKey } from '@/lib/interruptedRuns'
 import { cardStatus, cardTitle, type CardStatus } from '@/lib/flagBoard'
-import { swatchClass } from '@/lib/projectAppearance'
 import type { BoardRun } from '@/stores/flagBoard'
-import type { SessionFlag } from '@/lib/sessionFlags'
 
 const props = defineProps<{
   run: BoardRun
@@ -21,8 +19,6 @@ const props = defineProps<{
   saving: boolean
   /** Show the Project's name (All projects board). */
   showProject: boolean
-  /** The Session's own flag, shown as a chip on the "Own flags" column. */
-  ownFlag: SessionFlag | null
   /** Lifted with the keyboard, or being dragged: drawn raised / faded. */
   state: 'idle' | 'lifted' | 'dragging'
 }>()
@@ -48,7 +44,6 @@ const DOT: Record<CardStatus, string> = {
   draft: 'bg-muted-foreground/50',
 }
 const age = computed(() => relativeAge(runActivityAt(props.run), t('run.relNow')))
-const flagName = computed(() => (props.ownFlag ? props.ownFlag.name : ''))
 
 function onContextMenu(ev: MouseEvent) {
   ev.preventDefault()
@@ -95,10 +90,6 @@ function onKeydown(ev: KeyboardEvent) {
       <span class="line-clamp-2 min-w-0 flex-1 break-words text-sm font-medium leading-5">{{ title }}</span>
     </span>
     <span v-if="showProject" class="truncate pl-4 text-2xs text-muted-foreground">{{ run.project_name }}</span>
-    <span v-if="ownFlag" class="flex items-center gap-1.5 pl-4 text-2xs text-muted-foreground" :title="t('board.card.ownFlag', { name: flagName })">
-      <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(ownFlag.color)" aria-hidden="true" />
-      <span class="truncate">{{ flagName }}</span>
-    </span>
     <span class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-2xs leading-[1.4] text-muted-foreground">
       <span class="flex items-center gap-1" :title="t('board.card.updated', { age })">
         <Clock class="h-3 w-3" :stroke-width="1.75" />{{ age }}

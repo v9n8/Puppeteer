@@ -8,7 +8,8 @@
   },
   "filter": {
     "placeholder": "Filter by Session name…",
-    "label": "Filter the cards by Session name"
+    "label": "Filter the cards by Session name",
+    "hidden": "{n} Sessions hidden by the filter"
   },
   "refresh": "Refresh",
   "manageFlags": "Manage flags",
@@ -16,23 +17,20 @@
   "viewAsBoard": "View as board",
   "column": {
     "none": "No flag",
-    "own": "Own flags",
-    "ownLock": "Cannot drop here: own flags belong to each Project. Use right-click › Set flag.",
     "fold": "Fold the “No flag” column",
     "unfold": "Unfold the “No flag” column",
     "emptyFlag": "Drag a card here to set “{flag}”",
     "emptyNone": "Every Session has a flag",
-    "emptyOwn": "No Session with an own flag",
     "noMatch": "No card matches “{query}”",
     "blocked": "{project} hides this flag: no drop here",
-    "cardCount": "{n} cards"
+    "cardCount": "{n} cards",
+    "ownOther": "{project}'s own flag: only {project} Sessions can go here."
   },
   "card": {
     "workers": "{n} workers",
     "updated": "Updated {age} ago",
     "waiting": "Waiting for you to grant permission",
     "open": "Open this Session",
-    "ownFlag": "Own flag: {name}",
     "busy": "Setting the flag…"
   },
   "banner": {
@@ -45,7 +43,8 @@
     "mouse": "Dragging “{name}” · drop on a column to change its flag; drop on No flag to remove the flag.",
     "keys": "Keyboard: Space lifts a card · ← → choose a column · Space drops · Esc cancels.",
     "lifted": "Lifted “{name}” · column: {column}. ← → choose a column, Space to drop, Esc to cancel.",
-    "idle": "Tab or ↑ ↓ choose a card · Enter opens it · Space lifts it to another column."
+    "idle": "Tab or ↑ ↓ choose a card · Enter opens it · Space lifts it to another column.",
+    "blocked": "Dragging “{name}” · {reason}"
   },
   "toast": {
     "set": "Set flag “{flag}” for “{name}”",

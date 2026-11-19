@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // One column of the board: head (dot, name, count), the cards (scrolling on their own)
 // and the drop state while a card is dragged. "No flag" can fold into a 44px strip;
-// the All projects board's "Own flags" column carries a lock and takes no drop.
+// on the All projects board an own flag's column names its Project under the flag.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronsLeft, ChevronsRight, CircleDashed, Lock } from 'lucide-vue-next'
+import { Ban, ChevronsLeft, ChevronsRight, CircleDashed } from 'lucide-vue-next'
 import { swatchClass } from '@/lib/projectAppearance'
 import type { BoardColumn } from '@/lib/flagBoard'
 import type { BoardRun } from '@/stores/flagBoard'
@@ -21,8 +21,10 @@ const props = defineProps<{
   collapsed: boolean
   /** While a card is dragged over: where it would land, can't land, or this column is not the one. */
   drop: 'idle' | 'target' | 'blocked'
-  /** Why a blocked drop is refused (a Project hides the flag). */
+  /** Why a blocked drop is refused (a Project hides the flag, or it is another Project's own). */
   blockedReason: string
+  /** The Project of an own flag, on the All projects board ('' otherwise). */
+  project: string
 }>()
 
 const emit = defineEmits<{ toggle: [] }>()
@@ -32,10 +34,8 @@ const count = computed(() => (props.filtering ? `${props.matched} / ${props.tota
 const emptyText = computed(() => {
   if (props.filtering && props.total > 0) return t('board.column.noMatch', { query: props.query.trim() })
   if (props.column.kind === 'none') return t('board.column.emptyNone')
-  if (props.column.kind === 'own') return t('board.column.emptyOwn')
   return t('board.column.emptyFlag', { flag: props.label })
 })
-const ownLock = computed(() => t('board.column.ownLock'))
 </script>
 
 <template>
@@ -47,7 +47,7 @@ const ownLock = computed(() => t('board.column.ownLock'))
       drop === 'target' ? 'border-dashed border-primary bg-accent' : drop === 'blocked' ? 'cursor-not-allowed border-dashed border-destructive/60' : 'border-border',
     ]"
     :aria-label="`${label} · ${count}`"
-    :title="drop === 'blocked' ? blockedReason : column.kind === 'own' ? ownLock : undefined"
+    :title="drop === 'blocked' ? blockedReason : undefined"
   >
     <!-- Folded "No flag": a strip with the name written downwards. -->
     <button
@@ -66,9 +66,12 @@ const ownLock = computed(() => t('board.column.ownLock'))
     <template v-else>
       <header class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border py-1 pl-2.5 pr-1.5 font-semibold">
         <CircleDashed v-if="column.kind === 'none'" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
-        <Lock v-else-if="column.kind === 'own'" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="1.75" />
         <span v-else-if="column.flag" class="h-2.5 w-2.5 shrink-0 rounded-full" :class="swatchClass(column.flag.color)" aria-hidden="true" />
-        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold" :title="label">{{ label }}</h2>
+        <h2 v-if="project" class="flex min-w-0 flex-1 flex-col leading-tight" :title="`${label} · ${project}`">
+          <span class="truncate text-sm font-semibold">{{ label }}</span>
+          <span class="truncate text-2xs font-normal text-muted-foreground">{{ project }}</span>
+        </h2>
+        <h2 v-else class="min-w-0 flex-1 truncate text-sm font-semibold" :title="label">{{ label }}</h2>
         <span class="shrink-0 font-mono text-2xs text-muted-foreground" :title="t('board.column.cardCount', { n: total })">{{ count }}</span>
         <button
           v-if="column.kind === 'none'"
@@ -83,7 +86,10 @@ const ownLock = computed(() => t('board.column.ownLock'))
       </header>
 
       <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-2">
-        <p v-if="drop === 'blocked'" class="px-1 py-2 text-center text-2xs text-destructive">{{ blockedReason }}</p>
+        <p v-if="drop === 'blocked'" class="mt-2 flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-2xs text-destructive">
+          <Ban class="mt-0.5 h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+          <span class="min-w-0 [overflow-wrap:anywhere]">{{ blockedReason }}</span>
+        </p>
         <template v-for="card in cards" :key="card.id">
           <slot name="card" :card="card" />
         </template>

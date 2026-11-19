@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   boardColumns, canDrop, cardStatus, cardTitle, dropFlagId, filterCards, groupCards, moveSelection, resolveBoardProject,
-  NO_FLAG_COLUMN, OWN_FLAGS_COLUMN,
+  NO_FLAG_COLUMN,
 } from '../flagBoard.ts'
 
 const flag = (id, extra = {}) => ({
@@ -18,22 +18,25 @@ test('one project: No flag, the shared flags it does not hide, then its own', ()
   assert.deepEqual(ids(boardColumns(flags, 'project')), [NO_FLAG_COLUMN, 'a', 'c', 'mine'])
 })
 
-test('all projects: every shared flag, then an Own flags column that takes no drop', () => {
+test('all projects: every shared flag, then each own flag as a column that takes a drop (UR-60)', () => {
   const cols = boardColumns([flag('a'), flag('b', { hidden: true }), flag('mine', { project_id: 'p1' })], 'all')
-  assert.deepEqual(ids(cols), [NO_FLAG_COLUMN, 'a', 'b', OWN_FLAGS_COLUMN])
-  assert.equal(cols.at(-1).droppable, false)
+  assert.deepEqual(ids(cols), [NO_FLAG_COLUMN, 'a', 'b', 'mine'])
+  assert.ok(cols.every((c) => c.droppable))
 })
 
-test('cards go to their flag column; an unknown flag falls back to No flag, or Own flags when all', () => {
+test('cards go to their flag column; a card whose column is not on the board sits nowhere (UR-60)', () => {
   const cards = [
     { id: '1', flag_id: 'a' }, { id: '2', flag_id: null }, { id: '3', flag_id: 'b' }, { id: '4', flag_id: 'mine' },
   ]
   const one = groupCards(cards, boardColumns(flags, 'project'))
   assert.deepEqual(one.get('a').map((c) => c.id), ['1'])
-  assert.deepEqual(one.get(NO_FLAG_COLUMN).map((c) => c.id), ['2', '3'])
+  assert.deepEqual(one.get(NO_FLAG_COLUMN).map((c) => c.id), ['2'])
+  assert.deepEqual([...one.values()].flat().map((c) => c.id).sort(), ['1', '2', '4'])
   const all = groupCards(cards, boardColumns(flags, 'all'))
-  assert.deepEqual(all.get(OWN_FLAGS_COLUMN).map((c) => c.id), ['4'])
+  assert.deepEqual(all.get('mine').map((c) => c.id), ['4'])
   assert.deepEqual(all.get('b').map((c) => c.id), ['3'])
+  const noNone = groupCards(cards, boardColumns(flags, 'all').filter((c) => c.id !== NO_FLAG_COLUMN))
+  assert.equal([...noNone.values()].flat().length, 3)
 })
 
 test('the filter keeps the name matches and counts matched / total', () => {
@@ -44,11 +47,12 @@ test('the filter keeps the name matches and counts matched / total', () => {
   assert.equal(filterCards(grouped, '', (c) => c.t).get('a').matched, 2)
 })
 
-test('canDrop: not on Own flags, not on a flag the card project hides, own flags only in their project', () => {
+test('canDrop: not on a flag the card project hides, own flags only in their project', () => {
   const cols = boardColumns(flags, 'all')
   const col = (id) => cols.find((c) => c.id === id)
   const hidden = [{ project_id: 'p1', flag_id: 'b' }]
-  assert.equal(canDrop({ project_id: 'p1' }, col(OWN_FLAGS_COLUMN), hidden), false)
+  assert.equal(canDrop({ project_id: 'p1' }, col('mine'), hidden), true)
+  assert.equal(canDrop({ project_id: 'p2' }, col('mine'), hidden), false)
   assert.equal(canDrop({ project_id: 'p1' }, col('b'), hidden), false)
   assert.equal(canDrop({ project_id: 'p2' }, col('b'), hidden), true)
   assert.equal(canDrop({ project_id: 'p1' }, col(NO_FLAG_COLUMN), hidden), true)

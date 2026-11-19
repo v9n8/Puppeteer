@@ -8,9 +8,8 @@ import type { SessionFlag } from './sessionFlags.ts'
 /** One project's board, or every project's. */
 export type BoardMode = 'project' | 'all'
 
-/** The id of the "No flag" column, and of the "Own flags" column of the All projects board. */
+/** The id of the "No flag" column. */
 export const NO_FLAG_COLUMN = 'none'
-export const OWN_FLAGS_COLUMN = 'own'
 
 /** A shared flag one project hides. */
 export interface HiddenMark {
@@ -20,45 +19,40 @@ export interface HiddenMark {
 
 export interface BoardColumn {
   id: string
-  kind: 'none' | 'flag' | 'own'
+  kind: 'none' | 'flag'
   /** The flag a `flag` column stands for. */
   flag: SessionFlag | null
-  /** False: nothing can be dropped here (the All projects board's "Own flags" column). */
+  /** False: nothing can be dropped here. */
   droppable: boolean
 }
 
 /**
- * Columns left to right: "No flag"; the shared flags in Settings order, those the
- * project hides left out; then the project's own. The All projects board lists
- * every shared flag, then one "Own flags" column that takes no drop.
+ * Every column the board can show: "No flag"; the shared flags in Settings order,
+ * those the project hides left out; then the project's own. The All projects board
+ * lists every shared flag, then the own flags of each Project as columns of their
+ * own (UR-60). Which of them show, and in what order, is the board filter's job
+ * (boardFilter.ts).
  */
 export function boardColumns(flags: readonly SessionFlag[], mode: BoardMode): BoardColumn[] {
   const none: BoardColumn = { id: NO_FLAG_COLUMN, kind: 'none', flag: null, droppable: true }
   const flagColumn = (flag: SessionFlag): BoardColumn => ({ id: flag.id, kind: 'flag', flag, droppable: true })
   const shared = flags.filter((f) => f.project_id === null)
-  if (mode === 'all') {
-    return [none, ...shared.map(flagColumn), { id: OWN_FLAGS_COLUMN, kind: 'own', flag: null, droppable: false }]
-  }
   const own = flags.filter((f) => f.project_id !== null)
+  if (mode === 'all') return [none, ...[...shared, ...own].map(flagColumn)]
   return [none, ...[...shared, ...own].filter((f) => !f.hidden).map(flagColumn)]
 }
 
 /**
- * The cards of every column, in the order given. A card whose flag has no column
- * (a flag its project hides since) sits in "No flag"; on the All projects board a
- * flag without a shared column is a project's own.
+ * The cards of every column, in the order given. A card whose column is not on the
+ * board (the filter leaves it out, or its project hides the flag) sits nowhere:
+ * the status line counts it (boardFilter.ts `hiddenCount`).
  */
 export function groupCards<C extends { flag_id?: string | null }>(
   cards: readonly C[],
   columns: readonly BoardColumn[],
 ): Map<string, C[]> {
   const grouped = new Map<string, C[]>(columns.map((c) => [c.id, []]))
-  const hasOwn = grouped.has(OWN_FLAGS_COLUMN)
-  for (const card of cards) {
-    const id = card.flag_id
-    const target = id && grouped.has(id) ? id : id && hasOwn ? OWN_FLAGS_COLUMN : NO_FLAG_COLUMN
-    grouped.get(target)?.push(card)
-  }
+  for (const card of cards) grouped.get(card.flag_id || NO_FLAG_COLUMN)?.push(card)
   return grouped
 }
 
@@ -84,9 +78,9 @@ export function filterCards<C>(
 }
 
 /**
- * Whether `card` may be dropped on `column`: never on the "Own flags" column; a
- * shared flag not when the card's project hides it; a project's own flag only for
- * that project's cards (the backend refuses the rest too).
+ * Whether `card` may be dropped on `column`: a shared flag not when the card's
+ * project hides it; a project's own flag only for that project's cards (the
+ * backend refuses the rest too).
  */
 export function canDrop(
   card: { project_id: string },

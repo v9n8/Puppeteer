@@ -13,6 +13,7 @@ import BoardColumn from '@/components/board/BoardColumn.vue'
 import BoardCard from '@/components/board/BoardCard.vue'
 import { useBoardDrag } from '@/components/board/useBoardDrag'
 import { useBoardRunActions } from '@/components/board/useBoardRunActions'
+import { useBoardFilter } from '@/components/board/useBoardFilter'
 import { useFlagTargets } from '@/components/sessions/useFlagTargets'
 import { useFlagBoardStore, type BoardRun } from '@/stores/flagBoard'
 import { useLiveRunsStore } from '@/stores/liveRuns'
@@ -21,12 +22,13 @@ import { useSessionFlagsStore } from '@/stores/sessionFlags'
 import { useUILayoutStore } from '@/stores/uiLayout'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { useToast } from '@/composables/useToast'
-import { flagById, flagLabel } from '@/lib/sessionFlags'
+import { flagLabel } from '@/lib/sessionFlags'
 import { sessionNavTarget } from '@/lib/sidebarNav'
 import {
-  boardColumns, canDrop, cardTitle, dropFlagId, filterCards, groupCards, moveSelection, resolveBoardProject,
+  canDrop, cardTitle, dropFlagId, filterCards, groupCards, moveSelection, resolveBoardProject,
   NO_FLAG_COLUMN, type BoardColumn as Column, type BoardKeyState,
 } from '@/lib/flagBoard'
+import { hiddenCount } from '@/lib/boardFilter'
 
 defineOptions({ name: 'BoardView' })
 
@@ -63,12 +65,12 @@ function chooseProject(id: string) {
 const query = ref('')
 const flags = computed(() => board.data?.flags ?? [])
 const hidden = computed(() => board.data?.hidden ?? [])
-const columns = computed(() => boardColumns(flags.value, mode.value))
+// Which columns show, and in what order: the board filter of this scope (UR-60).
+const { columns } = useBoardFilter({ scope: choice, flags, projectOrder: projectIds })
 const runById = computed(() => new Map((board.data?.runs ?? []).map((r) => [r.id, r])))
 
 function columnLabel(c: Column): string {
   if (c.kind === 'none') return t('board.column.none')
-  if (c.kind === 'own') return t('board.column.own')
   return c.flag ? flagLabel(c.flag, t) : ''
 }
 
@@ -86,9 +88,9 @@ const isCollapsed = (c: Column) => c.kind === 'none' && noFlagCollapsed.value
 const hasRuns = computed(() => (board.data?.runs.length ?? 0) > 0)
 const noFlagYet = computed(() => !!board.data && hasRuns.value && board.data.runs.every((r) => !r.flag_id))
 
-function ownFlagOf(run: BoardRun) {
-  return mode.value === 'all' && run.flag_id ? flagById(flags.value, run.flag_id) ?? null : null
-}
+const projectNameOf = (id: string) => projectStore.projects.find((p) => p.id === id)?.name ?? ''
+/** The All projects board names the Project under the head of an own flag's column. */
+const columnProject = (c: Column) => (mode.value === 'all' && c.flag?.project_id ? projectNameOf(c.flag.project_id) : '')
 
 // ---- Loading -----------------------------------------------------------------------
 
@@ -162,16 +164,11 @@ function dropState(c: Column): 'idle' | 'target' | 'blocked' {
 }
 
 function blockedReason(c: Column): string {
-  const run = drag.value?.run
-  if (c.kind === 'own') return t('board.column.ownLock')
+  const run = drag.value?.run ?? (keys.value.lifted ? runById.value.get(keys.value.lifted.runId) : undefined)
+  const owner = c.flag?.project_id
+  if (owner) return t('board.column.ownOther', { project: projectNameOf(owner) })
   return run ? t('board.column.blocked', { project: run.project_name }) : ''
 }
-
-/** The dragged card came from the "own flags" column, so its copy shows that flag too. */
-const dragFromOwn = computed(() => {
-  const d = drag.value
-  return !!d && columns.value.find((c) => c.id === columnOfRun(d.run))?.kind === 'own'
-})
 
 function cardState(run: BoardRun): 'idle' | 'lifted' | 'dragging' {
   if (drag.value?.run.id === run.id) return 'dragging'
@@ -232,8 +229,15 @@ const statusLine = computed(() => {
     const column = columns.value.find((c) => c.id === lifted.target)
     return run && column ? t('board.drag.lifted', { name: cardTitle(run, t), column: columnLabel(column) }) : ''
   }
-  if (drag.value) return `${t('board.drag.mouse', { name: cardTitle(drag.value.run, t) })} ${t('board.drag.keys')}`
-  return t('board.drag.idle')
+  const d = drag.value
+  if (d) {
+    const over = d.over ? columns.value.find((c) => c.id === d.over) : undefined
+    const name = cardTitle(d.run, t)
+    if (over && dropState(over) === 'blocked') return t('board.drag.blocked', { name, reason: blockedReason(over) })
+    return `${t('board.drag.mouse', { name })} ${t('board.drag.keys')}`
+  }
+  const n = board.data ? hiddenCount(board.data.runs, columns.value) : 0
+  return n ? `${t('board.filter.hidden', { n })} · ${t('board.drag.idle')}` : t('board.drag.idle')
 })
 
 const manageTarget = computed(() => (mode.value === 'all' ? (canManage ? 'shared' : null) : canOpenProjectFlags ? 'project' : null))
@@ -339,6 +343,7 @@ function manageFlags() {
           :collapsed="isCollapsed(c)"
           :drop="dropState(c)"
           :blocked-reason="blockedReason(c)"
+          :project="columnProject(c)"
           @toggle="ui.setBoardNoFlagCollapsed(!noFlagCollapsed)"
         >
           <template #card="{ card }">
@@ -347,7 +352,6 @@ function manageFlags() {
               :waiting="!!live.get(card.id)?.permissionQueue[0]"
               :saving="board.saving.has(card.id)"
               :show-project="mode === 'all'"
-              :own-flag="c.kind === 'own' ? ownFlagOf(card) : null"
               :state="cardState(card)"
               @press="onCardPointerDown($event, card)"
               @menu="(x, y) => openMenu(card, x, y)"
@@ -381,7 +385,6 @@ function manageFlags() {
           :waiting="!!live.get(drag.run.id)?.permissionQueue[0]"
           :saving="false"
           :show-project="mode === 'all'"
-          :own-flag="dragFromOwn ? ownFlagOf(drag.run) : null"
           state="lifted"
         />
       </div>
