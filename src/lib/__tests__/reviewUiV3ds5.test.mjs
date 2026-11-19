@@ -21,12 +21,12 @@ test('UR-52: short header labels under 1100px, a narrower filter at 901px', () =
   assert.match(overlay, /max-\[1100px\]:hidden">\{\{ t\('windows\.mergeAll'\) \}\}/)
   assert.match(overlay, /min-\[1100px\]:hidden">\{\{ t\('windows\.mergeAllShort'\) \}\}/)
   assert.match(overlay, /min-\[1100px\]:hidden">\{\{ t\('windows\.closeAllShort'\) \}\}/)
-  assert.match(overlay, /w-\[220px\][^"]*max-\[901px\]:w-\[150px\]/)
+  assert.match(overlay, /w-\[240px\][^"]*max-\[901px\]:w-\[150px\]/)
 })
 
 test('UR-52: the header stays one row with a filter on, the filter shrinks first', () => {
   assert.match(overlay, /<header class="flex items-center gap-2 /)
-  assert.match(overlay, /w-\[220px\] min-w-\[150px\]/)
+  assert.match(overlay, /w-\[240px\] min-w-\[150px\]/)
   assert.match(overlay, /<h2 class="whitespace-nowrap /)
 })
 
