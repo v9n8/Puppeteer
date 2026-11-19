@@ -30,6 +30,11 @@ pub const LAST_SETTING: &str = "routing.last_recompute_at";
 pub const PROPOSAL_SETTING: &str = "routing.proposal";
 /// Bookkeeping: an automatic version the user has not been told about yet.
 pub const NOTICE_SETTING: &str = "routing.pending_notice";
+
+/// The keys only this module writes: never portable, never set remotely.
+pub fn is_bookkeeping(key: &str) -> bool {
+    [LAST_SETTING, PROPOSAL_SETTING, NOTICE_SETTING].contains(&key)
+}
 /// Emitted with `{ version }` when a recompute made a new version.
 pub const UPDATED_EVENT: &str = "routing:policy_updated";
 
@@ -628,6 +633,7 @@ mod tests {
         assert!(crate::remote::guard::remote_may_set_setting(AUTO_SETTING));
         for key in [LAST_SETTING, PROPOSAL_SETTING, NOTICE_SETTING] {
             assert!(!is_portable_setting(key), "{key}");
+            assert!(!crate::remote::guard::remote_may_set_setting(key), "{key}");
         }
     }
 

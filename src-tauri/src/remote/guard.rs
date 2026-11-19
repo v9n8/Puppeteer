@@ -172,7 +172,7 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// (`runs::unattended`): a session Remote Control starts is one, so a
 /// controller must not lift its own limits. The desktop notification switches
 /// (`desktop_notify`) too: a controller must not silence what this machine
-/// tells the person at it.
+/// tells the person at it. Nor the routing policy update's own bookkeeping.
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
@@ -184,6 +184,7 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && key != crate::runs::unattended::MAX_MINUTES_SETTING
         && key != "desktop_notify"
         && key != crate::commands::secret_vault::AUTO_LOCK_SETTING
+        && !crate::runs::routing::update::is_bookkeeping(key)
 }
 
 /// Commands that, run by a remote desktop, leave a trace in the Remote Control
