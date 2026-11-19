@@ -759,6 +759,7 @@ pub async fn drain_sidecar(
     let mut live = super::live_records::LiveRecords::default();
     let mut flush_tick = tokio::time::interval(std::time::Duration::from_millis(500));
     flush_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut routing = crate::runs::routing::record::Recorder::new(&db_pool, &run_id, &engine);
 
     loop {
         tokio::select! {
@@ -850,6 +851,7 @@ pub async fn drain_sidecar(
                 match line {
                     Ok(Some(l)) => {
                         let parsed = serde_json::from_str::<Value>(&l).ok();
+                        routing.observe(parsed.as_ref()).await;
                         let kind = parsed
                             .as_ref()
                             .and_then(|v| v.get("type"))
@@ -1379,6 +1381,7 @@ pub async fn drain_sidecar(
         }
     }
 
+    routing.close().await;
     // Drain any trailing stderr after stdout closed — bounded: a descendant may
     // hold stderr open long after the session ended. (Skipped when we already
     // stopped waiting on the pipes.)
