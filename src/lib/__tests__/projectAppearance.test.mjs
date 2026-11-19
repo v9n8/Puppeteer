@@ -2,12 +2,13 @@
 // Run: node --test src/lib/__tests__/projectAppearance.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { FolderOpen, Rocket } from 'lucide-vue-next'
 import {
   PROJECT_COLORS, PROJECT_ICONS, projectColor, projectIcon, projectTextClass,
   projectTileClass, swatchClass, visibleProjects, fullListMove,
 } from '../projectAppearance.ts'
+import { contrastRatio, mergeThemeBlocks, parseHsl, parseThemeBlocks, resolveTheme } from '../themeContrast.ts'
 
 /** A `pub(crate) const NAME: &[&str] = &[ ... ];` list from projects.rs. */
 function rustList(name) {
@@ -40,6 +41,43 @@ test('unset or unknown values fall back to the default look', () => {
   }
   assert.equal(projectIcon('rocket'), Rocket)
   for (const v of [null, undefined, '', 'skull']) assert.equal(projectIcon(v), FolderOpen)
+})
+
+// Tag text (TILE) on its 10% tint over the card; neutral sits on bg-muted instead.
+const css = (f) => readFileSync(new URL(`../../assets/${f}`, import.meta.url), 'utf8')
+const themeFiles = readdirSync(new URL('../../assets/themes/', import.meta.url)).filter((f) => f.endsWith('.css'))
+const themes = mergeThemeBlocks([css('main.css'), ...themeFiles.map((f) => css(`themes/${f}`))].map(parseThemeBlocks))
+const STATUS = ['primary', 'info', 'success', 'warning', 'destructive']
+function tagContrast(id, mode, color) {
+  const t = resolveTheme(themes, id, mode)
+  const fg = parseHsl(t[color === 'neutral' ? 'muted-foreground' : STATUS.includes(color) ? color : `tag-${color}`])
+  const card = parseHsl(t.card)
+  const bg = color === 'neutral' ? parseHsl(t.muted) : fg.map((v, i) => Math.round(v * 0.1 + card[i] * 0.9))
+  return contrastRatio(fg, bg)
+}
+
+test('the twelve colours run round the colour wheel, the order the picker grid shows', () => {
+  assert.deepEqual([...PROJECT_COLORS], [
+    'neutral', 'primary', 'info', 'teal', 'success', 'lime',
+    'yellow', 'warning', 'orange', 'destructive', 'pink', 'violet',
+  ])
+  assert.equal(projectTileClass('teal'), 'bg-tag-teal/10 border-tag-teal/20 text-tag-teal')
+})
+
+test('tag text reads at 4.5:1 on its tint in light and dark', () => {
+  for (const mode of ['light', 'dark']) {
+    for (const c of PROJECT_COLORS) {
+      const ratio = tagContrast('default', mode, c)
+      assert.ok(ratio >= 4.5, `${mode} ${c} ${ratio.toFixed(2)}`)
+    }
+  }
+  // The new tag tokens are not themed, so they must also pass on every light theme's card.
+  for (const id of Object.keys(themes.themes)) {
+    for (const c of PROJECT_COLORS.filter((x) => x !== 'neutral' && !STATUS.includes(x))) {
+      const ratio = tagContrast(id, 'light', c)
+      assert.ok(ratio >= 4.5, `${id} light ${c} ${ratio.toFixed(2)}`)
+    }
+  }
 })
 
 const P = (id, hidden = false) => ({ id, hidden })

@@ -161,7 +161,13 @@
     "success": "Xanh lá",
     "warning": "Hổ phách",
     "destructive": "Đỏ",
-    "neutral": "Xám"
+    "neutral": "Xám",
+    "teal": "Xanh ngọc",
+    "lime": "Xanh chanh",
+    "yellow": "Vàng",
+    "orange": "Cam",
+    "pink": "Hồng",
+    "violet": "Tím"
   },
   "icons": {
     "default": "Thư mục (mặc định)",

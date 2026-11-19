@@ -644,6 +644,32 @@ pub(crate) mod tests {
         assert_eq!(update(&db, "done", Some("DONE"), None).await.unwrap().name, "DONE");
     }
 
+    // The colour list is shared with projects (projects.rs is past the file-size cap,
+    // so the project side of the twelve-colour palette is checked here too).
+    #[tokio::test]
+    async fn the_twelve_palette_colours_save_on_flags_and_projects_and_odd_ones_do_not() {
+        let db = test_db().await;
+        assert_eq!(PROJECT_COLORS.len(), 12);
+        for color in ["teal", "lime", "yellow", "orange", "pink", "violet"] {
+            let flag = create(&db, None, &format!("Flag {color}"), color).await.unwrap();
+            assert_eq!(flag.color, color);
+            assert_eq!(update(&db, "done", None, Some(color)).await.unwrap().color, color);
+            let project = crate::commands::projects::update_project_inner(&db, "p1", "a", None, None, Some(color.into()), None, None)
+                .await
+                .unwrap();
+            assert_eq!(project.color.as_deref(), Some(color));
+        }
+        for odd in ["Teal", "cyan", "tag-teal", "#0f766e", "violet "] {
+            assert!(create(&db, None, "Odd", odd).await.is_err(), "{odd}");
+            assert!(update(&db, "done", None, Some(odd)).await.is_err(), "{odd}");
+            let err = crate::commands::projects::update_project_inner(&db, "p1", "a", None, None, Some(odd.into()), None, None)
+                .await
+                .unwrap_err();
+            assert!(err.starts_with("invalid project color"), "{err}");
+        }
+        assert_eq!(update(&db, "done", None, None).await.unwrap().color, "violet");
+    }
+
     #[tokio::test]
     async fn delete_clears_its_sessions_and_hidden_marks() {
         let db = test_db().await;

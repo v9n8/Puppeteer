@@ -59,6 +59,14 @@
   --color-warning-foreground: hsl(var(--warning-foreground));
   --color-info: hsl(var(--info));
   --color-info-foreground: hsl(var(--info-foreground));
+  /* The six extra flag / project colours (lib/projectAppearance), on top of the
+   * status tokens above. Same rule: only light vs dark, not per colour theme. */
+  --color-tag-teal: hsl(var(--tag-teal));
+  --color-tag-lime: hsl(var(--tag-lime));
+  --color-tag-yellow: hsl(var(--tag-yellow));
+  --color-tag-orange: hsl(var(--tag-orange));
+  --color-tag-pink: hsl(var(--tag-pink));
+  --color-tag-violet: hsl(var(--tag-violet));
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
@@ -159,6 +167,14 @@
     --success-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --warning-foreground: 0.0 0.0% 100.0%; /* #ffffff */
     --info-foreground: 0.0 0.0% 100.0%; /* #ffffff */
+    /* Flag / project tag colours: text >= 4.5:1 on their 10% tint over the card,
+     * a shade darker than Tailwind's 700 so the cream / grey-blue theme cards pass too. */
+    --tag-teal: 175.2 77.1% 25.7%; /* #0f746c */
+    --tag-lime: 85.9 78.5% 25.5%; /* #48740e */
+    --tag-yellow: 35.5 92.2% 30.2%; /* #945a06 */
+    --tag-orange: 17.4 88.7% 38.0%; /* #b73d0b */
+    --tag-pink: 335.1 77.6% 42.0%; /* #be185d */
+    --tag-violet: 263.4 70.0% 50.4%; /* #6d28d9 */
     /* UI font stack; Settings › General may swap it (lib/appFonts). */
     --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
@@ -192,6 +208,12 @@
     --success-foreground: 154.3 38.2% 10.8%; /* #11261d */
     --warning-foreground: 30.0 40.6% 12.5%; /* #2d2013 */
     --info-foreground: 201.6 39.7% 12.4%; /* #13232c */
+    --tag-teal: 170.6 76.9% 64.3%; /* #5eead4 */
+    --tag-lime: 82.0 84.5% 67.1%; /* #bef264 */
+    --tag-yellow: 50.4 97.8% 63.5%; /* #fde047 */
+    --tag-orange: 27.0 96.0% 61.0%; /* #fb923c */
+    --tag-pink: 327.4 87.1% 81.8%; /* #f9a8d4 */
+    --tag-violet: 252.2 94.5% 85.7%; /* #c6b8fd */
   }
 
   /* Named color themes live in ./themes/<id>.css (imported at the top). The

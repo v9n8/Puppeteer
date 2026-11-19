@@ -1130,7 +1130,7 @@ pub(crate) async fn purge_project_inner(
 
 /// Tones a project can be tinted with: design-system colours, never raw CSS, so they
 /// follow light / dark themes. `src/lib/projectAppearance.ts` mirrors this list.
-pub(crate) const PROJECT_COLORS: &[&str] = &["primary", "info", "success", "warning", "destructive", "neutral"];
+pub(crate) const PROJECT_COLORS: &[&str] = &["neutral", "primary", "info", "teal", "success", "lime", "yellow", "warning", "orange", "destructive", "pink", "violet"];
 
 /// Lucide icon names a project can show instead of the folder (kebab-case, as lucide
 /// names them). `src/lib/projectAppearance.ts` mirrors this list.

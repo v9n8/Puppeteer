@@ -433,8 +433,9 @@ mod tests {
             flags: vec![FlagEntry {
                 id: "x".into(),
                 project: None,
-                name: "Pink".into(),
-                color: "pink".into(),
+                name: "Cyan".into(),
+                // Not one of the twelve palette colours.
+                color: "cyan".into(),
                 position: 9,
                 builtin_key: None,
             }],
@@ -442,7 +443,7 @@ mod tests {
         };
         let mut report = ImportReport::default();
         import(&b, &bad, &mut report).await;
-        assert!(report.warnings.iter().any(|w| w.contains("'Pink'")), "{:?}", report.warnings);
+        assert!(report.warnings.iter().any(|w| w.contains("'Cyan'")), "{:?}", report.warnings);
         assert_eq!(list(&b, None).await.unwrap().len(), 5);
     }
 }

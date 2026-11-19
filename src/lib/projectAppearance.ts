@@ -5,11 +5,15 @@ import {
 import type { Component } from 'vue'
 
 /**
- * Tones a project can be tinted with (UX-08). Design-system colours, never raw
- * CSS, so they follow light / dark themes. Mirrors `PROJECT_COLORS` in
+ * Tones a project or flag can be tinted with (UX-08). Design-system colours, never
+ * raw CSS, so they follow light / dark themes. Listed in colour-wheel order, the
+ * order the 6 × 2 picker shows them. Mirrors `PROJECT_COLORS` in
  * `src-tauri/src/commands/projects.rs`, which refuses anything else.
  */
-export const PROJECT_COLORS = ['primary', 'info', 'success', 'warning', 'destructive', 'neutral'] as const
+export const PROJECT_COLORS = [
+  'neutral', 'primary', 'info', 'teal', 'success', 'lime',
+  'yellow', 'warning', 'orange', 'destructive', 'pink', 'violet',
+] as const
 export type ProjectColor = (typeof PROJECT_COLORS)[number]
 
 /** Lucide icons a project can show instead of the folder. Mirrors `PROJECT_ICONS` in projects.rs. */
@@ -42,6 +46,12 @@ const SWATCH: Record<ProjectColor, string> = {
   warning: 'bg-warning',
   destructive: 'bg-destructive',
   neutral: 'bg-muted-foreground',
+  teal: 'bg-tag-teal',
+  lime: 'bg-tag-lime',
+  yellow: 'bg-tag-yellow',
+  orange: 'bg-tag-orange',
+  pink: 'bg-tag-pink',
+  violet: 'bg-tag-violet',
 }
 const TEXT: Record<ProjectColor, string> = {
   primary: 'text-primary',
@@ -50,6 +60,12 @@ const TEXT: Record<ProjectColor, string> = {
   warning: 'text-warning',
   destructive: 'text-destructive',
   neutral: 'text-muted-foreground',
+  teal: 'text-tag-teal',
+  lime: 'text-tag-lime',
+  yellow: 'text-tag-yellow',
+  orange: 'text-tag-orange',
+  pink: 'text-tag-pink',
+  violet: 'text-tag-violet',
 }
 const TILE: Record<ProjectColor, string> = {
   primary: 'bg-primary/10 border-primary/15 text-primary',
@@ -58,6 +74,12 @@ const TILE: Record<ProjectColor, string> = {
   warning: 'bg-warning/10 border-warning/20 text-warning',
   destructive: 'bg-destructive/10 border-destructive/20 text-destructive',
   neutral: 'bg-muted border-border text-muted-foreground',
+  teal: 'bg-tag-teal/10 border-tag-teal/20 text-tag-teal',
+  lime: 'bg-tag-lime/10 border-tag-lime/20 text-tag-lime',
+  yellow: 'bg-tag-yellow/10 border-tag-yellow/20 text-tag-yellow',
+  orange: 'bg-tag-orange/10 border-tag-orange/20 text-tag-orange',
+  pink: 'bg-tag-pink/10 border-tag-pink/20 text-tag-pink',
+  violet: 'bg-tag-violet/10 border-tag-violet/20 text-tag-violet',
 }
 
 /** A stored colour, or null when it is unset or unknown (the default look). */

@@ -161,7 +161,13 @@
     "success": "Green",
     "warning": "Amber",
     "destructive": "Red",
-    "neutral": "Gray"
+    "neutral": "Gray",
+    "teal": "Teal",
+    "lime": "Lime",
+    "yellow": "Yellow",
+    "orange": "Orange",
+    "pink": "Pink",
+    "violet": "Violet"
   },
   "icons": {
     "default": "Folder (default)",
