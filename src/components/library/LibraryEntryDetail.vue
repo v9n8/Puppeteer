@@ -18,6 +18,7 @@ import { useMarkdown } from '@/lib/markdown'
 import { vMermaid } from '@/lib/mermaid'
 import { vCopyCode } from '@/lib/copyCode'
 import { useToast } from '@/composables/useToast'
+import { useIsDark } from '@/composables/useIsDark'
 import {
   CMD_LIBRARY_READ, CMD_LIBRARY_WRITE, isLibraryConflict, type DiskFile, type DiskItem,
 } from '@/lib/libraryDisk'
@@ -44,6 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const isDark = useIsDark()
 const { toast } = useToast()
 const { renderText, loadMarkdown } = useMarkdown()
 
@@ -284,11 +286,11 @@ defineExpose({ dirty })
       </Banner>
       <Banner v-if="conflict" tone="warning" live class="shrink-0 rounded-none border-x-0 border-t-0 px-3 text-xs">
         {{ t('library.conflict') }}
-        <template #actions>
+        <div class="mt-2 flex flex-wrap items-center gap-1">
           <Button variant="outline" size="xs" @click="openDiff">{{ t('library.viewDiff') }}</Button>
           <Button variant="outline" size="xs" @click="load">{{ t('library.reloadDiscard') }}</Button>
           <Button variant="destructive" size="xs" :disabled="saving" @click="overwrite">{{ t('library.overwrite') }}</Button>
-        </template>
+        </div>
       </Banner>
 
       <div v-if="loading && !file" class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -296,7 +298,7 @@ defineExpose({ dirty })
       </div>
       <template v-else-if="file">
         <div v-show="mode === 'edit'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <SkillEditor v-model="content" :is-dark="true" class="flex-1" />
+          <SkillEditor v-model="content" :is-dark="isDark" class="flex-1" />
         </div>
         <div v-if="mode === 'preview'" class="min-h-0 flex-1 overflow-auto p-5">
           <div v-mermaid v-copy-code class="markdown-output" v-html="previewHtml" />

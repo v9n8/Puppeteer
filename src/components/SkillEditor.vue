@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { EditorView, keymap } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const editorEl = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
+const themeSlot = new Compartment()
 
 function createEditor(value: string) {
   if (!editorEl.value) return
@@ -39,9 +40,7 @@ function createEditor(value: string) {
     }),
   ]
 
-  if (props.isDark) {
-    extensions.push(oneDark)
-  }
+  extensions.push(themeSlot.of(props.isDark ? oneDark : []))
 
   const state = EditorState.create({ doc: value, extensions })
   view = new EditorView({ state, parent: editorEl.value })
@@ -50,6 +49,10 @@ function createEditor(value: string) {
 onMounted(() => createEditor(props.modelValue))
 
 onUnmounted(() => view?.destroy())
+
+watch(() => props.isDark, (dark) => {
+  view?.dispatch({ effects: themeSlot.reconfigure(dark ? oneDark : []) })
+})
 
 watch(() => props.modelValue, (newVal) => {
   if (view && newVal !== view.state.doc.toString()) {

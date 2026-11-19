@@ -277,7 +277,7 @@ onBeforeUnmount(() => {
     </div>
 
     <FileTransferQueue
-      class="h-56 shrink-0"
+      class="max-h-56 shrink-0"
       :items="items"
       @cancel="queue.cancel($event)"
       @retry="queue.retry($event)"

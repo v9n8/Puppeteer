@@ -13,6 +13,7 @@ import SettingsRow from './SettingsRow.vue'
 import { invoke } from '@/lib/tauri'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useIsDark } from '@/composables/useIsDark'
 import { formatSize } from '@/lib/ipc/nativeCore'
 import {
   CMD_MEMORY_READ, CMD_MEMORY_WRITE, GLOBAL_MEMORY_KINDS, type GlobalMemoryKind, type MemoryFile,
@@ -20,6 +21,7 @@ import {
 } from '@/lib/memoryFiles'
 
 const { t } = useI18n()
+const isDark = useIsDark()
 const { toast } = useToast()
 const { confirm } = useConfirm()
 
@@ -162,8 +164,8 @@ onMounted(load)
         </template>
       </Banner>
 
-      <div class="h-[420px] overflow-hidden rounded-md border border-border/70">
-        <SkillEditor v-model="content" :is-dark="true" />
+      <div class="h-[max(16rem,calc(100vh-26rem))] overflow-hidden rounded-md border border-border/70">
+        <SkillEditor v-model="content" :is-dark="isDark" />
       </div>
       <div class="flex items-center justify-end gap-2">
         <span v-if="dirty" class="text-2xs text-muted-foreground">{{ t('memory.unsaved') }}</span>

@@ -206,7 +206,7 @@ onMounted(async () => {
 
 <template>
   <Modal :open="true" :title="heading" size="xl" scroll-body :dismiss-on-overlay="false" @close="cancel">
-    <div class="flex flex-col h-[60vh]">
+    <div class="flex flex-col max-h-[60vh] min-h-40">
       <div class="flex items-center gap-1.5 border-b border-border px-3 py-2">
         <Button variant="ghost" size="icon" :title="t('remoteFiles.up')" :aria-label="t('remoteFiles.up')" :disabled="!parentDir(dir)" @click="goUp">
           <ArrowUp class="h-3.5 w-3.5" :stroke-width="1.75" />
