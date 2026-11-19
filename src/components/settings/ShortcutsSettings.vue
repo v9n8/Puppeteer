@@ -28,8 +28,6 @@ async function onKey(e: KeyboardEvent) {
 
 <template>
   <div class="space-y-4">
-    <p class="text-xs text-muted-foreground">{{ t('settings.shortcuts.intro') }}</p>
-
     <div class="flex border-b border-border/60 text-xs font-medium" role="tablist" @keydown="onKey">
       <button
         v-for="id in TABS"

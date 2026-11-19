@@ -5,7 +5,7 @@
 // keeps the dialog open with the reason.
 import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Input, Modal } from '@/components/ui'
+import { Button, InfoTip, Input, Modal } from '@/components/ui'
 
 const props = defineProps<{
   open: boolean
@@ -35,7 +35,10 @@ function submit() {
 <template>
   <Modal :open="open" :title="t('settings.accounts.rename.title')" size="sm" @update:open="emit('update:open', $event)">
     <form class="p-4 space-y-1.5" @submit.prevent="submit">
-      <label for="rename-account-label" class="text-xs font-medium">{{ t('settings.accounts.rename.label') }}</label>
+      <div class="flex items-center gap-1.5">
+        <label for="rename-account-label" class="text-xs font-medium">{{ t('settings.accounts.rename.label') }}</label>
+        <InfoTip :text="t('settings.accounts.rename.note')" />
+      </div>
       <Input
         id="rename-account-label"
         ref="input"
@@ -43,7 +46,6 @@ function submit() {
         size="sm"
         :placeholder="t('settings.claude.labelPlaceholder')"
       />
-      <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.accounts.rename.note') }}</p>
       <p v-if="error" class="text-2xs text-destructive">{{ error }}</p>
     </form>
     <template #footer>

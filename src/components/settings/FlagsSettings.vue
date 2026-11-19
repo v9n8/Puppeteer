@@ -168,6 +168,7 @@ async function restoreDefaults() {
       <template #header>
         <Flag class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
         <span class="text-xs font-semibold">{{ t('sessionFlags.settings.title') }}</span>
+        <InfoTip :text="t('sessionFlags.settings.footer')" />
         <span class="ml-auto flex shrink-0 items-center gap-1.5">
           <Button variant="ghost" size="sm" :disabled="noRestore" @click="restoreDefaults">
             <RotateCcw class="h-3.5 w-3.5" :stroke-width="2" />
@@ -229,7 +230,6 @@ async function restoreDefaults() {
         />
       </div>
 
-      <p class="border-t border-border/50 px-4 py-2.5 text-2xs text-muted-foreground">{{ t('sessionFlags.settings.footer') }}</p>
     </Card>
 
     <FlagEditorModal

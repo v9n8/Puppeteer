@@ -164,7 +164,7 @@ watch(() => settings.value.language, (v) => {
 
 <template>
   <div class="space-y-4">
-    <SettingsSectionHead :title="t('settings.sections.general')" :intro="t('settings.general.intro')" />
+    <SettingsSectionHead :title="t('settings.sections.general')" />
 
     <Card body-class="divide-y divide-border">
       <template #header>
@@ -176,7 +176,7 @@ watch(() => settings.value.language, (v) => {
           <SegmentedControl v-model="settings.theme" :options="modeOptions" :stretch="false" />
         </div>
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" search-id="general-colorTheme" :label="t('settings.general.colorTheme')" :description="t('settings.general.colorThemeHint')" stacked>
+      <SettingsRow class="px-4 py-3" search-id="general-colorTheme" :label="t('settings.general.colorTheme')" stacked>
         <ColorThemePicker v-model="settings.color_theme" class="mt-1.5" />
       </SettingsRow>
       <SettingsRow class="px-4 py-3" search-id="general-rowDensity" :label="t('settings.general.rowDensity')" :description="t('settings.general.rowDensityHint')">
@@ -290,7 +290,7 @@ watch(() => settings.value.language, (v) => {
           :options="SUPPORTED_LOCALES.map((l) => ({ value: l.value, label: l.label }))"
         />
       </SettingsRow>
-      <SettingsRow class="px-4 py-3" search-id="general-terminalApp" :label="t('settings.general.terminalApp')" :description="t('settings.general.terminalAppDesc')">
+      <SettingsRow class="px-4 py-3" search-id="general-terminalApp" :label="t('settings.general.terminalApp')">
         <AppSelect
           size="sm"
           v-model="settings.terminal_app"

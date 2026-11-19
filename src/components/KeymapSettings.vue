@@ -6,7 +6,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Keyboard, RotateCcw, X } from 'lucide-vue-next'
-import { Button, Card } from '@/components/ui'
+import { Button, Card, InfoTip } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { IS_MAC, effectiveKeymap, menuActionGroups, menuActions, suspendAccelerators } from '@/lib/appMenu'
 import { errorText } from '@/lib/featureGate'
@@ -127,13 +127,12 @@ onBeforeUnmount(stopRecording)
     <template #header>
       <Keyboard class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('keymap.title') }}</span>
+      <InfoTip :text="t('keymap.help', systemKeys)" />
       <Button variant="outline" size="xs" class="ml-auto" :disabled="!Object.keys(changes).length" @click="resetAll">
         <RotateCcw class="h-3 w-3" :stroke-width="1.75" />
         {{ t('keymap.resetAll') }}
       </Button>
     </template>
-
-    <p class="text-xs text-muted-foreground">{{ t('keymap.help', systemKeys) }}</p>
 
     <section v-for="group in groups" :key="group.menu" class="space-y-1.5">
       <h3 class="text-xs font-semibold text-foreground">{{ group.menu }}</h3>

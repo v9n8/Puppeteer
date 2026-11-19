@@ -51,7 +51,6 @@
     "colorForestHint": "Green-grey, moss accent",
     "colorNordHint": "The cool Nord palette",
     "colorTokyonightHint": "Blue-violet night, Tokyo Day when light",
-    "colorThemeHint": "Every theme has a light and a dark version.",
     "rowDensity": "Row density",
     "rowDensityComfortable": "Comfortable",
     "rowDensityCompact": "Compact",
@@ -87,7 +86,6 @@
     "launchAtLoginOn": "Open window",
     "launchAtLoginMinimized": "Start minimized",
     "launchAtLoginHint": "Starts Puppeteer when you log in. \"Start minimized\" keeps the window minimized (in the Dock or taskbar).",
-    "intro": "Colors, text and how the app starts. Changes apply at once.",
     "sectionAppearance": "Appearance",
     "sectionText": "Text",
     "sectionApp": "App",
@@ -133,8 +131,7 @@
     "monoFontDesc": "Code blocks, Bash commands, diffs, file paths.",
     "monoJetbrains": "JetBrains Mono",
     "monoPlexmono": "IBM Plex Mono",
-    "monoSystem": "System",
-    "terminalAppDesc": "Used when you open a project in a terminal."
+    "monoSystem": "System"
   },
   "google": {
     "title": "Google Account (Drive + Gmail + Calendar)",
@@ -176,6 +173,7 @@
     "title": "GitHub Accounts",
     "intro": "Add GitHub accounts once and link them to projects. PATs are stored securely in your OS Keychain (never written to disk). Required scopes: repo (private) or public_repo (public).",
     "isolationWarning": "Keep this machine logged out of gh globally: do not run gh auth login or set GH_TOKEN system-wide. Puppeteer wires the correct per-project credential at run time; a global login would let runs bypass that isolation.",
+    "isolationShort": "Keep this machine logged out of gh globally.",
     "notValidated": "not validated",
     "validate": "Validate",
     "valid": "Valid",
@@ -195,6 +193,7 @@
     "title": "GitLab Accounts",
     "intro": "Add GitLab accounts once and link them to projects. PATs are stored securely in your OS Keychain (never written to disk). Set a custom host for self-hosted GitLab, and an optional commit email. Required scope: api (or read_api + write_repository) — a repository-only token is rejected by the validation endpoint.",
     "isolationWarning": "Keep this machine logged out of glab globally: do not run glab auth login or set GITLAB_TOKEN system-wide. Puppeteer wires the correct per-project credential at run time; a global login would let runs bypass that isolation.",
+    "isolationShort": "Keep this machine logged out of glab globally.",
     "notValidated": "not validated",
     "validate": "Validate",
     "valid": "Valid",
@@ -213,6 +212,7 @@
     "authProfile": "Named profile / SSO",
     "intro": "Add AWS accounts once and link one account to each project. Secret Access Keys and Session Tokens are stored securely in your OS Keychain. Puppeteer wires the selected project account to Claude and Codex runs through the broker.",
     "isolationWarning": "Avoid setting AWS credentials globally for agent work. Puppeteer gates aws calls through its broker; credential/config mutation such as aws configure is blocked.",
+    "isolationShort": "Avoid setting AWS credentials globally.",
     "validate": "Validate",
     "valid": "Valid",
     "ssoLogin": "SSO login",
@@ -336,7 +336,6 @@
     }
   },
   "engines": {
-    "intro": "Sign in to the engines and choose which one runs your sessions.",
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Accounts",
@@ -353,7 +352,6 @@
     "extraArgsHint": "Applied to all runs."
   },
   "ai": {
-    "intro": "What a new session starts with, and how the engines behave by default.",
     "sessionDefaults": "Defaults for new sessions",
     "sessionDefaultsHint": "What a new session starts with, unless it picks its own.",
     "openSection": "Open {section}",
@@ -425,7 +423,6 @@
   },
   "sessions": {
     "title": "Limits",
-    "intro": "Warning and block thresholds for the Context window, the plan quota and unattended turns. Formerly the “Sessions” section.",
     "nowPrefix": "Now:",
     "nowStale": "(old)",
     "nowCaptured": "Captured {time}",
@@ -468,11 +465,9 @@
     },
     "notifyDescriptions": {
       "needs_you": "A permission request or a question is waiting for you.",
-      "done": "A session finished its turn.",
       "failed": "A session ended with an error, or was stopped at a quota limit.",
       "stuck": "A session stopped responding, or did not start.",
-      "schedule": "A schedule could not start its session.",
-      "sound": "Play a sound with these notifications."
+      "schedule": "A schedule could not start its session."
     }
   },
   "toast": {
@@ -508,6 +503,7 @@
     "title": "Azure Accounts",
     "intro": "Add Azure accounts and link one to each project. Each account is its own az login, isolated and managed by Puppeteer, so several tenants and identities can coexist. az and terraform in runs of a linked project use that account.",
     "isolationWarning": "Avoid relying on a global az login for agent work. Puppeteer keeps each account's Azure CLI session in its own directory and points runs at the linked one.",
+    "isolationShort": "Avoid relying on a global az login.",
     "validate": "Validate",
     "valid": "Valid",
     "login": "Sign in",
@@ -709,7 +705,6 @@
     }
   },
   "shortcuts": {
-    "intro": "Two ways to call things fast: the ⌘K palette and the menu bar’s shortcuts. A change applies at once, no need to save.",
     "tabs": {
       "palette": "Quick commands",
       "keymap": "Shortcuts"

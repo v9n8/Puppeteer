@@ -77,7 +77,6 @@ async function save(next: PaletteConfig) {
 
     <!-- What the palette can do, as a mock-up row: the keys come from the real keymap -->
     <section class="space-y-2">
-      <p class="text-xs text-muted-foreground">{{ t('palette.settings.intro') }}</p>
       <div
         class="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-2xs"
         aria-hidden="true"
@@ -97,7 +96,9 @@ async function save(next: PaletteConfig) {
     <!-- Groups: on / off and order -->
     <section class="space-y-2">
       <div class="flex items-center gap-2">
-        <h3 class="flex-1 text-xs font-semibold text-foreground">{{ t('palette.settings.groups') }}</h3>
+        <h3 class="text-xs font-semibold text-foreground">{{ t('palette.settings.groups') }}</h3>
+        <InfoTip :text="t('palette.settings.groupsHelp')" />
+        <span class="flex-1" />
         <Button
           variant="outline"
           size="xs"
@@ -109,7 +110,6 @@ async function save(next: PaletteConfig) {
           {{ t('palette.settings.resetOrder') }}
         </Button>
       </div>
-      <p class="text-2xs text-muted-foreground">{{ t('palette.settings.groupsHelp') }}</p>
       <div class="divide-y divide-border/60 rounded-lg border border-border/60">
         <div v-for="(g, i) in config.groups" :key="g.id" class="flex items-center gap-2 px-3 py-2">
           <span class="flex-1 truncate text-sm" :class="g.enabled ? 'text-foreground' : 'text-muted-foreground'">
@@ -147,13 +147,14 @@ async function save(next: PaletteConfig) {
     <!-- Pinned items, in pin order -->
     <section class="space-y-2">
       <div class="flex items-center gap-2">
-        <h3 class="flex-1 text-xs font-semibold text-foreground">{{ t('palette.settings.pinned') }}</h3>
+        <h3 class="text-xs font-semibold text-foreground">{{ t('palette.settings.pinned') }}</h3>
+        <InfoTip :text="t('palette.settings.pinnedHelp')" />
+        <span class="flex-1" />
         <Button variant="outline" size="xs" :disabled="!config.pinned.length" @click="clearPart('pinned')">
           <PinOff class="h-3 w-3" :stroke-width="1.75" />
           {{ t('palette.settings.unpinAll') }}
         </Button>
       </div>
-      <p class="text-2xs text-muted-foreground">{{ t('palette.settings.pinnedHelp') }}</p>
       <p v-if="!config.pinned.length" class="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <Pin class="h-3 w-3" :stroke-width="1.75" />
         {{ t('palette.settings.pinnedEmpty') }}
@@ -179,13 +180,14 @@ async function save(next: PaletteConfig) {
     <!-- Hidden items -->
     <section class="space-y-2">
       <div class="flex items-center gap-2">
-        <h3 class="flex-1 text-xs font-semibold text-foreground">{{ t('palette.settings.hidden') }}</h3>
+        <h3 class="text-xs font-semibold text-foreground">{{ t('palette.settings.hidden') }}</h3>
+        <InfoTip :text="t('palette.settings.hiddenHelp')" />
+        <span class="flex-1" />
         <Button variant="outline" size="xs" :disabled="!config.hidden.length" @click="clearPart('hidden')">
           <Eye class="h-3 w-3" :stroke-width="1.75" />
           {{ t('palette.settings.unhideAll') }}
         </Button>
       </div>
-      <p class="text-2xs text-muted-foreground">{{ t('palette.settings.hiddenHelp') }}</p>
       <p v-if="!config.hidden.length" class="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <EyeOff class="h-3 w-3" :stroke-width="1.75" />
         {{ t('palette.settings.hiddenEmpty') }}

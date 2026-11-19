@@ -26,7 +26,7 @@ const advancedOpen = ref(!!settings.value.extra_args?.trim())
 
 <template>
   <div class="space-y-4">
-    <SettingsSectionHead :title="t('settings.sections.engines')" :intro="t('settings.engines.intro')" />
+    <SettingsSectionHead :title="t('settings.sections.engines')" />
 
     <EngineAccountsCard />
 

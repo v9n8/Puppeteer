@@ -27,7 +27,6 @@
     "unhide": "Hiện lại",
     "moveUp": "Lên trên",
     "moveDown": "Xuống dưới",
-    "intro": "Ghim và ẩn làm ngay trong bảng lệnh ⌘K.",
     "groupsHelp": "Thứ tự các nhóm trong bảng lệnh. Tắt một nhóm thì mọi mục của nó không hiện, kể cả mục đã ghim. Nhóm “Đã ghim” luôn ở trên cùng.",
     "pinnedHelp": "Hiện ở nhóm “Đã ghim” trên đầu bảng lệnh, theo thứ tự ghim. Bỏ ghim thì mục về lại nhóm của nó.",
     "hiddenHelp": "Không hiện trong bảng lệnh, kể cả khi gõ tìm. Ẩn một mục đã ghim thì nó cũng bị bỏ ghim. Hiện lại để dùng lại.",

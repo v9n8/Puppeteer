@@ -12,7 +12,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
-import { Card, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
+import { Card, InfoTip, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
 import NotificationSettings from './NotificationSettings.vue'
@@ -86,7 +86,7 @@ const tabOptions = computed<SegmentedOption<Tab>[]>(() => [
 const tabHint = computed(() => ({
   context: t('settings.sessions.contextHint'),
   quota: t('settings.sessions.quotaHint'),
-  unattended: t('settings.sessions.unattendedHint'),
+  unattended: `${t('settings.sessions.unattendedHint')}\n\n${t('settings.sessions.unattendedStop')}`,
   notify: t('settings.sessions.notifyHint'),
 })[tab.value])
 </script>
@@ -98,10 +98,10 @@ const tabHint = computed(() => ({
       <span class="text-xs font-semibold">{{ t('settings.sessions.title') }}</span>
     </template>
 
-      <p class="text-xs text-muted-foreground leading-relaxed">{{ t('settings.sessions.intro') }}</p>
-
-      <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
-      <p class="text-xs text-muted-foreground leading-relaxed">{{ tabHint }}</p>
+      <div class="flex items-center gap-1.5">
+        <SegmentedControl v-model="tab" :options="tabOptions" :stretch="false" />
+        <InfoTip :text="tabHint" />
+      </div>
 
       <!-- Context window meter -->
       <template v-if="tab === 'context'">
@@ -126,7 +126,6 @@ const tabHint = computed(() => ({
         <SettingsRow search-id="limits-unattendedMaxMinutes" :label="t('settings.sessions.unattendedMaxMinutes')" :hint="t('settings.sessions.unattendedMaxMinutesHint')">
           <Input v-model="settings.unattended_max_minutes" type="number" min="0" placeholder="60" />
         </SettingsRow>
-        <p class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.sessions.unattendedStop') }}</p>
       </template>
 
       <!-- Usage quota: a warning tier, then the blocks on new sessions / follow-ups -->

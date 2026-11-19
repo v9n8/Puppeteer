@@ -49,3 +49,46 @@ test('UR-33: tab button hover uses foreground/10, visible on the selected tab in
   const hover = css.slice(css.indexOf('.session-tab-btn:hover'))
   assert.match(hover, /background: hsl\(var\(--foreground\) \/ 0\.1\)/)
 })
+
+const json = (p) => JSON.parse(read(p))
+
+test('UR-35: Settings pages keep no explanation paragraph; kept text sits in an InfoTip and the dropped keys are gone', () => {
+  const s = '../../components/settings/'
+  // BỎ: intros and descriptions that only repeat the label are not rendered at all.
+  assert.doesNotMatch(read(s + 'GeneralSettings.vue'), /general\.intro|colorThemeHint|terminalAppDesc/)
+  assert.doesNotMatch(read(s + 'ShortcutsSettings.vue'), /shortcuts\.intro/)
+  assert.doesNotMatch(read(s + 'LimitsSettings.vue'), /sessions\.intro|<p [^>]*>\{\{ tabHint/)
+  assert.doesNotMatch(read('../../components/CommandPaletteSettings.vue'), /palette\.settings\.intro/)
+  assert.match(read(s + 'SettingsSectionHead.vue'), /<InfoTip v-if="intro"/)
+  // ICON: the explanation moves into an InfoTip next to its heading.
+  assert.match(read(s + 'LimitsSettings.vue'), /<InfoTip :text="tabHint" \/>/)
+  assert.match(read(s + 'FlagsSettings.vue'), /<InfoTip :text="t\('sessionFlags\.settings\.footer'\)" \/>/)
+  assert.match(read('../../components/KeymapSettings.vue'), /<InfoTip :text="t\('keymap\.help', systemKeys\)" \/>/)
+  assert.match(read(s + 'ModelSettings.vue'), /<InfoTip :text="t\('settings\.model\.description'\)" \/>/)
+  assert.match(read('../../views/SettingsView.vue'), /<InfoTip :text="t\('settings\.mcp\.description'\)" \/>/)
+  // Cloud accounts keep one short line plus the full warning in an InfoTip.
+  const files = {
+    aws: `${s}AwsAccountsSettings.vue`,
+    github: `${s}GithubAccountsSettings.vue`,
+    gitlab: `${s}GitlabAccountsSettings.vue`,
+    azure: '../../components/AzureAccountsSettings.vue',
+  }
+  for (const [k, file] of Object.entries(files)) {
+    const src = read(file)
+    assert.match(src, new RegExp(`settings\\.${k}\\.isolationShort`))
+    assert.match(src, new RegExp(`<InfoTip :text="t\\('settings\\.${k}\\.isolationWarning'\\)" />`))
+  }
+  for (const lang of ['en', 'vi']) {
+    const d = json(`../../i18n/locales/${lang}/settings.json`)
+    assert.equal(d.general.intro, undefined, lang)
+    assert.equal(d.general.colorThemeHint, undefined, lang)
+    assert.equal(d.general.terminalAppDesc, undefined, lang)
+    assert.equal(d.ai.intro, undefined, lang)
+    assert.equal(d.engines.intro, undefined, lang)
+    assert.equal(d.shortcuts.intro, undefined, lang)
+    assert.equal(d.sessions.intro, undefined, lang)
+    assert.equal(d.sessions.notifyDescriptions.done, undefined, lang)
+    assert.equal(d.sessions.notifyDescriptions.sound, undefined, lang)
+    for (const k of Object.keys(files)) assert.ok(d[k].isolationShort, `${lang} ${k}`)
+  }
+})

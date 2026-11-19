@@ -200,8 +200,9 @@ onMounted(() => {
     </template>
     <template v-if="!accountId">
       <Banner :icon="ShieldAlert" class="leading-relaxed">
-        <span class="text-muted-foreground">
-          {{ t('settings.aws.isolationWarning') }}
+        <span class="inline-flex items-center gap-1.5 text-muted-foreground">
+          {{ t('settings.aws.isolationShort') }}
+          <InfoTip :text="t('settings.aws.isolationWarning')" />
         </span>
       </Banner>
     </template>

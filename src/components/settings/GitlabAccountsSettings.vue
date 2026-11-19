@@ -122,8 +122,9 @@ async function handleDeleteGitlabAccount(id: string) {
     </template>
     <template v-if="!accountId">
       <Banner :icon="ShieldAlert" class="leading-relaxed">
-        <span class="text-muted-foreground">
-          {{ t('settings.gitlab.isolationWarning') }}
+        <span class="inline-flex items-center gap-1.5 text-muted-foreground">
+          {{ t('settings.gitlab.isolationShort') }}
+          <InfoTip :text="t('settings.gitlab.isolationWarning')" />
         </span>
       </Banner>
     </template>

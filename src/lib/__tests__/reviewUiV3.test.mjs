@@ -106,7 +106,7 @@ test('UR-34: the three shared components show their explanation in an InfoTip, n
   assert.match(row, /<InfoTip v-if="tip" :text="tip" \/>/)
   assert.doesNotMatch(row, /<p v-if="description"/)
   const head = read('../../components/settings/SettingsSectionHead.vue')
-  assert.match(head, /<InfoTip :text="intro" \/>/)
+  assert.match(head, /<InfoTip v-if="intro" :text="intro" \/>/)
   assert.doesNotMatch(head, /<p /)
   const section = read('../../components/listDetail/DetailSection.vue')
   assert.match(section, /<InfoTip v-if="hint && !hintVisible" :text="hint" \/>/)

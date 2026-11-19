@@ -51,7 +51,6 @@
     "colorForestHint": "Xám ngả lục, nhấn xanh rêu",
     "colorNordHint": "Bảng màu Nord, tông lạnh",
     "colorTokyonightHint": "Tối xanh tím, bản sáng là Tokyo Day",
-    "colorThemeHint": "Mỗi theme có cả bản sáng và tối.",
     "rowDensity": "Mật độ dòng",
     "rowDensityComfortable": "Thoáng",
     "rowDensityCompact": "Gọn",
@@ -87,7 +86,6 @@
     "launchAtLoginOn": "Mở cửa sổ",
     "launchAtLoginMinimized": "Thu nhỏ khi khởi động",
     "launchAtLoginHint": "Tự mở Puppeteer khi đăng nhập. \"Thu nhỏ khi khởi động\" giữ cửa sổ thu nhỏ (ở Dock hoặc thanh tác vụ).",
-    "intro": "Màu, chữ và cách app khởi động. Đổi là áp ngay, không cần bấm lưu.",
     "sectionAppearance": "Giao diện",
     "sectionText": "Chữ",
     "sectionApp": "Ứng dụng",
@@ -133,8 +131,7 @@
     "monoFontDesc": "Khối code, lệnh Bash, diff, đường dẫn file.",
     "monoJetbrains": "JetBrains Mono",
     "monoPlexmono": "IBM Plex Mono",
-    "monoSystem": "Hệ thống",
-    "terminalAppDesc": "Dùng khi mở một Project trong terminal."
+    "monoSystem": "Hệ thống"
   },
   "google": {
     "title": "Tài khoản Google (Drive + Gmail + Lịch)",
@@ -176,6 +173,7 @@
     "title": "Tài khoản GitHub",
     "intro": "Thêm tài khoản GitHub một lần và liên kết với Project. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Scope bắt buộc: repo (riêng tư) hoặc public_repo (công khai).",
     "isolationWarning": "Giữ máy này đăng xuất khỏi gh ở cấp toàn cục: không chạy gh auth login hoặc đặt GH_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng Project khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
+    "isolationShort": "Giữ máy này đăng xuất khỏi gh ở cấp toàn cục.",
     "notValidated": "chưa xác thực",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
@@ -195,6 +193,7 @@
     "title": "Tài khoản GitLab",
     "intro": "Thêm tài khoản GitLab một lần và liên kết với Project. PAT được lưu an toàn trong OS Keychain (không ghi ra đĩa). Đặt host tùy chỉnh cho GitLab tự host, và email commit tùy chọn. Scope bắt buộc: api (hoặc read_api + write_repository) — token chỉ có quyền repository sẽ bị endpoint xác thực từ chối.",
     "isolationWarning": "Giữ máy này đăng xuất khỏi glab ở cấp toàn cục: không chạy glab auth login hoặc đặt GITLAB_TOKEN toàn hệ thống. Puppeteer tự cấu hình đúng credential theo từng Project khi chạy; đăng nhập toàn cục sẽ khiến các lần chạy bỏ qua sự cô lập đó.",
+    "isolationShort": "Giữ máy này đăng xuất khỏi glab ở cấp toàn cục.",
     "notValidated": "chưa xác thực",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
@@ -213,6 +212,7 @@
     "authProfile": "Named profile / SSO",
     "intro": "Thêm tài khoản AWS một lần và liên kết một tài khoản cho mỗi Project. Secret Access Key và Session Token được lưu an toàn trong OS Keychain. Puppeteer tự cấu hình tài khoản Project đã chọn cho các lần chạy Claude và Codex qua broker.",
     "isolationWarning": "Tránh đặt credential AWS toàn cục cho công việc của agent. Puppeteer kiểm soát các lệnh gọi aws qua broker; việc thay đổi credential/config như aws configure bị chặn.",
+    "isolationShort": "Tránh đặt credential AWS toàn cục.",
     "validate": "Xác thực",
     "valid": "Hợp lệ",
     "ssoLogin": "Đăng nhập SSO",
@@ -336,7 +336,6 @@
     }
   },
   "engines": {
-    "intro": "Đăng nhập vào các engine và chọn engine chạy Session của bạn.",
     "claude": "Claude",
     "codex": "Codex",
     "accounts": "Tài khoản",
@@ -353,7 +352,6 @@
     "extraArgsHint": "Áp dụng cho mọi lần chạy."
   },
   "ai": {
-    "intro": "Giá trị một Session mới bắt đầu với, và cách các engine chạy mặc định.",
     "sessionDefaults": "Mặc định session mới",
     "sessionDefaultsHint": "Giá trị session mới dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng.",
     "openSection": "Mở {section}",
@@ -425,7 +423,6 @@
   },
   "sessions": {
     "title": "Giới hạn",
-    "intro": "Ngưỡng cảnh báo và chặn cho cửa sổ Context, quota của gói và lượt không người xem. Trước đây là mục “Session”.",
     "nowPrefix": "Bây giờ:",
     "nowStale": "(cũ)",
     "nowCaptured": "Chụp lúc {time}",
@@ -468,11 +465,9 @@
     },
     "notifyDescriptions": {
       "needs_you": "Có yêu cầu quyền hoặc câu hỏi đang chờ bạn.",
-      "done": "Một Session đã xong lượt.",
       "failed": "Một Session kết thúc với lỗi, hoặc bị dừng vì chạm mức quota.",
       "stuck": "Một Session không còn phản hồi, hoặc không khởi động được.",
-      "schedule": "Một lịch không khởi động được Session của nó.",
-      "sound": "Phát âm thanh kèm các thông báo này."
+      "schedule": "Một lịch không khởi động được Session của nó."
     }
   },
   "toast": {
@@ -508,6 +503,7 @@
     "title": "Tài khoản Azure",
     "intro": "Thêm tài khoản Azure và liên kết một tài khoản cho mỗi Project. Mỗi tài khoản là một lần đăng nhập az login riêng do Puppeteer quản lý và tách biệt, nên nhiều tenant và danh tính có thể dùng song song. Lệnh az và terraform trong các run của Project được liên kết sẽ dùng tài khoản đó.",
     "isolationWarning": "Tránh phụ thuộc vào az login toàn cục khi để agent làm việc. Puppeteer lưu thông tin đăng nhập Azure CLI của từng tài khoản trong thư mục riêng và trỏ các run tới tài khoản được liên kết.",
+    "isolationShort": "Tránh phụ thuộc vào az login toàn cục.",
     "validate": "Kiểm tra",
     "valid": "Hợp lệ",
     "login": "Đăng nhập",
@@ -709,7 +705,6 @@
     }
   },
   "shortcuts": {
-    "intro": "Hai cách gọi nhanh: bảng lệnh ⌘K và phím tắt của thanh menu. Đổi là áp ngay, không cần bấm lưu.",
     "tabs": {
       "palette": "Lệnh nhanh",
       "keymap": "Phím tắt"

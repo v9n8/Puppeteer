@@ -11,7 +11,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { emit as emitEvent } from '@tauri-apps/api/event'
 import { AlertCircle, CircleDot, Folder, History, Loader2, Lock, RotateCw, ScanSearch } from 'lucide-vue-next'
-import { Badge, Banner, Button, ToggleSwitch } from '@/components/ui'
+import { Badge, Banner, Button, InfoTip, ToggleSwitch } from '@/components/ui'
 import { invoke } from '@/lib/tauri'
 import { errorText } from '@/lib/featureGate'
 import { useToast } from '@/composables/useToast'
@@ -224,8 +224,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <template>
   <div class="space-y-4">
     <div data-settings-id="model-allowed">
-      <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.model') }}</h2>
-      <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.model.description') }}</p>
+      <div class="flex items-center gap-1.5">
+        <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.model') }}</h2>
+        <InfoTip :text="t('settings.model.description')" />
+      </div>
     </div>
 
     <Banner v-if="loadError" tone="destructive" live>
@@ -283,6 +285,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <History class="h-4 w-4" :stroke-width="1.75" />
             {{ scannedAt ? t('settings.model.scannedAt', { when: fmtWhen(scannedAt) }) : t('settings.model.notScanned') }}<template v-if="account"> · {{ account }}</template>
           </span>
+          <InfoTip v-if="tab === 'codex' && saved.codex !== null" :text="t('settings.model.codexNewOff')" />
           <span class="flex-1" />
           <Button variant="outline" size="xs" :disabled="scanning" :title="scanTip" @click="scan">
             <component :is="scanning ? Loader2 : ScanSearch" class="h-3.5 w-3.5" :class="scanning && 'animate-spin'" :stroke-width="1.75" />
@@ -310,8 +313,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             </Button>
           </template>
         </Banner>
-
-        <p v-if="tab === 'codex' && saved.codex !== null" class="text-2xs text-muted-foreground">{{ t('settings.model.codexNewOff') }}</p>
 
         <!-- Available / Not available, from the saved list -->
         <section

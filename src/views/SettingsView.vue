@@ -12,6 +12,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useI18n } from 'vue-i18n'
 import DetachButton from '@/components/app/DetachButton.vue'
 import MergeBackButton from '@/components/app/MergeBackButton.vue'
+import { InfoTip } from '@/components/ui'
 import DevicesSettings, { type DevicesTab } from '@/components/DevicesSettings.vue'
 import InboxApiSettings from '@/components/InboxApiSettings.vue'
 import FocusSettings from '@/components/FocusSettings.vue'
@@ -291,8 +292,10 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
              so it reads the live list; leaving with an unsaved server asks first (mayLeave). -->
         <div v-if="!loading && activeSection === 'mcp'" class="flex h-full min-h-[28rem] flex-col gap-4">
           <div class="shrink-0">
-            <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.mcp') }}</h2>
-            <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.mcp.description') }}</p>
+            <div class="flex items-center gap-1.5">
+              <h2 class="text-base font-semibold text-foreground">{{ t('settings.sections.mcp') }}</h2>
+              <InfoTip :text="t('settings.mcp.description')" />
+            </div>
           </div>
           <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
             <McpSettings

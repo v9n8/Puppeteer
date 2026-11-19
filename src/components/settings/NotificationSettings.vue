@@ -25,7 +25,7 @@ function toggle(kind: DesktopNotifyKind) {
     v-for="k in DESKTOP_NOTIFY_KINDS"
     :key="k"
     :label="t(`settings.sessions.notify.${k}`)"
-    :description="t(`settings.sessions.notifyDescriptions.${k}`)"
+    :description="k === 'done' || k === 'sound' ? undefined : t(`settings.sessions.notifyDescriptions.${k}`)"
   >
     <div class="flex min-[901px]:justify-end">
       <ToggleSwitch

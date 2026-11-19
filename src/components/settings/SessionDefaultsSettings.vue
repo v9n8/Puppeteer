@@ -71,7 +71,7 @@ const styleOptions = computed(() => {
 
 <template>
   <div class="space-y-4">
-  <SettingsSectionHead :title="t('settings.sections.ai')" :intro="t('settings.ai.intro')" />
+  <SettingsSectionHead :title="t('settings.sections.ai')" />
   <Card body-class="p-4 space-y-4">
     <template #header>
       <Sparkles class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
