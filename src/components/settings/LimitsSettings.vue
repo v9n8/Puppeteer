@@ -7,27 +7,16 @@
 // `runs::quota_stop`) — and the limits on a turn nobody watches
 // (`unattended_max_turns`, `unattended_max_minutes`, `runs::unattended`),
 // and the desktop notification switches (`desktop_notify`, NotificationSettings).
-// Under each block threshold a "Now: …" line shows every account's current %
-// (lib/quotaNow), read from the snapshots the usage rings use.
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Gauge } from 'lucide-vue-next'
 import { Card, InfoTip, Input, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useSettingsForm } from './useSettingsForm'
 import SettingsRow from './SettingsRow.vue'
 import NotificationSettings from './NotificationSettings.vue'
-import { usePlanSnapshots } from '@/composables/usePlanSnapshots'
-import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
-import { useCodexAccountsStore } from '@/stores/codexAccounts'
-import { quotaNowLine, type QuotaNowRow } from '@/lib/quotaNow'
-import { usageWindows } from '@/lib/usageRing'
 
 const { t } = useI18n()
 const { settings } = useSettingsForm()
-const claudeAccounts = useClaudeAccountsStore()
-const codexAccounts = useCodexAccountsStore()
-const { snapshots, loadSnapshots } = usePlanSnapshots()
-const now = ref(Date.now())
 
 const pct = (v: string | number | undefined) => Number(String(v ?? '').trim()) || 0
 const blocks = computed(() => [settings.value.budget_5h_percent, settings.value.budget_week_percent].map(pct))
@@ -42,36 +31,6 @@ const warnNotBelowBlock = computed(() => {
 // Stopping acts on the block thresholds, so it needs one of them set.
 const hasBlock = computed(() => blocks.value.some((block) => block > 0))
 const stopRunning = computed(() => settings.value.quota_stop_running === 'true')
-
-// The accounts of the usage rings (Claude accounts, or the one global Claude
-// login; the shared Codex login; Codex accounts), each with its snapshot.
-const snapshotKeys = computed(() => [
-  ...(claudeAccounts.accounts.length ? claudeAccounts.accounts.map((a) => `claude:${a.id}`) : ['claude']),
-  'codex',
-  ...codexAccounts.accounts.map((a) => `codex:${a.id}`),
-])
-const nowRows = computed<QuotaNowRow[]>(() => {
-  const labels: Record<string, string> = { claude: 'Claude', codex: codexAccounts.accounts.length ? t('settings.accounts.sharedCodex') : 'Codex' }
-  for (const a of claudeAccounts.accounts) labels[`claude:${a.id}`] = a.label
-  for (const a of codexAccounts.accounts) labels[`codex:${a.id}`] = a.label
-  return snapshotKeys.value.map((key) => ({
-    label: labels[key],
-    windows: usageWindows(snapshots.value[key], now.value),
-    capturedAt: snapshots.value[key]?.captured_at ?? null,
-  }))
-})
-const nowFor = (period: '5h' | 'week') => quotaNowLine(nowRows.value, period, now.value)
-const now5h = computed(() => nowFor('5h'))
-const nowWeek = computed(() => nowFor('week'))
-
-let clock: ReturnType<typeof setInterval> | null = null
-onMounted(async () => {
-  await Promise.all([claudeAccounts.fetch(), codexAccounts.fetch()])
-  now.value = Date.now()
-  await loadSnapshots(snapshotKeys.value)
-  clock = setInterval(() => { now.value = Date.now() }, 30_000)
-})
-onUnmounted(() => { if (clock) clearInterval(clock) })
 
 // Sub-tabs keep this section one screen tall. The choice is not saved.
 export type LimitsTab = 'context' | 'quota' | 'unattended' | 'notify'
