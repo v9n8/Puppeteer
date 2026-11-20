@@ -463,3 +463,68 @@ export function permissionPurpose(req: ImpactRequest, entries: readonly EntryLik
   }
   return list.length ? textBefore(list as EntryLike[], list.length) : null
 }
+
+// ── Header of the permission window (RT-21, #4) ─────────────────────────────
+
+const HEADLINE_MAX = 120
+
+export interface PermissionHeadline {
+  text: string
+  /** `purpose`: why the agent wants it; `target`: the tool and what it acts on. */
+  source: 'purpose' | 'target'
+  /** The whole purpose fits the headline, so the body need not repeat it. */
+  full: boolean
+}
+
+function clampLine(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1).trimEnd() + '…' : s
+}
+
+/** What the request acts on, short: a file, a host, an MCP server, the first command. */
+function targetOf(req: ImpactRequest): string {
+  const inp = asObject(req.tool_input)
+  const mcp = mcpParts(req.tool_name)
+  if (mcp) return mcp.server
+  if (NETWORK_TOOLS.has(req.tool_name)) return hostOf(str(inp['url'])) || str(inp['query'])
+  if (SHELL_TOOLS.has(req.tool_name)) return splitShellCommands(shellCommand(inp))[0] ?? ''
+  return str(inp['file_path']) || str(inp['path']) || str(inp['notebook_path']) || str(inp['pattern'])
+    || filesOf(req)[0]?.path || ''
+}
+
+/**
+ * The permission header's title: the purpose (first line, cut to one line), else
+ * the tool's name and its target. Null when neither says anything, so the
+ * engine's own title stays.
+ */
+export function permissionHeadline(
+  req: ImpactRequest & { display_name?: string | null },
+  purpose: string | null | undefined,
+): PermissionHeadline | null {
+  const p = (purpose ?? '').trim()
+  const first = p.split('\n')[0].trim()
+  if (first) {
+    const text = clampLine(first, HEADLINE_MAX)
+    return { text, source: 'purpose', full: text === p }
+  }
+  const target = targetOf(req).trim().split('\n')[0]
+  if (!target) return null
+  const name = mcpParts(req.tool_name)?.tool || req.display_name || req.tool_name
+  return { text: clampLine(`${name} · ${target}`, HEADLINE_MAX), source: 'target', full: false }
+}
+
+/** One short note per risky kind (write, delete, network), as keys under `permission.impact.`. */
+export function permissionRiskNotes(impact: PermissionImpact): ImpactSummary[] {
+  const out: ImpactSummary[] = []
+  if (impact.risks.includes('write')) out.push({ key: 'riskNoteWrite', params: {} })
+  if (impact.risks.includes('delete')) out.push({ key: 'riskNoteDelete', params: {} })
+  if (impact.risks.includes('network')) {
+    const hosts = [...new Set(impact.network.map((n) => n.host).filter(Boolean))]
+    out.push(hosts.length ? { key: 'riskNoteNetworkHost', params: { host: hosts.join(', ') } } : { key: 'riskNoteNetwork', params: {} })
+  }
+  return out
+}
+
+/** The Impact block starts open when the request writes, deletes or goes over the network. */
+export function impactOpensItself(risks: readonly PermissionRisk[]): boolean {
+  return risks.some((r) => r !== 'read')
+}

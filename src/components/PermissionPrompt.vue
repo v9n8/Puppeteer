@@ -5,10 +5,11 @@ import { ShieldAlert, Check, FileEdit, HelpCircle, ChevronLeft, ChevronRight, Cl
 import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
 import { isActivationTarget } from '@/lib/permissionKeys'
-import { permissionDiffParts } from '@/lib/permissionImpact'
+import { impactOpensItself, permissionDiffParts, permissionHeadline, permissionImpact, permissionRiskNotes } from '@/lib/permissionImpact'
 import { engineLabel, permissionOriginParts, type PermissionAgent } from '@/lib/permissionOrigin'
 import { useMinuteClock } from '@/composables/useMinuteClock'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
+import PermissionRiskBadges from '@/components/permission/PermissionRiskBadges.vue'
 
 const { t, locale } = useI18n()
 
@@ -251,8 +252,25 @@ function submitAnswers() {
   emit('answer', answers)
 }
 
+// RT-21 (#4): a tool request's header says what it is for (the purpose, else the
+// tool and its target); the engine's own title moves to the line below, and one
+// line sums up the impact and its risks.
+const isToolRequest = computed(() => !isQuestions.value && !isPlan.value)
+const headline = computed(() => (isToolRequest.value ? permissionHeadline(props.request, props.purpose) : null))
+const sdkTitle = computed(() => (headline.value && props.request.title !== headline.value.text ? props.request.title : null))
+const impact = computed(() => permissionImpact(props.request))
+const impactLine = computed(() =>
+  [impact.value.summary, ...permissionRiskNotes(impact.value)]
+    .map((s) => t(`permission.impact.${s.key}`, s.params))
+    .join(' · '),
+)
+const impactOpen = computed(() => impactOpensItself(impact.value.risks))
+// The body repeats the purpose only when the header could not show all of it.
+const bodyPurpose = computed(() => (headline.value?.source === 'purpose' && headline.value.full ? null : props.purpose))
+
 const headerTitle = computed(() => {
   if (isPlan.value) return t('permission.headerPlanFinished')
+  if (headline.value) return headline.value.text
   return props.request.title || (isQuestions.value
     ? t('permission.headerQuestion')
     : engineLabel(props.request.engine, (engine) => t('permission.headerRequest', { engine }), t('permission.headerRequestNoEngine')))
@@ -376,6 +394,7 @@ function onKeydown(e: KeyboardEvent) {
             class="text-[calc(0.9375rem*var(--text-scale))] font-semibold text-foreground"
             :class="isQuestions ? 'leading-tight' : 'leading-[1.4]'"
           >{{ headerTitle }}</h2>
+          <p v-if="sdkTitle" class="mt-0.5 text-xs text-foreground/70 break-words">{{ sdkTitle }}</p>
           <p
             v-if="!isQuestions && !isPlan && originParts.length"
             class="mt-0.5 flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground"
@@ -394,9 +413,13 @@ function onKeydown(e: KeyboardEvent) {
           <p v-else-if="!isQuestions && request.description" class="text-xs text-foreground/60 mt-0.5">
             {{ request.description }}
           </p>
-          <p v-else-if="!isQuestions" class="text-xs text-foreground/60 mt-0.5">
+          <p v-else-if="!isQuestions && !impactLine" class="text-xs text-foreground/60 mt-0.5">
             {{ t('permission.allowHint') }}
           </p>
+          <div v-if="isToolRequest && impactLine" class="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-foreground/80">
+            <PermissionRiskBadges :risks="impact.risks" />
+            <span class="min-w-0 break-words">{{ impactLine }}</span>
+          </div>
         </div>
       </div>
 
@@ -482,7 +505,7 @@ function onKeydown(e: KeyboardEvent) {
       </div>
 
       <div v-else class="flex-1 min-h-0 px-5 py-4 overflow-auto">
-        <PermissionRequestBody :request="request" :purpose="purpose" />
+        <PermissionRequestBody :request="request" :purpose="bodyPurpose" :expanded="impactOpen" />
       </div>
 
       <div class="@container/footer px-5 py-3 border-t border-border shrink-0">

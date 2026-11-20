@@ -2,7 +2,7 @@
 // "Impact" block of a permission request: folded, with a one-line summary as its
 // title; opened, it lists what would change, where, and over the network. Pure
 // guess from the tool name and input (see lib/permissionImpact.ts).
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight } from 'lucide-vue-next'
 import {
@@ -17,6 +17,8 @@ const props = defineProps<{ request: ImpactRequest; expanded?: boolean }>()
 const { t } = useI18n()
 
 const open = ref(props.expanded ?? false)
+// The next request in the queue starts folded or open on its own (RT-21).
+watch(() => [props.request, props.expanded] as const, () => { open.value = props.expanded ?? false })
 const impact = computed(() => permissionImpact(props.request))
 const summary = computed(() => t(`permission.impact.${impact.value.summary.key}`, impact.value.summary.params))
 

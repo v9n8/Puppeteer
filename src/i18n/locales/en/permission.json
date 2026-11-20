@@ -72,7 +72,11 @@
     "sumNetNoHost": "Send a request over the network",
     "sumMcp": "Call {tool} on MCP server {server}",
     "sumRead": "Read {target}",
-    "sumOther": "Use tool {tool}"
+    "sumOther": "Use tool {tool}",
+    "riskNoteWrite": "Writes or edits files",
+    "riskNoteDelete": "Deletes files",
+    "riskNoteNetwork": "Sends data over the network",
+    "riskNoteNetworkHost": "Sends data over the network to {host}"
   },
   "window": {
     "title": "Permission — Puppeteer",

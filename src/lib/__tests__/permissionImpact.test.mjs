@@ -8,6 +8,9 @@ import {
   permissionImpact,
   permissionPurpose,
   permissionDiffParts,
+  permissionHeadline,
+  permissionRiskNotes,
+  impactOpensItself,
 } from '../permissionImpact.ts'
 
 const bash = (command, extra = {}) => ({ tool_name: 'Bash', tool_input: { command, ...extra }, cwd: '/w' })
@@ -164,4 +167,51 @@ test('purpose: not found or no text gives null; long text is cut', () => {
 
 test('purpose: call not logged yet falls back to trailing agent text', () => {
   assert.equal(permissionPurpose(bash('ls'), [{ kind: 'text', text: 'Checking the folder.' }]), 'Checking the folder.')
+})
+
+// ── RT-21 (#4): header = purpose, then tool + target; one impact / risk line ──
+
+test('headline: the purpose first, on one line, cut when long', () => {
+  const h = permissionHeadline(bash('npm test'), 'Run the unit tests')
+  assert.deepEqual(h, { text: 'Run the unit tests', source: 'purpose', full: true })
+  const multi = permissionHeadline(bash('ls'), 'List the files\nthen read them')
+  assert.equal(multi.text, 'List the files')
+  assert.equal(multi.full, false)
+  const long = permissionHeadline(bash('ls'), 'x'.repeat(300))
+  assert.ok(long.text.length <= 120 && long.text.endsWith('…'))
+  assert.equal(long.full, false)
+})
+
+test('headline: no purpose → tool name and its target', () => {
+  assert.deepEqual(permissionHeadline({ tool_name: 'Edit', tool_input: { file_path: 'src/a.ts' } }, null),
+    { text: 'Edit · src/a.ts', source: 'target', full: false })
+  assert.equal(permissionHeadline({ tool_name: 'Write', display_name: 'Write file', tool_input: { file_path: 'b.md' } }, '').text,
+    'Write file · b.md')
+  assert.equal(permissionHeadline({ tool_name: 'WebFetch', tool_input: { url: 'https://docs.x.io/a' } }, null).text,
+    'WebFetch · docs.x.io')
+  assert.equal(permissionHeadline({ tool_name: 'mcp__google__send_mail', tool_input: {} }, null).text,
+    'send_mail · google')
+  assert.equal(permissionHeadline(bash('git push origin main\nls'), null).text, 'Bash · git push origin main')
+})
+
+test('headline: nothing to say → null (the SDK title stays)', () => {
+  assert.equal(permissionHeadline({ tool_name: 'Task', tool_input: {} }, null), null)
+  assert.equal(permissionHeadline({ tool_name: 'Bash', tool_input: {} }, '   '), null)
+})
+
+test('risk notes: one per risky kind, none for a read', () => {
+  assert.deepEqual(permissionRiskNotes(permissionImpact({ tool_name: 'Read', tool_input: { file_path: 'a' } })), [])
+  assert.deepEqual(permissionRiskNotes(permissionImpact(bash('rm -rf build && curl https://api.x.io/y'))), [
+    { key: 'riskNoteDelete', params: {} },
+    { key: 'riskNoteNetworkHost', params: { host: 'api.x.io' } },
+  ])
+  assert.deepEqual(permissionRiskNotes(permissionImpact({ tool_name: 'Edit', tool_input: { file_path: 'a.ts', old_string: 'a', new_string: 'b' } })),
+    [{ key: 'riskNoteWrite', params: {} }])
+  assert.deepEqual(permissionRiskNotes(permissionImpact(bash('git push'))), [{ key: 'riskNoteNetwork', params: {} }])
+})
+
+test('Impact opens itself for write, delete and network, not for a read', () => {
+  assert.equal(impactOpensItself(['read']), false)
+  assert.equal(impactOpensItself([]), false)
+  for (const r of ['write', 'delete', 'network']) assert.equal(impactOpensItself(['read', r]), true)
 })

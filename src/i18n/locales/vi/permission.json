@@ -72,7 +72,11 @@
     "sumNetNoHost": "Gửi request ra mạng",
     "sumMcp": "Gọi {tool} trên MCP server {server}",
     "sumRead": "Đọc {target}",
-    "sumOther": "Dùng tool {tool}"
+    "sumOther": "Dùng tool {tool}",
+    "riskNoteWrite": "Ghi hoặc sửa file",
+    "riskNoteDelete": "Xoá file",
+    "riskNoteNetwork": "Gửi dữ liệu ra mạng",
+    "riskNoteNetworkHost": "Gửi dữ liệu ra mạng tới {host}"
   },
   "window": {
     "title": "Quyền — Puppeteer",
