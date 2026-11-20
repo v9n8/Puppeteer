@@ -1492,6 +1492,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
     loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes, shownHasMessage,
+    loadSessionTurns, loadBookmarks, // RT-16: reloaded after a re-sync rebuilds the log
     ...livePaging,
   }
 }

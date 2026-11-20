@@ -42,7 +42,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   } = conductor
   const {
     popoutSession, sessionListEl, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
-    loadInputContent, clearHistoryView, forking, forkRun, loadRunLog, loadQuotes,
+    loadInputContent, clearHistoryView, forking, forkRun, loadRunLog, loadQuotes, loadSessionTurns, loadBookmarks,
   } = log
   const sessionTabs = useSessionTabsStore()
 
@@ -521,6 +521,10 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       live.discard(run.id)
       if (currentRunId.value === run.id) {
         await loadRunLog(run.id, { force: true })
+        // The rebuilt log moved the prompt records: rescan them, then place the
+        // bookmarks on them again (as after a rewind).
+        await loadSessionTurns(run.id)
+        await loadBookmarks(run.id)
         await loadQuotes(run.id)
       }
       toast.success(t('run.resync.done'))
