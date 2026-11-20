@@ -29,6 +29,8 @@ const tabsStore = useSessionTabsStore()
 const runId = computed(() => currentRunId.value ?? '')
 const projectPath = computed(() => project.value?.path ?? '')
 const state = computed(() => tabsStore.stateFor(runId.value))
+// Tabs saved under two spellings of one file merge (RT-13).
+watch([runId, projectPath], ([id, root]) => { if (id && root) tabsStore.normalize(id, root) }, { immediate: true })
 const fileTabs = computed(() => state.value.tabs.filter((tab): tab is FileTab => tab.kind === 'file'))
 
 // Tabs shown at least once in this Session; the others mount on first view.
@@ -78,7 +80,7 @@ onBeforeUnmount(() => {
 })
 
 function onOpenFile(path: string, line: number | null) {
-  tabsStore.open(runId.value, path, line)
+  tabsStore.open(runId.value, path, line, projectPath.value)
 }
 function onOpenUrl(url: string) {
   openUrl(url).catch((e) => toast.error(String(e)))

@@ -6,6 +6,7 @@ import { FILE_WINDOW_DOCK, type FileWindowDock } from '@/lib/fileWindow'
 import {
   closeOthers as closeOthersIn,
   closeTab,
+  dedupeTabs,
   emptyState,
   moveTab,
   openChangedTab,
@@ -99,9 +100,15 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     return byRun.value[runId] ?? emptyState()
   }
 
-  function open(runId: string, path: string, line: number | null) {
+  /** `root`: the Project folder, so one file never gets two tabs (RT-13). */
+  function open(runId: string, path: string, line: number | null, root?: string | null) {
     if (!runId || !path) return
-    put(runId, openTab(stateFor(runId), path, line, Date.now()))
+    put(runId, openTab(stateFor(runId), path, line, Date.now(), root))
+  }
+
+  /** Merge tabs saved under two spellings of one file, once the Project folder is known. */
+  function normalize(runId: string, root: string) {
+    if (runId && root && byRun.value[runId]) put(runId, dedupeTabs(stateFor(runId), root))
   }
 
   function openChanged(runId: string) {
@@ -189,5 +196,5 @@ export const useSessionTabsStore = defineStore('sessionTabs', () => {
     /* running outside the Tauri shell */
   })
 
-  return { byRun, stateFor, open, openChanged, select, close, closeOthers, togglePin, move, startSplit, stopSplit, setRatio, resetRatio, rename, removeUnder, forget, flush }
+  return { byRun, stateFor, open, normalize, openChanged, select, close, closeOthers, togglePin, move, startSplit, stopSplit, setRatio, resetRatio, rename, removeUnder, forget, flush }
 })

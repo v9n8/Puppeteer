@@ -6,6 +6,7 @@ import {
   CONVERSATION, MAX_SESSIONS, clampRatio, closeOthers, closeTab, effectiveLayout, emptyState, fileAreaTab, fileTabIcon, hiddenTabIndexes,
   openChangedTab, openTab, orderedTabs, ratioLimits, resetRatio, setRatio, splitBlockedReason, startSplit, stopSplit,
   moveTab, parse, prune, removeTabsUnder, renameTab, selectTab, serialize, tabLabel, togglePin,
+  dedupeTabs, fileTabId, normalizeTabPath,
 } from '../sessionTabs.ts'
 
 const ids = (s) => orderedTabs(s).map((t) => t.id)
@@ -347,4 +348,80 @@ test('moveTab: a tab stays in its group, pinned or not; Conversation, unknown id
 test('moveTab: the new order survives serialize / parse', () => {
   const s = moveTab(three(), 'file:a.ts', 2)
   assert.deepEqual(ids(parse(serialize({ r: s })).r), ['file:b.ts', 'file:c.ts', 'file:a.ts'])
+})
+
+// ── RT-13 (#22): one file, one tab ─────────────────────────────────────────
+
+const ROOT = '/Users/me/repo'
+
+test('normalizeTabPath: drops ./, makes a path under the root relative, leaves the rest', () => {
+  assert.equal(normalizeTabPath('tasks/x.md', ROOT), 'tasks/x.md')
+  assert.equal(normalizeTabPath('./tasks/x.md', ROOT), 'tasks/x.md')
+  assert.equal(normalizeTabPath(`${ROOT}/tasks/x.md`, ROOT), 'tasks/x.md')
+  assert.equal(normalizeTabPath(`${ROOT}/tasks/x.md`, `${ROOT}/`), 'tasks/x.md')
+  // Outside the root (or a sibling with the same prefix) stays absolute.
+  assert.equal(normalizeTabPath('/Users/me/other/x.md', ROOT), '/Users/me/other/x.md')
+  assert.equal(normalizeTabPath('/Users/me/repo2/x.md', ROOT), '/Users/me/repo2/x.md')
+  // No root known: only ./ goes.
+  assert.equal(normalizeTabPath(`./${'a.md'}`, null), 'a.md')
+  assert.equal(normalizeTabPath(`${ROOT}/a.md`, null), `${ROOT}/a.md`)
+  assert.equal(fileTabId('./a.md', ROOT), 'file:a.md')
+})
+
+test('openTab with the root: relative, absolute and ./ give one tab', () => {
+  let s = emptyState()
+  s = openTab(s, 'tasks/#28/x.md', null, 0, ROOT)
+  s = openTab(s, `${ROOT}/tasks/#28/x.md`, 12, 0, ROOT)
+  s = openTab(s, './tasks/#28/x.md', null, 0, ROOT)
+  assert.deepEqual(ids(s), ['file:tasks/#28/x.md'])
+  assert.equal(s.tabs[0].path, 'tasks/#28/x.md')
+  assert.equal(s.tabs[0].line, 12)
+  assert.equal(s.active, 'file:tasks/#28/x.md')
+})
+
+test('openTab: a worker worktree under the project resolves against the project root', () => {
+  const wt = `${ROOT}/.puppeteer/worktrees/w1`
+  let s = openTab(emptyState(), `${wt}/src/a.ts`, null, 0, ROOT)
+  s = openTab(s, '.puppeteer/worktrees/w1/src/a.ts', null, 0, ROOT)
+  assert.deepEqual(ids(s), ['file:.puppeteer/worktrees/w1/src/a.ts'])
+  // A worktree outside the project stays absolute (the viewer reads relative paths from the project).
+  const out = openTab(emptyState(), '/tmp/wt/src/a.ts', null, 0, ROOT)
+  assert.deepEqual(ids(out), ['file:/tmp/wt/src/a.ts'])
+})
+
+test('dedupeTabs: stored duplicates merge into the first, keeping selection, pin and split', () => {
+  const raw = {
+    tabs: [
+      { id: 'file:tasks/x.md', kind: 'file', path: 'tasks/x.md', line: null, pinned: false },
+      { id: `file:${ROOT}/tasks/x.md`, kind: 'file', path: `${ROOT}/tasks/x.md`, line: 4, pinned: true },
+      { id: 'file:b.md', kind: 'file', path: 'b.md', line: null, pinned: false },
+    ],
+    active: `file:${ROOT}/tasks/x.md`,
+    split: { on: true, ratio: 0.5, rightActive: `file:${ROOT}/tasks/x.md` },
+    usedAt: 5,
+  }
+  const s = dedupeTabs(raw, ROOT)
+  assert.deepEqual(s.tabs.map((t) => t.id), ['file:tasks/x.md', 'file:b.md'])
+  assert.equal(s.tabs[0].pinned, true)
+  assert.equal(s.active, 'file:tasks/x.md')
+  assert.equal(s.split.rightActive, 'file:tasks/x.md')
+  // Nothing to merge → the same object.
+  const clean = openTab(emptyState(), 'a.md', null)
+  assert.equal(dedupeTabs(clean, ROOT), clean)
+})
+
+test('parse: stored ./ duplicates merge on load', () => {
+  const stored = serialize({
+    r1: {
+      tabs: [
+        { id: 'file:a.md', kind: 'file', path: 'a.md', line: null, pinned: false },
+        { id: 'file:./a.md', kind: 'file', path: './a.md', line: null, pinned: false },
+      ],
+      active: 'file:./a.md',
+      usedAt: 1,
+    },
+  })
+  const s = parse(stored).r1
+  assert.deepEqual(s.tabs.map((t) => t.id), ['file:a.md'])
+  assert.equal(s.active, 'file:a.md')
 })

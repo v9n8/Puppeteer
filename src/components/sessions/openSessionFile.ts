@@ -6,6 +6,6 @@ import { useSessionTabsStore } from '@/stores/sessionTabs'
 
 export function openSessionFile(projectPath: string | undefined, runId: string | null, path: string, line: number | null) {
   if (!projectPath || !path) return
-  if (runId) useSessionTabsStore().open(runId, path, line)
+  if (runId) useSessionTabsStore().open(runId, path, line, projectPath)
   else void openFileWindow(projectPath, path, line, null)
 }

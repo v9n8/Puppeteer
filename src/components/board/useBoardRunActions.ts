@@ -107,7 +107,7 @@ export function useBoardRunActions(onChanged: () => void) {
 
   /** A file of the Session opens as a tab of that Session, which the Session screen then shows. */
   function openFileTab(run: BoardRun, path: string) {
-    sessionTabs.open(run.id, path, null)
+    sessionTabs.open(run.id, path, null, projects.projects.find((p) => p.id === run.project_id)?.path)
     openSession(run)
   }
 

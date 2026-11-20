@@ -56,8 +56,48 @@ export function emptyState(now = 0): SessionTabsState {
   return { tabs: [], active: CONVERSATION, usedAt: now }
 }
 
-export function fileTabId(path: string): `file:${string}` {
-  return `file:${path}`
+/**
+ * One spelling per file (RT-13): `./` goes, and a path under `root` (the
+ * Project folder, which the file viewer reads relative paths from) becomes
+ * relative. Anything else stays as given.
+ */
+export function normalizeTabPath(path: string, root?: string | null): string {
+  let p = path
+  while (p.startsWith('./')) p = p.slice(2)
+  const prefix = root ? root.replace(/\/+$/, '') + '/' : null
+  if (prefix && p.startsWith(prefix) && p.length > prefix.length) p = p.slice(prefix.length)
+  return p || path
+}
+
+export function fileTabId(path: string, root?: string | null): `file:${string}` {
+  return `file:${normalizeTabPath(path, root)}`
+}
+
+/**
+ * Merge file tabs that name the same file (e.g. saved before RT-13 as both
+ * `tasks/x.md` and `/abs/root/tasks/x.md`) into the first one; it stays pinned
+ * when any of them was, and the selection / split side follow it. Returns the
+ * same state when nothing changes.
+ */
+export function dedupeTabs(state: SessionTabsState, root?: string | null): SessionTabsState {
+  const moved = new Map<SessionTabId, SessionTabId>()
+  const tabs: SessionTab[] = []
+  for (const t of state.tabs) {
+    if (t.kind !== 'file') {
+      tabs.push(t)
+      continue
+    }
+    const path = normalizeTabPath(t.path, root)
+    const id = fileTabId(path)
+    if (id !== t.id) moved.set(t.id, id)
+    const i = tabs.findIndex((o) => o.id === id)
+    if (i === -1) tabs.push(id === t.id ? t : { ...t, id, path })
+    else if (t.pinned && !tabs[i].pinned) tabs[i] = { ...tabs[i], pinned: true }
+  }
+  if (!moved.size && tabs.length === state.tabs.length) return state
+  const follow = (id: SessionTabId | null) => (id && moved.get(id)) || id
+  const split = state.split ? { split: { ...state.split, rightActive: follow(state.split.rightActive) } } : {}
+  return { ...state, tabs, active: follow(state.active) as SessionTabId, ...split }
 }
 
 /** Pinned tabs right after Conversation, then the rest in the order they were opened. */
@@ -75,8 +115,15 @@ function hasTab(state: SessionTabsState, id: SessionTabId): boolean {
   return id === CONVERSATION || state.tabs.some((t) => t.id === id)
 }
 
-/** Open `path` as a tab, or select its tab when it is already open (moving to `line` when given). */
-export function openTab(state: SessionTabsState, path: string, line: number | null, now = state.usedAt): SessionTabsState {
+/**
+ * Open `path` as a tab, or select its tab when it is already open (moving to `line` when given).
+ * `root`: the Project folder, so the relative and absolute spellings of a file share one tab.
+ */
+export function openTab(
+  state: SessionTabsState, path: string, line: number | null, now = state.usedAt, root?: string | null,
+): SessionTabsState {
+  state = dedupeTabs(state, root)
+  path = normalizeTabPath(path, root)
   const id = fileTabId(path)
   const existing = state.tabs.find((t) => t.id === id)
   const tabs: SessionTab[] = existing
@@ -232,7 +279,14 @@ function parseTab(raw: unknown): SessionTab | null {
   if (raw.kind === 'changed') return { id: 'changed', kind: 'changed', pinned }
   if (raw.kind !== 'file' || typeof raw.path !== 'string' || !raw.path) return null
   const line = typeof raw.line === 'number' && Number.isInteger(raw.line) && raw.line > 0 ? raw.line : null
-  return { id: fileTabId(raw.path), kind: 'file', path: raw.path, line, pinned }
+  const path = normalizeTabPath(raw.path)
+  return { id: fileTabId(path), kind: 'file', path, line, pinned }
+}
+
+/** A stored tab id, spelled as parseTab now spells its tab's id. */
+function storedId(raw: unknown): SessionTabId | null {
+  if (typeof raw !== 'string') return null
+  return raw.startsWith('file:') ? fileTabId(raw.slice(5)) : (raw as SessionTabId)
 }
 
 function parseState(raw: unknown): SessionTabsState | null {
@@ -249,15 +303,13 @@ function parseState(raw: unknown): SessionTabsState | null {
   }
   const split = raw.split
   if (isObject(split) && typeof split.on === 'boolean' && typeof split.ratio === 'number') {
-    const right = typeof split.rightActive === 'string' && hasTab(state, split.rightActive as SessionTabId)
-      ? (split.rightActive as SessionTabId)
-      : null
+    const wanted = storedId(split.rightActive)
+    const right = wanted && hasTab(state, wanted) ? wanted : null
     const ratio = Number.isFinite(split.ratio) ? Math.min(0.9, Math.max(0.1, split.ratio)) : 0.5
     state.split = { on: split.on, ratio, rightActive: right }
   }
-  if (typeof raw.active === 'string' && hasTab(state, raw.active as SessionTabId)) {
-    state.active = raw.active as SessionTabId
-  }
+  const active = storedId(raw.active)
+  if (active && hasTab(state, active)) state.active = active
   return state
 }
 

@@ -446,7 +446,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // A file of `run` (its log, its transcript) opens as a tab of that session,
   // which the Session area then shows (V3-24).
   async function openRunFileTab(run: RunRecord, path: string) {
-    sessionTabs.open(run.id, path, null)
+    sessionTabs.open(run.id, path, null, project.value?.path)
     if (currentRunId.value !== run.id) await loadRunLog(run.id)
   }
 

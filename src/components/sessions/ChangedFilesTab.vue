@@ -46,7 +46,7 @@ function onListKey(e: KeyboardEvent) {
 }
 
 function openFile(path: string) {
-  tabsStore.open(runId.value, relPath(path), null)
+  tabsStore.open(runId.value, relPath(path), null, project.value?.path)
 }
 </script>
 
