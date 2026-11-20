@@ -23,7 +23,8 @@
     "skip": "{count} cửa sổ không gộp được, sẽ bỏ qua",
     "merge": "Gộp về cửa sổ chính ({count})",
     "close": "Đóng ({count})",
-    "clear": "Bỏ chọn"
+    "clear": "Bỏ chọn",
+    "boxing": "đang khoanh"
   },
   "drop": {
     "idle": "Kéo thẻ vào đây để gộp về cửa sổ chính",
@@ -78,6 +79,8 @@
     "exit": "thoát",
     "mark": "đánh dấu",
     "markAll": "đánh dấu tất cả",
-    "clear": "bỏ chọn"
+    "clear": "bỏ chọn",
+    "box": "Kéo ở chỗ trống: khoanh chọn",
+    "cancelBox": "hủy khoanh"
   }
 }

@@ -14,6 +14,7 @@ import WindowCard, { type MarkClick } from '@/components/windows/WindowCard.vue'
 import WindowsDropStrip from '@/components/windows/WindowsDropStrip.vue'
 import WindowsSelectionBar from '@/components/windows/WindowsSelectionBar.vue'
 import { useWindowsDrag } from '@/components/windows/useWindowsDrag'
+import { useWindowsMarquee } from '@/components/windows/useWindowsMarquee'
 import { useToast } from '@/composables/useToast'
 import { IS_MAC, effectiveKeymap, hasNativeMenu } from '@/lib/appMenu'
 import { isRemoteMode } from '@/lib/ipc/remote'
@@ -48,6 +49,7 @@ const confirmClose = ref<'all' | 'marked' | null>(null)
 const marks = ref<Set<string>>(new Set())
 let markAnchor: string | null = null
 const root = ref<HTMLElement | null>(null)
+const scroller = ref<HTMLElement | null>(null)
 const filterInput = ref<HTMLInputElement | null>(null)
 let returnFocusTo: HTMLElement | null = null
 
@@ -258,6 +260,13 @@ const { drag, dragged, lead: dragLead, onCardPointerDown, consumeClick } = useWi
   onDrop: (labels) => void mergeWindows(labels),
 })
 
+// A box dragged from empty space of the grid marks the cards it touches.
+const { box: selectBox, onPointerDown: onGridPointerDown } = useWindowsMarquee({
+  scroller,
+  marks: () => marks.value,
+  setMarks: (next) => { marks.value = next },
+})
+
 function openMenu(e: MouseEvent, label: string) {
   menu.value = { x: e.clientX, y: e.clientY, label }
 }
@@ -291,8 +300,8 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
   if (!store.open) return
-  // Esc while dragging cancels the drag (useWindowsDrag), nothing else.
-  if (drag.value) return
+  // Esc while dragging a card or a box cancels it (useWindowsDrag / useWindowsMarquee), nothing else.
+  if (drag.value || selectBox.value) return
   // A dialog or menu on top takes its own keys (the context menu closes on Esc itself).
   if (menu.value) return
   if (confirmClose.value) {
@@ -452,7 +461,12 @@ onBeforeUnmount(() => {
         <Button variant="outline" size="sm" class="text-[13px]" @click="store.refreshThumbs()">{{ t('windows.thumb.retry') }}</Button>
       </div>
 
-      <div class="min-h-[160px] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3 pb-4" :class="drag ? 'cursor-grabbing select-none' : ''">
+      <div
+        ref="scroller"
+        class="relative min-h-[160px] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3 pb-4"
+        :class="drag ? 'cursor-grabbing select-none' : selectBox ? 'select-none' : ''"
+        @pointerdown="onGridPointerDown"
+      >
         <p v-if="total === 0" class="py-10 text-center text-sm text-muted-foreground">{{ t('windows.empty') }}</p>
         <p v-else-if="flat.length === 0" class="py-10 text-center text-sm text-muted-foreground">
           {{ t('windows.noMatch', { query: query.trim() }) }}
@@ -487,12 +501,21 @@ onBeforeUnmount(() => {
           </div>
         </section>
         </template>
+        <!-- Under the sticky strip (z-[2]), over the cards. -->
+        <div
+          v-if="selectBox"
+          data-windows-box
+          class="pointer-events-none absolute z-[1] rounded-sm border border-primary bg-primary/10"
+          :style="{ left: `${selectBox.left}px`, top: `${selectBox.top}px`, width: `${selectBox.right - selectBox.left}px`, height: `${selectBox.bottom - selectBox.top}px` }"
+          aria-hidden="true"
+        />
       </div>
 
       <WindowsSelectionBar
         v-if="marks.size > 0"
         :count="marks.size"
         :mergeable="mergeableMarks"
+        :boxing="!!selectBox"
         @merge="mergeWindows(marks)"
         @minimize="minimizeMarked"
         @close="confirmClose = 'marked'"
@@ -503,6 +526,7 @@ onBeforeUnmount(() => {
         <span><kbd>Enter</kbd> {{ t('windows.foot.open') }}</span>
         <span><kbd>Space</kbd> {{ t('windows.foot.mark') }}</span>
         <span><kbd>{{ keysMarkAll }}</kbd> {{ t('windows.foot.markAll') }}</span>
+        <span>{{ t('windows.foot.box') }}</span>
         <span><kbd>{{ keysClose }}</kbd> / <kbd>Delete</kbd> {{ t('windows.foot.close') }}</span>
         <span>{{ t('windows.foot.type') }}</span>
         <span><kbd>Esc</kbd> {{ t('windows.foot.exit') }}</span>

@@ -82,7 +82,7 @@ test('UR-54, UR-68: an 80px dashed strip stuck at the top of the grid; accent wh
   assert.match(stripSrc, /class="sticky -top-3 [^"]*bg-popover /)
   assert.match(stripSrc, /data-windows-drop\s+class="flex h-20 [^"]*border-2 border-dashed/)
   // The grid's scroll padding clears the strip (12px top padding + 80px), so a card brought into view by the keys is not under it.
-  assert.match(overlay, /class="min-h-\[160px\] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3/)
+  assert.match(overlay, /class="relative min-h-\[160px\] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3/)
   assert.match(stripSrc, /idle: 'border-input text-muted-foreground'/)
   assert.match(stripSrc, /merge: 'border-primary bg-primary\/10 text-primary'/)
   assert.match(stripSrc, /refused: '[^']*border-warning bg-warning\/10 text-warning'/)
@@ -98,7 +98,33 @@ test('UR-54: pointer drag (no HTML5 drag), a threshold, Esc cancels, the click a
   assert.match(dragSrc, /const THRESHOLD = 4/)
   assert.match(dragSrc, /'Escape' \|\| !drag\.value\) return/)
   assert.match(dragSrc, /overStrip\(e\.clientX, e\.clientY\) && dragged\.value\.some\(\(c\) => c\.canMerge\)/)
-  assert.match(overlay, /if \(drag\.value\) return/)
+  assert.match(overlay, /if \(drag\.value \|\| selectBox\.value\) return/)
   assert.match(overlay, /@activate="consumeClick\(\) \|\| activate\(card\.label\)"/)
   assert.match(cardSrc, /dragging \? 'opacity-40' : ''/)
+})
+
+const boxSrc = read('components/windows/useWindowsMarquee.ts')
+
+test('UR-73: a box dragged from empty grid space marks the cards it touches; cards still drag to the strip', () => {
+  // Starts only off cards, buttons, links and the strip, past the same 4px threshold as a card drag.
+  assert.match(boxSrc, /target\.closest\('\[data-window-label\], button, input, a, \[data-windows-drop\]'\)\) return/)
+  assert.match(boxSrc, /const THRESHOLD = 4/)
+  // Rules from lib/windowsSelection; ⇧ / ⌘ (Ctrl) at the press adds to the old marks.
+  assert.match(boxSrc, /options\.setMarks\(boxMarks\(press\.before, boxHits\(cards, box\.value\), press\.additive\)\)/)
+  assert.match(boxSrc, /additive: e\.shiftKey \|\| e\.metaKey \|\| e\.ctrlKey/)
+  // Esc / pointercancel / blur put the old marks back; the edge scroll starts under the strip.
+  assert.match(boxSrc, /if \(press && box\.value\) options\.setMarks\(press\.before\)/)
+  assert.match(boxSrc, /window\.addEventListener\('blur', cancel\)/)
+  assert.match(boxSrc, /edgeScrollStep\(pointer\.y, Math\.max\(r\.top, strip\?\.bottom \?\? r\.top\), r\.bottom, EDGE_ZONE, EDGE_MAX\)/)
+  // The overlay: the grid takes the press, the box sits under the strip (z-[2]), over the cards.
+  assert.match(overlay, /ref="scroller"[\s\S]*?@pointerdown="onGridPointerDown"/)
+  assert.match(overlay, /data-windows-box\s+class="pointer-events-none absolute z-\[1\] rounded-sm border border-primary bg-primary\/10"/)
+  assert.match(overlay, /:boxing="!!selectBox"/)
+  assert.match(overlay, /<span>\{\{ t\('windows\.foot\.box'\) \}\}<\/span>/)
+  assert.match(barSrc, /<span v-if="boxing" class="text-muted-foreground">· \{\{ t\('windows\.sel\.boxing'\) \}\}<\/span>/)
+  assert.match(barSrc, /t\(boxing \? 'windows\.foot\.cancelBox' : 'windows\.foot\.clear'\)/)
+  for (const lang of ['vi', 'en']) {
+    const w = json(lang)
+    assert.ok(w.sel.boxing && w.foot.box && w.foot.cancelBox, lang)
+  }
 })

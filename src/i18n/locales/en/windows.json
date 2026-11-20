@@ -23,7 +23,8 @@
     "skip": "{count} cannot move back, will be skipped",
     "merge": "Move to main window ({count})",
     "close": "Close ({count})",
-    "clear": "Clear selection"
+    "clear": "Clear selection",
+    "boxing": "selecting"
   },
   "drop": {
     "idle": "Drag a card here to move it back to the main window",
@@ -78,6 +79,8 @@
     "exit": "exit",
     "mark": "mark",
     "markAll": "mark all",
-    "clear": "clear selection"
+    "clear": "clear selection",
+    "box": "Drag on empty space: box select",
+    "cancelBox": "cancel the box"
   }
 }
