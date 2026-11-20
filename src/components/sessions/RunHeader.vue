@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The run screen's header: the session's name (click to rename), then Bookmarks, Find, the flag chip and pop-out.
+// The run screen's header: the flag chip, the session's name (click to rename), then Bookmarks, Find and pop-out.
 // A session's own window adds a ⋯ menu with the session's actions. Connections and links live in the info bar
 // under the composer. State lives in useRunSession.
 import { useI18n } from 'vue-i18n'
@@ -38,12 +38,15 @@ if (isSessionWindow) {
 
 <template>
   <div class="flex items-center justify-between gap-2 px-3 h-12 border-b border-border bg-card shrink-0">
-    <!-- flex-1 so the rename field can grow to the free space; the actions below are shrink-0. -->
+    <!-- flex-1 so the rename field can grow to the free space; the actions below are shrink-0. The flag
+         chip leads (RT-18): it is shrink-0 with a capped width, so a long flag name only shortens the
+         name, which truncates, and never pushes the buttons around. -->
     <div class="flex flex-1 items-center gap-2 min-w-0">
+      <SessionFlagChip />
       <SessionTitle />
     </div>
     <!-- Icon-only actions; labels live in the tooltips so the header stays short no matter how narrow the
-         pane gets. The flag chip comes last before pop-out so a long flag name never pushes the buttons around. -->
+         pane gets. -->
     <div class="flex items-center gap-1 shrink-0">
       <SessionBookmarksMenu />
       <!-- ⌘F opens the same bar (App.vue dispatches the key); this is its button. -->
@@ -59,7 +62,6 @@ if (isSessionWindow) {
       >
         <Search class="h-3.5 w-3.5" :stroke-width="1.75" />
       </Button>
-      <SessionFlagChip />
       <!-- Pop out here; "back to main window" in the session's own window (QĐ-08). -->
       <Button
         v-if="currentRun"

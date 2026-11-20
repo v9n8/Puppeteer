@@ -150,12 +150,15 @@ test('UR-03: the shared flags card drops the long note and opens Settings › Fl
   }
 })
 
-test('UR-06: header order is title, bookmarks, find, flag chip, pop-out; ⋯ only in a session window', () => {
+test('UR-06 / RT-18: header order is flag chip, title, bookmarks, find, pop-out; ⋯ only in a session window', () => {
   const src = read('../../components/sessions/RunHeader.vue')
   const t = src.slice(src.indexOf('<template>'))
   const at = (s) => t.indexOf(s)
+  // RT-18 (#24): the flag chip leads, before the name; it is no longer among the buttons.
+  assert.ok(at('<SessionFlagChip') >= 0 && at('<SessionFlagChip') < at('<SessionTitle'))
+  assert.equal(t.split('<SessionFlagChip').length, 2)
   assert.ok(at('<SessionTitle') < at('<SessionBookmarksMenu') && at('<SessionBookmarksMenu') < at('run.findInSession'))
-  assert.ok(at('run.findInSession') < at('<SessionFlagChip') && at('<SessionFlagChip') < at('run.dockToMain'))
+  assert.ok(at('run.findInSession') < at('run.dockToMain'))
   assert.ok(at('run.dockToMain') < at('<DropdownMenu'))
   // The ⋯ menu only renders when the window has blocks (the main window has none).
   assert.match(t, /<DropdownMenu v-if="menuBlocks\.length"/)
@@ -295,7 +298,7 @@ test('UR-04: a new migration resets the flags to the five work-status defaults, 
 
 test('UR-19: the header block around the session title takes the free width so the rename field can grow', () => {
   const src = read('../../components/sessions/RunHeader.vue')
-  assert.match(src, /<div class="flex flex-1 items-center gap-2 min-w-0">\s*<SessionTitle \/>/)
+  assert.match(src, /<div class="flex flex-1 items-center gap-2 min-w-0">\s*<SessionFlagChip \/>\s*<SessionTitle \/>/)
   assert.match(read('../../components/sessions/SessionTitle.vue'), /<form v-if="editing" class="flex min-w-0 flex-1 /)
 })
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The open Session's flag, right after its name in the header (V3-19): a dot and
+// The open Session's flag, just before its name in the header (V3-19, RT-18): a dot and
 // the flag's name, or a dashed "Add flag" while it has none. Click opens the same
 // menu as History's "Flag ▸" to change or remove it.
 import { computed, onMounted, watch } from 'vue'
