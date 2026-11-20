@@ -216,6 +216,7 @@
   "missingClaudeAccount": "Deleted Claude account",
   "claudeAccountUpdated": "Claude account changed for this run",
   "claudeAccountUpdatedNextTurn": "Claude account changed for this run. Applies from the next turn.",
+  "claudeAccountUpdatedRestarted": "Claude account changed. The idle session was stopped (its background tasks too); your next message resumes on the new account.",
   "claudeAccountUpdateFailed": "Could not change Claude account: {error}",
   "missingCodexAccount": "Deleted Codex account",
   "codexAccountUpdated": "Codex account changed for this run",

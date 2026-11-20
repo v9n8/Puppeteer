@@ -190,6 +190,7 @@ mod tests {
                 log_buf: Arc::new(TokioMutex::new(String::new())),
                 broker_run: None,
                 ssh_access: None,
+                claude_account_id: None,
                 turn_gate: TurnGate::default(),
             },
         );

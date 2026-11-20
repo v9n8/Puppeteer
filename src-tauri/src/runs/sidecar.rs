@@ -1295,6 +1295,12 @@ pub async fn drain_sidecar(
                                         if let Some(handles) = reg.get_mut(&run_id) {
                                             handles.stdin.take();
                                         }
+                                    } else if !next_turn
+                                        && crate::runs::account_switch::stop_if_switched(&db_pool, &registry, &run_id).await
+                                            == crate::runs::account_switch::SwitchOutcome::Restarted
+                                    {
+                                        // Switched to another account during the turn (RT-04):
+                                        // the sidecar is stopped; the next message resumes.
                                     } else if let Some(cst) = app.try_state::<crate::conductor::ConductorState>() {
                                         // A conductor's turn ended but its sidecar stays
                                         // alive (e.g. a backgrounded Bash), so `run:done`

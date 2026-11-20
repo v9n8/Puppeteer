@@ -272,6 +272,7 @@ mod tests {
                 log_buf: std::sync::Arc::new(tokio::sync::Mutex::new(String::new())),
                 broker_run: None,
                 ssh_access: None,
+                claude_account_id: None,
                 turn_gate: crate::runs::TurnGate::default(),
             },
         );

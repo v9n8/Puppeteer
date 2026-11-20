@@ -521,9 +521,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       : ['run.claudeAccountUpdated', 'run.claudeAccountUpdatedNextTurn', 'run.claudeAccountUpdateFailed']
     savingAccount.value = true
     try {
-      await (codex ? runsStore.setRunCodexAccount(runId, value || null) : runsStore.setRunClaudeAccount(runId, value || null))
+      let outcome: string | null = null
+      if (codex) await runsStore.setRunCodexAccount(runId, value || null)
+      else outcome = await runsStore.setRunClaudeAccount(runId, value || null)
       const status = runId === currentRunId.value ? currentStatus.value : runsStore.runs.find((r) => r.id === runId)?.status
-      toast.success(t(status === 'running' ? keys[1] : keys[0]))
+      if (outcome === 'restarted') toast.success(t('run.claudeAccountUpdatedRestarted'))
+      else toast.success(t(outcome === 'after_turn' || (outcome === null && status === 'running') ? keys[1] : keys[0]))
       return true
     } catch (e) {
       toast.error(t(keys[2], { error: String(e) }))

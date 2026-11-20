@@ -800,13 +800,17 @@ export const useRunsStore = defineStore('runs', () => {
     if (cached) cached.protected = protectedFlag
   }
 
-  async function setRunClaudeAccount(run_id: string, account_id: string | null): Promise<void> {
-    await invoke('set_run_claude_account', { runId: run_id, accountId: account_id })
+  // What the switch did to a live process (RT-04): 'restarted' = the idle
+  // session (and its background tasks) was stopped, the next message resumes;
+  // 'after_turn' = it is replaced when the running turn ends.
+  async function setRunClaudeAccount(run_id: string, account_id: string | null): Promise<'applied' | 'after_turn' | 'restarted'> {
+    const outcome = await invoke<'applied' | 'after_turn' | 'restarted'>('set_run_claude_account', { runId: run_id, accountId: account_id })
     const next = account_id?.trim() || null
     const run = runs.value.find(r => r.id === run_id)
     if (run) run.claude_account_id = next
     const cached = runMeta.get(run_id)
     if (cached) cached.claude_account_id = next
+    return outcome
   }
 
   /** `null` = the shared `~/.codex` login. */

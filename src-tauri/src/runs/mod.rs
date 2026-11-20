@@ -1,3 +1,4 @@
+pub mod account_switch;
 pub mod bookmarks;
 pub mod broker;
 pub mod claude_prompt;
@@ -73,6 +74,10 @@ pub struct RunHandles {
     /// listed as a leftover until it exits or the user stops it.
     #[allow(dead_code)]
     pub proc: Option<crate::procs::ProcGuard>,
+    /// The Claude account the sidecar was spawned on (resolved id; None for
+    /// the global login and for Codex). A switch to another one replaces the
+    /// process (`account_switch`).
+    pub claude_account_id: Option<String>,
     /// The turn in flight and the follow-ups waiting for it to end.
     pub turn_gate: TurnGate,
 }

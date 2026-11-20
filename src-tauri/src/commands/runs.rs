@@ -696,6 +696,7 @@ pub(crate) async fn start_run_inner(
                     log_buf: log_buf.clone(),
                     broker_run: Some(broker_run),
                     ssh_access,
+                    claude_account_id: claude_account.as_ref().map(|a| a.id.clone()),
                     turn_gate: TurnGate { busy: first_line.is_some(), ..Default::default() },
                 },
             );
@@ -884,6 +885,7 @@ pub(crate) async fn start_run_inner(
                 log_buf: log_buf.clone(),
                 broker_run: Some(broker_run),
                 ssh_access,
+                claude_account_id: claude_account.as_ref().map(|a| a.id.clone()),
                 turn_gate: TurnGate { busy: first_line.is_some(), ..Default::default() },
             },
         );
@@ -4386,15 +4388,16 @@ async fn effective_run_claude_account(
 }
 
 /// Change the Claude account assigned to a run/session. Applies to the next
-/// start/resume: an already-running sidecar keeps the environment it spawned
-/// with, so for a running run only the id is stored (UX-47).
+/// turn: a live sidecar runs on the account it spawned with, so it is replaced
+/// (RT-04, `runs::account_switch`) — at once when idle, else when its turn ends.
 #[tauri::command]
 pub async fn set_run_claude_account(
     db: State<'_, Db>,
+    registry: State<'_, RunRegistry>,
     run_id: String,
     account_id: Option<String>,
-) -> Result<(), String> {
-    set_run_claude_account_inner(db.inner(), run_id, account_id).await
+) -> Result<crate::runs::account_switch::SwitchOutcome, String> {
+    set_run_claude_account_inner(db.inner(), registry.inner(), run_id, account_id).await
 }
 
 /// The body of [`set_run_claude_account`], callable without a Tauri `State`.
@@ -4405,9 +4408,10 @@ pub async fn set_run_claude_account(
 /// through exactly this logic rather than reimplementing it.
 pub async fn set_run_claude_account_inner(
     db: &Db,
+    registry: &RunRegistry,
     run_id: String,
     account_id: Option<String>,
-) -> Result<(), String> {
+) -> Result<crate::runs::account_switch::SwitchOutcome, String> {
     use sqlx::Row;
 
     let account_id = account_id.and_then(|v| {
@@ -4446,7 +4450,10 @@ pub async fn set_run_claude_account_inner(
             .execute(db)
             .await
             .map_err(|e| e.to_string())?;
-        return Ok(());
+        // A sidecar kept alive between turns would take the next message on
+        // the old account: replace it (RT-04).
+        let account = account.as_ref().map(|a| a.id.as_str());
+        return Ok(crate::runs::account_switch::apply(db, registry, &run_id, account, STOP_GRACE * 2).await);
     }
 
     let session_id: Option<String> = row.get("session_id");
@@ -4483,7 +4490,7 @@ pub async fn set_run_claude_account_inner(
             .await
             .map_err(|e| e.to_string())?;
     }
-    Ok(())
+    Ok(crate::runs::account_switch::SwitchOutcome::Applied)
 }
 
 /// The Codex account a run resumes under: the one it ran with (or was
@@ -5290,6 +5297,7 @@ pub(crate) async fn resume_run_with(
                 log_buf: log_buf.clone(),
                 broker_run,
                 ssh_access,
+                claude_account_id: claude_account.as_ref().map(|a| a.id.clone()),
                 turn_gate: TurnGate::default(),
             },
         );
@@ -6001,6 +6009,7 @@ mod startup_input_tests {
                 log_buf: Arc::new(TokioMutex::new(String::new())),
                 broker_run: None,
                 ssh_access: None,
+                claude_account_id: None,
                 turn_gate: TurnGate::default(),
             },
         );
@@ -6166,7 +6175,7 @@ mod claude_account_resume_tests {
         }
 
         // Mid-turn: only the id changes; nothing is copied into the new profile.
-        set_run_claude_account_inner(&db, "r1".into(), Some("acc-other".into())).await.unwrap();
+        set_run_claude_account_inner(&db, &crate::runs::new_registry(), "r1".into(), Some("acc-other".into())).await.unwrap();
         let (account_id, transcript, synced) = run_row(&db).await;
         assert_eq!(account_id.as_deref(), Some("acc-other"));
         assert_eq!(transcript.as_deref(), live.to_str());
@@ -6191,11 +6200,11 @@ mod claude_account_resume_tests {
         assert_eq!(fs::read_to_string(&dest).unwrap(), "turn 1\nturn 2\n");
 
         // An unknown account is still refused mid-turn.
-        assert!(set_run_claude_account_inner(&db, "r1".into(), Some("gone".into())).await.is_err());
+        assert!(set_run_claude_account_inner(&db, &crate::runs::new_registry(), "r1".into(), Some("gone".into())).await.is_err());
 
         // Between turns the switch copies at once, as before.
         sqlx::query("UPDATE runs SET status = 'completed' WHERE id = 'r1'").execute(&db).await.unwrap();
-        set_run_claude_account_inner(&db, "r1".into(), Some("acc-default".into())).await.unwrap();
+        set_run_claude_account_inner(&db, &crate::runs::new_registry(), "r1".into(), Some("acc-default".into())).await.unwrap();
         let (account_id, transcript, synced) = run_row(&db).await;
         let default_dest = claude_transcript_path_for_account(default_dir.to_str(), project_path, "s1").unwrap();
         assert_eq!(account_id.as_deref(), Some("acc-default"));
@@ -6303,6 +6312,7 @@ mod turn_gate_tests {
                 log_buf: Arc::new(TokioMutex::new(String::new())),
                 broker_run: None,
                 ssh_access: None,
+                claude_account_id: None,
                 turn_gate: TurnGate { busy, ..Default::default() },
             },
         );

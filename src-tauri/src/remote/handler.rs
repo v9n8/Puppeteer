@@ -1029,7 +1029,7 @@ async fn handle_set_run_meta(ctx: &HandlerCtx, cmd: &CmdPayload) {
     if let Some(account_id) = cmd.claude_account_id.clone() {
         let next = (!account_id.trim().is_empty()).then_some(account_id);
         if let Err(e) =
-            crate::commands::runs::set_run_claude_account_inner(&ctx.db, run_id.clone(), next).await
+            crate::commands::runs::set_run_claude_account_inner(&ctx.db, &ctx.registry, run_id.clone(), next).await
         {
             audit::audit(
                 &ctx.db,

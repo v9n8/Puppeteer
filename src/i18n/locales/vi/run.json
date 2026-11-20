@@ -216,6 +216,7 @@
   "missingClaudeAccount": "Tài khoản Claude đã bị xóa",
   "claudeAccountUpdated": "Đã đổi tài khoản Claude cho run này",
   "claudeAccountUpdatedNextTurn": "Đã đổi tài khoản Claude cho run này. Áp dụng từ lượt sau.",
+  "claudeAccountUpdatedRestarted": "Đã đổi tài khoản Claude. Session đang nghỉ đã được dừng (kể cả task nền); tin nhắn kế tiếp sẽ resume bằng tài khoản mới.",
   "claudeAccountUpdateFailed": "Đổi tài khoản Claude thất bại: {error}",
   "missingCodexAccount": "Tài khoản Codex đã bị xóa",
   "codexAccountUpdated": "Đã đổi tài khoản Codex cho run này",
