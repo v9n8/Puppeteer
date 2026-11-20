@@ -71,11 +71,14 @@ test('tag text reads at 4.5:1 on its tint in light and dark', () => {
       assert.ok(ratio >= 4.5, `${mode} ${c} ${ratio.toFixed(2)}`)
     }
   }
-  // The new tag tokens are not themed, so they must also pass on every light theme's card.
+  // The new tag tokens are themed only where a card needs it (nord dark orange), so they must
+  // pass on every theme's card, light and dark.
   for (const id of Object.keys(themes.themes)) {
-    for (const c of PROJECT_COLORS.filter((x) => x !== 'neutral' && !STATUS.includes(x))) {
-      const ratio = tagContrast(id, 'light', c)
-      assert.ok(ratio >= 4.5, `${id} light ${c} ${ratio.toFixed(2)}`)
+    for (const mode of ['light', 'dark']) {
+      for (const c of PROJECT_COLORS.filter((x) => x !== 'neutral' && !STATUS.includes(x))) {
+        const ratio = tagContrast(id, mode, c)
+        assert.ok(ratio >= 4.5, `${id} ${mode} ${c} ${ratio.toFixed(2)}`)
+      }
     }
   }
 })

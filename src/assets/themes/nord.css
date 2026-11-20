@@ -58,5 +58,9 @@
     --warning-foreground: 42.4 25.4% 13.1%; /* #2a2519 */
     --info: 218.7 50.6% 82.5%; /* #bccce9 */
     --info-foreground: 217.5 10.5% 14.9%; /* #22252a */
+    /* The one themed tag colour: this card is the lightest dark card, and the shared
+     * dark orange (#fb923c) reads only 3.84:1 on its tint here. Lighter, it still stays
+     * apart from this theme's sand warning (#ebcb8b). */
+    --tag-orange: 28.1 100.0% 71.6%; /* #ffb26e */
   }
 }
