@@ -7,9 +7,12 @@ import { i18n } from '@/i18n'
 import App from './App.vue'
 import { restoreAppearance } from './appearance'
 import { registerControllerServiceWorker } from './pushStore'
+import { installAnimationSync } from '@/lib/animationSync'
 
 // Start in the desktop's last-seen colors (the Host re-sends them on pairing).
 restoreAppearance()
+// Loading spinners keep one beat, as in the desktop windows.
+installAnimationSync()
 
 // Framework-independent error surface (requirement: never fail silently). If
 // anything throws — including a failed dynamic import / chunk 404, or a bug that

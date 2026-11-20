@@ -10,9 +10,12 @@ import { installFontPrefs } from './lib/appFonts'
 import { isRemoteMode } from './lib/ipc/remote'
 import { installQuoteAppend } from './lib/quoteAppend'
 import { installAppearanceSync } from './lib/appearanceSync'
+import { installAnimationSync } from './lib/animationSync'
 
 installHomeEndKeys()
 installFontPrefs()
+// Loading spinners / pulses of every Session and window turn on one beat.
+installAnimationSync()
 
 function mountApp() {
   const app = createApp(App)
