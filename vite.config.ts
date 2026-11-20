@@ -10,9 +10,7 @@ export default defineConfig(async () => ({
   plugins: [
     vue(),
     tailwindcss(),
-    // Dev only (the plugin skips `vite build`): adds data-v-inspector="file:line:col"
-    // to every element so the Web Inspector shows where it comes from.
-    VueInspector(),
+    VueInspector({ toggleComboKey: false }),
   ],
   resolve: {
     // Remote desktop: every `invoke` / `listen` the UI makes goes through the
