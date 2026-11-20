@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The thin strip at the top of the "Open windows" grid: always there so the cards read as
+// The strip at the top of the "Open windows" grid: always there so the cards read as
 // draggable, it takes the accent while cards that can move back are dragged and turns
 // amber (nothing happens on drop) when none of them can. useWindowsDrag finds it by
 // `data-windows-drop`.
@@ -36,7 +36,7 @@ const text = computed(() => {
   <div class="sticky -top-3 z-[2] -mt-3 mb-3 select-none bg-popover pt-3">
     <div
       data-windows-drop
-      class="flex h-10 items-center justify-center gap-2 rounded-card border-2 border-dashed px-3 text-sm"
+      class="flex h-20 items-center justify-center gap-2 rounded-card border-2 border-dashed px-3 text-sm"
       :class="{
         idle: 'border-input text-muted-foreground',
         merge: 'border-primary bg-primary/10 text-primary',

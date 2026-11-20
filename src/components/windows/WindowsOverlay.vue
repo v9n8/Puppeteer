@@ -452,7 +452,7 @@ onBeforeUnmount(() => {
         <Button variant="outline" size="sm" class="text-[13px]" @click="store.refreshThumbs()">{{ t('windows.thumb.retry') }}</Button>
       </div>
 
-      <div class="min-h-[160px] flex-1 scroll-pt-14 overflow-y-auto px-4 pt-3 pb-4" :class="drag ? 'cursor-grabbing select-none' : ''">
+      <div class="min-h-[160px] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3 pb-4" :class="drag ? 'cursor-grabbing select-none' : ''">
         <p v-if="total === 0" class="py-10 text-center text-sm text-muted-foreground">{{ t('windows.empty') }}</p>
         <p v-else-if="flat.length === 0" class="py-10 text-center text-sm text-muted-foreground">
           {{ t('windows.noMatch', { query: query.trim() }) }}

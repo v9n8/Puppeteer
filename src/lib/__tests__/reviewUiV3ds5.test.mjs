@@ -76,11 +76,13 @@ test('UR-53: Space / ⌘A stay text keys while the filter has text; ⌘A marks o
 const stripSrc = read('components/windows/WindowsDropStrip.vue')
 const dragSrc = read('components/windows/useWindowsDrag.ts')
 
-test('UR-54: a 40px dashed strip stuck at the top of the grid; accent while dragging, amber when refused', () => {
+test('UR-54, UR-68: an 80px dashed strip stuck at the top of the grid; accent while dragging, amber when refused', () => {
   assert.match(overlay, /<template v-else>\s*<WindowsDropStrip /)
   // Same colour as the overlay panel (bg-popover), or the strip's backing shows as a band.
   assert.match(stripSrc, /class="sticky -top-3 [^"]*bg-popover /)
-  assert.match(stripSrc, /data-windows-drop\s+class="flex h-10 [^"]*border-2 border-dashed/)
+  assert.match(stripSrc, /data-windows-drop\s+class="flex h-20 [^"]*border-2 border-dashed/)
+  // The grid's scroll padding clears the strip (12px top padding + 80px), so a card brought into view by the keys is not under it.
+  assert.match(overlay, /class="min-h-\[160px\] flex-1 scroll-pt-24 overflow-y-auto px-4 pt-3/)
   assert.match(stripSrc, /idle: 'border-input text-muted-foreground'/)
   assert.match(stripSrc, /merge: 'border-primary bg-primary\/10 text-primary'/)
   assert.match(stripSrc, /refused: '[^']*border-warning bg-warning\/10 text-warning'/)
