@@ -128,3 +128,7 @@ test('UR-73: a box dragged from empty grid space marks the cards it touches; car
     assert.ok(w.sel.boxing && w.foot.box && w.foot.cancelBox, lang)
   }
 })
+
+test('UR-74: a rule between the key hints of the footer, none at the start of a wrapped line', () => {
+  assert.match(overlay, /<footer v-else class="border-t border-border px-4 py-2 text-\[13px\] text-muted-foreground">\s*<div class="overflow-hidden">\s*<div class="-ml-\[11px\] flex flex-wrap items-center gap-y-1 \[&>span\]:border-l \[&>span\]:border-border \[&>span\]:px-2\.5">/)
+})

@@ -521,15 +521,21 @@ onBeforeUnmount(() => {
         @close="confirmClose = 'marked'"
         @clear="clearMarks"
       />
-      <footer v-else class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 text-[13px] text-muted-foreground">
-        <span><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> {{ t('windows.foot.select') }}</span>
-        <span><kbd>Enter</kbd> {{ t('windows.foot.open') }}</span>
-        <span><kbd>Space</kbd> {{ t('windows.foot.mark') }}</span>
-        <span><kbd>{{ keysMarkAll }}</kbd> {{ t('windows.foot.markAll') }}</span>
-        <span>{{ t('windows.foot.box') }}</span>
-        <span><kbd>{{ keysClose }}</kbd> / <kbd>Delete</kbd> {{ t('windows.foot.close') }}</span>
-        <span>{{ t('windows.foot.type') }}</span>
-        <span><kbd>Esc</kbd> {{ t('windows.foot.exit') }}</span>
+      <!-- A rule between hints. The row is pulled left by one gap under a clipping box, so the
+           rule before the first hint of each line (the footer wraps at 900) is cut off. -->
+      <footer v-else class="border-t border-border px-4 py-2 text-[13px] text-muted-foreground">
+        <div class="overflow-hidden">
+          <div class="-ml-[11px] flex flex-wrap items-center gap-y-1 [&>span]:border-l [&>span]:border-border [&>span]:px-2.5">
+            <span><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> {{ t('windows.foot.select') }}</span>
+            <span><kbd>Enter</kbd> {{ t('windows.foot.open') }}</span>
+            <span><kbd>Space</kbd> {{ t('windows.foot.mark') }}</span>
+            <span><kbd>{{ keysMarkAll }}</kbd> {{ t('windows.foot.markAll') }}</span>
+            <span>{{ t('windows.foot.box') }}</span>
+            <span><kbd>{{ keysClose }}</kbd> / <kbd>Delete</kbd> {{ t('windows.foot.close') }}</span>
+            <span>{{ t('windows.foot.type') }}</span>
+            <span><kbd>Esc</kbd> {{ t('windows.foot.exit') }}</span>
+          </div>
+        </div>
       </footer>
     </div>
 
