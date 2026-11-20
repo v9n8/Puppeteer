@@ -410,6 +410,13 @@
       }
     }
   },
+  "resync": {
+    "action": "Re-sync from transcript",
+    "confirmTitle": "Re-sync this session?",
+    "confirmMessage": "The session's log is rebuilt from the engine's transcript on this machine, so turns made outside the app (in the CLI) show up.\n\nLines only the app kept (error output, its own notes) are dropped, and bookmarks or quotes may point at a slightly different place.",
+    "confirm": "Re-sync",
+    "done": "Re-synced from the transcript."
+  },
   "fork": {
     "action": "Fork session",
     "confirmTitle": "Fork this session?",

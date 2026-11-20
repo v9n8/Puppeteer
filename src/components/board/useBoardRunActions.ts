@@ -17,9 +17,10 @@ import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import { cardTitle } from '@/lib/flagBoard'
 import { openSessionWindow } from '@/lib/sessionWindow'
+import { resyncConfirmOptions, resyncRun } from '@/lib/runResync'
 import { IS_SESSION_WINDOW } from '@/lib/windowMode'
 
-type Busy = { kind: 'refetching' | 'pinning' | 'protecting' | 'deleting' | 'forking'; id: string } | null
+type Busy = { kind: 'refetching' | 'pinning' | 'protecting' | 'deleting' | 'forking' | 'resyncing'; id: string } | null
 
 /** `onChanged`: reload the board after something that changes a card or removes it. */
 export function useBoardRunActions(onChanged: () => void) {
@@ -71,6 +72,7 @@ export function useBoardRunActions(onChanged: () => void) {
         protecting: is('protecting'),
         deleting: is('deleting'),
         forking: is('forking'),
+        resyncing: is('resyncing'),
       },
     }
   }
@@ -163,6 +165,17 @@ export function useBoardRunActions(onChanged: () => void) {
     })
   }
 
+  async function resync(run: BoardRun) {
+    if (!(await confirm(resyncConfirmOptions(t)))) return
+    await guarded('resyncing', run, async () => {
+      await resyncRun(run.id)
+      // An open session pane shows the log from disk again, not a stale live copy.
+      live.discard(run.id)
+      toast.success(t('run.resync.done'))
+      onChanged()
+    })
+  }
+
   function actionHandlers(run: BoardRun) {
     return {
       popout: () => void openSessionWindow(run.project_id, run.id),
@@ -177,6 +190,7 @@ export function useBoardRunActions(onChanged: () => void) {
         onChanged()
       }),
       copyId: () => copyText(run.id, 'run.sessionIdCopied'),
+      resync: () => resync(run),
       fork: () => fork(run),
       rename: () => rename(run),
       togglePin: () => guarded('pinning', run, async () => {

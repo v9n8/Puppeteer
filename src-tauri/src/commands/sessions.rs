@@ -386,6 +386,9 @@ pub(crate) async fn upsert_session_run_core(
     // that run may simply not have captured its `session_id` yet. `get_run_log`
     // passes false — it always targets an existing run, never a new import.
     defer_when_busy: bool,
+    // Rebuild an existing run's log from `file` even when it did not grow
+    // ("Re-sync", RT-16 `run_resync`). A running run is still left alone.
+    force: bool,
 ) -> Result<SyncOutcome, String> {
     use sqlx::Row;
 
@@ -426,7 +429,7 @@ pub(crate) async fn upsert_session_run_core(
         }
         let conv_path = runs_dir.join(format!("{}.log", id));
         let cur_size = file_size(file);
-        let newer = match synced_size {
+        let newer = force || match synced_size {
             // We know exactly how many bytes we last mirrored. Since transcripts
             // are append-only, rebuild iff it grew — exact, so a short final tail
             // written just after a previous sync is never missed. A shorter file
@@ -623,6 +626,7 @@ async fn upsert_claude_session_in(
         &file,
         parse_transcript,
         defer_when_busy,
+        false,
     )
     .await
 }

@@ -39,6 +39,7 @@ pub mod projects;
 pub mod response_styles;
 pub mod rules;
 pub mod run_mcp;
+pub mod run_resync;
 pub mod runs;
 pub mod session_defaults;
 pub mod flag_board;

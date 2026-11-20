@@ -15,6 +15,7 @@ import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
 import { useRunFlagFilter } from './useRunFlagFilter'
+import { resyncConfirmOptions, resyncRun } from '@/lib/runResync'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
 import type { RunLog } from './useRunLog'
@@ -41,7 +42,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   } = conductor
   const {
     popoutSession, sessionListEl, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
-    loadInputContent, clearHistoryView, forking, forkRun,
+    loadInputContent, clearHistoryView, forking, forkRun, loadRunLog, loadQuotes,
   } = log
   const sessionTabs = useSessionTabsStore()
 
@@ -364,6 +365,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   const refetchingRunId = ref<string | null>(null)
   const pinningRunId = ref<string | null>(null)
   const protectingRunId = ref<string | null>(null)
+  const resyncingRunId = ref<string | null>(null)
   // Which History row currently has its actions (⋯) menu open. Kept so the
   // trigger stays visible even when the pointer leaves the row while open.
   const actionsMenuRunId = ref<string | null>(null)
@@ -487,6 +489,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
         protecting: protectingRunId.value === run.id,
         deleting: deletingRunId.value === run.id,
         forking: forking.value,
+        resyncing: resyncingRunId.value === run.id,
       },
     }
   }
@@ -500,11 +503,31 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
       openGithub: () => openRunInBrowser(run),
       refetch: () => handleRefetch(run.id),
       copyId: () => copySessionId(run),
+      resync: () => handleResync(run),
       fork: () => forkRun(run),
       rename: () => rename(run),
       togglePin: () => handleTogglePin(run),
       toggleProtect: () => handleToggleProtect(run),
       delete: () => handleDeleteRun(run.id),
+    }
+  }
+
+  // Rebuild the log from the engine's transcript (RT-16), then show it from disk.
+  async function handleResync(run: RunRecord) {
+    if (!(await confirm(resyncConfirmOptions(t)))) return
+    resyncingRunId.value = run.id
+    try {
+      await resyncRun(run.id)
+      live.discard(run.id)
+      if (currentRunId.value === run.id) {
+        await loadRunLog(run.id, { force: true })
+        await loadQuotes(run.id)
+      }
+      toast.success(t('run.resync.done'))
+    } catch (err) {
+      toast.error(String(err))
+    } finally {
+      resyncingRunId.value = null
     }
   }
 

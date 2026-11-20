@@ -936,6 +936,7 @@ pub fn run() {
             commands::session_defaults::set_project_session_defaults,
             commands::paste_as_file::set_project_paste_as_file,
             commands::paste_as_file::save_pasted_text,
+            commands::run_resync::resync_run,
             slack_threads::dm::get_slack_dm_read,
             slack_threads::dm::set_slack_dm_read,
             slack_threads::dm::set_project_slack_dm_read,

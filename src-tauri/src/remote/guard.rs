@@ -271,6 +271,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "delete_schedule",
     // Rewind: overwrites and deletes workspace files, cuts the session's log.
     "rewind_run",
+    // Re-sync: rebuilds the session's log from its transcript (app-only lines go).
+    "resync_run",
     // Transcript export: writes a session's conversation to a file on this machine.
     "export_run_transcript",
     // Dev servers: start a command the project's repo declares, or stop one.
@@ -939,6 +941,7 @@ mod tests {
             "save_schedule",
             "delete_schedule",
             "rewind_run",
+            "resync_run",
             "export_run_transcript",
             "devserver_start",
             "devserver_stop",

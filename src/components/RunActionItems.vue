@@ -5,7 +5,7 @@
 // renders and emits.
 //
 //   section 'actions'  Pop out (Board only) · Copy path · Reveal in Finder · Open on GitHub · Refetch |
-//                      Copy session ID |
+//                      Copy session ID · Re-sync (a session with a transcript, not running) |
 //                      Flag ▸ · Fork · Rename · Pin · Protect
 // Copy path / Reveal point at the session's own file (its log, RT-17).
 //   section 'delete'   | Delete (hidden while the run is running)
@@ -23,6 +23,7 @@ import {
   Pin,
   PinOff,
   RefreshCw,
+  RotateCcw,
   Shield,
   ShieldOff,
   Trash2,
@@ -45,7 +46,7 @@ const props = defineProps<{
   /** The run's issue / PR on GitHub, when any. */
   githubUrl: string | null
   /** An action for this run is in flight (its item is disabled meanwhile). */
-  busy: { refetching: boolean; pinning: boolean; protecting: boolean; deleting: boolean; forking: boolean }
+  busy: { refetching: boolean; pinning: boolean; protecting: boolean; deleting: boolean; forking: boolean; resyncing?: boolean }
   /** A prop, not an emit: it must still run after the menu (and this component) is gone. */
   onFlagChanged?: () => void
 }>()
@@ -57,6 +58,7 @@ const emit = defineEmits<{
   openGithub: []
   refetch: []
   copyId: []
+  resync: []
   fork: []
   rename: []
   togglePin: []
@@ -107,6 +109,15 @@ const currentFlagName = computed(() => {
     <DropdownItem @click="emit('copyId')">
       <Hash class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.copySessionId') }}
+    </DropdownItem>
+    <!-- Rebuild the log from the engine's transcript now (RT-16); asks first. -->
+    <DropdownItem
+      v-if="run.run_type === 'session' && run.session_id && run.status !== 'running'"
+      :disabled="busy.resyncing"
+      @click="emit('resync')"
+    >
+      <RotateCcw class="h-3.5 w-3.5 shrink-0" :class="{ 'animate-spin': busy.resyncing }" :stroke-width="1.75" />
+      {{ t('run.resync.action') }}
     </DropdownItem>
     <DropdownSeparator />
     <!-- Flag ▸ (V3-19): the same menu as the header chip. -->

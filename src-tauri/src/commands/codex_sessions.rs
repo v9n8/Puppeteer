@@ -459,6 +459,7 @@ pub(crate) async fn upsert_codex_session_file(
         file,
         parse_codex_rollout,
         defer_when_busy,
+        false,
     )
     .await
 }

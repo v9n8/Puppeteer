@@ -410,6 +410,13 @@
       }
     }
   },
+  "resync": {
+    "action": "Đồng bộ lại từ transcript",
+    "confirmTitle": "Đồng bộ lại session này?",
+    "confirmMessage": "Log của session được dựng lại từ transcript của engine trên máy này, để các lượt làm ngoài app (trong CLI) hiện ra.\n\nCác dòng chỉ app giữ (output lỗi, ghi chú riêng của app) sẽ mất, và bookmark hoặc quote có thể lệch vị trí một chút.",
+    "confirm": "Đồng bộ lại",
+    "done": "Đã đồng bộ lại từ transcript."
+  },
   "fork": {
     "action": "Fork Session",
     "confirmTitle": "Fork Session này?",
