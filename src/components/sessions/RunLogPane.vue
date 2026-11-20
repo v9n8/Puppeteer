@@ -36,7 +36,7 @@ const {
   onOutputPointerDown, historyAwayFromBottom, scrollHistoryToLatest, onHistoryScroll,
   runFind, findOpen, logHits, logHitsTruncated, logSearching, logSearchActive,
   jumpToLogHit, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, quoteSets, quoteReveal,
-  jumpToQuote, session, project,
+  jumpToQuote, session, project, liveHasMore, liveLoadingMore, showEarlierLive,
 } = useRunSession()
 // Which prompt (Lượt n) each hit of the whole log sits in.
 const logHitTurns = computed(() => {
@@ -306,6 +306,18 @@ function onOpenUrl(url: string) {
         @scroll="onOutputScroll"
         @pointerdown="onOutputPointerDown"
       >
+        <!-- The live copy may not hold the log from its start (resumed from a
+             history window, or opened mid-run): older records page in from disk. -->
+        <div v-if="liveHasStream && liveHasMore" class="search-skip mb-3 flex justify-center">
+          <button
+            type="button"
+            class="rounded-full border border-border bg-muted/60 px-3 py-1 text-2xs text-foreground/70 hover:bg-accent/60 transition-colors cursor-pointer disabled:opacity-50"
+            :disabled="liveLoadingMore"
+            @click="showEarlierLive"
+          >
+            {{ liveLoadingMore ? t('common.loading') : t('run.showEarlier', { count: HISTORY_PAGE_STEP }) }}
+          </button>
+        </div>
         <StreamLog
           v-if="liveHasStream"
           :entries="liveEntries"

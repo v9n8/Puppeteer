@@ -12,6 +12,7 @@ import {
   type ImageAttachment,
 } from '@/lib/streamEvents'
 import { applyPromptEcho } from '@/lib/promptEcho'
+import { COMPLETE_PAGING, toolIndexOf, type LivePaging } from '@/lib/livePaging'
 import { standingPermissionDecision } from '@/lib/permissionMemory'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
@@ -89,6 +90,11 @@ export interface LiveSession {
   attention: RunAttention[]
   /** API retry / compaction in progress, shown in place of "thinking" (AC-14). */
   liveStatus: LiveStatus | null
+  /**
+   * Where `entries` start in the run log (RT-07, `lib/livePaging`): null until
+   * known — the copy began mid-run and the disk tail is still to be joined.
+   */
+  paging: LivePaging | null
 }
 
 /** One liveness notice, keyed so the backend can clear it when it resolves. */
@@ -287,6 +293,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         endReason: null as string | null,
         attention: [] as RunAttention[],
         liveStatus: null as LiveStatus | null,
+        paging: null as LivePaging | null,
       }) as LiveSession
       // Seed the per-run allow/deny lists with the standing choices the user
       // made for this project in earlier runs, so they apply again here.
@@ -305,7 +312,20 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
   /** Begin a fresh turn: drop any accumulated state and stop old listeners. */
   function reset(runId: string, projectId: string): LiveSession {
     discard(runId)
-    return ensure(runId, projectId)
+    const s = ensure(runId, projectId)
+    // Called as a run starts: this copy will hold its log from the top.
+    s.paging = { ...COMPLETE_PAGING }
+    return s
+  }
+
+  /** Swap in a rebuilt entry list (RT-07 paging) and re-key the tool results to it. */
+  function replaceEntries(runId: string, entries: StreamEntry[]) {
+    const s = sessions.get(runId)
+    const toolIndex = toolIndexes.get(runId)
+    if (!s || !toolIndex) return
+    s.entries = entries
+    toolIndex.clear()
+    for (const [id, i] of toolIndexOf(entries)) toolIndex.set(id, i)
   }
 
   function pushUser(
@@ -955,6 +975,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     ensure,
     reset,
     pushUser,
+    replaceEntries,
     setStatus,
     isListening,
     activate,

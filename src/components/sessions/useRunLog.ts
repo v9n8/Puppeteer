@@ -23,6 +23,7 @@ import {
   type StreamEntry,
 } from '@/lib/streamEvents'
 import type { RunSessionCore } from './useRunSessionCore'
+import { useLivePaging } from './useLivePaging'
 
 /** Composer members the log reads before the composer exists. createRunSession
  * fills them in right after; they are only called once setup has finished. */
@@ -359,11 +360,21 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     })
   }
 
+  // RT-07: the live pane pages in the log's older part when its copy lacks it.
+  const livePaging = useLivePaging({
+    runsStore, live, currentRunId, outputEl, stickToBottom, scrollOutputToBottom,
+    pageInitial: HISTORY_PAGE_INITIAL, pageStep: HISTORY_PAGE_STEP,
+    history: { runId: viewingLogRunId, hasStream: historyHasStream, entries: historyEntries, cursor: historyCursor,
+      hasMore: historyHasMore, hasMoreBelow: historyHasMoreBelow, preambleModel: historyPreambleModel },
+  })
+
   // Re-evaluate the pin whenever the user scrolls the live output.
   function onOutputScroll() {
     scheduleScrollSettle()
     scrollMemory.schedule()
     scheduleTurnPositionCheck()
+    const el = outputEl.value
+    if (el && el.scrollTop < HISTORY_SCROLL_MARGIN && livePaging.liveHasMore.value) void livePaging.showEarlierLive()
   }
 
   // --- Scroll anchoring across layout resizes ---------------------------------
@@ -1305,6 +1316,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
       if (liveSession.status === 'running' && !live.isListening(runId)) {
         await live.startListening(runId, projectId.value)
       }
+      if (liveSession.paging === null) void livePaging.joinLiveTail(runId)
       if (!opts.preferDisk && !(await scrollMemory.restore(runId)) && currentRunId.value === runId) {
         stickToBottom.value = true
         scrollOutputToBottom()
@@ -1462,6 +1474,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     logHitsTruncated, logSearching,
     logSearchActive, jumpToLogHit, openRouteSearchHit, loadInputContent, clearHistoryView,
     loadRunLog, quoteSets, quoteReveal, jumpToQuote, loadQuotes, noteSentQuotes, shownHasMessage,
+    ...livePaging,
   }
 }
 

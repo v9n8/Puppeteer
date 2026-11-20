@@ -78,10 +78,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     conductorMaxWorkers,
   } = conductor
   const {
-    outputEl, historyEl, viewingLogRunId, viewingLog, historyEntries, historyHasStream,
+    outputEl, historyEl, viewingLog, historyEntries, historyHasStream,
     historyContextTokens, historyModel, isViewingHistory, sourceText, stickToBottom,
     scrollOutputToBottom, scrollMemory, bookmarkState, toggleBookmark, snapshotTurns, rewindTarget,
     clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes, forkRun, onRewound, promptNumber,
+    seedLiveFromHistory,
   } = log
   const {
     captureContext,
@@ -1457,17 +1458,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       }
 
       // This run becomes the live conversation. If we were viewing its on-disk
-      // history, seed the live session with that transcript so prior context
-      // stays visible, then leave history mode.
-      const s = live.ensure(id, projectId.value)
-      if (s.entries.length === 0 && viewingLogRunId.value === id && historyHasStream.value) {
-        s.entries.push(...historyEntries.value)
-        s.hasStreamEvents = true
-        for (const e of historyEntries.value) {
-          if (e.kind === 'system' && e.sessionId) s.sessionId = e.sessionId
-          if (e.kind === 'system' && e.slashCommands?.length) s.slashCommands = e.slashCommands
-        }
-      }
+      // history, seed the live session with that window and its paging (RT-07)
+      // so prior context stays visible and older pages reachable, then leave
+      // history mode.
+      seedLiveFromHistory(id, live.ensure(id, projectId.value))
       clearHistoryView()
 
       // Show the user message right away in the timeline (running / resume paths).
