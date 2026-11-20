@@ -138,23 +138,9 @@ const tabHint = computed(() => ({
         </SettingsRow>
         <SettingsRow search-id="limits-block5h" :label="t('settings.sessions.block5h')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_5h_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
-          <p v-if="now5h.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
-            {{ t('settings.sessions.nowPrefix') }}
-            <template v-for="(e, i) in now5h" :key="e.label">
-              <span v-if="i > 0"> · </span>
-              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale">{{ ' ' }}{{ t('settings.sessions.nowStale') }}</template></span>
-            </template>
-          </p>
         </SettingsRow>
         <SettingsRow search-id="limits-blockWeekly" :label="t('settings.sessions.blockWeekly')" :hint="t('settings.sessions.blockHint')">
           <Input v-model="settings.budget_week_percent" type="number" min="1" max="100" :placeholder="t('settings.sessions.emptyOff')" />
-          <p v-if="nowWeek.length" class="mt-1 text-2xs text-muted-foreground leading-relaxed">
-            {{ t('settings.sessions.nowPrefix') }}
-            <template v-for="(e, i) in nowWeek" :key="e.label">
-              <span v-if="i > 0"> · </span>
-              <span :title="e.stale && e.capturedAt ? t('settings.sessions.nowCaptured', { time: new Date(e.capturedAt).toLocaleString() }) : undefined">{{ e.label }} {{ e.percent }}%<template v-if="e.stale">{{ ' ' }}{{ t('settings.sessions.nowStale') }}</template></span>
-            </template>
-          </p>
         </SettingsRow>
         <p v-if="warnNotBelowBlock" class="text-2xs text-warning leading-relaxed">
           {{ t('settings.sessions.warnNotBelowBlock') }}

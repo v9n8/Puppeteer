@@ -93,6 +93,7 @@
   "pinToTop": "Ghim lên đầu",
   "protect": "Bảo vệ",
   "unprotect": "Bỏ bảo vệ",
+  "protectHelp": "Giữ session này lại khi bấm “Xóa mọi session” của project. Session được bảo vệ cũng giữ lại các worker của nó. Bạn vẫn xoá riêng session này được.",
   "deleteThisRun": "Xóa run này",
   "runNamePlaceholder": "Tên run",
   "saveName": "Lưu tên",

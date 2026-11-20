@@ -93,6 +93,7 @@
   "pinToTop": "Pin to top",
   "protect": "Protect",
   "unprotect": "Remove protection",
+  "protectHelp": "Keeps this session when you use “Delete all sessions” on the project. A protected session also keeps its workers. You can still delete it on its own.",
   "deleteThisRun": "Delete this run",
   "runNamePlaceholder": "Run name",
   "saveName": "Save name",

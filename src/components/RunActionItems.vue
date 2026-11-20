@@ -29,7 +29,7 @@ import {
   ShieldOff,
   Trash2,
 } from 'lucide-vue-next'
-import { DropdownItem, DropdownSeparator, DropdownSubmenu } from '@/components/ui'
+import { DropdownItem, DropdownSeparator, DropdownSubmenu, InfoTip } from '@/components/ui'
 import FlagMenuItems from '@/components/sessions/FlagMenuItems.vue'
 import type { RunRecord } from '@/stores/runs'
 import { useSessionFlagsStore } from '@/stores/sessionFlags'
@@ -145,10 +145,18 @@ const currentFlagName = computed(() => {
       <component :is="run.pinned ? PinOff : Pin" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ run.pinned ? t('run.unpinFromTop') : t('run.pinToTop') }}
     </DropdownItem>
-    <DropdownItem :disabled="busy.protecting" @click="emit('toggleProtect')">
-      <component :is="run.protected ? ShieldOff : Shield" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-      {{ run.protected ? t('run.unprotect') : t('run.protect') }}
-    </DropdownItem>
+    <!-- The ⓘ sits beside the item, not inside it: a button can't nest in the
+         item's button, and a click on it must neither toggle protection nor
+         close the menu (the panel closes on any click that reaches it). -->
+    <div class="flex items-center">
+      <DropdownItem class="min-w-0 flex-1" :disabled="busy.protecting" @click="emit('toggleProtect')">
+        <component :is="run.protected ? ShieldOff : Shield" class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
+        {{ run.protected ? t('run.unprotect') : t('run.protect') }}
+      </DropdownItem>
+      <span class="inline-flex px-1.5" @click.stop>
+        <InfoTip :text="t('run.protectHelp')" />
+      </span>
+    </div>
   </template>
 
   <template v-else-if="run.status !== 'running'">
