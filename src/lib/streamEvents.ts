@@ -744,7 +744,7 @@ export function applyStreamEvent(
 
     state.entries.push({
       kind: 'result',
-      text: isDuplicate ? '' : resultText,
+      text: isDuplicate ? '' : resultText || failedResultReasons(e),
       cost_usd: costUsd,
       cost_estimated: costEstimated,
       total_tokens: turnTokens > 0 ? turnTokens : undefined,
@@ -756,6 +756,20 @@ export function applyStreamEvent(
     })
     return
   }
+}
+
+/**
+ * RT-11: why a failed `result` failed when its `result` text is empty — the
+ * CLI lists the reasons in `errors` (e.g. "prompt_check: the turn was stopped
+ * before its prompt was checked"). One per line; '' for a turn that did not fail.
+ */
+function failedResultReasons(e: Record<string, unknown>): string {
+  const failed = !!e.is_error || (typeof e.subtype === 'string' && e.subtype.startsWith('error'))
+  if (!failed || !Array.isArray(e.errors)) return ''
+  return e.errors
+    .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)).trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** Sum every input-side token (incl. cache) plus output for one `usage` blob. */
