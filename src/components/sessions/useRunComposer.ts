@@ -17,6 +17,7 @@ import {
 import type { QuoteAnchor } from '@/lib/quoteAnchor'
 import { appendQuoteToDraft, composerWindowLabel, registerQuoteComposer } from '@/lib/quoteAppend'
 import { emptyQueue, queuedPreview, type QueuedMessage } from '@/lib/messageQueue'
+import { slashCommandAction, slashCommandMessage } from '@/lib/slashCommand'
 import { useMessageQueueStore } from '@/stores/messageQueue'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import {
@@ -898,11 +899,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     handleSendFollowUp()
   }
 
-  // Send a slash command (e.g. /compact, /clear) as a message. Routes through the
-  // normal primary action so it respects running / resume / start state.
+  // Send a slash command (e.g. /compact) on its own: the draft stays in the
+  // composer and nothing of it goes along (RT-02). Running → queued.
   function sendSlashCommand(cmd: string) {
-    followUpInput.value = cmd
-    handlePrimaryAction()
+    const id = currentRunId.value
+    if (!id || sendingFollowUp.value) return
+    const action = slashCommandAction(currentStatus.value, !!editingMessage.value)
+    if (action === 'send') void sendMessage(id, () => slashCommandMessage(cmd))
+    else if (action === 'queue') queueStore.enqueue(id, { text: cmd, images: [], files: [], quotes: [] })
   }
 
   // ── Composer auto-resize ──────────────────────────────────────────────────

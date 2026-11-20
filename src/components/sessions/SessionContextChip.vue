@@ -15,7 +15,7 @@ import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const appSettings = useAppSettingsStore()
-const { contextTokens, contextModel, sendSlashCommand, sendingFollowUp } = useRunSession()
+const { contextTokens, contextModel, sendSlashCommand, sendingFollowUp, editingMessage } = useRunSession()
 
 const warnPercent = computed(() => {
   const v = Number(appSettings.settings?.context_warn_percent)
@@ -67,7 +67,7 @@ const labels = computed(() => ({
         <p class="m-0 text-2xs text-muted-foreground">{{ t('run.infoBar.context.warnLine', { pct: warnPercent }) }}</p>
       </div>
       <div class="border-t border-border pt-1">
-        <DropdownItem :disabled="sendingFollowUp" :title="t('run.infoBar.context.compactHint')" @click="sendSlashCommand('/compact')">
+        <DropdownItem :disabled="sendingFollowUp || !!editingMessage" :title="t('run.infoBar.context.compactHint')" @click="sendSlashCommand('/compact')">
           <FoldVertical class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span class="min-w-0 flex-1">{{ t('run.statusBar.compact') }}</span>
         </DropdownItem>
