@@ -9,13 +9,14 @@ import {
   AlertTriangle, Cloud, CloudCog, ExternalLink, Github, Gitlab, GitBranch, HardDrive, Plus, Trash2,
 } from 'lucide-vue-next'
 import { Badge, Button, InfoTip, Input } from '@/components/ui'
+import ColorSwatchGrid from '@/components/ColorSwatchGrid.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import ProjectHealthCard from '@/components/projects/ProjectHealthCard.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { composerDefaults } from '@/lib/composerChips'
 import {
-  PROJECT_COLORS, PROJECT_ICONS, projectColor, projectIcon, swatchClass,
+  PROJECT_ICONS, projectColor, projectIcon,
   type ProjectColor, type ProjectIcon,
 } from '@/lib/projectAppearance'
 import type { ProjectSectionId } from '@/lib/projectSections'
@@ -362,22 +363,7 @@ async function remove() {
             <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.colorLabel') }}</label>
             <InfoTip :text="t('projectDetail.colorHint')" />
           </div>
-          <div class="flex items-center gap-1.5">
-            <button
-              v-for="color in PROJECT_COLORS"
-              :key="color"
-              type="button"
-              class="h-5 w-5 rounded-full border-2 transition-transform cursor-pointer"
-              :class="[
-                projectColor(project.color) === color ? 'border-foreground scale-110' : 'border-transparent',
-                swatchClass(color),
-              ]"
-              :title="t(`projectDetail.colors.${color}`)"
-              :aria-label="t(`projectDetail.colors.${color}`)"
-              :aria-pressed="projectColor(project.color) === color"
-              @click="pickColor(color)"
-            />
-          </div>
+          <ColorSwatchGrid :selected="projectColor(project.color)" @select="pickColor" />
         </div>
         <div class="space-y-1.5">
           <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.iconLabel') }}</label>

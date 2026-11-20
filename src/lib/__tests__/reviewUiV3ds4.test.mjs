@@ -18,8 +18,8 @@ test('UR-64: ColorSwatchGrid is a 6-column grid of 28px buttons around 20px dots
   assert.match(src, /:aria-pressed="selected === c"/)
 })
 
-test('UR-64: the flag dialog, the tab menu and the flag colour popover all use the grid', () => {
-  for (const file of ['flags/FlagEditorModal.vue', 'WorkspaceTabs.vue', 'flags/FlagColorPopover.vue']) {
+test('UR-64, UR-70: the flag dialog, the tab menu, the flag colour popover and Project › Overview all use the grid', () => {
+  for (const file of ['flags/FlagEditorModal.vue', 'WorkspaceTabs.vue', 'flags/FlagColorPopover.vue', 'projects/ProjectOverview.vue']) {
     const src = read(`../../components/${file}`)
     assert.match(src, /<ColorSwatchGrid\b/, file)
     assert.doesNotMatch(src, /v-for="\w+ in PROJECT_COLORS"/, `${file} still draws its own swatches`)
@@ -31,4 +31,8 @@ test('UR-64: the flag dialog, the tab menu and the flag colour popover all use t
   const pop = read('../../components/flags/FlagColorPopover.vue')
   assert.match(pop, /:hint="sharedWith"/)
   assert.match(pop, /sharedWith\(shown\)/)
+  // Project › Overview: picking the colour already set still clears it (pickColor toggles).
+  const overview = read('../../components/projects/ProjectOverview.vue')
+  assert.match(overview, /<ColorSwatchGrid :selected="projectColor\(project\.color\)" @select="pickColor" \/>/)
+  assert.match(overview, /setAppearance\(\{ color: projectColor\(props\.project\.color\) === color \? null : color \}\)/)
 })
