@@ -21,10 +21,12 @@ use crate::commands::sessions::{
     encode_project_dir, upsert_claude_session, SyncOutcome, CLAUDE_MIRROR,
 };
 use crate::features::{self, apply::Change};
+use crate::runs::sync_gate::SyncGate;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use sqlx::{Pool, Sqlite};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -36,6 +38,9 @@ const DEBOUNCE: Duration = Duration::from_millis(400);
 /// switches are read, so racing restarts end on the latest write.
 static WATCHER: tokio::sync::Mutex<Option<RecommendedWatcher>> =
     tokio::sync::Mutex::const_new(None);
+
+/// The transcripts with a mirror sync running (see [`SyncGate`]).
+static SYNCS: OnceLock<SyncGate<PathBuf>> = OnceLock::new();
 
 /// Start watching the transcript stores whose switch is on (app setup). A
 /// failure to set up the watcher is logged and otherwise ignored (the on-focus /
@@ -82,7 +87,10 @@ async fn follow(db: Pool<Sqlite>, app: AppHandle) {
         let db = db.clone();
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            handle_change(&db, &app, &path).await;
+            // One sync per transcript at a time; changes during it are caught
+            // up by one more pass (RT-29).
+            let gate = SYNCS.get_or_init(SyncGate::default);
+            gate.run(path.clone(), || handle_change(&db, &app, &path)).await;
         });
     });
 }
