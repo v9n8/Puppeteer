@@ -106,6 +106,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   const historyToolIndex = new Map<string, number>()
   // Context-window state reconstructed from a persisted log (history view).
   const historyContextTokens = ref(0)
+  const historyContextStale = ref(false) // RT-09: figure predates a /compact
   const historyModel = ref<string | null>(null)
 
   // ── History paging ──────────────────────────────────────────────────────────
@@ -367,7 +368,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     pageInitial: HISTORY_PAGE_INITIAL, pageStep: HISTORY_PAGE_STEP,
     history: { runId: viewingLogRunId, hasStream: historyHasStream, entries: historyEntries, cursor: historyCursor,
       hasMore: historyHasMore, hasMoreBelow: historyHasMoreBelow, preambleModel: historyPreambleModel,
-      contextTokens: historyContextTokens },
+      contextTokens: historyContextTokens, contextStale: historyContextStale },
   })
 
   // Re-evaluate the pin whenever the user scrolls the live output.
@@ -1291,6 +1292,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     historyHasStream.value = false
     historyToolIndex.clear()
     historyContextTokens.value = 0
+    historyContextStale.value = false
     historyModel.value = null
     historyCursor.value = null
     historyHasMore.value = false
@@ -1361,6 +1363,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
       historyHasStream.value = false
       historyToolIndex.clear()
       historyContextTokens.value = 0
+      historyContextStale.value = false
       historyModel.value = null
       historyCursor.value = null
       historyHasMore.value = false
@@ -1397,6 +1400,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
         for (const [k, v] of parsed.toolIndex) historyToolIndex.set(k, v)
         historyHasStream.value = true
         historyContextTokens.value = parsed.contextTokens
+        historyContextStale.value = parsed.contextStale
         historyModel.value = parsed.model
         historyCursor.value = page.cursor
         historyHasMore.value = page.has_more
@@ -1473,7 +1477,7 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
 
   return {
     openSession, popoutSession, outputEl, historyEl, sessionListEl, viewingLogRunId, viewingLog,
-    historyEntries, historyHasStream, historyLoading, historyContextTokens, historyModel,
+    historyEntries, historyHasStream, historyLoading, historyContextTokens, historyContextStale, historyModel,
     HISTORY_PAGE_STEP, historyHasMore, historyLoadingMore, historyHasMoreBelow, showEarlierHistory,
     showLaterHistory, inputContent, inputContentRunId, inputContentError, inputContentLoading,
     renderText, loadMarkdown, isViewingHistory, mentionedFileEntries, hasLiveOutput,

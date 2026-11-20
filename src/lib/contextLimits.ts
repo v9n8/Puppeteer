@@ -65,11 +65,23 @@ export function formatTokensShort(n: number): string {
   return String(n)
 }
 
+/** What the context meter shows: a figure, and whether it predates a `/compact`. */
+export interface MeterReading {
+  tokens: number
+  /** Not measured since the last `/compact`: shown dimmed, "re-measuring". */
+  stale: boolean
+}
+
 /**
- * The figure the context meter shows (RT-09): the live session's, unless it
- * is 0 — not measured yet (a resumed copy before its first reply) — when the
- * figure known from the log is kept.
+ * The context meter's reading (RT-09): the live session's figure, unless it is
+ * 0 — not measured yet (a resumed copy before its first reply) — when the one
+ * known from the log is kept. A live `/compact` with no figure of its own marks
+ * the known one stale too, since that one predates the compaction.
  */
-export function meterTokens(live: number | undefined, known: number): number {
-  return live || known
+export function meterReading(
+  live: { contextTokens: number; contextStale: boolean } | undefined,
+  known: MeterReading,
+): MeterReading {
+  if (live && live.contextTokens > 0) return { tokens: live.contextTokens, stale: live.contextStale }
+  return { tokens: known.tokens, stale: known.stale || !!live?.contextStale }
 }

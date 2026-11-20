@@ -3,6 +3,8 @@
 // number goes below 900px wide). The popover shows the same bar with its warning
 // threshold and "Compact context", which sends /compact. The bar turns warning
 // colour from the warn percent and destructive once the window is full.
+// After /compact, until a reply measures again, the figure is dimmed with a
+// "~" and the popover says it is re-measuring (RT-09).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FoldVertical } from 'lucide-vue-next'
@@ -15,7 +17,7 @@ import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
 const appSettings = useAppSettingsStore()
-const { contextTokens, contextModel, sendSlashCommand, sendingFollowUp, editingMessage } = useRunSession()
+const { contextTokens, contextStale, contextModel, sendSlashCommand, sendingFollowUp, editingMessage } = useRunSession()
 
 const warnPercent = computed(() => {
   const v = Number(appSettings.settings?.context_warn_percent)
@@ -48,22 +50,23 @@ const labels = computed(() => ({
       <button
         type="button"
         :class="INFO_CHIP"
-        :title="t('run.infoBar.context.title', labels)"
+        :title="t(contextStale ? 'run.infoBar.context.titleStale' : 'run.infoBar.context.title', labels)"
         aria-haspopup="menu"
         :aria-expanded="open"
       >
-        <span class="relative h-1 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
+        <span class="relative h-1 w-12 shrink-0 overflow-hidden rounded-full bg-muted" :class="{ 'opacity-50': contextStale }">
           <span class="absolute inset-y-0 left-0 rounded-full transition-all" :class="barClass" :style="{ width: percent + '%' }" />
         </span>
-        <span class="font-mono tabular-nums max-[901px]:hidden" :class="textClass">{{ labels.used }}/{{ labels.limit }}</span>
+        <span class="font-mono tabular-nums max-[901px]:hidden" :class="contextStale ? 'text-muted-foreground' : textClass">{{ contextStale ? '~' : '' }}{{ labels.used }}/{{ labels.limit }}</span>
       </button>
     </template>
     <div class="w-[19rem]">
       <div class="flex flex-col gap-2 p-3" @click.stop>
         <p class="m-0 text-sm font-semibold">{{ t('run.infoBar.context.heading', labels) }}</p>
-        <span class="relative block h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <span class="relative block h-1.5 w-full overflow-hidden rounded-full bg-muted" :class="{ 'opacity-50': contextStale }">
           <span class="absolute inset-y-0 left-0 rounded-full" :class="barClass" :style="{ width: percent + '%' }" />
         </span>
+        <p v-if="contextStale" class="m-0 text-2xs text-muted-foreground">{{ t('run.infoBar.context.staleLine') }}</p>
         <p class="m-0 text-2xs text-muted-foreground">{{ t('run.infoBar.context.warnLine', { pct: warnPercent }) }}</p>
       </div>
       <div class="border-t border-border pt-1">

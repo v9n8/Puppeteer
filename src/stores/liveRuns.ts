@@ -2,9 +2,7 @@ import { defineStore } from 'pinia'
 import { reactive, computed } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
-  extractContextTokens,
-  extractTurnTotalTokens,
-  isCompactBoundary,
+  applyContextUsage,
   nextLiveStatus,
   settlePartials,
   type LiveStatus,
@@ -62,6 +60,8 @@ export interface LiveSession {
   model: string | null
   /** Estimated tokens occupying the context window after the latest turn. */
   contextTokens: number
+  /** `contextTokens` predates the last `/compact` (RT-09, `ContextMeter`). */
+  contextStale: boolean
   /** True once a per-message `assistant` usage has set contextTokens this run. */
   sawAssistantUsage: boolean
   /** Slash commands advertised by the engine on `system.init` (Claude). */
@@ -285,6 +285,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         deniedTools: [] as string[],
         model: null as string | null,
         contextTokens: 0,
+        contextStale: false,
         sawAssistantUsage: false,
         slashCommands: [] as string[],
         rateLimit: null as RateLimitWindows | null,
@@ -473,7 +474,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         }
         // Capture real claude.ai rate-limit windows (Claude subscription only).
         captureRateLimit(s, p)
-        // Track context-window occupancy from usage; reset on compaction.
+        // Track context-window occupancy from usage; marked stale on compaction.
         // Use the LATEST per-message `assistant` usage (the whole prior history
         // rides in as cache_read, so the newest message is the true current
         // window size). A high-water max would pin the meter to an earlier spike
@@ -481,19 +482,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         // exactly what Claude's own context indicator reports. The `result`
         // event's usage is a cumulative per-turn sum that over-counts, so it is
         // only a fallback for engines that never emit per-message usage.
-        if (isCompactBoundary(payload)) {
-          s.contextTokens = 0
-          s.sawAssistantUsage = false
-        } else {
-          const ctx = extractContextTokens(payload)
-          if (ctx !== null) {
-            s.contextTokens = ctx
-            s.sawAssistantUsage = true
-          } else if (!s.sawAssistantUsage) {
-            const total = extractTurnTotalTokens(payload)
-            if (total !== null) s.contextTokens = total
-          }
-        }
+        applyContextUsage(s, payload)
       }
       // sessionId/model come from a system entry; scan once per flush, not per
       // event (the earlier per-event O(n) scan grew costly on long sessions).

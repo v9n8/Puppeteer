@@ -33,6 +33,7 @@ export interface LivePagingDeps {
     hasMoreBelow: Ref<boolean>
     preambleModel: Ref<string | null>
     contextTokens: Ref<number>
+    contextStale: Ref<boolean>
   }
 }
 
@@ -99,12 +100,16 @@ export function useLivePaging(d: LivePagingDeps) {
       let paging: LivePaging | null = null
       let merged: StreamEntry[] | null = null
       let tailTokens = 0
+      let tailStale = false
       for (let i = 0; i < MAX_TAIL_PAGES; i++) {
         const page = await d.runsStore.getRunLogPage(runId, before, i === 0 ? d.pageInitial : d.pageStep)
         if (i === 0) seedModel = modelFromPreamble(page.preamble)
         const parsed = parseStreamLogWindow(page.records, { seedModel })
         const m = mergeTailWithLive(parsed.entries, s.entries)
-        if (i === 0) tailTokens = parsed.contextTokens
+        if (i === 0) {
+          tailTokens = parsed.contextTokens
+          tailStale = parsed.contextStale
+        }
         if (m.kind === 'merged') {
           merged = m.entries
           paging = { cursor: page.cursor, hasMore: page.has_more, seedModel }
@@ -124,6 +129,7 @@ export function useLivePaging(d: LivePagingDeps) {
       // RT-09: a copy with no reply yet takes the figure from the log's tail.
       if (merged && !s.sawAssistantUsage && tailTokens > 0) {
         s.contextTokens = tailTokens
+        s.contextStale = tailStale
         s.sawAssistantUsage = true
       }
       if (merged) {
@@ -193,6 +199,7 @@ export function useLivePaging(d: LivePagingDeps) {
         // RT-09: the meter keeps the figure the log gave until the next reply.
         if (!s.sawAssistantUsage && h.contextTokens.value > 0) {
           s.contextTokens = h.contextTokens.value
+          s.contextStale = h.contextStale.value
           s.sawAssistantUsage = true
         }
         return

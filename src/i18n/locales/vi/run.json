@@ -379,7 +379,9 @@
   "infoBar": {
     "context": {
       "title": "Context {used} / {limit} ({pct}%) — bấm để compact",
+      "titleStale": "Context khoảng {used} / {limit} — đang đo lại sau /compact",
       "heading": "Context {used} / {limit} · {pct}%",
+      "staleLine": "Đang đo lại sau /compact: số này là ước tính cho tới lượt trả lời kế tiếp.",
       "warnLine": "Cảnh báo từ {pct}% (Cài đặt › Giới hạn).",
       "compactHint": "Nén hội thoại để giải phóng context (gửi /compact)"
     },

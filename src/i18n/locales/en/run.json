@@ -379,7 +379,9 @@
   "infoBar": {
     "context": {
       "title": "Context {used} / {limit} ({pct}%) — click to compact",
+      "titleStale": "Context about {used} / {limit} — re-measuring after /compact",
       "heading": "Context {used} / {limit} · {pct}%",
+      "staleLine": "Re-measuring after /compact: this is an estimate until the next reply.",
       "warnLine": "Warns from {pct}% (Settings › Limits).",
       "compactHint": "Compresses the conversation to free up context (sends /compact)"
     },

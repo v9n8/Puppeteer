@@ -24,7 +24,7 @@ import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import {
   latestChecklist, mergeChecklistIntoDraft, parseChecklistBlock, type TodoItem,
 } from '@/lib/todoChecklist'
-import { mergeContextModel, meterTokens } from '@/lib/contextLimits'
+import { mergeContextModel, meterReading } from '@/lib/contextLimits'
 import type { TurnSide } from '@/lib/turnActions'
 import { resendEdit } from './useAutoSendEdit'
 import { canForkRun } from '@/lib/runFork'
@@ -81,7 +81,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   } = conductor
   const {
     outputEl, historyEl, viewingLog, historyEntries, historyHasStream,
-    historyContextTokens, historyModel, isViewingHistory, sourceText, stickToBottom,
+    historyContextTokens, historyContextStale, historyModel, isViewingHistory, sourceText, stickToBottom,
     scrollOutputToBottom, scrollMemory, bookmarkState, toggleBookmark, snapshotTurns, rewindTarget,
     clearHistoryView, loadRunLog, loadQuotes, noteSentQuotes, forkRun, onRewound, promptNumber,
     seedLiveFromHistory,
@@ -164,7 +164,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Context-window meter state for the focused run. Prefer the live session; for
   // a past run with no live session, use the figures reconstructed from its log.
   // A live 0 is "not measured yet", not an empty window (RT-09).
-  const contextTokens = computed(() => meterTokens(session.value?.contextTokens, historyContextTokens.value))
+  const contextReading = computed(() =>
+    meterReading(session.value, { tokens: historyContextTokens.value, stale: historyContextStale.value }))
+  const contextTokens = computed(() => contextReading.value.tokens)
+  const contextStale = computed(() => contextReading.value.stale)
   const contextModel = computed(() =>
     // `system.init` drops the `[1m]` suffix; re-attach it from the composer pick so
     // 1M runs resolve to the 1M context limit rather than 200K.
@@ -1693,7 +1696,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   return {
     runSettingsOpen, runSettingsRoot, engineBadgeLabel, engineBadgeIcon, runSettingsTitle,
     toggleRunSettingsMenu, closeRunSettingsMenu, onRunSettingsPointerDown, modelOptions, defaultModel,
-    onModelSelect, contextTokens, contextModel, composerModelLabel, contextRateLimit,
+    onModelSelect, contextTokens, contextStale, contextModel, composerModelLabel, contextRateLimit,
     creatingSession, handleNewSession, handoffTarget, handingOff, startingEngineSession,
     engineSwitchBusy, closeHandoffDialog, doHandoff, startNewEngineSession, followUpInput,
     sendingFollowUp, draftQuotes, removeDraftQuote, setDraftQuoteNote, selectedAccountId,

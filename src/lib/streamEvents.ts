@@ -279,12 +279,14 @@ export interface StreamState {
   toolIndex: Map<string, number>
   /** Context-window occupancy after the last turn (parsed from a saved log). */
   contextTokens: number
+  /** `contextTokens` predates the last `/compact` (see `ContextMeter`). */
+  contextStale: boolean
   /** Model id seen on the latest `system.init` (for the context-window limit). */
   model: string | null
 }
 
 export function createStreamState(): StreamState {
-  return { entries: [], toolIndex: new Map(), contextTokens: 0, model: null }
+  return { entries: [], toolIndex: new Map(), contextTokens: 0, contextStale: false, model: null }
 }
 
 function blockText(content: unknown): string {
@@ -825,6 +827,48 @@ export function isCompactBoundary(evt: unknown): boolean {
   return e.type === 'system' && e.subtype === 'compact_boundary'
 }
 
+/** The context meter's fields, on a live session or a parsed log window. */
+export interface ContextMeter {
+  contextTokens: number
+  /**
+   * The figure predates the last `/compact` (RT-09): the window was shrunk but
+   * no reply has measured it again. The meter stays, marked as re-measuring.
+   */
+  contextStale: boolean
+  /** True once a per-message `assistant` usage has set `contextTokens`. */
+  sawAssistantUsage: boolean
+}
+
+/**
+ * Feeds one event to the context meter: the LATEST per-message `assistant`
+ * usage is the window size, the cumulative `result` total only a fallback for
+ * engines without per-message usage. A compaction keeps a figure (the
+ * boundary's `post_tokens` when given, else the one before) marked stale until
+ * the next usage, instead of 0 — which hid the meter (RT-09).
+ */
+export function applyContextUsage(m: ContextMeter, evt: unknown): void {
+  if (isCompactBoundary(evt)) {
+    const meta = (evt as Record<string, unknown>).compact_metadata as Record<string, unknown> | undefined
+    const post = Number(meta?.post_tokens)
+    if (Number.isFinite(post) && post > 0) m.contextTokens = post
+    m.contextStale = true
+    m.sawAssistantUsage = false
+    return
+  }
+  const ctx = extractContextTokens(evt)
+  if (ctx !== null) {
+    m.contextTokens = ctx
+    m.contextStale = false
+    m.sawAssistantUsage = true
+  } else if (!m.sawAssistantUsage) {
+    const total = extractTurnTotalTokens(evt)
+    if (total !== null) {
+      m.contextTokens = total
+      m.contextStale = false
+    }
+  }
+}
+
 /** Fixed prelude Claude prepends to the post-compaction summary message. */
 const COMPACT_PRELUDE = 'This session is being continued from a previous conversation'
 
@@ -887,11 +931,11 @@ export function parseStreamLogWindow(
   const state = createStreamState()
   // Reconstruct context-window occupancy the same way the live store does:
   // the LATEST per-message `assistant` usage (newest message = true current
-  // window size), reset on compaction, with the cumulative `result` total only
-  // as a fallback for engines that never emit per-message usage. A high-water
-  // max would stay pinned to an earlier spike after the window shrinks. See
-  // `extractContextTokens`.
-  let sawAssistantUsage = false
+  // window size), marked stale on compaction, with the cumulative `result` total
+  // only as a fallback for engines that never emit per-message usage. A
+  // high-water max would stay pinned to an earlier spike after the window
+  // shrinks. See `applyContextUsage`.
+  const meter: ContextMeter = { contextTokens: 0, contextStale: false, sawAssistantUsage: false }
   for (const line of lines) {
     const logMatch = line.match(/^\[log:([a-z]+)\]\s?([\s\S]*)$/)
     if (logMatch) {
@@ -905,22 +949,12 @@ export function parseStreamLogWindow(
     try {
       const parsed = JSON.parse(line)
       applyStreamEvent(state, parsed)
-      if (isCompactBoundary(parsed)) {
-        state.contextTokens = 0
-        sawAssistantUsage = false
-      } else {
-        const ctx = extractContextTokens(parsed)
-        if (ctx !== null) {
-          state.contextTokens = ctx
-          sawAssistantUsage = true
-        } else if (!sawAssistantUsage) {
-          const total = extractTurnTotalTokens(parsed)
-          if (total !== null) state.contextTokens = total
-        }
-      }
+      applyContextUsage(meter, parsed)
     } catch {
     }
   }
+  state.contextTokens = meter.contextTokens
+  state.contextStale = meter.contextStale
   // Latest model id seen on a system.init entry — feeds the context limit.
   for (let i = state.entries.length - 1; i >= 0; i--) {
     const e = state.entries[i]
