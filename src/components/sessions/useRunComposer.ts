@@ -23,7 +23,7 @@ import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import {
   latestChecklist, mergeChecklistIntoDraft, parseChecklistBlock, type TodoItem,
 } from '@/lib/todoChecklist'
-import { mergeContextModel } from '@/lib/contextLimits'
+import { mergeContextModel, meterTokens } from '@/lib/contextLimits'
 import type { TurnSide } from '@/lib/turnActions'
 import { resendEdit } from './useAutoSendEdit'
 import { canForkRun } from '@/lib/runFork'
@@ -161,7 +161,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   // Context-window meter state for the focused run. Prefer the live session; for
   // a past run with no live session, use the figures reconstructed from its log.
-  const contextTokens = computed(() => session.value?.contextTokens ?? historyContextTokens.value)
+  // A live 0 is "not measured yet", not an empty window (RT-09).
+  const contextTokens = computed(() => meterTokens(session.value?.contextTokens, historyContextTokens.value))
   const contextModel = computed(() =>
     // `system.init` drops the `[1m]` suffix; re-attach it from the composer pick so
     // 1M runs resolve to the 1M context limit rather than 200K.

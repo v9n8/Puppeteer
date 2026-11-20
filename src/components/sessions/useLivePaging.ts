@@ -32,6 +32,7 @@ export interface LivePagingDeps {
     hasMore: Ref<boolean>
     hasMoreBelow: Ref<boolean>
     preambleModel: Ref<string | null>
+    contextTokens: Ref<number>
   }
 }
 
@@ -97,11 +98,13 @@ export function useLivePaging(d: LivePagingDeps) {
       let seedModel: string | null = null
       let paging: LivePaging | null = null
       let merged: StreamEntry[] | null = null
+      let tailTokens = 0
       for (let i = 0; i < MAX_TAIL_PAGES; i++) {
         const page = await d.runsStore.getRunLogPage(runId, before, i === 0 ? d.pageInitial : d.pageStep)
         if (i === 0) seedModel = modelFromPreamble(page.preamble)
         const parsed = parseStreamLogWindow(page.records, { seedModel })
         const m = mergeTailWithLive(parsed.entries, s.entries)
+        if (i === 0) tailTokens = parsed.contextTokens
         if (m.kind === 'merged') {
           merged = m.entries
           paging = { cursor: page.cursor, hasMore: page.has_more, seedModel }
@@ -118,6 +121,11 @@ export function useLivePaging(d: LivePagingDeps) {
       // Not placed within the read limit: keep the copy as it is, without a
       // "Show earlier" that could not line up.
       s.paging = paging ?? { cursor: 0, hasMore: false, seedModel }
+      // RT-09: a copy with no reply yet takes the figure from the log's tail.
+      if (merged && !s.sawAssistantUsage && tailTokens > 0) {
+        s.contextTokens = tailTokens
+        s.sawAssistantUsage = true
+      }
       if (merged) {
         const entries = merged
         await keepPlace(runId, () => d.live.replaceEntries(runId, entries))
@@ -182,6 +190,11 @@ export function useLivePaging(d: LivePagingDeps) {
         }
         d.live.replaceEntries(runId, s.entries)
         s.paging = paging
+        // RT-09: the meter keeps the figure the log gave until the next reply.
+        if (!s.sawAssistantUsage && h.contextTokens.value > 0) {
+          s.contextTokens = h.contextTokens.value
+          s.sawAssistantUsage = true
+        }
         return
       }
     }

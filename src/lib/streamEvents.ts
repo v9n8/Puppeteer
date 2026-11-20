@@ -785,6 +785,8 @@ export function extractContextTokens(evt: unknown): number | null {
   if (!evt || typeof evt !== 'object') return null
   const e = evt as Record<string, unknown>
   if (e.type !== 'assistant') return null
+  // A subagent's message (RT-09): its own, smaller window, not the session's.
+  if (e.parent_tool_use_id != null) return null
   const message = e.message as Record<string, unknown> | undefined
   return sumUsage(message?.usage as Record<string, unknown> | undefined)
 }

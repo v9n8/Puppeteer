@@ -366,7 +366,8 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     runsStore, live, currentRunId, outputEl, stickToBottom, scrollOutputToBottom,
     pageInitial: HISTORY_PAGE_INITIAL, pageStep: HISTORY_PAGE_STEP,
     history: { runId: viewingLogRunId, hasStream: historyHasStream, entries: historyEntries, cursor: historyCursor,
-      hasMore: historyHasMore, hasMoreBelow: historyHasMoreBelow, preambleModel: historyPreambleModel },
+      hasMore: historyHasMore, hasMoreBelow: historyHasMoreBelow, preambleModel: historyPreambleModel,
+      contextTokens: historyContextTokens },
   })
 
   // Re-evaluate the pin whenever the user scrolls the live output.

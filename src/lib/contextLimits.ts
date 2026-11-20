@@ -64,3 +64,12 @@ export function formatTokensShort(n: number): string {
   if (n >= 1_000) return `${trim(n / 1_000)}k`
   return String(n)
 }
+
+/**
+ * The figure the context meter shows (RT-09): the live session's, unless it
+ * is 0 — not measured yet (a resumed copy before its first reply) — when the
+ * figure known from the log is kept.
+ */
+export function meterTokens(live: number | undefined, known: number): number {
+  return live || known
+}
