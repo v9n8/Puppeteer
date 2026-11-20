@@ -19,6 +19,14 @@
   "hideThinking": "Gập suy nghĩ",
   "openFile": "Mở {path}",
   "moreFiles": "+{count} file khác",
+  "promptImages": {
+    "open": "Xem ảnh",
+    "alt": "Ảnh đính kèm",
+    "close": "Đóng (Esc)",
+    "prev": "Ảnh trước (←)",
+    "next": "Ảnh sau (→)",
+    "count": "{index}/{total}"
+  },
   "running": "đang chạy…",
   "error": "lỗi",
   "command": "lệnh",

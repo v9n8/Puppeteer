@@ -21,6 +21,7 @@ import WorkerResultCards from './conductor/WorkerResultCards.vue'
 import TurnCutMark from './sessions/TurnCutMark.vue'
 import ThinkingBlock from './sessions/ThinkingBlock.vue'
 import LocalCommandMark from './sessions/LocalCommandMark.vue'
+import PromptImages from './sessions/PromptImages.vue'
 import { CollapsibleMessage } from '@/components/ui'
 import { pickSurface } from '@/lib/selectionSurface'
 import { selectionHost, selectionQuoteNote, selectionSurfaces, surfaceEls } from '@/composables/useSelectionSurface'
@@ -1132,19 +1133,11 @@ function toolResult(e: StreamEntry): unknown {
               <SentQuoteCard :card="card" :index="ci" @open="openQuote(card)" />
             </li>
           </ol>
-          <div
+          <PromptImages
             v-if="entry.images && entry.images.length"
-            class="flex flex-wrap gap-1.5"
+            :images="entry.images"
             :class="bubbleText(entry) ? 'mb-2' : ''"
-          >
-            <img
-              v-for="(img, ii) in entry.images"
-              :key="ii"
-              :src="`data:${img.media_type};base64,${img.data}`"
-              class="max-h-40 max-w-48 rounded-md border border-primary/20 object-contain"
-              alt="attachment"
-            />
-          </div>
+          />
           <CollapsibleMessage v-if="bubbleText(entry)" :max-height="256" fade="hsl(var(--secondary))" :disabled="expandedMessageIndices.has(i)">
             <div class="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"><template
                 v-for="(seg, si) in userSegments(bubbleText(entry))"

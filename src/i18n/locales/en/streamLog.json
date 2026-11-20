@@ -19,6 +19,14 @@
   "hideThinking": "Fold the thinking",
   "openFile": "Open {path}",
   "moreFiles": "+{count} more",
+  "promptImages": {
+    "open": "View the image",
+    "alt": "Attached image",
+    "close": "Close (Esc)",
+    "prev": "Previous image (←)",
+    "next": "Next image (→)",
+    "count": "{index}/{total}"
+  },
   "running": "running…",
   "error": "error",
   "command": "command",
