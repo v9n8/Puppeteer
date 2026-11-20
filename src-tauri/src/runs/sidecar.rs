@@ -572,6 +572,8 @@ pub async fn drain_sidecar(
     // no resume). If we close stdin on that result we tear down the permission
     // channel for the wake-up turn, and every tool needing approval then fails
     // with "AbortError: Stream closed". So we only close once this reaches 0.
+    // `ambient` tasks (the auto-armed artifact watcher) are left out: they never
+    // wake the session and never end — see `count_blocking_bg_tasks`.
     let mut live_bg_tasks: usize = 0;
 
     // Set once the user's own foreground turn has ended (an origin-less `result`)
@@ -1167,12 +1169,14 @@ pub async fn drain_sidecar(
                                 // Keep the live background-task count current: its
                                 // `tasks` array is the full set the CLI still has
                                 // running, so we gate the turn-end stdin close on it.
+                                // Passive `ambient` watchers are skipped: they would
+                                // hold stdin open for the whole process life.
                                 if v.get("type").and_then(|x| x.as_str()) == Some("system")
                                     && v.get("subtype").and_then(|x| x.as_str())
                                         == Some("background_tasks_changed")
                                 {
-                                    if let Some(tasks) = v.get("tasks").and_then(|t| t.as_array()) {
-                                        live_bg_tasks = tasks.len();
+                                    if let Some(tasks) = v.get("tasks") {
+                                        live_bg_tasks = count_blocking_bg_tasks(tasks);
                                     }
                                     // A `background_tasks_changed` that drains the last
                                     // task must EVENTUALLY close stdin (otherwise the
@@ -1695,6 +1699,18 @@ fn result_ends_user_turn(value: &Value) -> bool {
         None | Some(Value::Null) => true,
         Some(_) => false,
     }
+}
+
+/// How many of a `background_tasks_changed` event's `tasks` should keep stdin
+/// open. `ambient: true` tasks (e.g. the artifact watcher the CLI auto-arms on
+/// publish) watch passively for the whole process life and never wake the
+/// session for a new turn, so counting them would keep the run "running" forever.
+fn count_blocking_bg_tasks(tasks: &Value) -> usize {
+    tasks.as_array().map_or(0, |t| {
+        t.iter()
+            .filter(|task| task.get("ambient").and_then(Value::as_bool) != Some(true))
+            .count()
+    })
 }
 
 /// Should this `result` cause the drain to close the sidecar's stdin (ending the
@@ -2445,6 +2461,45 @@ mod turn_end_tests {
         ));
         // Tasks still live never close on drain.
         assert!(!drain_should_close_stdin(2, user_turn_ended, false));
+    }
+
+    // Regression for run ab0c13b1: publishing an artifact auto-arms an `ambient`
+    // watcher that lives as long as the process. It must not hold stdin open
+    // after the user's turn ends, or the run stays "running" forever.
+    #[test]
+    fn ambient_artifact_watch_does_not_block_close() {
+        let tasks = serde_json::json!([{
+            "task_id": "saj02595w", "task_type": "monitor_ws",
+            "description": "live updates for artifact (auto-armed on publish)",
+            "ambient": true,
+        }]);
+        let live = count_blocking_bg_tasks(&tasks);
+        assert_eq!(live, 0);
+        let done = serde_json::json!({
+            "type": "result", "subtype": "success", "stop_reason": "end_turn",
+        });
+        assert!(result_should_close_stdin(&done, live, false));
+    }
+
+    #[test]
+    fn non_ambient_task_beside_ambient_keeps_stdin_open() {
+        let tasks = serde_json::json!([
+            { "task_id": "a", "task_type": "monitor_ws", "ambient": true },
+            { "task_id": "b", "task_type": "local_bash" },
+        ]);
+        let live = count_blocking_bg_tasks(&tasks);
+        assert_eq!(live, 1);
+        let done = serde_json::json!({ "type": "result", "subtype": "success" });
+        assert!(!result_should_close_stdin(&done, live, false));
+    }
+
+    #[test]
+    fn tasks_without_ambient_field_still_count() {
+        let tasks = serde_json::json!([
+            { "task_id": "a", "task_type": "local_bash" },
+            { "task_id": "b", "task_type": "local_agent", "ambient": false },
+        ]);
+        assert_eq!(count_blocking_bg_tasks(&tasks), 2);
     }
 
     // Regression: a follow-up turn on a live sidecar (an earlier turn already
