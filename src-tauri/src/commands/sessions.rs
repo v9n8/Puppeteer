@@ -361,6 +361,29 @@ async fn sync_run_usage(
     .await;
 }
 
+/// Run a transcript parser on the blocking pool. A transcript can be tens of
+/// MB; parsing it on an async worker thread stalled every other task on that
+/// thread, DB queries included (RT-29). A parser that panics counts as
+/// unparsable.
+async fn parse_off_runtime(
+    parse: fn(&Path, &str) -> Option<ParsedTranscript>,
+    file: &Path,
+    project_path: &str,
+) -> Option<ParsedTranscript> {
+    let (file, project_path) = (file.to_path_buf(), project_path.to_string());
+    tokio::task::spawn_blocking(move || parse(&file, &project_path))
+        .await
+        .ok()
+        .flatten()
+}
+
+/// Write a rebuilt run log (it can be several MB) without blocking the async
+/// runtime (RT-29).
+async fn write_log(runs_dir: &Path, log_path: &Path, log: &str) -> Result<(), String> {
+    tokio::fs::create_dir_all(runs_dir).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(log_path, log).await.map_err(|e| e.to_string())
+}
+
 /// Mirror a single session transcript into Puppeteer. Engine-agnostic core shared by
 /// Claude (`upsert_claude_session`) and Codex (`codex_sessions`). The caller
 /// resolves the engine's transcript `file` (it must exist) and supplies the
@@ -380,7 +403,7 @@ pub(crate) async fn upsert_session_run_core(
     session_id: &str,
     engine: &str,
     file: &Path,
-    parse: impl Fn(&Path, &str) -> Option<ParsedTranscript>,
+    parse: fn(&Path, &str) -> Option<ParsedTranscript>,
     // When true (the automatic watcher/reconcile paths), defer importing a
     // brand-new session while any run in the project is still `running`, since
     // that run may simply not have captured its `session_id` yet. `get_run_log`
@@ -453,11 +476,10 @@ pub(crate) async fn upsert_session_run_core(
         if !newer {
             return Ok(SyncOutcome::Skipped);
         }
-        let Some(parsed) = parse(file, project_path) else {
+        let Some(parsed) = parse_off_runtime(parse, file, project_path).await else {
             return Ok(SyncOutcome::Skipped);
         };
-        fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
-        fs::write(&conv_path, &parsed.log).map_err(|e| e.to_string())?;
+        write_log(&runs_dir, &conv_path, &parsed.log).await?;
         // Re-tally usage from the now-larger transcript so stats track the turns
         // added outside Puppeteer. created_at = transcript mtime.
         let created_at = file_modified_rfc3339(file);
@@ -513,7 +535,7 @@ pub(crate) async fn upsert_session_run_core(
         }
     }
 
-    let Some(parsed) = parse(file, project_path) else {
+    let Some(parsed) = parse_off_runtime(parse, file, project_path).await else {
         return Ok(SyncOutcome::Skipped);
     };
 
@@ -565,8 +587,7 @@ pub(crate) async fn upsert_session_run_core(
     }
 
     // Persist the converted history where get_run_log / resume_run expect it.
-    fs::create_dir_all(&runs_dir).map_err(|e| e.to_string())?;
-    fs::write(&log_path, &parsed.log).map_err(|e| e.to_string())?;
+    write_log(&runs_dir, &log_path, &parsed.log).await?;
 
     // Record the session's accumulated token usage so the imported history shows
     // in stats. Cost is estimated (the transcript has no SDK total_cost_usd).

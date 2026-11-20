@@ -2216,15 +2216,18 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
         _ => {}
     }
 
-    if let Ok(content) = fs::read_to_string(&conv_path) {
+    // tokio::fs: a log can be tens of MB, too much to read on an async worker
+    // thread (RT-29).
+    if let Ok(content) = tokio::fs::read_to_string(&conv_path).await {
         if !content.trim().is_empty() {
             return Ok(RunLog { content });
         }
     }
 
-    let content = output_path
-        .and_then(|p| fs::read_to_string(&p).ok())
-        .unwrap_or_default();
+    let content = match output_path {
+        Some(p) => tokio::fs::read_to_string(&p).await.unwrap_or_default(),
+        None => String::new(),
+    };
     Ok(RunLog { content })
 }
 
