@@ -1007,6 +1007,8 @@ export interface CmdPayload {
     | 'list_plan_usage'
     | 'open_run'
     | 'close_run'
+    // Long paste saved as a `.txt` on the Host (RT-26); acked with its `path`.
+    | 'save_pasted_text'
     // Remote desktop (a Controller that advertised FEATURE_IPC).
     | 'ipc_hello'
     | 'ipc_invoke'

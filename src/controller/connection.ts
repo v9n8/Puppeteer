@@ -131,6 +131,8 @@ export type CommandAckHandler = (
   runId?: string | null,
   /** `todo_add` / `note_add`: the created item's id. */
   itemId?: string | null,
+  /** `save_pasted_text`: the saved file's Host path. */
+  path?: string | null,
 ) => void
 
 /**
@@ -866,7 +868,7 @@ export class ControllerConnection {
       if (ack) {
         this.pendingCommandAcks.delete(payload.command_id)
         clearTimeout(ack.timer)
-        ack.handler(payload.accepted, payload.reason, payload.run_id, payload.item_id)
+        ack.handler(payload.accepted, payload.reason, payload.run_id, payload.item_id, payload.path)
       }
       return
     }

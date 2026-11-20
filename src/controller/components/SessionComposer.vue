@@ -29,6 +29,8 @@ import {
   type SelectOption,
 } from '@/lib/engineOptions'
 import { markDefault } from '@/lib/defaultMark'
+import { pasteFileName, type PasteAsFileSetting } from '@/lib/pasteAsFile'
+import { pasteChoice, pasteErrorKey, type PasteSaveResult } from '../pasteFile'
 import type { ClaudeAccountChoice } from '../protocol'
 import type { EnabledModels } from '@/lib/enabledModels'
 import type { CmdAttachment, SlashCommand } from '../protocol'
@@ -69,6 +71,12 @@ const props = withDefaults(
     sending?: boolean
     /** True when the connection isn't ready (disables everything). */
     disabled?: boolean
+    /** The run on screen (null = a new session not started: pastes stay text). */
+    runId?: string | null
+    /** The project's "long paste as a file" setting (absent = default). */
+    pasteSetting?: Partial<PasteAsFileSetting> | null
+    /** Saves a long paste on the Host for `runId` and resolves with its path. */
+    savePaste?: ((runId: string, text: string) => Promise<PasteSaveResult>) | null
   }>(),
   {
     slashCommands: () => [],
@@ -84,6 +92,9 @@ const props = withDefaults(
     running: false,
     sending: false,
     disabled: false,
+    runId: null,
+    pasteSetting: null,
+    savePaste: null,
   },
 )
 
@@ -210,6 +221,9 @@ interface PendingFile {
   id: string
   name: string
   path: string
+  /** A long paste saved on the Host (RT-26): `path` is its Host path, sent as a
+   * file reference instead of an embedded attachment. */
+  hostPath?: boolean
 }
 const pendingImages = ref<PendingImage[]>([])
 const pendingFiles = ref<PendingFile[]>([])
@@ -294,7 +308,60 @@ function onComposerPaste(e: ClipboardEvent): void {
       }
     }
   }
-  if (handled) e.preventDefault()
+  if (handled) {
+    e.preventDefault()
+    return
+  }
+  pasteLongText(e)
+}
+
+// ── long paste as a file (RT-26) ──────────────────────────────────────────
+// A text paste over the project's threshold, in a run that exists, is saved on
+// the Host and attached by path, like the desktop. Failure puts the text into
+// the draft where the paste would have gone, with a short error.
+const pasteSaving = ref(0)
+const pasteError = ref('')
+let pasteErrorTimer: ReturnType<typeof setTimeout> | null = null
+
+function showPasteError(msg: string): void {
+  pasteError.value = msg
+  if (pasteErrorTimer) clearTimeout(pasteErrorTimer)
+  pasteErrorTimer = setTimeout(() => (pasteError.value = ''), 8000)
+}
+onUnmounted(() => {
+  if (pasteErrorTimer) clearTimeout(pasteErrorTimer)
+})
+
+function pasteLongText(e: ClipboardEvent): void {
+  const runId = props.runId ?? null
+  const save = props.savePaste
+  const pasted = e.clipboardData?.getData('text/plain') ?? ''
+  if (!save || pasteChoice({ hasImage: false, runId, text: pasted, setting: props.pasteSetting }) !== 'file') return
+  e.preventDefault()
+  const el = composerEl.value
+  const start = el?.selectionStart ?? text.value.length
+  const end = el?.selectionEnd ?? start
+  pasteSaving.value++
+  void save(runId!, pasted)
+    .then((r) => {
+      if (r.ok) {
+        const id = `file-${fileSeq++}`
+        pendingFiles.value.push({ id, name: pasteFileName(r.path), path: r.path, hostPath: true })
+        return
+      }
+      const key = pasteErrorKey(r.reason)
+      showPasteError(t(`controller.composer.${key}`, { reason: r.reason }))
+      // The draft may have changed meanwhile: clamp the remembered selection.
+      const len = text.value.length
+      const a = Math.min(start, len)
+      const b = Math.min(Math.max(end, a), len)
+      text.value = text.value.slice(0, a) + pasted + text.value.slice(b)
+      nextTick(() => {
+        const pos = a + pasted.length
+        el?.setSelectionRange(pos, pos)
+      })
+    })
+    .finally(() => pasteSaving.value--)
 }
 
 // ── auto-resize / expand ───────────────────────────────────────────────────
@@ -480,7 +547,8 @@ const sendLabel = computed(() => {
 })
 
 const primaryDisabled = computed(() => {
-  if (props.disabled || props.sending) return true
+  // A paste still being saved would miss this turn.
+  if (props.disabled || props.sending || pasteSaving.value > 0) return true
   // A "Run" with no content still triggers the default prompt on the host.
   if (!props.running) return false
   return !hasContent.value
@@ -511,6 +579,8 @@ function submit(): void {
     ...pendingImages.value.map((img) => ({ name: `${img.id}`, mime: img.mime, data_base64: img.data })),
     ...pendingFiles.value.map((f) => pendingFileData.get(f.id)).filter((a): a is CmdAttachment => !!a),
   ]
+  const mentions = collectMentions()
+  for (const f of pendingFiles.value) if (f.hostPath && !mentions.includes(f.path)) mentions.push(f.path)
   let accepted = false
   const accept = (): void => {
     if (accepted) return
@@ -519,6 +589,7 @@ function submit(): void {
     pendingImages.value = []
     pendingFiles.value = []
     pendingFileData.clear()
+    pasteError.value = ''
     mentionOpen.value = false
     slashOpen.value = false
     nextTick(autoResize)
@@ -526,7 +597,7 @@ function submit(): void {
   // Keep the draft and attachments until the connection confirms this command
   // was eligible for the authenticated ACTIVE channel and WebSocket.send did
   // not fail synchronously.
-  emit('send', { text: text.value.trim(), mentions: collectMentions(), attachments, accept })
+  emit('send', { text: text.value.trim(), mentions, attachments, accept })
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -648,7 +719,7 @@ function onKeydown(e: KeyboardEvent): void {
           v-for="file in pendingFiles"
           :key="file.id"
           class="group flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-md border border-border bg-muted/40 text-xs max-w-64"
-          :title="file.name"
+          :title="file.hostPath ? file.path : file.name"
         >
           <FileText class="h-3.5 w-3.5 shrink-0 opacity-60" :stroke-width="2" />
           <span class="truncate font-mono">{{ file.name }}</span>
@@ -661,6 +732,12 @@ function onKeydown(e: KeyboardEvent): void {
           </button>
         </div>
       </div>
+
+      <!-- Long paste being saved on the Host / why it could not be -->
+      <p v-if="pasteSaving" class="mb-2 text-2xs text-muted-foreground" role="status">
+        {{ t('controller.composer.pasteSaving') }}
+      </p>
+      <p v-if="pasteError" class="mb-2 text-2xs text-destructive" role="alert">{{ pasteError }}</p>
 
       <input ref="fileInputEl" type="file" multiple class="hidden" @change="onPickFiles" />
 

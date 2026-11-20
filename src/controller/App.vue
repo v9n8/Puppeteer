@@ -49,6 +49,7 @@ import {
 import type { ComposerTurn } from './components/SessionComposer.vue'
 import { ControllerConnection, type AuthState, type ConnStatus, type SecretSource } from './connection'
 import { createRunStore } from './runStore'
+import { requestPasteFile, type PasteSaveResult } from './pasteFile'
 import * as tokenStore from './sessionTokenStore'
 import type { LoginGrant } from './login'
 import {
@@ -827,6 +828,16 @@ function onAnswer(answers: QuestionAnswers): void {
   if (pending.value) respond(pending.value, 'allow_once', answers)
 }
 
+// RT-26: a long paste is saved on the Host and attached by its path. A run
+// switched while it was saving gets the text back instead of a stray file.
+const sessionPasteSetting = computed(
+  () => store.state.projectList.find((p) => p.id === sessionProjectId.value)?.paste_as_file ?? null,
+)
+async function savePaste(id: string, text: string): Promise<PasteSaveResult> {
+  const r = await requestPasteFile((cmd, onAck) => conn.value?.sendCommand(cmd, onAck) ?? false, id, text)
+  return r.ok && runId.value !== id ? { ok: false, reason: 'wrong_run' } : r
+}
+
 function onRequestFiles(): void {
   const id = runId.value
   if (id) conn.value?.sendCommand(listProjectFilesCmd(id))
@@ -1015,6 +1026,9 @@ function onRequestFiles(): void {
     :codex-budget="codexBudget"
     :claude-account="claudeAccount"
     :claude-accounts="claudeAccounts"
+    :run-id="runId"
+    :paste-setting="sessionPasteSetting"
+    :save-paste="savePaste"
     @send="onSend"
     @cancel="onCancel"
     @decide="onDecide"

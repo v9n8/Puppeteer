@@ -23,6 +23,8 @@ import SessionComposer, { type ComposerTurn } from './SessionComposer.vue'
 import SessionUsageBar from './SessionUsageBar.vue'
 import SessionPlanUsageBar from './SessionPlanUsageBar.vue'
 import type { UsageInfo } from '../runStore'
+import type { PasteSaveResult } from '../pasteFile'
+import type { PasteAsFileSetting } from '@/lib/pasteAsFile'
 import type { RateLimitWindows } from '@/stores/liveRuns'
 import type { ConnStatus } from '../connection'
 import type { EnabledModels } from '@/lib/enabledModels'
@@ -82,6 +84,11 @@ const props = defineProps<{
    * (to the Inbox) so a prompt in a run the user is not watching is never
    * silently queued. */
   pendingElsewhere: string[]
+  /** The bound run (null for a draft): a long paste is saved into it (RT-26). */
+  runId: string | null
+  /** The session's project "long paste as a file" setting (absent = default). */
+  pasteSetting: Partial<PasteAsFileSetting> | null
+  savePaste: (runId: string, text: string) => Promise<PasteSaveResult>
 }>()
 
 const emit = defineEmits<{
@@ -349,6 +356,9 @@ onUnmounted(() => {
       :running="running"
       :sending="sending"
       :disabled="!isActive"
+      :run-id="runId"
+      :paste-setting="pasteSetting"
+      :save-paste="savePaste"
       @send="emit('send', $event)"
       @cancel="emit('cancel')"
       @update:engine="emit('update:engine', $event)"
