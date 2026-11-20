@@ -798,15 +798,15 @@ fn list_project_files(root: &str) -> Vec<String> {
 
 /// Build the project list the Controller can create a new run in (Phase 2).
 pub async fn build_project_list(db: &Db) -> Vec<ProjectInfo> {
-    let rows = sqlx::query("SELECT id, name, path FROM projects WHERE deleted_at IS NULL ORDER BY name")
-        .fetch_all(db)
-        .await
-        .unwrap_or_default();
+    use crate::commands::paste_as_file::{PasteAsFile, COLUMNS};
+    let sql = format!("SELECT id, name, path, {COLUMNS} FROM projects WHERE deleted_at IS NULL ORDER BY name");
+    let rows = sqlx::query(&sql).fetch_all(db).await.unwrap_or_default();
     rows.into_iter()
         .map(|r| ProjectInfo {
             id: r.get("id"),
             name: r.get("name"),
             path: r.get("path"),
+            paste_as_file: PasteAsFile::from_row(&r),
         })
         .collect()
 }

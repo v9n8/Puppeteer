@@ -811,6 +811,7 @@ mod tests {
             reason: None,
             run_id: None,
             item_id: Some("n1".into()),
+            path: None,
         };
         let v = serde_json::to_value(&ack).unwrap();
         assert_eq!(v["item_id"], "n1");
@@ -823,6 +824,7 @@ mod tests {
             reason: None,
             run_id: None,
             item_id: None,
+            path: None,
         };
         assert!(serde_json::to_value(&plain).unwrap().get("item_id").is_none());
     }

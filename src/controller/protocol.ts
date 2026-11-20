@@ -226,6 +226,8 @@ export interface CommandAckKind {
   run_id?: string | null
   /** `todo_add` / `note_add`: the new item's id. */
   item_id?: string | null
+  /** `save_pasted_text`: the Host path of the saved `.txt` file. */
+  path?: string | null
 }
 /** Correlated permission resolution. A stale acknowledgement must never clear a
  * newer permission request. */
@@ -399,6 +401,15 @@ export interface ProjectInfo {
   id: string
   name: string
   path: string
+  /** "Long paste as a file" setting (RT-26); absent from an older Host. */
+  paste_as_file?: PasteAsFileSetting
+}
+
+/** A project's "long paste as a file" setting: a paste longer than `max_chars`
+ * (JS `String.length`) is saved with `save_pasted_text` and attached. */
+export interface PasteAsFileSetting {
+  enabled: boolean
+  max_chars: number
 }
 
 /** The projects the Controller can create a new run in (Phase 2). */
@@ -661,6 +672,7 @@ export function parseStreamPayload(json: unknown): StreamPayload | null {
             reason: typeof o.reason === 'string' ? o.reason : null,
             run_id: typeof o.run_id === 'string' ? o.run_id : null,
             item_id: typeof o.item_id === 'string' ? o.item_id : null,
+            path: typeof o.path === 'string' ? o.path : null,
           }
         : null
     case 'permission_resolved':

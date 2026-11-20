@@ -248,6 +248,7 @@ impl Reply {
             reason: failure.map(str::to_string),
             run_id: None,
             item_id: None,
+            path: None,
         };
         if let Ok(json) = serde_json::to_vec(&payload) {
             let cipher = self.session.seal(&json);

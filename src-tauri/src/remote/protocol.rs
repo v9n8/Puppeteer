@@ -249,6 +249,9 @@ pub enum StreamPayload {
         /// `todo_add` / `note_add`: the new item's id.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         item_id: Option<String>,
+        /// `save_pasted_text`: the Host path of the saved `.txt` file.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
     },
     /// Correlated permission outcome so an old response cannot clear a newer
     /// pending request in the Controller UI.
@@ -668,6 +671,9 @@ pub struct ProjectInfo {
     pub id: String,
     pub name: String,
     pub path: String,
+    /// The project's "long paste as a file" setting (RT-26).
+    #[serde(default)]
+    pub paste_as_file: crate::commands::paste_as_file::PasteAsFile,
 }
 
 /// One row in a [`StreamPayload::RunList`] — non-secret run metadata mirroring

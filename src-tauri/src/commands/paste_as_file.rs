@@ -7,8 +7,9 @@
 //! repository stays clean, and under HOME, so the file viewer opens it. The folder of a session
 //! goes when the session is deleted for good ([`remove_for_run`], called by the run purge).
 //!
-//! Remote: `save_pasted_text` allowed (the pasted text is the caller's own); the setting is
-//! written by `set_project_paste_as_file`, allowed + audited like the project's other defaults.
+//! Remote: `save_pasted_text` allowed (the pasted text is the caller's own), also as the
+//! controller action of the same name (`remote/paste.rs`); the setting is written by
+//! `set_project_paste_as_file`, allowed + audited like the project's other defaults.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -25,7 +26,7 @@ pub const DEFAULT_MAX_CHARS: i64 = 2000;
 /// Largest threshold accepted (only stops junk).
 pub const MAX_MAX_CHARS: i64 = 10_000_000;
 /// Largest paste written to a file, in bytes.
-const MAX_TEXT_BYTES: usize = 16 << 20;
+pub const MAX_TEXT_BYTES: usize = 16 << 20;
 /// The project columns, read by [`PasteAsFile::from_row`] by these names.
 pub const COLUMNS: &str = "paste_as_file, paste_as_file_max_chars";
 
@@ -188,20 +189,31 @@ pub fn remove_for_run(run_id: &str) {
     }
 }
 
-/// Save a long paste of session `run_id` as a `.txt` file; its absolute path, for the
-/// composer to attach. Remote: allowed.
-#[tauri::command]
-pub async fn save_pasted_text(db: State<'_, Db>, run_id: String, text: String) -> Result<String, String> {
+/// Save a long paste of session `run_id` as a `.txt` file under the app's paste folder;
+/// the file's path. The session must exist.
+pub async fn save(db: &Db, run_id: &str, text: &str) -> Result<PathBuf, String> {
+    save_under(db, root(), run_id, text).await
+}
+
+/// [`save`] under `root` (`None`: the folder is not set up yet).
+pub(crate) async fn save_under(db: &Db, root: Option<PathBuf>, run_id: &str, text: &str) -> Result<PathBuf, String> {
     let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE id = ?)")
-        .bind(&run_id)
-        .fetch_one(db.inner())
+        .bind(run_id)
+        .fetch_one(db)
         .await
         .map_err(|e| e.to_string())?;
     if !exists {
         return Err("Session not found".into());
     }
-    let root = root().ok_or("The paste folder is not ready")?;
-    let path = save_in(&root, &run_id, &text)?;
+    let root = root.ok_or("The paste folder is not ready")?;
+    save_in(&root, run_id, text)
+}
+
+/// Save a long paste of session `run_id` as a `.txt` file; its absolute path, for the
+/// composer to attach. Remote: allowed.
+#[tauri::command]
+pub async fn save_pasted_text(db: State<'_, Db>, run_id: String, text: String) -> Result<String, String> {
+    let path = save(db.inner(), &run_id, &text).await?;
     Ok(path.to_string_lossy().into_owned())
 }
 

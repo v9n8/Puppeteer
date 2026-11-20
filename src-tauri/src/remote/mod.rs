@@ -33,6 +33,7 @@ pub mod ipc;
 pub mod login;
 pub mod meta;
 pub mod outbound;
+pub mod paste;
 pub mod protocol;
 pub mod push;
 pub mod relay_check;

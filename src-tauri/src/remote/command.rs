@@ -23,7 +23,7 @@ pub const CMD_RATE_WINDOW: Duration = Duration::from_secs(60);
 /// The actions a Controller is allowed to invoke (FR-009). `list_runs` is a
 /// read-only browse of run metadata (added for full desktop parity — the trust
 /// boundary is device approval, not per-run share).
-pub const ALLOW_LIST: [&str; 33] = [
+pub const ALLOW_LIST: [&str; 34] = [
     "respond_permission",
     "start_run",
     "request_history",
@@ -42,6 +42,8 @@ pub const ALLOW_LIST: [&str; 33] = [
     // Re-send every still-open permission prompt (the phone's Inbox after a
     // screen lock, when the live frames went nowhere).
     "list_pending",
+    // Save a long composer paste as a `.txt` file on the Host (RT-26, `paste.rs`).
+    "save_pasted_text",
     // Todos, notes and project switches; refused unless the client advertised
     // `data` (see DATA_ACTIONS).
     "todo_list",
@@ -229,6 +231,8 @@ pub enum RejectReason {
     NotFound,
     /// Always (allow_always / deny_always) on a once-only broker prompt.
     RememberNotAllowed,
+    /// `save_pasted_text`: the text is over the paste file's size cap.
+    TooLarge,
 }
 
 impl RejectReason {
@@ -244,6 +248,7 @@ impl RejectReason {
             RejectReason::WrongRun => "wrong_run",
             RejectReason::NotFound => "not_found",
             RejectReason::RememberNotAllowed => "remember_not_allowed",
+            RejectReason::TooLarge => "too_large",
         }
     }
 }
@@ -397,6 +402,7 @@ mod tests {
             "open_run",
             "close_run",
             "list_pending",
+            "save_pasted_text",
         ] {
             assert!(is_allowed_action(a), "{a} should be allowed");
         }

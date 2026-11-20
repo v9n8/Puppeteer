@@ -248,6 +248,7 @@ async fn send_command_ack(
             reason: reason.map(str::to_string),
             run_id,
             item_id,
+            path: None,
         },
     )
     .await;
@@ -421,6 +422,7 @@ pub async fn handle(ctx: &HandlerCtx, cmd: CmdPayload) {
         "open_run" => handle_open_run(ctx, &cmd).await,
         "close_run" => handle_close_run(ctx, &cmd).await,
         "list_pending" => handle_list_pending(ctx, &cmd).await,
+        "save_pasted_text" => crate::remote::paste::handle(ctx, &cmd).await,
         // Unreachable: allow-list already gated. Defensive audit.
         _ => reject(ctx, action, run_id.as_deref(), RejectReason::NotAllowed).await,
     }
