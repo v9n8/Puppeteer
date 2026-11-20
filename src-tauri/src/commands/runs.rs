@@ -4965,8 +4965,9 @@ pub(crate) async fn resume_run_with(
     // A Rewind (runs::rewind) left the engine a cut to apply at this resume: go
     // on from an earlier point of the session, or start a new one. A fork's
     // record already accounts for any cut in the part it copied.
+    // A fresh-start Rewind recorded after a pending fork still applies (RT-10).
     let mut rewind = crate::runs::rewind::pending(&last_records)
-        .filter(|_| fork.is_none())
+        .filter(|cut| fork.is_none() || (cut.fresh && crate::runs::fork::rewound_after(&last_records)))
         .filter(|cut| cut.fresh || (cut.session_id.is_some() && cut.session_id == session_id));
     // Claude cannot go on from an entry its transcript no longer has: start a
     // new session rather than fail every resume.
@@ -4975,7 +4976,7 @@ pub(crate) async fn resume_run_with(
         let found = mirrored_transcript
             .as_ref()
             .and_then(|p| fs::read(p).ok())
-            .is_some_and(|t| !at.is_empty() && String::from_utf8_lossy(&t).contains(&format!("\"{at}\"")));
+            .is_some_and(|t| crate::runs::fork::resumable_at(&t, &at));
         cut.fresh = !found;
     }
     let rewound_to_start = rewind.as_ref().is_some_and(|cut| cut.fresh);

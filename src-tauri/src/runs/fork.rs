@@ -155,8 +155,7 @@ pub fn resume_env(engine: &str, start: &ForkStart, transcript: Option<&[u8]>) ->
     let end = match engine {
         "claude" => {
             let at = start.resume_at.as_deref()?;
-            let quoted = format!("\"{at}\"");
-            if !transcript.is_some_and(|t| String::from_utf8_lossy(t).contains(&quoted)) {
+            if !transcript.is_some_and(|t| resumable_at(t, at)) {
                 return None;
             }
             ("PUPPETEER_RESUME_AT", at.to_string())
@@ -165,6 +164,44 @@ pub fn resume_env(engine: &str, start: &ForkStart, transcript: Option<&[u8]>) ->
         _ => return None,
     };
     Some(vec![("PUPPETEER_FORK_SESSION", "1".to_string()), end])
+}
+
+/// Whether Claude can go on from entry `uuid` of a session `transcript`: it is
+/// there, after the last `compact_boundary`. A resume loads the session from
+/// that boundary on, so an entry before it is unknown to the CLI ("No message
+/// found with message.uuid") although still in the file (RT-10, #2).
+pub fn resumable_at(transcript: &[u8], uuid: &str) -> bool {
+    if uuid.is_empty() {
+        return false;
+    }
+    let text = String::from_utf8_lossy(transcript);
+    let is_boundary = |line: &str| {
+        line.contains("\"compact_boundary\"")
+            && serde_json::from_str::<Value>(line)
+                .is_ok_and(|v| v.get("subtype").and_then(Value::as_str) == Some("compact_boundary"))
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    let from = lines.iter().rposition(|l| is_boundary(l)).map_or(0, |i| i + 1);
+    let quoted = format!("\"{uuid}\"");
+    lines[from..].iter().any(|l| l.contains(&quoted))
+}
+
+/// A Rewind was recorded after the pending fork (`records` oldest first): the
+/// user moved on from where the fork was to start, so its cut wins — a fork
+/// that cannot start must not hold the session forever (RT-10, #2).
+pub fn rewound_after(records: &[String]) -> bool {
+    for line in records.iter().rev() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        match kind(&v) {
+            Some(k) if k == crate::runs::rewind::MARKER => return true,
+            Some(MARKER) => return false,
+            _ if init_session(&v).is_some() => return false,
+            _ => {}
+        }
+    }
+    false
 }
 
 /// The fork still pending at the end of the log at `path` (see [`pending`]).
@@ -634,6 +671,41 @@ mod tests {
         assert_eq!(resume_env("codex", &ForkStart::default(), None), None);
         assert_eq!(resume_env("claude", &ForkStart::default(), Some(transcript)), None);
         assert_eq!(resume_env("shell", &codex, None), None);
+    }
+
+    #[test]
+    fn a_fork_before_the_last_compact_starts_afresh() {
+        // The CLI loads a resumed session from its last compact boundary on,
+        // so an entry before it cannot be resumed at (#2).
+        let claude = |at: &str| ForkStart { session_id: Some("s1".into()), resume_at: Some(at.into()), ..Default::default() };
+        let transcript = br#"{"type":"assistant","uuid":"a1"}
+{"type":"system","subtype":"compact_boundary","uuid":"b1","logicalParentUuid":"a1"}
+{"type":"user","uuid":"a2","parentUuid":"b1"}
+{"type":"assistant","uuid":"a3","parentUuid":"a2"}"#;
+        assert_eq!(resume_env("claude", &claude("a1"), Some(transcript)), None);
+        assert_eq!(
+            resume_env("claude", &claude("a3"), Some(transcript)),
+            Some(vec![("PUPPETEER_FORK_SESSION", "1".to_string()), ("PUPPETEER_RESUME_AT", "a3".to_string())])
+        );
+        assert!(!resumable_at(transcript, "a1"));
+        assert!(resumable_at(transcript, "a2"));
+        // Two compacts: only the part after the last one counts.
+        let twice = br#"{"uuid":"a1"}
+{"type":"system","subtype":"compact_boundary","uuid":"b1"}
+{"uuid":"a2"}
+{"type":"system","subtype":"compact_boundary","uuid":"b2"}
+{"uuid":"a3"}"#;
+        assert!(!resumable_at(twice, "a2"));
+        assert!(resumable_at(twice, "a3"));
+    }
+
+    #[test]
+    fn a_rewind_after_a_pending_fork_supersedes_it() {
+        let fork = json!({ "type": MARKER, "session_id": "s1", "resume_at": "a1" }).to_string();
+        let rewind = json!({ "type": crate::runs::rewind::MARKER, "fresh": true }).to_string();
+        assert!(rewound_after(&[fork.clone(), rewind.clone()]));
+        assert!(!rewound_after(&[rewind.clone(), fork.clone()]));
+        assert!(!rewound_after(&[fork]));
     }
 
     // ── fork() against a DB and a project folder ──
