@@ -62,6 +62,8 @@ export function parseLineRef(ref: string): number | null {
  * The file a markdown link points at: the href decoded, its `#fragment` dropped
  * and its line reference read off. Null for an in-page anchor or a URL with a
  * scheme (`https:`, `vscode:`, …); a one-letter scheme is a Windows drive.
+ * Only a trailing fragment goes: a `#` with a `/` after it is part of the path
+ * (`tasks/#28/x.md`, RT-14), and so is an escaped `%23`.
  */
 export function hrefFileRef(href: string): FileRef | null {
   if (/^[a-z][a-z0-9+.-]+:/i.test(href)) return null
@@ -69,7 +71,8 @@ export function hrefFileRef(href: string): FileRef | null {
   try {
     decoded = decodeURI(href)
   } catch { /* malformed escape: keep the href as written */ }
-  const path = splitLineRef(decoded.replace(/#.*$/, '')).path
+  const fragment = decoded.match(/#[^/]*$/)
+  const path = splitLineRef(fragment ? decoded.slice(0, fragment.index) : decoded).path.replace(/%23/gi, '#')
   return path ? { path, line: parseLineRef(decoded) } : null
 }
 

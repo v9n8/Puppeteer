@@ -69,6 +69,14 @@ test('hrefFileRef: markdown link targets', () => {
   assert.equal(hrefFileRef('vscode://file/a.ts'), null)
 })
 
+test('hrefFileRef: a # inside the path is part of it, only a trailing #fragment goes (RT-14)', () => {
+  assert.deepEqual(hrefFileRef('tasks/#28/x.md'), { path: 'tasks/#28/x.md', line: null })
+  assert.deepEqual(hrefFileRef('tasks/#28/x.md#L12'), { path: 'tasks/#28/x.md', line: 12 })
+  assert.deepEqual(hrefFileRef('tasks/#28/x.md#usage'), { path: 'tasks/#28/x.md', line: null })
+  assert.deepEqual(hrefFileRef('tasks/%2328/x.md'), { path: 'tasks/#28/x.md', line: null })
+  assert.deepEqual(hrefFileRef('x.md#L12'), { path: 'x.md', line: 12 })
+})
+
 // The session renderer turns off linkify's fuzzy matching: `.md` / `.rs` are
 // country-code domains, so `README.md` became http://README.md and opened the browser.
 test('session markdown: README.md stays text, URLs with a scheme still link', () => {
