@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   usageWindows, ringWindow, ringSeverity, windowSeverity, parsePercentSetting, resetCountdown, usageSummary,
-  visibleUsageRings, topWindow, usageColumns, summaryRows, currentUsageKey,
+  visibleUsageRings, topWindow, usageColumns, barCell, barRows, currentUsageKey,
   planUsageRead,
 } from '../usageRing.ts'
 
@@ -149,32 +149,39 @@ test('usageColumns: 5h, the most used weekly window, and every weekly one for th
   assert.deepEqual(usageColumns([]), { fiveHour: null, week: null, weekAll: [] })
 })
 
-test('summaryRows: current first, hot accounts by % (warning tier or over), the rest counted', () => {
+test('barCell: the 5h window, with the weekly one only once it reaches the warning tier', () => {
+  assert.deepEqual(barCell([w('five_hour', 12), w('seven_day', 42)], th()), { window: w('five_hour', 12), week: null })
+  assert.deepEqual(
+    barCell([w('five_hour', 40), w('seven_day', 30), w('seven_day_opus', 97)], th()),
+    { window: w('five_hour', 40), week: w('seven_day_opus', 97) },
+    'the most used weekly window',
+  )
+  // the warning tier comes from quota_warn_percent
+  assert.equal(barCell([w('five_hour', 40), w('seven_day', 85)], th(90)).week, null)
+  assert.deepEqual(barCell([w('seven_day', 11)], th()), { window: w('seven_day', 11), week: null }, 'Codex: weekly only')
+  assert.deepEqual(barCell([w('seven_day', 91)], th()), { window: w('seven_day', 91), week: null }, 'no second mark for the shown window')
+  assert.deepEqual(barCell([], th()), { window: null, week: null })
+})
+
+test('barRows: current first, hot accounts by %, the rest as listed, no numbers last', () => {
   const rows = [
+    rowOf('claude:x', []),
     rowOf('claude:a', [w('five_hour', 12), w('seven_day', 42)]),
     rowOf('claude:b', [w('five_hour', 86), w('seven_day', 61)]),
     rowOf('claude:c', [w('five_hour', 40), w('seven_day', 97)]),
     rowOf('codex', [w('five_hour', 5), w('seven_day', 11)]),
     rowOf('codex:x', []),
+    rowOf('codex:y', [w('five_hour', 1)]),
   ]
-  const s = summaryRows(rows, th(), 'claude:a')
-  assert.equal(s.current.key, 'claude:a')
-  assert.deepEqual(keysOf(s.hot), ['claude:c', 'claude:b'], 'sorted by the most used window')
-  assert.equal(s.restCount, 2)
+  assert.deepEqual(keysOf(barRows(rows, th(), 'claude:a')), ['claude:a', 'claude:c', 'claude:b', 'codex', 'codex:y', 'claude:x', 'codex:x'])
   // the warning tier comes from quota_warn_percent
-  assert.deepEqual(keysOf(summaryRows(rows, th(90), 'claude:a').hot), ['claude:c'])
-  // the current account is never a chip, even when hot
-  assert.deepEqual(keysOf(summaryRows(rows, th(), 'claude:b').hot), ['claude:c'])
-})
-
-test('summaryRows: current without numbers still leads; unknown key falls back to the first row', () => {
-  const rows = [rowOf('claude:a', []), rowOf('claude:b', [w('five_hour', 95)])]
-  const s = summaryRows(rows, th(), 'claude:a')
-  assert.equal(s.current.key, 'claude:a')
-  assert.deepEqual(keysOf(s.hot), ['claude:b'])
-  assert.equal(s.restCount, 0)
-  assert.equal(summaryRows(rows, th(), 'claude:zz').current.key, 'claude:a')
-  assert.deepEqual(summaryRows([], th(), 'claude:a'), { current: null, hot: [], restCount: 0 })
+  const late = [rowOf('codex', [w('five_hour', 5)]), rowOf('claude:b', [w('five_hour', 86)])]
+  assert.deepEqual(keysOf(barRows(late, th(), null)), ['claude:b', 'codex'])
+  assert.deepEqual(keysOf(barRows(late, th(90), null)), ['codex', 'claude:b'])
+  // the current account leads even without numbers; an unknown key keeps the order
+  assert.deepEqual(keysOf(barRows(rows, th(), 'codex:x')).slice(0, 2), ['codex:x', 'claude:c'])
+  assert.deepEqual(keysOf(barRows(rows, th(), 'claude:zz')), ['claude:c', 'claude:b', 'claude:a', 'codex', 'codex:y', 'claude:x', 'codex:x'])
+  assert.deepEqual(barRows([], th(), 'claude:a'), [])
 })
 
 test('currentUsageKey: the run pick, else the Project / global default, else the shared row', () => {

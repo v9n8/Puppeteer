@@ -45,8 +45,7 @@ test('UR-57: one usage block — a summary button and a panel with a bordered bl
   const summary = read('../../components/UsageSummary.vue')
   assert.match(summary, /inline-flex h-7 min-w-0 shrink-0 items-center gap-1\.5 rounded px-1\.5 text-2xs text-muted-foreground/)
   assert.match(summary, /rounded-full border border-border px-1\.5/)
-  assert.match(summary, /max-\[901px\]:hidden/)
-  assert.match(summary, /summaryRows\(/)
+  assert.match(summary, /barRows\(/)
   assert.match(summary, /<Teleport to="body">/)
   const panel = read('../../components/UsagePanel.vue')
   assert.match(panel, /w-\[460px\][^"]*bg-popover p-3/)
@@ -56,11 +55,21 @@ test('UR-57: one usage block — a summary button and a panel with a bordered bl
   assert.match(panel, /grid-cols-\[minmax\(0,1fr\)_112px_112px\]/)
   assert.match(panel, /t\('run\.accountMenu\.manage'\)/)
   assert.match(panel, /usageColumns\(/)
-  // UsageRing is the shared donut only
-  assert.doesNotMatch(read('../../components/UsageRing.vue'), /Teleport|pinned/)
   const keys = ['title', 'summaryTitle', 'col5h', 'colWeek', 'using', 'refreshAll', 'noData', 'refresh', 'windowOf', 'more']
   for (const lang of ['en', 'vi']) {
     const usage = json(`../../i18n/locales/${lang}/misc.json`).budget.usage
     for (const k of keys) assert.equal(typeof usage[k], 'string', `${lang} misc.budget.usage.${k}`)
   }
+})
+
+test('UR-66: the summary lists every account by its 5h window in half the bar, the rest in "+n"', () => {
+  const summary = read('../../components/UsageSummary.vue')
+  assert.match(summary, /barCell\(/)
+  assert.match(summary, /const BAR_SHARE = 0\.5/)
+  assert.match(summary, /new ResizeObserver\(/)
+  assert.match(summary, /v-show="i < shownCount"/)
+  assert.match(summary, /max-w-\[72px\] truncate/)
+  assert.match(summary, /data-usage-more/)
+  // no donut per account, no chip per hot account
+  assert.doesNotMatch(summary, /UsageRing\.vue|<UsageRing |data-usage-hot|summaryRows|max-\[901px\]:hidden/)
 })

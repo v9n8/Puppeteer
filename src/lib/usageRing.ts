@@ -192,10 +192,7 @@ export function visibleUsageRings<R extends Pick<UsageRingAccount, 'key' | 'wind
 
 // ── One usage block on the status bar (DS-1, option A) ──────────────────────
 
-/**
- * The window the collapsed block names: the most used one, so a weekly window
- * close to its limit shows even while the 5h one is low. A tie keeps the 5h.
- */
+/** The most used window (a tie keeps the first, so the 5h before the weekly ones). */
 export function topWindow(windows: UsageWindow[]): UsageWindow | null {
   return windows.reduce<UsageWindow | null>((best, w) => (best && best.percent >= w.percent ? best : w), null)
 }
@@ -211,21 +208,37 @@ export function usageColumns(windows: UsageWindow[]): { fiveHour: UsageWindow | 
 }
 
 /**
- * What the collapsed block shows: `current` is the Session's account (the
- * first row when it is not among them); `hot` are the other accounts at the
- * warning tier or over, most used first; `restCount` the accounts left out.
+ * What the collapsed block shows for one account: the 5h (Session) window, or
+ * the most used one when the engine reports weekly only (ringWindow). `week`
+ * is the most used weekly window once it reaches the warning tier while the 5h
+ * one is shown, so a week about to run out still shows beside a low 5h number.
  */
-export function summaryRows<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(
+export function barCell(windows: UsageWindow[], th: UsageThresholds): { window: UsageWindow | null; week: UsageWindow | null } {
+  const window = ringWindow(windows)
+  const week = window?.period === '5h' ? topWindow(windows.filter((w) => w.period === 'week')) : null
+  return { window, week: week && windowSeverity(week, th) !== 'ok' ? week : null }
+}
+
+/**
+ * The accounts of the collapsed block in the order they claim its room (only
+ * the first ones fit): the Session's account, then those at the warning tier or
+ * over (most used first), then the rest as listed, accounts without numbers last.
+ */
+export function barRows<R extends Pick<UsageRingAccount, 'key' | 'windows'>>(
   rows: readonly R[],
   th: UsageThresholds,
   currentKey: string | null,
-): { current: R | null; hot: R[]; restCount: number } {
-  const current = rows.find((r) => r.key === currentKey) ?? rows[0] ?? null
+): R[] {
+  const rank = (r: R) => {
+    if (r.key === currentKey) return 0
+    if (r.windows.length === 0) return 3
+    return ringSeverity(r.windows, th) === 'ok' ? 2 : 1
+  }
   const pct = (r: R) => topWindow(r.windows)?.percent ?? 0
-  const hot = rows
-    .filter((r) => r !== current && ringSeverity(r.windows, th) !== 'ok')
-    .sort((a, b) => pct(b) - pct(a))
-  return { current, hot, restCount: Math.max(0, rows.length - (current ? 1 : 0) - hot.length) }
+  return rows
+    .map((r, i) => ({ r, i, rank: rank(r) }))
+    .sort((a, b) => a.rank - b.rank || (a.rank === 1 ? pct(b.r) - pct(a.r) : 0) || a.i - b.i)
+    .map((x) => x.r)
 }
 
 /** A run's account fields (`RunRecord`). */
