@@ -167,23 +167,62 @@ pub fn resume_env(engine: &str, start: &ForkStart, transcript: Option<&[u8]>) ->
 }
 
 /// Whether Claude can go on from entry `uuid` of a session `transcript`: it is
-/// there, after the last `compact_boundary`. A resume loads the session from
-/// that boundary on, so an entry before it is unknown to the CLI ("No message
-/// found with message.uuid") although still in the file (RT-10, #2).
+/// there, after the last `compact_boundary`, or in the segment that compact
+/// kept from before it. A resume loads the session from that boundary on, so
+/// any other entry before it is unknown to the CLI ("No message found with
+/// message.uuid") although still in the file (RT-10, #2).
 pub fn resumable_at(transcript: &[u8], uuid: &str) -> bool {
     if uuid.is_empty() {
         return false;
     }
     let text = String::from_utf8_lossy(transcript);
-    let is_boundary = |line: &str| {
-        line.contains("\"compact_boundary\"")
-            && serde_json::from_str::<Value>(line)
-                .is_ok_and(|v| v.get("subtype").and_then(Value::as_str) == Some("compact_boundary"))
+    let boundary = |line: &str| {
+        if !line.contains("\"compact_boundary\"") {
+            return None;
+        }
+        serde_json::from_str::<Value>(line)
+            .ok()
+            .filter(|v| v.get("subtype").and_then(Value::as_str) == Some("compact_boundary"))
     };
     let lines: Vec<&str> = text.lines().collect();
-    let from = lines.iter().rposition(|l| is_boundary(l)).map_or(0, |i| i + 1);
     let quoted = format!("\"{uuid}\"");
-    lines[from..].iter().any(|l| l.contains(&quoted))
+    let Some((at, last)) = lines.iter().enumerate().rev().find_map(|(i, l)| boundary(l).map(|v| (i, v))) else {
+        return lines.iter().any(|l| l.contains(&quoted));
+    };
+    lines[at + 1..].iter().any(|l| l.contains(&quoted)) || preserved(&last, &lines[..at]).iter().any(|u| u == uuid)
+}
+
+/// The entries a partial compact kept from before its `boundary` (`before`:
+/// the transcript lines above it). Claude Code records them as
+/// `compactMetadata.preservedMessages.uuids`, or as `preservedSegment`, the
+/// `parentUuid` chain from `tailUuid` back to `headUuid`; it relinks them after
+/// the summary on resume. Empty for a full compact, or when the chain does not
+/// reach its head.
+fn preserved(boundary: &Value, before: &[&str]) -> Vec<String> {
+    let meta = boundary.get("compactMetadata");
+    let str_at = |v: Option<&Value>, key: &str| v.and_then(|v| v.get(key)).and_then(Value::as_str).map(str::to_string);
+    if let Some(uuids) = meta.and_then(|m| m.pointer("/preservedMessages/uuids")).and_then(Value::as_array) {
+        return uuids.iter().filter_map(|u| u.as_str().map(str::to_string)).collect();
+    }
+    let segment = meta.and_then(|m| m.get("preservedSegment"));
+    let (Some(head), Some(tail)) = (str_at(segment, "headUuid"), str_at(segment, "tailUuid")) else {
+        return Vec::new();
+    };
+    let parents: std::collections::HashMap<String, Option<String>> = before
+        .iter()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter_map(|v| Some((str_at(Some(&v), "uuid")?, str_at(Some(&v), "parentUuid"))))
+        .collect();
+    let mut chain = Vec::new();
+    let mut at = Some(tail);
+    while let Some(uuid) = at.filter(|u| parents.contains_key(u) && !chain.contains(u)) {
+        at = parents[&uuid].clone();
+        chain.push(uuid);
+        if chain.last() == Some(&head) {
+            return chain;
+        }
+    }
+    Vec::new()
 }
 
 /// A Rewind was recorded after the pending fork (`records` oldest first): the
@@ -697,6 +736,43 @@ mod tests {
 {"uuid":"a3"}"#;
         assert!(!resumable_at(twice, "a2"));
         assert!(resumable_at(twice, "a3"));
+    }
+
+    #[test]
+    fn a_fork_in_the_segment_a_partial_compact_kept_can_resume() {
+        // Shape seen in real transcripts: the kept entries stay above the
+        // boundary, chained head → tail by parentUuid; tail is the boundary's
+        // logicalParentUuid.
+        let segment = br#"{"type":"user","uuid":"a0"}
+{"type":"assistant","uuid":"a1","parentUuid":"a0"}
+{"type":"user","uuid":"k1","parentUuid":"a1"}
+{"type":"assistant","uuid":"k2","parentUuid":"k1"}
+{"type":"system","subtype":"compact_boundary","uuid":"b1","parentUuid":null,"logicalParentUuid":"k2","compactMetadata":{"trigger":"manual","preservedSegment":{"headUuid":"k1","anchorUuid":"s1","tailUuid":"k2"}}}
+{"type":"user","uuid":"s1","parentUuid":"b1","isCompactSummary":true}
+{"type":"user","uuid":"a2","parentUuid":"s1"}"#;
+        assert!(resumable_at(segment, "k1"));
+        assert!(resumable_at(segment, "k2"));
+        assert!(resumable_at(segment, "a2"));
+        assert!(!resumable_at(segment, "a1"));
+        assert!(!resumable_at(segment, "a0"));
+        // `preservedMessages.uuids` names the kept entries when present.
+        let listed = br#"{"type":"assistant","uuid":"a1"}
+{"type":"user","uuid":"k1","parentUuid":"a1"}
+{"type":"system","subtype":"compact_boundary","uuid":"b1","compactMetadata":{"preservedSegment":{"headUuid":"k1","anchorUuid":"s1","tailUuid":"k1"},"preservedMessages":{"anchorUuid":"s1","uuids":["k1"]}}}
+{"type":"user","uuid":"s1","parentUuid":"b1"}"#;
+        assert!(resumable_at(listed, "k1"));
+        assert!(!resumable_at(listed, "a1"));
+        // A later full compact drops the segment again.
+        let then_full = [&segment[..], br#"
+{"type":"system","subtype":"compact_boundary","uuid":"b2"}
+{"type":"user","uuid":"a3","parentUuid":"b2"}"#]
+            .concat();
+        assert!(!resumable_at(&then_full, "k1"));
+        assert!(resumable_at(&then_full, "a3"));
+        // A chain that never reaches its head keeps nothing.
+        let broken = br#"{"type":"user","uuid":"k2","parentUuid":"x"}
+{"type":"system","subtype":"compact_boundary","uuid":"b1","compactMetadata":{"preservedSegment":{"headUuid":"k1","anchorUuid":"s1","tailUuid":"k2"}}}"#;
+        assert!(!resumable_at(broken, "k2"));
     }
 
     #[test]
