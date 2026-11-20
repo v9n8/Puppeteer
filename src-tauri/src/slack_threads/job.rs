@@ -6,7 +6,7 @@
 
 use super::api::{AuthInfo, SlackClient, SlackError};
 use super::files::{self, parse_remote_file, RemoteFile};
-use super::link::{canonical_url, parse_thread_link, ThreadLink};
+use super::link::{canonical_url, parse_thread_link_any, ThreadLink};
 use super::mrkdwn::{self, Names, TextMessage};
 use super::store::{self, SlackReaction, DEFAULT_TITLE};
 use super::translate::{run_translation, MsgInput, MsgOutcome, MsgResult, Stop, TranslateSink};
@@ -78,7 +78,9 @@ fn common_fatal(e: &SlackError) -> Option<CodedError> {
     }
 }
 
-fn replies_error(e: SlackError) -> CodedError {
+/// `dm_on`: reading DM threads is on (`dm`), so a missing `im:` / `mpim:` scope is
+/// reported as such instead of as an unsupported DM.
+fn replies_error(e: SlackError, dm_on: bool) -> CodedError {
     if let Some(c) = common_fatal(&e) {
         return c;
     }
@@ -86,7 +88,7 @@ fn replies_error(e: SlackError) -> CodedError {
         SlackError::Api { code, needed } => match code.as_str() {
             "missing_scope" => {
                 let needed = needed.unwrap_or_default();
-                if needed.contains("im:") || needed.contains("mpim:") {
+                if !dm_on && (needed.contains("im:") || needed.contains("mpim:")) {
                     CodedError::new("dm_unsupported", super::link::DM_UNSUPPORTED_MESSAGE)
                 } else {
                     CodedError::new("missing_scope", needed)
@@ -379,16 +381,16 @@ impl Job<'_> {
     }
 
     async fn run(&mut self) -> Result<JobEnd, Fail> {
-        let row: Option<(Option<String>, i64)> =
-            sqlx::query_as("SELECT thread_url, legacy FROM slack_threads WHERE id = ?")
+        let row: Option<(Option<String>, i64, Option<String>)> =
+            sqlx::query_as("SELECT thread_url, legacy, project_id FROM slack_threads WHERE id = ?")
                 .bind(&self.id)
                 .fetch_optional(self.db())
                 .await?;
-        let (url, legacy) = row.ok_or(Fail::Deleted)?;
+        let (url, legacy, project_id) = row.ok_or(Fail::Deleted)?;
         let legacy = legacy != 0;
         self.set_status("fetching", "queued").await?;
 
-        let mut link = match url.as_deref().map(parse_thread_link) {
+        let mut link = match url.as_deref().map(parse_thread_link_any) {
             Some(Ok(l)) => l,
             _ if legacy => {
                 return Err(coded(
@@ -399,6 +401,11 @@ impl Job<'_> {
             Some(Err(e)) => return Err(Fail::Error(e.into())),
             None => return Err(coded("invalid_link", super::link::INVALID_LINK_MESSAGE)),
         };
+        // RT-27: a DM thread is read only while reading DMs is on for its project.
+        let dm_on = super::dm::allowed(self.db(), project_id.as_deref()).await;
+        if link.is_dm() && !dm_on {
+            return Err(coded("dm_unsupported", super::dm::DM_OFF_MESSAGE));
+        }
         self.ensure_key(&link).await?;
 
         // 1. Token + auth.test.
@@ -421,14 +428,14 @@ impl Job<'_> {
         }
 
         // 2. Channel name + DM guard.
-        let channel_name = self.channel_info(&client, &auth, &link.channel_id).await?;
+        let channel_name = self.channel_info(&client, &auth, &link.channel_id, dm_on).await?;
 
         // 3. Messages (3b: the link pointed at a reply).
         self.set_phase("messages");
         let (mut raw, mut truncated) = client
             .conversations_replies_all(&link.channel_id, &link.thread_ts, MAX_MESSAGES)
             .await
-            .map_err(replies_error)?;
+            .map_err(|e| replies_error(e, dm_on))?;
         let root = raw
             .first()
             .and_then(|m| m.get("thread_ts"))
@@ -444,7 +451,7 @@ impl Job<'_> {
             (raw, truncated) = client
                 .conversations_replies_all(&link.channel_id, &link.thread_ts, MAX_MESSAGES)
                 .await
-                .map_err(replies_error)?;
+                .map_err(|e| replies_error(e, dm_on))?;
         }
         if truncated {
             self.warn("truncated");
@@ -536,6 +543,7 @@ impl Job<'_> {
         client: &SlackClient,
         auth: &AuthInfo,
         channel_id: &str,
+        dm_on: bool,
     ) -> Result<Option<String>, Fail> {
         if auth.lacks_all(&["channels:read", "groups:read"]) {
             self.warn("channel_name_unavailable");
@@ -544,7 +552,12 @@ impl Job<'_> {
         match client.conversations_info(channel_id).await {
             Ok(info) => {
                 if info.is_im || info.is_mpim {
-                    return Err(coded("dm_unsupported", super::link::DM_UNSUPPORTED_MESSAGE));
+                    if !dm_on {
+                        return Err(coded("dm_unsupported", super::dm::DM_OFF_MESSAGE));
+                    }
+                    if let Some(e) = super::dm::scope_error(auth, info.is_mpim) {
+                        return Err(Fail::Error(e));
+                    }
                 }
                 save_channel(
                     self.ctx,

@@ -103,6 +103,14 @@
   "noAccounts": "Chưa có tài khoản nào.",
   "mcpBuiltinGroup": "Tích hợp sẵn",
   "mcpOwnGroup": "Server của bạn",
+  "slackDm": {
+    "title": "Thread Slack trong DM",
+    "global": "Đọc thread DM (mọi project)",
+    "globalHint": "Mặc định tắt. Cho phép thêm và tải thread Slack trong tin nhắn trực tiếp. Token Slack cũng cần quyền im:history (DM nhóm: mpim:history).",
+    "project": "Đọc thread DM trong project này",
+    "projectHint": "Tắt để thread của project này chỉ lấy từ channel.",
+    "projectOffHint": "Đang tắt cho mọi project: bật công tắc phía trên trước."
+  },
   "toLinkHere": "để liên kết ở đây.",
   "selectAccountPlaceholder": "Chọn một tài khoản…",
   "githubProjectBoard": "GitHub Project V2 Board",

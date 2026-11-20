@@ -11,6 +11,7 @@ import { composerDefaults } from '@/lib/composerChips'
 import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
 
 /** The MCP management screen (Settings › Connections › MCP, V3-51). */
 const MCP_ROUTE = '/settings/mcp'
@@ -202,5 +203,6 @@ watch(projectId, async () => {
       </div>
     </div>
   </Card>
+  <ProjectSlackDm :project="project" />
 </div>
 </template>

@@ -2040,3 +2040,6 @@ async fn post_reply_maps_slack_errors() {
     // Nothing was refreshed: the thread stays ready.
     assert_eq!(env.status(&id).await.0, "ready");
 }
+
+#[path = "dm_tests.rs"]
+mod dm_tests;

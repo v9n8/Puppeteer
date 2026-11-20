@@ -41,11 +41,11 @@
   },
   "errors": {
     "invalid_link": "Invalid link. Expected https://<workspace>.slack.com/archives/<channel>/p<16 digits>.",
-    "dm_unsupported": "Direct-message (DM) threads are not supported — the token cannot read DMs.",
+    "dm_unsupported": "Reading direct-message (DM) threads is off. Turn it on in Project › MCP › Slack DM threads (for all projects, and for the thread's project).",
     "no_token": "No Slack token. Add a Slack MCP server with SLACK_MCP_XOXP_TOKEN in Settings → MCP.",
     "no_token_for_workspace": "None of the Slack tokens belongs to this link's workspace.",
     "invalid_auth": "The Slack token is invalid or expired. Update it in Settings → MCP.",
-    "missing_scope": "The Slack token lacks a scope ({detail}). Needs channels:history, groups:history.",
+    "missing_scope": "The Slack token lacks a scope ({detail}). Channel threads need channels:history, groups:history; DM threads need im:history (group DMs: mpim:history).",
     "channel_not_found": "Channel not found — the token belongs to another workspace or has no access to the channel.",
     "not_in_channel": "The token's account has not joined this channel.",
     "thread_not_found": "Thread not found — the message may have been deleted.",

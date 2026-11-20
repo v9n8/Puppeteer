@@ -3,7 +3,7 @@
 //! Session links live in `run_links`.
 //! Takes plain `&Db` + `app_data` so it is testable against an in-memory DB.
 
-use super::link::{parse_thread_link, ThreadLink};
+use super::link::{parse_thread_link_any, ThreadLink};
 use super::mrkdwn::{self, Names, TextMessage};
 use super::CodedError;
 use crate::db::Db;
@@ -250,7 +250,7 @@ pub async fn find_by_key(
     .fetch_all(db)
     .await?;
     Ok(legacy.into_iter().find_map(|(id, url)| {
-        let l = parse_thread_link(url.as_deref()?).ok()?;
+        let l = parse_thread_link_any(url.as_deref()?).ok()?;
         (l.channel_id == channel_id && l.thread_ts == thread_ts).then_some(id)
     }))
 }

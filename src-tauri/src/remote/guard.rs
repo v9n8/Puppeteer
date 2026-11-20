@@ -127,6 +127,9 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "start_file_drag",
     // Secret notes auto-lock time: a controller must not make the vault stay open longer.
     "secret_vault_set_auto_lock",
+    // Reading Slack DM threads (RT-27): a controller must not open this machine's DMs to itself.
+    "set_slack_dm_read",
+    "set_project_slack_dm_read",
     // File Transfer window, this machine's half (remote/transfer.rs).
     "local_fs_home", "local_fs_list", "local_fs_mkdir", "local_fs_rename", "local_fs_delete", "local_fs_walk",
     "local_fs_hash", "local_fs_write_begin", "local_fs_write_chunk", "local_fs_write_finish", "local_fs_write_abort",
@@ -172,7 +175,8 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// (`runs::unattended`): a session Remote Control starts is one, so a
 /// controller must not lift its own limits. The desktop notification switches
 /// (`desktop_notify`) too: a controller must not silence what this machine
-/// tells the person at it. Nor the routing policy update's own bookkeeping.
+/// tells the person at it. Nor the routing policy update's own bookkeeping, nor
+/// reading Slack DM threads (`slack_threads::dm`).
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
@@ -184,6 +188,7 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && key != crate::runs::unattended::MAX_MINUTES_SETTING
         && key != "desktop_notify"
         && key != crate::commands::secret_vault::AUTO_LOCK_SETTING
+        && key != crate::slack_threads::dm::SETTING
         && !crate::runs::routing::update::is_bookkeeping(key)
 }
 
@@ -791,6 +796,8 @@ mod tests {
             "rd_copy_secret",
             "start_file_drag",
             "secret_vault_set_auto_lock",
+            "set_slack_dm_read",
+            "set_project_slack_dm_read",
             "set_inbox_api_enabled",
             "set_feature",
             "reset_features",
@@ -1144,6 +1151,8 @@ mod tests {
             "desktop_notify",
             // The Secret notes auto-lock time (V3-41).
             "secret_vault.auto_lock_minutes",
+            // Reading Slack DM threads (RT-27).
+            "slack_dm_read",
             "",
         ] {
             assert!(!remote_may_set_setting(key), "{key}");

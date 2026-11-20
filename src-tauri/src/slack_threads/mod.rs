@@ -20,6 +20,7 @@
 //! Inbox API route refuse; turning it back on resumes the queue.
 
 pub mod api;
+pub mod dm;
 pub mod files;
 pub mod job;
 pub mod link;
@@ -591,11 +592,14 @@ impl SlackThreadsState {
         title: Option<&str>,
         from_api: bool,
     ) -> Result<AddSlackThreadResult, CodedError> {
-        let link = link::parse_thread_link(url)?;
+        let link = link::parse_thread_link_any(url)?;
         let title = title.map(store::validate_title).transpose()?;
         let project_id = project_id.map(str::trim).filter(|p| !p.is_empty());
         if let Some(pid) = project_id {
             store::check_project(&self.ctx.db, pid).await?;
+        }
+        if link.is_dm() {
+            dm::check(&self.ctx.db, project_id).await?;
         }
         let has_token = !token::sources(&self.ctx.db, &self.ctx.lookup)
             .await
@@ -633,7 +637,7 @@ impl SlackThreadsState {
             && summary
                 .thread_url
                 .as_deref()
-                .is_none_or(|u| link::parse_thread_link(u).is_err())
+                .is_none_or(|u| link::parse_thread_link_any(u).is_err())
         {
             return Err(CodedError::new(
                 "legacy_no_url",
@@ -677,7 +681,7 @@ impl SlackThreadsState {
         let link = summary
             .thread_url
             .as_deref()
-            .and_then(|u| link::parse_thread_link(u).ok())
+            .and_then(|u| link::parse_thread_link_any(u).ok())
             .ok_or_else(|| {
                 CodedError::new("invalid_link", "thread has no parsable Slack thread_url")
             })?;

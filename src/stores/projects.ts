@@ -41,6 +41,8 @@ export interface Project {
   hidden: boolean
   /** Defaults for new sessions of the project (UX-19); each null follows the global setting. */
   session_defaults: ProjectSessionDefaults
+  /** Reading Slack DM threads (RT-27): true follows the setting for every project, false never. */
+  slack_dm_read?: boolean
 }
 
 /** A change to how a project shows. Left out = unchanged; null = back to the default. */

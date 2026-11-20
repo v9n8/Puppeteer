@@ -9,6 +9,7 @@ import { Server } from 'lucide-vue-next'
 import { Banner, Button, InfoTip, Input, Modal } from '@/components/ui'
 import ProjectSelect from '@/components/ProjectSelect.vue'
 import { checkThreadLink } from '@/lib/slackThreadUtils'
+import { invoke } from '@/lib/tauri'
 import {
   errorCode,
   useSlackThreadsStore,
@@ -37,6 +38,8 @@ const projectId = ref<string | null>(null)
 const submitting = ref(false)
 const serverError = ref<string | null>(null)
 const noToken = ref(false)
+/** Reading DM threads is on for every project (RT-27): a DM link is the backend's to judge. */
+const dmOn = ref(false)
 const formEl = ref<HTMLElement | null>(null)
 
 watch(
@@ -48,6 +51,8 @@ watch(
     serverError.value = null
     submitting.value = false
     noToken.value = false
+    dmOn.value = false
+    void invoke<boolean>('get_slack_dm_read').then((on) => { dmOn.value = on }, () => {})
     await nextTick()
     formEl.value?.querySelector('input')?.focus()
     try {
@@ -64,7 +69,11 @@ watch(url, () => {
 })
 
 /** Early, client-side hint; empty input shows nothing. */
-const linkCheck = computed(() => (url.value.trim() ? checkThreadLink(url.value) : null))
+const linkCheck = computed(() => {
+  if (!url.value.trim()) return null
+  const check = checkThreadLink(url.value)
+  return check === 'dm_unsupported' && dmOn.value ? 'ok' : check
+})
 const clientError = computed(() =>
   linkCheck.value && linkCheck.value !== 'ok' ? errorText(linkCheck.value) : null,
 )

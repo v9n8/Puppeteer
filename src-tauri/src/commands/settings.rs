@@ -178,6 +178,8 @@ pub const PORTABLE_SETTING_KEYS: &[&str] = &[
     "enabled_models",
     // Secret notes auto-lock time (V3-41): applied again on the next vault status read.
     "secret_vault.auto_lock_minutes",
+    // Reading Slack DM threads (RT-27, `slack_threads::dm`).
+    "slack_dm_read",
     // Focus (focus::settings); the calendar choice stays per machine.
     "focus.work_start",
     "focus.work_end",

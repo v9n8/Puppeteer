@@ -103,6 +103,14 @@
   "noAccounts": "No accounts yet.",
   "mcpBuiltinGroup": "Built-in",
   "mcpOwnGroup": "Your servers",
+  "slackDm": {
+    "title": "Slack DM threads",
+    "global": "Read DM threads (all projects)",
+    "globalHint": "Off by default. Lets Slack threads in direct messages be added and fetched. The Slack token also needs im:history (group DMs: mpim:history).",
+    "project": "Read DM threads in this project",
+    "projectHint": "Turn off to keep this project's threads to channels only.",
+    "projectOffHint": "Off for every project: turn on the switch above first."
+  },
   "toLinkHere": "to link it here.",
   "selectAccountPlaceholder": "Select an account…",
   "githubProjectBoard": "GitHub Project V2 Board",

@@ -21,6 +21,8 @@ async fn the_setting_round_trips_and_an_older_backup_keeps_the_local_one() {
         serde_json::from_value(serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap()).unwrap();
     let entry = &projects[0];
     assert_eq!(entry.paste_as_file, Some(web));
+    // RT-27: the project's Slack DM switch travels too.
+    assert_eq!(entry.slack_dm_read, Some(true));
 
     let target = db_with("('w', 'web', '/other/web', 'c')").await;
     let (_, id, warnings) = import_project(&target, entry, false, None).await.unwrap();

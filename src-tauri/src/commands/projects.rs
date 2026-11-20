@@ -80,6 +80,10 @@ pub struct Project {
     /// Long pastes as a `.txt` attachment (#16, migration 0028).
     #[serde(default)]
     pub paste_as_file: crate::commands::paste_as_file::PasteAsFile,
+    /// Reading Slack DM threads for this project (#9, migration 0029): true follows the
+    /// `slack_dm_read` setting, false never reads them.
+    #[serde(default)]
+    pub slack_dm_read: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -823,7 +827,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 p.default_engine_override, p.default_model_claude, p.default_model_codex, \
                 p.default_permission_mode, p.default_effort, p.default_style, p.enabled_models, \
-                p.paste_as_file, p.paste_as_file_max_chars, \
+                p.paste_as_file, p.paste_as_file_max_chars, p.slack_dm_read, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p \
          LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL \
@@ -864,6 +868,7 @@ pub(crate) async fn list_projects_inner(db: &Db) -> Result<Vec<Project>, String>
             hidden: row.get("hidden"),
             session_defaults: ProjectSessionDefaults::from_row(row),
             paste_as_file: crate::commands::paste_as_file::PasteAsFile::from_row(row),
+            slack_dm_read: row.get("slack_dm_read"),
         })
         .collect();
 
@@ -976,6 +981,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         hidden: false,
         session_defaults: ProjectSessionDefaults::default(),
         paste_as_file: Default::default(),
+        slack_dm_read: true,
     })
 }
 
@@ -1225,7 +1231,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
                 p.github_project_board_url, p.github_project_field_mappings, p.position, p.color, p.icon, p.hidden, \
                 p.default_engine_override, p.default_model_claude, p.default_model_codex, \
                 p.default_permission_mode, p.default_effort, p.default_style, p.enabled_models, \
-                p.paste_as_file, p.paste_as_file_max_chars, \
+                p.paste_as_file, p.paste_as_file_max_chars, p.slack_dm_read, \
                 COUNT(r.id) AS run_count, MAX(r.created_at) AS last_used_at \
          FROM projects p LEFT JOIN runs r ON r.project_id = p.id AND r.deleted_at IS NULL WHERE p.id = ? GROUP BY p.id"
     )
@@ -1261,6 +1267,7 @@ pub(crate) async fn project_by_id(db: &Db, id: &str) -> Result<Project, String> 
         hidden: row.get("hidden"),
         session_defaults: ProjectSessionDefaults::from_row(&row),
         paste_as_file: crate::commands::paste_as_file::PasteAsFile::from_row(&row),
+        slack_dm_read: row.get("slack_dm_read"),
     })
 }
 

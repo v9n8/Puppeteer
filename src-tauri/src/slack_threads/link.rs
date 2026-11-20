@@ -104,8 +104,26 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Parse a Slack thread link (see the module docs).
+impl ThreadLink {
+    /// A direct-message channel (`D…`). A group DM has a `G…` / `C…` id: only
+    /// `conversations.info` tells it apart.
+    pub fn is_dm(&self) -> bool {
+        self.channel_id.starts_with('D')
+    }
+}
+
+/// Parse a Slack thread link (see the module docs). A DM link is refused: callers
+/// that read threads use [`parse_thread_link_any`] and ask `dm::check` instead.
 pub fn parse_thread_link(input: &str) -> Result<ThreadLink, LinkError> {
+    parse(input, false)
+}
+
+/// [`parse_thread_link`], DM links included (whether one may be read is `dm::check`'s).
+pub fn parse_thread_link_any(input: &str) -> Result<ThreadLink, LinkError> {
+    parse(input, true)
+}
+
+fn parse(input: &str, allow_dm: bool) -> Result<ThreadLink, LinkError> {
     use LinkError::InvalidLink;
     let mut s = input.trim();
     if let Some(inner) = s.strip_prefix('<').and_then(|x| x.strip_suffix('>')) {
@@ -138,7 +156,8 @@ pub fn parse_thread_link(input: &str) -> Result<ThreadLink, LinkError> {
     if !channel_ok || !digits_ok {
         return Err(InvalidLink);
     }
-    if channel.starts_with('D') {
+    // Decided from the path, before the query (the frontend's check does the same).
+    if !allow_dm && channel.starts_with('D') {
         return Err(LinkError::DmUnsupported);
     }
     let message_ts = format!("{}.{}", &digits[..10], &digits[10..]);
@@ -202,6 +221,10 @@ mod tests {
             parse_thread_link("https://malme.slack.com/archives/D01ABCDEF/p1789877283026359"),
             Err(LinkError::DmUnsupported)
         );
+        // RT-27: the DM gate is `dm::check`'s; the link itself parses.
+        let dm = parse_thread_link_any("https://malme.slack.com/archives/D01ABCDEF/p1789877283026359").unwrap();
+        assert!(dm.is_dm() && !l.is_dm());
+        assert_eq!(dm.channel_id, "D01ABCDEF");
     }
 
     #[test]
