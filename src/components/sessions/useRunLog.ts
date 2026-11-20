@@ -24,6 +24,7 @@ import {
 } from '@/lib/streamEvents'
 import type { RunSessionCore } from './useRunSessionCore'
 import { useLivePaging } from './useLivePaging'
+import { pageBackTo } from '@/lib/livePaging'
 
 /** Composer members the log reads before the composer exists. createRunSession
  * fills them in right after; they are only called once setup has finished. */
@@ -631,10 +632,10 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
         return
       }
       currentTurnSeq.value = activeSessionSeq()
-      // Only the history pane can hold a window that starts mid-session; the live
-      // pane's top is simply the top of what it shows.
+      // A history window or a live copy still missing older pages (RT-07)
+      // starts mid-session: "Top" has somewhere to go.
       turnAwayFromTop.value = isAwayFromTop(
-        isViewingHistory.value && loadedTurnOffset.value > 0,
+        isViewingHistory.value ? loadedTurnOffset.value > 0 : livePaging.liveHasMore.value,
         firstTurnTop(),
       )
     })
@@ -642,17 +643,17 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
   // Scrolling covers most moves; this covers the ones that shift the turns
   // without a scroll event (a window loaded, a pane switched, a first prompt).
   watch(
-    [turnPositionTracked, turnScrollEl, () => promptTurns.value.length, loadedTurnOffset],
+    [turnPositionTracked, turnScrollEl, () => promptTurns.value.length, loadedTurnOffset, livePaging.liveHasMore],
     scheduleTurnPositionCheck,
     { flush: 'post' },
   )
 
   // "Top": back to the session's first prompt. The history pane may hold only a
   // window of the log, so it jumps by offset (one window read) rather than
-  // paging the whole log into the DOM; the live pane has no window to load, so
-  // its top is just the top of what it shows.
+  // paging the whole log into the DOM; a live copy still missing older pages
+  // pages back to it (RT-08), otherwise its top is the top of what it shows.
   function scrollToFirstTurn() {
-    if (isViewingHistory.value) {
+    if (isViewingHistory.value || livePaging.liveHasMore.value) {
       void jumpToSessionTurn(0)
       return
     }
@@ -708,6 +709,18 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
         await showEarlierHistory()
         guard++
       }
+      await nextTick()
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    } else if (seq < loadedTurnOffset.value) {
+      // RT-08: the live copy pages its older part in from disk (RT-07).
+      const runId = currentRunId.value
+      await pageBackTo(seq, {
+        loadedOffset: () => loadedTurnOffset.value,
+        hasMore: () => livePaging.liveHasMore.value || livePaging.liveLoadingMore.value,
+        position: () => livePaging.liveCursor.value,
+        loadEarlier: livePaging.showEarlierLive,
+      })
+      if (currentRunId.value !== runId) return
       await nextTick()
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     }

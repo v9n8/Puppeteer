@@ -41,6 +41,16 @@ export function useLivePaging(d: LivePagingDeps) {
     d.currentRunId.value ? d.live.sessions.get(d.currentRunId.value) : undefined,
   )
   const liveHasMore = computed(() => !!liveSession.value?.paging?.hasMore)
+  /** Byte offset the live copy's loaded part starts at (null: not placed yet). */
+  const liveCursor = computed(() => liveSession.value?.paging?.cursor ?? null)
+  // The read in flight per run, so a caller paging back (RT-08) can wait for it.
+  const inflight = new Map<string, Promise<void>>()
+  function track(runId: string, p: Promise<void>): Promise<void> {
+    inflight.set(runId, p)
+    return p.finally(() => {
+      if (inflight.get(runId) === p) inflight.delete(runId)
+    })
+  }
   const liveLoadingMore = computed(() => !!d.currentRunId.value && loading.value.has(d.currentRunId.value))
 
   function setLoading(runId: string, on: boolean) {
@@ -74,9 +84,13 @@ export function useLivePaging(d: LivePagingDeps) {
    * log's tail and join it in front of the copy, reading further back while
    * the copy holds the whole page. Once per copy.
    */
-  async function joinLiveTail(runId: string) {
+  function joinLiveTail(runId: string): Promise<void> {
     const s = d.live.sessions.get(runId)
-    if (!s || s.paging !== null || loading.value.has(runId)) return
+    if (!s || s.paging !== null || loading.value.has(runId)) return Promise.resolve()
+    return track(runId, readTail(runId, s))
+  }
+
+  async function readTail(runId: string, s: LiveSession) {
     setLoading(runId, true)
     try {
       let before: number | undefined
@@ -115,12 +129,21 @@ export function useLivePaging(d: LivePagingDeps) {
     }
   }
 
-  /** Load the page of the log just older than the live pane's first entry. */
+  /**
+   * Load the page of the log just older than the live pane's first entry. A
+   * read already in flight is waited for instead (its page is the progress).
+   */
   async function showEarlierLive() {
     const runId = d.currentRunId.value
     const s = runId ? d.live.sessions.get(runId) : undefined
-    if (!runId || !s?.paging?.hasMore || loading.value.has(runId)) return
-    const paging = s.paging
+    if (!runId || !s) return
+    const pending = inflight.get(runId)
+    if (pending) return pending
+    if (!s.paging?.hasMore) return
+    return track(runId, readEarlier(runId, s, s.paging))
+  }
+
+  async function readEarlier(runId: string, s: LiveSession, paging: LivePaging) {
     setLoading(runId, true)
     try {
       const page = await d.runsStore.getRunLogPage(runId, paging.cursor, d.pageStep)
@@ -165,7 +188,7 @@ export function useLivePaging(d: LivePagingDeps) {
     if (s.paging === null) void joinLiveTail(runId)
   }
 
-  return { liveHasMore, liveLoadingMore, showEarlierLive, joinLiveTail, seedLiveFromHistory }
+  return { liveHasMore, liveCursor, liveLoadingMore, showEarlierLive, joinLiveTail, seedLiveFromHistory }
 }
 
 export type LivePagingApi = ReturnType<typeof useLivePaging>

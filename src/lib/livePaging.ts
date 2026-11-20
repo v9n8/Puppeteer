@@ -107,3 +107,32 @@ export function toolIndexOf(entries: StreamEntry[]): Map<string, number> {
   })
   return index
 }
+
+/** What `pageBackTo` drives: the pane's loaded prompts and its "Show earlier". */
+export interface PromptPager {
+  /** Session-prompt index of the first loaded prompt. */
+  loadedOffset: () => number
+  /** Older records remain to load. */
+  hasMore: () => boolean
+  /** Where the loaded part starts (a byte cursor): moves with every page read. */
+  position: () => number | null
+  /** Load the next older page (waits for one already in flight). */
+  loadEarlier: () => Promise<void>
+}
+
+/**
+ * RT-08: page back until prompt `seq` (index in the whole session) is loaded.
+ * A page may hold no prompt (a long turn): only a read that does not move the
+ * loaded part's start counts as a stall, and a few of them in a row stop it
+ * (a read that keeps failing). Returns whether the prompt is loaded.
+ */
+export async function pageBackTo(seq: number, pager: PromptPager, maxPages = 500): Promise<boolean> {
+  let stalls = 0
+  for (let i = 0; i < maxPages && seq < pager.loadedOffset() && pager.hasMore(); i++) {
+    const before = pager.position()
+    await pager.loadEarlier()
+    if (pager.position() !== before) stalls = 0
+    else if (++stalls >= 3) break
+  }
+  return seq >= pager.loadedOffset()
+}
