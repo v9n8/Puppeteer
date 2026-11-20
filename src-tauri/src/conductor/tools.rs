@@ -220,14 +220,15 @@ pub(super) async fn reserve_worker(
     let worker_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    // A Codex worker of a Codex conductor runs on the conductor's Codex
-    // account (the one the user picked or switched it to); any other worker
-    // follows the project / default account at its start.
+    // A worker runs on its conductor's account of the same engine (the one the
+    // user picked or switched it to; worker_account); with none it follows the
+    // project / default account at its start.
     sqlx::query(
         "INSERT INTO runs (id, project_id, type, status, engine, created_at, title, role, conductor_run_id, system_instruction,
-                           codex_account_id)
+                           codex_account_id, claude_account_id)
          VALUES (?, ?, 'session', 'fetched', ?, ?, ?, 'worker', ?, ?,
-                 CASE WHEN ? = 'codex' THEN (SELECT codex_account_id FROM runs WHERE id = ? AND engine = 'codex') END)",
+                 CASE WHEN ? = 'codex' THEN (SELECT codex_account_id FROM runs WHERE id = ? AND engine = 'codex') END,
+                 CASE WHEN ? = 'claude' THEN (SELECT claude_account_id FROM runs WHERE id = ? AND engine = 'claude') END)",
     )
     .bind(&worker_id)
     .bind(&session.project_id)
@@ -237,6 +238,8 @@ pub(super) async fn reserve_worker(
     .bind(conductor_run_id)
     // Persisted so a resume (session_send to a stopped worker) re-applies it.
     .bind(instruction)
+    .bind(engine)
+    .bind(conductor_run_id)
     .bind(engine)
     .bind(conductor_run_id)
     .execute(db)
@@ -578,6 +581,7 @@ async fn session_send(
                 .map_err(|e| e.to_string())?;
             let permission_mode =
                 super::defaults::worker_resume_mode(&db, &state.conductor, conductor_run_id, &worker_id, &engine).await?;
+            super::worker_account::follow_conductor(&db, conductor_run_id, &worker_id).await?;
             crate::commands::runs::resume_run_with(
                 state.app.clone(),
                 state.app.state::<Db>(),

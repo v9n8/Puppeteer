@@ -17,6 +17,7 @@ pub mod defaults;
 mod framing;
 pub mod mcp_http;
 pub mod tools;
+mod worker_account;
 pub mod worker_results;
 pub mod worktree;
 
