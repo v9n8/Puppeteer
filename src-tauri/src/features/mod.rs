@@ -277,16 +277,27 @@ pub fn effective(tree: &[ModuleState], id: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// [`effective`] on the switches stored now. A failed read counts as off, so a
-/// service that cannot tell stays stopped.
+/// [`effective`] on the switches stored now. A failed read is tried once more
+/// (a busy pool times out now and then, and a watcher started on that one
+/// failure would stay off for the whole app session); a second failure counts
+/// as off, so a service that cannot tell stays stopped.
 pub async fn is_on(db: &Db, id: &str) -> bool {
-    match commands::load(db).await {
-        Ok(tree) => effective(&tree, id),
-        Err(e) => {
-            tracing::warn!(event = "features_load_failed", id = %id, error = %e);
-            false
+    is_on_with(id, || commands::load(db)).await
+}
+
+/// [`is_on`] over any loader, so the retry can be tested without a database.
+async fn is_on_with<F, Fut>(id: &str, mut load: F) -> bool
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<ModuleState>, String>>,
+{
+    for attempt in 1..=2 {
+        match load().await {
+            Ok(tree) => return effective(&tree, id),
+            Err(e) => tracing::warn!(event = "features_load_failed", id = %id, attempt, error = %e),
         }
     }
+    false
 }
 
 /// The gate of a command whose feature runs nothing in the background:
@@ -720,5 +731,30 @@ mod tests {
         for (rows, want) in cases {
             assert_eq!(&gcalendar::require(&db_with(rows).await).await, want, "{rows:?}");
         }
+    }
+
+    #[tokio::test]
+    async fn a_failed_switch_read_is_tried_once_more_before_counting_as_off() {
+        let on = resolve(&HashMap::new());
+        let id = on.iter().find(|m| m.enabled).map(|m| m.module).unwrap();
+        // One timed-out read, then the real answer.
+        let mut calls = 0;
+        let flaky = is_on_with(id, || {
+            calls += 1;
+            let res = if calls == 1 { Err("pool timed out".to_string()) } else { Ok(on.clone()) };
+            async move { res }
+        })
+        .await;
+        assert!(flaky);
+        assert_eq!(calls, 2);
+        // Two failures: off.
+        let mut calls = 0;
+        let broken = is_on_with(id, || {
+            calls += 1;
+            async { Err::<Vec<ModuleState>, _>("pool timed out".to_string()) }
+        })
+        .await;
+        assert!(!broken);
+        assert_eq!(calls, 2);
     }
 }

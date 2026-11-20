@@ -206,7 +206,7 @@ async fn handle_change(db: &Pool<Sqlite>, app: &AppHandle, path: &Path) {
         let Some(session_id) = path.file_stem().and_then(|s| s.to_str()) else {
             return;
         };
-        upsert_for_project(db, app, ProjectMatch::EncodedDir(dir_name), session_id, EngineCall::Claude).await;
+        upsert_for_project(db, app, ProjectMatch::EncodedDir(dir_name), session_id, EngineCall::Claude(path)).await;
     }
 }
 
@@ -218,7 +218,9 @@ enum ProjectMatch<'a> {
 }
 
 enum EngineCall<'a> {
-    Claude,
+    /// Carries the transcript copy that changed: a session can have one per
+    /// store, and only the live copy may rebuild the log (RT-01).
+    Claude(&'a Path),
     /// Carries the already-known rollout path so the upsert skips the tree walk.
     Codex(&'a Path),
 }
@@ -256,8 +258,8 @@ async fn upsert_for_project(
             EngineCall::Codex(file) => {
                 upsert_codex_session_file(db, &project_id, &project_name, &path, session_id, file, true).await
             }
-            EngineCall::Claude => {
-                upsert_claude_session(db, &project_id, &project_name, &path, session_id, true).await
+            EngineCall::Claude(file) => {
+                upsert_claude_session(db, &project_id, &project_name, &path, session_id, Some(file), true).await
             }
         };
         if let Ok(SyncOutcome::Imported(run_id)) | Ok(SyncOutcome::Updated(run_id)) = outcome {

@@ -2187,6 +2187,7 @@ pub async fn get_run_log(db: State<'_, Db>, run_id: String) -> Result<RunLog, St
                 &project_name,
                 &project_path,
                 sid,
+                None,
                 false,
             )
             .await;

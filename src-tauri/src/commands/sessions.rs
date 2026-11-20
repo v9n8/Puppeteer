@@ -428,9 +428,11 @@ pub(crate) async fn upsert_session_run_core(
         let cur_size = file_size(file);
         let newer = match synced_size {
             // We know exactly how many bytes we last mirrored. Since transcripts
-            // are append-only, rebuild iff the size changed — exact, so a short
-            // final tail written just after a previous sync is never missed.
-            Some(s) => cur_size.is_some_and(|c| c != s),
+            // are append-only, rebuild iff it grew — exact, so a short final tail
+            // written just after a previous sync is never missed. A shorter file
+            // is an older copy of the session (another store, RT-01): rebuilding
+            // from it would drop turns the log already has.
+            Some(s) => cur_size.is_some_and(|c| c > s),
             // Never mirrored from a transcript before — e.g. a Puppeteer-native run
             // whose richer log (result/cost summary, stderr) the drain wrote
             // directly. Keep the original guard so the engine's own finishing
@@ -572,28 +574,44 @@ pub(crate) async fn upsert_session_run_core(
 }
 
 /// Claude wrapper around [`upsert_session_run_core`]: resolves the native
-/// `<session-id>.jsonl` transcript and uses the Claude parser.
+/// `<session-id>.jsonl` transcript ([`pick_claude_transcript`]) and uses the
+/// Claude parser. `changed` is the file the watcher saw change, if any.
 pub(crate) async fn upsert_claude_session(
     db: &sqlx::SqlitePool,
     project_id: &str,
     project_name: &str,
     project_path: &str,
     session_id: &str,
+    changed: Option<&Path>,
     defer_when_busy: bool,
 ) -> Result<SyncOutcome, String> {
-    let file = {
-        let mut found: Option<PathBuf> = None;
-        for dir in claude_sessions_dirs(db, project_path).await {
-            let candidate = dir.join(format!("{}.jsonl", session_id));
-            if candidate.is_file() {
-                found = Some(candidate);
-                break;
-            }
-        }
-        match found {
-            Some(f) => f,
-            None => return Ok(SyncOutcome::Skipped),
-        }
+    let dirs = claude_sessions_dirs(db, project_path).await;
+    upsert_claude_session_in(db, project_id, project_name, project_path, session_id, &dirs, changed, defer_when_busy)
+        .await
+}
+
+/// [`upsert_claude_session`] over the given transcript `dirs`.
+#[allow(clippy::too_many_arguments)]
+async fn upsert_claude_session_in(
+    db: &sqlx::SqlitePool,
+    project_id: &str,
+    project_name: &str,
+    project_path: &str,
+    session_id: &str,
+    dirs: &[PathBuf],
+    changed: Option<&Path>,
+    defer_when_busy: bool,
+) -> Result<SyncOutcome, String> {
+    let tracked: Option<String> =
+        sqlx::query_scalar("SELECT transcript_path FROM runs WHERE project_id = ? AND session_id = ?")
+            .bind(project_id)
+            .bind(session_id)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| e.to_string())?
+            .flatten();
+    let Some(file) = pick_claude_transcript(dirs, session_id, tracked.as_deref().map(Path::new), changed) else {
+        return Ok(SyncOutcome::Skipped);
     };
     upsert_session_run_core(
         db,
@@ -607,6 +625,46 @@ pub(crate) async fn upsert_claude_session(
         defer_when_busy,
     )
     .await
+}
+
+/// The copy of a Claude session's transcript to mirror (RT-01). One session can
+/// live in several stores — `~/.claude` and an account profile an in-app resume
+/// copied it into — and the copies diverge: the app writes one, the CLI the
+/// other. The run follows `tracked` (its `transcript_path`, the copy it last
+/// resumed or mirrored) unless another copy was written after it.
+/// - `changed` (the file the watcher saw change): taken when it is the tracked
+///   copy or newer than it; an older copy changing is ignored (`None`), so a
+///   stale store never overwrites the log.
+/// - no `changed`: the tracked copy, or the newest copy found in `dirs` when one
+///   is newer than it (or nothing is tracked).
+pub(crate) fn pick_claude_transcript(
+    dirs: &[PathBuf],
+    session_id: &str,
+    tracked: Option<&Path>,
+    changed: Option<&Path>,
+) -> Option<PathBuf> {
+    let mtime = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok();
+    let tracked = tracked.filter(|p| p.is_file());
+    if let Some(changed) = changed {
+        if !changed.is_file() {
+            return None;
+        }
+        return match tracked {
+            Some(t) if t != changed && mtime(changed) <= mtime(t) => None,
+            _ => Some(changed.to_path_buf()),
+        };
+    }
+    let mut best = tracked.map(Path::to_path_buf);
+    for candidate in dirs.iter().map(|d| d.join(format!("{session_id}.jsonl"))) {
+        if !candidate.is_file() {
+            continue;
+        }
+        match &best {
+            Some(b) if mtime(&candidate) <= mtime(b) => {}
+            _ => best = Some(candidate),
+        }
+    }
+    best
 }
 
 /// Reconcile every Claude session stored for a project's working dir into Puppeteer
@@ -668,6 +726,7 @@ async fn reconcile_claude(db: &Db, project_id: &str) -> Result<i64, String> {
                 &project_name,
                 &project_path,
                 session_id,
+                None,
                 true,
             )
             .await
@@ -817,5 +876,96 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reconcile_claude(&db, "nope").await, Ok(0));
+    }
+
+    /// One user/assistant exchange of a transcript whose cwd is `cwd`.
+    fn exchange(cwd: &str, prompt: &str, reply: &str) -> String {
+        let user = serde_json::json!({"type": "user", "cwd": cwd, "message": {"role": "user", "content": prompt}});
+        let assistant = serde_json::json!({"type": "assistant", "cwd": cwd, "message": {"role": "assistant", "content": [{"type": "text", "text": reply}]}});
+        format!("{user}\n{assistant}\n")
+    }
+
+    fn set_age(path: &Path, secs_ago: u64) {
+        let t = std::time::SystemTime::now() - std::time::Duration::from_secs(secs_ago);
+        fs::File::options().write(true).open(path).unwrap().set_modified(t).unwrap();
+    }
+
+    #[tokio::test]
+    async fn the_watcher_follows_the_live_transcript_copy_and_never_drops_app_turns() {
+        let root = std::env::temp_dir().join(format!("puppeteer-two-copies-{}", Uuid::new_v4()));
+        let project = root.join("proj");
+        let cwd = project.to_str().unwrap().to_string();
+        let encoded = encode_project_dir(&cwd);
+        let home = root.join("home").join(&encoded);
+        let account = root.join("account").join(&encoded);
+        for d in [&project.join(".puppeteer").join("runs"), &home, &account] {
+            fs::create_dir_all(d).unwrap();
+        }
+        let home_copy = home.join("s1.jsonl");
+        let account_copy = account.join("s1.jsonl");
+        // Both copies share turn 1; the in-app turn only went to the account copy.
+        fs::write(&home_copy, exchange(&cwd, "turn one", "ok one")).unwrap();
+        let app_turns = exchange(&cwd, "turn one", "ok one") + &exchange(&cwd, "progress so far?", "halfway");
+        fs::write(&account_copy, &app_turns).unwrap();
+        set_age(&home_copy, 600);
+        set_age(&account_copy, 300);
+
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'p', ?, 'c')")
+            .bind(&cwd)
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO runs (id, project_id, type, status, engine, session_id, transcript_path, transcript_synced_size, created_at)
+             VALUES ('r1', 'p1', 'session', 'done', 'claude', 's1', ?, ?, 'c')",
+        )
+        .bind(account_copy.to_str().unwrap())
+        .bind(app_turns.len() as i64)
+        .execute(&db)
+        .await
+        .unwrap();
+        let log = project.join(".puppeteer").join("runs").join("r1.log");
+        fs::write(&log, "app log with progress so far?\n").unwrap();
+        // `~/.claude` is searched first, as `claude_sessions_dirs` orders them.
+        let dirs = [home.clone(), account.clone()];
+        let sync = |changed: Option<PathBuf>| {
+            let db = db.clone();
+            let dirs = dirs.clone();
+            let cwd = cwd.clone();
+            async move {
+                match upsert_claude_session_in(&db, "p1", "p", &cwd, "s1", &dirs, changed.as_deref(), true).await {
+                    Ok(SyncOutcome::Updated(id)) => format!("updated {id}"),
+                    Ok(SyncOutcome::Skipped) => "skipped".to_string(),
+                    Ok(SyncOutcome::Imported(_)) => "imported".to_string(),
+                    Err(e) => e,
+                }
+            }
+        };
+        let log_text = || fs::read_to_string(&log).unwrap();
+
+        // The stale `~/.claude` copy changes: it must not overwrite the log.
+        fs::write(&home_copy, exchange(&cwd, "turn one", "ok one") + "\n").unwrap();
+        set_age(&home_copy, 500);
+        assert_eq!(sync(Some(home_copy.clone())).await, "skipped");
+        // Nor on the paths that name no file (project open, reading the log).
+        assert_eq!(sync(None).await, "skipped");
+        assert!(log_text().contains("progress so far?"));
+
+        // The account copy (the one the run resumed) grows: the log follows it.
+        let mut grown = app_turns.clone();
+        grown.push_str(&exchange(&cwd, "next step", "done"));
+        fs::write(&account_copy, &grown).unwrap();
+        assert_eq!(sync(Some(account_copy.clone())).await, "updated r1");
+        let text = log_text();
+        assert!(text.contains("progress so far?") && text.contains("next step"), "{text}");
+
+        // A newer copy that is shorter than what was mirrored is an older state
+        // of the session: still no overwrite.
+        set_age(&home_copy, 0);
+        assert_eq!(sync(Some(home_copy.clone())).await, "skipped");
+        assert!(log_text().contains("progress so far?"));
+        let _ = fs::remove_dir_all(&root);
     }
 }
