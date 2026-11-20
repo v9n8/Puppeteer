@@ -59,6 +59,20 @@ test('UR-59: the composer list starts as tall as its first rows are on screen', 
   assert.match(src, /watch\(\(\) => \[props\.quotes, editingId\.value, collapsed\.value\], measureRows/)
 })
 
+test('UR-69: the note editor starts two lines tall, drags taller to a cap, and the list re-measures', () => {
+  const src = read('../../components/sessions/ComposerQuoteBlock.vue')
+  assert.match(src, /<div v-if="editingId === q\.id" class="flex items-start gap-2 pb-1\.5 pl-6">/)
+  assert.match(src, /rows="2"\s+class="max-h-32 min-w-0 flex-1 resize-y /)
+  assert.doesNotMatch(src, /rows="1"|resize-none/)
+  // The key hint stays beside the field, level with its first line.
+  assert.match(src, /<span class="shrink-0 pt-\[5px\] text-2xs text-muted-foreground">\{\{ t\('run\.quotes\.noteKeys'\) \}\}<\/span>/)
+  assert.match(src, /observedNote = el\s+observer\.observe\(el\)/)
+  for (const fn of ['saveEdit', 'cancelEdit', 'reset']) {
+    assert.match(src, new RegExp(`function ${fn}\\(\\) \\{[^}]*stopObservingNote\\(\\)`), fn)
+  }
+  assert.match(src, /if \(e\.key === 'Enter' && !e\.shiftKey && !e\.isComposing\)/)
+})
+
 test('UR-50: the Quote note popover follows the v3 popover frame and shows the excerpt in the Quote style', () => {
   const src = read('../../components/QuoteNotePopover.vue')
   assert.match(src, /rounded-xl border border-border bg-popover shadow-xl/)

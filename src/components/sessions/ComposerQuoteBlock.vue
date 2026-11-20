@@ -125,6 +125,7 @@ function reset() {
   userHeight.value = null
   collapsed.value = false
   editingId.value = null
+  stopObservingNote()
 }
 watch(() => props.runId, reset)
 watch(() => props.sending, (now, before) => { if (before && !now) reset() })
@@ -178,23 +179,36 @@ const editText = ref('')
 const noteInput = ref<HTMLTextAreaElement[] | HTMLTextAreaElement | null>(null)
 // Rows change height when quotes or notes come and go, or a note is being edited.
 watch(() => [props.quotes, editingId.value, collapsed.value], measureRows, { deep: true, flush: 'post' })
+// A note dragged taller grows its row too, which the watch above cannot see.
+let observedNote: HTMLTextAreaElement | null = null
+function stopObservingNote() {
+  if (observedNote) observer?.unobserve(observedNote)
+  observedNote = null
+}
 function startEdit(q: DraftQuote) {
   editingId.value = q.id
   editText.value = q.note ?? ''
   void nextTick(() => {
     const el = Array.isArray(noteInput.value) ? noteInput.value[0] : noteInput.value
     el?.focus()
+    stopObservingNote()
+    if (el && observer) {
+      observedNote = el
+      observer.observe(el)
+    }
   })
 }
 function saveEdit() {
   const id = editingId.value
   if (!id) return
   editingId.value = null
+  stopObservingNote()
   const current = props.quotes.find((q) => q.id === id)
   if (current && (current.note ?? '') !== editText.value) emit('setNote', id, editText.value)
 }
 function cancelEdit() {
   editingId.value = null
+  stopObservingNote()
 }
 function onNoteKey(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -327,18 +341,20 @@ const btn = 'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center ro
               <X class="h-3.5 w-3.5" :stroke-width="2.5" />
             </button>
           </div>
-          <div v-if="editingId === q.id" class="flex items-center gap-2 pb-1.5 pl-6">
+          <!-- Two lines to start, dragged taller up to max-h-32 so the composer stays on screen;
+               the key hint stays level with the first line. -->
+          <div v-if="editingId === q.id" class="flex items-start gap-2 pb-1.5 pl-6">
             <textarea
               ref="noteInput"
               v-model="editText"
-              rows="1"
-              class="min-w-0 flex-1 resize-none rounded border border-border bg-background px-2 py-1 text-2xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              rows="2"
+              class="max-h-32 min-w-0 flex-1 resize-y rounded border border-border bg-background px-2 py-1 text-2xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :placeholder="t('run.quotes.notePlaceholder')"
               :aria-label="t('run.quotes.notePlaceholder')"
               @keydown="onNoteKey"
               @blur="saveEdit"
             />
-            <span class="shrink-0 text-2xs text-muted-foreground">{{ t('run.quotes.noteKeys') }}</span>
+            <span class="shrink-0 pt-[5px] text-2xs text-muted-foreground">{{ t('run.quotes.noteKeys') }}</span>
           </div>
         </li>
       </ol>
