@@ -31,8 +31,6 @@
     "usage": {
       "title": "Mức dùng plan",
       "summaryTitle": "Mức dùng plan · bấm để xem mọi tài khoản",
-      "col5h": "5h · reset sau",
-      "colWeek": "Tuần · reset sau",
       "using": "Đang dùng ở Session này",
       "refreshAll": "Làm mới mọi tài khoản",
       "noData": "Chưa có số liệu",

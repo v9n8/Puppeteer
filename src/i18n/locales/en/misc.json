@@ -31,8 +31,6 @@
     "usage": {
       "title": "Plan usage",
       "summaryTitle": "Plan usage · click to see every account",
-      "col5h": "5h · resets in",
-      "colWeek": "Week · resets in",
       "using": "Used by this Session",
       "refreshAll": "Refresh every account",
       "noData": "No data yet",

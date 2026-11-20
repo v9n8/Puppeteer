@@ -50,12 +50,12 @@ test('UR-57: one usage block — a summary button and a panel with a bordered bl
   const panel = read('../../components/UsagePanel.vue')
   assert.match(panel, /w-\[460px\][^"]*bg-popover p-3/)
   assert.match(panel, /overflow-hidden rounded-md border border-border bg-card/)
-  assert.match(panel, /h-8 border-b border-border bg-muted/)
+  assert.match(panel, /h-8[^"]*border-b border-border bg-muted/)
   assert.match(panel, /divide-y divide-border/)
   assert.match(panel, /grid-cols-\[minmax\(0,1fr\)_112px_112px\]/)
   assert.match(panel, /t\('run\.accountMenu\.manage'\)/)
   assert.match(panel, /usageColumns\(/)
-  const keys = ['title', 'summaryTitle', 'col5h', 'colWeek', 'using', 'refreshAll', 'noData', 'refresh', 'windowOf', 'more']
+  const keys = ['title', 'summaryTitle', 'using', 'refreshAll', 'noData', 'refresh', 'windowOf', 'more']
   for (const lang of ['en', 'vi']) {
     const usage = json(`../../i18n/locales/${lang}/misc.json`).budget.usage
     for (const k of keys) assert.equal(typeof usage[k], 'string', `${lang} misc.budget.usage.${k}`)
@@ -72,4 +72,15 @@ test('UR-66: the summary lists every account by its 5h window in half the bar, t
   assert.match(summary, /data-usage-more/)
   // no donut per account, no chip per hot account
   assert.doesNotMatch(summary, /UsageRing\.vue|<UsageRing |data-usage-hot|summaryRows|max-\[901px\]:hidden/)
+})
+
+test('UR-67: an engine block heads with its name only — no "5h · resets in" / "Week · resets in" columns', () => {
+  const panel = read('../../components/UsagePanel.vue')
+  assert.match(panel, /flex h-8 min-w-0 items-center gap-1\.5 border-b border-border bg-muted/)
+  assert.doesNotMatch(panel, /usage\.col5h|usage\.colWeek/)
+  for (const lang of ['en', 'vi']) {
+    const usage = json(`../../i18n/locales/${lang}/misc.json`).budget.usage
+    assert.equal(usage.col5h, undefined, lang)
+    assert.equal(usage.colWeek, undefined, lang)
+  }
 })

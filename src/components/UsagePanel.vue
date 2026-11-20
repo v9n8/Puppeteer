@@ -36,7 +36,7 @@ const ENGINES = [
   { name: 'Codex', icon: Terminal },
 ]
 
-// The time to reset in short ("5n 14g"): the column head already says "resets in".
+// The time to reset in short ("5n 14g"); the cell's tooltip names the window.
 function resetShort(w: UsageWindow): string {
   if (w.rolledOver) return t('misc.budget.windowReset')
   const c = resetCountdown(w.reset, props.now)
@@ -138,13 +138,9 @@ const refreshingAny = computed(() => props.rows.some((r) => r.refreshing))
         class="overflow-hidden rounded-md border border-border bg-card"
         :aria-label="b.name"
       >
-        <div :class="COLS" class="h-8 border-b border-border bg-muted px-2.5 text-2xs">
-          <span class="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
-            <component :is="b.icon" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="2" />
-            {{ b.name }}<span class="font-normal text-muted-foreground">· {{ b.rows.length }}</span>
-          </span>
-          <span class="truncate text-muted-foreground">{{ t('misc.budget.usage.col5h') }}</span>
-          <span class="truncate text-muted-foreground">{{ t('misc.budget.usage.colWeek') }}</span>
+        <div class="flex h-8 min-w-0 items-center gap-1.5 border-b border-border bg-muted px-2.5 text-2xs font-semibold text-foreground">
+          <component :is="b.icon" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" :stroke-width="2" />
+          {{ b.name }}<span class="font-normal text-muted-foreground">· {{ b.rows.length }}</span>
         </div>
         <ul class="divide-y divide-border">
           <li v-for="r in b.rows" :key="r.row.key" :class="COLS" class="min-h-11 px-2.5 py-2" :data-usage-row="r.row.key">
