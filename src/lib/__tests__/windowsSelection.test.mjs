@@ -3,7 +3,9 @@
 // Run: node --test src/lib/__tests__/windowsSelection.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { markAll, mergePlan, pruneMarks, rangeMark, toggleMark } from '../windowsSelection.ts'
+import {
+  boxBetween, boxHits, boxMarks, edgeScrollStep, markAll, mergePlan, pruneMarks, rangeMark, toggleMark,
+} from '../windowsSelection.ts'
 
 const flat = ['a', 'b', 'c', 'd', 'e'].map((label) => ({ label }))
 const sorted = (set) => [...set].sort()
@@ -62,4 +64,50 @@ test('mergePlan: the window running the overlay moves back last', () => {
   assert.deepEqual(mergePlan([{ label: 'remote-desktop', canMerge: false }], ['remote-desktop'], 'remote-desktop'), {
     merge: [], skip: ['remote-desktop'],
   })
+})
+
+// Selection box (UR-72): touching a card marks it; ⇧ / ⌘ adds to the marks from before.
+const r = (left, top, w = 100, h = 80) => ({ left, top, right: left + w, bottom: top + h })
+const grid = [
+  { label: 'a', rect: r(0, 0) }, { label: 'b', rect: r(112, 0) }, { label: 'c', rect: r(224, 0) },
+  { label: 'd', rect: r(0, 92) }, { label: 'e', rect: r(112, 92) },
+]
+
+test('boxBetween: the same box whichever way the pointer went', () => {
+  const want = { left: 10, top: 20, right: 150, bottom: 120 }
+  assert.deepEqual(boxBetween(10, 20, 150, 120), want)
+  assert.deepEqual(boxBetween(150, 120, 10, 20), want)
+  assert.deepEqual(boxBetween(150, 20, 10, 120), want)
+})
+
+test('boxHits: a card the box only touches counts; one in the gap does not', () => {
+  // From the gap left of b down into e: b and e, not a / d (their right edge is at 100).
+  assert.deepEqual(boxHits(grid, boxBetween(106, -6, 130, 100)), ['b', 'e'])
+  // An edge on an edge counts.
+  assert.deepEqual(boxHits(grid, boxBetween(100, 40, 105, 41)), ['a'])
+  // Only gap: nothing.
+  assert.deepEqual(boxHits(grid, boxBetween(101, 81, 111, 91)), [])
+  // Across both rows and every column, in the order given.
+  assert.deepEqual(boxHits(grid, boxBetween(-5, -5, 400, 200)), ['a', 'b', 'c', 'd', 'e'])
+})
+
+test('boxMarks: plain replaces the marks; additive keeps the old ones even when the box leaves', () => {
+  const before = new Set(['a', 'c'])
+  assert.deepEqual(sorted(boxMarks(before, ['b', 'e'], false)), ['b', 'e'])
+  assert.deepEqual(sorted(boxMarks(before, ['b', 'e'], true)), ['a', 'b', 'c', 'e'])
+  // The box shrank off "e" and never covered "a": "a" stays (before), "e" goes.
+  assert.deepEqual(sorted(boxMarks(before, ['b'], true)), ['a', 'b', 'c'])
+  assert.deepEqual(sorted(boxMarks(before, [], false)), [])
+  assert.deepEqual(sorted(before), ['a', 'c'])
+})
+
+test('edgeScrollStep: 0 away from the edges, faster nearer the edge, capped, sign = direction', () => {
+  const step = (y) => edgeScrollStep(y, 100, 500, 32, 16)
+  assert.equal(step(300), 0)
+  assert.equal(step(132), 0)
+  assert.equal(step(468), 0)
+  assert.ok(step(120) < 0 && step(120) > step(101), `${step(120)} ${step(101)}`)
+  assert.equal(step(90), -16)
+  assert.ok(step(480) > 0 && step(480) < step(499), `${step(480)} ${step(499)}`)
+  assert.equal(step(600), 16)
 })

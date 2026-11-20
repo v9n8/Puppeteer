@@ -75,3 +75,45 @@ export function mergePlan(
   if (last) merge.push(last)
   return { merge, skip }
 }
+
+/** A rectangle in one coordinate space (the grid's scroll content, for the selection box). */
+export interface Box {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+/** The selection box from where the press began to where the pointer is, dragged any way. */
+export function boxBetween(x0: number, y0: number, x1: number, y1: number): Box {
+  return { left: Math.min(x0, x1), top: Math.min(y0, y1), right: Math.max(x0, x1), bottom: Math.max(y0, y1) }
+}
+
+/** Cards the box touches, in the order given: touching is enough, a card need not sit inside it (as in Finder). */
+export function boxHits(cards: readonly { label: string; rect: Box }[], box: Box): string[] {
+  return cards
+    .filter(({ rect }) => rect.left <= box.right && rect.right >= box.left && rect.top <= box.bottom && rect.bottom >= box.top)
+    .map((c) => c.label)
+}
+
+/**
+ * Marks while the box is dragged: the cards it touches replace the marks, or are added to the
+ * marks from before the drag when ⇧ / ⌘ was held at the press. A card the box leaves loses its
+ * mark unless it had one before.
+ */
+export function boxMarks(before: ReadonlySet<string>, hits: Iterable<string>, additive: boolean): Set<string> {
+  const next = new Set(additive ? before : [])
+  for (const label of hits) next.add(label)
+  return next
+}
+
+/**
+ * Pixels to scroll per frame while the pointer is within `zone` of an edge of the scroll area
+ * (top = just under the sticky drop strip): faster the closer it gets, up to `max`; negative
+ * scrolls up, 0 away from the edges.
+ */
+export function edgeScrollStep(y: number, top: number, bottom: number, zone: number, max: number): number {
+  if (y < top + zone) return -Math.ceil(max * Math.min(1, (top + zone - y) / zone))
+  if (y > bottom - zone) return Math.ceil(max * Math.min(1, (y - (bottom - zone)) / zone))
+  return 0
+}
