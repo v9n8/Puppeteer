@@ -4,7 +4,7 @@
 import { ref, computed, nextTick, watch, type ComponentPublicInstance } from 'vue'
 import type { Repo } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { GitPullRequest, Bug, Loader2, CircleDashed } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
@@ -14,8 +14,6 @@ import {
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
-import { useFileActions } from '@/lib/fileActions'
-import { sessionWorkDir } from '@/lib/sessionPaths'
 import { useRunFlagFilter } from './useRunFlagFilter'
 import type { RunSessionCore } from './useRunSessionCore'
 import type { RunConductor } from './useRunConductor'
@@ -36,17 +34,16 @@ interface ParsedRef {
 export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor, log: RunLog) {
   const {
     t, router, runsStore, live, tabsStore, claudeStore, uiLayout, confirm, prompt, toast, projectId,
-    project, isSessionWindow, activeRunId, engineOverride, loadedRunEngine, currentRunId, runLabel,
+    isSessionWindow, activeRunId, engineOverride, loadedRunEngine, currentRunId, runLabel,
   } = core
   const {
     conductorIdsWithRunningWorker,
   } = conductor
   const {
     popoutSession, sessionListEl, viewingLogRunId, inputContent, inputContentRunId, inputContentError, scrollMemory,
-    loadInputContent, clearHistoryView, forking, forkRun, loadRunLog,
+    loadInputContent, clearHistoryView, forking, forkRun,
   } = log
   const sessionTabs = useSessionTabsStore()
-  const fileActions = useFileActions()
 
   const repos = ref<Repo[]>([])
 
@@ -415,21 +412,15 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     }
   }
 
-  // The folder a session works in: a worker's worktree, else the Project.
-  async function copyWorkDir(run: RunRecord) {
-    const dir = sessionWorkDir(run, project.value?.path)
-    if (!dir) return
+  // Show this run/session's own file (its log) in the OS file manager (RT-17).
+  async function revealLogFile(run: RunRecord) {
     try {
-      await navigator.clipboard.writeText(dir)
-      toast.success(t('run.workDirCopied'))
+      const path = await runsStore.getRunLogPath(run.id)
+      if (!path) { toast.info(t('run.noLogFileYet')); return }
+      await revealItemInDir(path)
     } catch (e) {
       toast.error(String(e))
     }
-  }
-
-  function revealWorkDir(run: RunRecord) {
-    const dir = sessionWorkDir(run, project.value?.path)
-    if (dir) return fileActions.revealDir(dir)
   }
 
   // Copy this run/session's Puppeteer run ID to the clipboard — the id the puppeteer MCP
@@ -438,37 +429,6 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
     try {
       await navigator.clipboard.writeText(run.id)
       toast.success(t('run.sessionIdCopied'))
-    } catch (e) {
-      toast.error(String(e))
-    }
-  }
-
-  // A file of `run` (its log, its transcript) opens as a tab of that session,
-  // which the Session area then shows (V3-24).
-  async function openRunFileTab(run: RunRecord, path: string) {
-    sessionTabs.open(run.id, path, null, project.value?.path)
-    if (currentRunId.value !== run.id) await loadRunLog(run.id)
-  }
-
-  // Open this run/session's log file as a tab of that session.
-  async function viewLogFile(run: RunRecord) {
-    if (!project.value) return
-    try {
-      const path = await runsStore.getRunLogPath(run.id)
-      if (!path) { toast.info(t('run.noLogFileYet')); return }
-      await openRunFileTab(run, path)
-    } catch (e) {
-      toast.error(String(e))
-    }
-  }
-
-  // Write this run/session's conversation to a Markdown file (secrets redacted)
-  // and open it as a tab of that session.
-  async function exportTranscript(run: RunRecord) {
-    try {
-      const path = await runsStore.exportTranscript(run.id)
-      toast.success(t('run.transcriptExported', { path }))
-      if (project.value) await openRunFileTab(run, path)
     } catch (e) {
       toast.error(String(e))
     }
@@ -535,14 +495,11 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   function runActionHandlers(run: RunRecord, rename: (run: RunRecord) => void = startRename) {
     return {
       popout: () => popoutSession(run.id),
-      copyWorkDir: () => copyWorkDir(run),
-      revealWorkDir: () => revealWorkDir(run),
+      copyLogPath: () => copyLogPath(run),
+      revealLog: () => revealLogFile(run),
       openGithub: () => openRunInBrowser(run),
       refetch: () => handleRefetch(run.id),
-      copyLogPath: () => copyLogPath(run),
       copyId: () => copySessionId(run),
-      viewLog: () => viewLogFile(run),
-      exportTranscript: () => exportTranscript(run),
       fork: () => forkRun(run),
       rename: () => rename(run),
       togglePin: () => handleTogglePin(run),

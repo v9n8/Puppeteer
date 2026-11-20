@@ -5,7 +5,7 @@
 import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { useProjectsStore, type Repo } from '@/stores/projects'
 import { useRunsStore } from '@/stores/runs'
 import { useLiveRunsStore } from '@/stores/liveRuns'
@@ -15,10 +15,8 @@ import type { BoardRun } from '@/stores/flagBoard'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
-import { useFileActions } from '@/lib/fileActions'
 import { cardTitle } from '@/lib/flagBoard'
 import { openSessionWindow } from '@/lib/sessionWindow'
-import { sessionWorkDir } from '@/lib/sessionPaths'
 import { IS_SESSION_WINDOW } from '@/lib/windowMode'
 
 type Busy = { kind: 'refetching' | 'pinning' | 'protecting' | 'deleting' | 'forking'; id: string } | null
@@ -32,7 +30,6 @@ export function useBoardRunActions(onChanged: () => void) {
   const live = useLiveRunsStore()
   const sessionTabs = useSessionTabsStore()
   const workspaceTabs = useWorkspaceTabsStore()
-  const fileActions = useFileActions()
   const { confirm } = useConfirm()
   const { prompt } = usePrompt()
   const { toast } = useToast()
@@ -66,6 +63,7 @@ export function useBoardRunActions(onChanged: () => void) {
     return {
       run,
       isSessionWindow: IS_SESSION_WINDOW,
+      canPopout: true,
       githubUrl: githubUrl(run),
       busy: {
         refetching: is('refetching'),
@@ -97,18 +95,10 @@ export function useBoardRunActions(onChanged: () => void) {
     }
   }
 
-  function workDir(run: BoardRun): string | null {
-    return sessionWorkDir(run, projects.projects.find((p) => p.id === run.project_id)?.path)
-  }
+
 
   function openSession(run: BoardRun) {
     router.push({ name: 'project-run-detail', params: { projectId: run.project_id, runId: run.id } }).catch(() => {})
-  }
-
-  /** A file of the Session opens as a tab of that Session, which the Session screen then shows. */
-  function openFileTab(run: BoardRun, path: string) {
-    sessionTabs.open(run.id, path, null, projects.projects.find((p) => p.id === run.project_id)?.path)
-    openSession(run)
   }
 
   async function withLogPath(run: BoardRun, use: (path: string) => void | Promise<void>) {
@@ -176,14 +166,8 @@ export function useBoardRunActions(onChanged: () => void) {
   function actionHandlers(run: BoardRun) {
     return {
       popout: () => void openSessionWindow(run.project_id, run.id),
-      copyWorkDir: () => {
-        const dir = workDir(run)
-        if (dir) void copyText(dir, 'run.workDirCopied')
-      },
-      revealWorkDir: () => {
-        const dir = workDir(run)
-        if (dir) void fileActions.revealDir(dir)
-      },
+      copyLogPath: () => withLogPath(run, (path) => copyText(path, 'run.logPathCopied')),
+      revealLog: () => withLogPath(run, (path) => revealItemInDir(path)),
       openGithub: () => {
         const url = githubUrl(run)
         if (url) void openUrl(url)
@@ -192,18 +176,7 @@ export function useBoardRunActions(onChanged: () => void) {
         await runs.refetchRun(run.id)
         onChanged()
       }),
-      copyLogPath: () => withLogPath(run, (path) => copyText(path, 'run.logPathCopied')),
       copyId: () => copyText(run.id, 'run.sessionIdCopied'),
-      viewLog: () => withLogPath(run, (path) => openFileTab(run, path)),
-      exportTranscript: async () => {
-        try {
-          const path = await runs.exportTranscript(run.id)
-          toast.success(t('run.transcriptExported', { path }))
-          openFileTab(run, path)
-        } catch (e) {
-          toast.error(String(e))
-        }
-      },
       fork: () => fork(run),
       rename: () => rename(run),
       togglePin: () => guarded('pinning', run, async () => {

@@ -4,18 +4,17 @@
 // the same rules. RunView owns the handlers (and their busy state); this only
 // renders and emits.
 //
-//   section 'actions'  Pop out · Copy path · Reveal folder · Open on GitHub · Refetch |
-//                      Copy log path · Copy session ID · View log file · Export transcript |
+//   section 'actions'  Pop out (Board only) · Copy path · Reveal in Finder · Open on GitHub · Refetch |
+//                      Copy session ID |
 //                      Flag ▸ · Fork · Rename · Pin · Protect
+// Copy path / Reveal point at the session's own file (its log, RT-17).
 //   section 'delete'   | Delete (hidden while the run is running)
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   AppWindow,
-  ClipboardCopy,
   Copy,
   ExternalLink,
-  FileDown,
   FolderOpen,
   Flag,
   GitFork,
@@ -24,7 +23,6 @@ import {
   Pin,
   PinOff,
   RefreshCw,
-  ScrollText,
   Shield,
   ShieldOff,
   Trash2,
@@ -42,6 +40,8 @@ const props = defineProps<{
   section: 'actions' | 'delete'
   /** A session pop-out can't pop itself out again. */
   isSessionWindow: boolean
+  /** Offer "Open in new window": only the Board, which has no other way to pop out (RT-17). */
+  canPopout?: boolean
   /** The run's issue / PR on GitHub, when any. */
   githubUrl: string | null
   /** An action for this run is in flight (its item is disabled meanwhile). */
@@ -52,14 +52,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   popout: []
-  copyWorkDir: []
-  revealWorkDir: []
+  copyLogPath: []
+  revealLog: []
   openGithub: []
   refetch: []
-  copyLogPath: []
   copyId: []
-  viewLog: []
-  exportTranscript: []
   fork: []
   rename: []
   togglePin: []
@@ -78,18 +75,19 @@ const currentFlagName = computed(() => {
 
 <template>
   <template v-if="section === 'actions'">
-    <!-- Pop this session out into its own OS window (one per run). Hidden inside
-         a session window — can't re-pop what's popped. -->
-    <DropdownItem v-if="!isSessionWindow" @click="emit('popout')">
+    <!-- Pop this session out into its own OS window (one per run). Only on the
+         Board (History and the header have their own button); hidden inside a
+         session window — can't re-pop what's popped. -->
+    <DropdownItem v-if="canPopout && !isSessionWindow" @click="emit('popout')">
       <AppWindow class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.popOutSession') }}
     </DropdownItem>
-    <!-- The folder the session works in (a worker's worktree when it has one). -->
-    <DropdownItem @click="emit('copyWorkDir')">
+    <!-- The session's own file (.puppeteer/runs/<id>.log). -->
+    <DropdownItem @click="emit('copyLogPath')">
       <Copy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.copyWorkDir') }}
     </DropdownItem>
-    <DropdownItem @click="emit('revealWorkDir')">
+    <DropdownItem @click="emit('revealLog')">
       <FolderOpen class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t(revealKey) }}
     </DropdownItem>
@@ -106,21 +104,9 @@ const currentFlagName = computed(() => {
       {{ run.run_type === 'analyze_issue' ? t('run.refetchIssue') : t('run.refetchPr') }}
     </DropdownItem>
     <DropdownSeparator />
-    <DropdownItem @click="emit('copyLogPath')">
-      <ClipboardCopy class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-      {{ t('run.copyLogPath') }}
-    </DropdownItem>
     <DropdownItem @click="emit('copyId')">
       <Hash class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
       {{ t('run.copySessionId') }}
-    </DropdownItem>
-    <DropdownItem @click="emit('viewLog')">
-      <ScrollText class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-      {{ t('run.viewLogFile') }}
-    </DropdownItem>
-    <DropdownItem @click="emit('exportTranscript')">
-      <FileDown class="h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
-      {{ t('run.exportTranscript') }}
     </DropdownItem>
     <DropdownSeparator />
     <!-- Flag ▸ (V3-19): the same menu as the header chip. -->
