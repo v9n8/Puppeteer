@@ -1,12 +1,46 @@
 use anyhow::Result;
-use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::{Pool, Sqlite};
 use std::path::Path;
+use std::time::Duration;
 
 pub type Db = Pool<Sqlite>;
 
+/// How long a statement waits for another connection's lock before failing with
+/// "database is locked". Under WAL only writers wait on each other (the app pool and every
+/// `sidecar-mcp` process, which sets the same value in `lib/store.mjs`); sqlx's default is 5 s.
+pub(crate) const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The same as sqlx's defaults (what `SqlitePool::connect` used), written out so they are not
+/// changed by accident.
+const MAX_CONNECTIONS: u32 = 10;
+const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Opens `data.db`, creating it on a fresh install.
+///
+/// WAL: readers no longer wait on a writer, and a writer's commit no longer shuts every reader
+/// out (the rollback journal did, see RT-29). The mode is stored in the file, so the first start
+/// switches an existing database over, and `sidecar-mcp` (node:sqlite) follows it. SQLite then
+/// keeps `data.db-wal` and `data.db-shm` beside `data.db`: committed data not yet checkpointed
+/// lives in `-wal`, so the three files only ever move together.
+///
+/// `synchronous = NORMAL` is the usual pairing with WAL: still no corruption on a crash or power
+/// loss, only the last few commits may roll back on power loss; FULL would fsync every commit.
+fn connect_options(db_path: &Path) -> SqliteConnectOptions {
+    SqliteConnectOptions::new()
+        .filename(db_path)
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(BUSY_TIMEOUT)
+}
+
 pub async fn init_db(db_path: &Path) -> Result<Db> {
-    let db_url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
-    let pool = SqlitePool::connect(&db_url).await?;
+    let pool = SqlitePoolOptions::new()
+        .max_connections(MAX_CONNECTIONS)
+        .acquire_timeout(ACQUIRE_TIMEOUT)
+        .connect_with(connect_options(db_path))
+        .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
     // Before the startup code reads settings: the Inbox API listener must
     // already see a fresh install's switch off.
@@ -48,6 +82,10 @@ pub(crate) async fn reconcile_interrupted_runs(pool: &Db) -> Result<()> {
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "db_wal_tests.rs"]
+mod wal_tests;
 
 #[cfg(test)]
 mod tests {

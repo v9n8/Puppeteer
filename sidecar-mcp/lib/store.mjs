@@ -36,8 +36,11 @@ function db() {
   // The conductor runs several sidecar processes at once, each with its own
   // connection into the same data.db. Without a busy timeout, concurrent writers
   // (e.g. two workers appending to the shared master note) would fail with
-  // SQLITE_BUSY instead of serializing; wait for the lock instead.
-  handle.exec('PRAGMA busy_timeout = 5000');
+  // SQLITE_BUSY instead of serializing; wait for the lock instead. 10 s, like the
+  // app's pool (BUSY_TIMEOUT in src-tauri/src/db.rs). The app keeps data.db in WAL
+  // mode (stored in the file, nothing to set here): reads never wait on a writer,
+  // only writers wait on each other.
+  handle.exec('PRAGMA busy_timeout = 10000');
   return handle;
 }
 
