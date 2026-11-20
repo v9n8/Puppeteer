@@ -5,11 +5,12 @@
 // uses Settings › Defaults for new sessions: each select shows the value in force
 // and ★ marks the global one; picking any option saves it (review v3, Q3). A
 // session that already ran keeps its own engine, model, effort and style.
+// Below: long pastes as a `.txt` attachment (RT-26), stored apart from the defaults.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
-import { ShieldAlert, SlidersHorizontal, UserCircle } from 'lucide-vue-next'
-import { AppSelect, Card, InfoTip } from '@/components/ui'
+import { ClipboardPaste, ShieldAlert, SlidersHorizontal, UserCircle } from 'lucide-vue-next'
+import { AppSelect, Card, InfoTip, Input, ToggleSwitch } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore, type Project } from '@/stores/projects'
 import { useAppSettingsStore } from '@/stores/appSettings'
@@ -23,6 +24,7 @@ import { composerDefaults, composerStyleChoices, type ProjectSessionDefaults } f
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
 import { projectDefaultSelect } from '@/lib/defaultMark'
+import { PASTE_MAX_MAX_CHARS, parseMaxChars, pasteSetting, type PasteAsFileSetting } from '@/lib/pasteAsFile'
 
 const props = defineProps<{ project: Project }>()
 
@@ -148,6 +150,34 @@ const styleSelect = computed(() => {
   return projectDefaultSelect(out, own.value.style, globalStyle.value)
 })
 
+// ── Long pastes as a file (RT-26): a whole number from 1, never empty ──
+const paste = computed(() => pasteSetting(props.project.paste_as_file))
+const pasteDraft = ref('')
+watch(() => paste.value.max_chars, (n) => { pasteDraft.value = String(n) }, { immediate: true })
+const pasteInvalid = computed(() => parseMaxChars(pasteDraft.value) === null)
+const pasteSaving = ref(false)
+async function savePaste(next: PasteAsFileSetting) {
+  if (pasteSaving.value) return
+  if (next.enabled === paste.value.enabled && next.max_chars === paste.value.max_chars) return
+  pasteSaving.value = true
+  try {
+    await projectStore.setPasteAsFile(props.project.id, next)
+    toast.success(t('projectDetail.pasteAsFile.saved'))
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    pasteSaving.value = false
+  }
+}
+function togglePaste() {
+  void savePaste({ ...paste.value, enabled: !paste.value.enabled })
+}
+function commitPasteMax() {
+  const n = parseMaxChars(pasteDraft.value)
+  if (n === null) return // the field shows why; nothing saved
+  void savePaste({ ...paste.value, max_chars: n })
+}
+
 // ── Claude account (one per project; falls back to the default account) ──
 const linkedClaudeAccount = computed(
   () => claudeStore.accounts.find((a) => a.id === props.project.claude_account_id) ?? null,
@@ -208,6 +238,41 @@ async function selectClaudeAccount(accountId: string) {
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultStyle') }}</label>
         <AppSelect size="sm" :model-value="styleSelect.value" :options="styleSelect.options" @update:model-value="save('style', $event)" />
+      </div>
+    </Card>
+
+    <Card body-class="p-4 space-y-4">
+      <template #header>
+        <ClipboardPaste class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
+        <span class="text-xs font-semibold">{{ t('projectDetail.pasteAsFile.title') }}</span>
+        <InfoTip :text="t('projectDetail.pasteAsFile.hint')" />
+      </template>
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-xs">{{ t('projectDetail.pasteAsFile.enabled') }}</span>
+        <ToggleSwitch
+          size="md"
+          :checked="paste.enabled"
+          :loading="pasteSaving"
+          :label="t('projectDetail.pasteAsFile.enabled')"
+          @toggle="togglePaste"
+        />
+      </div>
+      <div class="space-y-1.5">
+        <label for="paste-as-file-max" class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('projectDetail.pasteAsFile.maxChars') }}</label>
+        <Input
+          id="paste-as-file-max"
+          v-model="pasteDraft"
+          type="number"
+          min="1"
+          :max="PASTE_MAX_MAX_CHARS"
+          step="1"
+          required
+          :disabled="!paste.enabled"
+          :aria-invalid="pasteInvalid"
+          @change="commitPasteMax"
+          @keydown.enter="commitPasteMax"
+        />
+        <p v-if="pasteInvalid" class="text-2xs text-destructive">{{ t('projectDetail.pasteAsFile.invalid', { max: PASTE_MAX_MAX_CHARS }) }}</p>
       </div>
     </Card>
 

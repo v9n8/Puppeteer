@@ -198,6 +198,14 @@
     "saved": "Session defaults saved",
     "noAccount": "None (global ~/.claude)"
   },
+  "pasteAsFile": {
+    "title": "Long pastes",
+    "hint": "A text paste in the composer longer than this is saved as a .txt file and attached instead of going into the message. The file goes when the session is deleted for good.",
+    "enabled": "Save long pastes as a file",
+    "maxChars": "Longer than (characters)",
+    "invalid": "Enter a whole number from 1 to {max}.",
+    "saved": "Long paste setting saved"
+  },
   "libraryKindEmpty": "This project has no {kind} yet.",
   "libraryRetry": "Retry",
   "health": {

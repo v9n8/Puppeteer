@@ -12,6 +12,10 @@
   "handoffSeedSummary": "Tiếp tục công việc đang dở từ Session trước (engine: {engine}).\n\nContext được lưu ở file:\n{path}\n\nTrước hết chỉ đọc dòng 1–{lines} của file: đó là bản tóm tắt bàn giao (mục tiêu, việc đã làm, file đã đổi, việc còn dở, bước kế tiếp). Phía dưới là toàn bộ hội thoại trước đó: chỉ đọc khi bản tóm tắt thiếu chi tiết bạn cần, và chỉ đọc phần cần thiết. Sau đó tiếp tục từ đúng chỗ đang dở. Không lặp lại những việc đã hoàn thành.",
   "handoffFailed": "Không thể chuyển engine: {error}",
   "attachFileLabel": "Đính kèm file:",
+  "pasteAsFile": {
+    "saved": "Đoạn paste dài ({count} ký tự) đã lưu thành {name} và đính kèm",
+    "failed": "Không lưu được đoạn paste thành file nên đã đưa vào tin nhắn: {error}"
+  },
   "imageTooLarge": "Ảnh quá lớn (tối đa {size}MB).",
   "engineFallback": "agent",
   "chatPlaceholderRunning": "Gửi tin tiếp theo cho {engine} — Enter để xếp vào Queue, gửi khi lượt xong; Shift+Enter để xuống dòng",

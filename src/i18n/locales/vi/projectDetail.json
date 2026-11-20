@@ -198,6 +198,14 @@
     "saved": "Đã lưu mặc định session",
     "noAccount": "Không có (~/.claude chung)"
   },
+  "pasteAsFile": {
+    "title": "Paste dài",
+    "hint": "Đoạn text paste vào ô soạn tin dài hơn ngưỡng này được lưu thành file .txt và đính kèm thay vì đưa vào tin nhắn. File bị xoá khi Session bị xoá hẳn.",
+    "enabled": "Lưu đoạn paste dài thành file",
+    "maxChars": "Dài hơn (ký tự)",
+    "invalid": "Nhập số nguyên từ 1 đến {max}.",
+    "saved": "Đã lưu cài đặt paste dài"
+  },
   "libraryKindEmpty": "Project này chưa có {kind} nào.",
   "libraryRetry": "Thử lại",
   "health": {

@@ -12,6 +12,10 @@
   "handoffSeedSummary": "Continue the unfinished work from the previous session (engine: {engine}).\n\nThe context is saved in this file:\n{path}\n\nFirst read only lines 1–{lines} of it: a handoff summary (goal, work done, files changed, what is unfinished, next step). Below them is the full prior conversation: read it only when the summary lacks a detail you need, and only the part you need. Then continue from exactly where the work left off. Do not repeat work that is already done.",
   "handoffFailed": "Could not switch engine: {error}",
   "attachFileLabel": "Attached files:",
+  "pasteAsFile": {
+    "saved": "Long paste ({count} characters) saved as {name} and attached",
+    "failed": "Could not save the paste as a file, so it went into the message: {error}"
+  },
   "imageTooLarge": "Image too large (max {size}MB).",
   "engineFallback": "the agent",
   "chatPlaceholderRunning": "Send a follow-up to {engine} — Enter queues it for when the turn ends, Shift+Enter for newline",

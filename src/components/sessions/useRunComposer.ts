@@ -47,6 +47,7 @@ import type { RunLog } from './useRunLog'
 import type { RunHeaderInfo } from './useRunHeaderInfo'
 import { useComposerChips } from './useComposerChips'
 import { useQuotaNotice } from './useQuotaNotice'
+import { usePasteAsFile } from './usePasteAsFile'
 
 interface PendingImage extends ImageAttachment {
   id: string
@@ -774,6 +775,8 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     }
   }
 
+  const pasteAsFile = usePasteAsFile(core, addPendingFile)
+
   function addPendingFile(path: string) {
     if (pendingFiles.value.some((f) => f.path === path)) return // dedupe (BR-004)
     const name = path.split(/[/\\]/).pop() || path
@@ -821,8 +824,9 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
       }
     }
     // Only swallow the paste when it actually carried an image, so text pastes
-    // (and mixed paste) still land in the textarea.
-    if (handled) e.preventDefault()
+    // (and mixed paste) still land in the textarea; a long text paste becomes a
+    // `.txt` attachment (RT-26).
+    if (handled || pasteAsFile.onPaste(e)) e.preventDefault()
   }
 
   function removePendingImage(id: string) {

@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import type { GroupApplyOutcome, GroupDisableOutcome, GroupKind, ProjectGroupState } from '@/lib/projectGroups'
 import type { ProjectColor, ProjectIcon } from '@/lib/projectAppearance'
 import type { ProjectSessionDefaults } from '@/lib/composerChips'
+import type { PasteAsFileSetting } from '@/lib/pasteAsFile'
 
 export interface Project {
   id: string
@@ -41,6 +42,8 @@ export interface Project {
   hidden: boolean
   /** Defaults for new sessions of the project (UX-19); each null follows the global setting. */
   session_defaults: ProjectSessionDefaults
+  /** Long pastes as a `.txt` attachment (RT-25/26); missing on an older backend. */
+  paste_as_file?: PasteAsFileSetting
   /** Reading Slack DM threads (RT-27): true follows the setting for every project, false never. */
   slack_dm_read?: boolean
 }
@@ -437,6 +440,13 @@ export const useProjectsStore = defineStore('projects', () => {
     return project
   }
 
+  /** Replace the project's "long paste as a file" setting (RT-26). */
+  async function setPasteAsFile(project_id: string, setting: PasteAsFileSetting): Promise<Project> {
+    const project = await invoke<Project>('set_project_paste_as_file', { projectId: project_id, setting })
+    await fetchProjects()
+    return project
+  }
+
   async function setProjectClaudeAccount(project_id: string, account_id: string | null): Promise<void> {
     await invoke('set_project_claude_account', { projectId: project_id, accountId: account_id })
     await fetchProjects()
@@ -532,7 +542,7 @@ export const useProjectsStore = defineStore('projects', () => {
     fetchProjects, reorder, detectProjectInfo, addProject, removeProject, updateProject, updateAppearance,
     resolveProjectBoard, listRepos, addRepo, updateRepo, removeRepo,
     getAppliedSkills, applySkill, removeSkillFromProject,
-    setProjectAccount, setProjectGitAccountEnabled, setProjectGitlabAccount, setProjectAwsAccount, setProjectAzureAccount, setProjectCloudAccountEnabled, setProjectClaudeAccount, setSessionDefaults, fetchConflicts, resolveConflict,
+    setProjectAccount, setProjectGitAccountEnabled, setProjectGitlabAccount, setProjectAwsAccount, setProjectAzureAccount, setProjectCloudAccountEnabled, setProjectClaudeAccount, setSessionDefaults, setPasteAsFile, fetchConflicts, resolveConflict,
     openInVscode, openInFolder, openInTerminal,
     getAppliedRules, applyRule, removeRuleFromProject,
     fetchRuleConflicts, resolveRuleConflict, getInstructionWarnings,
