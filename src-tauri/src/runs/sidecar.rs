@@ -1340,6 +1340,7 @@ pub async fn drain_sidecar(
                                         event: v.clone(),
                                     });
                                 }
+                                super::live_records::emit_prompts(&app, &run_id);
                                 let _ = app.emit(&format!("run:event:{}", run_id), v.clone());
                                 if let Some(m) = super::step_marks::step_mark(v, chrono::Utc::now().timestamp_millis()) {
                                     append_log(&log_buf, &format!("{}\n", m)).await;

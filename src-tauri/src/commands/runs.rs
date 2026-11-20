@@ -1773,6 +1773,8 @@ async fn send_prompt(
     write_run_stdin(registry, run_id, &send_line, FOLLOW_UP_REFUSED).await?;
     mark_prompt_sent(registry, run_id).await;
     log_buf.lock().await.push_str(&log_line);
+    // Every window following the run shows it, not only the one that sent it.
+    crate::runs::live_records::push_prompt(run_id, &log_line);
     Ok(turn)
 }
 

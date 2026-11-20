@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { reactive, computed } from 'vue'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
-  applyStreamEvent,
   extractContextTokens,
   extractTurnTotalTokens,
   isCompactBoundary,
@@ -12,6 +11,7 @@ import {
   type StreamEntry,
   type ImageAttachment,
 } from '@/lib/streamEvents'
+import { applyPromptEcho } from '@/lib/promptEcho'
 import { standingPermissionDecision } from '@/lib/permissionMemory'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
@@ -316,7 +316,8 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
   ): StreamEntry {
     const s = ensure(runId, projectId)
     s.hasStreamEvents = true
-    s.entries.push({ kind: 'user', text, ...(images?.length ? { images } : {}) })
+    // `echoPending`: the backend echoes the logged prompt to every window (RT-06).
+    s.entries.push({ kind: 'user', text, ...(images?.length ? { images } : {}), echoPending: true })
     // The reactive copy, so a turn set on it later (Rewind) re-renders.
     return s.entries[s.entries.length - 1]
   }
@@ -436,7 +437,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       eventBuffer = []
       s.hasStreamEvents = true
       for (const payload of batch) {
-        applyStreamEvent({ entries: s.entries, toolIndex }, payload)
+        applyPromptEcho({ entries: s.entries, toolIndex }, payload)
         s.liveStatus = nextLiveStatus(s.liveStatus, payload)
         const p = payload as Record<string, unknown> | null
         if (usesProjectWriteTool(p)) projectsDirty = true

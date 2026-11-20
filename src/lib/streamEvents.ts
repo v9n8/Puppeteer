@@ -197,6 +197,8 @@ export type StreamEntry =
       ideContext?: IdeContextItem[]
       turn?: number
       quoteSet?: string
+      /** Pushed by this window when it sent the prompt; its echo (`lib/promptEcho`) is still due. */
+      echoPending?: boolean
     }
   | { kind: 'ide-context'; items: IdeContextItem[] }
   /**
