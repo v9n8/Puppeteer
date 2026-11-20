@@ -685,9 +685,11 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   })
 
   // A quote sent from a file window (lib/quoteAppend) for the run on screen goes
-  // into the composer, not the stored draft the watcher above would overwrite. No
-  // focus: the user is still reading in that other window.
-  function takeQuote(text: string, source: QuoteSource, note?: string) {
+  // into the composer, not the stored draft the watcher above would overwrite.
+  // Focus only when asked (a file tab of this window, RT-19): from a file window
+  // the user is still reading there.
+  function takeQuote(text: string, source: QuoteSource, note?: string, focus?: boolean) {
+    if (focus) focusComposer()
     if (!sendingFollowUp.value) {
       addDraftQuote(fileQuote(crypto.randomUUID(), text, source, note))
       return

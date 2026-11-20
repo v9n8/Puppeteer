@@ -41,14 +41,15 @@ watch(() => props.activeId, (id) => {
 }, { immediate: true })
 const mounted = computed(() => fileTabs.value.filter((tab) => shown.value.has(tab.id)))
 
-// Quote goes to this Session's composer, through the same route as a file window's.
+// Quote goes to this Session's composer, through the same route as a file window's,
+// and focuses it: the composer is in this window (RT-19).
 const quoteTarget = computed(() => {
   const run = currentRun.value
   if (!run) return null
   return {
     label: runLabel(run),
     append: (text: string, source: QuoteSource, note?: string) => {
-      sendQuote(run.id, text, source, note).catch((e) => toast.error(String(e)))
+      sendQuote(run.id, text, source, note, true).catch((e) => toast.error(String(e)))
     },
   }
 })

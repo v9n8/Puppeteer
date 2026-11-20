@@ -32,7 +32,18 @@ useSelectionSurface({
     return props.owner?.allow ?? { translate: true, copyMd: true }
   },
   markdownSource: () => props.sources,
-  quoteTarget: () => props.owner?.quoteTarget?.() ?? null,
+  // A quote closes the view (RT-19): the composer it lands in, focused, is behind it.
+  quoteTarget: () => {
+    const target = props.owner?.quoteTarget?.()
+    if (!target) return null
+    return {
+      label: target.label,
+      append: (text, anchor, note) => {
+        target.append(text, anchor, note)
+        emit('close')
+      },
+    }
+  },
   capture: () => props.owner?.capture?.() ?? { context: {} },
 })
 </script>
