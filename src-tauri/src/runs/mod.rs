@@ -19,6 +19,7 @@ pub mod rewind;
 pub mod routing;
 pub mod session_watcher;
 pub mod sidecar;
+pub mod slow_ops;
 pub mod snapshots;
 pub mod ssh_access;
 pub mod stdin_writer;

@@ -285,6 +285,7 @@ async fn index_run(db: &Db, run_id: &str) -> Result<(), String> {
     };
 
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
+    let tx_started = std::time::Instant::now();
     // Delete first: from here this is a write transaction, so a run deleted
     // meanwhile is either seen gone below or deletes these rows after us.
     for sql in [
@@ -319,7 +320,11 @@ async fn index_run(db: &Db, run_id: &str) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     }
-    tx.commit().await.map_err(|e| e.to_string())
+    let committed = tx.commit().await.map_err(|e| e.to_string());
+    if let Some(elapsed_ms) = crate::runs::slow_ops::over(tx_started, crate::runs::slow_ops::SLOW_WRITE_TX) {
+        tracing::warn!(event = "session_search_tx_slow", run_id, records = records.len(), elapsed_ms);
+    }
+    committed
 }
 
 #[cfg(test)]

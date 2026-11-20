@@ -395,7 +395,49 @@ async fn write_log(runs_dir: &Path, log_path: &Path, log: &str) -> Result<(), St
 ///   stream; and if any run in the project is still `running` we defer importing
 ///   *new* sessions, since that run may just not have captured its `session_id`
 ///   yet (avoids creating a duplicate of a live run).
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn upsert_session_run_core(
+    db: &sqlx::SqlitePool,
+    project_id: &str,
+    project_name: &str,
+    project_path: &str,
+    session_id: &str,
+    engine: &str,
+    file: &Path,
+    parse: fn(&Path, &str) -> Option<ParsedTranscript>,
+    defer_when_busy: bool,
+    force: bool,
+) -> Result<SyncOutcome, String> {
+    use crate::runs::slow_ops::{over, SLOW_MIRROR_SYNC};
+    let started = std::time::Instant::now();
+    let outcome = upsert_session_run_once(
+        db, project_id, project_name, project_path, session_id, engine, file, parse, defer_when_busy, force,
+    )
+    .await;
+    // Diagnostics for pool exhaustion (RT-29): which sync ran long, and how long.
+    if let Some(elapsed_ms) = over(started, SLOW_MIRROR_SYNC) {
+        let (result, run_id) = match &outcome {
+            Ok(SyncOutcome::Imported(id)) => ("imported", id.as_str()),
+            Ok(SyncOutcome::Updated(id)) => ("updated", id.as_str()),
+            Ok(SyncOutcome::Skipped) => ("skipped", ""),
+            Err(_) => ("error", ""),
+        };
+        tracing::warn!(
+            event = "mirror_sync_slow",
+            run_id,
+            session_id,
+            engine,
+            transcript = %file.display(),
+            result,
+            elapsed_ms,
+        );
+    }
+    outcome
+}
+
+/// One pass of [`upsert_session_run_core`], without the timing.
+#[allow(clippy::too_many_arguments)]
+async fn upsert_session_run_once(
     db: &sqlx::SqlitePool,
     project_id: &str,
     project_name: &str,
