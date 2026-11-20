@@ -197,6 +197,6 @@ async function confirmAdd({ name, repos: edited }: { name: string; repos: Detect
 
     <AddProjectIntro :open="introOpen" :busy="adding || detecting" @close="closeIntro" @pick="pickFromIntro" />
 
-    <AddProjectModal :pending="pending" :busy="adding" @cancel="cancelAdd" @confirm="confirmAdd" />
+    <AddProjectModal :pending="pending" :busy="adding" @cancel="cancelAdd" @change-folder="handleAdd" @confirm="confirmAdd" />
   </div>
 </template>

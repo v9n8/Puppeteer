@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // "Add project" modal (path, name, repositories), shared by the Projects page and
 // the titlebar project switcher. It owns the form state; the parent owns the
-// detected folder and the add call.
+// detected folder and the add call; "Choose folder" asks it to pick again (RT-20).
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, FolderOpen, GitBranch, Github, Gitlab, Trash2, AlertTriangle } from 'lucide-vue-next'
@@ -12,6 +12,8 @@ import { parseRepoUrl, repoKey } from '@/lib/repoUrl'
 const props = defineProps<{ pending: DetectedProjectInfo | null; busy: boolean }>()
 const emit = defineEmits<{
   cancel: []
+  /** Pick another folder; the parent keeps this one when the picker is cancelled. */
+  'change-folder': []
   confirm: [payload: { name: string; repos: DetectedRepo[] }]
 }>()
 
@@ -95,12 +97,17 @@ function submit() {
   <Modal :open="!!pending" size="md" scroll-body :title="t('projects.addProject')" @close="emit('cancel')">
     <template v-if="pending">
         <div class="px-5 py-5 flex flex-col gap-4">
-          <!-- Path (read-only) -->
+          <!-- Path (read-only), with a button to pick another folder -->
           <div>
             <label class="block text-xs text-muted-foreground mb-1.5">{{ t('projects.path') }}</label>
-            <div class="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border/60 rounded-md">
-              <FolderOpen class="h-3.5 w-3.5 text-muted-foreground shrink-0" :stroke-width="1.5" />
-              <span class="text-xs font-mono text-muted-foreground truncate">{{ pending.path }}</span>
+            <div class="flex items-center gap-2">
+              <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 bg-muted/50 border border-border/60 rounded-md">
+                <FolderOpen class="h-3.5 w-3.5 text-muted-foreground shrink-0" :stroke-width="1.5" />
+                <span class="text-xs font-mono text-muted-foreground truncate" :title="pending.path">{{ pending.path }}</span>
+              </div>
+              <Button variant="outline" size="sm" class="shrink-0" :disabled="busy" @click="emit('change-folder')">
+                {{ t('projects.chooseFolder') }}
+              </Button>
             </div>
           </div>
 

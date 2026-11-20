@@ -63,6 +63,8 @@ async function startAdd() {
   const existing = projects.projects.find((p) => p.path === selected)
   if (existing) {
     toast.info(t('projectSwitcher.alreadyAdded', { name: existing.name }))
+    // Re-picked from the Add modal (RT-20): nothing left to add.
+    pending.value = null
     choose(existing.id)
     return
   }
@@ -319,5 +321,5 @@ onBeforeUnmount(() => {
     </transition>
   </Teleport>
 
-  <AddProjectModal :pending="pending" :busy="adding" @cancel="cancelAdd" @confirm="confirmAdd" />
+  <AddProjectModal :pending="pending" :busy="adding" @cancel="cancelAdd" @change-folder="startAdd" @confirm="confirmAdd" />
 </template>
