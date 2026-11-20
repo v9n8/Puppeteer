@@ -1017,7 +1017,8 @@ pub async fn drain_sidecar(
                                             false
                                         }
                                     } else {
-                                        persist_plan_usage(&db_pool, &plan_usage_key, usage).await
+                                        let origin = crate::runs::plan_usage_order::Origin::now("run", Some(&run_id));
+                                        persist_plan_usage(&db_pool, &plan_usage_key, usage, &origin).await
                                     };
                                     if persisted {
                                         // `provider` tells the usage rings which rows to re-read.
@@ -1139,7 +1140,8 @@ pub async fn drain_sidecar(
                                     if let Some(cst) = app.try_state::<crate::conductor::ConductorState>() {
                                         cst.turn_started(&run_id);
                                     }
-                                    if persist_plan_init_rate_limits(&db_pool, &plan_usage_key, v).await {
+                                    let origin = crate::runs::plan_usage_order::Origin::now("run_init", Some(&run_id));
+                                    if persist_plan_init_rate_limits(&db_pool, &plan_usage_key, v, &origin).await {
                                         let _ = app.emit(
                                             "plan_usage_updated",
                                             serde_json::json!({ "run_id": run_id }),
@@ -1804,6 +1806,7 @@ pub(crate) async fn persist_plan_usage(
     db_pool: &sqlx::SqlitePool,
     key: &str,
     usage: &Value,
+    origin: &crate::runs::plan_usage_order::Origin<'_>,
 ) -> bool {
     if !usage
         .get("rate_limits_available")
@@ -1844,13 +1847,8 @@ pub(crate) async fn persist_plan_usage(
     // Keep the live status captured from rate_limit_events (which have no %).
     let prior = load_plan_usage_snapshot(db_pool, key).await;
     merge_prior_window_status(&mut snapshot, &prior);
-
-    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-        .bind(key)
-        .bind(snapshot.to_string())
-        .execute(db_pool)
-        .await
-        .is_ok()
+    // Only over an older snapshot (RT-15).
+    crate::runs::plan_usage_order::write(db_pool, key, snapshot, prior.as_ref(), origin).await
 }
 
 /// Persist `rate_limits` carried on Claude's `system.init`. This is the first
@@ -1860,6 +1858,7 @@ pub(crate) async fn persist_plan_init_rate_limits(
     db_pool: &sqlx::SqlitePool,
     key: &str,
     event: &Value,
+    origin: &crate::runs::plan_usage_order::Origin<'_>,
 ) -> bool {
     if event.get("type").and_then(|v| v.as_str()) != Some("system")
         || event.get("subtype").and_then(|v| v.as_str()) != Some("init")
@@ -1895,13 +1894,8 @@ pub(crate) async fn persist_plan_init_rate_limits(
     });
     let prior = load_plan_usage_snapshot(db_pool, key).await;
     merge_prior_window_status(&mut snapshot, &prior);
-
-    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-        .bind(key)
-        .bind(snapshot.to_string())
-        .execute(db_pool)
-        .await
-        .is_ok()
+    // Only over an older snapshot (RT-15).
+    crate::runs::plan_usage_order::write(db_pool, key, snapshot, prior.as_ref(), origin).await
 }
 
 /// Merge a live Claude `rate_limit_event` into the same `plan_usage` snapshot

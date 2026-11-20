@@ -700,6 +700,8 @@ pub async fn refresh_plan_usage(
     detach_sidecar_process_group(&mut cmd);
     cmd.kill_on_drop(true);
 
+    // The probe's numbers are as of now: a run's read landing meanwhile is newer (RT-15).
+    let probe_origin = crate::runs::plan_usage_order::Origin::now("probe", account_id.as_deref());
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn usage probe ({}): {}", node_bin, e))?;
@@ -739,7 +741,7 @@ pub async fn refresh_plan_usage(
                             .unwrap_or(false)
                             && usage.get("rate_limits").and_then(|v| v.as_object()).is_some()
                         {
-                            if persist_plan_usage(&db_pool, &plan_usage_key, usage).await {
+                            if persist_plan_usage(&db_pool, &plan_usage_key, usage, &probe_origin).await {
                                 let _ = app.emit("plan_usage_updated", serde_json::json!({ "source": "probe" }));
                                 return Ok(true);
                             }
@@ -747,7 +749,7 @@ pub async fn refresh_plan_usage(
                     }
                 }
                 Some("system") => {
-                    if persist_plan_init_rate_limits(&db_pool, &plan_usage_key, &value).await {
+                    if persist_plan_init_rate_limits(&db_pool, &plan_usage_key, &value, &probe_origin).await {
                         let _ = app.emit("plan_usage_updated", serde_json::json!({ "source": "probe" }));
                         return Ok(true);
                     }
