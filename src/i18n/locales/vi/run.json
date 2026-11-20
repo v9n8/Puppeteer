@@ -289,7 +289,7 @@
   "attentionInputStalled": "Session đang không đọc đầu vào (một tin nhắn gửi tới nó đang phải chờ). Có thể đang bận hoặc bị kẹt — hãy dừng Session nếu nó không hồi phục.",
   "attentionStop": "Dừng Session",
   "steer": "Steer",
-  "steerTitle": "Chen vào lượt đang chạy: agent đọc ở bước kế tiếp, không mở lượt mới",
+  "steerTitle": "Steer: chèn tin này vào lượt đang chạy, agent đọc ở bước kế tiếp, không mở lượt mới.\nQueue (Enter): chờ lượt hiện tại xong rồi mới gửi.",
   "queue": "Queue",
   "queueTitle": "Gửi tin này khi lượt đang chạy kết thúc (Enter). Tin chờ nằm phía trên ô soạn, sửa hoặc xoá được",
   "queuedEdit": "Sửa tin trong Queue",

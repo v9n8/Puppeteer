@@ -6,6 +6,8 @@
 //  - stays open (pinned) after a click, until Esc, a click outside or another click;
 //  - is teleported to <body> and placed by lib/tooltipPosition, so it is never
 //    clipped by a scroll container and never runs off the window.
+// The `trigger` slot puts the tip on another control (e.g. the Steer button,
+// RT-12): it opens on hover / focus inside it, and a click stays the control's.
 import { nextTick, onBeforeUnmount, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Info } from 'lucide-vue-next'
@@ -16,7 +18,7 @@ defineProps<{ text: string }>()
 const { t } = useI18n()
 const id = useId()
 
-const trigger = ref<HTMLButtonElement | null>(null)
+const trigger = ref<HTMLElement | null>(null)
 const tip = ref<HTMLElement | null>(null)
 const open = ref(false)
 const pinned = ref(false)
@@ -84,7 +86,20 @@ onBeforeUnmount(() => bind(false))
 </script>
 
 <template>
+  <span
+    v-if="$slots.trigger"
+    ref="trigger"
+    class="inline-flex shrink-0"
+    :aria-describedby="open ? id : undefined"
+    @mouseenter="show"
+    @mouseleave="onLeave"
+    @focusin="show"
+    @focusout="onLeave"
+  >
+    <slot name="trigger" />
+  </span>
   <button
+    v-else
     ref="trigger"
     type="button"
     class="relative inline-flex h-4 w-4 shrink-0 before:absolute before:-inset-1.5 before:content-[''] cursor-help items-center justify-center rounded-full transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

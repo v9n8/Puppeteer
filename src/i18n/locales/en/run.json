@@ -289,7 +289,7 @@
   "attentionInputStalled": "The session is not reading its input (a message to it has been waiting). It may be busy or stuck — stop the session if it doesn't recover.",
   "attentionStop": "Stop session",
   "steer": "Steer",
-  "steerTitle": "Add this to the running turn: the agent reads it at its next step, without a new turn",
+  "steerTitle": "Steer: add this to the running turn. The agent reads it at its next step, without a new turn.\nQueue (Enter): wait for the running turn to end, then send it.",
   "queue": "Queue",
   "queueTitle": "Send this once the running turn ends (Enter). It waits above the composer, where you can edit or remove it",
   "queuedEdit": "Edit queued message",

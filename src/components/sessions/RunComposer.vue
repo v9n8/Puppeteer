@@ -12,7 +12,7 @@ import AppSelect from '@/components/AppSelect.vue'
 import CapturePicker from '@/components/CapturePicker.vue'
 import TodoChecklistPicker from '@/components/TodoChecklistPicker.vue'
 import RunAttentionBanner from '@/components/RunAttentionBanner.vue'
-import { Button } from '@/components/ui'
+import { Button, InfoTip } from '@/components/ui'
 import { WIDE_CHIPS_FROM as WIDE_FALLBACK, hideOptionalChips } from '@/lib/composerChipLayout'
 import { shownModel } from '@/lib/composerChips'
 import { draftQuoteLink, type DraftQuoteLink } from '@/lib/quote'
@@ -447,14 +447,14 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                  turn now (both engines take input mid-turn, D4-06 spike), Queue
                  (Enter) sends it once the turn ends. -->
             <div v-if="currentStatus === 'running' && !primaryDisabled && !editingMessage" class="inline-flex shrink-0 gap-1.5">
-              <Button
-                v-if="features.isOn('sessions.steer')"
-                variant="outline"
-                                :title="t('run.steerTitle')"
-                @click="handleSendFollowUp(true)"
-              >
-                {{ t('run.steer') }}
-              </Button>
+              <!-- RT-12: an InfoTip opens at once on hover (a title shows late). -->
+              <InfoTip v-if="features.isOn('sessions.steer')" :text="t('run.steerTitle')">
+                <template #trigger>
+                  <Button variant="outline" @click="handleSendFollowUp(true)">
+                    {{ t('run.steer') }}
+                  </Button>
+                </template>
+              </InfoTip>
               <Button
                                 :title="t('run.queueTitle')"
                 @click="handleQueue"
