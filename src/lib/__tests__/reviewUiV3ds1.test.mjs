@@ -28,6 +28,13 @@ test('UR-55: the account menu lists names only — no usage figures, email, "Def
   }
 })
 
+test('UR-65: the account menu puts ★ before the account name, as AppSelect does', () => {
+  const chips = read('../../components/sessions/RunComposerChips.vue')
+  const star = chips.indexOf('<Star class="h-3 w-3 fill-primary text-primary"')
+  const label = chips.indexOf('{{ a.label }}')
+  assert.ok(star > 0 && label > 0 && star < label, 'Star should come before the label')
+})
+
 test('UR-57: one usage block — a summary button and a panel with a bordered block per engine', () => {
   const rings = read('../../components/UsageRings.vue')
   assert.match(rings, /<UsageSummary/)

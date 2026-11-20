@@ -109,15 +109,18 @@ function pickAccount(value: string) {
                 :class="a.isCurrent ? 'opacity-100' : 'opacity-0'"
                 :stroke-width="2.5"
               />
-              <span class="min-w-0 truncate">{{ a.label }}</span>
-              <span
-                v-if="a.isDefault"
-                class="inline-flex shrink-0"
-                role="img"
-                :title="t('common.default')"
-                :aria-label="t('common.default')"
-              >
-                <Star class="h-3 w-3 fill-primary text-primary" :stroke-width="2" />
+              <!-- ★ before the label, as AppSelect marks its default option (UR-22). -->
+              <span class="flex min-w-0 items-center gap-1">
+                <span
+                  v-if="a.isDefault"
+                  class="inline-flex shrink-0"
+                  role="img"
+                  :title="t('common.default')"
+                  :aria-label="t('common.default')"
+                >
+                  <Star class="h-3 w-3 fill-primary text-primary" :stroke-width="2" />
+                </span>
+                <span class="min-w-0 truncate">{{ a.label }}</span>
               </span>
               <span class="flex-1" />
               <span v-if="a.expired" class="shrink-0 text-2xs text-warning">{{ t('run.accountMenu.expiredShort') }}</span>
