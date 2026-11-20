@@ -19,6 +19,7 @@ import { appendQuoteToDraft, composerWindowLabel, registerQuoteComposer } from '
 import { emptyQueue, queuedPreview, type QueuedMessage } from '@/lib/messageQueue'
 import { slashCommandAction, slashCommandMessage } from '@/lib/slashCommand'
 import { useMessageQueueStore } from '@/stores/messageQueue'
+import { useProjectFilesStore } from '@/stores/projectFiles'
 import { linkTargetRun, type LinkTarget } from '@/lib/sessionLinks'
 import {
   latestChecklist, mergeChecklistIntoDraft, parseChecklistBlock, type TodoItem,
@@ -983,11 +984,13 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   // ── @-mention file/folder autocomplete ───────────────────────────────────
   const composerEl = ref<HTMLTextAreaElement | null>(null)
-  const projectFiles = ref<ProjectEntry[]>([])
-  const projectFilesPath = ref<string | null>(null)
-  // Bumped whenever the list changes. The log's v-memo keys on it, so finalized
+  // Cached by project path in a store (RT-22), so a remount on project switch
+  // reuses the list instead of walking the folder again.
+  const projectFilesStore = useProjectFilesStore()
+  const projectFiles = computed(() => projectFilesStore.entries(project.value?.path))
+  // Moves only when the list changes. The log's v-memo keys on it, so finalized
   // messages re-run file-link detection when the list arrives late or grows.
-  const fileListVersion = ref(0)
+  const fileListVersion = computed(() => projectFilesStore.version(project.value?.path))
   const mentionOpen = ref(false)
   const mentionQuery = ref('')
   const mentionStart = ref(0) // index of the `@` in followUpInput
@@ -1045,27 +1048,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
 
   async function ensureProjectFiles(force = false) {
+    // `force` is passed when a new @-mention session starts or a turn ends, so
+    // newly-added files show up; the list changes only if the walk differs.
     const path = project.value?.path
-    if (!path) return
-    // Skip the walk only when the cache is warm AND no refresh was requested.
-    // `force` is passed when a new @-mention session starts so newly-added files
-    // (e.g. a file just copied into the folder) show up without a reload.
-    if (!force && projectFilesPath.value === path && projectFiles.value.length) return
-    let next: ProjectEntry[] = []
-    let ok = false
-    try {
-      next = await runsStore.listProjectFiles(path)
-      ok = true
-    } catch { /* treated as an empty list */ }
-    // The usual reload after a turn finds the same files: keep the list as is,
-    // so the whole log isn't re-rendered for nothing.
-    const prev = projectFiles.value
-    const same = projectFilesPath.value === path && prev.length === next.length &&
-      prev.every((e, i) => e.path === next[i].path && e.is_dir === next[i].is_dir)
-    if (ok) projectFilesPath.value = path
-    if (same) return
-    projectFiles.value = next
-    fileListVersion.value++
+    if (path) await projectFilesStore.ensure(path, force)
   }
 
   // Whether bare paths in the log's prose and prompts name real files, for those
