@@ -46,6 +46,7 @@ import type {
   SlashCommand,
   StreamPayload,
 } from './protocol'
+import { createPushedFileLists, fileListKey } from './projectFileLists'
 
 /** The bound run's per-turn usage badge (tokens + cost), from a `result` event. */
 export interface UsageInfo {
@@ -188,7 +189,8 @@ export interface RunStoreState {
    * Codex table exactly as on the desktop. Claude needs no counterpart: its list
    * is curated in the shared bundle both surfaces import. */
   discoveredModels: { codex: FetchedModel[] }
-  /** Project file paths for the bound run (`@`-mention autocomplete). */
+  /** Project file paths for the active run (`@`-mention autocomplete): its
+   * project's cached list (RT-22), the same array until that list changes. */
   projectFiles: string[]
   /** The bound run's live selection, mirrored from the Host (engine/model/mode). */
   runMeta: { engine: string; model: string; permissionMode: string; claudeAccountId: string }
@@ -249,6 +251,23 @@ export function createRunStore() {
   // gate makes sure only that sync's own ack may prune the queues.
   let resent: Set<string> | null = null
   const syncGate = createSyncGate()
+
+  // `@`-mention lists per project path (RT-22); `state.projectFiles` shows the
+  // active run's one.
+  const fileLists = createPushedFileLists()
+  const NO_FILES: string[] = []
+
+  function filesKey(runId: string): string {
+    return fileListKey(runId, state.runList, state.projectList)
+  }
+
+  /** Show the active run's cached list (none yet = empty, not another project's). */
+  function syncProjectFiles(): void {
+    const id = state.activeRunId
+    if (!id) return
+    const next = fileLists.get(filesKey(id)) ?? fileLists.get(`run:${id}`) ?? NO_FILES
+    if (state.projectFiles !== next) state.projectFiles = next
+  }
 
   /** Replace the prompt queues and re-derive the per-run heads. */
   function setQueues(next: Record<string, PermissionRequest[]>): void {
@@ -361,7 +380,7 @@ export function createRunStore() {
         state.projectPermissionModes = payload.project_permission_modes ?? {}
         break
       case 'project_file_list':
-        state.projectFiles = payload.files
+        if (fileLists.put(filesKey(payload.run_id), payload.files)) syncProjectFiles()
         break
       case 'run_meta':
         // Mirror the Host's live selection. Only overwrite a field the Host
@@ -388,9 +407,11 @@ export function createRunStore() {
         for (const info of payload.runs) {
           ensureRun(info.id).status = info.status
         }
+        syncProjectFiles()
         break
       case 'project_list':
         state.projectList = payload.projects
+        syncProjectFiles()
         break
       case 'session_token':
       case 'auth_result':
@@ -509,6 +530,7 @@ export function createRunStore() {
   function setActiveRun(runId: string): void {
     ensureRun(runId)
     state.activeRunId = runId
+    syncProjectFiles()
   }
 
   /** Return to the run browser (home). */
@@ -583,6 +605,7 @@ export function createRunStore() {
     state.slashCommands = []
     state.engineModelOptions = []
     state.discoveredModels = { codex: [] }
+    fileLists.clear()
     state.projectFiles = []
     state.runMeta = { engine: '', model: '', permissionMode: '', claudeAccountId: '' }
     state.claudeAccountChoices = []

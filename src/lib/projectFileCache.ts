@@ -31,6 +31,24 @@ export function sameFileList(a: readonly FileEntryLike[], b: readonly FileEntryL
   return true
 }
 
+/**
+ * Store a list that came without a walk of ours (the remote controller gets it
+ * pushed by the Host). The entry and its version change only when the list
+ * differs; the new version is above every other path's. True when it changed.
+ */
+export function putFileList<E extends FileEntryLike>(
+  lists: Record<string, CachedFileList<E>>,
+  path: string,
+  entries: E[],
+): boolean {
+  const prev = lists[path]
+  if (prev && sameFileList(prev.entries, entries)) return false
+  let top = 0
+  for (const l of Object.values(lists)) top = Math.max(top, l.version)
+  lists[path] = { entries, version: top + 1 }
+  return true
+}
+
 export interface ProjectFileCache {
   /**
    * Make sure `path`'s list is loaded. Without `force`, a list already loaded is
