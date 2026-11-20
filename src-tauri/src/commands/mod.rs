@@ -32,6 +32,7 @@ pub mod memory;
 pub mod models;
 pub mod notes;
 pub mod notifications;
+pub mod paste_as_file;
 pub mod project_git_accounts;
 pub mod project_links;
 pub mod projects;

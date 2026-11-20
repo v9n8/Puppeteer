@@ -49,6 +49,9 @@ use uuid::Uuid;
 
 #[path = "session_defaults_backup.rs"]
 mod sd_backup;
+#[cfg(test)]
+#[path = "paste_as_file_backup_tests.rs"]
+mod paste_backup_tests;
 
 const FORMAT: &str = "puppeteer-settings-backup";
 const VERSION: u32 = 1;
@@ -215,6 +218,9 @@ struct ProjectEntry {
     /// Standing "Always allow / deny" tool decisions (UX-31). Older backups have none: kept as is.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tool_permissions: Vec<ToolPermissionEntry>,
+    /// Long pastes as a `.txt` (#16). Older backups have none: a matched project keeps its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    paste_as_file: Option<crate::commands::paste_as_file::PasteAsFile>,
 }
 
 /// One standing tool decision of a project (`commands::tool_permissions`).
@@ -1444,7 +1450,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
     for row in sqlx::query(
         "SELECT p.id, p.name, p.path, p.github_owner, p.github_repo, p.default_engine, p.created_at, \
                 p.position, p.github_project_board_url, p.github_project_field_mappings, \
-                p.color, p.icon, p.hidden, \
+                p.color, p.icon, p.hidden, p.paste_as_file, p.paste_as_file_max_chars, \
                 gh.label AS github_account, gl.label AS gitlab_account, aws.label AS aws_account, az.label AS azure_account, \
                 cl.label AS claude_account, cx.label AS codex_account \
          FROM projects p \
@@ -1617,6 +1623,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             servers,
             session_defaults,
             tool_permissions,
+            paste_as_file: Some(crate::commands::paste_as_file::PasteAsFile::from_row(&row)),
         });
     }
     Ok(out)
@@ -3849,6 +3856,7 @@ async fn import_project(
         touched |= import_session_defaults(db, &id, defaults, &mut warnings).await?;
     }
     touched |= import_tool_permissions(db, &id, &entry.tool_permissions, &mut warnings).await?;
+    touched |= crate::commands::paste_as_file::import(db, &id, entry.paste_as_file, &mut warnings).await?;
 
     if touched && outcome == Upsert::Unchanged {
         outcome = Upsert::Updated;

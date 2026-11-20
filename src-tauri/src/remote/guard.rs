@@ -294,6 +294,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     "set_run_mcp_override",
     // A project's defaults for new sessions: permission mode, style text, engine.
     "set_project_session_defaults",
+    // The project's "long paste as a file" setting, kept with its other defaults.
+    "set_project_paste_as_file",
     // Fork: creates a session from another one's conversation and settings.
     "fork_run",
     // Standing tool permissions: "Always allow" lets a tool run without asking in every
@@ -404,9 +406,10 @@ const APP_DATA_BASES: &[&str] = &["Library/Application Support"];
 #[cfg(not(target_os = "macos"))]
 const APP_DATA_BASES: &[&str] = &["Library/Application Support", ".local/share", "AppData/Roaming", "AppData/Local"];
 
-/// Readable parts of this app's data dir: Slack thread downloads (previews)
-/// and the log folder (`remote_fs_log_dir`). Never credentials.
-const ALLOWED_APP_DIRS: &[&str] = &["slack-threads", "logs"];
+/// Readable parts of this app's data dir: Slack thread downloads (previews),
+/// the log folder (`remote_fs_log_dir`) and long pastes saved as `.txt`
+/// (`commands::paste_as_file`). Never credentials.
+const ALLOWED_APP_DIRS: &[&str] = &["slack-threads", "logs", "pastes"];
 
 /// Backup stores, anywhere (a Time Machine disk holds copies of every
 /// credential store above): folder names, and bundle extensions.
@@ -949,6 +952,7 @@ mod tests {
             "set_project_flag_hidden",
             "set_run_mcp_override",
             "set_project_session_defaults",
+            "set_project_paste_as_file",
             "fork_run",
             "set_project_tool_permission",
             "resolve_sync_conflict",
@@ -959,6 +963,7 @@ mod tests {
         }
         for name in [
             "list_runs",
+            "save_pasted_text",
             "list_skill_allocation",
             "plan_skill_bulk",
             "list_effective_skills",
@@ -1308,8 +1313,11 @@ mod tests {
         let app = fx.home.join("Library/Application Support/io.github.v9n8.puppeteer");
         fs::create_dir_all(app.join("slack-threads/t1")).unwrap();
         fs::write(app.join("slack-threads/t1/a.png"), b"x").unwrap();
+        fs::create_dir_all(app.join("pastes/r1")).unwrap();
+        fs::write(app.join("pastes/r1/paste-1.txt"), b"x").unwrap();
         let policy = SecretPaths::new(Some(&fx.home), Some(&app));
         assert!(policy.check(&app.join("slack-threads/t1/a.png").to_string_lossy()).is_ok());
+        assert!(policy.check(&app.join("pastes/r1/paste-1.txt").to_string_lossy()).is_ok());
         assert!(policy.check(&app.join("server-keys/k").to_string_lossy()).is_err());
     }
 

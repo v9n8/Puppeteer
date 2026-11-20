@@ -226,6 +226,7 @@ pub fn run() {
                 .expect("Failed to create rules dir");
             commands::project_links::set_backup_root(app_data_dir.join("legacy-backups"));
             commands::mcp_packages::set_root(app_data_dir.join("mcp-packages"));
+            commands::paste_as_file::set_root(app_data_dir.join("pastes"));
             // Unfinished file-transfer writes and their temp files (both sides).
             remote::upload::spawn_sweeper(app.handle().clone());
 
@@ -933,6 +934,8 @@ pub fn run() {
             commands::session_flags::set_project_flag_hidden,
             commands::session_flags::set_run_flag,
             commands::session_defaults::set_project_session_defaults,
+            commands::paste_as_file::set_project_paste_as_file,
+            commands::paste_as_file::save_pasted_text,
             commands::tool_permissions::list_project_tool_permissions,
             commands::tool_permissions::set_project_tool_permission,
             commands::tool_permissions::import_project_tool_permissions,
