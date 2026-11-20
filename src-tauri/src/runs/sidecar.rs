@@ -2010,6 +2010,13 @@ fn merge_prior_window_status(snapshot: &mut Value, prior: &Option<Value>) {
             ) else {
                 continue;
             };
+            // A status stamped before this window began belongs to the window
+            // that already reset; carrying a stale `blocked` over would block
+            // the new window until the next rate_limit_event, which never comes
+            // because the budget preflight stops the run first.
+            if !status_in_current_window(key, obj, prior_win) {
+                continue;
+            }
             if let Some(status) = prior_win.get("status") {
                 obj.insert("status".to_string(), status.clone());
             }
@@ -2017,6 +2024,30 @@ fn merge_prior_window_status(snapshot: &mut Value, prior: &Option<Value>) {
                 obj.insert("status_at".to_string(), status_at.clone());
             }
         }
+    }
+}
+
+/// Whether the prior `status_at` falls inside the window the fresh `resets_at`
+/// ends, i.e. on or after `resets_at - window length`. The start is derived
+/// rather than comparing `resets_at` strings, since each `/usage` read carries a
+/// different fraction of a second. Times that don't parse keep the status.
+fn status_in_current_window(
+    key: &str,
+    fresh: &serde_json::Map<String, Value>,
+    prior: &serde_json::Map<String, Value>,
+) -> bool {
+    let length = match key {
+        "five_hour" => chrono::Duration::hours(5),
+        k if k.starts_with("seven_day") => chrono::Duration::days(7),
+        _ => return true,
+    };
+    let time = |v: Option<&Value>| {
+        v.and_then(|v| v.as_str())
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+    };
+    match (time(fresh.get("resets_at")), time(prior.get("status_at"))) {
+        (Some(resets_at), Some(status_at)) => status_at >= resets_at - length,
+        _ => true,
     }
 }
 
@@ -2328,7 +2359,8 @@ mod plan_usage_tests {
                 "five_hour": { "utilization": 12.0, "resets_at": "R", "status": null, "status_at": null },
             }
         });
-        // Prior snapshot carries live status from a rate_limit_event.
+        // Prior snapshot carries live status from a rate_limit_event. Times that
+        // don't parse can't be placed in a window, so the status still merges.
         let prior = Some(serde_json::json!({
             "windows": {
                 "five_hour": { "utilization": null, "resets_at": "R", "status": "warning", "status_at": "T" },
@@ -2339,6 +2371,59 @@ mod plan_usage_tests {
         assert_eq!(w["utilization"].as_f64(), Some(12.0)); // % kept
         assert_eq!(w["status"].as_str(), Some("warning")); // live status merged in
         assert_eq!(w["status_at"].as_str(), Some("T"));
+    }
+
+    fn five_hour_merge(status_at: &str) -> Value {
+        // `/usage` after the window reset: 3% used, new window ends 11:20
+        // (so it started 06:20). The fraction of a second differs per read.
+        let mut fresh = serde_json::json!({
+            "windows": {
+                "five_hour": { "utilization": 3.0, "resets_at": "2026-11-20T11:20:00.720190+00:00", "status": null, "status_at": null },
+            }
+        });
+        let prior = Some(serde_json::json!({
+            "windows": {
+                "five_hour": { "utilization": 99.0, "resets_at": "2026-11-20T06:20:00.176617+00:00", "status": "blocked", "status_at": status_at },
+            }
+        }));
+        merge_prior_window_status(&mut fresh, &prior);
+        fresh["windows"]["five_hour"].clone()
+    }
+
+    #[test]
+    fn merge_drops_status_from_before_the_window_reset() {
+        let w = five_hour_merge("2026-11-20T04:52:02Z");
+        assert_eq!(w["utilization"].as_f64(), Some(3.0));
+        assert!(w["status"].is_null());
+        assert!(w["status_at"].is_null());
+    }
+
+    #[test]
+    fn merge_keeps_status_from_the_current_window() {
+        let w = five_hour_merge("2026-11-20T06:40:00Z");
+        assert_eq!(w["status"].as_str(), Some("blocked"));
+        assert_eq!(w["status_at"].as_str(), Some("2026-11-20T06:40:00Z"));
+    }
+
+    #[test]
+    fn merge_measures_weekly_windows_in_days() {
+        let mut fresh = serde_json::json!({
+            "windows": {
+                "seven_day": { "utilization": 40.0, "resets_at": "2026-11-25T00:00:00+00:00", "status": null, "status_at": null },
+                "seven_day_opus": { "utilization": 1.0, "resets_at": "2026-11-25T00:00:00+00:00", "status": null, "status_at": null },
+            }
+        });
+        let prior = Some(serde_json::json!({
+            "windows": {
+                // Two days into the window that started 11-18: still this window.
+                "seven_day": { "status": "warning", "status_at": "2026-11-20T00:00:00Z" },
+                // Stamped before 11-18: the window that already reset.
+                "seven_day_opus": { "status": "blocked", "status_at": "2026-11-17T23:00:00Z" },
+            }
+        }));
+        merge_prior_window_status(&mut fresh, &prior);
+        assert_eq!(fresh["windows"]["seven_day"]["status"].as_str(), Some("warning"));
+        assert!(fresh["windows"]["seven_day_opus"]["status"].is_null());
     }
 
     #[test]

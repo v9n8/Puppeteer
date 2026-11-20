@@ -95,3 +95,10 @@ test('notice keeps an alternative without plan figures, and returns null when no
   })
   assert.equal(quotaNoticeText([win('five_hour', '5h', 50)], other, th(95, 95)), null)
 })
+
+test('notice names no threshold when the plan blocked the window below it', () => {
+  // "3% is over the 99% threshold" makes no sense: the reason is the block.
+  const blocked = [{ ...win('five_hour', '5h', 3), blocked: true }]
+  assert.deepEqual(quotaNoticeText(blocked, null, th(99, 99)), { window: '5h', percent: 3, limit: 0, other: null })
+  assert.equal(quotaNoticeText([win('five_hour', '5h', 99)], null, th(99, 99)).limit, 99)
+})

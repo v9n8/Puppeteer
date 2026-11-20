@@ -68,10 +68,13 @@ export function quotaNoticeText(
         percent: alternative.windows.length ? Math.max(...alternative.windows.map((w) => w.percent)) : null,
       }
     : null
+  const block = worst.period === '5h' ? thresholds.block5hPercent : thresholds.blockWeekPercent
   return {
     window: worst.period,
     percent: worst.percent,
-    limit: worst.period === '5h' ? thresholds.block5hPercent : thresholds.blockWeekPercent,
+    // Below the threshold the window is over only because the plan blocked it;
+    // naming the threshold would read "3% is over the 99% threshold".
+    limit: worst.percent >= block ? block : 0,
     other,
   }
 }
