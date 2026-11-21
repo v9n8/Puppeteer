@@ -139,7 +139,7 @@ fn install_wake_consumer(app: AppHandle, conductor: &ConductorState) {
     let conductor = conductor.clone();
     tokio::spawn(async move {
         while let Some(run_id) = rx.recv().await {
-            tools::on_run_finished(&app, &run_id).await;
+            super::wake::on_run_finished(&app, &run_id).await;
             // With the switch off, the last run to finish closes the port.
             follow(&app, &conductor).await;
         }

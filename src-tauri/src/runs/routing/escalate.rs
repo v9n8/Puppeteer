@@ -210,7 +210,7 @@ pub async fn log_skipped(db: &Db, conductor_run_id: &str, worker_run_id: &str, r
     }
 }
 
-/// Called by `conductor::tools::on_run_finished` for every finished run that
+/// Called by `conductor::wake::on_run_finished` for every finished run that
 /// is not a conductor, before its conductor would be woken. Closes the
 /// worker's row; `true` when the worker was resumed one tier up, so the
 /// conductor must not be woken yet. Either way the hold its drain put on a
@@ -523,8 +523,8 @@ mod tests {
     /// row exists before its message starts the turn.
     #[test]
     fn the_row_is_closed_before_anything_is_decided() {
-        let tools = include_str!("../../conductor/tools.rs").replace("\r\n", "\n");
-        let finished = section(&tools, "pub async fn on_run_finished(", "\n}\n");
+        let wake = include_str!("../../conductor/wake.rs").replace("\r\n", "\n");
+        let finished = section(&wake, "pub async fn on_run_finished(", "\n}\n");
         order(
             finished,
             &[

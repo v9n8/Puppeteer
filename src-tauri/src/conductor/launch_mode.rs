@@ -1,6 +1,6 @@
 //! The permission mode a conductor last launched with, kept in memory and in
 //! `conductor_sessions.permission_mode` (CO-05). The auto-wake resumes a
-//! conductor in that mode only (`tools::wake_permission_mode`); with it in
+//! conductor in that mode only (`wake::wake_permission_mode`); with it in
 //! memory alone, an app restart left every conductor unwakeable until the user
 //! resumed it by hand. The stored value is the one the conductor actually ran
 //! with, never a default, so restoring it cannot loosen it.

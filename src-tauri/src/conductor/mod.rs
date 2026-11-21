@@ -20,6 +20,7 @@ pub mod mcp_http;
 mod nudge_reports;
 pub mod tools;
 mod wait;
+mod wake;
 mod worker_account;
 pub mod worker_results;
 pub mod worktree;
