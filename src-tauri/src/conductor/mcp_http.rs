@@ -285,11 +285,19 @@ async fn session_wait_stream(
             return one_shot_sse(payload);
         }
     };
+    let return_on = match super::wait::return_on(&args) {
+        Ok(r) => r,
+        Err(msg) => {
+            let payload = json!({ "jsonrpc": "2.0", "id": id, "result": tool_result_err(&msg) });
+            return one_shot_sse(payload);
+        }
+    };
     let timeout_ms = tools::wait_timeout_ms(&args);
 
     struct WaitState {
         state: HttpState,
         ids: Vec<String>,
+        watch: super::wait::Watch,
         id: Value,
         progress_token: Option<Value>,
         timeout_ms: u64,
@@ -302,6 +310,7 @@ async fn session_wait_stream(
     let init = WaitState {
         state: state.clone(),
         ids,
+        watch: super::wait::Watch::new(return_on),
         id,
         progress_token,
         timeout_ms,
@@ -327,11 +336,12 @@ async fn session_wait_stream(
                 }
             };
             let now = Instant::now();
-            // Terminal: everyone idle, or the wait ceiling reached.
-            if pending.is_empty() || now >= st.deadline {
+            // Terminal: `return_on` satisfied, or the wait ceiling reached.
+            if let Some(end) = st.watch.check(&pending, now >= st.deadline) {
                 st.done = true;
                 let waited_ms = st.started.elapsed().as_millis() as u64;
-                let result = tools::build_wait_result(done, pending, waited_ms);
+                let timed_out = end == super::wait::End::TimedOut;
+                let result = tools::build_wait_result(done, pending, waited_ms, timed_out);
                 let payload =
                     json!({ "jsonrpc": "2.0", "id": st.id, "result": tool_result_ok(result) });
                 let ev = Event::default().data(payload.to_string());
@@ -429,12 +439,13 @@ fn tool_specs() -> Value {
         },
         {
             "name": "session_wait",
-            "description": "Block until the given workers finish their current turn (status != running) or timeout_ms elapses. Streams progress while it waits (kept alive, not aborted) and always returns real data. The result's `waited_human` (e.g. \"1m 3s\") and `waited_ms` are how long THIS call actually blocked — quote `waited_human` verbatim as the wait time. NEVER report timeout_ms (the ceiling you asked for); doing so is what turns a 1-minute wait into a false \"10 minutes\". If it returns `timed_out: true`, the workers are still running — end your turn and the auto-resume will wake you when one finishes, or use session_poll to track them.",
+            "description": "Block until one of the given workers that is running now finishes its turn (return_on \"any\", the default) or all of them are idle (\"all\"), or timeout_ms elapses. A worker already idle when you call is listed in `done` but does not end the wait; with none running the call returns at once. `done` lists every given worker idle at return, `pending` those still running. Streams progress while it waits (kept alive, not aborted) and always returns real data. The result's `waited_human` (e.g. \"1m 3s\") and `waited_ms` are how long THIS call actually blocked — quote `waited_human` verbatim as the wait time. NEVER report timeout_ms (the ceiling you asked for); doing so is what turns a 1-minute wait into a false \"10 minutes\". `timed_out: true` means the ceiling passed before that happened: the workers are still running. Prefer ending your turn while workers run (the auto-resume wakes you within seconds of one finishing); use this only when a worker is about to finish, with a short timeout_ms (at most 120000).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "worker_ids": { "type": "array", "items": { "type": "string" } },
-                    "timeout_ms": { "type": "integer", "description": "Max wait in ms (default 120000, capped at 600000)." }
+                    "timeout_ms": { "type": "integer", "description": "Max wait in ms (default 120000, capped at 600000). Keep it short; end your turn for longer work." },
+                    "return_on": { "type": "string", "enum": ["any", "all"], "description": "\"any\" (default): return when one worker running at call time finishes. \"all\": return only when every worker is idle." }
                 },
                 "required": ["worker_ids"]
             }

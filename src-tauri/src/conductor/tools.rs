@@ -412,9 +412,9 @@ pub(crate) async fn wait_snapshot(
 
 /// Build the terminal `session_wait` result from a final snapshot + real elapsed.
 /// Carries `waited_human` + a pointed `note` so the model quotes the real wait,
-/// never the `timeout_ms` ceiling.
-pub(crate) fn build_wait_result(done: Vec<Value>, pending: Vec<String>, waited_ms: u64) -> Value {
-    let timed_out = !pending.is_empty();
+/// never the `timeout_ms` ceiling. `timed_out` comes from `wait::verdict`: with
+/// `return_on: any`, `pending` is often non-empty on a wait that did not time out.
+pub(crate) fn build_wait_result(done: Vec<Value>, pending: Vec<String>, waited_ms: u64, timed_out: bool) -> Value {
     let note = if timed_out {
         format!(
             "You actually waited {} (the worker is still running); report this, \
@@ -456,15 +456,17 @@ async fn session_wait(
     args: Value,
 ) -> Result<Value, String> {
     let ids = resolve_wait_ids(state, conductor_run_id, &args).await?;
+    let mut watch = super::wait::Watch::new(super::wait::return_on(&args)?);
     let timeout_ms = wait_timeout_ms(&args);
     let started = Instant::now();
     let deadline = started + Duration::from_millis(timeout_ms);
 
     loop {
         let (done, pending) = wait_snapshot(state, &ids).await?;
-        if pending.is_empty() || Instant::now() >= deadline {
+        if let Some(end) = watch.check(&pending, Instant::now() >= deadline) {
             let waited_ms = started.elapsed().as_millis() as u64;
-            return Ok(build_wait_result(done, pending, waited_ms));
+            let timed_out = end == super::wait::End::TimedOut;
+            return Ok(build_wait_result(done, pending, waited_ms, timed_out));
         }
         tokio::time::sleep(Duration::from_millis(POLL_INTERVAL_MS)).await;
     }

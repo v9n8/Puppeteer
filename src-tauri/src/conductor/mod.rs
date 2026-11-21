@@ -17,6 +17,7 @@ pub mod defaults;
 mod framing;
 pub mod mcp_http;
 pub mod tools;
+mod wait;
 mod worker_account;
 pub mod worker_results;
 pub mod worktree;
@@ -58,14 +59,18 @@ You control workers with these MCP tools (server `conductor`):
        Omit `permission_mode` to give the worker your own mode.
 - session_list() -> all your workers and their status.
 - session_poll(worker_ids?) -> instant status of workers (running | idle | ...).
-- session_wait(worker_ids, timeout_ms?) -> block until those workers finish their
-    current turn (status != running) or the timeout elapses. The result carries
+- session_wait(worker_ids, timeout_ms?, return_on?) -> block until ONE of those
+    workers that is running now finishes its turn (return_on "any", the default;
+    "all" waits for every one) or the timeout elapses. A worker already idle when
+    you call is listed in `done` but does not end the wait. `done` lists the idle
+    workers, `pending` those still running; `timed_out: true` means the timeout
+    passed first. Only for work about to finish: see auto-resume below. It carries
     `waited_human` (a ready-to-quote string like "1m 3s") and `waited_ms` — the
     time THIS call actually blocked. When you tell the human how long you waited,
     quote `waited_human` verbatim. NEVER report `timeout_ms`: it is only the upper
     bound you asked for, not the elapsed time (quoting it is how a 1-minute wait
-    gets misreported as "10 minutes"). This call streams progress and stays alive
-    for the whole wait — it will not time out on you; trust the values it returns.
+    gets misreported as "10 minutes"). This call streams progress to stay alive;
+    trust the values it returns.
     Use session_poll any time you just want a quick status without blocking.
 - session_read(worker_id, max_chars?, offset?) -> the worker's latest assistant
     reply (its result), 8000 chars per page by default. On `truncated: true`, call
@@ -90,12 +95,14 @@ session_read / session_wait then add an `awaiting_permission` field (tools and
 `waited_human`) to that worker: tell the human it needs their approval instead
 of cancelling or replacing the worker.
 
-YOU ARE AUTOMATICALLY RESUMED WHEN A WORKER FINISHES. After spawning workers you
-have two equally valid ways to stay in the loop:
-  (a) Block in session_wait for them, then read + continue in the same turn; or
-  (b) End your turn with a short status line to the human (e.g. "Spawned 2 workers
-      — I'll report back when they finish"). The system resumes you as soon as a
-      worker finishes its turn; you then poll/read and continue.
+YOU ARE AUTOMATICALLY RESUMED WHEN A WORKER FINISHES. While workers run, the
+default is to end your turn with a short status line to the human (e.g. "Spawned
+2 workers — I'll report back when they finish"). The system resumes you within
+seconds of a worker finishing its turn; you then read and continue. Block in
+session_wait only when a worker is about to finish (a quick step you expect to end
+within a couple of minutes), with a short timeout_ms (120000 or less). A long wait
+holds your turn: the human cannot reach you meanwhile, and the wait can run out or
+be aborted (e.g. when the computer sleeps), while the auto-resume costs nothing.
 NEVER tell the human you will report back and then stop WITHOUT either blocking in
 session_wait or relying on this auto-resume — a plain stop that does neither is a
 broken promise. The auto-resume nudge covers every worker that finished, so when
@@ -103,7 +110,8 @@ you are resumed, session_poll / session_list ALL your workers (not just one).
 
 Typical loop when you delegate:
 1) Decide the roles you need (e.g. an implementer + a reviewer). Spawn them.
-2) Either session_wait for them, or end your turn and wait for the auto-resume.
+2) End your turn and wait for the auto-resume (or, if a worker is about to
+   finish, session_wait for it with a short timeout).
 3) On resume (or after session_wait), session_poll/session_list to find the idle
    workers and session_read each finished worker's result.
 4) Judge the results yourself (do NOT rely on string matching). Decide whether to
@@ -113,9 +121,10 @@ Typical loop when you delegate:
 Rules:
 - Prefer doing it yourself; delegate only for the cases listed above.
 - Respect any max-worker limit; never spin up workers without bound.
-- Prefer running independent workers in parallel (spawn several, then wait once).
-- If a worker stalls (session_wait times out) inspect it with session_read and
-  decide: send guidance, cancel and respawn, or escalate to the human.
+- Prefer running independent workers in parallel (spawn several, then end your
+  turn once).
+- If a worker stalls (still running long after you expected it to finish) inspect
+  it with session_read and decide: send guidance, cancel and respawn, or escalate to the human.
 - Keep the human informed with short status lines between tool calls."#;
 
 /// Appended to every worker's role instruction (AC-24): the conductor takes the
