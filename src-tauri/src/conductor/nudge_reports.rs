@@ -7,7 +7,9 @@
 //! new for each nudge, labelled as data) and a report imitating the tag is
 //! flagged.
 
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{LazyLock, Mutex};
 
 use sqlx::Row;
 
@@ -20,6 +22,24 @@ use crate::db::Db;
 /// (same default size); a longer report is cut and read on with `session_read`.
 pub const NUDGE_REPORT_CHARS: usize = 8_000;
 
+/// Per worker, the `finished_at` of the turn whose reply the conductor read
+/// with `session_read`. A worker that finished while the conductor was busy
+/// (often read right after `session_wait`) is still named by the next nudge;
+/// repeating a report it already has would only grow its context. Kept in
+/// memory: after a restart a report is sent again, which is merely redundant.
+static READ: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// `session_read` read the reply of `worker_id`'s turn that ended at `finished_at`.
+pub fn mark_read(worker_id: &str, finished_at: &str) {
+    if let Ok(mut m) = READ.lock() {
+        m.insert(worker_id.to_string(), finished_at.to_string());
+    }
+}
+
+fn was_read(worker_id: &str, finished_at: &str) -> bool {
+    READ.lock().ok().is_some_and(|m| m.get(worker_id).is_some_and(|f| f == finished_at))
+}
+
 /// One finished worker's latest reply, as read for a nudge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Report {
@@ -28,6 +48,8 @@ pub struct Report {
     pub status: String,
     /// Empty when the log is missing or holds no reply for the turn.
     pub reply: String,
+    /// The conductor already read this turn's reply with `session_read`.
+    pub already_read: bool,
 }
 
 /// Read each worker's latest reply from `.puppeteer/runs/<id>.log` of its
@@ -36,6 +58,10 @@ pub struct Report {
 pub async fn load(db: &Db, conductor_run_id: &str, results: &[WorkerResult]) -> Vec<Report> {
     let mut out = Vec::with_capacity(results.len());
     for r in results {
+        if was_read(&r.id, &r.finished_at) {
+            out.push(Report { id: r.id.clone(), role: String::new(), status: r.status.clone(), reply: String::new(), already_read: true });
+            continue;
+        }
         let project_path = sqlx::query("SELECT p.path FROM runs r JOIN projects p ON p.id = r.project_id WHERE r.id = ?")
             .bind(&r.id)
             .fetch_optional(db)
@@ -56,7 +82,7 @@ pub async fn load(db: &Db, conductor_run_id: &str, results: &[WorkerResult]) -> 
         let role = framing::worker_role(db, conductor_run_id, &r.id)
             .await
             .unwrap_or_else(|_| "worker".to_string());
-        out.push(Report { id: r.id.clone(), role, status: r.status.clone(), reply });
+        out.push(Report { id: r.id.clone(), role, status: r.status.clone(), reply, already_read: false });
     }
     out
 }
@@ -90,6 +116,10 @@ pub fn render(reports: &[Report], budget: usize, nonce: &str) -> String {
     );
     for (i, r) in reports.iter().enumerate() {
         out.push_str(&format!("\nWorker {} — {}:", r.id, r.status));
+        if r.already_read {
+            out.push_str(" you already read this report with session_read.\n");
+            continue;
+        }
         if r.reply.is_empty() {
             out.push_str(" no report (its log has no reply for this turn).\n");
             continue;
@@ -123,7 +153,7 @@ mod tests {
     const NONCE: &str = "3fa9c1d2e8b0";
 
     fn rep(id: &str, status: &str, reply: &str) -> Report {
-        Report { id: id.into(), role: "reviewer".into(), status: status.into(), reply: reply.into() }
+        Report { id: id.into(), role: "reviewer".into(), status: status.into(), reply: reply.into(), already_read: false }
     }
 
     #[test]
@@ -179,6 +209,37 @@ mod tests {
         assert!(t.contains("Worker w2 — cancelled: no report"));
         assert!(!t.contains("<worker-report-3fa9c1d2e8b0 "));
         assert_eq!(render(&[], NUDGE_REPORT_CHARS, NONCE), "");
+    }
+
+    #[test]
+    fn a_report_already_read_is_not_repeated_and_leaves_its_share() {
+        let mut read = rep("w-read", "done", "");
+        read.already_read = true;
+        let t = render(&[read, rep("w-new", "done", &"x".repeat(150))], 150, NONCE);
+        assert!(t.contains("Worker w-read — done: you already read this report with session_read."));
+        assert!(!t.contains("worker=\"w-read\""));
+        assert!(!t.contains("Report cut"));
+    }
+
+    #[tokio::test]
+    async fn load_skips_the_log_of_a_turn_read_with_session_read() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+        let wr = |id: &str, at: &str| WorkerResult {
+            id: id.into(),
+            title: String::new(),
+            status: "done".into(),
+            finished_at: at.into(),
+            duration_ms: None,
+            total_tokens: None,
+            retried: None,
+        };
+        mark_read("w-co03", "2026-01-03T00:00:00Z");
+        let got = load(&db, "c1", &[wr("w-co03", "2026-01-03T00:00:00Z")]).await;
+        assert!(got[0].already_read);
+        // A later turn of the same worker has not been read.
+        let got = load(&db, "c1", &[wr("w-co03", "2026-01-04T00:00:00Z")]).await;
+        assert!(!got[0].already_read);
     }
 
     #[tokio::test]

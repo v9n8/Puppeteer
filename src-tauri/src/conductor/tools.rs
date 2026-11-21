@@ -483,7 +483,7 @@ async fn session_read(
 
     let db = db(state);
     let row = sqlx::query(
-        "SELECT r.status, p.path as project_path FROM runs r
+        "SELECT r.status, r.finished_at, p.path as project_path FROM runs r
          JOIN projects p ON p.id = r.project_id WHERE r.id = ?",
     )
     .bind(&worker_id)
@@ -498,6 +498,9 @@ async fn session_read(
         .join("runs")
         .join(format!("{}.log", worker_id));
     let reply = extract_latest_reply(&log_path);
+    if let (false, Some(at)) = (status == "running", row.get::<Option<String>, _>("finished_at")) {
+        super::nudge_reports::mark_read(&worker_id, &at);
+    }
     let (offset, max_chars) = read_window(&args);
     let role = framing::worker_role(&db, conductor_run_id, &worker_id).await?;
 
