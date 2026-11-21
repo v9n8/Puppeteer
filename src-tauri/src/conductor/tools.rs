@@ -715,7 +715,7 @@ fn normalize_status(status: &str) -> &'static str {
 
 /// Parse the worker's stream-json log and return the assistant text produced
 /// since its last user turn. Empty string when nothing is readable yet.
-fn extract_latest_reply(log_path: &Path) -> String {
+pub(crate) fn extract_latest_reply(log_path: &Path) -> String {
     let content = match std::fs::read_to_string(log_path) {
         Ok(c) => c,
         Err(_) => return String::new(),
@@ -847,8 +847,8 @@ async fn wake_conductor_for_worker(
 ///   • turn over but sidecar still alive (DB `running`, e.g. kept up by a
 ///     backgrounded Bash) → send the nudge straight to the live sidecar;
 ///   • sidecar exited → resume the conductor, then send the nudge.
-/// A burst of workers finishing produces one nudge: the woken conductor polls
-/// ALL its workers, covering the rest.
+/// A burst of workers finishing produces one nudge naming (and carrying the
+/// reports of) every worker that finished since the last one.
 async fn wake_conductor(
     app: &tauri::AppHandle,
     cst: &crate::conductor::ConductorState,
@@ -873,7 +873,7 @@ async fn wake_conductor(
     }
 
     let results = crate::conductor::worker_results::collect(&db, conductor_run_id).await;
-    let nudge = crate::conductor::worker_results::nudge_text(&results);
+    let nudge = crate::conductor::worker_results::nudge(&db, conductor_run_id, &results).await;
 
     let outcome = async {
         if !alive {
