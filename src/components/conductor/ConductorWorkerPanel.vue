@@ -21,7 +21,7 @@ import { ChevronLeft, ChevronRight, ShieldQuestion } from 'lucide-vue-next'
 import { Button } from '@/components/ui'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
-import { useRunsStore, runActivityAt, type RunRecord } from '@/stores/runs'
+import { useRunsStore, type RunRecord } from '@/stores/runs'
 import { useUILayoutStore, TIMELINE_MIN_HEIGHT } from '@/stores/uiLayout'
 import {
   compactSpan,
@@ -33,6 +33,8 @@ import {
   shortModelId,
 } from '@/lib/runDisplay'
 import type { ConductorWorker, ConductorEvent } from '@/stores/conductor'
+import { settledAt } from '@/lib/workerActivity'
+import { useWorkerActivity } from '@/composables/useWorkerActivity'
 
 const props = defineProps<{
   workers: ConductorWorker[]
@@ -103,6 +105,16 @@ function shortId(id: string): string {
 function isRunning(w: ConductorWorker): boolean {
   return w.status === 'running'
 }
+
+// What each running worker is doing, from its own event stream (CO-06).
+const runningIds = computed(() => props.workers.filter(isRunning).map((w) => w.worker_id))
+const activity = useWorkerActivity(runningIds)
+function workerActivity(w: ConductorWorker): string {
+  const a = isRunning(w) ? activity.value[w.worker_id] : undefined
+  if (!a) return ''
+  const age = compactSpan(Math.max(0, now.value.getTime() - a.at), t('run.relNow'))
+  return a.tool ? t('conductor.activityTool', { tool: a.tool, age }) : t('conductor.activityNoTool', { age })
+}
 function statusTitle(w: ConductorWorker): string {
   const key = `common.status.${w.status}`
   const translated = t(key)
@@ -117,7 +129,7 @@ function workerTime(w: ConductorWorker): string {
   if (isRunning(w) && run.started_at) {
     return compactSpan(now.value.getTime() - new Date(run.started_at).getTime(), t('conductor.justStarted'))
   }
-  return relativeAge(runActivityAt(run), t('run.relNow'), now.value.getTime())
+  return relativeAge(settledAt(run), t('run.relNow'), now.value.getTime())
 }
 function workerTimeTitle(w: ConductorWorker): string {
   const run = runById.value.get(w.worker_id)
@@ -125,7 +137,7 @@ function workerTimeTitle(w: ConductorWorker): string {
   if (isRunning(w) && run.started_at) {
     return t('conductor.runningSince', { time: formatRunTimestamp(run.started_at) })
   }
-  return `${t('run.lastActivity')}: ${formatRunTimestamp(runActivityAt(run))}`
+  return `${t('run.lastActivity')}: ${formatRunTimestamp(settledAt(run))}`
 }
 function workerTitle(w: ConductorWorker): string {
   return w.title ?? shortId(w.worker_id)
@@ -321,6 +333,15 @@ onBeforeUnmount(onDragEnd)
               :class="isRunning(w) ? 'text-info/80' : 'text-muted-foreground/70'"
             >{{ workerTime(w) }}</span>
           </div>
+          <!-- Running: its current tool and how recent its last event is. -->
+          <p
+            v-if="workerActivity(w)"
+            class="mt-0.5 truncate text-2xs leading-tight text-info/80"
+            :class="density === 'comfortable' ? 'pl-6' : 'pl-5'"
+            :title="workerActivity(w)"
+          >
+            {{ workerActivity(w) }}
+          </p>
           <!-- Compact: "account · model" (model without "claude-"). -->
           <p
             v-if="density === 'compact'"

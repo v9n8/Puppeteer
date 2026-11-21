@@ -48,6 +48,8 @@
   },
   "justStarted": "<1m",
   "runningSince": "Đang chạy từ {time}",
+  "activityTool": "{tool} · sự kiện cuối: {age}",
+  "activityNoTool": "Sự kiện cuối: {age}",
   "resizeTimeline": "Kéo để chỉnh chiều cao dòng thời gian",
   "result": {
     "title": "Worker xong lượt",

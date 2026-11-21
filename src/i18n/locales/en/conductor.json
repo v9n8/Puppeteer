@@ -48,6 +48,8 @@
   },
   "justStarted": "<1m",
   "runningSince": "Running since {time}",
+  "activityTool": "{tool} · last event: {age}",
+  "activityNoTool": "Last event: {age}",
   "resizeTimeline": "Drag to resize the timeline",
   "result": {
     "title": "Worker finished a turn",
