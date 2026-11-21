@@ -12,9 +12,11 @@
 //! kept until then, `conductor::worktree::sweep`). A conductor that was idle
 //! when the app closed, with workers mid-turn, gets a row for those workers.
 //!
-//! A resume runs in the project's default permission mode, else the global
-//! one: the mode a session last ran with lives only in the webview and is gone
-//! after a restart. The list names that mode so the banner can say it.
+//! A conductor resumes in the mode it last launched with, stored since CO-05
+//! (`conductor_sessions.permission_mode`). Any other run, or a conductor not
+//! launched since then, resumes in the project's default permission mode, else
+//! the global one: its last mode lived only in the webview. The list names the
+//! mode so the banner can say it.
 
 use std::future::Future;
 
@@ -118,6 +120,17 @@ async fn load_pending(db: &Db) -> Result<Vec<Pending>, String> {
     Ok(rows.iter().map(|r| Pending { id: r.get("id"), worker_of: r.get("worker_of") }).collect())
 }
 
+/// The mode a conductor last launched with, when stored (CO-09).
+async fn last_mode(db: &Db, run_id: &str) -> Option<String> {
+    sqlx::query_scalar::<_, Option<String>>("SELECT permission_mode FROM conductor_sessions WHERE id = ?")
+        .bind(run_id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+}
+
 async fn list(db: &Db) -> Result<Vec<InterruptedRun>, String> {
     let global_mode: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'default_permission_mode'")
         .fetch_optional(db)
@@ -138,6 +151,10 @@ async fn list(db: &Db) -> Result<Vec<InterruptedRun>, String> {
         // A conductor in the Trash: its row comes back with it.
         let Some(row) = row else { continue };
         let project_mode: Option<String> = row.get("default_permission_mode");
+        let permission_mode = match last_mode(db, &g.run_id).await {
+            Some(mode) => mode,
+            None => crate::commands::session_defaults::fallback_permission_mode(project_mode.as_deref(), &global_mode),
+        };
         out.push(InterruptedRun {
             run_id: g.run_id,
             project_id: row.get("project_id"),
@@ -145,10 +162,7 @@ async fn list(db: &Db) -> Result<Vec<InterruptedRun>, String> {
             title: row.get("title"),
             engine: row.get("engine"),
             worker_count: g.worker_ids.len(),
-            permission_mode: crate::commands::session_defaults::fallback_permission_mode(
-                project_mode.as_deref(),
-                &global_mode,
-            ),
+            permission_mode,
         });
     }
     Ok(out)
@@ -221,14 +235,16 @@ where
     Ok(out)
 }
 
-/// Resume like the composer does: `resume_run` in the default mode, then the message.
+/// Resume like the composer does: `resume_run` in the mode the list named
+/// (the conductor's stored one, else the default), then the message.
 async fn resume_and_send(app: AppHandle, run_id: String, message: String) -> Result<(), String> {
+    let mode = last_mode(app.state::<Db>().inner(), &run_id).await;
     crate::commands::runs::resume_run_with(
         app.clone(),
         app.state::<Db>(),
         app.state::<RunRegistry>(),
         run_id.clone(),
-        None,
+        mode,
         None,
         None,
         None,
@@ -433,6 +449,25 @@ mod tests {
         sqlx::query("DELETE FROM settings").execute(&db).await.unwrap();
         let modes: Vec<String> = list(&db).await.unwrap().into_iter().map(|r| r.permission_mode).collect();
         assert_eq!(modes, ["default", "default", "plan"]);
+    }
+
+    /// CO-09: a conductor with a stored launch mode is listed (and resumed) in
+    /// it; one without keeps the project's default.
+    #[tokio::test]
+    async fn a_conductor_is_listed_in_the_mode_it_last_ran_with() {
+        let db = scenario().await;
+        sqlx::query(
+            "INSERT INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at, permission_mode) VALUES
+             ('c', 'p1', '', 'running', 3, 'x', 'default'),
+             ('r', 'p2', '', 'running', 3, 'x', NULL)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let modes: Vec<_> = list(&db).await.unwrap().into_iter().map(|r| (r.run_id, r.permission_mode)).collect();
+        assert_eq!(modes, [("r".to_string(), "acceptEdits".to_string()), ("c".to_string(), "default".to_string())]);
+        assert_eq!(last_mode(&db, "c").await.as_deref(), Some("default"));
+        assert_eq!(last_mode(&db, "r").await, None);
     }
 
     #[tokio::test]
