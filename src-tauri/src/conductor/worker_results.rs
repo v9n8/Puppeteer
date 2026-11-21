@@ -19,8 +19,9 @@ use crate::runs::RunRegistry;
 /// Log record type read by `src/lib/streamEvents.ts`.
 pub const RECORD_TYPE: &str = "_puppeteer_worker_results";
 
-/// Newest `finished_at` already reported, per conductor. Kept in memory: after a
-/// restart the conductor's own `last_activity_at` stands in for it.
+/// Newest `finished_at` already reported, per conductor. Also stored in
+/// `conductor_sessions.reported_until` (CO-08), read after a restart; with
+/// neither, the conductor's own `last_activity_at` stands in for it.
 static REPORTED: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -46,7 +47,10 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
     let known = REPORTED.lock().ok().and_then(|m| m.get(conductor_run_id).cloned());
     let since = match known {
         Some(s) => s,
-        None => sqlx::query_scalar::<_, Option<String>>("SELECT last_activity_at FROM runs WHERE id = ?")
+        None => sqlx::query_scalar::<_, Option<String>>(
+            "SELECT COALESCE(s.reported_until, r.last_activity_at) FROM runs r
+             LEFT JOIN conductor_sessions s ON s.id = r.id WHERE r.id = ?",
+        )
             .bind(conductor_run_id)
             .fetch_optional(db)
             .await
@@ -134,7 +138,7 @@ conclude). If the goal is now met, give the human your final summary.",
 /// Write the cards' record into the conductor's live log and move the
 /// "already reported" mark past these workers. Only `deliver` calls it, once
 /// the nudge went through.
-async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerResult]) {
+async fn push(db: &Db, registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerResult]) {
     let Some(last) = results.last() else { return };
     let log_buf = match registry.lock().await.get(conductor_run_id) {
         Some(handles) => handles.log_buf.clone(),
@@ -145,6 +149,15 @@ async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerR
     if let Ok(mut m) = REPORTED.lock() {
         m.insert(conductor_run_id.to_string(), last.finished_at.clone());
     }
+    if let Err(e) = sqlx::query("UPDATE conductor_sessions SET reported_until = ? WHERE id = ?")
+        .bind(&last.finished_at)
+        .bind(conductor_run_id)
+        .execute(db)
+        .await
+    {
+        // The memory mark still holds until a restart.
+        tracing::warn!(event = "worker_results_mark_save_failed", run_id = %conductor_run_id, error = %e);
+    }
 }
 
 /// Send the nudge, then report the workers it names. A nudge that did not go
@@ -152,13 +165,14 @@ async fn push(registry: &RunRegistry, conductor_run_id: &str, results: &[WorkerR
 /// the same workers again. The record lands after the nudge's own log line;
 /// `attachCards` in `src/lib/workerResults.ts` pairs them in that order.
 pub async fn deliver<T>(
+    db: &Db,
     registry: &RunRegistry,
     conductor_run_id: &str,
     results: &[WorkerResult],
     send: impl std::future::Future<Output = Result<T, String>>,
 ) -> Result<T, String> {
     let sent = send.await?;
-    push(registry, conductor_run_id, results).await;
+    push(db, registry, conductor_run_id, results).await;
     Ok(sent)
 }
 
@@ -345,15 +359,39 @@ mod tests {
         run(&db, "w1", Some("c-fail"), "done", Some("2026-01-03T00:00:00Z"), None).await;
         let registry = live("c-fail").await;
         let results = collect(&db, "c-fail").await;
-        let sent = deliver(&registry, "c-fail", &results, async { Err::<(), _>("budget".to_string()) }).await;
+        let sent = deliver(&db, &registry, "c-fail", &results, async { Err::<(), _>("budget".to_string()) }).await;
         assert!(sent.is_err());
         let buf = registry.lock().await.get("c-fail").unwrap().log_buf.clone();
         assert!(!buf.lock().await.contains(RECORD_TYPE));
         let again: Vec<_> = collect(&db, "c-fail").await.into_iter().map(|w| w.id).collect();
         assert_eq!(again, ["w1"]);
 
-        deliver(&registry, "c-fail", &results, async { Ok::<(), String>(()) }).await.unwrap();
+        deliver(&db, &registry, "c-fail", &results, async { Ok::<(), String>(()) }).await.unwrap();
         assert!(buf.lock().await.contains(RECORD_TYPE));
         assert!(collect(&db, "c-fail").await.is_empty());
+    }
+
+    /// CO-08: after a restart the stored mark, not the conductor's later
+    /// activity, decides which workers are still unreported.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_reported_mark_survives_a_restart() {
+        let db = db().await;
+        run(&db, "c-mark", None, "running", None, None).await;
+        sqlx::query("INSERT INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at) VALUES ('c-mark', 'p', '', 'running', 3, '2026-01-01')")
+            .execute(&db)
+            .await
+            .unwrap();
+        run(&db, "w1", Some("c-mark"), "done", Some("2026-01-03T00:00:00Z"), None).await;
+        let registry = live("c-mark").await;
+        let results = collect(&db, "c-mark").await;
+        deliver(&db, &registry, "c-mark", &results, async { Ok::<(), String>(()) }).await.unwrap();
+
+        // w2's nudge failed, then the user wrote to the conductor; then the app restarted.
+        run(&db, "w2", Some("c-mark"), "done", Some("2026-01-05T00:00:00Z"), None).await;
+        sqlx::query("UPDATE runs SET last_activity_at = '2026-01-06T00:00:00Z' WHERE id = 'c-mark'").execute(&db).await.unwrap();
+        REPORTED.lock().unwrap().remove("c-mark");
+        let again: Vec<_> = collect(&db, "c-mark").await.into_iter().map(|w| w.id).collect();
+        assert_eq!(again, ["w2"]);
     }
 }

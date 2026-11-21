@@ -140,7 +140,7 @@ async fn wake_conductor(
             },
             false,
         );
-        crate::conductor::worker_results::deliver(&registry, conductor_run_id, &results, send).await
+        crate::conductor::worker_results::deliver(&db, &registry, conductor_run_id, &results, send).await
     }
     .await;
 
