@@ -395,7 +395,7 @@ pub(crate) async fn start_run_inner(
                 crate::conductor::commands::ensure_conductor_launch(db, cst.inner(), &payload.run_id)
                     .await?;
             if launch.is_some() {
-                cst.set_permission_mode(&payload.run_id, &permission_mode);
+                crate::conductor::launch_mode::remember(db, cst.inner(), &payload.run_id, &permission_mode).await;
             }
             launch
         }
@@ -4928,7 +4928,7 @@ pub(crate) async fn resume_run_with(
         &default_permission_mode,
     );
     if let (Some(cst), Some(_)) = (&cst, &conductor_launch) {
-        cst.set_permission_mode(&run_id, &permission_mode);
+        crate::conductor::launch_mode::remember(db.inner(), cst.inner(), &run_id, &permission_mode).await;
     }
 
     // A worker resumes in its worktree (restored if the startup sweep removed

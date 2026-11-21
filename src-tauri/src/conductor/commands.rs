@@ -575,7 +575,7 @@ pub async fn conductor_worker_merge(db: State<'_, Db>, worker_id: String) -> Res
 pub async fn reconnect_running(db: &Db, conductor: &ConductorState) {
     let sessions = match sqlx::query(
         // A session in the Trash (itself or its project) stays unregistered.
-        "SELECT s.id, s.project_id, s.max_workers FROM conductor_sessions s \
+        "SELECT s.id, s.project_id, s.max_workers, s.permission_mode FROM conductor_sessions s \
          JOIN runs r ON r.id = s.id JOIN projects p ON p.id = r.project_id \
          WHERE s.status = 'running' AND r.deleted_at IS NULL AND p.deleted_at IS NULL",
     )
@@ -614,6 +614,10 @@ pub async fn reconnect_running(db: &Db, conductor: &ConductorState) {
         let max_workers: i64 = s.get("max_workers");
         let worker_ids = workers_by_conductor.remove(&id).unwrap_or_default();
         conductor.reregister_session(&id, &project_id, max_workers.max(1) as usize, worker_ids);
+        // The mode it last ran with (CO-05), so a worker finishing can wake it.
+        if let Some(mode) = s.get::<Option<String>, _>("permission_mode") {
+            conductor.set_permission_mode(&id, &mode);
+        }
     }
     if !sessions.is_empty() {
         tracing::info!(event = "conductor_reconnected", count = sessions.len());

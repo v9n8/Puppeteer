@@ -928,7 +928,7 @@ async fn wake_conductor(
 /// The mode a woken conductor resumes with: the one it last ran with. Without
 /// it the resume would fall back to `default_permission_mode`, which may be
 /// looser (a `plan` session woken in bypass, then free to spawn bypass workers).
-/// Unknown (an app restart forgets it) means no wake: guessing could loosen it.
+/// Unknown (never stored, `launch_mode`) means no wake: guessing could loosen it.
 fn wake_permission_mode(cst: &ConductorState, conductor_run_id: &str) -> Result<String, String> {
     cst.session(conductor_run_id)
         .and_then(|s| s.permission_mode)

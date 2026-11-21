@@ -15,6 +15,7 @@
 pub mod commands;
 pub mod defaults;
 mod framing;
+pub mod launch_mode;
 pub mod mcp_http;
 mod nudge_reports;
 pub mod tools;
