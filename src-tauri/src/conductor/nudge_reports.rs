@@ -40,6 +40,12 @@ fn was_read(worker_id: &str, finished_at: &str) -> bool {
     READ.lock().ok().is_some_and(|m| m.get(worker_id).is_some_and(|f| f == finished_at))
 }
 
+/// Every one of `results` was read with `session_read` (none: false). A wake
+/// for them would only repeat what the conductor has (CO-10).
+pub fn all_read(results: &[WorkerResult]) -> bool {
+    !results.is_empty() && results.iter().all(|r| was_read(&r.id, &r.finished_at))
+}
+
 /// One finished worker's latest reply, as read for a nudge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Report {
@@ -219,6 +225,24 @@ mod tests {
         assert!(t.contains("Worker w-read — done: you already read this report with session_read."));
         assert!(!t.contains("worker=\"w-read\""));
         assert!(!t.contains("Report cut"));
+    }
+
+    #[test]
+    fn all_read_needs_every_worker_read_and_at_least_one() {
+        let wr = |id: &str| WorkerResult {
+            id: id.into(),
+            title: String::new(),
+            status: "done".into(),
+            finished_at: "2026-01-03T00:00:00Z".into(),
+            duration_ms: None,
+            total_tokens: None,
+            retried: None,
+        };
+        mark_read("w-co10-a", "2026-01-03T00:00:00Z");
+        mark_read("w-co10-b", "2026-01-03T00:00:00Z");
+        assert!(all_read(&[wr("w-co10-a"), wr("w-co10-b")]));
+        assert!(!all_read(&[wr("w-co10-a"), wr("w-co10-unread")]));
+        assert!(!all_read(&[]));
     }
 
     #[tokio::test]

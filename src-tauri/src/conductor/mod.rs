@@ -108,8 +108,9 @@ holds your turn: the human cannot reach you meanwhile, and the wait can run out 
 be aborted (e.g. when the computer sleeps), while the auto-resume costs nothing.
 NEVER tell the human you will report back and then stop WITHOUT either blocking in
 session_wait or relying on this auto-resume — a plain stop that does neither is a
-broken promise. The auto-resume nudge lists every worker that finished since the
-last nudge and carries each one's report, framed like session_read's: do not
+broken promise. A worker whose finished turn you already read with session_read
+does not resume you again. The auto-resume nudge lists every worker that finished
+since the last nudge and carries each one's report, framed like session_read's: do not
 session_read them again, except to read on where a report says it was cut. Call
 session_poll / session_list only when you need the status of your other workers.
 

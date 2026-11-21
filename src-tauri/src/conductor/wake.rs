@@ -107,6 +107,17 @@ async fn wake_conductor(
     }
 
     let results = crate::conductor::worker_results::collect(&db, conductor_run_id).await;
+    // The conductor already read every one of them with session_read (often
+    // right after session_wait, CO-10): a wake would cost a whole model call
+    // over its context just to repeat that. Skip it, move the mark past them,
+    // and give the slot back; a wake deferred in the meantime goes out now.
+    if crate::conductor::nudge_reports::all_read(&results) {
+        crate::conductor::worker_results::mark_reported(&db, conductor_run_id, &results).await;
+        if cst.turn_ended(conductor_run_id) {
+            Box::pin(wake_conductor(app, cst, conductor_run_id)).await;
+        }
+        return;
+    }
     let nudge = crate::conductor::worker_results::nudge(&db, conductor_run_id, &results).await;
 
     let outcome = async {
@@ -172,4 +183,20 @@ fn db_from(app: &tauri::AppHandle) -> Db {
 
 fn registry_from(app: &tauri::AppHandle) -> RunRegistry {
     app.state::<RunRegistry>().inner().clone()
+}
+
+#[cfg(test)]
+mod tests {
+    /// The wake needs a running app, so the source is checked: a wake whose
+    /// workers were all read returns before any resume or nudge (CO-10).
+    #[test]
+    fn a_wake_for_workers_already_read_is_skipped_before_the_resume() {
+        let src = include_str!("wake.rs").replace("\r\n", "\n");
+        let body = &src[src.find("async fn wake_conductor(").unwrap()..];
+        let at = |s: &str| body.find(s).unwrap_or_else(|| panic!("missing {s}"));
+        let skip = at("if crate::conductor::nudge_reports::all_read(&results) {");
+        assert!(at("worker_results::collect(&db, conductor_run_id)") < skip);
+        assert!(skip < at("worker_results::nudge(&db, conductor_run_id, &results)"));
+        assert!(skip < at("resume_run_with("));
+    }
 }

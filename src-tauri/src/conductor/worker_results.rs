@@ -146,11 +146,23 @@ async fn push(db: &Db, registry: &RunRegistry, conductor_run_id: &str, results: 
     };
     let record = serde_json::json!({ "type": RECORD_TYPE, "workers": results });
     log_buf.lock().await.push_str(&format!("{record}\n"));
+    save_mark(db, conductor_run_id, &last.finished_at).await;
+}
+
+/// Move the mark past `results` without a nudge or cards: the wake for them
+/// was skipped because the conductor had read them all (CO-10).
+pub async fn mark_reported(db: &Db, conductor_run_id: &str, results: &[WorkerResult]) {
+    if let Some(last) = results.last() {
+        save_mark(db, conductor_run_id, &last.finished_at).await;
+    }
+}
+
+async fn save_mark(db: &Db, conductor_run_id: &str, finished_at: &str) {
     if let Ok(mut m) = REPORTED.lock() {
-        m.insert(conductor_run_id.to_string(), last.finished_at.clone());
+        m.insert(conductor_run_id.to_string(), finished_at.to_string());
     }
     if let Err(e) = sqlx::query("UPDATE conductor_sessions SET reported_until = ? WHERE id = ?")
-        .bind(&last.finished_at)
+        .bind(finished_at)
         .bind(conductor_run_id)
         .execute(db)
         .await
@@ -393,5 +405,24 @@ mod tests {
         REPORTED.lock().unwrap().remove("c-mark");
         let again: Vec<_> = collect(&db, "c-mark").await.into_iter().map(|w| w.id).collect();
         assert_eq!(again, ["w2"]);
+    }
+
+    /// CO-10: a skipped wake still moves the mark, in memory and in the DB.
+    #[tokio::test]
+    async fn a_skipped_wake_moves_the_mark() {
+        let db = db().await;
+        run(&db, "c-skip", None, "running", None, None).await;
+        sqlx::query("INSERT INTO conductor_sessions (id, project_id, goal, status, max_workers, created_at) VALUES ('c-skip', 'p', '', 'running', 3, '2026-01-01')")
+            .execute(&db)
+            .await
+            .unwrap();
+        run(&db, "w1", Some("c-skip"), "done", Some("2026-01-03T00:00:00Z"), None).await;
+        let results = collect(&db, "c-skip").await;
+        mark_reported(&db, "c-skip", &results).await;
+        assert!(collect(&db, "c-skip").await.is_empty());
+        REPORTED.lock().unwrap().remove("c-skip");
+        assert!(collect(&db, "c-skip").await.is_empty());
+        mark_reported(&db, "c-skip", &[]).await;
+        assert!(collect(&db, "c-skip").await.is_empty());
     }
 }
