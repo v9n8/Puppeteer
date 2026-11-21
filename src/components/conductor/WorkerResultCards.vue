@@ -130,7 +130,8 @@ function openChanged(id: string) {
         <ChevronRight class="h-3 w-3 transition-transform" :class="{ 'rotate-90': showNudge }" :stroke-width="2" />
         {{ t('conductor.result.nudge') }}
       </button>
-      <div v-if="showNudge" class="mt-1 min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap rounded-lg border border-border bg-muted/40 px-3 py-2.5 leading-relaxed">{{ nudge }}</div>
+      <!-- The nudge carries the workers' reports (up to ~8,000 chars), so it scrolls in place. -->
+      <div v-if="showNudge" class="mt-1 min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap max-h-[28rem] overflow-y-auto rounded-lg border border-border bg-muted/40 px-3 py-2.5 leading-relaxed">{{ nudge }}</div>
     </div>
   </div>
 </template>

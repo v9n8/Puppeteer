@@ -448,6 +448,11 @@ test('UR-21: the context chip keeps /compact as one short label and moves the hi
   for (const lang of ['en', 'vi']) assert.match(read(`../../i18n/locales/${lang}/run.json`), /"compactHint": "/)
 })
 
+test('CO-04: the nudge under the worker cards scrolls in place instead of growing with the reports', () => {
+  const src = read('../../components/conductor/WorkerResultCards.vue')
+  assert.match(src, /v-if="showNudge" class="[^"]*max-h-\[28rem\] overflow-y-auto[^"]*">\{\{ nudge \}\}/)
+})
+
 test('UR-38: long unbroken text wraps inside flex rows instead of overflowing', () => {
   const wraps = [
     ['../../components/DiffView.vue', /class="min-w-0 flex-1 px-2 whitespace-pre-wrap break-words \[overflow-wrap:anywhere\]"/],
