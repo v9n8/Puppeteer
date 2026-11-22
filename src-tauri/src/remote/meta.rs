@@ -118,3 +118,53 @@ pub fn set_run_meta(
         permission_mode,
     );
 }
+
+/// Fill a snapshot's blank engine / model from the run's own row: what the run
+/// continues with while no surface has picked one. The saved model stands in only
+/// for the engine it ran on, as the desktop composer's model menu shows it — so a
+/// controller resolves a `[1m]` run to the 1M context window, not 200K.
+pub fn with_run_fallback(
+    mut meta: RunMeta,
+    run_engine: Option<String>,
+    run_model: Option<String>,
+) -> RunMeta {
+    let blank = |v: &Option<String>| v.as_deref().unwrap_or("").trim().is_empty();
+    if blank(&meta.engine) {
+        meta.engine = run_engine.clone();
+    }
+    if blank(&meta.model) && meta.engine == run_engine {
+        meta.model = run_model;
+    }
+    meta
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{with_run_fallback, RunMeta};
+
+    fn s(v: &str) -> Option<String> {
+        Some(v.to_string())
+    }
+
+    #[test]
+    fn no_pick_takes_the_runs_saved_model() {
+        let m = with_run_fallback(RunMeta::default(), s("claude"), s("claude-opus-5-5[1m]"));
+        assert_eq!(m.engine.as_deref(), Some("claude"));
+        assert_eq!(m.model.as_deref(), Some("claude-opus-5-5[1m]"));
+    }
+
+    #[test]
+    fn a_pick_wins_over_the_saved_model() {
+        let picked = RunMeta { engine: s("claude"), model: s("claude-opus-5-5"), permission_mode: None };
+        let m = with_run_fallback(picked, s("claude"), s("claude-opus-5-5[1m]"));
+        assert_eq!(m.model.as_deref(), Some("claude-opus-5-5"));
+    }
+
+    #[test]
+    fn another_engine_picked_does_not_take_the_saved_model() {
+        let picked = RunMeta { engine: s("codex"), model: None, permission_mode: None };
+        let m = with_run_fallback(picked, s("claude"), s("claude-opus-5-5[1m]"));
+        assert_eq!(m.engine.as_deref(), Some("codex"));
+        assert_eq!(m.model, None);
+    }
+}

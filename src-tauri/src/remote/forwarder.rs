@@ -464,8 +464,7 @@ pub async fn send_run_list(
 
 /// Seal + send the bound run's engine/model/permission-mode snapshot. Prefers the
 /// live in-memory selection (what the desktop composer last pushed); falls back to
-/// the run's persisted engine so a controller that pairs before the composer has
-/// pushed anything still lands on the correct engine (not a blank/default).
+/// the run's saved engine / model (`with_run_fallback`).
 pub async fn send_run_meta(
     db: &Db,
     store: &crate::remote::RunMetaStore,
@@ -475,16 +474,15 @@ pub async fn send_run_meta(
     seq: &SeqCounter,
     bound_run_id: &str,
 ) {
-    let mut meta = store.get(bound_run_id).unwrap_or_default();
-    if meta.engine.as_deref().unwrap_or("").trim().is_empty() {
-        meta.engine = sqlx::query_scalar::<_, Option<String>>("SELECT engine FROM runs WHERE id = ?")
+    let (run_engine, run_model) =
+        sqlx::query_as::<_, (Option<String>, Option<String>)>("SELECT engine, model FROM runs WHERE id = ?")
             .bind(bound_run_id)
             .fetch_optional(db)
             .await
             .ok()
             .flatten()
-            .flatten();
-    }
+            .unwrap_or_default();
+    let meta = crate::remote::meta::with_run_fallback(store.get(bound_run_id).unwrap_or_default(), run_engine, run_model);
     // Which managed account the run executes with. Read from the run row rather
     // than the meta store: the account is run state the desktop writes directly,
     // not a composer selection the store caches. NULL becomes "" — the global

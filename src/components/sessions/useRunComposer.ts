@@ -170,10 +170,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   const contextStale = computed(() => contextReading.value.stale)
   const contextModel = computed(() =>
     // `system.init` drops the `[1m]` suffix; re-attach it from the composer pick so
-    // 1M runs resolve to the 1M context limit rather than 200K.
+    // 1M runs resolve to the 1M context limit rather than 200K. With no pick in
+    // this window (e.g. after a restart) the run's saved model is what the next
+    // turn runs with, as the model menu shows.
     mergeContextModel(
       session.value?.model ?? historyModel.value ?? currentRun.value?.engine ?? null,
-      modelOverride.value,
+      modelOverride.value || defaultModel.value,
     ),
   )
   // Model shown on the composer's run-settings badge: the live session's actual
