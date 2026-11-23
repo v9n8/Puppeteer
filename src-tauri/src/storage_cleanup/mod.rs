@@ -15,6 +15,7 @@ mod pastes;
 pub mod runner;
 mod sidecar_junk;
 mod snapshots;
+pub mod stats;
 mod tasks;
 mod trash;
 mod worktrees;

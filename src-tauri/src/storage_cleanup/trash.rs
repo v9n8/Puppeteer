@@ -36,9 +36,7 @@ pub(super) async fn plan(ctx: &Ctx) -> Result<Category, String> {
         let id: String = row.try_get("id").map_err(|e| e.to_string())?;
         let project_path: String = row.try_get("project_path").map_err(|e| e.to_string())?;
         let transcript: Option<String> = row.try_get("transcript_path").map_err(|e| e.to_string())?;
-        let runs_dir = Path::new(&project_path).join(".puppeteer").join("runs");
-        let mut files = vec![runs_dir.join(format!("{id}.log")), runs_dir.join(&id)];
-        files.extend(transcript.filter(|t| !t.is_empty()).map(PathBuf::from));
+        let files = run_files(&project_path, &id, transcript);
         runs.push(TrashedRun {
             project_id: row.try_get("project_id").map_err(|e| e.to_string())?,
             conductor_run_id: row.try_get("conductor_run_id").map_err(|e| e.to_string())?,
@@ -60,6 +58,14 @@ pub(super) async fn plan(ctx: &Ctx) -> Result<Category, String> {
     let running = running_run_ids(ctx).await?;
     let cutoff = ctx.now - chrono::Duration::days(i64::from(ctx.days));
     tokio::task::spawn_blocking(move || pick(&runs, &empty, &running, cutoff)).await.map_err(|e| e.to_string())
+}
+
+/// A run's own files: its log, its run folder and its transcript.
+pub(super) fn run_files(project_path: &str, id: &str, transcript: Option<String>) -> Vec<PathBuf> {
+    let runs_dir = Path::new(project_path).join(".puppeteer").join("runs");
+    let mut files = vec![runs_dir.join(format!("{id}.log")), runs_dir.join(id)];
+    files.extend(transcript.filter(|t| !t.is_empty()).map(PathBuf::from));
+    files
 }
 
 /// Trashed before `cutoff`; a stamp that does not parse is never old.

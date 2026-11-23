@@ -39,7 +39,7 @@ pub(super) async fn plan(ctx: &Ctx) -> Result<Category, String> {
 
 /// The temp dir's slug both as the CLI sees it (links resolved: macOS
 /// `/var/…` is `/private/var/…`) and as given.
-fn temp_slugs(temp: &Path) -> Vec<String> {
+pub(super) fn temp_slugs(temp: &Path) -> Vec<String> {
     let mut slugs = Vec::new();
     for path in [canonical(temp), temp.to_path_buf()] {
         let text = path.to_string_lossy();
