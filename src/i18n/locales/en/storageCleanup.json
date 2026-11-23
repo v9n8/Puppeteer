@@ -1,0 +1,79 @@
+{
+  "cleanable": "Cleanable",
+  "cleanableHint": "What the next cleanup would remove, with files older than {days} days.",
+  "kept": "{n} kept (unfinished work)",
+  "about": "about {size}",
+  "cleanNow": "Clean now",
+  "compact": "Compact database",
+  "category": {
+    "app_logs": {
+      "label": "App logs",
+      "description": "Puppeteer's own log, one file per day. Days older than the auto-clean age are removed; today's file never is."
+    },
+    "pastes": {
+      "label": "Pastes saved as files",
+      "description": "Long pastes kept as files for a Session. They go with their Session; only those whose Session is gone are cleaned."
+    },
+    "worktrees": {
+      "label": "Worker worktrees",
+      "description": "Copies of a Project a Conductor worker ran in. Removed only when the worker finished long ago and everything it did is committed and merged."
+    },
+    "snapshots": {
+      "label": "Rewind snapshots",
+      "description": "File snapshots taken before each turn, for Rewind. Dropped after the auto-clean age (30 days when it is off)."
+    },
+    "trash": {
+      "label": "In the Trash",
+      "description": "Logs and transcripts of Sessions and Projects in the Trash (already counted above). Purged after they have been in the Trash longer than the auto-clean age."
+    },
+    "deleted_accounts": {
+      "label": "Deleted Claude accounts",
+      "description": "Folders of Claude accounts that were removed. Kept while a Session's transcript is still inside."
+    },
+    "sidecar_junk": {
+      "label": "Model check and translation transcripts",
+      "description": "Transcripts the model check and translation left behind (already counted in Claude CLI sessions). They are never resumed."
+    },
+    "account_other": {
+      "label": "Claude account settings and caches",
+      "description": "Everything in the managed Claude accounts except transcripts: plugins, backups, shell snapshots, caches. Shown only."
+    },
+    "codex_accounts": {
+      "label": "Codex accounts",
+      "description": "Managed Codex account folders. Shown only."
+    },
+    "database": {
+      "label": "Database",
+      "description": "Puppeteer's database. Compact it to give back the space of deleted rows."
+    }
+  },
+  "dialog": {
+    "title": "Clean up storage",
+    "intro": "These files are older than {days} days and nothing uses them any more. Nothing is deleted until you confirm.",
+    "offNote": "Auto-clean is off, so this uses {days} days.",
+    "kind": "Kind",
+    "files": "Files",
+    "size": "Size",
+    "total": "Total",
+    "keptWorktrees": "{n} worktree(s) with unfinished work (uncommitted or not merged) stay. Merge or discard that work to free {size}.",
+    "estimate": "Sizes in the Trash are estimates.",
+    "empty": "Nothing to clean up right now.",
+    "loading": "Looking for old files…",
+    "confirm": "Delete {size}",
+    "running": "Cleaning…"
+  },
+  "busy": "A cleanup is already running. Try again when it finishes.",
+  "done": "Cleaned up {size} ({files} files).",
+  "doneWithErrors": "Cleaned up {size} ({files} files). {errors} item(s) could not be removed; the app log names them.",
+  "failed": "Cleanup failed: {error}",
+  "previewFailed": "Could not look for old files: {error}",
+  "compactConfirm": {
+    "title": "Compact database",
+    "message": "Rewrite the database to give back the space of deleted rows? It can take a few seconds and needs free disk space about the size of the database.",
+    "confirm": "Compact"
+  },
+  "compactDone": "Database compacted: {before} → {after}.",
+  "compactRunsActive": "A Session is running. Stop it, then compact the database.",
+  "compactDbBusy": "Another process is using the database. Try again in a moment.",
+  "compactFailed": "Compact failed: {error}"
+}

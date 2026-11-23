@@ -20,16 +20,20 @@ import {
 } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import KeyboardChart from '@/components/stats/KeyboardChart.vue'
+import StorageCleanupDialog from '@/components/stats/StorageCleanupDialog.vue'
 import {
-  Coins, DollarSign, Play, Repeat, RefreshCw, Trash2, Loader2, Info, AlertTriangle, HardDrive, Gauge,
+  Coins, DollarSign, Play, Repeat, RefreshCw, Trash2, Loader2, Info, AlertTriangle, HardDrive, Gauge, Database,
 } from 'lucide-vue-next'
 import { Button, Input, Card, AppSelect, PageHeader, Banner, InfoTip } from '@/components/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { useClaudeAccountsStore } from '@/stores/claudeAccounts'
 import { errorText } from '@/lib/featureGate'
+import { isRemoteMode } from '@/lib/ipc/remote'
+import { useConfirm } from '@/composables/useConfirm'
+import { ESTIMATED, mergeCleanable, type CleanupOutcome, type CleanupPreview } from '@/lib/storageCleanup'
 import {
   getUsageStats, backfillUsage, resetUsageStats,
-  getStorageStats, NO_ACCOUNT,
+  getStorageStats, previewStorageCleanup, compactDatabase, NO_ACCOUNT,
   type StatsResult, type StatsFilter, type StorageStats, type AccountStat,
 } from '@/stores/stats'
 
@@ -46,7 +50,7 @@ ChartJS.register(
   CategoryScale, LinearScale,
 )
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const projectsStore = useProjectsStore()
 const accountsStore = useClaudeAccountsStore()
 
@@ -130,6 +134,8 @@ onMounted(async () => {
   now.value = Date.now()
   clockTimer = setInterval(() => { now.value = Date.now() }, 30_000)
   await Promise.all([load(), loadStorage(), refreshPlanUsage(), refreshPlanUsageCodex()])
+  // A cleanup (this button or the daily one) changed what is on disk.
+  unlistenCleaned = await listen('storage:cleaned', () => { loadStorage().catch(() => {}) })
   unlistenPlanUsage = await listen<{ provider?: string }>('plan_usage_updated', (e) => {
     if (e.payload?.provider === 'codex') {
       refreshPlanUsageCodex().catch(() => {})
@@ -142,6 +148,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer)
   if (unlistenPlanUsage) unlistenPlanUsage()
+  if (unlistenCleaned) unlistenCleaned()
 })
 
 // ── formatting ────────────────────────────────────────────────────────────────
@@ -388,9 +395,25 @@ async function doReset() {
   }
 }
 
-// ── storage: disk usage (read-only; space is freed by deleting sessions) ───────
+// ── storage: disk usage, and the cleanup of what nothing uses any more ─────────
 const storage = ref<StorageStats | null>(null)
 const storageLoading = ref(false)
+const preview = ref<CleanupPreview | null>(null)
+const previewLoading = ref(false)
+const cleanupOpen = ref(false)
+const compacting = ref(false)
+// Cleaning and compacting are local-only: a remote desktop only looks.
+const canClean = !isRemoteMode()
+let unlistenCleaned: UnlistenFn | null = null
+const { confirm } = useConfirm()
+
+const cleanable = computed(() => mergeCleanable(storage.value?.categories.map((c) => c.id) ?? [], preview.value))
+
+/** The i18n label of a row the cleanup added, else the backend's (the original rows). */
+function rowText(c: { id: string; label: string; description: string }, part: 'label' | 'description'): string {
+  const key = `storageCleanup.category.${c.id}.${part}`
+  return te(key) ? t(key) : c[part]
+}
 
 function fmtBytes(n: number): string {
   if (n <= 0) return '0 B'
@@ -403,11 +426,63 @@ function fmtBytes(n: number): string {
 async function loadStorage() {
   storageLoading.value = true
   try {
-    storage.value = await getStorageStats()
+    await Promise.all([
+      getStorageStats().then((s) => { storage.value = s }),
+      loadPreview(),
+    ])
   } catch (e) {
     actionMsg.value = t('stats.action.storageReadFailed', { error: String(e) })
   } finally {
     storageLoading.value = false
+  }
+}
+
+/** The "Cleanable" column and the dialog; a failure leaves that column empty. */
+async function loadPreview() {
+  previewLoading.value = true
+  try {
+    preview.value = await previewStorageCleanup()
+  } catch (e) {
+    actionMsg.value = t('storageCleanup.previewFailed', { error: errorText(e, t) })
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+function openCleanup() {
+  cleanupOpen.value = true
+  loadPreview()
+}
+
+// The table rescans on `storage:cleaned`.
+function onCleaned(outcome: CleanupOutcome) {
+  cleanupOpen.value = false
+  const params = { size: fmtBytes(outcome.bytes), files: fmtNum(outcome.files), errors: outcome.errors }
+  actionMsg.value = t(outcome.errors ? 'storageCleanup.doneWithErrors' : 'storageCleanup.done', params)
+}
+
+async function compact() {
+  const ok = await confirm({
+    title: t('storageCleanup.compactConfirm.title'),
+    message: t('storageCleanup.compactConfirm.message'),
+    confirmLabel: t('storageCleanup.compactConfirm.confirm'),
+    variant: 'destructive',
+  })
+  if (!ok) return
+  compacting.value = true
+  try {
+    const r = await compactDatabase()
+    actionMsg.value = t('storageCleanup.compactDone', { before: fmtBytes(r.before_bytes), after: fmtBytes(r.after_bytes) })
+    await loadStorage()
+  } catch (e) {
+    const code = String(e)
+    actionMsg.value =
+      code === 'runs_active' ? t('storageCleanup.compactRunsActive')
+        : code === 'db_busy' ? t('storageCleanup.compactDbBusy')
+          : code === 'busy' ? t('storageCleanup.busy')
+            : t('storageCleanup.compactFailed', { error: errorText(e, t) })
+  } finally {
+    compacting.value = false
   }
 }
 </script>
@@ -694,7 +769,7 @@ async function loadStorage() {
         </Card>
       </template>
 
-      <!-- Storage: disk usage of session/run logs (read-only, independent of token data) -->
+      <!-- Storage: disk usage, and the cleanup of old files nothing uses (independent of token data) -->
       <Card body-class="p-4">
         <div class="flex items-center justify-between mb-3">
           <h2 class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -704,11 +779,24 @@ async function loadStorage() {
             </span>
             <InfoTip :text="t('stats.storage.note')" />
           </h2>
-          <Button variant="ghost" size="sm" :disabled="storageLoading" @click="loadStorage">
-            <Loader2 v-if="storageLoading" class="h-3.5 w-3.5 animate-spin" />
-            <RefreshCw v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
-            {{ t('stats.storage.rescan') }}
-          </Button>
+          <div class="flex items-center gap-1">
+            <template v-if="canClean">
+              <Button variant="ghost" size="sm" :disabled="compacting" @click="compact">
+                <Loader2 v-if="compacting" class="h-3.5 w-3.5 animate-spin" />
+                <Database v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
+                {{ t('storageCleanup.compact') }}
+              </Button>
+              <Button variant="outline" size="sm" @click="openCleanup">
+                <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+                {{ t('storageCleanup.cleanNow') }}
+              </Button>
+            </template>
+            <Button variant="ghost" size="sm" :disabled="storageLoading" @click="loadStorage">
+              <Loader2 v-if="storageLoading" class="h-3.5 w-3.5 animate-spin" />
+              <RefreshCw v-else class="h-3.5 w-3.5" :stroke-width="1.75" />
+              {{ t('stats.storage.rescan') }}
+            </Button>
+          </div>
         </div>
 
         <div v-if="!storage && storageLoading" class="text-xs text-muted-foreground py-4">
@@ -722,14 +810,17 @@ async function loadStorage() {
               <th class="font-normal pb-2 text-right">{{ t('stats.storage.files') }}</th>
               <th class="font-normal pb-2 text-right">{{ t('stats.storage.size') }}</th>
               <th class="font-normal pb-2 text-right">{{ t('stats.storage.percent') }}</th>
+              <th class="font-normal pb-2 text-right" :title="preview ? t('storageCleanup.cleanableHint', { days: preview.effective_days }) : undefined">
+                {{ t('storageCleanup.cleanable') }}
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="c in storage.categories" :key="c.id" class="border-t border-border/40">
-              <td class="py-2">
+              <td class="py-2" :class="c.subset && 'pl-4 text-muted-foreground'">
                 <div class="flex items-center gap-1.5">
-                  <span>{{ c.label }}</span>
-                  <span :title="c.description">
+                  <span>{{ rowText(c, 'label') }}</span>
+                  <span :title="rowText(c, 'description')">
                     <Info class="h-3 w-3 text-muted-foreground/50" />
                   </span>
                 </div>
@@ -738,12 +829,32 @@ async function loadStorage() {
               <td class="py-2 text-right tabular-nums text-muted-foreground">{{ fmtNum(c.file_count) }}</td>
               <td class="py-2 text-right tabular-nums">{{ fmtBytes(c.size_bytes) }}</td>
               <td class="py-2 text-right tabular-nums text-muted-foreground">
-                {{ pct(c.size_bytes, storage.total_bytes) }}
+                {{ c.subset ? '' : pct(c.size_bytes, storage.total_bytes) }}
+              </td>
+              <td class="py-2 text-right tabular-nums">
+                <template v-if="cleanable[c.id]">
+                  <span :class="!cleanable[c.id]!.bytes && 'text-muted-foreground/60'">
+                    {{ ESTIMATED.has(c.id) && cleanable[c.id]!.bytes
+                      ? t('storageCleanup.about', { size: fmtBytes(cleanable[c.id]!.bytes) })
+                      : fmtBytes(cleanable[c.id]!.bytes) }}
+                  </span>
+                  <p v-if="cleanable[c.id]!.keptItems" class="text-2xs text-warning mt-0.5">
+                    {{ t('storageCleanup.kept', { n: cleanable[c.id]!.keptItems }) }}
+                  </p>
+                </template>
+                <span v-else class="text-muted-foreground/40">—</span>
               </td>
             </tr>
           </tbody>
         </table>
       </Card>
+      <StorageCleanupDialog
+        :open="cleanupOpen"
+        :preview="preview"
+        :loading="previewLoading"
+        @close="cleanupOpen = false"
+        @cleaned="onCleaned"
+      />
     </div>
 
     <!-- Reset confirm modal -->

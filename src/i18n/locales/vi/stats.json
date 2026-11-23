@@ -91,7 +91,7 @@
     "storageReadFailed": "Không đọc được dung lượng: {error}"
   },
   "storage": {
-    "title": "Dung lượng — log session/run",
+    "title": "Dung lượng",
     "totalSuffix": "· tổng {bytes}",
     "rescan": "Quét lại",
     "scanning": "Đang quét ổ đĩa…",
@@ -99,7 +99,7 @@
     "files": "File",
     "size": "Kích thước",
     "percent": "%",
-    "note": "Chỉ để xem. Muốn giải phóng dung lượng, hãy xóa Session trong History — thao tác đó xóa cùng lúc log Puppeteer, file issue/PR đã fetch và transcript Claude/Codex CLI của Session. Thống kê token vẫn được giữ."
+    "note": "App và các CLI nó chạy đang dùng bao nhiêu ổ đĩa. Log, đoạn dán, worktree, snapshot, tài khoản đã xoá, transcript kiểm tra model và Thùng rác được tự dọn sau số ngày đặt ở Cài đặt › Dung lượng (hoặc ngay, bằng Dọn ngay). Các dòng khác chỉ để xem: file của một Session đi cùng khi bạn xoá Session đó. Thống kê token vẫn được giữ."
   },
   "resetModal": {
     "title": "Đặt lại thống kê sử dụng",

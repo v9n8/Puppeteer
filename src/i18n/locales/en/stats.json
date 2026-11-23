@@ -91,7 +91,7 @@
     "storageReadFailed": "Failed to read storage: {error}"
   },
   "storage": {
-    "title": "Storage — session/run logs",
+    "title": "Storage",
     "totalSuffix": "· {bytes} total",
     "rescan": "Rescan",
     "scanning": "Scanning disk…",
@@ -99,7 +99,7 @@
     "files": "Files",
     "size": "Size",
     "percent": "%",
-    "note": "Read-only overview. To free up space, delete sessions in History — that removes each session's Puppeteer log, fetched issue/PR files and Claude/Codex CLI transcripts together. Token stats are kept."
+    "note": "How much disk the app and the CLIs it runs use. Logs, pastes, worktrees, snapshots, deleted accounts, model-check transcripts and the Trash are cleaned automatically after the age set in Settings › Storage (or now, with Clean now). The other rows are shown only: a Session's files go when you delete it. Token stats are kept."
   },
   "resetModal": {
     "title": "Reset usage statistics",

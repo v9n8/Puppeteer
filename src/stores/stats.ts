@@ -1,4 +1,5 @@
 import { invoke } from '@/lib/tauri'
+import type { CleanupOutcome, CleanupPreview, Compacted } from '@/lib/storageCleanup'
 
 export interface StatsFilter {
   from?: string | null
@@ -86,6 +87,8 @@ export interface StorageCategory {
   path: string
   size_bytes: number
   file_count: number
+  /** Already counted in another row (left out of the totals). */
+  subset: boolean
 }
 
 export interface StorageStats {
@@ -96,6 +99,20 @@ export interface StorageStats {
 
 export function getStorageStats(): Promise<StorageStats> {
   return invoke<StorageStats>('get_storage_stats')
+}
+
+export function previewStorageCleanup(): Promise<CleanupPreview> {
+  return invoke<CleanupPreview>('preview_storage_cleanup')
+}
+
+/** Local-only. Rejects with `busy` while another cleanup runs. */
+export function runStorageCleanup(): Promise<CleanupOutcome> {
+  return invoke<CleanupOutcome>('run_storage_cleanup')
+}
+
+/** Local-only. Rejects with `runs_active`, `db_busy`, `busy` or SQLite's message. */
+export function compactDatabase(): Promise<Compacted> {
+  return invoke<Compacted>('compact_database')
 }
 
 export function getUsageStats(filter: StatsFilter): Promise<StatsResult> {

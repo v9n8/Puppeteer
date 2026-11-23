@@ -1,0 +1,79 @@
+{
+  "cleanable": "Có thể dọn",
+  "cleanableHint": "Phần lần dọn tới sẽ xoá, với file cũ hơn {days} ngày.",
+  "kept": "Giữ lại {n} (việc chưa xong)",
+  "about": "khoảng {size}",
+  "cleanNow": "Dọn ngay",
+  "compact": "Thu gọn database",
+  "category": {
+    "app_logs": {
+      "label": "Log của app",
+      "description": "Log của chính Puppeteer, mỗi ngày một file. File cũ hơn số ngày tự dọn sẽ bị xoá; file hôm nay thì không bao giờ."
+    },
+    "pastes": {
+      "label": "Đoạn dán lưu thành file",
+      "description": "Đoạn dán dài được lưu thành file cho một Session. Chúng đi cùng Session; chỉ dọn những file mà Session đã không còn."
+    },
+    "worktrees": {
+      "label": "Worktree của worker",
+      "description": "Bản sao Project mà một worker của Conductor đã chạy trong đó. Chỉ xoá khi worker đã xong từ lâu và mọi thay đổi đã commit và merge."
+    },
+    "snapshots": {
+      "label": "Snapshot của Rewind",
+      "description": "Ảnh chụp file trước mỗi lượt, dùng cho Rewind. Bị bỏ sau số ngày tự dọn (30 ngày khi tắt tự dọn)."
+    },
+    "trash": {
+      "label": "Trong Thùng rác",
+      "description": "Log và transcript của Session và Project trong Thùng rác (đã tính ở các dòng trên). Bị xoá hẳn khi nằm trong Thùng rác lâu hơn số ngày tự dọn."
+    },
+    "deleted_accounts": {
+      "label": "Tài khoản Claude đã xoá",
+      "description": "Thư mục của các tài khoản Claude đã gỡ. Được giữ nếu còn transcript của một Session bên trong."
+    },
+    "sidecar_junk": {
+      "label": "Transcript của kiểm tra model và dịch",
+      "description": "Transcript mà việc kiểm tra model và dịch để lại (đã tính trong Claude CLI sessions). Không bao giờ được resume."
+    },
+    "account_other": {
+      "label": "Cài đặt và cache của tài khoản Claude",
+      "description": "Mọi thứ trong các tài khoản Claude được quản lý, trừ transcript: plugin, bản sao lưu, shell snapshot, cache. Chỉ để xem."
+    },
+    "codex_accounts": {
+      "label": "Tài khoản Codex",
+      "description": "Thư mục các tài khoản Codex được quản lý. Chỉ để xem."
+    },
+    "database": {
+      "label": "Database",
+      "description": "Database của Puppeteer. Thu gọn để lấy lại chỗ của các dòng đã xoá."
+    }
+  },
+  "dialog": {
+    "title": "Dọn dung lượng",
+    "intro": "Các file này cũ hơn {days} ngày và không còn gì dùng tới. Chưa xoá gì cho tới khi bạn xác nhận.",
+    "offNote": "Tự dọn đang tắt, nên lần này dùng {days} ngày.",
+    "kind": "Loại",
+    "files": "File",
+    "size": "Kích thước",
+    "total": "Tổng",
+    "keptWorktrees": "Giữ lại {n} worktree còn việc chưa xong (chưa commit hoặc chưa merge). Merge hoặc bỏ phần việc đó để giải phóng {size}.",
+    "estimate": "Kích thước trong Thùng rác là ước tính.",
+    "empty": "Hiện không có gì để dọn.",
+    "loading": "Đang tìm file cũ…",
+    "confirm": "Xoá {size}",
+    "running": "Đang dọn…"
+  },
+  "busy": "Đang có một lần dọn chạy. Thử lại khi nó xong.",
+  "done": "Đã dọn {size} ({files} file).",
+  "doneWithErrors": "Đã dọn {size} ({files} file). Không xoá được {errors} mục; log của app ghi tên từng mục.",
+  "failed": "Dọn thất bại: {error}",
+  "previewFailed": "Không tìm được file cũ: {error}",
+  "compactConfirm": {
+    "title": "Thu gọn database",
+    "message": "Ghi lại database để lấy lại chỗ của các dòng đã xoá? Việc này có thể mất vài giây và cần chỗ trống trên ổ cỡ bằng database.",
+    "confirm": "Thu gọn"
+  },
+  "compactDone": "Đã thu gọn database: {before} → {after}.",
+  "compactRunsActive": "Đang có Session chạy. Dừng nó rồi hãy thu gọn database.",
+  "compactDbBusy": "Một tiến trình khác đang dùng database. Thử lại sau giây lát.",
+  "compactFailed": "Thu gọn thất bại: {error}"
+}
