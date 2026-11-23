@@ -127,6 +127,7 @@ use commands::stats::{
 };
 use commands::storage::get_storage_stats;
 use storage_cleanup::commands::{preview_storage_cleanup, run_storage_cleanup};
+use storage_cleanup::compact::compact_database;
 use commands::trash::list_trash;
 use commands::instruction_checks::get_instruction_warnings;
 use commands::memory::{memory_read, memory_write};
@@ -777,6 +778,7 @@ pub fn run() {
             get_storage_stats,
             preview_storage_cleanup,
             run_storage_cleanup,
+            compact_database,
             list_todos,
             add_todo,
             toggle_todo,

@@ -9,6 +9,7 @@
 
 mod accounts;
 pub mod commands;
+pub mod compact;
 pub mod fs_safe;
 mod logs;
 mod pastes;

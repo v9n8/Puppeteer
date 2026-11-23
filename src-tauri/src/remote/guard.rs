@@ -110,6 +110,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "purge_project",
     // Storage cleanup: deletes old files, worktrees and Trash entries for good.
     "run_storage_cleanup",
+    // Compact: rewrites this machine's whole database (VACUUM).
+    "compact_database",
     // Usage reset: hard-deletes every run (the Trash included) and the usage ledger.
     "reset_usage_stats",
     // Tool permissions: the one-time copy of this machine's webview storage into the
