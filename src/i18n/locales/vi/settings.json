@@ -19,7 +19,8 @@
     "connections": "Kết nối",
     "mcp": "MCP",
     "about": "Giới thiệu",
-    "shortcuts": "Phím tắt & lệnh nhanh"
+    "shortcuts": "Phím tắt & lệnh nhanh",
+    "storage": "Dung lượng"
   },
   "groups": {
     "general": "Chung",
@@ -763,6 +764,7 @@
     "backup": "sao lưu, backup, khôi phục, xuất, nhập, đồng bộ, bí mật",
     "version": "phiên bản, version, bản dựng, về ứng dụng",
     "updates": "cập nhật, nâng cấp, kiểm tra cập nhật, cài đặt, mới nhất",
-    "whatsNew": "có gì mới, ghi chú phát hành, nhật ký thay đổi, tin mới"
+    "whatsNew": "có gì mới, ghi chú phát hành, nhật ký thay đổi, tin mới",
+    "storage": "dung lượng, ổ đĩa, dọn, dọn dẹp, xoá, file cũ, log, thùng rác, worktree, storage"
   }
 }

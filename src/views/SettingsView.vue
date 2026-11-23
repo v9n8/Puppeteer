@@ -23,6 +23,7 @@ import EnginesSettings from '@/components/settings/EnginesSettings.vue'
 import SessionDefaultsSettings from '@/components/settings/SessionDefaultsSettings.vue'
 import TranslateSettings from '@/components/settings/TranslateSettings.vue'
 import LimitsSettings, { type LimitsTab } from '@/components/settings/LimitsSettings.vue'
+import StorageSettings from '@/components/settings/StorageSettings.vue'
 import RoutingSettings from '@/components/settings/RoutingSettings.vue'
 import SettingsSearch from '@/components/settings/SettingsSearch.vue'
 import { revealSettingsRow } from '@/components/settings/revealSettingsRow'
@@ -281,6 +282,7 @@ const mergePath = computed(() => settingsHref(settingsLocation(currentPlace.valu
         <TranslateSettings v-show="activeSection === 'translate'" />
         <LimitsSettings v-show="activeSection === 'limits'" v-model:tab="limitsTab" />
         <RoutingSettings v-if="activeSection === 'routing'" />
+        <StorageSettings v-if="activeSection === 'storage'" />
 
         </div>
 

@@ -75,5 +75,22 @@
   "compactDone": "Database compacted: {before} → {after}.",
   "compactRunsActive": "A Session is running. Stop it, then compact the database.",
   "compactDbBusy": "Another process is using the database. Try again in a moment.",
-  "compactFailed": "Compact failed: {error}"
+  "compactFailed": "Compact failed: {error}",
+  "settings": {
+    "title": "Storage",
+    "days": "Clean up files older than (days)",
+    "daysHint": "Old logs, pastes, finished worktrees, Rewind snapshots, deleted accounts, model-check transcripts and the Trash are cleaned automatically once a day. 0 turns auto-clean off (snapshots then keep 30 days). Sessions in History are never cleaned. Applies to this machine only.",
+    "range": "0 = off, or 7–3650 days. Default 30.",
+    "invalid": "Use 0 (off) or a number from 7 to 3650. Any other value uses the default, 30 days.",
+    "off": "Auto-clean is off (0 here, or switched off in Features). Clean now on the Stats page still works.",
+    "last": "Last cleanup",
+    "never": "No cleanup yet.",
+    "lastSummary": "{when} · {trigger} · {files} files, {size}",
+    "lastErrors": "{n} failed",
+    "trigger": {
+      "auto": "automatic",
+      "manual": "manual"
+    },
+    "openStats": "See what uses space on the Stats page"
+  }
 }

@@ -1,6 +1,6 @@
 import {
   Cpu, Palette, Sparkles, Plug, Gauge, Radio,
-  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes, Server, Route,
+  Inbox, Target, ToggleRight, Keyboard, Languages, Brain, Flag, Info, Boxes, Server, Route, HardDrive,
 } from 'lucide-vue-next'
 import { MessageSquareText } from 'lucide-vue-next'
 import { filterByFeature, type FeatureTree } from './featureGate.ts'
@@ -48,6 +48,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'mcp', group: 'connections', labelKey: 'settings.sections.mcp', icon: Server },
   { id: 'inbox', group: 'connections', labelKey: 'settings.sections.inbox', icon: Inbox },
   { id: 'devices', group: 'system', labelKey: 'settings.sections.devices', icon: Radio },
+  // Auto-clean age of old files (storage_cleanup); the overview is on the Stats page.
+  { id: 'storage', group: 'system', labelKey: 'settings.sections.storage', icon: HardDrive },
   { id: 'about', group: 'system', labelKey: 'settings.sections.about', icon: Info },
 ] as const
 

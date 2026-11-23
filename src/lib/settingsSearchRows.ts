@@ -120,6 +120,10 @@ export const SETTINGS_SEARCH_ROWS: Record<SettingsSectionId, SearchRow[]> = {
     { id: 'devices-checkRelay', labelKey: 'remote.settings.checkRelay', keywordsKey: kw('relay') },
     { id: 'devices-backup', labelKey: 'settings.backup.title', tab: 'backup', keywordsKey: kw('backup') },
   ],
+  storage: [
+    { id: 'storage-days', labelKey: 'storageCleanup.settings.days', keywordsKey: kw('storage') },
+    { id: 'storage-last', labelKey: 'storageCleanup.settings.last', keywordsKey: kw('storage') },
+  ],
   about: [
     { id: 'about-version', labelKey: 'settings.search.rows.version', keywordsKey: kw('version') },
     { id: 'about-updates', labelKey: 'about.updates', keywordsKey: kw('updates') },

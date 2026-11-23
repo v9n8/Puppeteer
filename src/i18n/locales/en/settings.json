@@ -19,7 +19,8 @@
     "connections": "Connections",
     "mcp": "MCP",
     "about": "About",
-    "shortcuts": "Shortcuts & quick commands"
+    "shortcuts": "Shortcuts & quick commands",
+    "storage": "Storage"
   },
   "groups": {
     "general": "General",
@@ -763,6 +764,7 @@
     "backup": "backup, restore, export, import, sync, secrets",
     "version": "version, app version, build, release, about",
     "updates": "update, upgrade, check for updates, install, latest",
-    "whatsNew": "what's new, release notes, changelog, news"
+    "whatsNew": "what's new, release notes, changelog, news",
+    "storage": "storage, disk, space, clean, cleanup, delete, old files, logs, trash, worktrees"
   }
 }

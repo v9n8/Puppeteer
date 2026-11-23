@@ -75,5 +75,22 @@
   "compactDone": "Đã thu gọn database: {before} → {after}.",
   "compactRunsActive": "Đang có Session chạy. Dừng nó rồi hãy thu gọn database.",
   "compactDbBusy": "Một tiến trình khác đang dùng database. Thử lại sau giây lát.",
-  "compactFailed": "Thu gọn thất bại: {error}"
+  "compactFailed": "Thu gọn thất bại: {error}",
+  "settings": {
+    "title": "Dung lượng",
+    "days": "Dọn file cũ hơn (ngày)",
+    "daysHint": "Log cũ, đoạn dán, worktree đã xong, snapshot của Rewind, tài khoản đã xoá, transcript kiểm tra model và Thùng rác được tự dọn mỗi ngày một lần. 0 là tắt tự dọn (khi đó snapshot giữ 30 ngày). Session trong History không bao giờ bị dọn. Chỉ áp dụng cho máy này.",
+    "range": "0 = tắt, hoặc 7–3650 ngày. Mặc định 30.",
+    "invalid": "Dùng 0 (tắt) hoặc một số từ 7 đến 3650. Giá trị khác sẽ dùng mặc định 30 ngày.",
+    "off": "Tự dọn đang tắt (đặt 0 ở đây, hoặc tắt trong Tính năng). Nút Dọn ngay ở trang Thống kê vẫn dùng được.",
+    "last": "Lần dọn gần nhất",
+    "never": "Chưa dọn lần nào.",
+    "lastSummary": "{when} · {trigger} · {files} file, {size}",
+    "lastErrors": "{n} mục lỗi",
+    "trigger": {
+      "auto": "tự động",
+      "manual": "thủ công"
+    },
+    "openStats": "Xem cái gì đang chiếm chỗ ở trang Thống kê"
+  }
 }

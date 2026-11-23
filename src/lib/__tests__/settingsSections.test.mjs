@@ -31,7 +31,7 @@ test('settingsNav: all features on → four groups in order, every section liste
     ['general', ['general', 'flags', 'features', 'focus', 'shortcuts']],
     ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits', 'routing']],
     ['connections', ['connections', 'mcp', 'inbox']],
-    ['system', ['devices', 'about']],
+    ['system', ['devices', 'storage', 'about']],
   ])
 })
 
@@ -40,7 +40,7 @@ test('settingsNav: features off hide their sections, ungated ones stay', () => {
     ['general', ['general', 'flags', 'features']],
     ['ai', ['engines', 'model', 'ai', 'styles', 'translate', 'memory', 'limits', 'routing']],
     ['connections', ['connections', 'mcp', 'inbox']],
-    ['system', ['devices', 'about']],
+    ['system', ['devices', 'storage', 'about']],
   ])
 })
 
