@@ -755,7 +755,7 @@ pub async fn refresh_plan_usage(
                     }
                 }
                 Some("rate_limit_event") => {
-                    if persist_plan_rate_limit_event(&db_pool, &plan_usage_key, &value).await {
+                    if persist_plan_rate_limit_event(&db_pool, &plan_usage_key, &value, &probe_origin).await {
                         let _ = app.emit("plan_usage_updated", serde_json::json!({ "source": "probe" }));
                         return Ok(true);
                     }

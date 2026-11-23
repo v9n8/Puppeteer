@@ -1155,7 +1155,11 @@ pub async fn drain_sidecar(
                                     }
                                 }
                                 if v.get("type").and_then(|x| x.as_str()) == Some("rate_limit_event")
-                                    && persist_plan_rate_limit_event(&db_pool, &plan_usage_key, v).await
+                                    && persist_plan_rate_limit_event(
+                                        &db_pool, &plan_usage_key, v,
+                                        &crate::runs::plan_usage_order::Origin::now("run_event", Some(&run_id)),
+                                    )
+                                    .await
                                 {
                                     let _ = app.emit(
                                         "plan_usage_updated",
@@ -1844,7 +1848,7 @@ pub(crate) async fn persist_plan_usage(
             "seven_day_sonnet": window(limits, "seven_day_sonnet"),
         },
     });
-    // Keep the live status captured from rate_limit_events (which have no %).
+    // Keep the live status captured from rate_limit_events (`/usage` has none).
     let prior = load_plan_usage_snapshot(db_pool, key).await;
     merge_prior_window_status(&mut snapshot, &prior);
     // Only over an older snapshot (RT-15).
@@ -1906,10 +1910,17 @@ pub(crate) async fn persist_plan_rate_limit_event(
     db_pool: &sqlx::SqlitePool,
     key: &str,
     event: &Value,
+    origin: &crate::runs::plan_usage_order::Origin<'_>,
 ) -> bool {
     let Some(info) = event.get("rate_limit_info").and_then(|v| v.as_object()) else {
         return false;
     };
+    let prior = load_plan_usage_snapshot(db_pool, key).await;
+    let mut snapshot = prior.clone().unwrap_or_else(empty_plan_usage_snapshot);
+    // RT-31: a newer CLI lists every window's live % under `unifiedWindows`.
+    if crate::runs::plan_usage_live::apply_unified_windows(&mut snapshot, info) {
+        return crate::runs::plan_usage_order::write(db_pool, key, snapshot, prior.as_ref(), origin).await;
+    }
     let Some(window_key) = info
         .get("rateLimitType")
         .or_else(|| info.get("rate_limit_type"))
@@ -1918,9 +1929,9 @@ pub(crate) async fn persist_plan_rate_limit_event(
     else {
         return false;
     };
-    // These events carry live status + reset time but NO utilization %. Update
-    // the reset/status without touching the % (only `/usage` knows the real %),
-    // and DON'T bump `captured_at` — that stamps the freshness of the %.
+    // Without `unifiedWindows` the event carries only live status + reset time.
+    // Update those without touching the % (`/usage` then knows the %), and
+    // DON'T bump `captured_at` — that stamps the freshness of the %.
     let resets_at = info
         .get("resetsAt")
         .or_else(|| info.get("resets_at"))
@@ -1931,10 +1942,6 @@ pub(crate) async fn persist_plan_rate_limit_event(
         .and_then(|v| v.as_str())
         .map(plan_status_severity);
     let now = chrono::Utc::now().to_rfc3339();
-
-    let mut snapshot = load_plan_usage_snapshot(db_pool, key)
-        .await
-        .unwrap_or_else(empty_plan_usage_snapshot);
 
     snapshot["rate_limits_available"] = serde_json::json!(true);
     if snapshot.get("windows").and_then(|v| v.as_object()).is_none() {
@@ -1992,9 +1999,9 @@ async fn load_plan_usage_snapshot(db_pool: &sqlx::SqlitePool, key: &str) -> Opti
 }
 
 /// Copy the live `status`/`status_at` per window from a prior snapshot onto a
-/// freshly-built one. The `/usage` control response carries accurate
-/// `utilization` but no status, while `rate_limit_event`s carry live status but
-/// no `utilization` — so each source must preserve the other's fields.
+/// freshly-built one. The `/usage` control response and `system/init` carry
+/// `utilization` but no status, while `rate_limit_event`s carry live status —
+/// so a `/usage` write must keep the status an event left.
 fn merge_prior_window_status(snapshot: &mut Value, prior: &Option<Value>) {
     let Some(prior_windows) = prior
         .as_ref()
@@ -2053,7 +2060,7 @@ fn status_in_current_window(
 }
 
 /// Map a raw `rate_limit_event` status string onto our tri-state severity.
-fn plan_status_severity(raw: &str) -> &'static str {
+pub(crate) fn plan_status_severity(raw: &str) -> &'static str {
     let s = raw.to_ascii_lowercase();
     if s.contains("reject") || s.contains("block") || s.contains("exceed") || s.contains("over_limit")
     {
@@ -2065,7 +2072,7 @@ fn plan_status_severity(raw: &str) -> &'static str {
     }
 }
 
-fn plan_window_key(raw: &str) -> Option<&'static str> {
+pub(crate) fn plan_window_key(raw: &str) -> Option<&'static str> {
     match raw {
         "five_hour" => Some("five_hour"),
         "seven_day" => Some("seven_day"),
@@ -2075,7 +2082,7 @@ fn plan_window_key(raw: &str) -> Option<&'static str> {
     }
 }
 
-fn plan_reset_to_string(value: &Value) -> Option<String> {
+pub(crate) fn plan_reset_to_string(value: &Value) -> Option<String> {
     if let Some(s) = value.as_str() {
         return Some(s.to_string());
     }

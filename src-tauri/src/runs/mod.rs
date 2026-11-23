@@ -11,6 +11,7 @@ pub mod live_records;
 pub mod liveness;
 pub mod model_usage;
 pub mod permission;
+pub mod plan_usage_live;
 pub mod plan_usage_order;
 pub mod pricing;
 pub mod quota_stop;

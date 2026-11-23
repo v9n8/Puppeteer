@@ -8,13 +8,18 @@
 //! write whose numbers were asked for before the stored ones is dropped. Every
 //! decision is logged at debug (source, run / probe, 5 h %) so the next stale
 //! number can be traced.
+//!
+//! RT-31: within one window the % only grows, yet `/usage` can answer with a %
+//! hours old. So per window, a stored % is kept over a lower one for the same
+//! reset, and over any from an earlier reset (an older window).
 
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 /// Who produced a snapshot, and when its numbers were asked for.
 pub struct Origin<'a> {
-    /// `run` (a live session's `/usage`), `run_init` (its `system/init`) or `probe`.
+    /// `run` (a live session's `/usage`), `run_init` (its `system/init`),
+    /// `run_event` (its `rate_limit_event`) or `probe`.
     pub source: &'static str,
     /// The run id, or the probed account.
     pub id: Option<&'a str>,
@@ -50,6 +55,45 @@ fn five_hour_percent(snapshot: &Value) -> Option<f64> {
     snapshot.pointer("/windows/five_hour/utilization").and_then(Value::as_f64)
 }
 
+/// A window's reset, to the minute: `/usage` adds fractions of a second the
+/// events don't (`07:00:00.465069+00:00` vs `07:00:00`).
+fn reset_minute(window: &Value) -> Option<i64> {
+    let reset = window.get("resets_at").and_then(Value::as_str)?;
+    Some(DateTime::parse_from_rfc3339(reset).ok()?.timestamp().div_euclid(60))
+}
+
+/// Put the stored % (and its reset) back on every window `snapshot` reads
+/// lower within the same window, or from an earlier one; returns those windows.
+fn keep_stored_percent(snapshot: &mut Value, prior: Option<&Value>) -> Vec<String> {
+    let Some(prior_windows) = prior.and_then(|p| p.get("windows")).and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let Some(windows) = snapshot.get_mut("windows").and_then(Value::as_object_mut) else {
+        return Vec::new();
+    };
+    let mut kept = Vec::new();
+    for (key, fresh) in windows.iter_mut() {
+        let Some(stored) = prior_windows.get(key) else {
+            continue;
+        };
+        let Some(stored_percent) = stored.get("utilization").and_then(Value::as_f64) else {
+            continue;
+        };
+        let (Some(stored_reset), Some(fresh_reset)) = (reset_minute(stored), reset_minute(fresh)) else {
+            continue;
+        };
+        let fresh_percent = fresh.get("utilization").and_then(Value::as_f64);
+        let stale = fresh_reset < stored_reset
+            || (fresh_reset == stored_reset && fresh_percent.is_none_or(|p| p < stored_percent));
+        if stale {
+            fresh["utilization"] = stored["utilization"].clone();
+            fresh["resets_at"] = stored["resets_at"].clone();
+            kept.push(key.clone());
+        }
+    }
+    kept
+}
+
 /// Write `snapshot` under `key` unless `prior` is newer; true when written.
 pub async fn write(
     db: &sqlx::SqlitePool,
@@ -69,6 +113,16 @@ pub async fn write(
             stored_five_hour = ?prior.and_then(five_hour_percent),
         );
         return false;
+    }
+    let kept = keep_stored_percent(&mut snapshot, prior);
+    if !kept.is_empty() {
+        tracing::debug!(
+            event = "plan_usage_kept_stored_percent",
+            key = %key,
+            source = origin.source,
+            id = origin.id.unwrap_or(""),
+            windows = ?kept,
+        );
     }
     snapshot["fetched_at"] = Value::String(origin.fetched_at.to_rfc3339());
     let written = sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
@@ -92,7 +146,7 @@ pub async fn write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runs::sidecar::{persist_plan_init_rate_limits, persist_plan_usage};
+    use crate::runs::sidecar::{persist_plan_init_rate_limits, persist_plan_rate_limit_event, persist_plan_usage};
     use serde_json::json;
 
     async fn db() -> sqlx::SqlitePool {
@@ -143,6 +197,96 @@ mod tests {
         // Same instant: not older, written.
         assert!(persist_plan_usage(&db, "plan_usage", &usage(42.0), &later).await);
         assert_eq!(stored(&db).await, Some(42.0));
+    }
+
+    // The 5 h window ending 2026-11-23T07:00:00Z, as events and `/usage` write it.
+    const RESET_EPOCH: i64 = 1_795_417_200;
+    const RESET_USAGE: &str = "2026-11-23T07:00:00.465069+00:00";
+
+    fn usage_at(five_hour: f64, resets_at: &str) -> Value {
+        json!({
+            "rate_limits_available": true,
+            "rate_limits": { "five_hour": { "utilization": five_hour, "resets_at": resets_at } },
+        })
+    }
+
+    fn event(unified: Option<Value>) -> Value {
+        let mut info = json!({ "status": "allowed", "resetsAt": RESET_EPOCH, "rateLimitType": "five_hour" });
+        if let Some(unified) = unified {
+            info["unifiedWindows"] = unified;
+        }
+        json!({ "type": "rate_limit_event", "rate_limit_info": info })
+    }
+
+    fn live_event(five_hour: f64) -> Value {
+        event(Some(json!({
+            "five_hour": { "utilization": five_hour, "resetsAt": RESET_EPOCH, "status": "allowed" },
+            "seven_day": { "utilization": 0.39, "resetsAt": 1_795_435_200, "status": "allowed" },
+        })))
+    }
+
+    async fn snapshot(db: &sqlx::SqlitePool) -> Value {
+        let raw: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'plan_usage'").fetch_one(db).await.unwrap();
+        serde_json::from_str(&raw).unwrap()
+    }
+
+    fn reset(epoch: i64) -> Value {
+        json!(DateTime::<Utc>::from_timestamp(epoch, 0).unwrap().to_rfc3339())
+    }
+
+    #[tokio::test]
+    async fn a_rate_limit_event_stores_each_windows_live_percent() {
+        let db = db().await;
+        let origin = Origin::now("run_event", Some("r1"));
+        assert!(persist_plan_rate_limit_event(&db, "plan_usage", &live_event(0.62), &origin).await);
+        let s = snapshot(&db).await;
+        assert_eq!(s.pointer("/windows/five_hour/utilization"), Some(&json!(62.0)));
+        assert_eq!(s.pointer("/windows/five_hour/resets_at"), Some(&reset(RESET_EPOCH)));
+        assert_eq!(s.pointer("/windows/five_hour/status"), Some(&json!("allowed")));
+        assert_eq!(s.pointer("/windows/seven_day/utilization"), Some(&json!(39.0)));
+        assert_eq!(s.pointer("/windows/seven_day/resets_at"), Some(&reset(1_795_435_200)));
+        assert_eq!(s["fetched_at"], json!(origin.fetched_at.to_rfc3339()));
+        assert_eq!(s["rate_limits_available"], json!(true));
+    }
+
+    #[tokio::test]
+    async fn a_lower_percent_for_the_same_window_keeps_the_stored_one() {
+        let db = db().await;
+        assert!(persist_plan_rate_limit_event(&db, "plan_usage", &live_event(0.62), &Origin::now("run_event", Some("r1"))).await);
+        // `/usage` at turn end still answers the 11% it read hours ago.
+        assert!(persist_plan_usage(&db, "plan_usage", &usage_at(11.0, RESET_USAGE), &Origin::now("run", Some("r1"))).await);
+        assert_eq!(stored(&db).await, Some(62.0));
+        // ...and so does one about the window before.
+        let older = usage_at(80.0, "2026-11-23T02:00:00.1+00:00");
+        assert!(persist_plan_usage(&db, "plan_usage", &older, &Origin::now("run", Some("r1"))).await);
+        assert_eq!(stored(&db).await, Some(62.0));
+        assert_eq!(snapshot(&db).await.pointer("/windows/five_hour/resets_at"), Some(&reset(RESET_EPOCH)));
+        // A higher % for the same window still lands.
+        assert!(persist_plan_usage(&db, "plan_usage", &usage_at(64.0, RESET_USAGE), &Origin::now("run", Some("r1"))).await);
+        assert_eq!(stored(&db).await, Some(64.0));
+    }
+
+    #[tokio::test]
+    async fn a_new_window_takes_its_lower_percent() {
+        let db = db().await;
+        assert!(persist_plan_rate_limit_event(&db, "plan_usage", &live_event(0.62), &Origin::now("run_event", Some("r1"))).await);
+        let next = usage_at(3.0, "2026-11-23T12:00:00.2+00:00");
+        assert!(persist_plan_usage(&db, "plan_usage", &next, &Origin::now("probe", None)).await);
+        assert_eq!(stored(&db).await, Some(3.0));
+    }
+
+    #[tokio::test]
+    async fn an_event_without_unified_windows_only_moves_status_and_reset() {
+        let db = db().await;
+        assert!(persist_plan_usage(&db, "plan_usage", &usage_at(40.0, RESET_USAGE), &Origin::now("run", Some("r1"))).await);
+        let before = snapshot(&db).await;
+        assert!(persist_plan_rate_limit_event(&db, "plan_usage", &event(None), &Origin::now("run_event", Some("r1"))).await);
+        let after = snapshot(&db).await;
+        assert_eq!(after.pointer("/windows/five_hour/utilization"), Some(&json!(40.0)));
+        assert_eq!(after.pointer("/windows/five_hour/resets_at"), Some(&reset(RESET_EPOCH)));
+        assert_eq!(after.pointer("/windows/five_hour/status"), Some(&json!("allowed")));
+        assert_eq!(after["captured_at"], before["captured_at"]);
+        assert_eq!(after["fetched_at"], before["fetched_at"]);
     }
 
     #[test]
