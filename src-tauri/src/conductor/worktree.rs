@@ -177,7 +177,7 @@ pub async fn run_dir(project: &str, worktree: Option<String>, run_id: &str) -> R
 
 /// Remove a worktree folder under `root` and delete its branch when merged.
 /// Anything outside `root` is left alone.
-fn remove(root: &Path, worktree: &Path) {
+pub(crate) fn remove(root: &Path, worktree: &Path) {
     if worktree.parent() != Some(root) {
         return;
     }

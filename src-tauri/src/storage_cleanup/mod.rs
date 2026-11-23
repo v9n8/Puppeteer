@@ -14,6 +14,7 @@ mod pastes;
 mod sidecar_junk;
 mod tasks;
 mod trash;
+mod worktrees;
 
 use crate::db::Db;
 use crate::runs::RunRegistry;
@@ -60,6 +61,7 @@ pub const CAT_TASK_ORPHANS: &str = "puppeteer_task_orphans";
 pub const CAT_DELETED_ACCOUNTS: &str = "deleted_accounts";
 pub const CAT_SIDECAR_JUNK: &str = "sidecar_junk";
 pub const CAT_TRASH: &str = "trash";
+pub const CAT_WORKTREES: &str = "worktrees";
 
 /// Held while a cleanup deletes: an automatic and a manual one never overlap.
 pub static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -107,19 +109,23 @@ pub enum Target {
     Run(String),
     /// A project in the Trash, purged with its runs.
     Project(String),
+    /// A finished worker's worktree, through `conductor::worktree::remove`.
+    Worktree { root: PathBuf, path: PathBuf },
 }
 
 impl Target {
     fn describe(&self) -> String {
         match self {
-            Target::Path { path, .. } | Target::AccountDir { path, .. } => path.display().to_string(),
+            Target::Path { path, .. } | Target::AccountDir { path, .. } | Target::Worktree { path, .. } => {
+                path.display().to_string()
+            }
             Target::Run(id) => format!("run {id}"),
             Target::Project(id) => format!("project {id}"),
         }
     }
 
     fn is_path(&self) -> bool {
-        matches!(self, Target::Path { .. } | Target::AccountDir { .. })
+        matches!(self, Target::Path { .. } | Target::AccountDir { .. } | Target::Worktree { .. })
     }
 }
 
@@ -198,6 +204,7 @@ pub async fn plan(ctx: &Ctx) -> Plan {
     take(&mut categories, CAT_DELETED_ACCOUNTS, accounts::plan(ctx).await);
     take(&mut categories, CAT_SIDECAR_JUNK, sidecar_junk::plan(ctx).await);
     take(&mut categories, CAT_TRASH, trash::plan(ctx).await);
+    take(&mut categories, CAT_WORKTREES, worktrees::plan(ctx).await);
     Plan { categories }
 }
 
@@ -260,6 +267,7 @@ fn remove_items(id: &'static str, items: Vec<Item>) -> CategoryOutcome {
         let removed = match &item.target {
             Target::Path { root, path } => fs_safe::remove_under(root, path),
             Target::AccountDir { root, path } => fs_safe::remove_account_dir(root, path),
+            Target::Worktree { root, path } => worktrees::remove(root, path),
             _ => Err("not a file".into()),
         };
         tally(&mut done, &item, removed);
@@ -287,7 +295,7 @@ pub(crate) mod tests {
 
     pub(crate) fn picked_path(item: &Item) -> PathBuf {
         match &item.target {
-            Target::Path { path, .. } | Target::AccountDir { path, .. } => path.clone(),
+            Target::Path { path, .. } | Target::AccountDir { path, .. } | Target::Worktree { path, .. } => path.clone(),
             other => PathBuf::from(other.describe()),
         }
     }
@@ -326,7 +334,7 @@ pub(crate) mod tests {
         let ctx = Ctx { home: None, temp: app_data.join("no-tmp"), ..Ctx::new(db.clone(), app_data.clone(), 30, crate::runs::new_registry(), None) };
         let planned = plan(&ctx).await;
         let summary: Vec<_> = planned.categories.iter().map(|c| (c.id, c.summary().items)).collect();
-        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0), (CAT_TRASH, 0)]);
+        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0), (CAT_TRASH, 0), (CAT_WORKTREES, 0)]);
         let outcome = apply(&ctx, planned).await;
         assert_eq!((outcome.files, outcome.errors), (3, 0));
         assert!(!app_data.join("logs/puppeteer.log.2020-01-01").exists());
