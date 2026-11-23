@@ -18,6 +18,7 @@ mod schedules;
 mod secret_vault;
 mod secrets;
 mod slack_threads;
+mod storage_cleanup;
 
 use commands::app_menu::set_app_menu;
 use commands::tray::set_tray_menu;

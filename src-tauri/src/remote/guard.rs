@@ -176,7 +176,7 @@ pub fn gated<R: Runtime>(handler: impl Fn(Invoke<R>) -> bool + Send + Sync + 'st
 /// controller must not lift its own limits. The desktop notification switches
 /// (`desktop_notify`) too: a controller must not silence what this machine
 /// tells the person at it. Nor the routing policy update's own bookkeeping, nor
-/// reading Slack DM threads (`slack_threads::dm`).
+/// reading Slack DM threads (`slack_threads::dm`), nor the storage cleanup's age limit and record.
 pub fn remote_may_set_setting(key: &str) -> bool {
     !key.is_empty()
         && !key.starts_with("remote_")
@@ -189,6 +189,8 @@ pub fn remote_may_set_setting(key: &str) -> bool {
         && key != "desktop_notify"
         && key != crate::commands::secret_vault::AUTO_LOCK_SETTING
         && key != crate::slack_threads::dm::SETTING
+        && key != crate::storage_cleanup::DAYS_SETTING
+        && key != crate::storage_cleanup::LAST_SETTING
         && !crate::runs::routing::update::is_bookkeeping(key)
 }
 

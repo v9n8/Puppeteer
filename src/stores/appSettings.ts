@@ -67,6 +67,8 @@ export interface AppSettings {
   desktop_notify: string
   /** Models that are on per engine, as JSON (V3-62); parse with `parseEnabledModels` (lib/enabledModels.ts). */
   enabled_models: string
+  /** Auto-clean files older than N days ('0' = off, else 7–3650, default '30'). */
+  storage_cleanup_days: string
 }
 
 export const useAppSettingsStore = defineStore('appSettings', () => {

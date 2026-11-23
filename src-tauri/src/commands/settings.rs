@@ -123,6 +123,9 @@ pub struct AppSettings {
     /// `{"claude": [id…] | null, "codex": [id…] | null}`; `null` = all on. See
     /// `model_policy`. Settings › Model saves it with `save_enabled_models`.
     pub enabled_models: String,
+    /// Auto-clean files older than this many days, as a whole number; "0" = off,
+    /// else 7–3650 ("30" by default). Per machine; see `storage_cleanup`.
+    pub storage_cleanup_days: String,
 }
 
 /// [`AppSettings::claude_fallback_model`] while the key is unset.
@@ -257,6 +260,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
         keymap_config: String::new(),
         desktop_notify: String::new(),
         enabled_models: String::new(),
+        storage_cleanup_days: crate::storage_cleanup::DEFAULT_DAYS.to_string(),
     };
 
     for row in rows {
@@ -311,6 +315,7 @@ pub async fn get_settings(db: State<'_, Db>) -> Result<AppSettings, String> {
             "keymap.config" => settings.keymap_config = value,
             "desktop_notify" => settings.desktop_notify = value,
             "enabled_models" => settings.enabled_models = value,
+            crate::storage_cleanup::DAYS_SETTING => settings.storage_cleanup_days = value,
             _ => {}
         }
     }

@@ -54,6 +54,8 @@ export interface AppSettings {
   translate_style: string
   quit_background_policy: string
   desktop_notify: string
+  /** Auto-clean files older than N days ('0' = off, else 7–3650). */
+  storage_cleanup_days: string
 }
 
 export interface SettingsForm {
@@ -112,6 +114,7 @@ export function createSettingsForm(): SettingsForm {
     translate_style: 'natural',
     quit_background_policy: 'ask',
     desktop_notify: '',
+    storage_cleanup_days: '30',
   })
   const loading = ref(true)
   // Snapshot of the last persisted settings so the auto-save watcher only

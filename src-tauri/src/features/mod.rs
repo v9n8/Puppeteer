@@ -191,6 +191,7 @@ pub static MODULES: &[Module] = &[
             on("auto_update"),
             on("whats_new"),
             on("command_palette"),
+            on("storage_cleanup"),
         ],
     },
 ];

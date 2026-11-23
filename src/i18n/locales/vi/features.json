@@ -124,7 +124,8 @@
     "app": {
       "auto_update": "Kiểm tra bản mới và cài khi bạn đồng ý",
       "whats_new": "Báo có gì mới sau khi cập nhật",
-      "command_palette": "Bảng lệnh nhanh"
+      "command_palette": "Bảng lệnh nhanh",
+      "storage_cleanup": "Tự động dọn file cũ"
     }
   }
 }
