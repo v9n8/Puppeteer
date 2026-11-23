@@ -7,9 +7,11 @@
 //! N and the last cleanup's record are per machine: local-only for Remote
 //! Control (`remote::guard`) and left out of a settings backup.
 
+mod accounts;
 pub mod fs_safe;
 mod logs;
 mod pastes;
+mod sidecar_junk;
 mod tasks;
 
 use crate::db::Db;
@@ -52,6 +54,8 @@ pub async fn days(db: &Db) -> u32 {
 pub const CAT_APP_LOGS: &str = "app_logs";
 pub const CAT_PASTES: &str = "pastes";
 pub const CAT_TASK_ORPHANS: &str = "puppeteer_task_orphans";
+pub const CAT_DELETED_ACCOUNTS: &str = "deleted_accounts";
+pub const CAT_SIDECAR_JUNK: &str = "sidecar_junk";
 
 /// Held while a cleanup deletes: an automatic and a manual one never overlap.
 pub static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -61,6 +65,8 @@ pub struct Ctx {
     pub db: Db,
     pub app_data: PathBuf,
     pub home: Option<PathBuf>,
+    /// The OS temp dir, where the model check and translate sidecars ran.
+    pub temp: PathBuf,
     pub now: DateTime<Utc>,
     /// Age limit in days, above 0 (the caller turns "off" into a default).
     pub days: u32,
@@ -69,7 +75,7 @@ pub struct Ctx {
 impl Ctx {
     pub fn new(db: Db, app_data: PathBuf, days: u32) -> Self {
         let home = std::env::var_os("HOME").map(PathBuf::from);
-        Self { db, app_data, home, now: Utc::now(), days }
+        Self { db, app_data, home, temp: std::env::temp_dir(), now: Utc::now(), days }
     }
 
     /// Anything last changed before this is older than N days. A time after
@@ -83,12 +89,14 @@ impl Ctx {
 pub enum Target {
     /// A file or folder nothing owns, through [`fs_safe::remove_under`].
     Path { root: PathBuf, path: PathBuf },
+    /// A deleted account's whole folder, through [`fs_safe::remove_account_dir`].
+    AccountDir { root: PathBuf, path: PathBuf },
 }
 
 impl Target {
     fn describe(&self) -> String {
         match self {
-            Target::Path { path, .. } => path.display().to_string(),
+            Target::Path { path, .. } | Target::AccountDir { path, .. } => path.display().to_string(),
         }
     }
 }
@@ -165,6 +173,8 @@ pub async fn plan(ctx: &Ctx) -> Plan {
     take(&mut categories, CAT_APP_LOGS, logs::plan(ctx).await);
     take(&mut categories, CAT_PASTES, pastes::plan(ctx).await);
     take(&mut categories, CAT_TASK_ORPHANS, tasks::plan(ctx).await);
+    take(&mut categories, CAT_DELETED_ACCOUNTS, accounts::plan(ctx).await);
+    take(&mut categories, CAT_SIDECAR_JUNK, sidecar_junk::plan(ctx).await);
     Plan { categories }
 }
 
@@ -204,6 +214,7 @@ fn remove_items(id: &'static str, items: Vec<Item>) -> CategoryOutcome {
     for item in items {
         let removed = match &item.target {
             Target::Path { root, path } => fs_safe::remove_under(root, path),
+            Target::AccountDir { root, path } => fs_safe::remove_account_dir(root, path),
         };
         match removed {
             Ok(()) => {
@@ -226,7 +237,7 @@ pub(crate) mod tests {
 
     pub(crate) fn picked_path(item: &Item) -> PathBuf {
         match &item.target {
-            Target::Path { path, .. } => path.clone(),
+            Target::Path { path, .. } | Target::AccountDir { path, .. } => path.clone(),
         }
     }
 
@@ -261,10 +272,10 @@ pub(crate) mod tests {
         }
         write(&app_data.join(format!("logs/puppeteer.log.{}", Utc::now().format("%Y-%m-%d"))));
 
-        let ctx = Ctx { home: None, ..Ctx::new(db.clone(), app_data.clone(), 30) };
+        let ctx = Ctx { home: None, temp: app_data.join("no-tmp"), ..Ctx::new(db.clone(), app_data.clone(), 30) };
         let planned = plan(&ctx).await;
         let summary: Vec<_> = planned.categories.iter().map(|c| (c.id, c.summary().items)).collect();
-        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1)]);
+        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0)]);
         let outcome = apply(planned).await;
         assert_eq!((outcome.files, outcome.errors), (3, 0));
         assert!(!app_data.join("logs/puppeteer.log.2020-01-01").exists());

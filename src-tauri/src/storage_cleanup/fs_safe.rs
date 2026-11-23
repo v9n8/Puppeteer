@@ -79,12 +79,14 @@ fn protected_inside(dir: &Path) -> Option<PathBuf> {
 }
 
 /// Newest modification time of `path` and, for a folder, of everything in it.
-/// Symlinks count by their own time; their targets are never read.
+/// Symlinks do not count: their own time is when they were made (an account's
+/// links into the global config), and their targets are not ours to read.
 pub fn newest_mtime(path: &Path) -> Option<SystemTime> {
     WalkDir::new(path)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
+        .filter(|e| !e.path_is_symlink())
         .filter_map(|e| e.metadata().ok()?.modified().ok())
         .max()
 }
