@@ -108,6 +108,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // transcripts, links, audit). A Controller may only move to / out of the Trash.
     "purge_run",
     "purge_project",
+    // Storage cleanup: deletes old files, worktrees and Trash entries for good.
+    "run_storage_cleanup",
     // Usage reset: hard-deletes every run (the Trash included) and the usage ledger.
     "reset_usage_stats",
     // Tool permissions: the one-time copy of this machine's webview storage into the

@@ -8,9 +8,11 @@
 //! Control (`remote::guard`) and left out of a settings backup.
 
 mod accounts;
+pub mod commands;
 pub mod fs_safe;
 mod logs;
 mod pastes;
+pub mod runner;
 mod sidecar_junk;
 mod snapshots;
 mod tasks;
@@ -199,6 +201,8 @@ pub struct CategorySummary {
 #[derive(Debug, Default, Serialize)]
 pub struct CategoryOutcome {
     pub id: &'static str,
+    /// Items removed (a file, a folder, a purged run or project).
+    pub items: u64,
     pub files: u64,
     pub bytes: u64,
     pub errors: u64,
@@ -302,6 +306,7 @@ fn remove_items(id: &'static str, items: Vec<Item>) -> CategoryOutcome {
 fn tally(done: &mut CategoryOutcome, item: &Item, removed: Result<(), String>) {
     match removed {
         Ok(()) => {
+            done.items += 1;
             done.files += item.files;
             done.bytes += item.bytes;
         }

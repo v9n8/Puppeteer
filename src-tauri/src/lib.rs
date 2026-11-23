@@ -126,6 +126,7 @@ use commands::stats::{
     refresh_codex_plan_usage, refresh_plan_usage, reset_usage_stats,
 };
 use commands::storage::get_storage_stats;
+use storage_cleanup::commands::{preview_storage_cleanup, run_storage_cleanup};
 use commands::trash::list_trash;
 use commands::instruction_checks::get_instruction_warnings;
 use commands::memory::{memory_read, memory_write};
@@ -374,6 +375,8 @@ pub fn run() {
             }
             // Focus reminders (focus::scheduler): a 60 s tick while the app runs.
             focus::scheduler::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
+            // Storage cleanup: an hourly check, cleaning at most once a day.
+            storage_cleanup::runner::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
             commands::secret_vault::spawn_auto_lock(app.handle().clone());
             app.manage(BalanceGuard::default());
             app.manage(new_registry());
@@ -772,6 +775,8 @@ pub fn run() {
             reconcile_claude_sessions,
             reconcile_codex_sessions,
             get_storage_stats,
+            preview_storage_cleanup,
+            run_storage_cleanup,
             list_todos,
             add_todo,
             toggle_todo,
