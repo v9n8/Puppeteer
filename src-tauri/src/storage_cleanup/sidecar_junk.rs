@@ -119,7 +119,7 @@ mod tests {
             .execute(&db)
             .await
             .unwrap();
-        let ctx = Ctx { home: Some(home.clone()), temp, ..Ctx::new(db.clone(), base.clone(), 30) };
+        let ctx = Ctx { home: Some(home.clone()), temp, ..Ctx::new(db.clone(), base.clone(), 30, crate::runs::new_registry(), None) };
         let category = plan(&ctx).await.unwrap();
         let mut picked: Vec<_> = category.items.iter().map(picked_path).collect();
         picked.sort();
@@ -127,7 +127,7 @@ mod tests {
         want.sort();
         assert_eq!(picked, want);
 
-        let outcome = apply(Plan { categories: vec![category] }).await;
+        let outcome = apply(&ctx, Plan { categories: vec![category] }).await;
         assert_eq!(outcome.errors, 0);
         for kept in [junk.join("memory/MEMORY.md"), junk.join("kept-by-run.jsonl"), junk.join("new.jsonl"), other.join("memory/MEMORY.md"), other.join("old.jsonl")] {
             assert!(kept.exists(), "{}", kept.display());

@@ -110,8 +110,8 @@ mod tests {
     }
 
     #[cfg(unix)]
-    #[tokio::test]
-    async fn a_deleted_account_goes_but_the_global_skills_it_links_to_stay() {
+    #[test]
+    fn a_deleted_account_goes_but_the_global_skills_it_links_to_stay() {
         let base = temp_dir("accounts-link");
         let root = base.join("claude-accounts");
         let global = base.join("dot-claude/skills");
@@ -122,7 +122,7 @@ mod tests {
         let in_use = InUse { account_ids: HashSet::new(), config_dirs: Vec::new(), transcripts: Vec::new() };
         let category = plan_in(&root, &in_use, days_ago(30));
         assert_eq!(category.items.len(), 1);
-        let outcome = crate::storage_cleanup::apply(crate::storage_cleanup::Plan { categories: vec![category] }).await;
+        let outcome = crate::storage_cleanup::remove_items(CAT_DELETED_ACCOUNTS, category.items);
         assert_eq!(outcome.errors, 0);
         assert!(!root.join("old").exists());
         assert!(global.join("s/SKILL.md").exists());

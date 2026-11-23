@@ -13,10 +13,13 @@ mod logs;
 mod pastes;
 mod sidecar_junk;
 mod tasks;
+mod trash;
 
 use crate::db::Db;
+use crate::runs::RunRegistry;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -56,6 +59,7 @@ pub const CAT_PASTES: &str = "pastes";
 pub const CAT_TASK_ORPHANS: &str = "puppeteer_task_orphans";
 pub const CAT_DELETED_ACCOUNTS: &str = "deleted_accounts";
 pub const CAT_SIDECAR_JUNK: &str = "sidecar_junk";
+pub const CAT_TRASH: &str = "trash";
 
 /// Held while a cleanup deletes: an automatic and a manual one never overlap.
 pub static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -70,12 +74,20 @@ pub struct Ctx {
     pub now: DateTime<Utc>,
     /// Age limit in days, above 0 (the caller turns "off" into a default).
     pub days: u32,
+    pub registry: RunRegistry,
+    pub conductor: Option<crate::conductor::ConductorState>,
 }
 
 impl Ctx {
-    pub fn new(db: Db, app_data: PathBuf, days: u32) -> Self {
+    pub fn new(
+        db: Db,
+        app_data: PathBuf,
+        days: u32,
+        registry: RunRegistry,
+        conductor: Option<crate::conductor::ConductorState>,
+    ) -> Self {
         let home = std::env::var_os("HOME").map(PathBuf::from);
-        Self { db, app_data, home, temp: std::env::temp_dir(), now: Utc::now(), days }
+        Self { db, app_data, home, temp: std::env::temp_dir(), now: Utc::now(), days, registry, conductor }
     }
 
     /// Anything last changed before this is older than N days. A time after
@@ -91,13 +103,23 @@ pub enum Target {
     Path { root: PathBuf, path: PathBuf },
     /// A deleted account's whole folder, through [`fs_safe::remove_account_dir`].
     AccountDir { root: PathBuf, path: PathBuf },
+    /// A run in the Trash, purged with its trashed workers (`trash::purge`).
+    Run(String),
+    /// A project in the Trash, purged with its runs.
+    Project(String),
 }
 
 impl Target {
     fn describe(&self) -> String {
         match self {
             Target::Path { path, .. } | Target::AccountDir { path, .. } => path.display().to_string(),
+            Target::Run(id) => format!("run {id}"),
+            Target::Project(id) => format!("project {id}"),
         }
+    }
+
+    fn is_path(&self) -> bool {
+        matches!(self, Target::Path { .. } | Target::AccountDir { .. })
     }
 }
 
@@ -175,6 +197,7 @@ pub async fn plan(ctx: &Ctx) -> Plan {
     take(&mut categories, CAT_TASK_ORPHANS, tasks::plan(ctx).await);
     take(&mut categories, CAT_DELETED_ACCOUNTS, accounts::plan(ctx).await);
     take(&mut categories, CAT_SIDECAR_JUNK, sidecar_junk::plan(ctx).await);
+    take(&mut categories, CAT_TRASH, trash::plan(ctx).await);
     Plan { categories }
 }
 
@@ -185,12 +208,25 @@ fn take(categories: &mut Vec<Category>, id: &'static str, planned: Result<Catego
     }));
 }
 
+/// Runs whose files must not be touched: live in this app, `running` in the
+/// table (a crash can leave one), or waiting to be resumed after a restart.
+pub(crate) async fn running_run_ids(ctx: &Ctx) -> Result<HashSet<String>, String> {
+    let mut ids: HashSet<String> = sqlx::query_scalar("SELECT id FROM runs WHERE status = 'running' OR interrupted_pending = 1")
+        .fetch_all(&ctx.db)
+        .await
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .collect();
+    ids.extend(ctx.registry.lock().await.keys().cloned());
+    Ok(ids)
+}
+
 /// Remove what `plan` picked. A failed item is counted and logged with its
 /// path; the others still go.
-pub async fn apply(plan: Plan) -> CleanupOutcome {
+pub async fn apply(ctx: &Ctx, plan: Plan) -> CleanupOutcome {
     let mut outcome = CleanupOutcome::default();
     for category in plan.categories {
-        let done = apply_category(category).await;
+        let done = apply_category(ctx, category).await;
         outcome.files += done.files;
         outcome.bytes += done.bytes;
         outcome.errors += done.errors;
@@ -199,35 +235,49 @@ pub async fn apply(plan: Plan) -> CleanupOutcome {
     outcome
 }
 
-async fn apply_category(category: Category) -> CategoryOutcome {
-    let (id, count) = (category.id, category.items.len() as u64);
-    tokio::task::spawn_blocking(move || remove_items(id, category.items))
+async fn apply_category(ctx: &Ctx, category: Category) -> CategoryOutcome {
+    let id = category.id;
+    let (paths, owned): (Vec<Item>, Vec<Item>) = category.items.into_iter().partition(|i| i.target.is_path());
+    let count = paths.len() as u64;
+    // File deletes block: off the async runtime.
+    let mut done = tokio::task::spawn_blocking(move || remove_items(id, paths))
         .await
         .unwrap_or_else(|e| {
             tracing::warn!(event = "storage_cleanup_category_failed", category = id, error = %e);
             CategoryOutcome { id, errors: count, ..Default::default() }
-        })
+        });
+    for item in owned {
+        let removed = trash::purge(ctx, &item.target).await;
+        tally(&mut done, &item, removed);
+    }
+    done
 }
 
+/// Remove items that are files or folders.
 fn remove_items(id: &'static str, items: Vec<Item>) -> CategoryOutcome {
     let mut done = CategoryOutcome { id, ..Default::default() };
     for item in items {
         let removed = match &item.target {
             Target::Path { root, path } => fs_safe::remove_under(root, path),
             Target::AccountDir { root, path } => fs_safe::remove_account_dir(root, path),
+            _ => Err("not a file".into()),
         };
-        match removed {
-            Ok(()) => {
-                done.files += item.files;
-                done.bytes += item.bytes;
-            }
-            Err(error) => {
-                done.errors += 1;
-                tracing::warn!(event = "storage_cleanup_item_failed", category = id, path = %item.target.describe(), error = %error);
-            }
-        }
+        tally(&mut done, &item, removed);
     }
     done
+}
+
+fn tally(done: &mut CategoryOutcome, item: &Item, removed: Result<(), String>) {
+    match removed {
+        Ok(()) => {
+            done.files += item.files;
+            done.bytes += item.bytes;
+        }
+        Err(error) => {
+            done.errors += 1;
+            tracing::warn!(event = "storage_cleanup_item_failed", category = done.id, path = %item.target.describe(), error = %error);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -238,6 +288,7 @@ pub(crate) mod tests {
     pub(crate) fn picked_path(item: &Item) -> PathBuf {
         match &item.target {
             Target::Path { path, .. } | Target::AccountDir { path, .. } => path.clone(),
+            other => PathBuf::from(other.describe()),
         }
     }
 
@@ -272,11 +323,11 @@ pub(crate) mod tests {
         }
         write(&app_data.join(format!("logs/puppeteer.log.{}", Utc::now().format("%Y-%m-%d"))));
 
-        let ctx = Ctx { home: None, temp: app_data.join("no-tmp"), ..Ctx::new(db.clone(), app_data.clone(), 30) };
+        let ctx = Ctx { home: None, temp: app_data.join("no-tmp"), ..Ctx::new(db.clone(), app_data.clone(), 30, crate::runs::new_registry(), None) };
         let planned = plan(&ctx).await;
         let summary: Vec<_> = planned.categories.iter().map(|c| (c.id, c.summary().items)).collect();
-        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0)]);
-        let outcome = apply(planned).await;
+        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0), (CAT_TRASH, 0)]);
+        let outcome = apply(&ctx, planned).await;
         assert_eq!((outcome.files, outcome.errors), (3, 0));
         assert!(!app_data.join("logs/puppeteer.log.2020-01-01").exists());
         assert!(!app_data.join("pastes/gone").exists());
@@ -288,8 +339,8 @@ pub(crate) mod tests {
 
     /// One item that cannot go does not stop the others.
     #[cfg(unix)]
-    #[tokio::test]
-    async fn a_failed_item_is_counted_and_the_rest_still_go() {
+    #[test]
+    fn a_failed_item_is_counted_and_the_rest_still_go() {
         use std::os::unix::fs::PermissionsExt;
         let root = temp_dir("cleanup-fail");
         write(&root.join("locked/a.log"));
@@ -300,9 +351,8 @@ pub(crate) mod tests {
         for rel in ["b.log", "locked/a.log", "c.log"] {
             category.items.push(Item::path(&root, root.join(rel), (1, 1)));
         }
-        let outcome = apply(Plan { categories: vec![category] }).await;
+        let outcome = remove_items(CAT_APP_LOGS, category.items);
         assert_eq!((outcome.files, outcome.bytes, outcome.errors), (2, 2, 1));
-        assert_eq!(outcome.per_category[0].errors, 1);
         assert!(!root.join("b.log").exists() && !root.join("c.log").exists());
         assert!(root.join("locked/a.log").exists());
         std::fs::set_permissions(root.join("locked"), std::fs::Permissions::from_mode(0o755)).unwrap();
