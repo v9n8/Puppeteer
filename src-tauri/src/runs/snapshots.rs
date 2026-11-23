@@ -80,7 +80,7 @@ pub fn set_root(dir: PathBuf) {
     let _ = ROOT.set(dir);
 }
 
-fn root() -> PathBuf {
+pub(crate) fn root() -> PathBuf {
     ROOT.get().cloned().unwrap_or_else(|| std::env::temp_dir().join("puppeteer-snapshots"))
 }
 
@@ -437,7 +437,7 @@ pub fn sweep_in_background(db: Db) {
         *last = Some(Instant::now());
     }
     tauri::async_runtime::spawn(async move {
-        match sweep_at(&db, &root(), &LIMITS, Utc::now()).await {
+        match sweep_with_max_age(&db, &root(), crate::storage_cleanup::snapshot_max_age_days(&db).await).await {
             Ok(0) => {}
             Ok(removed) => tracing::info!(event = "snapshots_swept", removed),
             Err(e) => tracing::warn!(event = "snapshots_sweep_failed", error = %e),
@@ -445,9 +445,14 @@ pub fn sweep_in_background(db: Db) {
     });
 }
 
+/// [`sweep_at`] with the age limit the storage cleanup sets (`storage_cleanup`).
+pub(crate) async fn sweep_with_max_age(db: &Db, store: &Path, max_age_days: i64) -> Result<usize, String> {
+    sweep_at(db, store, &Limits { max_age_days, ..LIMITS }, Utc::now()).await
+}
+
 /// Every blob in the store: sha (file name) → (path, bytes). Anything else
 /// there (a write cut short) is listed too, under its own name.
-fn stored_blobs(store: &Path) -> HashMap<String, (PathBuf, u64)> {
+pub(crate) fn stored_blobs(store: &Path) -> HashMap<String, (PathBuf, u64)> {
     let mut out = HashMap::new();
     let Ok(dirs) = std::fs::read_dir(store.join("blobs")) else {
         return out;
@@ -467,7 +472,7 @@ fn stored_blobs(store: &Path) -> HashMap<String, (PathBuf, u64)> {
 /// Which manifests to drop (missing ones, then the least recently used while
 /// the store is over `max_store_bytes`) and which blobs the rest still need.
 /// `manifests` is oldest first.
-fn plan_cleanup(
+pub(crate) fn plan_cleanup(
     store: &Path,
     manifests: &[String],
     blobs: &HashMap<String, (PathBuf, u64)>,

@@ -12,6 +12,7 @@ pub mod fs_safe;
 mod logs;
 mod pastes;
 mod sidecar_junk;
+mod snapshots;
 mod tasks;
 mod trash;
 mod worktrees;
@@ -54,6 +55,17 @@ pub async fn days(db: &Db) -> u32 {
     parse_days(value.as_deref())
 }
 
+/// Age limit of the Rewind snapshots: N, or with auto-clean off the 30 days
+/// they always had.
+pub fn snapshot_days_for(days: u32) -> i64 {
+    i64::from(if days == 0 { DEFAULT_DAYS } else { days })
+}
+
+/// [`snapshot_days_for`] the N stored on this machine.
+pub async fn snapshot_max_age_days(db: &Db) -> i64 {
+    snapshot_days_for(self::days(db).await)
+}
+
 /// Category ids shared with the Storage table (`commands::storage`).
 pub const CAT_APP_LOGS: &str = "app_logs";
 pub const CAT_PASTES: &str = "pastes";
@@ -62,6 +74,7 @@ pub const CAT_DELETED_ACCOUNTS: &str = "deleted_accounts";
 pub const CAT_SIDECAR_JUNK: &str = "sidecar_junk";
 pub const CAT_TRASH: &str = "trash";
 pub const CAT_WORKTREES: &str = "worktrees";
+pub const CAT_SNAPSHOTS: &str = "snapshots";
 
 /// Held while a cleanup deletes: an automatic and a manual one never overlap.
 pub static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -111,6 +124,8 @@ pub enum Target {
     Project(String),
     /// A finished worker's worktree, through `conductor::worktree::remove`.
     Worktree { root: PathBuf, path: PathBuf },
+    /// The snapshot store, through its own sweep with this age limit.
+    Snapshots { store: PathBuf, max_age_days: i64 },
 }
 
 impl Target {
@@ -119,6 +134,7 @@ impl Target {
             Target::Path { path, .. } | Target::AccountDir { path, .. } | Target::Worktree { path, .. } => {
                 path.display().to_string()
             }
+            Target::Snapshots { store, .. } => store.display().to_string(),
             Target::Run(id) => format!("run {id}"),
             Target::Project(id) => format!("project {id}"),
         }
@@ -158,6 +174,7 @@ impl Category {
         CategorySummary {
             id: self.id,
             items: self.items.len() as u64,
+            files: self.items.iter().map(|i| i.files).sum(),
             bytes: self.items.iter().map(|i| i.bytes).sum(),
             kept_items: self.kept_items,
             kept_bytes: self.kept_bytes,
@@ -173,6 +190,7 @@ pub struct Plan {
 pub struct CategorySummary {
     pub id: &'static str,
     pub items: u64,
+    pub files: u64,
     pub bytes: u64,
     pub kept_items: u64,
     pub kept_bytes: u64,
@@ -205,6 +223,7 @@ pub async fn plan(ctx: &Ctx) -> Plan {
     take(&mut categories, CAT_SIDECAR_JUNK, sidecar_junk::plan(ctx).await);
     take(&mut categories, CAT_TRASH, trash::plan(ctx).await);
     take(&mut categories, CAT_WORKTREES, worktrees::plan(ctx).await);
+    take(&mut categories, CAT_SNAPSHOTS, snapshots::plan(ctx).await);
     Plan { categories }
 }
 
@@ -254,7 +273,12 @@ async fn apply_category(ctx: &Ctx, category: Category) -> CategoryOutcome {
             CategoryOutcome { id, errors: count, ..Default::default() }
         });
     for item in owned {
-        let removed = trash::purge(ctx, &item.target).await;
+        let removed = match &item.target {
+            Target::Snapshots { store, max_age_days } => {
+                crate::runs::snapshots::sweep_with_max_age(&ctx.db, store, *max_age_days).await.map(|_| ())
+            }
+            target => trash::purge(ctx, target).await,
+        };
         tally(&mut done, &item, removed);
     }
     done
@@ -334,7 +358,7 @@ pub(crate) mod tests {
         let ctx = Ctx { home: None, temp: app_data.join("no-tmp"), ..Ctx::new(db.clone(), app_data.clone(), 30, crate::runs::new_registry(), None) };
         let planned = plan(&ctx).await;
         let summary: Vec<_> = planned.categories.iter().map(|c| (c.id, c.summary().items)).collect();
-        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0), (CAT_TRASH, 0), (CAT_WORKTREES, 0)]);
+        assert_eq!(summary, [(CAT_APP_LOGS, 1), (CAT_PASTES, 1), (CAT_TASK_ORPHANS, 1), (CAT_DELETED_ACCOUNTS, 0), (CAT_SIDECAR_JUNK, 0), (CAT_TRASH, 0), (CAT_WORKTREES, 0), (CAT_SNAPSHOTS, 0)]);
         let outcome = apply(&ctx, planned).await;
         assert_eq!((outcome.files, outcome.errors), (3, 0));
         assert!(!app_data.join("logs/puppeteer.log.2020-01-01").exists());
