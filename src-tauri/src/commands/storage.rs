@@ -68,7 +68,7 @@ fn is_log(p: &Path) -> bool {
 /// Deliberately narrow: skills write their own files into the same tree (e.g.
 /// `civilink-write-pr` writes `pr-draft.md` beside `issue.md`). Those are user
 /// content, are referenced by no run, and must never be swept up as orphans.
-fn is_puppeteer_task_file(p: &Path) -> bool {
+pub(crate) fn is_puppeteer_task_file(p: &Path) -> bool {
     let Some(name) = p.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
@@ -102,7 +102,7 @@ fn scan<P: Fn(&Path) -> bool>(root: &Path, pred: &P) -> (u64, u64) {
 }
 
 /// Every project's `.puppeteer/<sub>` directory.
-async fn puppeteer_dirs(db: &Db, sub: &str) -> Vec<PathBuf> {
+pub(crate) async fn puppeteer_dirs(db: &Db, sub: &str) -> Vec<PathBuf> {
     let rows = match sqlx::query("SELECT path FROM projects").fetch_all(db).await {
         Ok(r) => r,
         Err(_) => return Vec::new(),
@@ -120,12 +120,18 @@ async fn puppeteer_dirs(db: &Db, sub: &str) -> Vec<PathBuf> {
 /// `projects.path` value, and `delete_run_inner` already refcounts task files
 /// this way.
 async fn referenced_run_paths(db: &Db) -> std::collections::HashSet<String> {
+    try_referenced_run_paths(db).await.unwrap_or_default()
+}
+
+/// [`referenced_run_paths`], failing on a failed read: a cleanup must not take
+/// an unreadable table for "nothing is referenced".
+pub(crate) async fn try_referenced_run_paths(db: &Db) -> Result<std::collections::HashSet<String>, String> {
     let rows = sqlx::query(
         "SELECT input_path, output_path FROM runs WHERE input_path IS NOT NULL OR output_path IS NOT NULL",
     )
     .fetch_all(db)
     .await
-    .unwrap_or_default();
+    .map_err(|e| e.to_string())?;
 
     let mut set = std::collections::HashSet::new();
     for row in rows {
@@ -135,7 +141,7 @@ async fn referenced_run_paths(db: &Db) -> std::collections::HashSet<String> {
             }
         }
     }
-    set
+    Ok(set)
 }
 
 #[tauri::command]
