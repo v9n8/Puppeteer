@@ -59,14 +59,14 @@ function runSidecar(scenario, onMessage, timeoutMs = 10_000, extraEnv = {}) {
 }
 
 // Run one `validate_model` check; the mock writes the options it got to a file.
-async function validateModel(model, stderr = '') {
+async function validateModel(model, stderr = '', env = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'sidecar-validate-'))
   const file = join(dir, 'options.json')
   try {
     const { messages } = await runSidecar('validate', (msg, ctl) => {
       if (msg.type === '_puppeteer_ready') ctl.send({ type: 'validate_model', options: { model, cwd: dir } })
       if (msg.type === '_puppeteer_closed') ctl.closeInput()
-    }, 10_000, { MOCK_OPTIONS_FILE: file, MOCK_STDERR: stderr })
+    }, 10_000, { MOCK_OPTIONS_FILE: file, MOCK_STDERR: stderr, ...env })
     return { messages, options: JSON.parse(readFileSync(file, 'utf8')) }
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -277,6 +277,23 @@ const tests = {
     const { messages } = await validateModel('claude-nonexistent-9', stderr)
     assert.equal(of(messages, '_puppeteer_valid').length, 0)
     assert.deepEqual(of(messages, '_puppeteer_invalid').map((m) => m.error), ['Not recognized by this Claude Code version'])
+  },
+
+  // A throwaway session (model check, translate) runs in the temp dir and is
+  // never resumed: PUPPETEER_NO_PERSIST keeps its transcript off the disk. Any
+  // other session keeps the SDK default, so it can be resumed.
+  async 'no-persist env turns off the transcript, only when set'() {
+    const sessionOptions = async (env) => {
+      const { messages } = await runSidecar('permission', (msg, ctl) => {
+        if (msg.type === '_puppeteer_ready') ctl.send({ type: 'prompt', text: 'go', options: { permissionMode: 'default', noTools: true } })
+        if (msg.type === 'result') ctl.closeInput()
+      }, 10_000, env)
+      return messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    }
+    assert.equal((await sessionOptions({ PUPPETEER_NO_PERSIST: '1' })).persistSession, false)
+    assert.equal((await sessionOptions({})).persistSession, undefined)
+    assert.equal((await validateModel('sonnet', '', { PUPPETEER_NO_PERSIST: '1' })).options.persistSession, false)
+    assert.equal((await validateModel('sonnet')).options.persistSession, undefined)
   },
 
   // Auto mode: a call the classifier could not approve is declined with a

@@ -560,6 +560,7 @@ async fn spawn_warm(
     }
     if !is_codex {
         apply_claude_config_dir(&mut cmd, s.claude_config_dir.as_deref());
+        cmd.env("PUPPETEER_NO_PERSIST", "1");
     }
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

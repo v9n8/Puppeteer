@@ -638,6 +638,8 @@ function startQuery(firstText, opts = {}, firstImages) {
   // Sub-agent ceiling (QO-06): no `Agent` call above the session's model family.
   if (process.env.PUPPETEER_ROUTING_CEILING === '1' && opts.noTools !== true) options.hooks = withRoutingCeiling(options.hooks, options.model, send)
   if (opts.cwd) options.cwd = opts.cwd
+  // A throwaway session (translate) is never resumed: no transcript on disk.
+  if (process.env.PUPPETEER_NO_PERSIST === '1') options.persistSession = false
   if (puppeteerManagesAgentsMd(opts.cwd)) claudeMdOnly(options)
   // Centrally-managed MCP servers injected per run (Record<name, config>).
   // MCP tools still flow through canUseTool → the permission modal is unchanged.
@@ -827,6 +829,7 @@ function startValidateModel(opts = {}) {
   }
   if (opts.model) options.model = opts.model
   if (opts.cwd) options.cwd = opts.cwd
+  if (process.env.PUPPETEER_NO_PERSIST === '1') options.persistSession = false
   if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
   // `say ok` needs no tools, settings, CLAUDE.md or MCP: loading them only costs
   // a large cache write per check. No tools also means nothing ever asks for a

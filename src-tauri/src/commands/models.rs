@@ -189,6 +189,8 @@ async fn probe_claude_model(env: ProbeEnv, model: String) -> ModelValidation {
         cmd.env("PUPPETEER_CLAUDE_PATH", &env.claude_path);
     }
     apply_claude_config_dir(&mut cmd, env.config_dir.as_deref());
+    // A probe is never resumed: no transcript under the temp dir's project slug.
+    cmd.env("PUPPETEER_NO_PERSIST", "1");
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null());
