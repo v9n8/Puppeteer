@@ -121,6 +121,9 @@ watch(
       returnFocusTo = null
     }
   },
+  // A remount while open (dev hot reload) takes its place in the stack again; closed, the
+  // first run is a no-op (nothing in the stack, no focus to give back).
+  { immediate: true },
 )
 
 watch(() => store.cycleTick, () => {
@@ -310,7 +313,7 @@ function onKeydown(e: KeyboardEvent) {
   }
   if (!store.open) return
   // A dialog over the layer takes every key but the open shortcut above. One that takes no
-  // focus ("Discard changes", the quit question) leaves it in the layer: drop it there, so
+  // focus ("Discard changes", the quit question) leaves the focus in the layer: blur it, so
   // the key neither types into the filter nor presses a button under the dialog.
   if (!isTopModal(layerId)) {
     if (e.target instanceof HTMLElement && root.value?.contains(e.target)) e.target.blur()

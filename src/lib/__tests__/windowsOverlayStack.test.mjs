@@ -14,7 +14,11 @@ test('ZI-05: under a dialog the layer takes no key and drops the focus it still 
     /if \(!isTopModal\(layerId\)\) \{\s*if \(e\.target instanceof HTMLElement && root\.value\?\.contains\(e\.target\)\) e\.target\.blur\(\)\s*return\s*\}/,
   )
   // After the open shortcut and the closed check, before every key of the layer itself.
-  const at = (s) => onKeydown.indexOf(s)
+  const at = (s) => {
+    const i = onKeydown.indexOf(s)
+    assert.ok(i >= 0, `missing: ${s}`)
+    return i
+  }
   assert.ok(at('if (!store.open) return') < at('if (!isTopModal(layerId))'))
   assert.ok(at('store.openOrCycle()') < at('if (!isTopModal(layerId))'))
   assert.ok(at('if (!isTopModal(layerId))') < at('if (drag.value || selectBox.value) return'))
