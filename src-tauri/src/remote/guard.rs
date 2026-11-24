@@ -855,6 +855,7 @@ mod tests {
             "google_forget_client",
             "delete_google_account",
             "list_mcp_servers",
+            "check_slack_dm_scopes",
             "update_mcp_server",
             "export_mcp_server",
             "create_vps_server",

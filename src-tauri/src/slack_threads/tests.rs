@@ -2051,3 +2051,5 @@ async fn post_reply_maps_slack_errors() {
 mod dm_tests;
 #[path = "token_scope_tests.rs"]
 mod token_scope_tests;
+#[path = "dm_scopes_tests.rs"]
+mod dm_scopes_tests;

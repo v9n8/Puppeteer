@@ -38,7 +38,12 @@ pub struct TokenSource {
 }
 
 impl TokenSource {
-    fn cache_key(&self) -> String {
+    /// A client that sends this token.
+    pub(super) fn client(&self, cfg: &Arc<HttpConfig>, http: &reqwest::Client) -> SlackClient {
+        SlackClient::new(cfg.clone(), http.clone(), self.token.clone())
+    }
+
+    pub(super) fn cache_key(&self) -> String {
         format!(
             "{}:{}",
             self.server_id,
@@ -162,7 +167,7 @@ impl AuthCache {
         }
     }
 
-    fn put(&self, key: String, info: AuthInfo) {
+    pub(super) fn put(&self, key: String, info: AuthInfo) {
         if let Ok(mut g) = self.0.lock() {
             g.insert(key, (Instant::now(), info));
         }
@@ -197,7 +202,7 @@ pub async fn resolve(
         return Err(CodedError::new("no_token", "no Slack token configured"));
     }
     for src in found {
-        let client = SlackClient::new(cfg.clone(), http.clone(), src.token.clone());
+        let client = src.client(cfg, http);
         let key = src.cache_key();
         let info = match cache.get(&key) {
             Some(i) => i,

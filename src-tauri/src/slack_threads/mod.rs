@@ -21,6 +21,7 @@
 
 pub mod api;
 pub mod dm;
+pub mod dm_scopes;
 pub mod files;
 pub mod job;
 pub mod link;

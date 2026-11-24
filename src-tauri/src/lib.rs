@@ -133,7 +133,7 @@ use commands::instruction_checks::get_instruction_warnings;
 use commands::memory::{memory_read, memory_write};
 use commands::inbox_api::{get_inbox_api_info, regenerate_inbox_api_token, set_inbox_api_enabled};
 use commands::slack_threads::{
-    add_slack_thread, delete_slack_threads, get_slack_thread, get_slack_thread_prompt_text,
+    add_slack_thread, check_slack_dm_scopes, delete_slack_threads, get_slack_thread, get_slack_thread_prompt_text,
     get_slack_token_status, link_slack_thread_run, list_run_slack_threads, list_slack_thread_runs,
     list_slack_threads, mark_slack_thread_seen, post_slack_thread_reply, refresh_slack_thread,
     rename_slack_thread, reorder_slack_threads, retranslate_slack_thread, set_slack_thread_project,
@@ -845,6 +845,7 @@ pub fn run() {
             reorder_slack_threads,
             delete_slack_threads,
             get_slack_token_status,
+            check_slack_dm_scopes,
             get_slack_thread_prompt_text,
             link_slack_thread_run,
             unlink_slack_thread_run,

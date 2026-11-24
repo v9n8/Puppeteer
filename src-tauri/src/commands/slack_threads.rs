@@ -8,6 +8,7 @@ use crate::slack_threads::run_links::{self, LinkRunResult, SlackThreadRunLink};
 use crate::slack_threads::store::{
     self, AddSlackThreadResult, SlackPromptText, SlackThreadSummary, SlackThreadView,
 };
+use crate::slack_threads::dm_scopes::{self, DmScopeResult};
 use crate::slack_threads::token::{self, SlackTokenStatus};
 use crate::slack_threads::translate::build_reply_prompt;
 use crate::slack_threads::{CodedError, SlackThreadsState, FEATURE, MAX_REPLY_CHARS};
@@ -210,6 +211,18 @@ pub async fn get_slack_token_status(
     require(&state).await?;
     let ctx = state.ctx();
     token::token_status(&ctx.db, &ctx.lookup)
+        .await
+        .map_err(|e| err(store::internal(e)))
+}
+
+/// Whether each Slack token (of a server on app-wide) can read DM threads: asks Slack
+/// afresh, at most `dm_scopes::CHECK_TIMEOUT` per token. Never returns a token.
+/// Remote: allowed (read-only; the token only goes to Slack).
+#[tauri::command]
+pub async fn check_slack_dm_scopes(state: State<'_, SlackThreadsState>) -> CmdResult<Vec<DmScopeResult>> {
+    require(&state).await?;
+    let ctx = state.ctx();
+    dm_scopes::check_all(&ctx.db, &ctx.lookup, &ctx.http, &ctx.token_http, &ctx.auth_cache, dm_scopes::CHECK_TIMEOUT)
         .await
         .map_err(|e| err(store::internal(e)))
 }
