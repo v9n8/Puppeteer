@@ -38,6 +38,24 @@ pub async fn builtin_on_app_wide_now(db: &Db, name: &str) -> bool {
     }
 }
 
+/// Ids of the user servers effectively on: switched on app-wide and, for `Some(project)`,
+/// switched on for that project.
+pub async fn servers_on(db: &Db, project: Option<&str>) -> Result<HashSet<String>, sqlx::Error> {
+    let ids: Vec<String> = match project {
+        None => sqlx::query_scalar("SELECT id FROM mcp_servers WHERE enabled = 1").fetch_all(db).await?,
+        Some(pid) => {
+            sqlx::query_scalar(
+                "SELECT s.id FROM mcp_servers s JOIN project_mcp_servers ps ON ps.server_id = s.id \
+                 WHERE s.enabled = 1 AND ps.project_id = ?",
+            )
+            .bind(pid)
+            .fetch_all(db)
+            .await?
+        }
+    };
+    Ok(ids.into_iter().collect())
+}
+
 /// Err unless user server `id` is switched on app-wide (`mcp_servers.enabled`).
 pub async fn require_server_on_app_wide(db: &Db, id: &str) -> Result<(), String> {
     let row: Option<(String, bool)> = sqlx::query_as("SELECT name, enabled FROM mcp_servers WHERE id = ?")

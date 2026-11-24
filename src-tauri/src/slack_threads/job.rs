@@ -410,7 +410,7 @@ impl Job<'_> {
 
         // 1. Token + auth.test.
         self.set_phase("auth");
-        let found = token::sources(self.db(), &self.ctx.lookup).await?;
+        let found = token::sources(self.db(), &self.ctx.lookup, project_id.as_deref()).await?;
         if found.is_empty() {
             return Err(coded("no_token", "no Slack token configured"));
         }

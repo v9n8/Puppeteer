@@ -41,6 +41,12 @@ impl Tokens {
         .execute(db)
         .await
         .unwrap();
+        // On for every project, so a project's thread may use it.
+        sqlx::query("INSERT OR IGNORE INTO project_mcp_servers (project_id, server_id, enabled_at) SELECT id, ?, 'c' FROM projects")
+            .bind(server_id)
+            .execute(db)
+            .await
+            .unwrap();
         self.0
             .lock()
             .unwrap()
@@ -2043,3 +2049,5 @@ async fn post_reply_maps_slack_errors() {
 
 #[path = "dm_tests.rs"]
 mod dm_tests;
+#[path = "token_scope_tests.rs"]
+mod token_scope_tests;

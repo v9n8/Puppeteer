@@ -1,6 +1,8 @@
 //! Slack token lookup: MCP servers whose env holds `SLACK_MCP_XOXP_TOKEN`
 //! (VALUE in the Keychain), workspace matching via `auth.test` and the scope
-//! list from its `x-oauth-scopes` header.
+//! list from its `x-oauth-scopes` header. Only servers that are on count
+//! (`mcp_effective::servers_on`): on app-wide, and for a project's thread on
+//! for that project; a server switched off never lends its token.
 
 use super::api::{AuthInfo, HttpConfig, SlackClient, SlackError};
 use super::CodedError;
@@ -50,22 +52,40 @@ fn looks_like_token(v: &str) -> bool {
     v.starts_with("xoxp-") || v.starts_with("xoxb-")
 }
 
-/// Every MCP server (oldest first, `enabled` ignored) with a usable token.
-pub async fn sources(db: &Db, lookup: &SecretLookup) -> Result<Vec<TokenSource>, sqlx::Error> {
+/// The Slack MCP servers that are on (see the module docs), oldest first: `(id, name)`.
+/// `project` = the thread's project; `None` = app-wide.
+async fn slack_servers(db: &Db, project: Option<&str>) -> Result<Vec<(String, String)>, sqlx::Error> {
+    let on = crate::commands::mcp_effective::servers_on(db, project).await?;
     let rows: Vec<(String, String, Option<String>)> = sqlx::query_as(
         "SELECT id, name, env_keys FROM mcp_servers ORDER BY created_at ASC, id ASC",
     )
     .fetch_all(db)
     .await?;
-    let candidates: Vec<(String, String)> = rows
+    Ok(rows
         .into_iter()
-        .filter(|(_, _, keys)| {
-            keys.as_deref()
-                .and_then(|k| serde_json::from_str::<Vec<String>>(k).ok())
-                .is_some_and(|k| k.iter().any(|x| x == TOKEN_ENV_KEY))
+        .filter(|(id, _, keys)| {
+            on.contains(id)
+                && keys
+                    .as_deref()
+                    .and_then(|k| serde_json::from_str::<Vec<String>>(k).ok())
+                    .is_some_and(|k| k.iter().any(|x| x == TOKEN_ENV_KEY))
         })
         .map(|(id, name, _)| (id, name))
-        .collect();
+        .collect())
+}
+
+/// Whether a Slack MCP server is on for `project_id` (no Keychain read).
+pub async fn slack_on_for_project(db: &Db, project_id: &str) -> Result<bool, sqlx::Error> {
+    Ok(!slack_servers(db, Some(project_id)).await?.is_empty())
+}
+
+/// Every Slack MCP server that is on for `project` (see [`slack_servers`]) with a usable token.
+pub async fn sources(
+    db: &Db,
+    lookup: &SecretLookup,
+    project: Option<&str>,
+) -> Result<Vec<TokenSource>, sqlx::Error> {
+    let candidates = slack_servers(db, project).await?;
     if candidates.is_empty() {
         return Ok(Vec::new());
     }
@@ -104,9 +124,9 @@ pub struct SlackTokenStatus {
     pub sources: Vec<TokenSourceInfo>,
 }
 
-/// Token availability without any network call.
+/// Token availability (servers on app-wide) without any network call.
 pub async fn token_status(db: &Db, lookup: &SecretLookup) -> Result<SlackTokenStatus, sqlx::Error> {
-    let found = sources(db, lookup).await?;
+    let found = sources(db, lookup, None).await?;
     Ok(SlackTokenStatus {
         state: match found.len() {
             0 => "none",

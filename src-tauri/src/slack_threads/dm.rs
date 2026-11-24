@@ -1,7 +1,8 @@
 //! Reading Slack direct-message threads (#9, RT-27). Off unless the user turns it on:
 //! the `slack_dm_read` setting switches it for every project, and each project opts in
 //! on its own (`projects.slack_dm_read`, migration 0032: 1 = read while the setting is
-//! on, 0 = never, the default). A thread without a project follows the setting alone.
+//! on, 0 = never, the default), which counts only while a Slack MCP server is on for
+//! that project. A thread without a project follows the setting alone.
 //!
 //! Gates: adding a thread whose link is a DM (`D…` channel), and every fetch of a DM
 //! thread (by its link, or when `conversations.info` says `is_im` / `is_mpim`), so
@@ -43,13 +44,22 @@ pub async fn project_on(db: &Db, project_id: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether a DM thread of `project_id` (or of no project) may be read.
+/// Whether a DM thread of `project_id` (or of no project) may be read: the setting,
+/// and for a project its opt-in and a Slack MCP server on for it.
 pub async fn allowed(db: &Db, project_id: Option<&str>) -> bool {
     global_on(db).await
         && match project_id.map(str::trim).filter(|p| !p.is_empty()) {
-            Some(pid) => project_on(db, pid).await,
+            Some(pid) => project_on(db, pid).await && slack_on(db, pid).await,
             None => true,
         }
+}
+
+/// Whether a Slack MCP server is on for the project; a failed read counts as off.
+async fn slack_on(db: &Db, project_id: &str) -> bool {
+    super::token::slack_on_for_project(db, project_id).await.unwrap_or_else(|e| {
+        tracing::warn!(event = "slack_dm_slack_on_failed", project_id, error = %e);
+        false
+    })
 }
 
 /// `Ok` when a DM thread of `project_id` may be read, else `dm_unsupported`.

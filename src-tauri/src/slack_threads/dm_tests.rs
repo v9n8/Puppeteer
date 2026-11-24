@@ -89,6 +89,8 @@ async fn the_project_opt_in_is_off_by_default_and_round_trips_in_a_backup_entry(
     assert!(!dm::project_on(&db, "p1").await, "a project is off until it opts in");
     assert!(!dm::project_on(&db, "missing").await);
     set_global(&db, true).await;
+    // A Slack MCP server on for every project, which a project's DMs also need.
+    Tokens::default().set(&db, "s", "xoxp-1").await;
     assert!(!dm::allowed(&db, Some("p1")).await && dm::allowed(&db, None).await);
     assert!(dm::import_project(&db, "p1", Some(true)).await.unwrap());
     assert!(!dm::import_project(&db, "p1", None).await.unwrap(), "an older backup keeps it");

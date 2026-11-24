@@ -601,7 +601,7 @@ impl SlackThreadsState {
         if link.is_dm() {
             dm::check(&self.ctx.db, project_id).await?;
         }
-        let has_token = !token::sources(&self.ctx.db, &self.ctx.lookup)
+        let has_token = !token::sources(&self.ctx.db, &self.ctx.lookup, project_id)
             .await
             .map_err(store::internal)?
             .is_empty();
@@ -685,7 +685,7 @@ impl SlackThreadsState {
             .ok_or_else(|| {
                 CodedError::new("invalid_link", "thread has no parsable Slack thread_url")
             })?;
-        let found = token::sources(&self.ctx.db, &self.ctx.lookup)
+        let found = token::sources(&self.ctx.db, &self.ctx.lookup, summary.project_id.as_deref())
             .await
             .map_err(store::internal)?;
         let (client, _) = token::resolve(
