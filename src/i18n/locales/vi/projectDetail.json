@@ -264,7 +264,8 @@
     "footLink": "Session mới",
     "footAfter": "phải là model đang bật ở đây",
     "footNow": " (đang là {id})",
-    "footMoved": " (đã đổi sang {id})"
+    "footMoved": " (đã đổi sang {id})",
+    "lockedAppWide": "{id} đang tắt ở Cài đặt › Model — bật lại ở đó để dùng trong project"
   },
   "unlinkTitle": "Bỏ liên kết board?",
   "unlinkAsk": "Project sẽ không dùng board này nữa và phần ánh xạ trường bị xoá. Muốn dùng lại, bạn phải kết nối board và ánh xạ trường lại từ đầu."

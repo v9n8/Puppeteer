@@ -163,6 +163,23 @@ export function modelBlocks(
   return { available, unavailable }
 }
 
+/**
+ * The rows of Project › Model: the available ones, then those switched off in Settings ›
+ * Model, shown locked (a project cannot turn on what the app turned off). Rows the last
+ * scan found unusable stay hidden.
+ */
+export function projectModelRows(
+  ids: string[],
+  list: string[] | null,
+  verdicts: Record<string, ModelVerdict>,
+): { id: string; locked: boolean }[] {
+  const { available, unavailable } = modelBlocks(ids, list, verdicts)
+  return [
+    ...available.map((r) => ({ id: r.id, locked: false })),
+    ...unavailable.filter((r) => r.usable && !r.on).map((r) => ({ id: r.id, locked: true })),
+  ]
+}
+
 /** A row's switch: the saved state, flipped while the row has an unsaved change. */
 export function draftOn(list: string[] | null, flipped: ReadonlySet<string>, id: string): boolean {
   return isOnIn(list, id) !== flipped.has(id)

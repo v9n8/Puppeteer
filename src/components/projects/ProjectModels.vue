@@ -18,7 +18,7 @@ import { useProjectsStore, type Project } from '@/stores/projects'
 import { MODEL_OPTIONS } from '@/lib/engineOptions'
 import { composerDefaults, type ProjectSessionDefaults } from '@/lib/composerChips'
 import {
-  ALL_MODELS_ON, draftOn, engineListToSave, firstEnabled, intersectEnabled, isModelOff, modelBlocks,
+  ALL_MODELS_ON, draftOn, engineListToSave, firstEnabled, intersectEnabled, isModelOff, projectModelRows,
   type EnabledModels, type ModelVerdict,
 } from '@/lib/enabledModels'
 import type { ModelEngine } from '@/lib/modelDefaultsUsage'
@@ -41,19 +41,21 @@ const ENGINE_LABEL: Record<ModelEngine, string> = { claude: 'Claude', codex: 'Co
 const SETTINGS_MODEL = '/settings/model'
 const tab = ref<ModelEngine>('claude')
 
-// ── Models available in Settings › Model (on, and not found unusable by its last scan) ──
-const available = computed<Record<ModelEngine, { id: string; description?: string }[]>>(() => {
+// ── Models of Settings › Model: the available ones, then those it turned off (locked) ──
+const available = computed<Record<ModelEngine, { id: string; description?: string; locked: boolean }[]>>(() => {
   const rows = (engine: ModelEngine, opts: { value: string; description?: string }[], verdicts: Record<string, ModelVerdict> = {}) => {
     const all = opts.filter((o) => o.value)
-    const ok = new Set(modelBlocks(all.map((o) => o.value), modelCatalog.enabled[engine], verdicts).available.map((r) => r.id))
-    return all.filter((o) => ok.has(o.value)).map((o) => ({ id: o.value, description: o.description }))
+    const description = new Map(all.map((o) => [o.value, o.description]))
+    return projectModelRows(all.map((o) => o.value), modelCatalog.enabled[engine], verdicts)
+      .map((r) => ({ id: r.id, description: description.get(r.id), locked: r.locked }))
   }
   return {
     claude: rows('claude', MODEL_OPTIONS.claude, modelCatalog.validationByModel),
     codex: rows('codex', modelCatalog.codexOptions(MODEL_OPTIONS.codex)),
   }
 })
-const ids = (e: ModelEngine) => available.value[e].map((m) => m.id)
+// The rows a project can switch: counts and the saved lists leave the locked ones out.
+const ids = (e: ModelEngine) => available.value[e].filter((m) => !m.locked).map((m) => m.id)
 
 // ── Saved state and draft ──
 const own = computed<ProjectSessionDefaults>(() => props.project.session_defaults ?? {})
@@ -262,8 +264,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             </span>
             <ToggleSwitch
               size="md"
-              :checked="isOn(tab, m.id)"
-              :label="t(isOn(tab, m.id) ? 'projectDetail.model.dontUse' : 'projectDetail.model.use', { id: m.id })"
+              :checked="!m.locked && isOn(tab, m.id)"
+              :disabled="m.locked"
+              :label="m.locked ? t('projectDetail.model.lockedAppWide', { id: m.id }) : t(isOn(tab, m.id) ? 'projectDetail.model.dontUse' : 'projectDetail.model.use', { id: m.id })"
               @toggle="toggle(m.id)"
             />
           </div>

@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   parseEnabledModels, modelBlockedError, ALL_MODELS_ON,
-  isModelOff, modelBlocks, draftOn, engineListToSave, draftSummary,
+  isModelOff, modelBlocks, projectModelRows, draftOn, engineListToSave, draftSummary,
   intersectEnabled, firstEnabled, parseProjectEnabledModels, parseModelLists,
 } from '../enabledModels.ts'
 import { filterEnabledOptions, MODEL_OPTIONS } from '../engineOptions.ts'
@@ -102,6 +102,12 @@ test('modelBlocks: on and usable are available; off or unusable are not', () => 
   ])
   // The tab count ("Claude 4/4"): null = all on.
   assert.equal(modelBlocks(IDS, null, {}).available.length, 4)
+})
+
+test('a project lists the models off app-wide as locked, and hides the unusable ones', () => {
+  const rows = projectModelRows(IDS, ['a', 'b', 'c'], { b: { ok: false, error: 'no 1M' } })
+  assert.deepEqual(rows, [{ id: 'a', locked: false }, { id: 'c', locked: false }, { id: 'd', locked: true }])
+  assert.deepEqual(projectModelRows(IDS, null, {}).filter((r) => r.locked), [])
 })
 
 test('draftOn flips the saved state of a changed row', () => {
