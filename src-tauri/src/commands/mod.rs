@@ -24,6 +24,7 @@ pub mod instruction_checks;
 pub mod item_links;
 pub mod library_allocation;
 pub mod library_disk;
+pub mod library_feature_sync;
 pub mod library_items;
 pub mod mcp;
 pub mod mcp_effective;

@@ -147,7 +147,7 @@ fn validate(kind: LibraryKind, name: &str, description: &str) -> Result<(), Stri
 
 /// Link `source` into the project at `dest`. Returns the source's hash, or `None` where git tracks a
 /// file of that name (the repo's own: left alone and not recorded as installed).
-fn link_into(project_path: &str, dest: &Path, source: &Path) -> Result<Option<String>, String> {
+pub(crate) fn link_into(project_path: &str, dest: &Path, source: &Path) -> Result<Option<String>, String> {
     let root = Path::new(project_path);
     let real = fs::symlink_metadata(dest).is_ok_and(|m| !m.file_type().is_symlink());
     if real && project_links::at_dest(root, dest, source) != AtDest::GitTracked {
@@ -163,7 +163,7 @@ fn link_into(project_path: &str, dest: &Path, source: &Path) -> Result<Option<St
     }
 }
 
-fn unlink_from(project_path: &str, dest: &Path, source: &Path) -> Result<(), String> {
+pub(crate) fn unlink_from(project_path: &str, dest: &Path, source: &Path) -> Result<(), String> {
     project_links::remove_own_link(Path::new(project_path), dest, source)
 }
 

@@ -17,7 +17,8 @@ pub struct Change<'a> {
 /// `before` and `after` itself, and spawns any async work.
 pub type Hook = fn(&AppHandle, &Change<'_>);
 
-/// One hook per background service (D0-09 … D0-17, schedules), and the vault lock.
+/// One hook per background service (D0-09 … D0-17, schedules), the vault lock, and the
+/// library links a switched-off kind must not leave in projects.
 const HOOKS: &[Hook] = &[
     crate::inbox_api::server::on_features_changed,
     crate::runs::session_watcher::on_features_changed,
@@ -27,6 +28,7 @@ const HOOKS: &[Hook] = &[
     crate::slack_threads::on_features_changed,
     crate::commands::secret_vault::on_features_changed,
     crate::schedules::runner::on_features_changed,
+    crate::commands::library_feature_sync::on_features_changed,
 ];
 
 /// Run the hooks, then emit [`CHANGED_EVENT`].
