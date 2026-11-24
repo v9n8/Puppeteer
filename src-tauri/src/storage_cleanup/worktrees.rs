@@ -83,7 +83,9 @@ fn pick(root: &Path, workers: &[Worker], cutoff: DateTime<Utc>) -> Category {
 /// own files (reports, exports). `worktree remove --force` deletes ignored
 /// files too, so anything there is unfinished work. Not the whole tree:
 /// ignored build output (`node_modules`, `target`) would keep every worktree.
-const KEPT_IGNORED: [&str; 2] = [".puppeteer/scratch", ".puppeteer/exports"];
+/// At any depth: a project in a subfolder of its repository runs its worker
+/// in `<worktree>/<subfolder>`.
+const KEPT_IGNORED: [&str; 2] = [":(glob)**/.puppeteer/scratch/**", ":(glob)**/.puppeteer/exports/**"];
 
 /// Nothing uncommitted in `worktree`, nothing in [`KEPT_IGNORED`], and both
 /// the worker's branch and the worktree's own `HEAD` are in the project's
@@ -208,7 +210,7 @@ mod tests {
         sh(&root.join("detached"), &["add", "."]);
         sh(&root.join("detached"), &["commit", "-qm", "detached work"]);
         // Git-ignored, so `status` alone does not see them.
-        for rel in ["scratch/.puppeteer/scratch/report.md", "exports/.puppeteer/exports/run.md", "merged/node_modules/x.js"] {
+        for rel in ["scratch/.puppeteer/scratch/report.md", "exports/.puppeteer/exports/run.md", "merged/node_modules/x.js", "merged/.puppeteer/runs/x.log"] {
             std::fs::create_dir_all(root.join(rel).parent().unwrap()).unwrap();
             std::fs::write(root.join(rel), "r").unwrap();
         }
@@ -237,6 +239,36 @@ mod tests {
         // A resumed worker gets its worktree back.
         let dir = worktree::launch_dir(&project, &root.join("merged"), "merged").unwrap();
         assert!(dir.join("a.txt").exists());
+        db.close().await;
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// A project in a subfolder of its repository: the worker runs in
+    /// `<worktree>/<subfolder>`, so its scratch folder is there too.
+    #[tokio::test]
+    async fn a_worktree_keeps_the_scratch_of_a_project_in_a_subfolder() {
+        let base = temp_dir("worktrees-subfolder");
+        let repo = project_repo(&base);
+        let project = repo.join("app");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join("b.txt"), "b").unwrap();
+        sh(&repo, &["add", "."]);
+        sh(&repo, &["commit", "-qm", "app"]);
+        let root = base.join("worktrees");
+        let ids = ["nested-scratch", "nested-runs"];
+        for id in ids {
+            worktree::create(&project, &root, id).unwrap().unwrap();
+        }
+        for rel in ["nested-scratch/app/.puppeteer/scratch/report.md", "nested-runs/app/.puppeteer/runs/x.log"] {
+            std::fs::create_dir_all(root.join(rel).parent().unwrap()).unwrap();
+            std::fs::write(root.join(rel), "r").unwrap();
+        }
+        let db = insert_workers(&project, &root, &ids.map(|id| (id, 40, "done"))).await;
+        let ctx = Ctx { home: None, temp: base.join("no-tmp"), ..Ctx::new(db.clone(), base.clone(), 30, crate::runs::new_registry(), None) };
+        let category = plan_all(&ctx).await.categories.into_iter().find(|c| c.id == CAT_WORKTREES).unwrap();
+        let picked: Vec<_> = category.items.iter().map(|i| i.target.describe()).collect();
+        assert_eq!(picked, [root.join("nested-runs").display().to_string()], "only scratch and exports keep it");
+        assert_eq!(category.kept_items, 1);
         db.close().await;
         std::fs::remove_dir_all(&base).unwrap();
     }
