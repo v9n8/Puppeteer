@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The MCP part of the run options popover (UX-27): the session's MCP servers,
-// switched on or off for this session only. The list starts as the project's
-// set; only what the user changes here is stored, so a server they leave alone
-// keeps following the project. The engines load MCP when their process starts,
+// switched off for this session only. A session may only narrow: a server off
+// for the project or app-wide shows locked. Only what the user changes here is
+// stored, so a server they leave alone keeps following the project. The engines load MCP when their process starts,
 // so a change reaches the session from its next start or resume.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -50,6 +50,12 @@ async function toggle(entry: RunMcpEntry) {
   } finally {
     saving.value = null
   }
+}
+
+function switchLabel(entry: RunMcpEntry) {
+  if (entry.locked_by === 'app') return t('run.mcpLockedApp')
+  if (entry.locked_by === 'project') return t('run.mcpLockedProject')
+  return entry.enabled ? t('run.mcpTurnOff', { name: entry.name }) : t('run.mcpTurnOn', { name: entry.name })
 }
 
 async function resetToProject() {
@@ -117,7 +123,7 @@ watch(() => props.runId, load)
             tone="info"
             size="xs"
             class="shrink-0"
-            :title="entry.enabled_for_project ? t('run.mcpOverrideOffTitle') : t('run.mcpOverrideOnTitle')"
+            :title="t('run.mcpOverrideOffTitle')"
           >{{ t('run.mcpOverride') }}</Badge>
           <Badge
             v-if="!entry.available"
@@ -129,9 +135,9 @@ watch(() => props.runId, load)
         </span>
         <ToggleSwitch
           :checked="entry.enabled"
-          :disabled="saving !== null"
+          :disabled="saving !== null || entry.locked_by !== null"
           :loading="saving === entry.key"
-          :label="entry.enabled ? t('run.mcpTurnOff', { name: entry.name }) : t('run.mcpTurnOn', { name: entry.name })"
+          :label="switchLabel(entry)"
           @toggle="toggle(entry)"
         />
       </li>

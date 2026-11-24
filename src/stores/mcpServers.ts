@@ -42,9 +42,12 @@ export interface RunMcpEntry {
   /** On app-wide; off, the server is not injected whatever the session says. */
   available: boolean
   enabled_for_project: boolean
-  /** What the session is set to: its override, else the project. */
+  /** What the session gets: on app-wide, on for the project and not switched off here. */
   enabled: boolean
+  /** `override` when the session switched it off. */
   source: 'project' | 'override'
+  /** The level keeping it off, which a session cannot undo (app wins); null: the session may switch it. */
+  locked_by: 'app' | 'project' | null
 }
 
 /** One env/header secret row sent to the backend (`SecretEntry`). */
