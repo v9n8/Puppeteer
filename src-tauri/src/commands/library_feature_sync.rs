@@ -30,19 +30,34 @@ pub fn on_features_changed(app: &AppHandle, change: &Change<'_>) {
 }
 
 /// At startup: remove the links of a kind that is off, which a switch turned off
-/// before the links were synced (an older version) left behind.
+/// before the links were synced (an older version) left behind. Switches that
+/// cannot be read leave the links alone: removing them would stop a kind that is on.
 pub async fn clean_on_start(db: &Db) {
+    let tree = match features::commands::load(db).await {
+        Ok(tree) => tree,
+        Err(e) => {
+            tracing::warn!(event = "library_feature_sync_start_skipped", error = %e);
+            return;
+        }
+    };
     for kind in KINDS {
-        if !features::is_on(db, kind.feature()).await {
+        if !features::effective(&tree, kind.feature()) {
             sync_now(db, kind).await;
         }
     }
 }
 
-/// [`sync_kind`] to the switch as stored now, after any sync already running.
+/// [`sync_kind`] to the switch as stored now, after any sync already running. A switch
+/// that cannot be read leaves the links as they are.
 async fn sync_now(db: &Db, kind: LibraryKind) {
     let _guard = SYNC.lock().await;
-    let on = features::is_on(db, kind.feature()).await;
+    let on = match features::commands::load(db).await {
+        Ok(tree) => features::effective(&tree, kind.feature()),
+        Err(e) => {
+            tracing::warn!(event = "library_feature_sync_skipped", kind = kind.table(), error = %e);
+            return;
+        }
+    };
     if let Err(e) = sync_kind(db, kind, on).await {
         tracing::warn!(event = "library_feature_sync_failed", kind = kind.table(), on, error = %e);
     }
@@ -147,6 +162,13 @@ mod tests {
         clean_on_start(&db).await;
         assert!(fs::symlink_metadata(&dest).is_err());
         assert_eq!(rows(&db, LibraryKind::Agent).await, 1);
+
+        // Switches that cannot be read: nothing is removed.
+        crate::commands::settings::set_setting(&db, "feature.library.agents", "true").await.unwrap();
+        sync_now(&db, LibraryKind::Agent).await;
+        db.close().await;
+        clean_on_start(&db).await;
+        assert!(is_symlink(&dest));
     }
 
     #[tokio::test]
