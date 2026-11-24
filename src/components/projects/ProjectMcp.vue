@@ -12,6 +12,7 @@ import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { parentLock, slackOnForProject, switchView } from '@/lib/configLock'
+import { useFeaturesStore } from '@/stores/features'
 import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
 
 /** The MCP management screen (Settings › Connections › MCP, V3-51). */
@@ -23,6 +24,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 const mcpStore = useMcpServersStore()
 const appSettings = useAppSettingsStore()
+const features = useFeaturesStore()
 
 const projectId = computed(() => props.project.id)
 
@@ -214,7 +216,8 @@ watch(projectId, async () => {
       </div>
     </div>
   </Card>
-  <!-- Only while Slack is on for the project; its stored opt-in comes back with Slack. -->
-  <ProjectSlackDm v-if="!loadingMcp && slackOnForProject(mcpServers)" :project="project" />
+  <!-- Only while Slack threads are on (integrations.slack) and Slack is on for the project;
+       its stored opt-in comes back with them. -->
+  <ProjectSlackDm v-if="!loadingMcp && features.isOn('integrations.slack') && slackOnForProject(mcpServers)" :project="project" />
 </div>
 </template>
