@@ -106,11 +106,9 @@
   "mcpOwnGroup": "Your servers",
   "slackDm": {
     "title": "Slack DM threads",
-    "global": "Read DM threads (all projects)",
-    "globalHint": "Off by default. Lets Slack threads in direct messages be added and fetched. The Slack token also needs im:history (group DMs: mpim:history).",
     "project": "Read DM threads in this project",
-    "projectHint": "Turn off to keep this project's threads to channels only.",
-    "projectOffHint": "Off for every project: turn on the switch above first."
+    "projectHint": "Off by default. Turn on to add and fetch Slack threads in direct messages for this project.",
+    "lockedGlobal": "Off for every project — turn on \"Read DM threads (all projects)\" on the Slack server in Settings › Connections › MCP"
   },
   "toLinkHere": "to link it here.",
   "selectAccountPlaceholder": "Select an account…",

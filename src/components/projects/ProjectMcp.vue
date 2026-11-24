@@ -11,7 +11,7 @@ import { composerDefaults } from '@/lib/composerChips'
 import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
-import { parentLock, switchView } from '@/lib/configLock'
+import { parentLock, slackOnForProject, switchView } from '@/lib/configLock'
 import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
 
 /** The MCP management screen (Settings › Connections › MCP, V3-51). */
@@ -214,6 +214,7 @@ watch(projectId, async () => {
       </div>
     </div>
   </Card>
-  <ProjectSlackDm :project="project" />
+  <!-- Only while Slack is on for the project; its stored opt-in comes back with Slack. -->
+  <ProjectSlackDm v-if="!loadingMcp && slackOnForProject(mcpServers)" :project="project" />
 </div>
 </template>

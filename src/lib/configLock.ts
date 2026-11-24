@@ -32,3 +32,10 @@ export const SLACK_TOKEN_ENV = 'SLACK_MCP_XOXP_TOKEN'
 export function isSlackServer(server: { env_keys: readonly string[] }): boolean {
   return server.env_keys.includes(SLACK_TOKEN_ENV)
 }
+
+/** Whether a Slack MCP server is on for the project: on app-wide, switched on for it, holding the token. */
+export function slackOnForProject(
+  servers: readonly { enabled: boolean; enabled_for_project: boolean; env_keys: readonly string[] }[],
+): boolean {
+  return servers.some((s) => s.enabled && s.enabled_for_project && isSlackServer(s))
+}
