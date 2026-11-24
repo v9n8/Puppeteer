@@ -11,6 +11,8 @@ import type { Project } from '@/stores/projects'
 import { useServersStore, type ProjectServer, type VpsServer } from '@/stores/servers'
 import { useToolPermissionsStore } from '@/stores/toolPermissions'
 import { useLiveRunsStore } from '@/stores/liveRuns'
+import { useFeaturesStore } from '@/stores/features'
+import { parentLock, switchView } from '@/lib/configLock'
 
 const props = defineProps<{ project: Project; section: 'deploy' | 'tools' }>()
 
@@ -20,6 +22,7 @@ const { toast } = useToast()
 const serversStore = useServersStore()
 const toolPerms = useToolPermissionsStore()
 const live = useLiveRunsStore()
+const features = useFeaturesStore()
 
 const projectId = computed(() => props.project.id)
 
@@ -59,6 +62,9 @@ const togglingServerId = ref<string | null>(null)
 
 // Set of VPS ids currently enabled (mapped) for this project.
 const enabledServerIds = computed(() => new Set(projectServers.value.map(s => s.id)))
+// The VPS feature off locks every switch (the backend refuses to map then); the mappings stay.
+const vpsLock = computed(() => parentLock(features.isOn('infra_access.vps')))
+const serverView = (server: VpsServer) => switchView(enabledServerIds.value.has(server.id), vpsLock.value)
 
 async function loadProjectServers() {
   const id = projectId.value
@@ -75,7 +81,7 @@ async function loadProjectServers() {
 // Toggle a VPS on/off for this project. Enabling maps it with the default role;
 // disabling removes every role mapping the server has for the project.
 async function handleToggleDeployServer(server: VpsServer) {
-  if (togglingServerId.value) return
+  if (togglingServerId.value || vpsLock.value) return
   togglingServerId.value = server.id
   const isEnabled = enabledServerIds.value.has(server.id)
   try {
@@ -146,7 +152,7 @@ watch(projectId, loadProjectServers, { immediate: true })
             <div class="flex items-center gap-1.5 flex-wrap">
               <p class="text-xs font-medium truncate">{{ server.label }}</p>
               <Badge
-                v-if="enabledServerIds.has(server.id)"
+                v-if="serverView(server).checked"
                 tone="primary"
                 size="xs"
                 class="shrink-0 uppercase tracking-wide"
@@ -158,10 +164,10 @@ watch(projectId, loadProjectServers, { immediate: true })
             </p>
           </div>
           <ToggleSwitch
-            :checked="enabledServerIds.has(server.id)"
-            :disabled="togglingServerId !== null"
+            :checked="serverView(server).checked"
+            :disabled="togglingServerId !== null || serverView(server).disabled"
             :loading="togglingServerId === server.id"
-            :label="enabledServerIds.has(server.id) ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
+            :label="vpsLock ? t('projectDetail.lockedFeature') : enabledServerIds.has(server.id) ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
             @toggle="handleToggleDeployServer(server)"
           />
         </div>

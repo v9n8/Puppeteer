@@ -83,6 +83,7 @@
   "builtinMcp": "built-in",
   "builtinMcpOffGloballyTitle": "Turned off on the MCP screen, so it is off for every project",
   "lockedAppWide": "Off app-wide — turn it on in Settings › Connections › MCP",
+  "lockedFeature": "Off in Settings › Features — turn it on there to use it in projects",
   "claudeOnly": "Claude only",
   "claudeOnlyTitle": "Codex can't use SSE servers; this will be skipped on Codex runs.",
   "deployTargets": "Servers",

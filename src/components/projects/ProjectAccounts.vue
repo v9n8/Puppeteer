@@ -10,7 +10,8 @@ import { RouterLink } from 'vue-router'
 import { Badge, Banner, Card, InfoTip, SegmentedControl, ToggleSwitch, type SegmentedOption } from '@/components/ui'
 import { useConnectionSources } from '@/components/settings/useConnectionSources'
 import { useToast } from '@/composables/useToast'
-import { connectionType, type AccountLike } from '@/lib/connectionTypes'
+import { CONNECTION_TYPES, connectionType, type AccountLike } from '@/lib/connectionTypes'
+import { parentLock, switchView } from '@/lib/configLock'
 import { PROJECT_ACCOUNT_TYPES, type ProjectAccountType } from '@/lib/projectSections'
 import { useProjectsStore, type Project } from '@/stores/projects'
 import { useGithubAccountsStore } from '@/stores/githubAccounts'
@@ -47,8 +48,12 @@ const CONFIG = {
 const enabledIds = (type: ProjectAccountType) => new Set(props.project[connectionType(type).projectField!])
 const defaultId = (type: ProjectAccountType): string | null => props.project[`${type}_account_id`] ?? null
 
-// Types whose feature is on (AWS / Azure hide with infra_access.*) and that a project binds.
-const shownTypes = computed(() => types.value.filter((d) => (PROJECT_ACCOUNT_TYPES as readonly string[]).includes(d.id)))
+// Every type a project binds. One whose feature is off (AWS / Azure, infra_access.*) is shown
+// locked rather than hidden: its switches show off and the project's choice is kept.
+const shownTypes = computed(() => CONNECTION_TYPES.filter((d) => (PROJECT_ACCOUNT_TYPES as readonly string[]).includes(d.id)))
+const isLocked = (type: ProjectAccountType) => parentLock(types.value.some((d) => d.id === type)) !== null
+const accountView = (type: ProjectAccountType, account: AccountLike) =>
+  switchView(enabledIds(type).has(account.id), parentLock(!isLocked(type)))
 const accountsOf = (type: ProjectAccountType): readonly AccountLike[] => sources.value[type] ?? []
 const total = computed(() => shownTypes.value.reduce((n, d) => n + accountsOf(d.id as ProjectAccountType).length, 0))
 
@@ -56,7 +61,7 @@ type Filter = ProjectAccountType | 'all'
 const filter = ref<Filter>(props.type ?? 'all')
 watch(() => props.type, (v) => { filter.value = v ?? 'all' })
 // A filter left on a type that got switched off falls back to all.
-const activeFilter = computed<Filter>(() => (shownTypes.value.some((d) => d.id === filter.value) ? filter.value : 'all'))
+const activeFilter = computed<Filter>(() => (types.value.some((d) => d.id === filter.value) ? filter.value : 'all'))
 
 const filterOptions = computed<SegmentedOption<Filter>[]>(() => [
   { value: 'all', label: `${t('settings.connections.all')} ${total.value}` },
@@ -64,6 +69,8 @@ const filterOptions = computed<SegmentedOption<Filter>[]>(() => [
     value: d.id as ProjectAccountType,
     label: `${t(d.labelKey)} ${accountsOf(d.id as ProjectAccountType).length}`,
     icon: d.icon,
+    disabled: isLocked(d.id as ProjectAccountType),
+    title: isLocked(d.id as ProjectAccountType) ? t('projectDetail.lockedFeature') : undefined,
   })),
 ])
 const groups = computed(() => shownTypes.value
@@ -144,6 +151,7 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
           <h3
             v-if="activeFilter === 'all'"
             class="flex items-center gap-1.5 bg-muted/30 px-4 py-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground"
+            :title="isLocked(g.type) ? t('projectDetail.lockedFeature') : undefined"
           >
             <component :is="g.def.icon" class="h-3.5 w-3.5" :stroke-width="1.5" />
             {{ t(g.def.labelKey) }}
@@ -164,7 +172,7 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
                     class="shrink-0 uppercase tracking-wide"
                   >{{ t('projectDetail.defaultAccount') }}</Badge>
                   <button
-                    v-else-if="enabledIds(g.type).has(account.id)"
+                    v-else-if="accountView(g.type, account).checked"
                     type="button"
                     class="-my-1 inline-flex min-h-7 items-center px-1 text-2xs text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
                     :disabled="busyId !== null"
@@ -179,10 +187,10 @@ function makeDefault(type: ProjectAccountType, account: AccountLike) {
                 </p>
               </div>
               <ToggleSwitch
-                :checked="enabledIds(g.type).has(account.id)"
-                :disabled="busyId !== null"
+                :checked="accountView(g.type, account).checked"
+                :disabled="busyId !== null || accountView(g.type, account).disabled"
                 :loading="busyId === account.id"
-                :label="enabledIds(g.type).has(account.id) ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
+                :label="isLocked(g.type) ? t('projectDetail.lockedFeature') : enabledIds(g.type).has(account.id) ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
                 @toggle="toggle(g.type, account, !enabledIds(g.type).has(account.id))"
               />
             </div>
