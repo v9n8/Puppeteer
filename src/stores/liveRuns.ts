@@ -13,6 +13,7 @@ import { applyPromptEcho } from '@/lib/promptEcho'
 import { COMPLETE_PAGING, toolIndexOf, type LivePaging } from '@/lib/livePaging'
 import { standingPermissionDecision } from '@/lib/permissionMemory'
 import { settleAfterTwoPasses, untrackedRunningRows } from '@/lib/runReconcile'
+import { readSnapshot, type BackgroundState } from '@/lib/backgroundTasks'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
 import { useToolPermissionsStore } from './toolPermissions'
@@ -91,6 +92,11 @@ export interface LiveSession {
   attention: RunAttention[]
   /** API retry / compaction in progress, shown in place of "thinking" (AC-14). */
   liveStatus: LiveStatus | null
+  /**
+   * The backend's word on the live session (BG-03): whether its turn is over
+   * and which background tasks keep it up. Null until told, and once it ends.
+   */
+  background: BackgroundState | null
   /**
    * Where `entries` start in the run log (RT-07, `lib/livePaging`): null until
    * known — the copy began mid-run and the disk tail is still to be joined.
@@ -295,6 +301,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         endReason: null as string | null,
         attention: [] as RunAttention[],
         liveStatus: null as LiveStatus | null,
+        background: null as BackgroundState | null,
         paging: null as LivePaging | null,
       }) as LiveSession
       // Seed the per-run allow/deny lists with the standing choices the user
@@ -404,6 +411,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     s.status = 'running'
     s.notifyDone = false
     s.endReason = null
+    s.background = null
     await startListening(runId, projectId)
   }
 
@@ -517,6 +525,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         s.permissionQueue = []
         s.attention = []
         s.liveStatus = null
+        s.background = null
         for (const id of answeredIds) if (id.startsWith(`${runId}:`)) answeredIds.delete(id)
         // Flag a "run finished" notification for the Active runs dock. It stays
         // until the user opens this run (markSeen). If the run is already on
@@ -562,6 +571,12 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
           if (s.hasStreamEvents) s.entries.push({ kind: 'error', text: line })
         },
       ),
+    )
+
+    fns.push(
+      await listen<unknown>(`run:bg_tasks:${runId}`, (event) => {
+        s.background = readSnapshot(event.payload)
+      }),
     )
 
     fns.push(
@@ -687,6 +702,13 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     try {
       const pending = await runsStore.listPendingPermissions(runId)
       if (unlisteners.has(runId)) pending.forEach(handlePermissionRequest)
+    } catch {
+      /* run not live / backend unavailable — nothing to recover */
+    }
+    // Likewise the turn / background-task state told before (a reload mid-wait).
+    try {
+      const snap = await runsStore.getBackgroundTasks(runId)
+      if (unlisteners.has(runId) && snap) s.background = readSnapshot(snap)
     } catch {
       /* run not live / backend unavailable — nothing to recover */
     }
@@ -954,6 +976,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
       const dbStatus = runsStore.runs.find((r) => r.id === id)?.status ?? runsStore.runMeta.get(id)?.status
       s.status = dbStatus && TERMINAL_STATUSES.has(dbStatus) ? dbStatus : 'done'
       s.permissionQueue = []
+      s.background = null
       activeRunIds.delete(id)
       seenPermissionIds.delete(id)
       stopListening(id)

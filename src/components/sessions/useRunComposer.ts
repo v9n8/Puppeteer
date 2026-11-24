@@ -17,6 +17,7 @@ import {
 import type { QuoteAnchor } from '@/lib/quoteAnchor'
 import { appendQuoteToDraft, composerWindowLabel, registerQuoteComposer } from '@/lib/quoteAppend'
 import { emptyQueue, queuedPreview, type QueuedMessage } from '@/lib/messageQueue'
+import { composerStatus, turnBusy as isTurnBusy, turnJustEnded } from '@/lib/backgroundTasks'
 import { slashCommandAction, slashCommandMessage } from '@/lib/slashCommand'
 import { useMessageQueueStore } from '@/stores/messageQueue'
 import { useProjectFilesStore } from '@/stores/projectFiles'
@@ -857,9 +858,13 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   const engineLabel = computed(() => loadedRunEngine.value || currentRun.value?.engine || effectiveEngine.value || t('run.engineFallback'))
 
+  // A turn is in progress. A live session whose turn is over (background
+  // tasks keep it up, BG-03) takes a message at once instead.
+  const turnBusy = computed(() => isTurnBusy(currentStatus.value, session.value?.background))
+
   const chatPlaceholder = computed(() => {
     if (currentStatus.value === 'running') {
-      return t('run.chatPlaceholderRunning', { engine: engineLabel.value })
+      return t(turnBusy.value ? 'run.chatPlaceholderRunning' : 'run.chatPlaceholderTurnDone', { engine: engineLabel.value })
     }
     if (currentStatus.value === 'fetched') {
       return currentIsSession.value
@@ -877,6 +882,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     if (editingMessage.value) return t(editingMessage.value.rewound ? 'run.editResend.sendRewound' : 'run.editResend.send')
     if (currentStatus.value === 'fetched') return t('run.sendLabelRun')
     if (!chatEligible.value) return t('run.sendLabelRun')
+    if (currentStatus.value === 'running') return t('run.sendLabelSend')
     return t('run.sendLabelResume')
   })
 
@@ -908,7 +914,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // kick off the default-prompt run when nothing was typed.
   function handlePrimaryAction() {
     if (editingMessage.value) { void handleSendFollowUp(); return }
-    if (currentStatus.value === 'running') { handleQueue(); return }
+    if (turnBusy.value) { handleQueue(); return }
     if (!hasComposerInput() && (currentStatus.value === 'fetched' || !chatEligible.value)) {
       handleStartRun()
       return
@@ -921,7 +927,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   function sendSlashCommand(cmd: string) {
     const id = currentRunId.value
     if (!id || sendingFollowUp.value) return
-    const action = slashCommandAction(currentStatus.value, !!editingMessage.value)
+    const action = slashCommandAction(composerStatus(currentStatus.value, session.value?.background), !!editingMessage.value)
     if (action === 'send') void sendMessage(id, () => slashCommandMessage(cmd))
     else if (action === 'queue') queueStore.enqueue(id, { text: cmd, images: [], files: [], quotes: [] })
   }
@@ -1314,7 +1320,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     // Enter (no Shift) sends, or queues while a turn runs; Shift+Enter inserts a newline.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (currentStatus.value === 'running' && !editingMessage.value) handleQueue()
+      if (turnBusy.value && !editingMessage.value) handleQueue()
       else handleSendFollowUp()
     }
   }
@@ -1528,7 +1534,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   )
   // Why the chips are still waiting, shown above them once no turn is running.
   const queueNotice = computed(() => {
-    if (!runQueue.value.items.length || currentStatus.value === 'running' || sendingFollowUp.value) return ''
+    if (!runQueue.value.items.length || turnBusy.value || sendingFollowUp.value) return ''
     const hold = runQueue.value.hold
     if (hold === 'failed') return t('run.queueHeldFailed')
     if (hold === 'cancelled') return t('run.queueHeldCancelled')
@@ -1583,7 +1589,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     if (!item) return
     // Another send (typed, remote, a conductor wake) already started the next
     // turn: this one waits for that turn to end.
-    if (sendingFollowUp.value || currentStatus.value === 'running') {
+    if (sendingFollowUp.value || turnBusy.value) {
       queueStore.requeue(runId, item, null)
       return
     }
@@ -1596,6 +1602,12 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     void drainQueue(runId, status)
     void noticeQuota(runId, status)
   }))
+  // A turn that ends while background tasks keep the session up sends no
+  // `run:done`: the backend's snapshot says the turn is over (BG-03). Only a
+  // flip on the run already on screen, not a switch to one that waits.
+  watch([currentRunId, () => session.value?.background], ([id, bg], [prevId, prevBg]) => {
+    if (id && id === prevId && turnJustEnded(prevBg, bg)) void drainQueue(id, 'done')
+  })
 
   // A turn of the run on screen ended with its account over the quota: the
   // turn tipped it over (`run:budget_exceeded`), or the quota stop cancelled
@@ -1711,7 +1723,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     selectSlash, onComposerInput, ensureProjectFiles, fileMatcher, fileExists, pathChecker, fileListVersion, openFile, mentionItems,
     selectMention, insertCaptureRef, composerChecklist,
     applyChecklist, linkPicked, onComposerKeydown, handleSendFollowUp, setupMentionBridge,
-    handleCancel, stopping, selectionSurface, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
+    handleCancel, stopping, selectionSurface, turnBusy, queuedMessages, queueNotice, handleQueue, sendQueuedNow,
     removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
     cancelQueuedEdit, editingMessage, rewindingEdit, cancelEditResend,
     ...chips,

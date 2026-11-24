@@ -4,19 +4,26 @@
 // the turn's steps (and how long each took) and its todo. Waiting for permission
 // or an answer, the click does that job instead (the chevron still opens the
 // list). State comes from useTurnStatus; the choice of status is lib/turnStatus.
+// A turn over while background tasks keep the session up lists those tasks
+// first, each with a Stop (BG-03).
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Ban, Check, ChevronUp, Circle, CircleDot, Loader2, MessageCircleQuestion, ShieldAlert, X,
+  Ban, Check, ChevronUp, Circle, CircleDot, Hourglass, Loader2, MessageCircleQuestion, ShieldAlert, Square, X,
 } from 'lucide-vue-next'
 import { formatActivityDuration } from '@/lib/turnActivity'
 import { formatClock } from '@/lib/slackThreadUtils'
 import { engineLabel } from '@/lib/skillRows'
 import { openPermissionWindow } from '@/lib/permissionWindow'
+import { taskLabel } from '@/lib/backgroundTasks'
+import { useRunsStore } from '@/stores/runs'
+import { useToast } from '@/composables/useToast'
 import { useTurnStatus } from './useTurnStatus'
 
 const { t, locale } = useI18n()
-const { currentRunId, currentRun, status, steps, todos, todo, stoppedAt, now } = useTurnStatus()
+const { currentRunId, currentRun, status, steps, todos, todo, stoppedAt, now, bgTasks } = useTurnStatus()
+const runsStore = useRunsStore()
+const { toast } = useToast()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -55,6 +62,12 @@ const parts = computed<{ text: string; detail: string; extra: string; todo: stri
       if (s.durationMs) bits.push(seconds(s.durationMs))
       if (s.tokens) bits.push(t('run.turnStatus.tokens', { n: count(s.tokens) }))
       return { text: bits.join(' · '), detail: '', extra: '', todo: '' }
+    }
+    case 'background': {
+      const bits = [t('run.turnStatus.done', { n: s.turn })]
+      if (s.durationMs) bits.push(seconds(s.durationMs))
+      bits.push(t('run.turnStatus.background', { count: s.tasks.length }))
+      return { text: bits.join(' · '), detail: s.tasks.join(' · '), extra: '', todo: '' }
     }
     case 'tool': {
       const ms = s.startedAt !== null ? now.value - s.startedAt : s.elapsedSecs !== null ? s.elapsedSecs * 1000 : null
@@ -143,6 +156,25 @@ const stepTime = (s: (typeof steps.value)[number]) => {
   if (s.state === 'running') return s.startedAt !== null ? clock(now.value - s.startedAt) : '…'
   return s.durationMs !== null ? seconds(s.durationMs) : '—'
 }
+// Stop pressed and the task not gone yet: its button waits.
+const stoppingTasks = ref(new Set<string>())
+watch(bgTasks, (tasks) => {
+  stoppingTasks.value = new Set([...stoppingTasks.value].filter((id) => tasks.some((task) => task.taskId === id)))
+})
+async function stopTask(taskId: string) {
+  const runId = currentRunId.value
+  if (!runId || stoppingTasks.value.has(taskId)) return
+  stoppingTasks.value = new Set(stoppingTasks.value).add(taskId)
+  try {
+    await runsStore.stopBackgroundTask(runId, taskId)
+  } catch (e) {
+    const next = new Set(stoppingTasks.value)
+    next.delete(taskId)
+    stoppingTasks.value = next
+    toast.error(t('run.turnStatus.stopTaskFailed', { error: String(e) }))
+  }
+}
+
 const todoIconClass = { completed: 'text-emerald-500', in_progress: 'text-primary', pending: 'text-foreground/35' } as const
 </script>
 
@@ -154,6 +186,29 @@ const todoIconClass = { completed: 'text-emerald-500', in_progress: 'text-primar
       :id="listId"
       class="absolute inset-x-0 bottom-full z-20 grid max-h-72 min-w-0 grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto border-t border-border bg-card p-3 shadow-lg lg:grid-cols-2"
     >
+      <section v-if="bgTasks.length" class="min-w-0 lg:col-span-2">
+        <h3 class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/50">
+          {{ t('run.turnStatus.bgTitle', { count: bgTasks.length }) }}
+        </h3>
+        <ul class="space-y-0.5">
+          <li v-for="task in bgTasks" :key="task.taskId" class="flex min-h-7 min-w-0 items-center gap-2 text-2xs">
+            <Hourglass class="h-3.5 w-3.5 shrink-0 text-primary" :stroke-width="2" />
+            <span class="w-20 shrink-0 truncate text-foreground/70">{{ task.subagentType || task.taskType }}</span>
+            <code class="min-w-0 flex-1 truncate font-mono text-foreground/60" :title="task.description">{{ taskLabel(task) }}</code>
+            <button
+              type="button"
+              class="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-2 text-foreground/80 hover:bg-muted disabled:cursor-default disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :disabled="stoppingTasks.has(task.taskId)"
+              :title="t('run.turnStatus.stopTaskTitle')"
+              @click="stopTask(task.taskId)"
+            >
+              <Loader2 v-if="stoppingTasks.has(task.taskId)" class="h-3 w-3 animate-spin" :stroke-width="2" />
+              <Square v-else class="h-3 w-3" :stroke-width="2" fill="currentColor" />
+              {{ t('run.turnStatus.stopTask') }}
+            </button>
+          </li>
+        </ul>
+      </section>
       <section class="min-w-0">
         <h3 class="mb-1.5 text-2xs font-medium uppercase tracking-wide text-foreground/50">{{ stepsTitle }}</h3>
         <p v-if="!steps.length" class="text-2xs text-foreground/50">{{ t('run.turnStatus.noSteps') }}</p>
@@ -212,11 +267,12 @@ const todoIconClass = { completed: 'text-emerald-500', in_progress: 'text-primar
       >
         <Loader2 v-if="status.kind === 'tool' || status.kind === 'thinking'" class="h-3.5 w-3.5 shrink-0 animate-spin text-primary" :stroke-width="2" />
         <Check v-else-if="status.kind === 'done'" class="h-3.5 w-3.5 shrink-0 text-emerald-500" :stroke-width="2" />
+        <Hourglass v-else-if="status.kind === 'background'" class="h-3.5 w-3.5 shrink-0 text-primary" :stroke-width="2" />
         <ShieldAlert v-else-if="status.kind === 'permission'" class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
         <MessageCircleQuestion v-else-if="status.kind === 'question'" class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
         <X v-else-if="status.kind === 'error'" class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
         <Ban v-else-if="status.kind === 'cancelled'" class="h-3.5 w-3.5 shrink-0 text-foreground/50" :stroke-width="2" />
-        <span class="shrink-0 truncate" :class="status.kind === 'tool' || status.kind === 'thinking' || status.kind === 'done' ? 'max-w-[60%]' : 'max-w-[50%]'">{{ parts.text }}</span>
+        <span class="shrink-0 truncate" :class="status.kind === 'tool' || status.kind === 'thinking' || status.kind === 'done' || status.kind === 'background' ? 'max-w-[60%]' : 'max-w-[50%]'">{{ parts.text }}</span>
         <code v-if="parts.detail" class="min-w-0 flex-1 truncate font-mono opacity-80">{{ parts.detail }}</code>
         <span v-else class="flex-1" />
         <span v-if="parts.extra" class="shrink-0 truncate font-mono tabular-nums text-foreground/55">{{ parts.extra }}</span>

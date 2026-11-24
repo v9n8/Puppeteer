@@ -4,6 +4,7 @@
 // entries and the live state, free of Vue / DOM / `@/` imports so they can be
 // unit-tested with `node --test`.
 import { normalizeTodos, type TodoItem } from './todoChecklist.ts'
+import { taskLabel, type BackgroundState } from './backgroundTasks.ts'
 
 export interface TurnEntryLike {
   kind: string
@@ -25,6 +26,7 @@ export type TurnStatus =
   | { kind: 'none' }
   | { kind: 'loading' }
   | { kind: 'done'; turn: number; durationMs: number | null; tokens: number | null }
+  | { kind: 'background'; turn: number; durationMs: number | null; tokens: number | null; tasks: string[] }
   | { kind: 'tool'; turn: number; tool: string; detail: string; startedAt: number | null; elapsedSecs: number | null }
   | { kind: 'thinking'; turn: number; retry: { attempt: number; maxRetries: number; delaySecs: number } | null }
   | { kind: 'permission'; turn: number; detail: string }
@@ -45,6 +47,8 @@ export interface TurnStatusInput {
   pending?: { toolName: string; toolInput: unknown } | null
   /** `RunRecord.end_reason`: why the run stopped when the user did not stop it. */
   endReason?: string | null
+  /** The live session's turn / background tasks (`lib/backgroundTasks`). */
+  background?: BackgroundState | null
 }
 
 /** The turn a status line or step list is about: its prompt's position and its entries. */
@@ -178,6 +182,15 @@ function questionText(input: unknown): string {
 
 const PAUSED_REASONS = new Set(['app_closed', 'quota'])
 
+function lastResult(entries: readonly TurnEntryLike[], from: number): TurnEntryLike | undefined {
+  for (let i = entries.length - 1; i >= from; i--) {
+    if (entries[i].kind === 'result') return entries[i]
+  }
+  return undefined
+}
+
+const positive = (n: number | undefined) => (typeof n === 'number' && n > 0 ? n : null)
+
 /** The status of the session's last turn. */
 export function turnStatus(input: TurnStatusInput): TurnStatus {
   if (input.loading) return { kind: 'loading' }
@@ -191,6 +204,20 @@ export function turnStatus(input: TurnStatusInput): TurnStatus {
     if (p) {
       if (lower(p.toolName) === 'askuserquestion') return { kind: 'question', turn, text: questionText(p.toolInput) }
       return { kind: 'permission', turn, detail: toolDetail(p.toolInput) || p.toolName }
+    }
+    // The turn is over, only its background tasks keep the session up. The
+    // backend's word plus the turn's own `result`, so a snapshot that lands
+    // before the result's entry does not flash "done" over a running turn.
+    const bg = input.background
+    const ended = bg?.turnDone && bg.tasks.length ? lastResult(entries, last.from) : undefined
+    if (bg && ended) {
+      return {
+        kind: 'background',
+        turn,
+        durationMs: positive(ended.duration_ms),
+        tokens: positive(ended.total_tokens),
+        tasks: bg.tasks.map(taskLabel),
+      }
     }
     // A tool call with no result yet, and nothing after it: the turn is inside it.
     for (let i = entries.length - 1; i >= last.from; i--) {
@@ -221,14 +248,7 @@ export function turnStatus(input: TurnStatusInput): TurnStatus {
   if (input.runStatus === 'cancelled' || (input.endReason && PAUSED_REASONS.has(input.endReason))) {
     return { kind: 'cancelled', turn }
   }
-  let result: TurnEntryLike | undefined
-  for (let i = entries.length - 1; i >= last.from; i--) {
-    const e = entries[i]
-    if (e.kind === 'result') {
-      result = e
-      break
-    }
-  }
+  const result = lastResult(entries, last.from)
   if (result?.is_error) return { kind: 'error', turn, text: (result.text || '').replace(/\s+/g, ' ').trim() }
   if (!result) {
     for (let i = entries.length - 1; i >= last.from; i--) {
@@ -236,12 +256,5 @@ export function turnStatus(input: TurnStatusInput): TurnStatus {
     }
     if (input.runStatus === 'failed') return { kind: 'error', turn, text: '' }
   }
-  const ms = result?.duration_ms
-  const tokens = result?.total_tokens
-  return {
-    kind: 'done',
-    turn,
-    durationMs: typeof ms === 'number' && ms > 0 ? ms : null,
-    tokens: typeof tokens === 'number' && tokens > 0 ? tokens : null,
-  }
+  return { kind: 'done', turn, durationMs: positive(result?.duration_ms), tokens: positive(result?.total_tokens) }
 }

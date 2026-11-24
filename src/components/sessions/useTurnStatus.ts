@@ -30,7 +30,10 @@ export function useTurnStatus() {
       ? { toolName: pendingRequest.value.tool_name, toolInput: pendingRequest.value.tool_input }
       : null,
     endReason: session.value?.endReason ?? currentRun.value?.end_reason ?? null,
+    background: running.value ? session.value?.background ?? null : null,
   }))
+  /** The background tasks the bar lists with a Stop, once the turn is over (BG-03). */
+  const bgTasks = computed(() => (status.value.kind === 'background' ? session.value?.background?.tasks ?? [] : []))
   const steps = computed(() => turnSteps(entries.value))
   const todos = computed(() => turnTodos(entries.value))
   const todo = computed(() => todoProgress(todos.value))
@@ -56,5 +59,5 @@ export function useTurnStatus() {
   )
   onBeforeUnmount(stopClock)
 
-  return { currentRunId, currentRun, status, steps, todos, todo, stoppedAt, now }
+  return { currentRunId, currentRun, status, steps, todos, todo, stoppedAt, now, bgTasks }
 }

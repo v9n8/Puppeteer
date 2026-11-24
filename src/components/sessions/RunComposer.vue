@@ -34,7 +34,7 @@ const {
   startComposerDrag, resetComposerHeight, composerEl, mentionOpen, mentionIndex, slashOpen,
   slashIndex, slashItems, selectSlash, onComposerInput, mentionItems, selectMention, fileMatcher, ensureProjectFiles,
   insertCaptureRef, composerChecklist, applyChecklist, linkPicked,
-  onComposerKeydown, handleSendFollowUp, handleCancel, stopping, queuedMessages, queueNotice, handleQueue,
+  onComposerKeydown, handleSendFollowUp, handleCancel, stopping, turnBusy, queuedMessages, queueNotice, handleQueue,
   sendQueuedNow, removeQueuedMessage, editingQueuedId, queuedEditText, startQueuedEdit, saveQueuedEdit,
   cancelQueuedEdit, currentRunId, draftQuotes, removeDraftQuote, setDraftQuoteNote,
   shownHasMessage, isViewingHistory, historyHasMore, historyHasMoreBelow, jumpToQuote, openFile,
@@ -446,7 +446,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                  follow-up typed. Then the split action: Steer puts it into the
                  turn now (both engines take input mid-turn, D4-06 spike), Queue
                  (Enter) sends it once the turn ends. -->
-            <div v-if="currentStatus === 'running' && !primaryDisabled && !editingMessage" class="inline-flex shrink-0 gap-1.5">
+            <div v-if="turnBusy && !primaryDisabled && !editingMessage" class="inline-flex shrink-0 gap-1.5">
               <!-- RT-12: an InfoTip opens at once on hover (a title shows late). -->
               <InfoTip v-if="features.isOn('sessions.steer')" :text="t('run.steerTitle')">
                 <template #trigger>
@@ -463,15 +463,17 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
               </Button>
             </div>
             <Button
-              v-if="currentStatus !== 'running'"
+              v-if="!turnBusy"
               class="shrink-0"
               :disabled="primaryDisabled"
               @click="handlePrimaryAction"
               :title="currentStatus === 'fetched'
                 ? t('run.startRunEnter')
-                : chatEligible
-                  ? t('run.resumeAndSend')
-                  : t('run.rerunWithDefault')"
+                : currentStatus === 'running'
+                  ? t('run.sendNowTitle')
+                  : chatEligible
+                    ? t('run.resumeAndSend')
+                    : t('run.rerunWithDefault')"
             >
               <component :is="chatSendLabel === t('run.sendLabelRun') ? Play : Send" class="h-3.5 w-3.5" :stroke-width="2" />
               {{ chatSendLabel }}

@@ -85,6 +85,25 @@ test('error: an error result, a stray error entry, or a failed run', () => {
   assert.deepEqual(status({ entries: [user()], runStatus: 'failed' }), { kind: 'error', turn: 1, text: '' })
 })
 
+test('background: the turn ended, only background tasks keep the run live (BG-03)', () => {
+  const task = (description, extra = {}) => ({ taskId: description, taskType: 'local_bash', description, subagentType: null, ...extra })
+  const entries = [user(), tool('Bash', { command: 'grep -n x $f' }, { result: ok }), result({ duration_ms: 4200, total_tokens: 900 })]
+  const background = { turnDone: true, tasks: [task('grep -n x'), task('', { subagentType: 'Explore' })] }
+  assert.deepEqual(status({ entries, running: true, background }), {
+    kind: 'background', turn: 1, durationMs: 4200, tokens: 900, tasks: ['grep -n x', 'Explore'],
+  })
+  // Not over yet (a wake-up turn, a follow-up), or no task left: the old statuses.
+  assert.equal(status({ entries: [...entries, user()], running: true, background: { ...background, turnDone: false } }).kind, 'thinking')
+  assert.equal(status({ entries, running: true, background: { turnDone: true, tasks: [] } }).kind, 'thinking')
+  // The snapshot came before the turn's result reached the log.
+  assert.equal(status({ entries: entries.slice(0, 2), running: true, background }).kind, 'thinking')
+  // A prompt waiting for an answer still comes first.
+  const pending = { toolName: 'Bash', toolInput: { command: 'ls' } }
+  assert.equal(status({ entries, running: true, background, pending }).kind, 'permission')
+  // The run ended: the snapshot no longer counts.
+  assert.equal(status({ entries, runStatus: 'done', background }).kind, 'done')
+})
+
 test('cancelled: the user stopped it, or the app closed / quota stopped it', () => {
   assert.deepEqual(status({ entries: [user(), user()], runStatus: 'cancelled' }), { kind: 'cancelled', turn: 2 })
   assert.equal(status({ entries: [user()], runStatus: 'done', endReason: 'app_closed' }).kind, 'cancelled')

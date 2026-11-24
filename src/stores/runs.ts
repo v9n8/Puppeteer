@@ -400,6 +400,16 @@ export const useRunsStore = defineStore('runs', () => {
     return invoke<PermissionRequest[]>('list_pending_permissions', { runId: run_id })
   }
 
+  /** A live run's turn / background-task snapshot (BG-01); null when not live. */
+  async function getBackgroundTasks(run_id: string): Promise<unknown> {
+    return invoke<unknown>('get_background_tasks', { runId: run_id })
+  }
+
+  /** Stop one background task of a live run (BG-02). */
+  async function stopBackgroundTask(run_id: string, task_id: string): Promise<void> {
+    await invoke('stop_background_task', { runId: run_id, taskId: task_id })
+  }
+
   /** Ids of every run whose sidecar is still alive in the backend. */
   async function listLiveRuns(): Promise<string[]> {
     return invoke<string[]>('list_live_runs')
@@ -828,7 +838,7 @@ export const useRunsStore = defineStore('runs', () => {
     fetchRuns, sortRuns, refreshMeta, fetchIssue, fetchPr,
     startRun, rerunRun, refetchRun, cancelRun, resumeRun,
     getRunLog, getRunLogRevision, getRunLogPage, getRunLogForward, getRunLogPath, getRunToolRecords, getRunEditRecords, getRunUserRecords, searchRunLog, readRunInput,
-    respondPermission, listPendingPermissions, listLiveRuns, sendUserMessage, steerRun, endRunInput,
+    respondPermission, listPendingPermissions, listLiveRuns, getBackgroundTasks, stopBackgroundTask, sendUserMessage, steerRun, endRunInput,
     listSnapshots, previewRewind, rewindRun, listBookmarks, addBookmark, deleteBookmark, listRunQuotes, exportTranscript,
     listProjectFiles, readProjectFile, statPaths, writeProjectFile, listDir,
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,

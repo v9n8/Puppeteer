@@ -6,7 +6,7 @@ import type { Repo } from '@/stores/projects'
 import { runActivityAt, type RunRecord } from '@/stores/runs'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { GitPullRequest, Bug, Loader2, CircleDashed } from 'lucide-vue-next'
+import { GitPullRequest, Bug, Loader2, CircleDashed, Hourglass } from 'lucide-vue-next'
 import { onClickOutside } from '@vueuse/core'
 import {
   formatRunTimestamp, relativeAge, runStatusColorClass, runStatusIcon, shortModelId,
@@ -14,6 +14,7 @@ import {
 import { useSessionTabsStore } from '@/stores/sessionTabs'
 import { pageOfIndex, pageSlice } from '@/lib/listPaging'
 import { runStatusKey } from '@/lib/interruptedRuns'
+import { waitsOnBackground } from '@/lib/backgroundTasks'
 import { useRunFlagFilter } from './useRunFlagFilter'
 import { resyncConfirmOptions, resyncRun } from '@/lib/runResync'
 import type { RunSessionCore } from './useRunSessionCore'
@@ -78,14 +79,21 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // A run is "running" for display when it is streaming itself, or when any of
   // its workers is still streaming.
   function runIsRunning(run: RunRecord): boolean {
-    if (run.status === 'running') return true
+    if (run.status === 'running') return !runWaitsOnBackground(run)
     return conductorIdsWithRunningWorker.value.has(run.id)
+  }
+
+  // BG-03: its turn is over, only background tasks keep it live (known when
+  // this window follows the run).
+  function runWaitsOnBackground(run: RunRecord): boolean {
+    return waitsOnBackground(run.status, live.get(run.id)?.background)
   }
 
   // History-row icon shows STATUS only (every session is a conductor, so there is
   // no type icon): a spinner while running, otherwise a status glyph tinted by
   // runIconColorClass. Issue/PR identity is a separate badge (runRefBadge).
   function runIcon(run: RunRecord) {
+    if (runWaitsOnBackground(run)) return Hourglass
     if (runIsRunning(run)) return Loader2
     if (run.status === 'fetched' && run.run_type === 'session') return CircleDashed
     return runStatusIcon(run.status)
@@ -94,6 +102,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // Tooltip for the History-row status icon. A run cut off by the app or
   // stopped at the quota limit reads differently from one the user stopped.
   function runStatusTitle(run: RunRecord): string {
+    if (runWaitsOnBackground(run)) return t('run.waitingBackground')
     if (runIsRunning(run)) return t('common.status.running')
     return t(runStatusKey(run))
   }
