@@ -28,7 +28,7 @@ function openBoard() {
 const selected = computed(() => flagById(projectFlags.value, flagFilter.value))
 const buttonLabel = computed(() => {
   if (flagFilter.value === 'none') return t('sessionFlags.filter.none')
-  return selected.value ? flagLabel(selected.value, t) : t('sessionFlags.filter.all')
+  return selected.value ? flagLabel(selected.value) : t('sessionFlags.filter.all')
 })
 const groups = computed(() => [
   { key: 'shared', title: t('sessionFlags.menu.shared'), options: flagOptions.value.shared },
@@ -69,7 +69,7 @@ const groups = computed(() => [
           </DropdownLabel>
           <DropdownItem v-for="{ flag, count } in group.options" :key="flag.id" @click="flagFilter = flag.id">
             <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(flag.color)" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate">{{ flagLabel(flag, t) }}</span>
+            <span class="min-w-0 flex-1 truncate">{{ flagLabel(flag) }}</span>
             <span class="font-mono text-2xs text-muted-foreground">{{ count }}</span>
             <Check class="h-3.5 w-3.5 shrink-0 text-primary" :class="{ invisible: flagFilter !== flag.id }" :stroke-width="2" />
           </DropdownItem>

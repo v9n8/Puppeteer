@@ -15,7 +15,6 @@ const filterByProject = reactive(new Map<string, FlagFilter>())
 export function useRunFlagFilter(
   projectId: ComputedRef<string>,
   searchedRuns: ComputedRef<RunRecord[]>,
-  t: (key: string) => string,
 ) {
   const flagsStore = useSessionFlagsStore()
 
@@ -44,7 +43,7 @@ export function useRunFlagFilter(
   /** The flag a row shows: colour and name; null for a session without one. */
   function runFlag(run: RunRecord) {
     const flag = flagById(projectFlags.value, run.flag_id)
-    return flag ? { color: flag.color, label: flagLabel(flag, t) } : null
+    return flag ? { color: flag.color, label: flagLabel(flag) } : null
   }
 
   return { projectFlags, flagFilter, flagCounts: counts, flagOptions, flagFilteredRuns, runFlag }

@@ -17,7 +17,7 @@ const { currentRun, projectId } = useRunSession()
 const flagsStore = useSessionFlagsStore()
 
 const flag = computed(() => flagById(flagsStore.flagsOf(projectId.value), currentRun.value?.flag_id))
-const name = computed(() => (flag.value ? flagLabel(flag.value, t) : ''))
+const name = computed(() => (flag.value ? flagLabel(flag.value) : ''))
 
 function load() {
   flagsStore.load(projectId.value).catch((e) => console.warn('[sessionFlags] load failed', e))

@@ -24,7 +24,7 @@ const active = ref<ProjectColor | null>(null)
 const shown = computed(() => active.value ?? projectColor(props.flag.color))
 
 function sharedWith(color: ProjectColor): string {
-  return colorUsers(props.flags, color, props.flag.id).map((f) => flagLabel(f, t)).join(', ')
+  return colorUsers(props.flags, color, props.flag.id).map((f) => flagLabel(f)).join(', ')
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -54,12 +54,12 @@ onBeforeUnmount(() => {
   <div
     ref="root"
     role="dialog"
-    :aria-label="t('sessionFlags.color.title', { name: flagLabel(flag, t) })"
+    :aria-label="t('sessionFlags.color.title', { name: flagLabel(flag) })"
     class="absolute left-3 top-full z-40 mt-1 w-fit rounded-lg border border-popover-border bg-popover p-2 shadow-xl shadow-black/20"
   >
     <!-- w-0 min-w-full: text lines take the grid's width instead of widening the popover. -->
     <p class="w-0 min-w-full truncate px-1 pb-1.5 text-xs font-semibold text-foreground">
-      {{ t('sessionFlags.color.title', { name: flagLabel(flag, t) }) }}
+      {{ t('sessionFlags.color.title', { name: flagLabel(flag) }) }}
     </p>
     <ColorSwatchGrid
       :selected="projectColor(flag.color)"

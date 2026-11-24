@@ -29,8 +29,8 @@ pub const CHANGED_EVENT: &str = "session-flags:changed";
 /// `src/lib/sessionFlags.ts` mirrors it.
 pub const NAME_MAX_CHARS: usize = 24;
 
-/// A default flag as migration 0025 seeds it. The name is the English UI string:
-/// while a row still has it the UI shows the translated one.
+/// A default flag as migration 0025 seeds it. The name is English and the UI
+/// shows it as stored, in every UI language.
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultFlag {
     pub key: &'static str,
@@ -59,7 +59,7 @@ pub struct SessionFlag {
     pub position: i64,
     /// The default this row is (`backlog`, …); `None` for the user's flags.
     pub builtin_key: Option<String>,
-    /// A default whose name is still the seeded one: the UI shows it translated.
+    /// A default whose name is still the seeded one.
     #[sqlx(skip)]
     pub stock_name: bool,
     /// Listed for a project: a shared flag that project hides.

@@ -22,7 +22,7 @@ export interface SessionFlag {
   position: number
   /** The default this row is; null for a flag the user made. */
   builtin_key: DefaultFlagKey | null
-  /** A default still named as seeded: the UI shows the translated name. */
+  /** A default still named as seeded. */
   stock_name: boolean
   /** Listed for a project: a shared flag that project hides. */
   hidden: boolean
@@ -34,11 +34,9 @@ export interface SessionFlagList {
   flags: SessionFlag[]
 }
 
-type FlagText = Pick<SessionFlag, 'name' | 'builtin_key' | 'stock_name'>
-
-/** The name the UI shows: an untouched default's in the UI language, else the user's. */
-export function flagLabel(flag: FlagText, t: (key: string) => string): string {
-  return flag.builtin_key && flag.stock_name ? t(`sessionFlags.builtin.${flag.builtin_key}`) : flag.name
+/** The name the UI shows: the stored one, in every UI language (defaults are seeded in English). */
+export function flagLabel(flag: Pick<SessionFlag, 'name'>): string {
+  return flag.name
 }
 
 type MenuFlag = Pick<SessionFlag, 'project_id' | 'hidden'>

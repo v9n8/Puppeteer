@@ -219,7 +219,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // The flag filter applies on top of the search: a row must pass both.
   const {
     projectFlags, flagFilter, flagCounts, flagOptions, flagFilteredRuns: filteredRuns, runFlag,
-  } = useRunFlagFilter(projectId, searchedRuns, t)
+  } = useRunFlagFilter(projectId, searchedRuns)
 
   // ── History list ───────────────────────────────────────────────────────────
   // Worker sessions (run.conductor_run_id set) NEVER appear in the History list —

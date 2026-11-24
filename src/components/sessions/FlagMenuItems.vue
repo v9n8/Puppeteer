@@ -64,7 +64,7 @@ async function choose(flagId: string | null) {
         <DropdownSeparator />
         <DropdownItem v-for="flag in group" :key="flag.id" @click="choose(flag.id)">
           <span class="h-2 w-2 shrink-0 rounded-full" :class="swatchClass(flag.color)" aria-hidden="true" />
-          <span class="min-w-0 flex-1 truncate">{{ flagLabel(flag, t) }}</span>
+          <span class="min-w-0 flex-1 truncate">{{ flagLabel(flag) }}</span>
           <Check v-if="flag.id === flagId" class="h-3.5 w-3.5 shrink-0 text-primary" :stroke-width="2" />
         </DropdownItem>
       </template>

@@ -108,7 +108,7 @@ function cancelLift() {
 }
 
 async function removeFlag(flag: SessionFlag) {
-  const name = flagLabel(flag, t)
+  const name = flagLabel(flag)
   const ok = await confirm({
     title: t('sessionFlags.project.deleteTitle', { name }),
     message: t(flag.run_count > 0 ? 'sessionFlags.project.deleteMessage' : 'sessionFlags.project.deleteMessageNone', { n: flag.run_count }),

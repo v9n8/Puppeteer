@@ -22,7 +22,7 @@ const busy = ref(false)
 
 async function toggle() {
   if (busy.value) return
-  const name = flagLabel(props.flag, t)
+  const name = flagLabel(props.flag)
   if (!props.flag.hidden) {
     const ok = await confirm({
       title: t('sessionFlags.project.hideTitle', { name }),
@@ -51,7 +51,7 @@ async function toggle() {
     <span class="h-3 w-3 shrink-0 rounded-full" :class="swatchClass(flag.color)" />
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
-        <span class="truncate text-sm font-semibold text-foreground" :title="flagLabel(flag, t)">{{ flagLabel(flag, t) }}</span>
+        <span class="truncate text-sm font-semibold text-foreground" :title="flagLabel(flag)">{{ flagLabel(flag) }}</span>
         <Badge v-if="flag.hidden" class="shrink-0">{{ t('sessionFlags.project.badgeHidden') }}</Badge>
       </div>
       <p class="mt-0.5 text-xs text-muted-foreground">{{ sharedFlagSubline(flag, t) }}</p>
@@ -60,7 +60,7 @@ async function toggle() {
     <ToggleSwitch
       :checked="!flag.hidden"
       :loading="busy"
-      :label="t(flag.hidden ? 'sessionFlags.project.toggleUse' : 'sessionFlags.project.toggleHide', { name: flagLabel(flag, t) })"
+      :label="t(flag.hidden ? 'sessionFlags.project.toggleUse' : 'sessionFlags.project.toggleHide', { name: flagLabel(flag) })"
       @toggle="toggle"
     />
   </div>

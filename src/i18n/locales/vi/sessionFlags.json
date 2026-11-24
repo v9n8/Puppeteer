@@ -1,11 +1,4 @@
 {
-  "builtin": {
-    "backlog": "Tồn đọng",
-    "todo": "Cần làm",
-    "in_progress": "Đang làm",
-    "in_review": "Đang review",
-    "done": "Xong"
-  },
   "errors": {
     "nameRequired": "Flag cần có tên.",
     "nameTooLong": "Tên dài quá {max} ký tự.",

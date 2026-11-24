@@ -47,7 +47,7 @@ function pick(color: ProjectColor) {
       type="button"
       class="flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
       :title="t('sessionFlags.settings.dragTip')"
-      :aria-label="t('sessionFlags.settings.dragLabel', { name: flagLabel(flag, t) })"
+      :aria-label="t('sessionFlags.settings.dragLabel', { name: flagLabel(flag) })"
       :aria-pressed="lifted"
       @pointerdown="emit('handle-pointerdown', $event)"
       @keydown="emit('handle-keydown', $event)"
@@ -60,14 +60,14 @@ function pick(color: ProjectColor) {
       type="button"
       class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
       :title="t(`projectDetail.colors.${flag.color}`)"
-      :aria-label="t('sessionFlags.color.title', { name: flagLabel(flag, t) })"
+      :aria-label="t('sessionFlags.color.title', { name: flagLabel(flag) })"
       :aria-expanded="paletteOpen"
       @click="paletteOpen = !paletteOpen"
     >
       <span class="h-3.5 w-3.5 rounded-full" :class="swatchClass(flag.color)" />
     </button>
 
-    <span class="min-w-0 flex-1 truncate text-sm text-foreground" :title="flagLabel(flag, t)">{{ flagLabel(flag, t) }}</span>
+    <span class="min-w-0 flex-1 truncate text-sm text-foreground" :title="flagLabel(flag)">{{ flagLabel(flag) }}</span>
     <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
       {{ flag.run_count > 0 ? t('sessionFlags.settings.runs', { n: flag.run_count }) : t('sessionFlags.settings.unused') }}
     </span>

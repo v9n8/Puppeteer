@@ -38,7 +38,7 @@ const { t } = useI18n()
       type="button"
       class="flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
       :title="t('sessionFlags.project.dragTip')"
-      :aria-label="t('sessionFlags.project.dragLabel', { name: flagLabel(flag, t) })"
+      :aria-label="t('sessionFlags.project.dragLabel', { name: flagLabel(flag) })"
       :aria-pressed="lifted"
       @pointerdown="emit('handle-pointerdown', $event)"
       @keydown="emit('handle-keydown', $event)"
@@ -48,7 +48,7 @@ const { t } = useI18n()
     </button>
 
     <span class="h-3 w-3 shrink-0 rounded-full" :class="swatchClass(flag.color)" />
-    <span class="min-w-0 flex-1 truncate text-sm text-foreground" :title="flagLabel(flag, t)">{{ flagLabel(flag, t) }}</span>
+    <span class="min-w-0 flex-1 truncate text-sm text-foreground" :title="flagLabel(flag)">{{ flagLabel(flag) }}</span>
     <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
       {{ flag.run_count > 0 ? t('sessionFlags.project.runs', { n: flag.run_count }) : t('sessionFlags.project.unused') }}
     </span>

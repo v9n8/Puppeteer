@@ -37,7 +37,7 @@ watch(
   () => props.open,
   async (open) => {
     if (!open) return
-    name.value = props.flag ? flagLabel(props.flag, t) : ''
+    name.value = props.flag ? flagLabel(props.flag) : ''
     // A project's own flag starts Gray; a shared one Blue.
     color.value = props.flag?.color ?? (props.projectId ? 'neutral' : 'info')
     backendError.value = null
@@ -50,7 +50,7 @@ watch(name, () => { backendError.value = null })
 
 const trimmed = computed(() => name.value.trim())
 const count = computed(() => [...name.value.trim()].length)
-const others = computed(() => props.flags.filter((f) => f.id !== props.flag?.id).map((f) => ({ ...f, label: flagLabel(f, t) })))
+const others = computed(() => props.flags.filter((f) => f.id !== props.flag?.id).map((f) => ({ ...f, label: flagLabel(f) })))
 const nameError = computed(() => validateFlagName(name.value, others.value))
 // "Required" is not shown while the field is still empty: the button being off says it.
 const shownError = computed(() => {
@@ -64,9 +64,7 @@ async function save() {
   saving.value = true
   try {
     if (props.flag) {
-      // An untouched default keeps its stored name, so it goes on following the UI language.
-      const unchanged = props.flag.stock_name && trimmed.value === flagLabel(props.flag, t)
-      const nextName = unchanged || trimmed.value === props.flag.name ? undefined : trimmed.value
+      const nextName = trimmed.value === props.flag.name ? undefined : trimmed.value
       const nextColor = color.value === props.flag.color ? undefined : color.value
       if (nextName !== undefined || nextColor !== undefined) await store.update(props.flag, { name: nextName, color: nextColor })
     } else {

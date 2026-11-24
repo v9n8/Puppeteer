@@ -123,7 +123,7 @@ async function setColor(flag: SessionFlag, color: ProjectColor) {
 }
 
 async function removeFlag(flag: SessionFlag) {
-  const name = flagLabel(flag, t)
+  const name = flagLabel(flag)
   const ok = await confirm({
     title: t('sessionFlags.settings.deleteTitle', { name }),
     message: t(flag.run_count > 0 ? 'sessionFlags.settings.deleteMessage' : 'sessionFlags.settings.deleteMessageNone', { n: flag.run_count }),

@@ -73,7 +73,7 @@ const runById = computed(() => new Map((board.data?.runs ?? []).map((r) => [r.id
 
 function columnLabel(c: Column): string {
   if (c.kind === 'none') return t('board.column.none')
-  return c.flag ? flagLabel(c.flag, t) : ''
+  return c.flag ? flagLabel(c.flag) : ''
 }
 
 const grouped = computed(() => groupCards(board.data?.runs ?? [], columns.value))

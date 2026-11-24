@@ -1,11 +1,4 @@
 {
-  "builtin": {
-    "backlog": "Backlog",
-    "todo": "To Do",
-    "in_progress": "In Progress",
-    "in_review": "In Review",
-    "done": "Done"
-  },
   "errors": {
     "nameRequired": "The flag needs a name.",
     "nameTooLong": "The name is longer than {max} characters.",

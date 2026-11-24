@@ -71,7 +71,7 @@ const revealKey = revealLabelKey(platformOf(navigator.userAgent))
 const flagsStore = useSessionFlagsStore()
 const currentFlagName = computed(() => {
   const flag = flagById(flagsStore.flagsOf(props.run.project_id), props.run.flag_id)
-  return flag ? flagLabel(flag, t) : ''
+  return flag ? flagLabel(flag) : ''
 })
 </script>
 

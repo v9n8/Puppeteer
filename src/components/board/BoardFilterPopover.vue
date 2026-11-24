@@ -234,7 +234,7 @@ const ROW = 'flex h-8 cursor-pointer items-center gap-2 rounded pr-2 hover:bg-ac
                     <span v-if="isOn(f.id)" class="flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border border-primary bg-primary text-primary-foreground"><Check class="h-3 w-3" :stroke-width="3" /></span>
                     <span v-else class="h-4 w-4 shrink-0 rounded-[4px] border border-input bg-card" />
                     <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="swatchClass(f.color)" aria-hidden="true" />
-                    <span class="min-w-0 flex-1 truncate">{{ flagLabel(f, t) }}</span>
+                    <span class="min-w-0 flex-1 truncate">{{ flagLabel(f) }}</span>
                   </label>
                 </li>
                 <li v-if="flagGroup === g.id && flagLine !== null" class="pointer-events-none absolute inset-x-2 h-0.5 rounded-full bg-primary" :style="{ top: `${flagLine}px` }" aria-hidden="true" />

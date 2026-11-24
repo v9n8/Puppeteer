@@ -14,7 +14,7 @@ test('UR-02: the flag menu starts with "No flag" and leads to the project\'s fla
   const src = read('../../components/sessions/FlagMenuItems.vue')
   const template = src.slice(src.indexOf('<template>'))
   // "No flag" is the first row and is ticked when the Session has no flag.
-  assert.ok(template.indexOf("sessionFlags.menu.none") < template.indexOf('flagLabel(flag, t)'))
+  assert.ok(template.indexOf("sessionFlags.menu.none") < template.indexOf('flagLabel(flag)'))
   assert.match(template, /<Check v-if="!flagId"/)
   // Groups are split by separators, with no uppercase group headings and no "Remove flag" row.
   assert.doesNotMatch(template, /uppercase/)
@@ -281,7 +281,6 @@ test('UR-32: list pane width is clamped, remembered per screen, and every list s
 })
 
 test('UR-04: a new migration resets the flags to the five work-status defaults, matched in code and i18n', () => {
-  const keys = ['backlog', 'todo', 'in_progress', 'in_review', 'done']
   const sql = read('../../../src-tauri/migrations/0025_default_flags_v2.sql')
   // Every flag goes (0023's trigger clears the sessions and hidden marks), then the five are seeded in order.
   assert.match(sql, /^DELETE FROM session_flags;$/m)
@@ -290,10 +289,8 @@ test('UR-04: a new migration resets the flags to the five work-status defaults, 
   const rust = read('../../../src-tauri/src/commands/session_flags.rs')
   for (const [key, color] of seeded) assert.match(rust, new RegExp(`DefaultFlag \\{ key: "${key}", name: "[^"]+", color: "${color}" \\}`), key)
   assert.match(read('../sessionFlags.ts'), /DEFAULT_FLAG_KEYS = \['backlog', 'todo', 'in_progress', 'in_review', 'done'\]/)
-  for (const lang of ['en', 'vi']) {
-    assert.deepEqual(Object.keys(json(`../../i18n/locales/${lang}/sessionFlags.json`).builtin), keys, lang)
-  }
-  assert.equal(json('../../i18n/locales/en/sessionFlags.json').builtin.todo, 'To Do')
+  // The seeded names are the English ones every UI language shows.
+  assert.match(rust, /DefaultFlag \{ key: "todo", name: "To Do",/)
 })
 
 test('UR-19: the header block around the session title takes the free width so the rename field can grow', () => {

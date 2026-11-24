@@ -11,7 +11,6 @@ const flag = (id, extra = {}) => ({
   id, project_id: null, name: id, color: 'info', position: 0, builtin_key: null, stock_name: false, hidden: false, run_count: 0,
   ...extra,
 })
-const t = (key) => `<${key}>`
 
 test('the defaults and the name limit match the backend', () => {
   assert.deepEqual([...DEFAULT_FLAG_KEYS], ['backlog', 'todo', 'in_progress', 'in_review', 'done'])
@@ -21,18 +20,18 @@ test('the defaults and the name limit match the backend', () => {
   for (const key of DEFAULT_FLAG_KEYS) assert.ok(source.includes(`key: "${key}"`), key)
 })
 
-test('every default has a translated name in both languages', () => {
+test('the default flags have no translated names: one English name in every language', () => {
   for (const lang of ['en', 'vi']) {
     const messages = JSON.parse(readFileSync(new URL(`../../i18n/locales/${lang}/sessionFlags.json`, import.meta.url), 'utf8'))
-    for (const key of DEFAULT_FLAG_KEYS) assert.ok(messages.builtin[key], `${lang} ${key}`)
+    assert.equal(messages.builtin, undefined, lang)
   }
 })
 
-test('a default shows its translated name until the user renames it', () => {
+test('every flag shows its stored name, a stock default included', () => {
   const def = flag('done', { name: 'Done', builtin_key: 'done', stock_name: true })
-  assert.equal(flagLabel(def, t), '<sessionFlags.builtin.done>')
-  assert.equal(flagLabel({ ...def, name: 'Shipped', stock_name: false }, t), 'Shipped')
-  assert.equal(flagLabel(flag('Blocked'), t), 'Blocked')
+  assert.equal(flagLabel(def), 'Done')
+  assert.equal(flagLabel({ ...def, name: 'Shipped', stock_name: false }), 'Shipped')
+  assert.equal(flagLabel(flag('Blocked')), 'Blocked')
 })
 
 test('the menu offers shared then own flags, without the hidden ones', () => {
