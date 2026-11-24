@@ -82,7 +82,7 @@ test('a plain paste keeps the length rule, and needs a run for a file', () => {
 })
 
 test('the shortcut is Cmd+Shift+V on macOS and Ctrl+Shift+V elsewhere', () => {
-  const key = (extra) => ({ metaKey: false, ctrlKey: false, shiftKey: true, altKey: false, key: 'V', isComposing: false, ...extra })
+  const key = (extra) => ({ metaKey: false, ctrlKey: false, shiftKey: true, altKey: false, key: 'V', code: 'KeyV', isComposing: false, ...extra })
   assert.equal(isInvertPasteKey(key({ metaKey: true }), true), true)
   assert.equal(isInvertPasteKey(key({ ctrlKey: true }), true), false)
   assert.equal(isInvertPasteKey(key({ ctrlKey: true }), false), true)
@@ -91,7 +91,12 @@ test('the shortcut is Cmd+Shift+V on macOS and Ctrl+Shift+V elsewhere', () => {
   assert.equal(isInvertPasteKey(key({ metaKey: true, shiftKey: false }), true), false)
   assert.equal(isInvertPasteKey(key({ metaKey: true, altKey: true }), true), false)
   assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'C' }), true), false)
-  // The character, not the physical key: a layout whose V sits elsewhere still matches.
-  assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'v' }), true), true)
+  // The character, not the physical key: on a Latin layout whose V sits elsewhere (Dvorak),
+  // the V character matches and the key under the QWERTY V does not.
+  assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'v', code: 'KeyK' }), true), true)
+  assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'k', code: 'KeyV' }), true), false)
+  // A non-Latin layout gives no Latin letter: the physical V key counts.
+  assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'м', code: 'KeyV' }), true), true)
+  assert.equal(isInvertPasteKey(key({ metaKey: true, key: 'м', code: 'KeyC' }), true), false)
   assert.equal(isInvertPasteKey(key({ metaKey: true, isComposing: true }), true), false)
 })
