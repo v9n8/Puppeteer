@@ -41,8 +41,9 @@
   },
   "errors": {
     "invalid_link": "Link không hợp lệ. Cần dạng https://<workspace>.slack.com/archives/<kênh>/p<16 chữ số>.",
-    "dm_unsupported": "Đang tắt đọc thread trong tin nhắn trực tiếp (DM). Bật ở Project › MCP › Thread Slack trong DM (cho mọi project, và cho project của thread).",
+    "dm_unsupported": "Đang tắt đọc thread trong tin nhắn trực tiếp (DM). Bật \"Đọc thread DM (mọi project)\" ở Slack server trong Cài đặt › Kết nối › MCP, rồi bật \"Đọc thread DM trong project này\" ở Project › Kết nối › MCP của thread.",
     "no_token": "Chưa có token Slack. Hãy thêm MCP server Slack có biến SLACK_MCP_XOXP_TOKEN trong Cài đặt → MCP.",
+    "slack_off_for_project": "Chưa có MCP server Slack nào đang bật cho project của thread này. Bật ở Project › Kết nối › MCP.",
     "no_token_for_workspace": "Không có token Slack nào thuộc workspace của link này.",
     "invalid_auth": "Token Slack không hợp lệ hoặc đã hết hạn. Hãy cập nhật token trong Cài đặt → MCP.",
     "missing_scope": "Token Slack thiếu quyền ({detail}). Thread trong channel cần channels:history, groups:history; thread DM cần im:history (DM nhóm: mpim:history).",

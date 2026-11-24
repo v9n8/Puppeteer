@@ -129,6 +129,32 @@ pub struct SlackTokenStatus {
     pub sources: Vec<TokenSourceInfo>,
 }
 
+/// Error code of a project's thread when a Slack server on app-wide holds a token
+/// but none is switched on for that project.
+pub const OFF_FOR_PROJECT: &str = "slack_off_for_project";
+
+/// Why [`sources`] for `project` came back empty: [`OFF_FOR_PROJECT`] when a Slack
+/// server on app-wide holds a usable token, else `no_token`.
+pub async fn missing_token_code(
+    db: &Db,
+    lookup: &SecretLookup,
+    project: Option<&str>,
+) -> Result<&'static str, sqlx::Error> {
+    if project.is_some() && !sources(db, lookup, None).await?.is_empty() {
+        return Ok(OFF_FOR_PROJECT);
+    }
+    Ok("no_token")
+}
+
+/// The English detail stored with a [`missing_token_code`].
+pub fn missing_token_detail(code: &str) -> &'static str {
+    if code == OFF_FOR_PROJECT {
+        "no Slack MCP server is switched on for the thread's project"
+    } else {
+        "no Slack token configured"
+    }
+}
+
 /// Token availability (servers on app-wide) without any network call.
 pub async fn token_status(db: &Db, lookup: &SecretLookup) -> Result<SlackTokenStatus, sqlx::Error> {
     let found = sources(db, lookup, None).await?;

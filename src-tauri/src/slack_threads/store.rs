@@ -267,13 +267,14 @@ pub struct AddOutcome {
 /// row keeps id/position, keeps a custom title (else takes `title`), gets
 /// `project_id` only when it has none, and goes back to `pending` — unless a
 /// job is running for it (`is_running`), then the caller flags a re-run.
-/// Without any token the row goes straight to `error/no_token`.
+/// Without a token the row goes straight to `error/<missing_token>` (`no_token`, or
+/// `slack_off_for_project`: see `token::missing_token_code`).
 pub async fn add_or_requeue(
     db: &Db,
     link: &ThreadLink,
     project_id: Option<&str>,
     title: Option<&str>,
-    has_token: bool,
+    missing_token: Option<&str>,
     is_running: &(dyn Fn(&str) -> bool + Send + Sync),
 ) -> Result<AddOutcome, CodedError> {
     static ADD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -282,10 +283,10 @@ pub async fn add_or_requeue(
     let existing = find_by_key(db, &link.channel_id, &link.thread_ts, None)
         .await
         .map_err(internal)?;
-    let (status, error_code) = if has_token {
-        ("pending", None)
-    } else {
-        ("error", Some("no_token".to_string()))
+    let has_token = missing_token.is_none();
+    let (status, error_code) = match missing_token {
+        None => ("pending", None),
+        Some(code) => ("error", Some(code.to_string())),
     };
     match existing {
         Some(id) => {
@@ -350,7 +351,7 @@ pub async fn add_or_requeue(
             .bind(&link.canonical_url)
             .bind(status)
             .bind(&error_code)
-            .bind(error_code.as_ref().map(|_| "no Slack token configured"))
+            .bind(error_code.as_deref().map(super::token::missing_token_detail))
             .execute(db)
             .await
             .map_err(internal)?;
@@ -375,7 +376,7 @@ pub async fn set_requested_status(
     error_code: Option<&str>,
 ) -> Result<u64, sqlx::Error> {
     let detail = error_code.map(|c| match c {
-        "no_token" => "no Slack token configured".to_string(),
+        "no_token" | super::token::OFF_FOR_PROJECT => super::token::missing_token_detail(c).to_string(),
         other => other.to_string(),
     });
     Ok(sqlx::query(

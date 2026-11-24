@@ -41,8 +41,9 @@
   },
   "errors": {
     "invalid_link": "Invalid link. Expected https://<workspace>.slack.com/archives/<channel>/p<16 digits>.",
-    "dm_unsupported": "Reading direct-message (DM) threads is off. Turn it on in Project › MCP › Slack DM threads (for all projects, and for the thread's project).",
+    "dm_unsupported": "Reading direct-message (DM) threads is off. Turn on \"Read DM threads (all projects)\" on the Slack server in Settings › Connections › MCP, then \"Read DM threads in this project\" in the thread's Project › Connections › MCP.",
     "no_token": "No Slack token. Add a Slack MCP server with SLACK_MCP_XOXP_TOKEN in Settings → MCP.",
+    "slack_off_for_project": "No Slack MCP server is switched on for this thread's project. Turn one on in Project › Connections › MCP.",
     "no_token_for_workspace": "None of the Slack tokens belongs to this link's workspace.",
     "invalid_auth": "The Slack token is invalid or expired. Update it in Settings → MCP.",
     "missing_scope": "The Slack token lacks a scope ({detail}). Channel threads need channels:history, groups:history; DM threads need im:history (group DMs: mpim:history).",

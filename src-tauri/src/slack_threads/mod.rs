@@ -602,17 +602,24 @@ impl SlackThreadsState {
         if link.is_dm() {
             dm::check(&self.ctx.db, project_id).await?;
         }
-        let has_token = !token::sources(&self.ctx.db, &self.ctx.lookup, project_id)
+        let found = token::sources(&self.ctx.db, &self.ctx.lookup, project_id)
             .await
-            .map_err(store::internal)?
-            .is_empty();
+            .map_err(store::internal)?;
+        let missing_token = match found.is_empty() {
+            true => Some(
+                token::missing_token_code(&self.ctx.db, &self.ctx.lookup, project_id)
+                    .await
+                    .map_err(store::internal)?,
+            ),
+            false => None,
+        };
         let is_running = |id: &str| self.is_running(id);
         let out = store::add_or_requeue(
             &self.ctx.db,
             &link,
             project_id,
             title.as_deref(),
-            has_token,
+            missing_token,
             &is_running,
         )
         .await?;
@@ -689,6 +696,12 @@ impl SlackThreadsState {
         let found = token::sources(&self.ctx.db, &self.ctx.lookup, summary.project_id.as_deref())
             .await
             .map_err(store::internal)?;
+        if found.is_empty() {
+            let code = token::missing_token_code(&self.ctx.db, &self.ctx.lookup, summary.project_id.as_deref())
+                .await
+                .map_err(store::internal)?;
+            return Err(CodedError::new(code, token::missing_token_detail(code)));
+        }
         let (client, _) = token::resolve(
             &found,
             &link.host,
