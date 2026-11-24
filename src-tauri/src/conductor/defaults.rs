@@ -126,12 +126,20 @@ pub async fn worker_resume_mode(
 
 /// A worker's status as the conductor's tools see it: one held for a FAIL
 /// retry (QO-06 3b) is still `running`, so `session_wait` / `session_poll`
-/// don't hand the conductor a failure the app is about to retry.
-pub async fn live_status(db: &Db, conductor: &super::ConductorState, worker_id: &str) -> Result<String, String> {
+/// don't hand the conductor a failure the app is about to retry. One whose
+/// turn is over while background tasks keep it up is `idle` (BG-04).
+pub async fn live_status(
+    db: &Db,
+    conductor: &super::ConductorState,
+    registry: &crate::runs::RunRegistry,
+    worker_id: &str,
+) -> Result<String, String> {
     if conductor.is_retrying(worker_id) {
         return Ok("running".to_string());
     }
-    super::tools::worker_status(db, worker_id).await
+    let status = super::tools::worker_status(db, worker_id).await?;
+    let idle = super::idle::idle_turn(registry, worker_id).await;
+    Ok(super::idle::effective_status(status, idle.as_ref()))
 }
 
 /// `session_send` must not resume a worker the app is about to retry.
@@ -326,10 +334,11 @@ mod tests {
         assert!(!cst.is_retrying("stranger"), "not a worker of a live conductor");
 
         cst.hold_for_retry("w");
-        assert_eq!(live_status(&db, &cst, "w").await.as_deref(), Ok("running"));
+        let registry = crate::runs::new_registry();
+        assert_eq!(live_status(&db, &cst, &registry, "w").await.as_deref(), Ok("running"));
         assert!(ensure_not_retrying(&cst, "w").unwrap_err().contains("being retried"));
         cst.release_retry("w");
-        assert_eq!(live_status(&db, &cst, "w").await.as_deref(), Ok("done"));
+        assert_eq!(live_status(&db, &cst, &registry, "w").await.as_deref(), Ok("done"));
         assert!(ensure_not_retrying(&cst, "w").is_ok());
         // All three tools ask through it; `session_send` again under the lock.
         let tools = include_str!("tools.rs");

@@ -15,6 +15,7 @@
 pub mod commands;
 pub mod defaults;
 mod framing;
+mod idle;
 pub mod launch_mode;
 pub mod mcp_http;
 mod nudge_reports;
@@ -453,6 +454,14 @@ impl ConductorState {
                 g.retrying.insert(worker_id.to_string());
             }
         }
+    }
+
+    /// Whether `worker_id` belongs to a conductor tracked here.
+    pub fn is_tracked_worker(&self, worker_id: &str) -> bool {
+        self.inner
+            .lock()
+            .map(|g| g.sessions.values().any(|s| s.worker_ids.iter().any(|w| w == worker_id)))
+            .unwrap_or(false)
     }
 
     pub fn is_retrying(&self, worker_id: &str) -> bool {

@@ -333,20 +333,20 @@ async fn session_list(state: &HttpState, conductor_run_id: &str) -> Result<Value
     .await
     .map_err(|e| e.to_string())?;
 
-    let workers: Vec<Value> = rows
-        .iter()
-        .map(|r| {
-            let status: String = r.get("status");
-            let id: String = r.get("id");
-            let entry = json!({
-                "worker_id": id,
-                "title": r.get::<Option<String>, _>("title"),
-                "engine": r.get::<String, _>("engine"),
-                "status": normalize_status(&status),
-            });
-            with_awaiting_permission(entry, &id)
-        })
-        .collect();
+    let reg = registry(state);
+    let mut workers = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let id: String = r.get("id");
+        let idle = super::idle::idle_turn(&reg, &id).await;
+        let status = super::idle::effective_status(r.get("status"), idle.as_ref());
+        let entry = json!({
+            "worker_id": id,
+            "title": r.get::<Option<String>, _>("title"),
+            "engine": r.get::<String, _>("engine"),
+            "status": normalize_status(&status),
+        });
+        workers.push(with_awaiting_permission(super::idle::with_background_tasks(entry, idle.as_ref()), &id));
+    }
     Ok(json!({ "workers": workers }))
 }
 
@@ -357,11 +357,13 @@ async fn session_poll(
 ) -> Result<Value, String> {
     let ids = requested_ids(state, conductor_run_id, &args).await?;
     let db = db(state);
+    let reg = registry(state);
     let mut out = Vec::new();
     for id in ids {
-        let status = super::defaults::live_status(&db, &state.conductor, &id).await?;
+        let status = super::defaults::live_status(&db, &state.conductor, &reg, &id).await?;
         let entry = json!({ "worker_id": id, "status": normalize_status(&status) });
-        out.push(with_awaiting_permission(entry, &id));
+        let idle = super::idle::idle_turn(&reg, &id).await;
+        out.push(with_awaiting_permission(super::idle::with_background_tasks(entry, idle.as_ref()), &id));
     }
     Ok(json!({ "workers": out }))
 }
@@ -397,14 +399,17 @@ pub(crate) async fn wait_snapshot(
     ids: &[String],
 ) -> Result<(Vec<Value>, Vec<String>), String> {
     let db = db(state);
+    let reg = registry(state);
     let mut done = Vec::new();
     let mut pending = Vec::new();
     for id in ids {
-        let status = super::defaults::live_status(&db, &state.conductor, id).await?;
+        let status = super::defaults::live_status(&db, &state.conductor, &reg, id).await?;
         if status == "running" {
             pending.push(id.clone());
         } else {
-            done.push(json!({ "worker_id": id, "status": normalize_status(&status) }));
+            let entry = json!({ "worker_id": id, "status": normalize_status(&status) });
+            let idle = super::idle::idle_turn(&reg, id).await;
+            done.push(super::idle::with_background_tasks(entry, idle.as_ref()));
         }
     }
     Ok((done, pending))
@@ -490,7 +495,8 @@ async fn session_read(
     .fetch_one(&db)
     .await
     .map_err(|e| e.to_string())?;
-    let status: String = row.get("status");
+    let idle = super::idle::idle_turn(&registry(state), &worker_id).await;
+    let status = super::idle::effective_status(row.get("status"), idle.as_ref());
     let project_path: String = row.get("project_path");
 
     let log_path = Path::new(&project_path)
@@ -498,7 +504,15 @@ async fn session_read(
         .join("runs")
         .join(format!("{}.log", worker_id));
     let reply = extract_latest_reply(&log_path);
-    if let (false, Some(at)) = (status == "running", row.get::<Option<String>, _>("finished_at")) {
+    // Keyed like the nudge's entry for it: the turn's end for an idle worker.
+    let read_at = match &idle {
+        Some(snap) => {
+            super::idle::note_reported(&worker_id, &reply);
+            snap.turn_ended_at.clone()
+        }
+        None => row.get::<Option<String>, _>("finished_at").filter(|_| status != "running"),
+    };
+    if let Some(at) = read_at {
         super::nudge_reports::mark_read(&worker_id, &at);
     }
     let (offset, max_chars) = read_window(&args);
@@ -508,7 +522,7 @@ async fn session_read(
     let mut entry = framing::frame_page(page, &worker_id, &role, &framing::new_nonce());
     entry["worker_id"] = json!(worker_id);
     entry["status"] = json!(normalize_status(&status));
-    Ok(with_awaiting_permission(entry, &worker_id))
+    Ok(with_awaiting_permission(super::idle::with_background_tasks(entry, idle.as_ref()), &worker_id))
 }
 
 /// `(offset, max_chars)` for `session_read`; a missing or zero `max_chars` means
@@ -705,7 +719,8 @@ pub(super) async fn worker_status(db: &Db, worker_id: &str) -> Result<String, St
 }
 
 /// Map DB run status onto the conductor's vocabulary. `running` == turn in
-/// progress; everything terminal is idle/awaitable.
+/// progress (`super::idle` turns a live worker whose turn is over into `idle`);
+/// everything terminal is idle/awaitable.
 fn normalize_status(status: &str) -> &'static str {
     match status {
         "running" => "running",

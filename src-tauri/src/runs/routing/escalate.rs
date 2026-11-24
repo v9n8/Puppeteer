@@ -529,10 +529,13 @@ mod tests {
             finished,
             &[
                 "if cst.session(run_id).is_some() {",
+                // A live worker's turn end (BG-04) wakes and returns before any of it.
+                "super::idle::live_turn(&registry_from(app), run_id)",
                 "if crate::runs::routing::escalate::on_worker_finished(app, run_id).await {\n        return;\n    }",
-                "wake_conductor_for_worker(app, &cst, run_id).await;",
             ],
         );
+        let exit_wake = finished.rfind("wake_conductor_for_worker(app, &cst, run_id).await;").unwrap();
+        assert!(finished.find("escalate::on_worker_finished(app, run_id)").unwrap() < exit_wake);
         assert!(!finished.contains("routing::worker::finished("), "closed once, by the escalation");
         let own = include_str!("escalate.rs").replace("\r\n", "\n");
         let wrapper = section(&own, "pub async fn on_worker_finished(", "\n}\n");

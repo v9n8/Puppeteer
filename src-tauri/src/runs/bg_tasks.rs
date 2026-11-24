@@ -188,7 +188,7 @@ mod tests {
 
 // The stand-in sidecar is `cat`, which Windows does not ship.
 #[cfg(all(test, unix))]
-mod stop_tests {
+pub(crate) mod stop_tests {
     use super::*;
     use crate::runs::stdin_writer::SidecarInput;
     use crate::runs::TurnGate;
@@ -196,8 +196,21 @@ mod stop_tests {
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::sync::Mutex;
 
-    // A live run whose "sidecar" is `cat`: what reaches it comes back on stdout.
-    async fn live(tasks: &[&str]) -> (RunRegistry, tokio::io::Lines<BufReader<tokio::process::ChildStdout>>) {
+    pub(crate) type Echo = tokio::io::Lines<BufReader<tokio::process::ChildStdout>>;
+
+    async fn live(tasks: &[&str]) -> (RunRegistry, Echo) {
+        let bg_tasks = tasks
+            .iter()
+            .map(|id| BgTask { task_id: id.to_string(), task_type: "local_bash".into(), description: String::new(), subagent_type: None })
+            .collect();
+        let registry = crate::runs::new_registry();
+        let out = insert_live(&registry, "r1", TurnGate { bg_tasks, ..Default::default() }).await;
+        (registry, out)
+    }
+
+    /// Register a live run whose "sidecar" is `cat`: what reaches it comes
+    /// back on the returned stdout.
+    pub(crate) async fn insert_live(registry: &RunRegistry, run_id: &str, turn_gate: TurnGate) -> Echo {
         let mut child = tokio::process::Command::new("cat")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -206,13 +219,8 @@ mod stop_tests {
             .unwrap();
         let stdout = BufReader::new(child.stdout.take().unwrap()).lines();
         let input = child.stdin.take().map(|w| SidecarInput::spawn(w, Box::new(|_| {})));
-        let bg_tasks = tasks
-            .iter()
-            .map(|id| BgTask { task_id: id.to_string(), task_type: "local_bash".into(), description: String::new(), subagent_type: None })
-            .collect();
-        let registry = crate::runs::new_registry();
         registry.lock().await.insert(
-            "r1".to_string(),
+            run_id.to_string(),
             RunHandles {
                 proc: None,
                 pgid: None,
@@ -223,10 +231,10 @@ mod stop_tests {
                 broker_run: None,
                 ssh_access: None,
                 claude_account_id: None,
-                turn_gate: TurnGate { bg_tasks, ..Default::default() },
+                turn_gate,
             },
         );
-        (registry, stdout)
+        stdout
     }
 
     #[tokio::test]

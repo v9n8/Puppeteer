@@ -41,9 +41,10 @@ pub struct WorkerResult {
     pub retried: Option<crate::runs::routing::escalate::Retried>,
 }
 
-/// Workers of this conductor (not trashed, not running) that finished after the
-/// last report, oldest first.
-pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
+/// Workers of this conductor (not trashed) that finished after the last report,
+/// oldest first: those that exited, and those still live whose turn is over
+/// (`idle`: worker id → when that turn ended, BG-04), reported as `idle`.
+pub async fn collect(db: &Db, conductor_run_id: &str, idle: &HashMap<String, String>) -> Vec<WorkerResult> {
     let known = REPORTED.lock().ok().and_then(|m| m.get(conductor_run_id).cloned());
     let since = match known {
         Some(s) => s,
@@ -71,7 +72,7 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
          ORDER BY r.finished_at ASC",
     )
     .bind(conductor_run_id)
-    .bind(since)
+    .bind(&since)
     .fetch_all(db)
     .await
     .unwrap_or_else(|e| {
@@ -93,7 +94,44 @@ pub async fn collect(db: &Db, conductor_run_id: &str) -> Vec<WorkerResult> {
             retried,
         });
     }
+    if !idle.is_empty() {
+        results.extend(collect_idle(db, conductor_run_id, idle, &since).await);
+        results.sort_by(|a, b| a.finished_at.cmp(&b.finished_at));
+    }
     results
+}
+
+/// The live workers of this conductor whose turn ended after `since`.
+async fn collect_idle(db: &Db, conductor_run_id: &str, idle: &HashMap<String, String>, since: &str) -> Vec<WorkerResult> {
+    let rows = sqlx::query(
+        "SELECT r.id, COALESCE(r.title, '') AS title,
+                (SELECT u.duration_ms FROM run_usage u WHERE u.run_id = r.id ORDER BY u.created_at DESC LIMIT 1) AS duration_ms,
+                (SELECT u.total_tokens FROM run_usage u WHERE u.run_id = r.id ORDER BY u.created_at DESC LIMIT 1) AS total_tokens
+         FROM runs r
+         WHERE r.conductor_run_id = ? AND r.deleted_at IS NULL AND r.status = 'running'",
+    )
+    .bind(conductor_run_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(event = "worker_results_collect_failed", run_id = %conductor_run_id, error = %e);
+        Vec::new()
+    });
+    rows.iter()
+        .filter_map(|r| {
+            let id: String = r.get("id");
+            let ended_at = idle.get(&id).filter(|at| at.as_str() > since)?.clone();
+            Some(WorkerResult {
+                id,
+                title: r.get("title"),
+                status: "idle".to_string(),
+                finished_at: ended_at,
+                duration_ms: r.get("duration_ms"),
+                total_tokens: r.get("total_tokens"),
+                retried: None,
+            })
+        })
+        .collect()
 }
 
 /// The nudge for `results`, with their reports read from the workers' logs.
@@ -309,11 +347,34 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let got = collect(&db, "c1").await;
+        let got = collect(&db, "c1", &HashMap::new()).await;
         let ids: Vec<_> = got.iter().map(|w| w.id.as_str()).collect();
         assert_eq!(ids, ["w-late", "w-later"]);
         assert_eq!((got[0].duration_ms, got[0].total_tokens), (Some(7), Some(70)));
         assert_eq!((got[1].duration_ms, got[1].total_tokens), (None, None));
+    }
+
+    /// BG-04: a live worker whose turn ended after the mark is reported as
+    /// idle, in turn-end order with the workers that exited.
+    #[tokio::test]
+    async fn collect_adds_live_workers_whose_turn_is_over() {
+        let db = db().await;
+        run(&db, "c1", None, "running", None, None).await;
+        run(&db, "w-done", Some("c1"), "done", Some("2026-01-03T00:00:00Z"), None).await;
+        run(&db, "w-idle", Some("c1"), "running", None, None).await;
+        run(&db, "w-busy", Some("c1"), "running", None, None).await;
+        run(&db, "w-old-idle", Some("c1"), "running", None, None).await;
+        run(&db, "w-other", Some("c2"), "running", None, None).await;
+        let idle = HashMap::from([
+            ("w-idle".to_string(), "2026-01-02T12:00:00Z".to_string()),
+            // Ended before the conductor's last activity: already behind the mark.
+            ("w-old-idle".to_string(), "2026-01-01T00:00:00Z".to_string()),
+            ("w-other".to_string(), "2026-01-05T00:00:00Z".to_string()),
+        ]);
+        let got = collect(&db, "c1", &idle).await;
+        let ids: Vec<_> = got.iter().map(|w| (w.id.as_str(), w.status.as_str())).collect();
+        assert_eq!(ids, [("w-idle", "idle"), ("w-done", "done")]);
+        assert_eq!(got[0].finished_at, "2026-01-02T12:00:00Z");
     }
 
     /// QO-AC52 (BE): a worker the app retried carries the two tiers.
@@ -332,7 +393,7 @@ mod tests {
         .execute(&db)
         .await
         .unwrap();
-        let got = collect(&db, "c1").await;
+        let got = collect(&db, "c1", &HashMap::new()).await;
         let retried = |i: usize| got[i].retried.clone().map(|r| (r.from, r.to));
         assert_eq!(retried(0), Some(("sonnet/medium".to_string(), "opus/medium".to_string())));
         assert_eq!(retried(1), None);
@@ -370,17 +431,17 @@ mod tests {
         run(&db, "c-fail", None, "running", None, None).await;
         run(&db, "w1", Some("c-fail"), "done", Some("2026-01-03T00:00:00Z"), None).await;
         let registry = live("c-fail").await;
-        let results = collect(&db, "c-fail").await;
+        let results = collect(&db, "c-fail", &HashMap::new()).await;
         let sent = deliver(&db, &registry, "c-fail", &results, async { Err::<(), _>("budget".to_string()) }).await;
         assert!(sent.is_err());
         let buf = registry.lock().await.get("c-fail").unwrap().log_buf.clone();
         assert!(!buf.lock().await.contains(RECORD_TYPE));
-        let again: Vec<_> = collect(&db, "c-fail").await.into_iter().map(|w| w.id).collect();
+        let again: Vec<_> = collect(&db, "c-fail", &HashMap::new()).await.into_iter().map(|w| w.id).collect();
         assert_eq!(again, ["w1"]);
 
         deliver(&db, &registry, "c-fail", &results, async { Ok::<(), String>(()) }).await.unwrap();
         assert!(buf.lock().await.contains(RECORD_TYPE));
-        assert!(collect(&db, "c-fail").await.is_empty());
+        assert!(collect(&db, "c-fail", &HashMap::new()).await.is_empty());
     }
 
     /// CO-08: after a restart the stored mark, not the conductor's later
@@ -396,14 +457,14 @@ mod tests {
             .unwrap();
         run(&db, "w1", Some("c-mark"), "done", Some("2026-01-03T00:00:00Z"), None).await;
         let registry = live("c-mark").await;
-        let results = collect(&db, "c-mark").await;
+        let results = collect(&db, "c-mark", &HashMap::new()).await;
         deliver(&db, &registry, "c-mark", &results, async { Ok::<(), String>(()) }).await.unwrap();
 
         // w2's nudge failed, then the user wrote to the conductor; then the app restarted.
         run(&db, "w2", Some("c-mark"), "done", Some("2026-01-05T00:00:00Z"), None).await;
         sqlx::query("UPDATE runs SET last_activity_at = '2026-01-06T00:00:00Z' WHERE id = 'c-mark'").execute(&db).await.unwrap();
         REPORTED.lock().unwrap().remove("c-mark");
-        let again: Vec<_> = collect(&db, "c-mark").await.into_iter().map(|w| w.id).collect();
+        let again: Vec<_> = collect(&db, "c-mark", &HashMap::new()).await.into_iter().map(|w| w.id).collect();
         assert_eq!(again, ["w2"]);
     }
 
@@ -417,12 +478,12 @@ mod tests {
             .await
             .unwrap();
         run(&db, "w1", Some("c-skip"), "done", Some("2026-01-03T00:00:00Z"), None).await;
-        let results = collect(&db, "c-skip").await;
+        let results = collect(&db, "c-skip", &HashMap::new()).await;
         mark_reported(&db, "c-skip", &results).await;
-        assert!(collect(&db, "c-skip").await.is_empty());
+        assert!(collect(&db, "c-skip", &HashMap::new()).await.is_empty());
         REPORTED.lock().unwrap().remove("c-skip");
-        assert!(collect(&db, "c-skip").await.is_empty());
+        assert!(collect(&db, "c-skip", &HashMap::new()).await.is_empty());
         mark_reported(&db, "c-skip", &[]).await;
-        assert!(collect(&db, "c-skip").await.is_empty());
+        assert!(collect(&db, "c-skip", &HashMap::new()).await.is_empty());
     }
 }

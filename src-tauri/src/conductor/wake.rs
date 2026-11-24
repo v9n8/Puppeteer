@@ -10,8 +10,8 @@ use crate::db::Db;
 use crate::runs::RunRegistry;
 
 /// Called (via the wake channel) when ANY run's sidecar exits, and when a
-/// conductor's turn ends while its sidecar stays alive. Closes the conductor
-/// control loop so the human never has to prod it:
+/// conductor's or a worker's turn ends while its sidecar stays alive. Closes the
+/// conductor control loop so the human never has to prod it:
 ///   • if the run is a conductor, its turn is over: release its auto-wake slot
 ///     and deliver any wake a worker deferred while it was busy;
 ///   • if the run is a worker, wake its conductor.
@@ -31,10 +31,22 @@ pub async fn on_run_finished(app: &tauri::AppHandle, run_id: &str) {
         return;
     }
 
+    // Still live: its turn ended while background tasks keep it up (BG-04).
+    // Its routing row and a FAIL retry wait for the exit; the conductor is
+    // woken now, unless a new turn (a wake-up, a follow-up) began meanwhile:
+    // that turn's end comes back here.
+    if let Some(idle) = super::idle::live_turn(&registry_from(app), run_id).await {
+        if idle {
+            wake_conductor_for_worker(app, &cst, run_id).await;
+        }
+        return;
+    }
+
     // Closes the worker's routing row; a FAIL retried one tier up wakes no one yet.
     if crate::runs::routing::escalate::on_worker_finished(app, run_id).await {
         return;
     }
+    super::idle::settle_exit(&db_from(app), run_id).await;
     wake_conductor_for_worker(app, &cst, run_id).await;
 }
 
@@ -106,7 +118,8 @@ async fn wake_conductor(
         return;
     }
 
-    let results = crate::conductor::worker_results::collect(&db, conductor_run_id).await;
+    let idle = super::idle::idle_turns(&registry_from(app)).await;
+    let results = crate::conductor::worker_results::collect(&db, conductor_run_id, &idle).await;
     // The conductor already read every one of them with session_read (often
     // right after session_wait, CO-10): a wake would cost a whole model call
     // over its context just to repeat that. Skip it, move the mark past them,
@@ -151,7 +164,9 @@ async fn wake_conductor(
             },
             false,
         );
-        crate::conductor::worker_results::deliver(&db, &registry, conductor_run_id, &results, send).await
+        let sent = crate::conductor::worker_results::deliver(&db, &registry, conductor_run_id, &results, send).await?;
+        super::idle::note_delivered(&db, &results).await;
+        Ok::<_, String>(sent)
     }
     .await;
 
@@ -195,7 +210,7 @@ mod tests {
         let body = &src[src.find("async fn wake_conductor(").unwrap()..];
         let at = |s: &str| body.find(s).unwrap_or_else(|| panic!("missing {s}"));
         let skip = at("if crate::conductor::nudge_reports::all_read(&results) {");
-        assert!(at("worker_results::collect(&db, conductor_run_id)") < skip);
+        assert!(at("worker_results::collect(&db, conductor_run_id, &idle)") < skip);
         assert!(skip < at("worker_results::nudge(&db, conductor_run_id, &results)"));
         assert!(skip < at("resume_run_with("));
     }

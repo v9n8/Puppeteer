@@ -1331,7 +1331,16 @@ pub async fn drain_sidecar(
                                         // channel so a wake a worker deferred meanwhile is
                                         // delivered to the live sidecar instead of lost.
                                         // (When stdin closes, `run:done` covers it.)
-                                        if cst.session(&run_id).is_some() {
+                                        // A worker's turn ended the same way (BG-04): its
+                                        // conductor is woken now, not at the exit. Not when a
+                                        // queued follow-up already began its next turn, nor on
+                                        // a leftover result before its own turn ended.
+                                        let worker_idle = !next_turn && user_turn_ended_once && cst.is_tracked_worker(&run_id);
+                                        if worker_idle {
+                                            // The nudge reads the worker's reply from its log file.
+                                            log_file.flush(&log_buf.lock().await);
+                                        }
+                                        if cst.session(&run_id).is_some() || worker_idle {
                                             cst.notify_run_finished(run_id.clone());
                                         }
                                     }
