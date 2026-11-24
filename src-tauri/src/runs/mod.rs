@@ -1,4 +1,5 @@
 pub mod account_switch;
+pub mod bg_tasks;
 pub mod bookmarks;
 pub mod broker;
 pub mod claude_prompt;
@@ -106,6 +107,12 @@ pub struct TurnGate {
     pub stopping: bool,
     /// Wakes that Stop when the turn's `result` arrives.
     pub stop_ack: Option<oneshot::Sender<()>>,
+    /// The background tasks the session keeps alive (`bg_tasks`), from the
+    /// latest `background_tasks_changed`.
+    pub bg_tasks: Vec<bg_tasks::BgTask>,
+    /// When a turn of this process last ended (RFC 3339); whether the session
+    /// waits for input now is `bg_tasks::snapshot`'s call.
+    pub turn_ended_at: Option<String>,
 }
 
 impl TurnGate {

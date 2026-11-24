@@ -931,6 +931,7 @@ pub fn run() {
             runs::bookmarks::add_run_bookmark,
             runs::bookmarks::delete_run_bookmark,
             runs::quotes::list_run_quotes,
+            runs::bg_tasks::get_background_tasks,
             commands::response_styles::list_response_styles,
             commands::response_styles::create_response_style,
             commands::response_styles::update_response_style,

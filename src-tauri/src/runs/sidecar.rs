@@ -606,6 +606,9 @@ pub async fn drain_sidecar(
     // `TurnGate` busy (once per turn): a turn the engine began by itself (a
     // Claude wake-up) holds follow-ups back like one Puppeteer started.
     let mut gate_marked = false;
+    // What the webview was last told of the background tasks and the turn
+    // (`bg_tasks::publish`).
+    let mut bg_last: Option<super::bg_tasks::BgSnapshot> = None;
 
     // Watchdog: nothing may wait forever silently, and nothing is stopped or
     // answered on suspicion. Policy lives in `runs::liveness` (notices only);
@@ -813,9 +816,13 @@ pub async fn drain_sidecar(
                 drain_close_deadline = None;
                 if drain_should_close_stdin(live_bg_tasks, user_turn_ended_once, turn_active) {
                     let mut reg = registry.lock().await;
-                    if let Some(handles) = reg.get_mut(&run_id) {
+                    // A follow-up sent in the window has not streamed yet: its
+                    // turn is coming, and its own `result` closes instead.
+                    if let Some(handles) = reg.get_mut(&run_id).filter(|h| !h.turn_gate.busy) {
                         handles.stdin.take();
                     }
+                    drop(reg);
+                    super::bg_tasks::publish(&app, &registry, &run_id, &mut bg_last).await;
                 }
             }
             // The session is provably over (`_puppeteer_closed`, or the sidecar process
@@ -1183,6 +1190,9 @@ pub async fn drain_sidecar(
                                 {
                                     if let Some(tasks) = v.get("tasks") {
                                         live_bg_tasks = count_blocking_bg_tasks(tasks);
+                                        if let Some(handles) = registry.lock().await.get_mut(&run_id) {
+                                            handles.turn_gate.bg_tasks = super::bg_tasks::blocking_tasks(tasks);
+                                        }
                                     }
                                     // A `background_tasks_changed` that drains the last
                                     // task must EVENTUALLY close stdin (otherwise the
@@ -1211,6 +1221,7 @@ pub async fn drain_sidecar(
                                         // re-arm when it drains.
                                         drain_close_deadline = None;
                                     }
+                                    super::bg_tasks::publish(&app, &registry, &run_id, &mut bg_last).await;
                                 }
                                 // Any wake-turn activity cancels a pending deferred
                                 // drain-close: the turn is live, so its own `result` will
@@ -1228,6 +1239,7 @@ pub async fn drain_sidecar(
                                         if let Some(handles) = registry.lock().await.get_mut(&run_id) {
                                             handles.turn_gate.busy = true;
                                         }
+                                        super::bg_tasks::publish(&app, &registry, &run_id, &mut bg_last).await;
                                     }
                                 }
                                 // End the turn: closing stdin makes the sidecar's
@@ -1291,6 +1303,11 @@ pub async fn drain_sidecar(
                                     // Not on a leftover task's `result` landing
                                     // before the user's turn ended: that turn is
                                     // still running.
+                                    if user_turn_ended_once {
+                                        if let Some(handles) = registry.lock().await.get_mut(&run_id) {
+                                            handles.turn_gate.turn_ended_at = Some(chrono::Utc::now().to_rfc3339());
+                                        }
+                                    }
                                     let next_turn = !stopping
                                         && user_turn_ended_once
                                         && start_queued_turn(&app, &db_pool, &registry, &log_buf, &remote_bus, &run_id).await;
@@ -1318,6 +1335,7 @@ pub async fn drain_sidecar(
                                             cst.notify_run_finished(run_id.clone());
                                         }
                                     }
+                                    super::bg_tasks::publish(&app, &registry, &run_id, &mut bg_last).await;
                                     // This turn's usage is now recorded. Re-check
                                     // the global budget; if it tipped over, tell
                                     // the UI to lock the composer so the next turn
