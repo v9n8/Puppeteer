@@ -66,8 +66,9 @@ const BATCH_TIMEOUT: Duration = Duration::from_secs(180);
 /// final event always go out).
 const PROGRESS_MIN_GAP: Duration = Duration::from_millis(250);
 /// `fetch_error_code`s retried automatically at startup.
-const TRANSIENT_CODES: [&str; 5] = [
+const TRANSIENT_CODES: [&str; 6] = [
     "no_token",
+    token::OFF_FOR_PROJECT,
     "no_token_for_workspace",
     "invalid_auth",
     "network",

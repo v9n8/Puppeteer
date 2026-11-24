@@ -114,3 +114,18 @@ async fn a_token_that_is_only_off_for_the_project_says_so_instead_of_no_token() 
     off_app_wide(&env.db, "srv1").await;
     assert_eq!(token::missing_token_code(&env.db, &env.tokens.lookup(), Some("p1")).await.unwrap(), "no_token");
 }
+
+#[tokio::test]
+async fn a_thread_waiting_for_slack_on_its_project_is_retried_at_startup() {
+    let env = Env::new("off-for-project-restart").await;
+    env.seed_thread();
+    off_for_project(&env.db, "srv1", "p1").await;
+    let id = env.state.add_thread(LINK, Some("p1"), None, false).await.unwrap().id;
+    assert_eq!(env.status(&id).await.1.as_deref(), Some(token::OFF_FOR_PROJECT));
+    // Switched back on for p1, then the app restarts.
+    crate::commands::mcp::set_project_mcp_server_enabled(&env.db, "p1", "srv1", true).await.unwrap();
+    env.state.startup_recover().await;
+    assert_eq!(env.status(&id).await.0, "pending");
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "ready");
+}
