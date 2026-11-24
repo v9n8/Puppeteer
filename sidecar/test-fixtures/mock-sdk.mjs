@@ -15,6 +15,8 @@
 //                 succeeds when there is none.
 //   interrupt   — the turn runs until `interrupt()` is called, then ends the
 //                 way an interrupted turn does.
+//   bg-task     — the turn ends with a background task alive (`bash-1`);
+//                 `stopTask('bash-1')` empties the live set, another id rejects.
 //   verify-stop — a turn per input, scripted by MOCK_TURNS (JSON, one entry per
 //                 turn): `tools` [{ tool, command?, failed? }] go through the
 //                 tool hooks, then the Stop hook runs like the CLI's loop (after a
@@ -67,6 +69,8 @@ export function query({ prompt, options }) {
   const contextAnswers = []
   let interrupt
   const interrupted = new Promise((resolve) => { interrupt = resolve })
+  let stopBash
+  const bashStopped = new Promise((resolve) => { stopBash = resolve })
 
   async function* run() {
     const first = await input.next() // the first user prompt
@@ -89,6 +93,14 @@ export function query({ prompt, options }) {
     if (scenario === 'interrupt') {
       await interrupted
       yield { type: 'result', subtype: 'error_during_execution', is_error: true, mock_interrupted: true }
+      while (!(await input.next()).done) { /* until stdin closes */ }
+      return
+    }
+    if (scenario === 'bg-task') {
+      yield { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'bash-1', task_type: 'local_bash', description: 'grep -n foo' }] }
+      yield { type: 'result', subtype: 'success' }
+      await bashStopped
+      yield { type: 'system', subtype: 'background_tasks_changed', tasks: [] }
       while (!(await input.next()).done) { /* until stdin closes */ }
       return
     }
@@ -147,6 +159,12 @@ export function query({ prompt, options }) {
 
   const session = run()
   if (scenario === 'interrupt') session.interrupt = async () => interrupt()
+  if (scenario === 'bg-task') {
+    session.stopTask = async (taskId) => {
+      if (taskId !== 'bash-1') throw new Error(`no task ${taskId}`)
+      stopBash()
+    }
+  }
   if (scenario === 'context') {
     session.getContextUsage = (opts) => {
       if (opts?.detail !== 'summary') return Promise.reject(new Error(`unexpected detail: ${opts?.detail}`))

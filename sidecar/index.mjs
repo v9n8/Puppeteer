@@ -921,6 +921,15 @@ rl.on('line', (raw) => {
         currentQuery.interrupt().catch((e) => send({ type: '_puppeteer_stderr', text: String(e) }))
       }
       break
+    // Stop one background task the session keeps alive (a backgrounded Bash,
+    // a background subagent). The CLI then drops it from the live set.
+    case 'stop_task':
+      if (currentQuery && typeof currentQuery.stopTask === 'function') {
+        currentQuery.stopTask(cmd.taskId).catch((e) => send({ type: '_puppeteer_stderr', text: `stop_task ${cmd.taskId}: ${e}` }))
+      } else {
+        send({ type: '_puppeteer_stderr', text: `stop_task ${cmd.taskId}: no session is running` })
+      }
+      break
     case 'end_input':
       if (inputQueue) inputQueue.close()
       break

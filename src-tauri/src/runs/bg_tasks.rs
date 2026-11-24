@@ -91,6 +91,33 @@ pub async fn get_background_tasks(
     Ok(registry.lock().await.get(&run_id).map(|h| snapshot(&run_id, h)))
 }
 
+/// The line that asks the sidecar to stop one task (`Query.stopTask`).
+fn stop_task_line(task_id: &str) -> String {
+    format!("{}\n", serde_json::json!({ "type": "stop_task", "taskId": task_id }))
+}
+
+/// Ask the session to stop one of its background tasks. The CLI then drops it
+/// from the set, and the drain ends the session through its usual path once
+/// none is left (`done`, not `cancelled`: nobody stopped the session).
+async fn stop_task(registry: &RunRegistry, run_id: &str, task_id: &str) -> Result<(), String> {
+    let reg = registry.lock().await;
+    let handles = reg.get(run_id).ok_or_else(|| "run not active".to_string())?;
+    if !handles.turn_gate.bg_tasks.iter().any(|t| t.task_id == task_id) {
+        return Err(format!("background task {task_id} is not running"));
+    }
+    let input = handles.stdin.as_ref().ok_or_else(|| "run is not accepting input".to_string())?;
+    input.queue(stop_task_line(task_id))
+}
+
+#[tauri::command]
+pub async fn stop_background_task(
+    registry: State<'_, RunRegistry>,
+    run_id: String,
+    task_id: String,
+) -> Result<(), String> {
+    stop_task(&registry, &run_id, &task_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +183,66 @@ mod tests {
             json!({ "run_id": "r1", "turn_done": true, "turn_ended_at": "t",
                     "tasks": [{ "task_id": "a", "task_type": "local_bash", "description": "grep" }] })
         );
+    }
+}
+
+// The stand-in sidecar is `cat`, which Windows does not ship.
+#[cfg(all(test, unix))]
+mod stop_tests {
+    use super::*;
+    use crate::runs::stdin_writer::SidecarInput;
+    use crate::runs::TurnGate;
+    use std::sync::Arc;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::sync::Mutex;
+
+    // A live run whose "sidecar" is `cat`: what reaches it comes back on stdout.
+    async fn live(tasks: &[&str]) -> (RunRegistry, tokio::io::Lines<BufReader<tokio::process::ChildStdout>>) {
+        let mut child = tokio::process::Command::new("cat")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let stdout = BufReader::new(child.stdout.take().unwrap()).lines();
+        let input = child.stdin.take().map(|w| SidecarInput::spawn(w, Box::new(|_| {})));
+        let bg_tasks = tasks
+            .iter()
+            .map(|id| BgTask { task_id: id.to_string(), task_type: "local_bash".into(), description: String::new(), subagent_type: None })
+            .collect();
+        let registry = crate::runs::new_registry();
+        registry.lock().await.insert(
+            "r1".to_string(),
+            RunHandles {
+                proc: None,
+                pgid: None,
+                child,
+                stdin: input,
+                session_id: Arc::new(Mutex::new(None)),
+                log_buf: Arc::new(Mutex::new(String::new())),
+                broker_run: None,
+                ssh_access: None,
+                claude_account_id: None,
+                turn_gate: TurnGate { bg_tasks, ..Default::default() },
+            },
+        );
+        (registry, stdout)
+    }
+
+    #[tokio::test]
+    async fn a_live_task_is_asked_to_stop_through_the_sidecar_input() {
+        let (registry, mut out) = live(&["bwdxa3p57"]).await;
+        stop_task(&registry, "r1", "bwdxa3p57").await.unwrap();
+        let line = tokio::time::timeout(std::time::Duration::from_secs(5), out.next_line()).await.unwrap().unwrap().unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&line).unwrap(), serde_json::json!({ "type": "stop_task", "taskId": "bwdxa3p57" }));
+    }
+
+    #[tokio::test]
+    async fn refusals_say_why() {
+        let (registry, _out) = live(&["a"]).await;
+        assert_eq!(stop_task(&registry, "gone", "a").await.unwrap_err(), "run not active");
+        assert_eq!(stop_task(&registry, "r1", "b").await.unwrap_err(), "background task b is not running");
+        registry.lock().await.get_mut("r1").unwrap().stdin.take();
+        assert_eq!(stop_task(&registry, "r1", "a").await.unwrap_err(), "run is not accepting input");
     }
 }

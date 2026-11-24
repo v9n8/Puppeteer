@@ -623,6 +623,29 @@ const tests = {
     assert.equal(code, 0)
   },
 
+  // BG-02: the Stop of one background task reaches Query.stopTask(); the CLI
+  // then empties the live set and the broker closes the input as usual. A
+  // refusal (unknown task, no session yet) comes back as stderr, not silence.
+  async 'stop_task reaches Query.stopTask(); a refusal says why'() {
+    const { messages, code } = await runSidecar('bg-task', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') {
+        ctl.send({ type: 'stop_task', taskId: 'early' })
+        startPrompt(ctl)
+      }
+      if (msg.type === 'result') {
+        ctl.send({ type: 'stop_task', taskId: 'nope' })
+        ctl.send({ type: 'stop_task', taskId: 'bash-1' })
+      }
+      if (msg.type === 'system' && msg.subtype === 'background_tasks_changed' && !msg.tasks.length) ctl.closeInput()
+    })
+    const stderr = of(messages, '_puppeteer_stderr').map((m) => m.text)
+    assert.deepEqual(stderr, ['stop_task early: no session is running', 'stop_task nope: Error: no task nope'])
+    const sets = messages.filter((m) => m.subtype === 'background_tasks_changed').map((m) => m.tasks.map((t) => t.task_id))
+    assert.deepEqual(sets, [['bash-1'], []])
+    assert.equal(of(messages, '_puppeteer_closed')[0].code, 0)
+    assert.equal(code, 0)
+  },
+
   // AC-24: with PUPPETEER_VERIFY_ON_STOP (a worker, an unattended turn) the Stop
   // hook sends a turn that changed files without a check back once; otherwise
   // it lets the turn end.
