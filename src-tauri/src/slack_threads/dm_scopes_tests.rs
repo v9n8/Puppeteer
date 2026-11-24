@@ -51,14 +51,17 @@ async fn a_slack_that_does_not_answer_reads_as_a_token_error_once_the_timeout_pa
         trusted_test_origin: Some(base),
         ..Default::default()
     });
-    // Two silent tokens: checked at the same time, so the whole check stays near one timeout.
+    // Three silent tokens: checked at the same time, so the whole check stays near one timeout.
     env.tokens.set(&env.db, "srv2", "xoxp-2").await;
+    env.tokens.set(&env.db, "srv3", "xoxp-3").await;
     let started = std::time::Instant::now();
     let ctx = env.state.ctx();
-    let r = check_all(&ctx.db, &ctx.lookup, &cfg, &cfg.token_client(), &ctx.auth_cache, Duration::from_millis(500))
+    let r = check_all(&ctx.db, &ctx.lookup, &cfg, &cfg.token_client(), &ctx.auth_cache, Duration::from_secs(2))
         .await
         .unwrap();
-    assert_eq!(r.iter().map(|x| (x.server_id.as_str(), x.status)).collect::<Vec<_>>(), [("srv1", "token_error"), ("srv2", "token_error")]);
-    assert!(started.elapsed() < Duration::from_millis(950), "{:?}", started.elapsed());
+    assert_eq!(r.iter().map(|x| (x.server_id.as_str(), x.status)).collect::<Vec<_>>(), [("srv1", "token_error"), ("srv2", "token_error"), ("srv3", "token_error")]);
+    // One after the other would take at least 3 × 2 s; together, about 2 s. The margin is
+    // wide so a loaded runner does not fail it.
+    assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
     drop(silent);
 }
