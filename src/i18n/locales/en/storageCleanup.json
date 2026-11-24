@@ -1,7 +1,12 @@
 {
   "cleanable": "Cleanable",
   "cleanableHint": "What the next cleanup would remove, with files older than {days} days.",
-  "kept": "{n} kept (unfinished work)",
+  "kept": "{n} kept",
+  "keptBy": {
+    "worktrees": "{n} kept (unfinished work)",
+    "trash": "{n} kept (protected, in use or recently trashed)",
+    "deleted_accounts": "{n} kept (a Session transcript is inside)"
+  },
   "about": "about {size}",
   "cleanNow": "Clean now",
   "compact": "Compact database",

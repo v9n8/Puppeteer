@@ -1,7 +1,12 @@
 {
   "cleanable": "Có thể dọn",
   "cleanableHint": "Phần lần dọn tới sẽ xoá, với file cũ hơn {days} ngày.",
-  "kept": "Giữ lại {n} (việc chưa xong)",
+  "kept": "Giữ lại {n}",
+  "keptBy": {
+    "worktrees": "Giữ lại {n} (việc chưa xong)",
+    "trash": "Giữ lại {n} (được bảo vệ, đang dùng hoặc mới vào Thùng rác)",
+    "deleted_accounts": "Giữ lại {n} (còn transcript của Session bên trong)"
+  },
   "about": "khoảng {size}",
   "cleanNow": "Dọn ngay",
   "compact": "Thu gọn database",

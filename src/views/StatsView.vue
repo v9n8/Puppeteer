@@ -415,6 +415,13 @@ function rowText(c: { id: string; label: string; description: string }, part: 'l
   return te(key) ? t(key) : c[part]
 }
 
+// Each kind keeps items for its own reason; a kind with no reason of its own
+// gets the plain count.
+function keptText(id: string, n: number): string {
+  const key = `storageCleanup.keptBy.${id}`
+  return te(key) ? t(key, { n }) : t('storageCleanup.kept', { n })
+}
+
 function fmtBytes(n: number): string {
   if (n <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -839,7 +846,7 @@ async function compact() {
                       : fmtBytes(cleanable[c.id]!.bytes) }}
                   </span>
                   <p v-if="cleanable[c.id]!.keptItems" class="text-2xs text-warning mt-0.5">
-                    {{ t('storageCleanup.kept', { n: cleanable[c.id]!.keptItems }) }}
+                    {{ keptText(c.id, cleanable[c.id]!.keptItems) }}
                   </p>
                 </template>
                 <span v-else class="text-muted-foreground/40">—</span>
