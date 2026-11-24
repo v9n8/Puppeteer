@@ -99,4 +99,3 @@ For details (database location, reset, relay, common errors), see the run guide:
 ## Contact
 
 - Email: huanvu201203@gmail.com
-- Phone: 0983 334 201
