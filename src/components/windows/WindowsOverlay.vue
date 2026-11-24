@@ -19,6 +19,7 @@ import { useToast } from '@/composables/useToast'
 import { IS_MAC, effectiveKeymap, hasNativeMenu } from '@/lib/appMenu'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { OPEN_WINDOWS_ACTION, formatAccelerator, matchesAccelerator } from '@/lib/keymap'
+import { isTopModal, pushModal, removeModal } from '@/lib/modalStack'
 import { closeWindow, minimizeWindow, raiseWindow, requestMergeBack } from '@/lib/openWindowsActions'
 import { loadRecentWindows } from '@/lib/windowRegistry'
 import { thumbFor } from '@/lib/windowThumbs'
@@ -52,6 +53,10 @@ const root = ref<HTMLElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
 const filterInput = ref<HTMLInputElement | null>(null)
 let returnFocusTo: HTMLElement | null = null
+// The layer takes a place in the dialog stack (lib/modalStack) like a Modal: a dialog
+// opened after it sits above it and takes the keys, one opened before it stays below.
+const layerId = Symbol('windows-overlay')
+const zIndex = ref(50)
 
 try {
   groupBy.value = parseGroupBy(localStorage.getItem(GROUP_STORAGE_KEY))
@@ -96,6 +101,8 @@ watch(
   () => store.open,
   async (open) => {
     if (open) {
+      // The layer never renders in remote mode: no place in the stack either.
+      if (!isRemoteMode()) zIndex.value = pushModal(layerId)
       returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
       query.value = ''
       menu.value = null
@@ -106,8 +113,10 @@ watch(
       void store.refreshThumbs()
       selected.value = initialSelection(store.cards, store.here, loadRecentWindows())
       await nextTick()
-      filterInput.value?.focus()
+      // A dialog opened during the wait (the palette) keeps its focus.
+      if (isTopModal(layerId)) filterInput.value?.focus()
     } else {
+      removeModal(layerId)
       returnFocusTo?.focus?.()
       returnFocusTo = null
     }
@@ -300,6 +309,8 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
   if (!store.open) return
+  // A dialog over the layer takes every key but the open shortcut above.
+  if (!isTopModal(layerId)) return
   // Esc while dragging a card or a box cancels it (useWindowsDrag / useWindowsMarquee), nothing else.
   if (drag.value || selectBox.value) return
   // A dialog or menu on top takes its own keys (the context menu closes on Esc itself).
@@ -313,6 +324,9 @@ function onKeydown(e: KeyboardEvent) {
   }
   if (e.key === 'Escape') {
     e.preventDefault()
+    // Closing takes the layer off the stack in a microtask that runs before a dialog
+    // under it hears this Esc (window bubble listener): that dialog would close too.
+    e.stopPropagation()
     // The marks go first, so a second Esc is needed to clear the filter or leave.
     if (marks.value.size) clearMarks()
     else if (query.value) query.value = ''
@@ -376,6 +390,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown, true)
   unlisten.forEach((off) => off())
+  removeModal(layerId)
 })
 </script>
 
@@ -383,8 +398,8 @@ onBeforeUnmount(() => {
   <div
     v-if="store.open && !isRemoteMode()"
     ref="root"
-    class="fixed inset-x-0 bottom-0 z-[60] flex justify-center"
-    :style="{ top: `${props.topOffset}px` }"
+    class="fixed inset-x-0 bottom-0 flex justify-center"
+    :style="{ top: `${props.topOffset}px`, zIndex }"
     role="dialog"
     :aria-label="t('windows.title')"
   >
