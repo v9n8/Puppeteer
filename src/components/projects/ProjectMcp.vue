@@ -11,6 +11,7 @@ import { composerDefaults } from '@/lib/composerChips'
 import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import { parentLock, switchView } from '@/lib/configLock'
 import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
 
 /** The MCP management screen (Settings › Connections › MCP, V3-51). */
@@ -38,6 +39,16 @@ const defaultIsCodex = computed(
 // Built-in servers (puppeteer, google): on by default, switched off per project.
 const builtinMcp = ref<ProjectBuiltinMcp[]>([])
 const togglingBuiltin = ref<string | null>(null)
+
+// Off app-wide locks the project switch; the stored value stays and comes back with the parent.
+const builtinView = (item: ProjectBuiltinMcp) => switchView(item.enabled_for_project, parentLock(item.enabled_globally))
+const ownView = (server: ProjectMcpServer) => switchView(server.enabled_for_project, parentLock(server.enabled))
+const ownOnCount = computed(() => mcpServers.value.filter((s) => ownView(s).checked).length)
+
+function switchLabel(view: ReturnType<typeof switchView>, stored: boolean) {
+  if (view.lockedBy) return t('projectDetail.lockedAppWide')
+  return stored ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')
+}
 
 async function loadProjectMcpServers() {
   const id = projectId.value
@@ -102,9 +113,9 @@ watch(projectId, async () => {
       <Server class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
       <span class="text-xs font-semibold">{{ t('projectDetail.mcpServers') }}</span>
       <span
-        v-if="mcpServers.filter(s => s.enabled_for_project).length > 0"
+        v-if="ownOnCount > 0"
         class="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-2xs font-medium text-muted-foreground leading-none"
-      >{{ mcpServers.filter(s => s.enabled_for_project).length }}</span>
+      >{{ ownOnCount }}</span>
       <RouterLink :to="MCP_ROUTE" class="ml-auto text-2xs text-primary hover:underline">{{ t('projectDetail.manage') }}</RouterLink>
     </template>
 
@@ -140,10 +151,10 @@ watch(projectId, async () => {
           <p class="text-2xs text-muted-foreground truncate mt-0.5">mcp__{{ item.name }}__*</p>
         </div>
         <ToggleSwitch
-          :checked="item.enabled_for_project"
-          :disabled="togglingBuiltin !== null"
+          :checked="builtinView(item).checked"
+          :disabled="togglingBuiltin !== null || builtinView(item).disabled"
           :loading="togglingBuiltin === item.name"
-          :label="item.enabled_for_project ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
+          :label="switchLabel(builtinView(item), item.enabled_for_project)"
           @toggle="handleToggleBuiltinMcp(item)"
         />
       </div>
@@ -194,10 +205,10 @@ watch(projectId, async () => {
           <p v-if="server.description" class="text-2xs text-muted-foreground truncate mt-0.5">{{ server.description }}</p>
         </div>
         <ToggleSwitch
-          :checked="server.enabled_for_project"
-          :disabled="savingMcp"
+          :checked="ownView(server).checked"
+          :disabled="savingMcp || ownView(server).disabled"
           :loading="togglingMcpId === server.id"
-          :label="server.enabled_for_project ? t('projectDetail.disableForProject') : t('projectDetail.enableForProject')"
+          :label="switchLabel(ownView(server), server.enabled_for_project)"
           @toggle="handleToggleMcpServer(server)"
         />
       </div>

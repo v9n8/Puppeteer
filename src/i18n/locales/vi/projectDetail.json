@@ -82,6 +82,7 @@
   "disabled": "đã tắt",
   "builtinMcp": "tích hợp sẵn",
   "builtinMcpOffGloballyTitle": "Đang tắt ở màn MCP nên mọi Project đều tắt",
+  "lockedAppWide": "Đang tắt toàn app — bật lại ở Cài đặt › Kết nối › MCP",
   "claudeOnly": "Chỉ Claude",
   "claudeOnlyTitle": "Codex không dùng được SSE server; sẽ bị bỏ qua khi chạy Codex.",
   "deployTargets": "Máy chủ",
