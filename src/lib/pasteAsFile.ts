@@ -56,13 +56,18 @@ export function pasteAction(
   return hasRun && shouldPasteAsFile(text, raw) ? 'file' : 'draft'
 }
 
-/** Whether a keydown is the "paste the other way" shortcut: ⌘⇧V on macOS, Ctrl+Shift+V elsewhere. */
+/**
+ * Whether a keydown is the "paste the other way" shortcut: ⌘⇧V on macOS, Ctrl+Shift+V
+ * elsewhere. Matched on the character (`key`), like the menu's ⌘V, so both agree on any
+ * keyboard layout.
+ */
 export function isInvertPasteKey(
-  e: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'code' | 'isComposing'>,
+  e: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'key' | 'isComposing'>,
   mac: boolean,
 ): boolean {
+  // WINDOWS-LINUX-REVIEW: the Ctrl+Shift+V branch; unverified that WebView2 / WebKitGTK deliver this keydown to the page.
   const primary = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
-  return primary && e.shiftKey && !e.altKey && e.code === 'KeyV' && !e.isComposing
+  return primary && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v' && !e.isComposing
 }
 
 /**

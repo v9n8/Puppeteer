@@ -271,6 +271,7 @@ async function selectClaudeAccount(accountId: string) {
         <InfoTip :text="t('projectDetail.pasteAsFile.hint')" />
       </template>
       <div class="flex items-center justify-between gap-3">
+        <!-- WINDOWS-LINUX-REVIEW: the Ctrl+Shift+V name in this tooltip; the shortcut is unverified off macOS. -->
         <span class="flex items-center gap-1.5 text-xs">
           {{ t('projectDetail.pasteAsFile.enabled') }}<InfoTip :text="t('projectDetail.pasteAsFile.shortcutHint', { key: IS_MAC ? '⌘⇧V' : 'Ctrl+Shift+V' })" />
         </span>
