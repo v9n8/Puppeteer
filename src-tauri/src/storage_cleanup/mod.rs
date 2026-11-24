@@ -126,8 +126,9 @@ pub enum Target {
     Run(String),
     /// A project in the Trash, purged with its runs.
     Project(String),
-    /// A finished worker's worktree, through `conductor::worktree::remove`.
-    Worktree { root: PathBuf, path: PathBuf },
+    /// A finished worker's worktree, through `conductor::worktree::remove`
+    /// once its worker and work are checked again (`worktrees::remove`).
+    Worktree { root: PathBuf, path: PathBuf, worker_id: String, project: PathBuf },
     /// The snapshot store, through its own sweep with this age limit.
     Snapshots { store: PathBuf, max_age_days: i64 },
 }
@@ -145,7 +146,7 @@ impl Target {
     }
 
     fn is_path(&self) -> bool {
-        matches!(self, Target::Path { .. } | Target::AccountDir { .. } | Target::Worktree { .. })
+        matches!(self, Target::Path { .. } | Target::AccountDir { .. })
     }
 }
 
@@ -208,6 +209,8 @@ pub struct CategoryOutcome {
     pub files: u64,
     pub bytes: u64,
     pub errors: u64,
+    /// Items the plan picked that a second look just before the removal kept.
+    pub kept: u64,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -283,6 +286,14 @@ async fn apply_category(ctx: &Ctx, category: Category) -> CategoryOutcome {
             Target::Snapshots { store, max_age_days } => {
                 crate::runs::snapshots::sweep_with_max_age(&ctx.db, store, *max_age_days).await.map(|_| ())
             }
+            Target::Worktree { .. } => match worktrees::remove(ctx, &item.target).await {
+                Ok(false) => {
+                    done.kept += 1;
+                    tracing::info!(event = "storage_cleanup_item_kept", category = id, path = %item.target.describe());
+                    continue;
+                }
+                removed => removed.map(|_| ()),
+            },
             target => trash::purge(ctx, target).await,
         };
         tally(&mut done, &item, removed);
@@ -297,7 +308,6 @@ fn remove_items(id: &'static str, items: Vec<Item>) -> CategoryOutcome {
         let removed = match &item.target {
             Target::Path { root, path } => fs_safe::remove_under(root, path),
             Target::AccountDir { root, path } => fs_safe::remove_account_dir(root, path),
-            Target::Worktree { root, path } => worktrees::remove(root, path),
             _ => Err("not a file".into()),
         };
         tally(&mut done, &item, removed);

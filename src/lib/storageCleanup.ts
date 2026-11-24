@@ -37,7 +37,7 @@ export interface CleanupOutcome {
   files: number
   bytes: number
   errors: number
-  per_category: { id: string; items: number; files: number; bytes: number; errors: number }[]
+  per_category: { id: string; items: number; files: number; bytes: number; errors: number; kept: number }[]
 }
 
 export interface Compacted {
