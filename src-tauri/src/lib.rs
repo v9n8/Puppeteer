@@ -379,6 +379,8 @@ pub fn run() {
             // Storage cleanup: an hourly check, cleaning at most once a day.
             storage_cleanup::runner::start(app.handle().clone(), app.state::<db::Db>().inner().clone());
             commands::secret_vault::spawn_auto_lock(app.handle().clone());
+            let library_db = app.state::<db::Db>().inner().clone();
+            tauri::async_runtime::spawn(async move { commands::library_feature_sync::clean_on_start(&library_db).await });
             app.manage(BalanceGuard::default());
             app.manage(new_registry());
             app.manage(approvals);
