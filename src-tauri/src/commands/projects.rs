@@ -80,8 +80,8 @@ pub struct Project {
     /// Long pastes as a `.txt` attachment (#16, migration 0028).
     #[serde(default)]
     pub paste_as_file: crate::commands::paste_as_file::PasteAsFile,
-    /// Reading Slack DM threads for this project (#9, migration 0029): true follows the
-    /// `slack_dm_read` setting, false never reads them.
+    /// Reading Slack DM threads for this project (#9, migration 0032): true opts in while the
+    /// `slack_dm_read` setting is on, false (the default) never reads them.
     #[serde(default)]
     pub slack_dm_read: bool,
 }
@@ -981,7 +981,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         hidden: false,
         session_defaults: ProjectSessionDefaults::default(),
         paste_as_file: Default::default(),
-        slack_dm_read: true,
+        slack_dm_read: false,
     })
 }
 

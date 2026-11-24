@@ -632,4 +632,55 @@ mod tests {
         // start_run_inner, and resume_run_with's two variants.
         assert_eq!(found, 3);
     }
+
+    /// A database a user had right before 0032: every migration up to 0031 applied.
+    async fn db_before_0032() -> super::Db {
+        let dir = std::env::temp_dir().join(format!("puppeteer-mig-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let all = Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+        for entry in std::fs::read_dir(&all).unwrap() {
+            let name = entry.unwrap().file_name().into_string().unwrap();
+            if name.as_str() < "0032" {
+                std::fs::copy(all.join(&name), dir.join(&name)).unwrap();
+            }
+        }
+        let pool = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate::Migrator::new(dir.as_path()).await.unwrap().run(&pool).await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        pool
+    }
+
+    #[tokio::test]
+    async fn every_project_starts_with_slack_dms_off_and_opts_in_on_its_own() {
+        let db = db_before_0032().await;
+        // Before 0032 the column meant "follow the setting" and defaulted to 1.
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p1', 'a', '/a', 'c'), ('p2', 'b', '/b', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE projects SET slack_dm_read = 0 WHERE id = 'p2'").execute(&db).await.unwrap();
+
+        sqlx::migrate!("./migrations").run(&db).await.unwrap();
+
+        let dm = |id: &'static str| {
+            let db = db.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>("SELECT slack_dm_read FROM projects WHERE id = ?")
+                    .bind(id)
+                    .fetch_one(&db)
+                    .await
+                    .unwrap()
+            }
+        };
+        assert_eq!((dm("p1").await, dm("p2").await), (0, 0));
+        // A project inserted without the column is off.
+        sqlx::query("INSERT INTO projects (id, name, path, created_at) VALUES ('p3', 'c', '/c', 'c')")
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(dm("p3").await, 0);
+        // Opting one project in leaves the others off.
+        crate::slack_threads::dm::set_project(&db, "p1", true).await.unwrap();
+        assert_eq!((dm("p1").await, dm("p2").await, dm("p3").await), (1, 0, 0));
+    }
 }

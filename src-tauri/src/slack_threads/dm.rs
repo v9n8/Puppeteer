@@ -1,7 +1,7 @@
 //! Reading Slack direct-message threads (#9, RT-27). Off unless the user turns it on:
-//! the `slack_dm_read` setting switches it for every project, and a project can only
-//! narrow that (`projects.slack_dm_read`, migration 0029: 1 = follow the setting,
-//! 0 = never). A thread without a project follows the setting alone.
+//! the `slack_dm_read` setting switches it for every project, and each project opts in
+//! on its own (`projects.slack_dm_read`, migration 0032: 1 = read while the setting is
+//! on, 0 = never, the default). A thread without a project follows the setting alone.
 //!
 //! Gates: adding a thread whose link is a DM (`D…` channel), and every fetch of a DM
 //! thread (by its link, or when `conversations.info` says `is_im` / `is_mpim`), so
@@ -30,7 +30,7 @@ pub async fn global_on(db: &Db) -> bool {
     crate::remote::get_setting(db, SETTING).await.is_some_and(|v| v.trim() == "true")
 }
 
-/// The project's own switch (true when it follows the setting, or is gone).
+/// The project's own opt-in (false when it is off, or the project is gone).
 pub async fn project_on(db: &Db, project_id: &str) -> bool {
     sqlx::query_scalar::<_, bool>("SELECT slack_dm_read FROM projects WHERE id = ?")
         .bind(project_id)
@@ -40,7 +40,7 @@ pub async fn project_on(db: &Db, project_id: &str) -> bool {
             tracing::warn!(event = "slack_dm_read_project_failed", project_id, error = %e);
             Some(false)
         })
-        .unwrap_or(true)
+        .unwrap_or(false)
 }
 
 /// Whether a DM thread of `project_id` (or of no project) may be read.
@@ -94,15 +94,16 @@ pub async fn set_project(db: &Db, project_id: &str, on: bool) -> Result<(), Stri
     Ok(())
 }
 
-/// A project's switch: on follows the setting, off never reads DMs. Remote: local-only.
+/// A project's opt-in: on reads DMs while the setting is on, off never. Remote: local-only.
 #[tauri::command]
 pub async fn set_project_slack_dm_read(db: State<'_, Db>, project_id: String, on: bool) -> Result<Project, String> {
     set_project(db.inner(), &project_id, on).await?;
     crate::commands::projects::project_by_id(db.inner(), &project_id).await
 }
 
-/// Settings backup import: the backup's switch for a project; `None` (older backup) keeps
-/// the local one. True when something changed.
+/// Settings backup import: the backup's opt-in for a project; `None` keeps the local one.
+/// That includes a backup from before the opt-in, whose `slack_dm_read` meant "follow the
+/// setting" and is not read. True when something changed.
 pub(crate) async fn import_project(db: &Db, project_id: &str, backup: Option<bool>) -> Result<bool, String> {
     let Some(on) = backup else { return Ok(false) };
     if project_on(db, project_id).await == on {

@@ -21,8 +21,8 @@ async fn the_setting_round_trips_and_an_older_backup_keeps_the_local_one() {
         serde_json::from_value(serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap()).unwrap();
     let entry = &projects[0];
     assert_eq!(entry.paste_as_file, Some(web));
-    // RT-27: the project's Slack DM switch travels too.
-    assert_eq!(entry.slack_dm_read, Some(true));
+    // RT-27: the project's Slack DM opt-in travels too (off by default).
+    assert_eq!(entry.slack_dm_opt_in, Some(false));
 
     let target = db_with("('w', 'web', '/other/web', 'c')").await;
     let (_, id, warnings) = import_project(&target, entry, false, None).await.unwrap();
@@ -50,4 +50,28 @@ async fn the_setting_round_trips_and_an_older_backup_keeps_the_local_one() {
     let (_, _, warnings) = import_project(&target, &bad, false, None).await.unwrap();
     assert!(warnings.iter().any(|w| w.contains("long paste")), "{warnings:?}");
     assert_eq!(paste::load(&target, "w").await, local);
+}
+
+#[tokio::test]
+async fn the_slack_dm_opt_in_round_trips_and_an_older_backup_does_not_opt_in() {
+    let source = db_with("('p1', 'web', '/src/web', 'c')").await;
+    crate::slack_threads::dm::set_project(&source, "p1", true).await.unwrap();
+    let projects: Vec<ProjectEntry> =
+        serde_json::from_value(serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap()).unwrap();
+    assert_eq!(projects[0].slack_dm_opt_in, Some(true));
+    let target = db_with("('w', 'web', '/other/web', 'c')").await;
+    import_project(&target, &projects[0], false, None).await.unwrap();
+    assert!(crate::slack_threads::dm::project_on(&target, "w").await);
+
+    // Before the opt-in, every backup held `"slack_dm_read": true` ("follow the setting"):
+    // restoring it must not opt the project in.
+    let other = db_with("('w', 'web', '/other/web', 'c')").await;
+    let old: ProjectEntry = serde_json::from_value(serde_json::json!({
+        "id": "x", "name": "web", "path": "/other/web", "default_engine": "claude", "created_at": "c",
+        "slack_dm_read": true,
+    }))
+    .unwrap();
+    assert!(old.slack_dm_opt_in.is_none());
+    import_project(&other, &old, false, None).await.unwrap();
+    assert!(!crate::slack_threads::dm::project_on(&other, "w").await);
 }

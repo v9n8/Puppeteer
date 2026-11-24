@@ -221,9 +221,10 @@ struct ProjectEntry {
     /// Long pastes as a `.txt` (#16). Older backups have none: a matched project keeps its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     paste_as_file: Option<crate::commands::paste_as_file::PasteAsFile>,
-    /// Reading Slack DM threads for the project (#9). Older backups have none: kept as is.
+    /// The project's Slack DM opt-in (#9). Older backups have none (their `slack_dm_read` meant
+    /// "follow the setting" and is ignored): kept as is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    slack_dm_read: Option<bool>,
+    slack_dm_opt_in: Option<bool>,
 }
 
 /// One standing tool decision of a project (`commands::tool_permissions`).
@@ -1627,7 +1628,7 @@ async fn collect_projects(db: &Db) -> Result<Vec<ProjectEntry>, String> {
             session_defaults,
             tool_permissions,
             paste_as_file: Some(crate::commands::paste_as_file::PasteAsFile::from_row(&row)),
-            slack_dm_read: Some(row.get("slack_dm_read")),
+            slack_dm_opt_in: Some(row.get("slack_dm_read")),
         });
     }
     Ok(out)
@@ -3861,7 +3862,7 @@ async fn import_project(
     }
     touched |= import_tool_permissions(db, &id, &entry.tool_permissions, &mut warnings).await?;
     touched |= crate::commands::paste_as_file::import(db, &id, entry.paste_as_file, &mut warnings).await?;
-    touched |= crate::slack_threads::dm::import_project(db, &id, entry.slack_dm_read).await?;
+    touched |= crate::slack_threads::dm::import_project(db, &id, entry.slack_dm_opt_in).await?;
 
     if touched && outcome == Upsert::Unchanged {
         outcome = Upsert::Updated;

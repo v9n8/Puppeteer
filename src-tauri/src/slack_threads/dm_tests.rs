@@ -1,5 +1,5 @@
-//! RT-27: reading Slack DM threads, off unless turned on for every project, and a project can
-//! only narrow it. Uses the mock Slack of `tests.rs`.
+//! RT-27: reading Slack DM threads, off unless turned on for every project and opted in by the
+//! thread's project. Uses the mock Slack of `tests.rs`.
 
 use super::*;
 
@@ -28,9 +28,9 @@ async fn off_refuses_global_on_and_project_off_refuses_both_on_reads() {
     assert_eq!(add_in(&env, DM_LINK, None).await.unwrap_err().code, "dm_unsupported");
     assert_eq!(add_in(&env, DM_LINK, Some("p1")).await.unwrap_err().code, "dm_unsupported");
 
-    // On for every project, off for p1: p1 refused, p2 and no project read.
+    // On for every project, opted in by p2 only: p1 refused, p2 and no project read.
     set_global(&env.db, true).await;
-    dm::set_project(&env.db, "p1", false).await.unwrap();
+    dm::set_project(&env.db, "p2", true).await.unwrap();
     assert_eq!(add_in(&env, DM_LINK, Some("p1")).await.unwrap_err().code, "dm_unsupported");
     let id = add_in(&env, DM_LINK, Some("p2")).await.unwrap();
     env.run(&id).await;
@@ -84,16 +84,16 @@ async fn a_token_without_the_dm_scope_says_which_one() {
 }
 
 #[tokio::test]
-async fn the_project_switch_round_trips_in_a_backup_entry_and_follows_by_default() {
+async fn the_project_opt_in_is_off_by_default_and_round_trips_in_a_backup_entry() {
     let db = memory_db().await;
-    assert!(dm::project_on(&db, "p1").await, "a project follows the setting");
-    assert!(!dm::allowed(&db, Some("p1")).await, "the setting is off");
+    assert!(!dm::project_on(&db, "p1").await, "a project is off until it opts in");
+    assert!(!dm::project_on(&db, "missing").await);
     set_global(&db, true).await;
-    assert!(dm::allowed(&db, Some("p1")).await && dm::allowed(&db, None).await);
-    assert!(dm::import_project(&db, "p1", Some(false)).await.unwrap());
+    assert!(!dm::allowed(&db, Some("p1")).await && dm::allowed(&db, None).await);
+    assert!(dm::import_project(&db, "p1", Some(true)).await.unwrap());
     assert!(!dm::import_project(&db, "p1", None).await.unwrap(), "an older backup keeps it");
-    assert!(!dm::allowed(&db, Some("p1")).await);
+    assert!(dm::allowed(&db, Some("p1")).await);
     let p = crate::commands::projects::project_by_id(&db, "p1").await.unwrap();
-    assert!(!p.slack_dm_read);
+    assert!(p.slack_dm_read);
     assert!(dm::set_project(&db, "missing", true).await.is_err());
 }
