@@ -97,7 +97,7 @@ async function dismiss() {
 <template>
   <div
     v-if="count > 0"
-    class="fixed top-14 left-1/2 z-[90] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card px-3.5 py-3 text-xs shadow-md"
+    class="fixed top-14 left-1/2 z-50 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card px-3.5 py-3 text-xs shadow-md"
     role="status"
   >
     <div class="flex items-start gap-2">
