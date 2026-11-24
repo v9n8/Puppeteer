@@ -51,12 +51,14 @@ async fn a_slack_that_does_not_answer_reads_as_a_token_error_once_the_timeout_pa
         trusted_test_origin: Some(base),
         ..Default::default()
     });
+    // Two silent tokens: checked at the same time, so the whole check stays near one timeout.
+    env.tokens.set(&env.db, "srv2", "xoxp-2").await;
     let started = std::time::Instant::now();
     let ctx = env.state.ctx();
-    let r = check_all(&ctx.db, &ctx.lookup, &cfg, &cfg.token_client(), &ctx.auth_cache, Duration::from_millis(200))
+    let r = check_all(&ctx.db, &ctx.lookup, &cfg, &cfg.token_client(), &ctx.auth_cache, Duration::from_millis(500))
         .await
         .unwrap();
-    assert_eq!(r[0].status, "token_error");
-    assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+    assert_eq!(r.iter().map(|x| (x.server_id.as_str(), x.status)).collect::<Vec<_>>(), [("srv1", "token_error"), ("srv2", "token_error")]);
+    assert!(started.elapsed() < Duration::from_millis(950), "{:?}", started.elapsed());
     drop(silent);
 }

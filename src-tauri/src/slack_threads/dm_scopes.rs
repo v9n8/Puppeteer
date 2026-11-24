@@ -44,7 +44,8 @@ pub fn classify(auth: Option<&AuthInfo>) -> (&'static str, Vec<String>) {
     (if missing.is_empty() { "ok" } else { "missing" }, missing)
 }
 
-/// Check every token of a Slack server on app-wide, each within `timeout`.
+/// Check every token of a Slack server on app-wide, all at once, each within `timeout`
+/// (so the whole check takes about `timeout` at most). Results keep the servers' order.
 pub async fn check_all(
     db: &Db,
     lookup: &SecretLookup,
@@ -53,26 +54,35 @@ pub async fn check_all(
     cache: &AuthCache,
     timeout: Duration,
 ) -> Result<Vec<DmScopeResult>, sqlx::Error> {
-    let mut out = Vec::new();
-    for src in token::sources(db, lookup, None).await? {
-        let auth = match tokio::time::timeout(timeout, src.client(cfg, http).auth_test()).await {
-            Ok(Ok(info)) => {
-                cache.put(src.cache_key(), info.clone());
-                Some(info)
-            }
-            Ok(Err(e)) => {
-                tracing::warn!(event = "slack_dm_scope_check_failed", server_id = %src.server_id, error = %e);
-                None
-            }
-            Err(_) => {
-                tracing::warn!(event = "slack_dm_scope_check_timeout", server_id = %src.server_id);
-                None
-            }
-        };
-        let (status, missing) = classify(auth.as_ref());
-        out.push(DmScopeResult { server_id: src.server_id, server_name: src.server_name, status, missing });
-    }
-    Ok(out)
+    let found = token::sources(db, lookup, None).await?;
+    let checks = found.into_iter().map(|src| check_one(src, cfg, http, cache, timeout));
+    Ok(futures_util::future::join_all(checks).await)
+}
+
+/// One token's answer within `timeout`; a fresh answer refreshes the cache.
+async fn check_one(
+    src: token::TokenSource,
+    cfg: &Arc<HttpConfig>,
+    http: &reqwest::Client,
+    cache: &AuthCache,
+    timeout: Duration,
+) -> DmScopeResult {
+    let auth = match tokio::time::timeout(timeout, src.client(cfg, http).auth_test()).await {
+        Ok(Ok(info)) => {
+            cache.put(src.cache_key(), info.clone());
+            Some(info)
+        }
+        Ok(Err(e)) => {
+            tracing::warn!(event = "slack_dm_scope_check_failed", server_id = %src.server_id, error = %e);
+            None
+        }
+        Err(_) => {
+            tracing::warn!(event = "slack_dm_scope_check_timeout", server_id = %src.server_id);
+            None
+        }
+    };
+    let (status, missing) = classify(auth.as_ref());
+    DmScopeResult { server_id: src.server_id, server_name: src.server_name, status, missing }
 }
 
 #[cfg(test)]
