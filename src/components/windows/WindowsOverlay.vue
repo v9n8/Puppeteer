@@ -309,8 +309,13 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
   if (!store.open) return
-  // A dialog over the layer takes every key but the open shortcut above.
-  if (!isTopModal(layerId)) return
+  // A dialog over the layer takes every key but the open shortcut above. One that takes no
+  // focus ("Discard changes", the quit question) leaves it in the layer: drop it there, so
+  // the key neither types into the filter nor presses a button under the dialog.
+  if (!isTopModal(layerId)) {
+    if (e.target instanceof HTMLElement && root.value?.contains(e.target)) e.target.blur()
+    return
+  }
   // Esc while dragging a card or a box cancels it (useWindowsDrag / useWindowsMarquee), nothing else.
   if (drag.value || selectBox.value) return
   // A dialog or menu on top takes its own keys (the context menu closes on Esc itself).
