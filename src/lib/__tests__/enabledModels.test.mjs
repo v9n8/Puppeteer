@@ -126,6 +126,14 @@ test('engineListToSave: nothing changed keeps the saved value, else display orde
   assert.deepEqual(engineListToSave(IDS, ['a'], new Set(['a'])), [])
 })
 
+test('engineListToSave keeps a locked model the project has on, so it comes back with the app switch', () => {
+  // Project follows "all on"; x is off app-wide (locked); the user switches b off.
+  assert.deepEqual(engineListToSave(['a', 'b', 'c'], null, new Set(['b']), ['x']), ['a', 'c', 'x'])
+  // An explicit list keeps x where it is on, and not where it is off.
+  assert.deepEqual(engineListToSave(['a', 'b', 'c'], ['a', 'b', 'x'], new Set(['b']), ['x']), ['a', 'x'])
+  assert.deepEqual(engineListToSave(['a', 'b', 'c'], ['a', 'b'], new Set(['b']), ['x']), ['a'])
+})
+
 test('draftSummary lists what turns on and off', () => {
   assert.deepEqual(draftSummary(IDS, ['a', 'b'], new Set(['b', 'c'])), { on: ['c'], off: ['b'] })
 })

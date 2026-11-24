@@ -188,14 +188,21 @@ export function draftOn(list: string[] | null, flipped: ReadonlySet<string>, id:
 /**
  * The engine list to save. Nothing flipped keeps the saved value (`null` stays
  * "all on", so a model Codex lists later is on too). Otherwise the ids that are
- * on, in display order (the first one is where a moved default goes), then any
- * saved id no longer listed, so it is not dropped silently.
+ * on, in display order (the first one is where a moved default goes), then the
+ * `locked` ids (off one level up, so not switchable here) that `list` has on, then
+ * any saved id no longer listed, so neither is dropped silently.
  */
-export function engineListToSave(ids: string[], list: string[] | null, flipped: ReadonlySet<string>): string[] | null {
+export function engineListToSave(
+  ids: string[],
+  list: string[] | null,
+  flipped: ReadonlySet<string>,
+  locked: string[] = [],
+): string[] | null {
   if (!flipped.size) return list
   const on = ids.filter((id) => draftOn(list, flipped, id))
-  const extra = (list ?? []).filter((id) => !ids.includes(id))
-  return [...on, ...extra]
+  const kept = locked.filter((id) => !ids.includes(id) && isOnIn(list, id))
+  const extra = (list ?? []).filter((id) => !ids.includes(id) && !kept.includes(id))
+  return [...on, ...kept, ...extra]
 }
 
 /** "Turn on a · turn off b" of the Save dialog, in display order. */

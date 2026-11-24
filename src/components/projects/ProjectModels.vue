@@ -56,6 +56,7 @@ const available = computed<Record<ModelEngine, { id: string; description?: strin
 })
 // The rows a project can switch: counts and the saved lists leave the locked ones out.
 const ids = (e: ModelEngine) => available.value[e].filter((m) => !m.locked).map((m) => m.id)
+const lockedIds = (e: ModelEngine) => available.value[e].filter((m) => m.locked).map((m) => m.id)
 
 // ── Saved state and draft ──
 const own = computed<ProjectSessionDefaults>(() => props.project.session_defaults ?? {})
@@ -109,8 +110,8 @@ const modelName = (id: string) => id || t('settings.ai.modelDefault')
 function draftLists(): EnabledModels | null {
   if (mode.value === 'follow') return null
   return {
-    claude: engineListToSave(ids('claude'), base.value.claude, flippedIn('claude')),
-    codex: engineListToSave(ids('codex'), base.value.codex, flippedIn('codex')),
+    claude: engineListToSave(ids('claude'), base.value.claude, flippedIn('claude'), lockedIds('claude')),
+    codex: engineListToSave(ids('codex'), base.value.codex, flippedIn('codex'), lockedIds('codex')),
   }
 }
 
