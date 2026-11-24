@@ -143,18 +143,6 @@ async fn run_project(db: &Db, run_id: &str) -> Result<String, String> {
         .ok_or_else(|| format!("unknown run: {run_id}"))
 }
 
-/// Whether built-in `name` is on app-wide, the way the run launch reads it.
-async fn builtin_available(db: &Db, tree: &[crate::features::ModuleState], name: &str) -> bool {
-    match name {
-        "puppeteer" => crate::features::effective(tree, "library.builtin_mcp_puppeteer"),
-        "google" => {
-            crate::features::effective(tree, "integrations.google")
-                && builtin_mcp_globally_enabled(db, name).await
-        }
-        _ => builtin_mcp_globally_enabled(db, name).await,
-    }
-}
-
 /// The session's MCP menu: the built-ins, then every user server by name.
 pub async fn list_run_mcp(db: &Db, run_id: &str) -> Result<Vec<RunMcpEntry>, String> {
     use sqlx::Row;
@@ -187,7 +175,7 @@ pub async fn list_run_mcp(db: &Db, run_id: &str) -> Result<Vec<RunMcpEntry>, Str
             true,
             None,
             String::new(),
-            builtin_available(db, &tree, name).await,
+            crate::commands::mcp_effective::builtin_on_app_wide(db, &tree, name).await,
             !builtins_off.iter().any(|off| off == name),
         ));
     }

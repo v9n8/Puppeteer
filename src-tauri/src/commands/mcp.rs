@@ -511,6 +511,7 @@ pub async fn set_project_mcp_servers(
     project_id: String,
     server_ids: Vec<String>,
 ) -> Result<(), String> {
+    super::mcp_effective::require_added_servers_on_app_wide(db.inner(), &project_id, &server_ids).await?;
     let mut tx = db.inner().begin().await.map_err(|e| e.to_string())?;
     sqlx::query("DELETE FROM project_mcp_servers WHERE project_id = ?")
         .bind(&project_id)
@@ -542,6 +543,7 @@ pub async fn set_project_mcp_server_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     if enabled {
+        super::mcp_effective::require_server_on_app_wide(db, server_id).await?;
         sqlx::query(
             "INSERT OR IGNORE INTO project_mcp_servers (project_id, server_id, enabled_at) \
              VALUES (?, ?, ?)",
@@ -1472,7 +1474,7 @@ pub async fn list_project_builtin_mcp(
     for name in BUILTIN_MCP_NAMES {
         out.push(ProjectBuiltinMcp {
             name: name.to_string(),
-            enabled_globally: builtin_mcp_globally_enabled(db.inner(), name).await,
+            enabled_globally: super::mcp_effective::builtin_on_app_wide_now(db.inner(), name).await,
             enabled_for_project: !builtin_mcp_disabled_for_project(db.inner(), name, &project_id)
                 .await,
         });
@@ -1499,6 +1501,7 @@ pub async fn set_project_builtin_mcp(
 ) -> Result<(), String> {
     validate_builtin_name(name)?;
     if enabled {
+        super::mcp_effective::require_builtin_on_app_wide(db, name).await?;
         sqlx::query("DELETE FROM project_builtin_mcp_disabled WHERE project_id = ? AND name = ?")
             .bind(project_id)
             .bind(name)
@@ -1910,10 +1913,10 @@ mod tests {
             .unwrap();
         assert!(!builtin_mcp_enabled(&db, "puppeteer", "p2").await);
 
-        set_project_builtin_mcp(&db, "p1", "puppeteer", true).await.unwrap();
         crate::commands::settings::set_setting(&db, "mcp_builtin_puppeteer_enabled", "true")
             .await
             .unwrap();
+        set_project_builtin_mcp(&db, "p1", "puppeteer", true).await.unwrap();
         assert!(builtin_mcp_enabled(&db, "puppeteer", "p1").await);
 
         // Only the known built-ins can be switched.
