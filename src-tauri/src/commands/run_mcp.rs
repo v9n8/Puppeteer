@@ -1,9 +1,11 @@
 //! MCP per session (UX-27).
 //!
 //! A session gets the MCP servers its project switches on (`project_mcp_servers`, and
-//! the built-ins not in `project_builtin_mcp_disabled`), and can switch a server on or
-//! off for itself. Only that difference is stored (`run_mcp_overrides`), so a project
-//! change still reaches every session that has not overridden that server.
+//! the built-ins not in `project_builtin_mcp_disabled`), and can switch one of them off
+//! for itself. It can only narrow: a server off for its project or off app-wide stays
+//! off (`mcp_effective`). Only that difference is stored (`run_mcp_overrides`), so a
+//! project change still reaches every session that has not overridden that server. An
+//! "on" row stored before sessions could only narrow is ignored.
 //!
 //! [`run_mcp_selection`] is the one place that merges the two: the run launch (start and
 //! resume, `runs::assemble_run_mcp`) and the credential broker both read it. App-wide
@@ -34,7 +36,8 @@ pub struct RunMcpSelection {
     pub builtins: HashSet<String>,
 }
 
-/// Project set ± overrides: an override decides its server, the project the rest.
+/// Project set minus the servers the session switched off. An "on" override never adds
+/// a server: a session may only narrow what its project gives it.
 fn effective_selection(
     project_servers: &[String],
     project_builtins_off: &[String],
@@ -46,7 +49,7 @@ fn effective_selection(
         .filter(|n| !project_builtins_off.iter().any(|off| off == *n))
         .map(|n| n.to_string())
         .collect();
-    for (key, on) in overrides {
+    for (key, _) in overrides.iter().filter(|(_, on)| !on) {
         let (set, name) = if let Some(id) = key.strip_prefix(SERVER_KEY) {
             (&mut servers, id)
         } else if let Some(name) = key.strip_prefix(BUILTIN_KEY) {
@@ -54,11 +57,7 @@ fn effective_selection(
         } else {
             continue;
         };
-        if *on {
-            set.insert(name.to_string());
-        } else {
-            set.remove(name);
-        }
+        set.remove(name);
     }
     RunMcpSelection { servers, builtins }
 }
@@ -128,10 +127,25 @@ pub struct RunMcpEntry {
     /// not injected whatever the session says.
     pub available: bool,
     pub enabled_for_project: bool,
-    /// What the session is set to: the override, else the project.
+    /// What the session gets: on app-wide, on for the project, and not switched off
+    /// by the session.
     pub enabled: bool,
-    /// `override` when the session decides, `project` when it follows the project.
+    /// `override` when the session switched it off, `project` when it follows the project.
     pub source: &'static str,
+    /// The level that keeps it off, which the session cannot undo: `app` (wins when
+    /// both are off) or `project`; `None` when the session may switch it.
+    pub locked_by: Option<&'static str>,
+}
+
+/// The level that keeps a server off for a session: app-wide wins over the project.
+fn lock_level(available: bool, enabled_for_project: bool) -> Option<&'static str> {
+    if !available {
+        Some("app")
+    } else if !enabled_for_project {
+        Some("project")
+    } else {
+        None
+    }
 }
 
 async fn run_project(db: &Db, run_id: &str) -> Result<String, String> {
@@ -152,11 +166,13 @@ pub async fn list_run_mcp(db: &Db, run_id: &str) -> Result<Vec<RunMcpEntry>, Str
     let overridden: HashMap<String, bool> = overrides(db, run_id).await?.into_iter().collect();
     let tree = crate::features::commands::load(db).await.unwrap_or_default();
 
-    let entry = |key: String, name: String, builtin, transport, description, available, project: bool| {
-        let over = overridden.get(&key).copied();
+    let entry = |key: String, name: String, builtin, transport, description, available: bool, project: bool| {
+        let off = overridden.get(&key) == Some(&false);
+        let locked_by = lock_level(available, project);
         RunMcpEntry {
-            enabled: over.unwrap_or(project),
-            source: if over.is_some() { "override" } else { "project" },
+            enabled: locked_by.is_none() && !off,
+            source: if off { "override" } else { "project" },
+            locked_by,
             key,
             name,
             builtin,
@@ -199,8 +215,10 @@ pub async fn list_run_mcp(db: &Db, run_id: &str) -> Result<Vec<RunMcpEntry>, Str
     Ok(out)
 }
 
-/// Switch server `key` on or off for one session, or follow the project again
-/// (`enabled` = `None`). Setting what the project already says clears the
+/// Switch server `key` off for one session, or follow the project again
+/// (`enabled` = `None` or `Some(true)`). Only a server on app-wide and for the
+/// project can be switched: `Some(true)` on any other is refused, since a
+/// session may only narrow. Setting what the project already says clears the
 /// override, so only a real difference is stored. Returns the updated menu.
 pub async fn set_override(
     db: &Db,
@@ -209,21 +227,32 @@ pub async fn set_override(
     enabled: Option<bool>,
 ) -> Result<Vec<RunMcpEntry>, String> {
     let project_id = run_project(db, run_id).await?;
-    let project_value = if let Some(id) = key.strip_prefix(SERVER_KEY) {
-        let known: Option<i64> = sqlx::query_scalar("SELECT 1 FROM mcp_servers WHERE id = ?")
+    let (name, available, project_value) = if let Some(id) = key.strip_prefix(SERVER_KEY) {
+        let row: Option<(String, bool)> = sqlx::query_as("SELECT name, enabled FROM mcp_servers WHERE id = ?")
             .bind(id)
             .fetch_optional(db)
             .await
             .map_err(|e| e.to_string())?;
-        if known.is_none() {
+        let Some((name, available)) = row else {
             return Err(format!("unknown MCP server: {id}"));
-        }
-        project_servers(db, &project_id).await?.iter().any(|s| s == id)
+        };
+        (name, available, project_servers(db, &project_id).await?.iter().any(|s| s == id))
     } else if let Some(name) = key.strip_prefix(BUILTIN_KEY).filter(|n| BUILTIN_MCP_NAMES.contains(n)) {
-        !project_builtins_off(db, &project_id).await?.iter().any(|off| off == name)
+        (
+            name.to_string(),
+            crate::commands::mcp_effective::builtin_on_app_wide_now(db, name).await,
+            !project_builtins_off(db, &project_id).await?.iter().any(|off| off == name),
+        )
     } else {
         return Err(format!("unknown MCP server key: {key}"));
     };
+    if enabled == Some(true) {
+        match lock_level(available, project_value) {
+            Some("app") => return Err(format!("MCP server '{name}' is off app-wide")),
+            Some(_) => return Err(format!("MCP server '{name}' is off for this project")),
+            None => {}
+        }
+    }
 
     match enabled {
         Some(on) if on != project_value => {
@@ -291,14 +320,22 @@ mod tests {
         items.iter().map(|s| s.to_string()).collect()
     }
 
+    async fn stored_overrides(db: &Db) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM run_mcp_overrides").fetch_one(db).await.unwrap()
+    }
+
+    fn entry<'a>(menu: &'a [RunMcpEntry], key: &str) -> &'a RunMcpEntry {
+        menu.iter().find(|e| e.key == key).unwrap()
+    }
+
     #[test]
-    fn the_effective_set_is_the_project_set_plus_minus_overrides() {
+    fn the_effective_set_is_the_project_set_minus_what_the_session_switched_off() {
         let project = vec!["m1".to_string(), "m2".to_string()];
         let off = vec!["google".to_string()];
         // No override: the project set.
         let s = effective_selection(&project, &off, &[]);
         assert_eq!((s.servers, s.builtins), (set(&["m1", "m2"]), set(&["puppeteer"])));
-        // Overrides win both ways; unknown prefixes are ignored.
+        // "Off" narrows; "on" never widens; unknown prefixes are ignored.
         let s = effective_selection(
             &project,
             &off,
@@ -310,7 +347,7 @@ mod tests {
                 ("m1".into(), false),
             ],
         );
-        assert_eq!((s.servers, s.builtins), (set(&["m1", "m9"]), set(&["google"])));
+        assert_eq!((s.servers, s.builtins), (set(&["m1"]), set(&[])));
     }
 
     #[tokio::test]
@@ -329,38 +366,69 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_override_wins_over_the_project_and_reset_clears_it() {
+    async fn a_session_can_switch_off_a_server_its_project_gives_it_and_reset_clears_it() {
         let db = test_db().await;
         set_override(&db, "r1", "server:m1", Some(false)).await.unwrap();
-        set_override(&db, "r1", "server:m2", Some(true)).await.unwrap();
         let menu = set_override(&db, "r1", "builtin:puppeteer", Some(false)).await.unwrap();
         let s = run_mcp_selection(&db, "p1", "r1").await.unwrap();
-        assert_eq!(s.servers, set(&["m2", "m3"]));
+        assert_eq!(s.servers, set(&["m3"]));
         assert_eq!(s.builtins, set(&["google"]));
         // Only r1: r2 keeps the project set.
         assert_eq!(run_mcp_selection(&db, "p1", "r2").await.unwrap().servers, set(&["m1", "m3"]));
 
-        let alpha = menu.iter().find(|e| e.key == "server:m1").unwrap();
-        assert_eq!((alpha.enabled, alpha.enabled_for_project, alpha.source), (false, true, "override"));
-        let gamma = menu.iter().find(|e| e.key == "server:m3").unwrap();
-        assert_eq!((gamma.enabled, gamma.available, gamma.source), (true, false, "project"));
+        let alpha = entry(&menu, "server:m1");
+        assert_eq!((alpha.enabled, alpha.enabled_for_project, alpha.source, alpha.locked_by), (false, true, "override", None));
         // Built-ins first, then servers by name.
         let keys: Vec<_> = menu.iter().map(|e| e.key.as_str()).collect();
         assert_eq!(keys, ["builtin:puppeteer", "builtin:google", "server:m1", "server:m2", "server:m3"]);
 
-        // The project switching m2 on and off again does not undo the session's choice.
-        crate::commands::mcp::set_project_mcp_server_enabled(&db, "p1", "m2", true).await.unwrap();
-        crate::commands::mcp::set_project_mcp_server_enabled(&db, "p1", "m2", false).await.unwrap();
-        assert!(run_mcp_selection(&db, "p1", "r1").await.unwrap().servers.contains("m2"));
-
-        // Reset: back to the project.
-        for key in ["server:m1", "server:m2", "builtin:puppeteer"] {
-            set_override(&db, "r1", key, None).await.unwrap();
-        }
+        // Reset (or "on", which is what the project says): back to the project.
+        set_override(&db, "r1", "server:m1", None).await.unwrap();
+        set_override(&db, "r1", "builtin:puppeteer", Some(true)).await.unwrap();
         let s = run_mcp_selection(&db, "p1", "r1").await.unwrap();
         assert_eq!((s.servers, s.builtins), (set(&["m1", "m3"]), set(&["puppeteer", "google"])));
-        let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM run_mcp_overrides").fetch_one(&db).await.unwrap();
-        assert_eq!(left, 0);
+        assert_eq!(stored_overrides(&db).await, 0);
+    }
+
+    #[tokio::test]
+    async fn a_session_cannot_switch_on_a_server_that_is_off_for_its_project_or_app_wide() {
+        let db = test_db().await;
+        // m2 is on app-wide but not for p1.
+        let err = set_override(&db, "r1", "server:m2", Some(true)).await.unwrap_err();
+        assert!(err.contains("'beta' is off for this project"), "{err}");
+        // m3 is in p1's set but off app-wide: app-wide is named.
+        let err = set_override(&db, "r1", "server:m3", Some(true)).await.unwrap_err();
+        assert!(err.contains("'gamma' is off app-wide"), "{err}");
+        // A built-in the project switched off.
+        crate::commands::mcp::set_project_builtin_mcp(&db, "p1", "puppeteer", false).await.unwrap();
+        assert!(set_override(&db, "r1", "builtin:puppeteer", Some(true)).await.is_err());
+        assert_eq!(stored_overrides(&db).await, 0);
+
+        let menu = list_run_mcp(&db, "r1").await.unwrap();
+        let lock = |k: &str| (entry(&menu, k).enabled, entry(&menu, k).locked_by);
+        assert_eq!(lock("server:m2"), (false, Some("project")));
+        assert_eq!(lock("server:m3"), (false, Some("app")));
+        assert_eq!(lock("builtin:puppeteer"), (false, Some("project")));
+        assert_eq!(lock("server:m1"), (true, None));
+    }
+
+    #[tokio::test]
+    async fn an_on_override_stored_before_sessions_could_only_narrow_is_ignored() {
+        let db = test_db().await;
+        sqlx::query(
+            "INSERT INTO run_mcp_overrides (run_id, server_key, enabled, updated_at) VALUES
+                ('r1', 'server:m2', 1, 'c'), ('r1', 'builtin:google', 1, 'c')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        crate::commands::mcp::set_project_builtin_mcp(&db, "p1", "google", false).await.unwrap();
+        let s = run_mcp_selection(&db, "p1", "r1").await.unwrap();
+        assert_eq!((s.servers, s.builtins), (set(&["m1", "m3"]), set(&["puppeteer"])));
+        assert!(!run_uses_server(&db, "p1", "r1", "m2").await.unwrap());
+        let menu = list_run_mcp(&db, "r1").await.unwrap();
+        let beta = entry(&menu, "server:m2");
+        assert_eq!((beta.enabled, beta.source, beta.locked_by), (false, "project", Some("project")));
     }
 
     #[tokio::test]
@@ -368,21 +436,20 @@ mod tests {
         let db = test_db().await;
         // m1 is already on for the project.
         let menu = set_override(&db, "r1", "server:m1", Some(true)).await.unwrap();
-        assert_eq!(menu.iter().find(|e| e.key == "server:m1").unwrap().source, "project");
-        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM run_mcp_overrides").fetch_one(&db).await.unwrap();
-        assert_eq!(n, 0);
+        assert_eq!(entry(&menu, "server:m1").source, "project");
+        assert_eq!(stored_overrides(&db).await, 0);
         // Switching back to the project's value drops the override.
-        set_override(&db, "r1", "server:m2", Some(true)).await.unwrap();
-        set_override(&db, "r1", "server:m2", Some(false)).await.unwrap();
-        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM run_mcp_overrides").fetch_one(&db).await.unwrap();
-        assert_eq!(n, 0);
+        set_override(&db, "r1", "server:m1", Some(false)).await.unwrap();
+        assert_eq!(stored_overrides(&db).await, 1);
+        set_override(&db, "r1", "server:m1", Some(true)).await.unwrap();
+        assert_eq!(stored_overrides(&db).await, 0);
     }
 
     #[tokio::test]
     async fn bad_keys_and_unknown_runs_are_refused() {
         let db = test_db().await;
-        for key in ["server:nope", "builtin:github", "m1", ""] {
-            assert!(set_override(&db, "r1", key, Some(true)).await.is_err(), "{key}");
+        for k in ["server:nope", "builtin:github", "m1", ""] {
+            assert!(set_override(&db, "r1", k, Some(false)).await.is_err(), "{k}");
         }
         assert!(set_override(&db, "r9", "server:m1", Some(false)).await.is_err());
         assert!(list_run_mcp(&db, "r9").await.is_err());
@@ -395,13 +462,8 @@ mod tests {
         assert!(!run_uses_server(&db, "p1", "r1", "m3").await.unwrap());
         assert!(run_uses_server(&db, "p1", "r1", "m1").await.unwrap());
         assert!(!run_uses_server(&db, "p1", "r1", "m2").await.unwrap());
-        set_override(&db, "r1", "server:m2", Some(true)).await.unwrap();
-        assert!(run_uses_server(&db, "p1", "r1", "m2").await.unwrap());
 
         crate::commands::settings::set_setting(&db, "mcp_builtin_google_enabled", "true").await.unwrap();
-        crate::commands::mcp::set_project_builtin_mcp(&db, "p1", "google", false).await.unwrap();
-        assert!(!run_uses_builtin(&db, "p1", "r1", "google").await.unwrap());
-        set_override(&db, "r1", "builtin:google", Some(true)).await.unwrap();
         assert!(run_uses_builtin(&db, "p1", "r1", "google").await.unwrap());
         crate::commands::settings::set_setting(&db, "mcp_builtin_google_enabled", "false").await.unwrap();
         assert!(!run_uses_builtin(&db, "p1", "r1", "google").await.unwrap());
@@ -410,8 +472,8 @@ mod tests {
     #[tokio::test]
     async fn overrides_go_with_their_run_and_their_server() {
         let db = test_db().await;
-        set_override(&db, "r1", "server:m2", Some(true)).await.unwrap();
-        set_override(&db, "r2", "server:m2", Some(true)).await.unwrap();
+        set_override(&db, "r1", "server:m1", Some(false)).await.unwrap();
+        set_override(&db, "r2", "server:m1", Some(false)).await.unwrap();
         set_override(&db, "r2", "builtin:google", Some(false)).await.unwrap();
         let count = |sql: &'static str| {
             let db = db.clone();
@@ -422,7 +484,7 @@ mod tests {
         assert_eq!(count("SELECT COUNT(*) FROM run_mcp_overrides WHERE run_id = 'r1'").await, 0);
         assert_eq!(count("SELECT COUNT(*) FROM run_mcp_overrides WHERE run_id = 'r2'").await, 2);
         // Deleting a server drops the overrides on it.
-        sqlx::query("DELETE FROM mcp_servers WHERE id = 'm2'").execute(&db).await.unwrap();
+        sqlx::query("DELETE FROM mcp_servers WHERE id = 'm1'").execute(&db).await.unwrap();
         assert_eq!(count("SELECT COUNT(*) FROM run_mcp_overrides").await, 1);
         // Purging the project drops the rest.
         sqlx::query("DELETE FROM projects WHERE id = 'p1'").execute(&db).await.unwrap();
