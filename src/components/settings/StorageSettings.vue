@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import { HardDrive } from 'lucide-vue-next'
 import { Card, Input } from '@/components/ui'
+import { errorText } from '@/lib/featureGate'
 import { formatSize } from '@/lib/ipc/nativeCore'
 import { formatLast, isValidDays, type LastCleanup } from '@/lib/storageCleanup'
 import { previewStorageCleanup } from '@/stores/stats'
@@ -26,6 +27,8 @@ const off = computed(() => value.value === '0' || !features.isOn('app.storage_cl
 
 const last = ref<LastCleanup | null>(null)
 const lastLoaded = ref(false)
+// "No cleanup yet" would be false when the preview itself failed.
+const lastError = ref('')
 const lastText = computed(() => {
   const l = formatLast(last.value)
   if (!l) return t('storageCleanup.settings.never')
@@ -41,8 +44,9 @@ const lastText = computed(() => {
 onMounted(async () => {
   try {
     last.value = (await previewStorageCleanup()).last
-  } catch {
-    // Shown as "no cleanup yet"; the Stats page reports a failed preview.
+  } catch (e) {
+    console.warn('[storage-settings] preview failed', e)
+    lastError.value = t('storageCleanup.previewFailed', { error: errorText(e, t) })
   } finally {
     lastLoaded.value = true
   }
@@ -65,7 +69,7 @@ onMounted(async () => {
 
     <div class="space-y-1 text-xs" data-settings-id="storage-last">
       <p class="text-muted-foreground">{{ t('storageCleanup.settings.last') }}</p>
-      <p v-if="lastLoaded">{{ lastText }}</p>
+      <p v-if="lastLoaded" :class="lastError && 'text-warning'">{{ lastError || lastText }}</p>
       <RouterLink to="/stats" class="text-2xs text-primary hover:underline">{{ t('storageCleanup.settings.openStats') }}</RouterLink>
     </div>
   </Card>

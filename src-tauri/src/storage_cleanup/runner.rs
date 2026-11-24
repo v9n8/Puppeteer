@@ -29,7 +29,11 @@ pub fn start(app: tauri::AppHandle, db: crate::db::Db) {
 }
 
 async fn tick(app: &tauri::AppHandle, db: &crate::db::Db) {
-    let days = days(db).await;
+    // Unreadable N (logged): skip this round rather than guess, the next
+    // tick reads again.
+    let Ok(days) = days(db).await else {
+        return;
+    };
     let last = read_last(db)
         .await
         .and_then(|l| DateTime::parse_from_rfc3339(&l.at).ok())

@@ -64,7 +64,7 @@ fn context(app: &AppHandle, db: &Db, days: u32) -> Result<Ctx, String> {
 
 #[tauri::command]
 pub async fn preview_storage_cleanup(app: AppHandle, db: State<'_, Db>) -> Result<CleanupPreview, String> {
-    let stored = days(db.inner()).await;
+    let stored = days(db.inner()).await?;
     let effective = effective_days(stored);
     let ctx = context(&app, db.inner(), effective)?;
     let planned = plan(&ctx).await;
@@ -79,7 +79,7 @@ pub async fn preview_storage_cleanup(app: AppHandle, db: State<'_, Db>) -> Resul
 
 #[tauri::command]
 pub async fn run_storage_cleanup(app: AppHandle, db: State<'_, Db>) -> Result<CleanupOutcome, String> {
-    let days = effective_days(days(db.inner()).await);
+    let days = effective_days(days(db.inner()).await?);
     run(&app, db.inner(), days, "manual").await
 }
 

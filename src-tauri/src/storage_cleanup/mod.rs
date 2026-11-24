@@ -48,15 +48,18 @@ fn parse_days(value: Option<&str>) -> u32 {
     }
 }
 
-/// N as stored on this machine (0 = auto-clean off).
-pub async fn days(db: &Db) -> u32 {
+/// N as stored on this machine (0 = auto-clean off). A failed read is an
+/// error, never the default: the default would undo an explicit "0 = off".
+pub async fn days(db: &Db) -> Result<u32, String> {
     let value: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
         .bind(DAYS_SETTING)
         .fetch_optional(db)
         .await
-        .ok()
-        .flatten();
-    parse_days(value.as_deref())
+        .map_err(|e| {
+            tracing::warn!(event = "storage_cleanup_days_read_failed", error = %e);
+            e.to_string()
+        })?;
+    Ok(parse_days(value.as_deref()))
 }
 
 /// Age limit of the Rewind snapshots: N, or with auto-clean off the 30 days
@@ -67,12 +70,13 @@ pub fn snapshot_days_for(days: u32) -> i64 {
 
 /// [`snapshot_days_for`] the N stored on this machine. With the auto-clean
 /// switch off it is 30, as with N = 0: Settings then says auto-clean is off,
-/// so the hourly snapshot sweep must not follow N either.
+/// so the hourly snapshot sweep must not follow N either. An unreadable N
+/// (logged by [`days`]) counts as off too, like an unreadable switch.
 pub async fn snapshot_max_age_days(db: &Db) -> i64 {
     if !crate::features::is_on(db, FEATURE).await {
         return snapshot_days_for(0);
     }
-    snapshot_days_for(self::days(db).await)
+    snapshot_days_for(self::days(db).await.unwrap_or(0))
 }
 
 /// Category ids shared with the Storage table (`commands::storage`).
@@ -434,10 +438,21 @@ pub(crate) mod tests {
     async fn days_reads_the_stored_value() {
         let dir = temp_dir("days");
         let db = test_db(&dir).await;
-        assert_eq!(days(&db).await, DEFAULT_DAYS);
+        assert_eq!(days(&db).await, Ok(DEFAULT_DAYS));
         crate::commands::settings::set_setting(&db, DAYS_SETTING, "60").await.unwrap();
-        assert_eq!(days(&db).await, 60);
+        assert_eq!(days(&db).await, Ok(60));
         db.close().await;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A stored "0 = off" must never read as the default.
+    #[tokio::test]
+    async fn days_fails_instead_of_guessing_when_the_read_fails() {
+        let dir = temp_dir("days-failed");
+        let db = test_db(&dir).await;
+        crate::commands::settings::set_setting(&db, DAYS_SETTING, "0").await.unwrap();
+        db.close().await;
+        assert!(days(&db).await.is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
