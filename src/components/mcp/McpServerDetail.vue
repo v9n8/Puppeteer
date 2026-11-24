@@ -40,6 +40,7 @@ import {
   type McpForm,
 } from '@/lib/mcpRows'
 import { isSlackServer } from '@/lib/configLock'
+import { useFeaturesStore } from '@/stores/features'
 
 const props = defineProps<{
   /** null = a new draft. */
@@ -65,6 +66,7 @@ const emit = defineEmits<{
 const { t, locale } = useI18n()
 const { toast } = useToast()
 const store = useMcpServersStore()
+const features = useFeaturesStore()
 
 const isNew = computed(() => props.server === null)
 
@@ -307,7 +309,8 @@ defineExpose({ dirty })
           </div>
         </DetailSection>
 
-        <McpSlackDm v-if="server && isSlackServer(server)" />
+        <!-- Reading Slack threads at all is the integrations.slack feature. -->
+        <McpSlackDm v-if="server && isSlackServer(server) && features.isOn('integrations.slack')" />
 
         <DetailSection :title="t('mcp.editor.general')" :hint="t('mcp.detail.generalHint')">
           <div class="space-y-1.5">

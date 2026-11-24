@@ -20,13 +20,14 @@ const { t } = useI18n()
 const { toast } = useToast()
 const projects = useProjectsStore()
 
-const globalOn = ref(false)
+/** null until loaded: the switch waits instead of flashing locked. */
+const globalOn = ref<boolean | null>(null)
 const projectOn = ref(props.project.slack_dm_read === true)
 const saving = ref(false)
 
 watch(() => props.project.slack_dm_read, (v) => { projectOn.value = v === true })
 
-const view = computed(() => switchView(projectOn.value, parentLock(globalOn.value)))
+const view = computed(() => switchView(projectOn.value, parentLock(globalOn.value !== false)))
 
 async function loadGlobal() {
   try {
@@ -69,7 +70,7 @@ async function toggleProject() {
       </div>
       <ToggleSwitch
         :checked="view.checked"
-        :disabled="saving || view.disabled"
+        :disabled="saving || view.disabled || globalOn === null"
         :loading="saving"
         :label="view.lockedBy ? t('projectDetail.slackDm.lockedGlobal') : t('projectDetail.slackDm.project')"
         @toggle="toggleProject"
