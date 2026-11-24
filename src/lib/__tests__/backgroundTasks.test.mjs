@@ -59,11 +59,14 @@ test('waitsOnBackground: live, turn over, and at least one task', () => {
   assert.equal(waitsOnBackground('running', null), false)
 })
 
-test('turnJustEnded fires once, on the flip to done', () => {
+test('turnJustEnded fires once, on the flip from busy to done', () => {
   const busy = { turnDone: false, tasks: [bash] }
   const done = { turnDone: true, tasks: [bash] }
   assert.equal(turnJustEnded(busy, done), true)
-  assert.equal(turnJustEnded(null, done), true)
+  // The first snapshot read back after a reload: the turn ended unseen, its
+  // waiting chips stay for the user (as when the run was not on screen).
+  assert.equal(turnJustEnded(null, done), false)
+  assert.equal(turnJustEnded(undefined, done), false)
   assert.equal(turnJustEnded(done, done), false)
   assert.equal(turnJustEnded(done, { turnDone: true, tasks: [] }), false)
   assert.equal(turnJustEnded(done, busy), false)

@@ -57,9 +57,14 @@ export function waitsOnBackground(status: string | undefined, bg: BackgroundStat
   return status === 'running' && !!bg?.turnDone && bg.tasks.length > 0
 }
 
-/** The live session's turn just ended (the moment the message queue may send). */
+/**
+ * The live session's turn just ended (the moment the message queue may send):
+ * a snapshot that said busy flips to done. A first snapshot read back after a
+ * reload says when the turn ended no more than chips left waiting then do, so
+ * it sends nothing on its own.
+ */
 export function turnJustEnded(prev: BackgroundState | null | undefined, next: BackgroundState | null | undefined): boolean {
-  return !prev?.turnDone && !!next?.turnDone
+  return !!prev && !prev.turnDone && !!next?.turnDone
 }
 
 /** A task's one-line label: its description, else its kind. */
