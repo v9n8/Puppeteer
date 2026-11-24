@@ -134,12 +134,15 @@ fn router(state: HttpState) -> Router {
 /// call stack, breaking the drain → resume_run → drain type cycle. A restarted
 /// server installs a new one; the old task ends when its sender is replaced.
 fn install_wake_consumer(app: AppHandle, conductor: &ConductorState) {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<super::WakeEvent>();
     conductor.set_wake_sender(tx);
     let conductor = conductor.clone();
     tokio::spawn(async move {
-        while let Some(run_id) = rx.recv().await {
-            super::wake::on_run_finished(&app, &run_id).await;
+        while let Some(event) = rx.recv().await {
+            match event {
+                super::WakeEvent::Exited(run_id) => super::wake::on_run_finished(&app, &run_id).await,
+                super::WakeEvent::TurnEnded(run_id) => super::wake::on_worker_turn_ended(&app, &run_id).await,
+            }
             // With the switch off, the last run to finish closes the port.
             follow(&app, &conductor).await;
         }

@@ -983,6 +983,16 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     }
   }
 
+  /**
+   * A follow-up reached a live session whose turn was over: a turn runs now.
+   * Said at once, not at its first streamed event, so a second Enter in
+   * between queues as a chip instead of going straight to the backend.
+   */
+  function noteTurnSent(runId: string) {
+    const s = sessions.get(runId)
+    if (s?.background?.turnDone) s.background = { ...s.background, turnDone: false }
+  }
+
   /** Run ids that are currently streaming — for live status indicators. */
   const runningIds = computed(() => {
     const ids: string[] = []
@@ -1018,6 +1028,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
     discard,
     runningIds,
     reconcileRunning,
+    noteTurnSent,
     cachedSlashCommands,
   }
 })

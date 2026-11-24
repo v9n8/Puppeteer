@@ -1240,6 +1240,10 @@ pub async fn drain_sidecar(
                                             handles.turn_gate.busy = true;
                                         }
                                         super::bg_tasks::publish(&app, &registry, &run_id, &mut bg_last).await;
+                                        // A worker's idle report no longer covers it (BG-04).
+                                        if app.try_state::<crate::conductor::ConductorState>().is_some_and(|c| c.is_tracked_worker(&run_id)) {
+                                            crate::conductor::idle::turn_began(&run_id);
+                                        }
                                     }
                                 }
                                 // End the turn: closing stdin makes the sidecar's
@@ -1339,8 +1343,8 @@ pub async fn drain_sidecar(
                                         if worker_idle {
                                             // The nudge reads the worker's reply from its log file.
                                             log_file.flush(&log_buf.lock().await);
-                                        }
-                                        if cst.session(&run_id).is_some() || worker_idle {
+                                            cst.notify_worker_turn_ended(run_id.clone());
+                                        } else if cst.session(&run_id).is_some() {
                                             cst.notify_run_finished(run_id.clone());
                                         }
                                     }

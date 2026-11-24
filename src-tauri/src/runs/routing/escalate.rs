@@ -529,8 +529,7 @@ mod tests {
             finished,
             &[
                 "if cst.session(run_id).is_some() {",
-                // A live worker's turn end (BG-04) wakes and returns before any of it.
-                "super::idle::live_turn(&registry_from(app), run_id)",
+                // A live worker's turn end (BG-04) never comes here: `on_worker_turn_ended`.
                 "if crate::runs::routing::escalate::on_worker_finished(app, run_id).await {\n        return;\n    }",
             ],
         );

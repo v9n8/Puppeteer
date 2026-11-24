@@ -15,7 +15,7 @@
 pub mod commands;
 pub mod defaults;
 mod framing;
-mod idle;
+pub(crate) mod idle;
 pub mod launch_mode;
 pub mod mcp_http;
 mod nudge_reports;
@@ -282,7 +282,7 @@ struct Inner {
     /// the actual resume. This channel hop deliberately decouples the sidecar drain
     /// from `resume_run` — `resume_run` spawns a new drain, so a direct call would
     /// make the drain future's auto-traits cyclic and un-inferrable.
-    wake_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    wake_tx: Option<tokio::sync::mpsc::UnboundedSender<WakeEvent>>,
     /// The permission mode each worker was last launched with by a
     /// `session_*` tool or an escalation, so a resume keeps it (QO-07).
     worker_modes: HashMap<String, String>,
@@ -291,6 +291,16 @@ struct Inner {
     /// retry (QO-06 3b). The conductor's tools see them as still running, so it
     /// cannot act on a failure the app is about to retry.
     retrying: HashSet<String>,
+}
+
+/// What the wake channel carries. `Exited`: a run's sidecar is gone, or a
+/// conductor's turn ended with its sidecar alive. `TurnEnded`: a worker's turn
+/// ended while background tasks keep its sidecar up (BG-04). Told apart by the
+/// drain, not guessed later from the registry: the worker may be resumed
+/// before the consumer reads an `Exited`.
+pub enum WakeEvent {
+    Exited(String),
+    TurnEnded(String),
 }
 
 /// Managed Tauri state: the conductor registry + the MCP server's bound port.
@@ -476,7 +486,7 @@ impl ConductorState {
 
     /// Install the finished-run channel sender (called once when the MCP server's
     /// wake consumer task starts).
-    pub fn set_wake_sender(&self, tx: tokio::sync::mpsc::UnboundedSender<String>) {
+    pub fn set_wake_sender(&self, tx: tokio::sync::mpsc::UnboundedSender<WakeEvent>) {
         if let Ok(mut g) = self.inner.lock() {
             g.wake_tx = Some(tx);
         }
@@ -486,9 +496,18 @@ impl ConductorState {
     /// is installed. Never blocks and never calls `resume_run` itself — that keeps
     /// the sidecar drain's future free of a cyclic dependency on itself.
     pub fn notify_run_finished(&self, run_id: String) {
+        self.send_wake(WakeEvent::Exited(run_id));
+    }
+
+    /// A tracked worker's turn ended while its process lives on (BG-04).
+    pub fn notify_worker_turn_ended(&self, run_id: String) {
+        self.send_wake(WakeEvent::TurnEnded(run_id));
+    }
+
+    fn send_wake(&self, event: WakeEvent) {
         if let Ok(g) = self.inner.lock() {
             if let Some(tx) = g.wake_tx.as_ref() {
-                let _ = tx.send(run_id);
+                let _ = tx.send(event);
             }
         }
     }

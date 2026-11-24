@@ -10,8 +10,8 @@ use crate::db::Db;
 use crate::runs::RunRegistry;
 
 /// Called (via the wake channel) when ANY run's sidecar exits, and when a
-/// conductor's or a worker's turn ends while its sidecar stays alive. Closes the
-/// conductor control loop so the human never has to prod it:
+/// conductor's turn ends while its sidecar stays alive. Closes the conductor
+/// control loop so the human never has to prod it:
 ///   • if the run is a conductor, its turn is over: release its auto-wake slot
 ///     and deliver any wake a worker deferred while it was busy;
 ///   • if the run is a worker, wake its conductor.
@@ -31,23 +31,26 @@ pub async fn on_run_finished(app: &tauri::AppHandle, run_id: &str) {
         return;
     }
 
-    // Still live: its turn ended while background tasks keep it up (BG-04).
-    // Its routing row and a FAIL retry wait for the exit; the conductor is
-    // woken now, unless a new turn (a wake-up, a follow-up) began meanwhile:
-    // that turn's end comes back here.
-    if let Some(idle) = super::idle::live_turn(&registry_from(app), run_id).await {
-        if idle {
-            wake_conductor_for_worker(app, &cst, run_id).await;
-        }
-        return;
-    }
-
     // Closes the worker's routing row; a FAIL retried one tier up wakes no one yet.
     if crate::runs::routing::escalate::on_worker_finished(app, run_id).await {
         return;
     }
     super::idle::settle_exit(&db_from(app), run_id).await;
     wake_conductor_for_worker(app, &cst, run_id).await;
+}
+
+/// A worker's turn ended while background tasks keep its sidecar up (BG-04):
+/// wake its conductor now. Its routing row and a FAIL retry wait for the exit
+/// (`on_run_finished`). Nothing when it is no longer idle: a new turn began
+/// (its end comes back here) or it exited (its `Exited` follows).
+pub async fn on_worker_turn_ended(app: &tauri::AppHandle, run_id: &str) {
+    let Some(cst) = app.try_state::<crate::conductor::ConductorState>() else {
+        return;
+    };
+    if super::idle::idle_turn(&registry_from(app), run_id).await.is_none() {
+        return;
+    }
+    wake_conductor_for_worker(app, cst.inner(), run_id).await;
 }
 
 /// If `worker_run_id` is a worker of a live (tracked) conductor, wake that
@@ -131,6 +134,13 @@ async fn wake_conductor(
         }
         return;
     }
+    // Counted before the reports are read: a turn that begins after this is
+    // not covered by them (`idle::settle_exit`).
+    let idle_turns: Vec<(String, u64)> = results
+        .iter()
+        .filter(|r| r.status == "idle")
+        .map(|r| (r.id.clone(), super::idle::turns(&r.id)))
+        .collect();
     let nudge = crate::conductor::worker_results::nudge(&db, conductor_run_id, &results).await;
 
     let outcome = async {
@@ -165,7 +175,9 @@ async fn wake_conductor(
             false,
         );
         let sent = crate::conductor::worker_results::deliver(&db, &registry, conductor_run_id, &results, send).await?;
-        super::idle::note_delivered(&db, &results).await;
+        for (id, turns) in &idle_turns {
+            super::idle::note_reported(id, *turns);
+        }
         Ok::<_, String>(sent)
     }
     .await;

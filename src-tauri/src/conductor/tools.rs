@@ -498,6 +498,8 @@ async fn session_read(
     let idle = super::idle::idle_turn(&registry(state), &worker_id).await;
     let status = super::idle::effective_status(row.get("status"), idle.as_ref());
     let project_path: String = row.get("project_path");
+    // Counted before the log is read, like a nudge's (`idle::settle_exit`).
+    let turns = super::idle::turns(&worker_id);
 
     let log_path = Path::new(&project_path)
         .join(".puppeteer")
@@ -507,7 +509,7 @@ async fn session_read(
     // Keyed like the nudge's entry for it: the turn's end for an idle worker.
     let read_at = match &idle {
         Some(snap) => {
-            super::idle::note_reported(&worker_id, &reply);
+            super::idle::note_reported(&worker_id, turns);
             snap.turn_ended_at.clone()
         }
         None => row.get::<Option<String>, _>("finished_at").filter(|_| status != "running"),

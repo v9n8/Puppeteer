@@ -79,7 +79,7 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // A run is "running" for display when it is streaming itself, or when any of
   // its workers is still streaming.
   function runIsRunning(run: RunRecord): boolean {
-    if (run.status === 'running') return !runWaitsOnBackground(run)
+    if (run.status === 'running' && !runWaitsOnBackground(run)) return true
     return conductorIdsWithRunningWorker.value.has(run.id)
   }
 
@@ -93,8 +93,8 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // no type icon): a spinner while running, otherwise a status glyph tinted by
   // runIconColorClass. Issue/PR identity is a separate badge (runRefBadge).
   function runIcon(run: RunRecord) {
-    if (runWaitsOnBackground(run)) return Hourglass
     if (runIsRunning(run)) return Loader2
+    if (runWaitsOnBackground(run)) return Hourglass
     if (run.status === 'fetched' && run.run_type === 'session') return CircleDashed
     return runStatusIcon(run.status)
   }
@@ -102,8 +102,8 @@ export function useRunHistoryList(core: RunSessionCore, conductor: RunConductor,
   // Tooltip for the History-row status icon. A run cut off by the app or
   // stopped at the quota limit reads differently from one the user stopped.
   function runStatusTitle(run: RunRecord): string {
-    if (runWaitsOnBackground(run)) return t('run.waitingBackground')
     if (runIsRunning(run)) return t('common.status.running')
+    if (runWaitsOnBackground(run)) return t('run.waitingBackground')
     return t(runStatusKey(run))
   }
 

@@ -1497,6 +1497,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
         const turn = await runsStore.sendUserMessage(
           id, prompt, images, override, quoteSet ? { set: quoteSet, items: quotes.map(quoteInput) } : undefined,
         )
+        if (wasRunning) live.noteTurnSent(id)
         // The snapshot turn it was logged under: "Rewind to here" finds it by this.
         if (turn !== null && sent.kind === 'user') sent.turn = turn
         if (quoteSet) void loadQuotes(id)
