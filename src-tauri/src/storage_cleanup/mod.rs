@@ -65,8 +65,13 @@ pub fn snapshot_days_for(days: u32) -> i64 {
     i64::from(if days == 0 { DEFAULT_DAYS } else { days })
 }
 
-/// [`snapshot_days_for`] the N stored on this machine.
+/// [`snapshot_days_for`] the N stored on this machine. With the auto-clean
+/// switch off it is 30, as with N = 0: Settings then says auto-clean is off,
+/// so the hourly snapshot sweep must not follow N either.
 pub async fn snapshot_max_age_days(db: &Db) -> i64 {
+    if !crate::features::is_on(db, FEATURE).await {
+        return snapshot_days_for(0);
+    }
     snapshot_days_for(self::days(db).await)
 }
 
@@ -432,6 +437,19 @@ pub(crate) mod tests {
         assert_eq!(days(&db).await, DEFAULT_DAYS);
         crate::commands::settings::set_setting(&db, DAYS_SETTING, "60").await.unwrap();
         assert_eq!(days(&db).await, 60);
+        db.close().await;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn snapshots_keep_their_30_days_while_the_switch_is_off() {
+        let dir = temp_dir("snapshot-age");
+        let db = test_db(&dir).await;
+        crate::commands::settings::set_setting(&db, DAYS_SETTING, "7").await.unwrap();
+        assert_eq!(snapshot_max_age_days(&db).await, 7);
+        let (module, prop) = crate::features::entry(FEATURE).unwrap();
+        crate::commands::settings::set_setting(&db, &prop.unwrap().key(module), "false").await.unwrap();
+        assert_eq!(snapshot_max_age_days(&db).await, 30);
         db.close().await;
         let _ = std::fs::remove_dir_all(&dir);
     }
