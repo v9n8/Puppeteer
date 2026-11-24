@@ -29,7 +29,6 @@
   "toastSaved": "Saved",
   "toastBoardSaved": "Board configuration saved",
   "toastBoardUnlinked": "Board unlinked",
-  "linkedClaudeAccount": "Linked Claude Account",
   "claudeAccountHint": "Choose which Claude account runs this project. Leave on default to use the global default account. Manage accounts in",
   "noClaudeAccounts": "No Claude accounts yet.",
   "toastClaudeLinked": "Claude account linked",
@@ -196,7 +195,8 @@
     "title": "Defaults for new sessions",
     "hint": "What a new session of this project starts with, unless it picks its own. ★ marks the value from",
     "saved": "Session defaults saved",
-    "noAccount": "None (global ~/.claude)"
+    "noAccount": "None (global ~/.claude)",
+    "claudeAccount": "Claude account"
   },
   "pasteAsFile": {
     "title": "Long pastes",

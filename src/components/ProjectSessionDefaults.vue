@@ -9,7 +9,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
-import { ClipboardPaste, ShieldAlert, SlidersHorizontal, UserCircle } from 'lucide-vue-next'
+import { ClipboardPaste, ShieldAlert, SlidersHorizontal } from 'lucide-vue-next'
 import { AppSelect, Card, InfoTip, Input, ToggleSwitch } from '@/components/ui'
 import { useToast } from '@/composables/useToast'
 import { useProjectsStore, type Project } from '@/stores/projects'
@@ -213,6 +213,28 @@ async function selectClaudeAccount(accountId: string) {
         <AppSelect size="sm" :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="save('engine', $event)" />
       </div>
       <div class="space-y-1.5">
+        <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          {{ t('projectDetail.sessionDefaults.claudeAccount') }}<InfoTip :text="`${t('projectDetail.claudeAccountHint')} ${t('projectDetail.settings')}.`" />
+        </label>
+        <div v-if="claudeStore.accounts.length === 0" class="text-2xs text-muted-foreground">
+          {{ t('projectDetail.noClaudeAccounts') }}
+          <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.addInSettings') }}</RouterLink>
+          {{ t('projectDetail.toLinkHere') }}
+        </div>
+        <AppSelect
+          v-else
+          size="sm"
+          :model-value="project.claude_account_id ?? ''"
+          :options="claudeAccountOptions"
+          :placeholder="t('projectDetail.selectAccountPlaceholder')"
+          @update:model-value="selectClaudeAccount"
+        />
+        <div v-if="linkedClaudeAccount" class="text-2xs text-muted-foreground">
+          {{ t('settings.claude.status.' + linkedClaudeAccount.status) }}
+          <span v-if="linkedClaudeAccount.email"> · {{ linkedClaudeAccount.email }}</span>
+        </div>
+      </div>
+      <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
         <AppSelect size="sm" :model-value="claudeModelSelect.value" :options="claudeModelSelect.options" @update:model-value="save('model_claude', $event)" />
       </div>
@@ -276,30 +298,5 @@ async function selectClaudeAccount(accountId: string) {
       </div>
     </Card>
 
-    <Card body-class="p-4 space-y-4">
-      <template #header>
-        <UserCircle class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="1.5" />
-        <span class="text-xs font-semibold">{{ t('projectDetail.linkedClaudeAccount') }}</span>
-        <InfoTip :text="`${t('projectDetail.claudeAccountHint')} ${t('projectDetail.settings')}.`" />
-        <RouterLink to="/settings?section=claude" class="ml-auto inline-flex min-h-7 items-center px-1 text-2xs text-primary hover:underline">{{ t('projectDetail.settings') }}</RouterLink>
-      </template>
-      <div v-if="claudeStore.accounts.length === 0" class="text-2xs text-muted-foreground">
-        {{ t('projectDetail.noClaudeAccounts') }}
-        <RouterLink to="/settings?section=claude" class="text-primary hover:underline">{{ t('projectDetail.addInSettings') }}</RouterLink>
-        {{ t('projectDetail.toLinkHere') }}
-      </div>
-      <AppSelect
-        v-else
-        size="sm"
-        :model-value="project.claude_account_id ?? ''"
-        :options="claudeAccountOptions"
-        :placeholder="t('projectDetail.selectAccountPlaceholder')"
-        @update:model-value="selectClaudeAccount"
-      />
-      <div v-if="linkedClaudeAccount" class="text-2xs text-muted-foreground">
-        {{ t('settings.claude.status.' + linkedClaudeAccount.status) }}
-        <span v-if="linkedClaudeAccount.email"> · {{ linkedClaudeAccount.email }}</span>
-      </div>
-    </Card>
   </div>
 </template>

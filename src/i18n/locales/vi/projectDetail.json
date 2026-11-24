@@ -29,7 +29,6 @@
   "toastSaved": "Đã lưu",
   "toastBoardSaved": "Đã lưu cấu hình board",
   "toastBoardUnlinked": "Đã hủy liên kết board",
-  "linkedClaudeAccount": "Tài khoản Claude đã liên kết",
   "claudeAccountHint": "Chọn tài khoản Claude chạy cho Project này. Để mặc định để dùng tài khoản mặc định toàn cục. Quản lý tài khoản trong",
   "noClaudeAccounts": "Chưa có tài khoản Claude nào.",
   "toastClaudeLinked": "Đã liên kết tài khoản Claude",
@@ -196,7 +195,8 @@
     "title": "Mặc định cho session mới",
     "hint": "Giá trị một session mới của Project này dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng. ★ đánh dấu giá trị lấy từ",
     "saved": "Đã lưu mặc định session",
-    "noAccount": "Không có (~/.claude chung)"
+    "noAccount": "Không có (~/.claude chung)",
+    "claudeAccount": "Tài khoản Claude"
   },
   "pasteAsFile": {
     "title": "Paste dài",
