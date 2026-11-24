@@ -21,6 +21,7 @@ import ComposerMentionOverlay from './ComposerMentionOverlay.vue'
 import { COMPOSER_TEXT } from './composerTextStyle'
 import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
+import { useRunSettingsPanel } from './useRunSettingsPanel'
 import RunMcpSection from './RunMcpSection.vue'
 
 const { t } = useI18n()
@@ -56,6 +57,7 @@ onMounted(() => {
   paneObserver.observe(el)
 })
 onBeforeUnmount(() => paneObserver?.disconnect())
+const { panel: runSettingsPanel, pos: runSettingsPos } = useRunSettingsPanel(runSettingsRoot)
 const runSettingsTitle = computed(() =>
   t('run.runSettingsTitle', { engine: [engineBadgeLabel.value, composerModelLabel.value].filter(Boolean).join(' · ') }),
 )
@@ -95,7 +97,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
       <!-- Slash-command palette (anchored above the textarea) -->
       <div
         v-if="slashOpen && slashItems.length"
-        class="absolute bottom-full left-0 mb-1 max-h-60 w-72 max-w-[80vw] overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-20"
+        class="absolute bottom-full left-0 mb-1 max-h-60 w-72 max-w-full overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-20"
       >
         <ul class="py-1 text-xs">
           <li
@@ -115,7 +117,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
       <!-- @-mention autocomplete popup (anchored above the textarea) -->
       <div
         v-if="mentionOpen && mentionItems.length"
-        class="absolute bottom-full left-0 mb-1 max-h-60 w-[28rem] max-w-[80vw] overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-20"
+        class="absolute bottom-full left-0 mb-1 max-h-60 w-[28rem] max-w-full overflow-y-auto rounded-md border border-border bg-popover shadow-lg z-20"
       >
         <ul class="py-1 text-xs">
           <li
@@ -360,74 +362,80 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
                 :stroke-width="2"
               />
             </Button>
-            <transition
-              enter-active-class="transition duration-150 ease-out"
-              enter-from-class="opacity-0 translate-y-1"
-              leave-active-class="transition duration-100 ease-in"
-              leave-to-class="opacity-0 translate-y-1"
-            >
-              <div
-                v-if="runSettingsOpen"
-                role="dialog"
-                class="absolute bottom-full left-1/2 z-30 mb-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-border bg-popover p-3 shadow-lg shadow-black/20"
-                :aria-label="t('run.runSettingsMenu')"
+            <Teleport to="body">
+              <transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="opacity-0 translate-y-1"
+                leave-active-class="transition duration-100 ease-in"
+                leave-to-class="opacity-0 translate-y-1"
               >
-                <div class="space-y-3">
-                  <div class="space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
-                      <Sparkles class="h-3 w-3 shrink-0" :stroke-width="1.5" />
-                      <span>{{ t('run.modelSetting') }}</span>
+                <div
+                  v-if="runSettingsOpen"
+                  ref="runSettingsPanel"
+                  data-run-settings-panel
+                  role="dialog"
+                  class="fixed z-50 w-72 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-md border border-border bg-popover p-3 shadow-lg shadow-black/20"
+                  :style="{ left: `${runSettingsPos.left}px`, top: `${runSettingsPos.top}px` }"
+                  :aria-label="t('run.runSettingsMenu')"
+                  @keydown.esc.stop="closeRunSettingsMenu"
+                >
+                  <div class="space-y-3">
+                    <div class="space-y-1.5">
+                      <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
+                        <Sparkles class="h-3 w-3 shrink-0" :stroke-width="1.5" />
+                        <span>{{ t('run.modelSetting') }}</span>
+                      </div>
+                      <AppSelect
+                        :model-value="shownModel(modelOverride, defaultModel, modelOptions)"
+                        @update:model-value="onModelSelect"
+                        size="sm"
+                        :options="modelOptions"
+                        :disabled="currentStatus === 'running'"
+                        class="w-full"
+                        :title="t('run.modelTitle')"
+                      >
+                        <template #leading>
+                          <Sparkles class="h-3 w-3 text-muted-foreground shrink-0" :stroke-width="1.5" />
+                        </template>
+                      </AppSelect>
                     </div>
-                    <AppSelect
-                      :model-value="shownModel(modelOverride, defaultModel, modelOptions)"
-                      @update:model-value="onModelSelect"
-                      size="sm"
-                      :options="modelOptions"
-                      :disabled="currentStatus === 'running'"
-                      class="w-full"
-                      :title="t('run.modelTitle')"
-                    >
-                      <template #leading>
-                        <Sparkles class="h-3 w-3 text-muted-foreground shrink-0" :stroke-width="1.5" />
-                      </template>
-                    </AppSelect>
-                  </div>
-                  <div v-if="compactChips && effortLevelsNow.length" class="space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
-                      <Gauge class="h-3 w-3 shrink-0" :stroke-width="1.5" />
-                      <span>{{ t('run.runOptions.effort') }}</span>
+                    <div v-if="compactChips && effortLevelsNow.length" class="space-y-1.5">
+                      <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
+                        <Gauge class="h-3 w-3 shrink-0" :stroke-width="1.5" />
+                        <span>{{ t('run.runOptions.effort') }}</span>
+                      </div>
+                      <AppSelect
+                        :model-value="effortValue"
+                        size="sm"
+                        :options="effortOptions"
+                        class="w-full"
+                        :aria-label="t('run.runOptions.effort')"
+                        @update:model-value="effortPick = $event"
+                      />
                     </div>
-                    <AppSelect
-                      :model-value="effortValue"
-                      size="sm"
-                      :options="effortOptions"
-                      class="w-full"
-                      :aria-label="t('run.runOptions.effort')"
-                      @update:model-value="effortPick = $event"
+                    <div v-if="compactChips" class="space-y-1.5">
+                      <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
+                        <MessageSquareText class="h-3 w-3 shrink-0" :stroke-width="1.5" />
+                        <span>{{ t('run.runOptions.style') }}</span>
+                      </div>
+                      <AppSelect
+                        :model-value="styleValue"
+                        size="sm"
+                        :options="styleOptions"
+                        class="w-full"
+                        :aria-label="t('run.runOptions.style')"
+                        @update:model-value="pickStyle"
+                      />
+                    </div>
+                    <RunMcpSection
+                      v-if="currentRunId"
+                      :run-id="currentRunId"
+                      :running="currentStatus === 'running'"
                     />
                   </div>
-                  <div v-if="compactChips" class="space-y-1.5">
-                    <div class="flex items-center gap-1.5 text-2xs font-medium uppercase text-muted-foreground">
-                      <MessageSquareText class="h-3 w-3 shrink-0" :stroke-width="1.5" />
-                      <span>{{ t('run.runOptions.style') }}</span>
-                    </div>
-                    <AppSelect
-                      :model-value="styleValue"
-                      size="sm"
-                      :options="styleOptions"
-                      class="w-full"
-                      :aria-label="t('run.runOptions.style')"
-                      @update:model-value="pickStyle"
-                    />
-                  </div>
-                  <RunMcpSection
-                    v-if="currentRunId"
-                    :run-id="currentRunId"
-                    :running="currentStatus === 'running'"
-                  />
                 </div>
-              </div>
-            </transition>
+              </transition>
+            </Teleport>
           </div>
           <RunComposerChips :compact="compactChips" />
 

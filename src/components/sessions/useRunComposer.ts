@@ -49,6 +49,7 @@ import type { RunHeaderInfo } from './useRunHeaderInfo'
 import { useComposerChips } from './useComposerChips'
 import { useQuotaNotice } from './useQuotaNotice'
 import { usePasteAsFile } from './usePasteAsFile'
+import { clickLeavesRunSettings } from './useRunSettingsPanel'
 
 interface PendingImage extends ImageAttachment {
   id: string
@@ -105,12 +106,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     runSettingsOpen.value = false
   }
   function onRunSettingsPointerDown(e: MouseEvent) {
-    if (!runSettingsOpen.value) return
-    const target = e.target
-    if (!(target instanceof Element)) return
-    if (runSettingsRoot.value?.contains(target)) return
-    if (target.closest('[data-app-select-dropdown]')) return
-    closeRunSettingsMenu()
+    if (runSettingsOpen.value && clickLeavesRunSettings(e.target, runSettingsRoot.value)) closeRunSettingsMenu()
   }
   // One unified picker: Claude + Codex models in a single grouped list, so the
   // chosen model implies the engine and no separate engine selector is needed.
