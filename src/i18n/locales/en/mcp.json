@@ -141,5 +141,20 @@
     "pick": "Found {count} servers — pick one to open as a draft:",
     "draftReady": "Form filled in — type the blank values, then Test connection and Save",
     "draftByAi": "The AI filled in the form — check each field, type the blank values, then Test connection and Save"
+  },
+  "slackDm": {
+    "title": "Slack DM threads",
+    "global": "Read DM threads (all projects)",
+    "globalHint": "Off by default. Lets Slack threads in direct messages be added and fetched. Each project then turns it on for itself in its MCP tab. The Slack token also needs im:history (group DMs: mpim:history).",
+    "saved": "Saved",
+    "checking": "Checking each Slack token for the DM scopes…",
+    "checkFailed": "Could not check the tokens: {error}",
+    "noTokens": "No Slack token to check: no Slack MCP server is on.",
+    "status": {
+      "ok": "can read DMs",
+      "missing": "missing {scopes}: DM threads will fail until the token has it",
+      "unknown": "Slack did not list the token's scopes, so this cannot be told",
+      "token_error": "the token could not be checked (refused, revoked, or Slack did not answer)"
+    }
   }
 }

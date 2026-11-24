@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/configLock.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parentLock, switchView } from '../configLock.ts'
+import { isSlackServer, parentLock, switchView } from '../configLock.ts'
 
 test('a child shows its stored value while no parent locks it', () => {
   assert.deepEqual(switchView(true, null), { checked: true, disabled: false, lockedBy: null })
@@ -25,4 +25,10 @@ test('app-wide wins over the project when both are off', () => {
   assert.equal(parentLock(true, false), 'project')
   assert.equal(parentLock(true, true), null)
   assert.equal(parentLock(true), null)
+})
+
+test('a Slack MCP server is one whose env keys hold the Slack token', () => {
+  assert.equal(isSlackServer({ env_keys: ['FOO', 'SLACK_MCP_XOXP_TOKEN'] }), true)
+  assert.equal(isSlackServer({ env_keys: ['SLACK_BOT_TOKEN'] }), false)
+  assert.equal(isSlackServer({ env_keys: [] }), false)
 })

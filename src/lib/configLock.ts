@@ -24,3 +24,11 @@ export function parentLock(onAppWide: boolean, onForProject = true): LockLevel |
   if (!onForProject) return 'project'
   return null
 }
+
+/** The env key that makes an MCP server a Slack one: the app reads Slack threads with its token. */
+export const SLACK_TOKEN_ENV = 'SLACK_MCP_XOXP_TOKEN'
+
+/** Whether an MCP server holds a Slack token (its env keys name it). */
+export function isSlackServer(server: { env_keys: readonly string[] }): boolean {
+  return server.env_keys.includes(SLACK_TOKEN_ENV)
+}

@@ -141,5 +141,20 @@
     "pick": "Tìm thấy {count} server — chọn một để mở bản nháp:",
     "draftReady": "Đã điền sẵn form — nhập các giá trị còn trống, bấm Kiểm tra kết nối rồi Lưu",
     "draftByAi": "AI đã điền sẵn form — xem lại từng trường, nhập các giá trị còn trống, bấm Kiểm tra kết nối rồi Lưu"
+  },
+  "slackDm": {
+    "title": "Thread Slack trong DM",
+    "global": "Đọc thread DM (mọi project)",
+    "globalHint": "Mặc định tắt. Cho phép thêm và tải thread Slack trong tin nhắn trực tiếp. Sau đó mỗi project tự bật ở tab MCP của nó. Token Slack cũng cần quyền im:history (DM nhóm: mpim:history).",
+    "saved": "Đã lưu",
+    "checking": "Đang kiểm tra quyền đọc DM của từng token Slack…",
+    "checkFailed": "Không kiểm tra được token: {error}",
+    "noTokens": "Không có token Slack nào để kiểm tra: chưa có MCP server Slack nào đang bật.",
+    "status": {
+      "ok": "đọc được DM",
+      "missing": "thiếu {scopes}: thread DM sẽ lỗi cho tới khi token có quyền này",
+      "unknown": "Slack không trả danh sách quyền của token nên không biết được",
+      "token_error": "không kiểm tra được token (bị từ chối, bị thu hồi, hoặc Slack không trả lời)"
+    }
   }
 }

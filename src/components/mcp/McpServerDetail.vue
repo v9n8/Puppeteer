@@ -19,6 +19,7 @@ import {
 } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
+import McpSlackDm from '@/components/mcp/McpSlackDm.vue'
 import { useToast } from '@/composables/useToast'
 import {
   useMcpServersStore,
@@ -38,6 +39,7 @@ import {
   type FormError,
   type McpForm,
 } from '@/lib/mcpRows'
+import { isSlackServer } from '@/lib/configLock'
 
 const props = defineProps<{
   /** null = a new draft. */
@@ -304,6 +306,8 @@ defineExpose({ dirty })
             />
           </div>
         </DetailSection>
+
+        <McpSlackDm v-if="server && isSlackServer(server)" />
 
         <DetailSection :title="t('mcp.editor.general')" :hint="t('mcp.detail.generalHint')">
           <div class="space-y-1.5">
