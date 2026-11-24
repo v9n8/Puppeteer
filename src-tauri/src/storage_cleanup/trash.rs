@@ -2,8 +2,9 @@
 //! like a permanent delete from the Trash screen (`purge_run_tree`,
 //! `purge_project_inner`), so their logs, pastes, transcripts and rows go
 //! together. A protected or running run stays, and so does a project or a
-//! session holding one (or a worker trashed less than N days ago). The sizes are an estimate: a transcript's copies in other accounts are
-//! not counted.
+//! session holding one (or a worker trashed less than N days ago, or one in a
+//! project that stays). The sizes are an estimate: a transcript's copies in
+//! other accounts are not counted.
 
 use super::{running_run_ids, Category, Ctx, Item, Target, CAT_TRASH};
 use chrono::{DateTime, Utc};
@@ -90,13 +91,20 @@ fn pick(runs: &[TrashedRun], empty: &[(String, Option<String>)], running: &HashS
     }
     let mut project_ids: Vec<&str> = projects.keys().copied().collect();
     project_ids.sort();
+    // A session's worker can sit in one of these projects (see below).
+    let mut kept_projects = HashSet::new();
+    // Projects whose runs' sizes are already counted, picked or kept.
+    let mut sized_projects = HashSet::new();
     for id in project_ids {
         let members = &projects[id];
         if !older(members[0].project_deleted_at.as_deref(), cutoff) {
+            kept_projects.insert(id);
             continue;
         }
         let (bytes, files) = members.iter().map(|r| size(r)).fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
+        sized_projects.insert(id);
         if members.iter().any(|r| blocked(r)) {
+            kept_projects.insert(id);
             category.kept_items += 1;
             category.kept_bytes += bytes;
         } else {
@@ -112,7 +120,9 @@ fn pick(runs: &[TrashedRun], empty: &[(String, Option<String>)], running: &HashS
     // Trashed runs of live projects. `purge_run_tree` takes every trashed
     // worker of a session, so a session and its workers go together, all or
     // none: one worker that is blocked or trashed less than N days ago keeps
-    // the whole session.
+    // the whole session. So does a worker in a trashed project that stays: a
+    // kept project stays whole. A worker in an old trashed project is counted
+    // with that project, not again with its session.
     let mut workers: HashMap<&str, Vec<&TrashedRun>> = HashMap::new();
     for run in runs {
         if let Some(session) = run.conductor_run_id.as_deref().filter(|c| *c != run.id) {
@@ -129,10 +139,14 @@ fn pick(runs: &[TrashedRun], empty: &[(String, Option<String>)], running: &HashS
             continue; // goes or stays with its session
         }
         let tree: Vec<&TrashedRun> = std::iter::once(run).chain(workers.get(run.id.as_str()).into_iter().flatten().copied()).collect();
-        let (bytes, files) = tree.iter().map(|r| size(r)).fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
+        let (bytes, files) = tree
+            .iter()
+            .filter(|r| !sized_projects.contains(r.project_id.as_str()))
+            .map(|r| size(r))
+            .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
         // A worker may be in the Trash only with its project (no own stamp).
         let recent = |r: &TrashedRun| !older(r.deleted_at.as_deref().or(r.project_deleted_at.as_deref()), cutoff);
-        if tree.iter().any(|r| blocked(r) || recent(r)) {
+        if tree.iter().any(|r| blocked(r) || recent(r) || kept_projects.contains(r.project_id.as_str())) {
             category.kept_items += 1;
             category.kept_bytes += bytes;
         } else {
@@ -279,6 +293,43 @@ mod tests {
             let gone = id == "s4" || id == "w-old";
             assert_eq!(proj.join(format!(".puppeteer/runs/{id}.log")).exists(), !gone, "{id}.log");
         }
+        ctx.db.close().await;
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// A Session's worker can sit in another, trashed Project. A kept Project
+    /// stays whole, so the Session stays too; a picked one counts the worker.
+    #[tokio::test]
+    async fn an_old_trashed_session_stays_while_a_worker_is_in_a_kept_project() {
+        let base = temp_dir("trash-cross-project");
+        let ctx = ctx_with(&base).await;
+        let (proj, p3, p4) = (base.join("proj"), base.join("p3"), base.join("p4"));
+        insert_project(&ctx, "p1", &proj, None).await;
+        insert_project(&ctx, "p3", &p3, Some(ago(40))).await;
+        insert_project(&ctx, "p4", &p4, Some(ago(40))).await;
+        let worker = |id: &str, session: &str| format!("UPDATE runs SET conductor_run_id = '{session}', role = 'worker' WHERE id = '{id}'");
+        insert_run(&ctx, "y", "p1", Some(ago(40)), "").await;
+        insert_run(&ctx, "w-proj-old", "p3", Some(ago(40)), &worker("w-proj-old", "y")).await;
+        insert_run(&ctx, "p3-guard", "p3", None, "UPDATE runs SET protected = 1 WHERE id = 'p3-guard'").await;
+        insert_run(&ctx, "z", "p1", Some(ago(40)), "").await;
+        insert_run(&ctx, "w-proj-gone", "p4", Some(ago(40)), &worker("w-proj-gone", "z")).await;
+        for (dir, id) in [(&proj, "y"), (&p3, "w-proj-old"), (&proj, "z"), (&p4, "w-proj-gone")] {
+            write(&dir.join(format!(".puppeteer/runs/{id}.log")));
+        }
+
+        let category = plan_all(&ctx).await.categories.into_iter().find(|c| c.id == CAT_TRASH).unwrap();
+        let picked: Vec<_> = category.items.iter().map(|i| (i.target.describe(), i.files)).collect();
+        assert_eq!(picked, [("project p4".to_string(), 1), ("run z".to_string(), 1)], "the worker's log is counted once, with its Project");
+        assert_eq!(category.kept_items, 2, "p3 and y");
+        let p3_log = crate::storage_cleanup::fs_safe::size_of(&p3.join(".puppeteer/runs/w-proj-old.log")).0;
+        let y_log = crate::storage_cleanup::fs_safe::size_of(&proj.join(".puppeteer/runs/y.log")).0;
+        assert_eq!(category.kept_bytes, p3_log + y_log, "the worker's log is kept once, with its Project");
+
+        let outcome = apply(&ctx, Plan { categories: vec![category] }).await;
+        assert_eq!(outcome.errors, 0);
+        assert_eq!(run_ids(&ctx).await, ["p3-guard", "w-proj-old", "y"]);
+        let projects: Vec<String> = sqlx::query_scalar("SELECT id FROM projects ORDER BY id").fetch_all(&ctx.db).await.unwrap();
+        assert_eq!(projects, ["p1", "p3"]);
         ctx.db.close().await;
         std::fs::remove_dir_all(&base).unwrap();
     }
