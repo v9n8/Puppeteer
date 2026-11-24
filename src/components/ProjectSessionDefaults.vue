@@ -25,6 +25,7 @@ import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
 import { projectDefaultSelect } from '@/lib/defaultMark'
 import { PASTE_MAX_MAX_CHARS, parseMaxChars, pasteSetting, type PasteAsFileSetting } from '@/lib/pasteAsFile'
+import { IS_MAC } from '@/lib/appMenu'
 
 const props = defineProps<{ project: Project }>()
 
@@ -270,7 +271,9 @@ async function selectClaudeAccount(accountId: string) {
         <InfoTip :text="t('projectDetail.pasteAsFile.hint')" />
       </template>
       <div class="flex items-center justify-between gap-3">
-        <span class="text-xs">{{ t('projectDetail.pasteAsFile.enabled') }}</span>
+        <span class="flex items-center gap-1.5 text-xs">
+          {{ t('projectDetail.pasteAsFile.enabled') }}<InfoTip :text="t('projectDetail.pasteAsFile.shortcutHint', { key: IS_MAC ? '⌘⇧V' : 'Ctrl+Shift+V' })" />
+        </span>
         <ToggleSwitch
           size="md"
           :checked="paste.enabled"

@@ -14,7 +14,9 @@
   "attachFileLabel": "Attached files:",
   "pasteAsFile": {
     "saved": "Long paste ({count} characters) saved as {name} and attached",
-    "failed": "Could not save the paste as a file, so it went into the message: {error}"
+    "failed": "Could not save the paste as a file, so it went into the message: {error}",
+    "needsRun": "A paste becomes a file only once the session has started, so it went into the message.",
+    "readFailed": "Could not read the clipboard: {error}"
   },
   "imageTooLarge": "Image too large (max {size}MB).",
   "engineFallback": "the agent",

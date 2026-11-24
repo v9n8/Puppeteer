@@ -8,11 +8,18 @@
 //   paste would start a session the user has not sent.
 // - Saving fails: an error toast and the text goes into the draft after all, so
 //   nothing pasted is lost.
+//
+// ⌘⇧V (macOS) / Ctrl+Shift+V pastes the other way: the opposite of the setting,
+// whatever the length (`pasteAction`). macOS fires no `paste` event for it, so the
+// keydown reads the clipboard itself (`read_clipboard_text`, local-only: a remote
+// window reads the controlling machine's clipboard, never the host's).
 import { emit as emitEvent } from '@tauri-apps/api/event'
+import { invoke as localInvoke } from '@tauri-real/core'
 import { invoke } from '@/lib/tauri'
+import { IS_MAC } from '@/lib/appMenu'
 import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute } from '@/lib/detachedScreens'
 import { projectPageQuery } from '@/lib/projectSections'
-import { pasteFileName, shouldPasteAsFile } from '@/lib/pasteAsFile'
+import { isInvertPasteKey, pasteAction, pasteFileName } from '@/lib/pasteAsFile'
 import type { RunSessionCore } from './useRunSessionCore'
 
 export function usePasteAsFile(core: RunSessionCore, addPendingFile: (path: string) => void) {
@@ -47,19 +54,69 @@ export function usePasteAsFile(core: RunSessionCore, addPendingFile: (path: stri
     }
   }
 
+  // WINDOWS-LINUX-REVIEW: the one-shot "invert the next paste" flag assumes WebView2 / WebKitGTK
+  // fire a native `paste` event for Ctrl+Shift+V right after its keydown; unverified.
+  let invertNext = false
+  const clearInvert = () => { invertNext = false }
+
+  /** Where `text` goes, as `pasteAction` decides; true when it was taken from the browser. */
+  function place(text: string, inverted: boolean, el: HTMLTextAreaElement | null, insert: boolean): boolean {
+    const runId = currentRunId.value
+    const action = pasteAction(text, project.value?.paste_as_file, { inverted, hasRun: !!runId })
+    if (action === 'file' && runId) {
+      void save(runId, text, el)
+      return true
+    }
+    if (action === 'draft_no_run') toast.info(t('run.pasteAsFile.needsRun'), 5000)
+    if (insert) insertIntoDraft(el, text)
+    return false
+  }
+
   /**
    * Called for a paste that carried no image. True when the text was taken (the
    * caller then stops the browser from inserting it).
    */
   function onPaste(e: ClipboardEvent): boolean {
-    const runId = currentRunId.value
-    if (!runId) return false
+    // WINDOWS-LINUX-REVIEW: consumes the flag Ctrl+Shift+V set; unverified that this paste is that one.
+    const inverted = invertNext
+    clearInvert()
     const text = e.clipboardData?.getData('text/plain') ?? ''
-    if (!text || !shouldPasteAsFile(text, project.value?.paste_as_file)) return false
+    if (!text) return false
+    return place(text, inverted, e.target instanceof HTMLTextAreaElement ? e.target : null, false)
+  }
+
+  async function pasteFromClipboard(el: HTMLTextAreaElement | null) {
+    let text: string | null
+    try {
+      text = await localInvoke<string | null>('read_clipboard_text')
+    } catch (e) {
+      toast.error(t('run.pasteAsFile.readFailed', { error: String(e) }))
+      return
+    }
+    if (text) place(text, true, el, true)
+  }
+
+  /**
+   * The composer's keydown, first: true when it was the "paste the other way" shortcut
+   * (the caller then stops). Any other key clears a pending one-shot flag.
+   */
+  function onShortcut(e: KeyboardEvent): boolean {
+    if (!isInvertPasteKey(e, IS_MAC)) {
+      clearInvert()
+      return false
+    }
     const el = e.target instanceof HTMLTextAreaElement ? e.target : null
-    void save(runId, text, el)
+    if (IS_MAC) {
+      e.preventDefault()
+      void pasteFromClipboard(el)
+      return true
+    }
+    // WINDOWS-LINUX-REVIEW: no preventDefault, so the native paste still fires and reads the flag;
+    // the flag also clears on blur. Unverified on WebView2 / WebKitGTK.
+    invertNext = true
+    el?.addEventListener('blur', clearInvert, { once: true })
     return true
   }
 
-  return { onPaste }
+  return { onPaste, onShortcut }
 }

@@ -38,6 +38,34 @@ export function shouldPasteAsFile(text: string, raw: Partial<PasteAsFileSetting>
 }
 
 /**
+ * Where a text paste goes. `inverted` = the "paste the other way" shortcut (⌘⇧V /
+ * Ctrl+Shift+V): it does the opposite of the setting whatever the length — on puts the
+ * text in the draft, off saves it as a file. A file needs a started session: without a
+ * run an inverted paste goes into the draft and says why (`draft_no_run`); a plain paste
+ * without a run goes into the draft as before.
+ */
+export function pasteAction(
+  text: string,
+  raw: Partial<PasteAsFileSetting> | null | undefined,
+  { inverted, hasRun }: { inverted: boolean; hasRun: boolean },
+): 'draft' | 'file' | 'draft_no_run' {
+  if (inverted) {
+    if (pasteSetting(raw).enabled) return 'draft'
+    return hasRun ? 'file' : 'draft_no_run'
+  }
+  return hasRun && shouldPasteAsFile(text, raw) ? 'file' : 'draft'
+}
+
+/** Whether a keydown is the "paste the other way" shortcut: ⌘⇧V on macOS, Ctrl+Shift+V elsewhere. */
+export function isInvertPasteKey(
+  e: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'code' | 'isComposing'>,
+  mac: boolean,
+): boolean {
+  const primary = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+  return primary && e.shiftKey && !e.altKey && e.code === 'KeyV' && !e.isComposing
+}
+
+/**
  * What the length field holds as a threshold: a whole number from 1 to
  * `PASTE_MAX_MAX_CHARS`, or null (empty, a fraction, a sign, letters, out of range).
  */

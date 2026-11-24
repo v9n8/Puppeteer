@@ -1266,6 +1266,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   }
 
   function onComposerKeydown(e: KeyboardEvent) {
+    if (pasteAsFile.onShortcut(e)) return
     if (slashOpen.value && slashItems.value.length) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()

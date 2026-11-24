@@ -204,7 +204,8 @@
     "enabled": "Save long pastes as a file",
     "maxChars": "Longer than (characters)",
     "invalid": "Enter a whole number from 1 to {max}.",
-    "saved": "Long paste setting saved"
+    "saved": "Long paste setting saved",
+    "shortcutHint": "{key} pastes the other way, whatever the length: into the message while this is on, as a .txt file while it is off."
   },
   "libraryKindEmpty": "This project has no {kind} yet.",
   "libraryRetry": "Retry",

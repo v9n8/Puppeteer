@@ -204,7 +204,8 @@
     "enabled": "Lưu đoạn paste dài thành file",
     "maxChars": "Dài hơn (ký tự)",
     "invalid": "Nhập số nguyên từ 1 đến {max}.",
-    "saved": "Đã lưu cài đặt paste dài"
+    "saved": "Đã lưu cài đặt paste dài",
+    "shortcutHint": "{key} paste theo chiều ngược lại, bất kể độ dài: khi bật thì đưa vào tin nhắn, khi tắt thì lưu thành file .txt."
   },
   "libraryKindEmpty": "Project này chưa có {kind} nào.",
   "libraryRetry": "Thử lại",

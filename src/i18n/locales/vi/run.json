@@ -14,7 +14,9 @@
   "attachFileLabel": "Đính kèm file:",
   "pasteAsFile": {
     "saved": "Đoạn paste dài ({count} ký tự) đã lưu thành {name} và đính kèm",
-    "failed": "Không lưu được đoạn paste thành file nên đã đưa vào tin nhắn: {error}"
+    "failed": "Không lưu được đoạn paste thành file nên đã đưa vào tin nhắn: {error}",
+    "needsRun": "Chỉ lưu paste thành file khi session đã bắt đầu, nên nội dung được đưa vào tin nhắn.",
+    "readFailed": "Không đọc được clipboard: {error}"
   },
   "imageTooLarge": "Ảnh quá lớn (tối đa {size}MB).",
   "engineFallback": "agent",

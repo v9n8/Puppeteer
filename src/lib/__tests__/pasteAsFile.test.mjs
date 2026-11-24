@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   DEFAULT_PASTE_AS_FILE, PASTE_DEFAULT_MAX_CHARS, PASTE_MAX_MAX_CHARS,
-  parseMaxChars, pasteFileName, pasteSetting, shouldPasteAsFile,
+  isInvertPasteKey, parseMaxChars, pasteAction, pasteFileName, pasteSetting, shouldPasteAsFile,
 } from '../pasteAsFile.ts'
 
 test('shouldPasteAsFile: only a paste longer than the threshold', () => {
@@ -55,4 +55,41 @@ test('composer: the paste handler hands text to usePasteAsFile (wiring)', () => 
   const hook = readFileSync(new URL('../../components/sessions/usePasteAsFile.ts', import.meta.url), 'utf8')
   assert.match(hook, /invoke<string>\('save_pasted_text'/)
   assert.match(hook, /projectPageQuery\([^)]*'session'\)/)
+})
+
+test('the shortcut pastes the other way whatever the length', () => {
+  const on = { enabled: true, max_chars: 2000 }
+  const off = { enabled: false, max_chars: 2000 }
+  const long = 'x'.repeat(50_000)
+  const short = 'x'.repeat(20)
+  const run = { inverted: true, hasRun: true }
+  // Setting on: even 50 000 characters go into the draft.
+  assert.equal(pasteAction(long, on, run), 'draft')
+  // Setting off: even 20 characters become a file.
+  assert.equal(pasteAction(short, off, run), 'file')
+  // No run yet: a file cannot be made, so the draft, with a reason.
+  assert.equal(pasteAction(short, off, { inverted: true, hasRun: false }), 'draft_no_run')
+  assert.equal(pasteAction(long, on, { inverted: true, hasRun: false }), 'draft')
+})
+
+test('a plain paste keeps the length rule, and needs a run for a file', () => {
+  const on = { enabled: true, max_chars: 2000 }
+  const plain = { inverted: false, hasRun: true }
+  assert.equal(pasteAction('x'.repeat(2001), on, plain), 'file')
+  assert.equal(pasteAction('x'.repeat(2000), on, plain), 'draft')
+  assert.equal(pasteAction('x'.repeat(2001), { enabled: false, max_chars: 2000 }, plain), 'draft')
+  assert.equal(pasteAction('x'.repeat(2001), on, { inverted: false, hasRun: false }), 'draft')
+})
+
+test('the shortcut is Cmd+Shift+V on macOS and Ctrl+Shift+V elsewhere', () => {
+  const key = (extra) => ({ metaKey: false, ctrlKey: false, shiftKey: true, altKey: false, code: 'KeyV', isComposing: false, ...extra })
+  assert.equal(isInvertPasteKey(key({ metaKey: true }), true), true)
+  assert.equal(isInvertPasteKey(key({ ctrlKey: true }), true), false)
+  assert.equal(isInvertPasteKey(key({ ctrlKey: true }), false), true)
+  assert.equal(isInvertPasteKey(key({ metaKey: true }), false), false)
+  // Plain paste, Option+Shift, another key, or an IME composition: not the shortcut.
+  assert.equal(isInvertPasteKey(key({ metaKey: true, shiftKey: false }), true), false)
+  assert.equal(isInvertPasteKey(key({ metaKey: true, altKey: true }), true), false)
+  assert.equal(isInvertPasteKey(key({ metaKey: true, code: 'KeyC' }), true), false)
+  assert.equal(isInvertPasteKey(key({ metaKey: true, isComposing: true }), true), false)
 })
