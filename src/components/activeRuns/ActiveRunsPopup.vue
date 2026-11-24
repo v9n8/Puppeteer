@@ -71,7 +71,7 @@ function seeAll() {
         :side="side"
         :align="side === 'right' ? 'end' : 'start'"
         :side-offset="8"
-        class="z-50 w-[340px] rounded-[10px] border border-popover-border bg-popover p-2 text-popover-foreground outline-none"
+        class="z-[100] w-[340px] rounded-[10px] border border-popover-border bg-popover p-2 text-popover-foreground outline-none"
         @open-auto-focus="focusFirst"
         @keydown="onKeydown"
       >
