@@ -817,6 +817,7 @@ pub fn run() {
             secret_vault_lock,
             secret_vault_touch,
             secret_vault_set_auto_lock,
+            commands::clipboard::read_clipboard_text,
             secret_vault_change_password,
             secret_vault_merge_old,
             secret_notes_list,

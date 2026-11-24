@@ -134,6 +134,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // Reading Slack DM threads (RT-27): a controller must not open this machine's DMs to itself.
     "set_slack_dm_read",
     "set_project_slack_dm_read",
+    // This machine's clipboard, which the secret vault copies secrets to.
+    "read_clipboard_text",
     // File Transfer window, this machine's half (remote/transfer.rs).
     "local_fs_home", "local_fs_list", "local_fs_mkdir", "local_fs_rename", "local_fs_delete", "local_fs_walk",
     "local_fs_hash", "local_fs_write_begin", "local_fs_write_chunk", "local_fs_write_finish", "local_fs_write_abort",
@@ -806,6 +808,7 @@ mod tests {
             "secret_vault_set_auto_lock",
             "set_slack_dm_read",
             "set_project_slack_dm_read",
+            "read_clipboard_text",
             "set_inbox_api_enabled",
             "set_feature",
             "reset_features",
