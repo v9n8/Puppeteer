@@ -1,8 +1,8 @@
 //! The Trash: runs and projects trashed more than N days ago are purged exactly
 //! like a permanent delete from the Trash screen (`purge_run_tree`,
 //! `purge_project_inner`), so their logs, pastes, transcripts and rows go
-//! together. A protected or running run stays, and so does a project holding
-//! one. The sizes are an estimate: a transcript's copies in other accounts are
+//! together. A protected or running run stays, and so does a project or a
+//! session holding one (or a worker trashed less than N days ago). The sizes are an estimate: a transcript's copies in other accounts are
 //! not counted.
 
 use super::{running_run_ids, Category, Ctx, Item, Target, CAT_TRASH};
@@ -109,18 +109,33 @@ fn pick(runs: &[TrashedRun], empty: &[(String, Option<String>)], running: &HashS
         }
     }
 
-    // Trashed runs of live projects; a worker goes with its trashed session.
+    // Trashed runs of live projects. `purge_run_tree` takes every trashed
+    // worker of a session, so a session and its workers go together, all or
+    // none: one worker that is blocked or trashed less than N days ago keeps
+    // the whole session.
+    let mut workers: HashMap<&str, Vec<&TrashedRun>> = HashMap::new();
+    for run in runs {
+        if let Some(session) = run.conductor_run_id.as_deref().filter(|c| *c != run.id) {
+            workers.entry(session).or_default().push(run);
+        }
+    }
     let old: Vec<&TrashedRun> = runs
         .iter()
         .filter(|r| r.project_deleted_at.is_none() && older(r.deleted_at.as_deref(), cutoff))
         .collect();
-    let picked: HashSet<&str> = old.iter().filter(|r| !blocked(r)).map(|r| r.id.as_str()).collect();
+    let sessions: HashSet<&str> = old.iter().map(|r| r.id.as_str()).collect();
     for run in old {
-        if blocked(run) {
+        if run.conductor_run_id.as_deref().is_some_and(|c| c != run.id && sessions.contains(c)) {
+            continue; // goes or stays with its session
+        }
+        let tree: Vec<&TrashedRun> = std::iter::once(run).chain(workers.get(run.id.as_str()).into_iter().flatten().copied()).collect();
+        let (bytes, files) = tree.iter().map(|r| size(r)).fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
+        // A worker may be in the Trash only with its project (no own stamp).
+        let recent = |r: &TrashedRun| !older(r.deleted_at.as_deref().or(r.project_deleted_at.as_deref()), cutoff);
+        if tree.iter().any(|r| blocked(r) || recent(r)) {
             category.kept_items += 1;
-            category.kept_bytes += size(run).0;
-        } else if !run.conductor_run_id.as_deref().is_some_and(|c| picked.contains(c)) {
-            let (bytes, files) = size(run);
+            category.kept_bytes += bytes;
+        } else {
             category.items.push(Item { target: Target::Run(run.id.clone()), bytes, files });
         }
     }
@@ -227,6 +242,43 @@ mod tests {
         assert_eq!(run_ids(&ctx).await, ["bad-stamp", "in-history", "kept-live", "kept-pending", "kept-protected", "recent"]);
         assert!(!proj.join(".puppeteer/runs/old.log").exists() && !proj.join(".puppeteer/runs/old").exists());
         assert!(proj.join(".puppeteer/runs/recent.log").exists());
+        ctx.db.close().await;
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_old_trashed_session_stays_while_one_of_its_workers_must_stay() {
+        let base = temp_dir("trash-workers");
+        let ctx = ctx_with(&base).await;
+        let proj = base.join("proj");
+        insert_project(&ctx, "p1", &proj, None).await;
+        let worker = |id: &str, session: &str, extra: &str| {
+            format!("UPDATE runs SET conductor_run_id = '{session}', role = 'worker'{extra} WHERE id = '{id}'")
+        };
+        for s in ["s", "s2", "s3", "s4"] {
+            insert_run(&ctx, s, "p1", Some(ago(40)), "").await;
+        }
+        insert_run(&ctx, "w-protected", "p1", Some(ago(40)), &worker("w-protected", "s", ", protected = 1")).await;
+        insert_run(&ctx, "w-recent", "p1", Some(ago(2)), &worker("w-recent", "s2", "")).await;
+        insert_run(&ctx, "w-pending", "p1", Some(ago(40)), &worker("w-pending", "s3", ", interrupted_pending = 1")).await;
+        insert_run(&ctx, "w-old", "p1", Some(ago(40)), &worker("w-old", "s4", "")).await;
+        let logs = ["s", "s2", "s3", "s4", "w-protected", "w-recent", "w-pending", "w-old"];
+        for id in logs {
+            write(&proj.join(format!(".puppeteer/runs/{id}.log")));
+        }
+
+        let category = plan_all(&ctx).await.categories.into_iter().find(|c| c.id == CAT_TRASH).unwrap();
+        let picked: Vec<_> = category.items.iter().map(|i| i.target.describe()).collect();
+        assert_eq!(picked, ["run s4"], "a session goes only with all of its workers");
+        assert_eq!((category.items[0].files, category.kept_items), (2, 3), "the worker's log is counted with its session");
+
+        let outcome = apply(&ctx, Plan { categories: vec![category] }).await;
+        assert_eq!(outcome.errors, 0);
+        assert_eq!(run_ids(&ctx).await, ["s", "s2", "s3", "w-pending", "w-protected", "w-recent"]);
+        for id in logs {
+            let gone = id == "s4" || id == "w-old";
+            assert_eq!(proj.join(format!(".puppeteer/runs/{id}.log")).exists(), !gone, "{id}.log");
+        }
         ctx.db.close().await;
         std::fs::remove_dir_all(&base).unwrap();
     }
