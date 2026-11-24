@@ -129,3 +129,18 @@ async fn a_thread_waiting_for_slack_on_its_project_is_retried_at_startup() {
     env.run(&id).await;
     assert_eq!(env.status(&id).await.0, "ready");
 }
+
+#[tokio::test]
+async fn re_adding_a_link_from_another_project_checks_the_project_the_thread_keeps() {
+    let env = Env::new("re-add-other-project").await;
+    env.seed_thread();
+    let id = env.state.add_thread(LINK, Some("p2"), None, false).await.unwrap().id;
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "ready");
+    // Slack is off for p1; the thread stays in p2, where it is on.
+    off_for_project(&env.db, "srv1", "p1").await;
+    let again = env.state.add_thread(LINK, Some("p1"), None, false).await.unwrap();
+    assert_eq!((again.id.as_str(), again.error_code.as_deref()), (id.as_str(), None));
+    env.run(&id).await;
+    assert_eq!(env.status(&id).await.0, "ready", "{:?}", env.status(&id).await);
+}

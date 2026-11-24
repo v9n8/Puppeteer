@@ -600,15 +600,25 @@ impl SlackThreadsState {
         if let Some(pid) = project_id {
             store::check_project(&self.ctx.db, pid).await?;
         }
+        // A re-added thread keeps a project it already has (`store::add_or_requeue`), so the
+        // DM and token gates read the project the row ends up with.
+        let existing = store::find_by_key(&self.ctx.db, &link.channel_id, &link.thread_ts, None)
+            .await
+            .map_err(store::internal)?;
+        let kept = match existing {
+            Some(id) => store::get_summary(&self.ctx.db, &id).await?.project_id,
+            None => None,
+        };
+        let gate_project = kept.as_deref().or(project_id);
         if link.is_dm() {
-            dm::check(&self.ctx.db, project_id).await?;
+            dm::check(&self.ctx.db, gate_project).await?;
         }
-        let found = token::sources(&self.ctx.db, &self.ctx.lookup, project_id)
+        let found = token::sources(&self.ctx.db, &self.ctx.lookup, gate_project)
             .await
             .map_err(store::internal)?;
         let missing_token = match found.is_empty() {
             true => Some(
-                token::missing_token_code(&self.ctx.db, &self.ctx.lookup, project_id)
+                token::missing_token_code(&self.ctx.db, &self.ctx.lookup, gate_project)
                     .await
                     .map_err(store::internal)?,
             ),
