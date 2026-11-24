@@ -43,6 +43,7 @@ import { focusSessionWindow } from '@/lib/sessionWindow'
 import { EVT_TRAY_OPEN } from '@/lib/backgroundProcesses'
 import { FILE_WINDOW_DOCK, type FileWindowDock } from '@/lib/fileWindow'
 import { useSessionTabsStore } from '@/stores/sessionTabs'
+import { resolveRunProjects } from '@/lib/runReconcile'
 
 /**
  * Call in setup; then await the returned `listenMainWindowEvents()` once, from
@@ -170,6 +171,35 @@ export function useMainWindowEvents() {
     }
   }
 
+  // A webview reload (e.g. `pnpm dev` full-reloads on a non-module file change)
+  // empties the liveRuns store, and `run:activated` is only sent when a sidecar
+  // spawns, never again for a turn already running. Attach every run the backend
+  // still reports live, or its `run:done` reaches no listener and the UI stays on
+  // 'running'. A run that ends before its listener attaches is settled by
+  // `live.reconcileRunning`.
+  async function reattachLiveRuns() {
+    let ids: string[]
+    try {
+      ids = (await runsStore.listLiveRuns()).filter((id) => !live.isListening(id))
+    } catch {
+      return // outside the Tauri shell / backend unavailable
+    }
+    if (!ids.length) return
+    const projectOf = (id: string) => live.sessions.get(id)?.projectId ?? runsStore.runMeta.get(id)?.project_id
+    if (!ids.every(projectOf) && !projectsStore.projects.length) {
+      await projectsStore.fetchProjects().catch(() => {})
+    }
+    const found = await resolveRunProjects(
+      ids,
+      projectOf,
+      projectsStore.projects.map((p) => p.id),
+      (projectId) => runsStore.refreshMeta(projectId).catch(() => {}),
+    )
+    for (const { runId, projectId } of found) {
+      if (!live.isListening(runId)) live.activate(runId, projectId).catch(() => {})
+    }
+  }
+
   onBeforeUnmount(() => {
     unlistenActivated?.()
     unlistenActivated = null
@@ -246,6 +276,8 @@ export function useMainWindowEvents() {
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).
     }
+    // After the `run:activated` listener, so a run spawned meanwhile is not missed.
+    void reattachLiveRuns()
 
     try {
       unlistenTrayRun = await listen<TrayOpenRun>(TRAY_OPEN_RUN, (e) => {

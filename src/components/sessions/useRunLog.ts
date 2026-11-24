@@ -1269,6 +1269,20 @@ export function useRunLog(core: RunSessionCore, late: RunLogLate) {
     if (id && id !== currentRunId.value) loadRunLog(id)
   })
 
+  // The run on screen in history view went live behind it: re-attached after a
+  // webview reload, or resumed from outside this window. Move to the live view,
+  // carrying the history window over as sending a message does; otherwise the
+  // screen stays on the disk snapshot while the turn streams unseen.
+  watch(
+    () => (currentRunId.value ? live.sessions.get(currentRunId.value) : undefined),
+    (s, prev) => {
+      const id = currentRunId.value
+      if (!id || !s || prev || s.status !== 'running' || viewingLogRunId.value !== id) return
+      livePaging.seedLiveFromHistory(id, s)
+      clearHistoryView()
+    },
+  )
+
   async function loadInputContent(runId: string) {
     if (inputContentRunId.value === runId && inputContent.value) return
     inputContentRunId.value = runId

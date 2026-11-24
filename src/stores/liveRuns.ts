@@ -12,6 +12,7 @@ import {
 import { applyPromptEcho } from '@/lib/promptEcho'
 import { COMPLETE_PAGING, toolIndexOf, type LivePaging } from '@/lib/livePaging'
 import { standingPermissionDecision } from '@/lib/permissionMemory'
+import { settleAfterTwoPasses, untrackedRunningRows } from '@/lib/runReconcile'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
 import { useToolPermissionsStore } from './toolPermissions'
@@ -911,35 +912,45 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
    * marked the run running. Without this they inflate the menu-bar count and the
    * running list forever. A session is only settled after two consecutive passes
    * miss it, so a run that is just starting is never touched.
+   *
+   * Run-list rows marked running with no session at all (a webview reload
+   * dropped it mid-turn) get the same rule, and their status is read back from
+   * the DB rather than guessed.
    */
   async function reconcileRunning() {
+    const runsStore = useRunsStore()
     const running: string[] = []
     sessions.forEach((s, id) => {
       if (s.status === 'running') running.push(id)
     })
-    if (!running.length) {
+    const rows = untrackedRunningRows(runsStore.runs, sessions)
+    const candidates = [...running, ...rows]
+    if (!candidates.length) {
       staleRunning.clear()
       return
     }
-    const runsStore = useRunsStore()
     let live: Set<string>
     try {
       live = new Set(await runsStore.listLiveRuns())
     } catch {
       return // backend unavailable — leave state alone
     }
-    for (const id of [...staleRunning]) {
-      if (!running.includes(id) || live.has(id)) staleRunning.delete(id)
+    const settle = settleAfterTwoPasses(candidates, live, staleRunning)
+    if (!settle.length) return
+    // Re-read the settled runs' status from the DB first: the run may have ended
+    // between `list_live_runs` and its listener attaching, and `refreshMeta` also
+    // updates the on-screen rows in place.
+    const before = new Map(settle.map((id) => [id, sessions.get(id)]))
+    const projects = new Set<string>()
+    for (const id of settle) {
+      const pid = sessions.get(id)?.projectId ?? runsStore.runMeta.get(id)?.project_id ?? runsStore.loadedProjectId
+      if (pid) projects.add(pid)
     }
-    for (const id of running) {
-      if (live.has(id)) continue
-      if (!staleRunning.has(id)) {
-        staleRunning.add(id)
-        continue
-      }
-      staleRunning.delete(id)
+    await Promise.all([...projects].map((pid) => runsStore.refreshMeta(pid).catch(() => {})))
+    for (const id of settle) {
       const s = sessions.get(id)
-      if (!s || s.status !== 'running') continue
+      // A session replaced meanwhile (`reset` on a new turn) is not the one that was missed.
+      if (!s || s !== before.get(id) || s.status !== 'running') continue
       const dbStatus = runsStore.runs.find((r) => r.id === id)?.status ?? runsStore.runMeta.get(id)?.status
       s.status = dbStatus && TERMINAL_STATUSES.has(dbStatus) ? dbStatus : 'done'
       s.permissionQueue = []

@@ -149,12 +149,17 @@ if (!isPopoutWindow && !isSessionWindow) {
       }, 150)
     },
   )
+}
 
-  // A session whose `run:done` was missed would stay "running" forever and keep
-  // the badge lit; poll the backend's live runs while any session claims to run.
+// A session (or a run-list row) whose `run:done` was missed would stay "running"
+// forever and keep the badge lit; poll the backend's live runs while any claims
+// to run. Session windows too: they attach no listener for a run they did not
+// start (permission prompts are the main window's), so after a reload this is
+// what moves their run off 'running'.
+if (!isPopoutWindow) {
   let reconcileTimer: ReturnType<typeof setInterval> | null = null
   watch(
-    () => live.runningIds.length > 0,
+    () => live.runningIds.length > 0 || runsStore.runs.some((r) => r.status === 'running'),
     (anyRunning) => {
       if (anyRunning && !reconcileTimer) {
         reconcileTimer = setInterval(() => void live.reconcileRunning(), 10_000)
