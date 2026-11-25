@@ -233,7 +233,8 @@ const tests = {
     })
     const o = messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
     assert.equal(o.tools, undefined)
-    assert.equal(o.strictMcpConfig, undefined)
+    // Only the MCP servers Puppeteer passes load (test-mcp-guard.mjs).
+    assert.equal(o.strictMcpConfig, true)
     assert.equal(o.settingSources, undefined)
     assert.equal(o.systemPrompt.type, 'preset')
     assert.equal(o.permissionMode, 'default')
@@ -676,7 +677,7 @@ const tests = {
     const once = await stopsOf([{ tools: [{ tool: 'Read' }, edit] }])
     blocked(once.stops[0])
     // Every event holds a matcher list (an undefined one would drop every hook).
-    assert.deepEqual(Object.keys(once.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'Stop'])
+    assert.deepEqual(Object.keys(once.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop'])
     for (const list of Object.values(once.hooks)) assert.ok(Array.isArray(list) && list.length && list.every((m) => m.hooks.length))
     // No loop even when the flag does not come.
     blocked((await stopsOf([{ tools: [edit], activeFlag: false }])).stops[0])
@@ -700,9 +701,9 @@ const tests = {
     assert.deepEqual(turns[1], pass)
     blocked(turns[2])
 
-    // No env (a run somebody watches), or a side task: no hooks at all.
+    // No env (a run somebody watches): only the MCP guard; a side task: no hooks at all.
     const plain = await stopsOf([{ tools: [edit] }], undefined, {})
-    assert.equal(plain.hooks, undefined)
+    assert.deepEqual(Object.keys(plain.hooks), ['PreToolUse'])
     assert.deepEqual(plain.stops[0], pass)
     assert.equal((await stopsOf([{ tools: [edit] }], { permissionMode: 'default', noTools: true })).hooks, undefined)
   },
@@ -726,7 +727,7 @@ const tests = {
     assert.ok(!('permissionDecision' in sonnet.pre[0].hookSpecificOutput), 'no permission is decided')
     assert.deepEqual(sonnet.pre.slice(1), [{}, {}, {}], 'at or below the ceiling, or no model: left as asked')
     assert.deepEqual(sonnet.clamps, [{ type: '_puppeteer_routing_clamp', tool_use_id: 'toolu_0', from: 'opus', to: 'sonnet' }])
-    assert.deepEqual(sonnet.hooks.PreToolUse.map((m) => m.matcher), ['Agent|Task'])
+    assert.deepEqual(sonnet.hooks.PreToolUse.map((m) => m.matcher), ['Agent|Task', 'mcp__.*'])
     // An id session, a Fable session (counts as Opus), the CLI's default model.
     assert.deepEqual((await callsIn('claude-haiku-5-5', [{ model: 'claude-sonnet-5-5' }])).clamps.map((c) => [c.from, c.to]), [['claude-sonnet-5-5', 'haiku']])
     assert.deepEqual((await callsIn('claude-fable-5-2', [asked])).clamps, [])
@@ -738,9 +739,9 @@ const tests = {
     const both = await callsIn('sonnet', [asked], { env: { PUPPETEER_ROUTING_CEILING: '1', PUPPETEER_VERIFY_ON_STOP: '1' } })
     assert.deepEqual(Object.keys(both.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop'])
     assert.equal(both.clamps.length, 1)
-    // No env, or a side task: no hook at all.
+    // No env, or a side task: no ceiling hook.
     for (const off of [await callsIn('sonnet', [asked], { env: {} }), await callsIn('haiku', [asked], { noTools: true })]) {
-      assert.equal(off.hooks, undefined)
+      assert.ok(!(off.hooks?.PreToolUse ?? []).some((m) => m.matcher === 'Agent|Task'))
       assert.deepEqual([off.pre, off.clamps], [[], []])
     }
   },

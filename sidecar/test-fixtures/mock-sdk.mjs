@@ -26,6 +26,11 @@
 //   agent-calls — one turn: every `Agent` input in MOCK_AGENT_CALLS (JSON list)
 //                 goes through the PreToolUse hooks (tool_use_id `toolu_<i>`); the
 //                 result lists each hook output (`mock_pre`).
+//   mcp-calls   — one turn: every { tool, server } in MOCK_MCP_CALLS (JSON list)
+//                 goes through the PreToolUse hooks with `mcp_server` = server, then,
+//                 unless a hook denied it, through canUseTool with `mcpServer`; the
+//                 result lists each outcome (`mock_calls`). MOCK_MCP_INIT (JSON
+//                 list) is the init message's `mcp_servers`, in any scenario.
 //   validate    — a model check (`validate_model`): writes the options to
 //                 MOCK_OPTIONS_FILE (the check sends no init message to echo them
 //                 in), passes MOCK_STDERR to `options.stderr`, then succeeds.
@@ -82,7 +87,7 @@ export function query({ prompt, options }) {
       return
     }
     // Echo the (JSON-safe) options and the first prompt so tests can assert what reached the SDK.
-    yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function', mock_first_input: first.value }
+    yield { type: 'system', subtype: 'init', session_id: 'mock-session', model: 'mock', mock_options: JSON.parse(JSON.stringify(options)), mock_has_can_use_tool: typeof options.canUseTool === 'function', mock_first_input: first.value, ...(process.env.MOCK_MCP_INIT ? { mcp_servers: JSON.parse(process.env.MOCK_MCP_INIT) } : {}) }
     if (scenario === 'max-turns') {
       yield options.maxTurns
         ? { type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: options.maxTurns + 1 }
@@ -128,6 +133,25 @@ export function query({ prompt, options }) {
         }
       }
       yield { type: 'result', subtype: 'success', mock_pre: pre }
+      while (!(await input.next()).done) { /* until stdin closes */ }
+      return
+    }
+    if (scenario === 'mcp-calls') {
+      const calls = []
+      for (const [i, { tool, server }] of JSON.parse(process.env.MOCK_MCP_CALLS || '[]').entries()) {
+        const signal = new AbortController().signal
+        const provenance = server ? { mcp_server: server } : {}
+        let decision
+        for (const hook of hooksFor('PreToolUse', tool)) {
+          const out = await hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: {}, tool_use_id: `toolu_${i}`, ...provenance }, `toolu_${i}`, { signal })
+          decision = out?.hookSpecificOutput?.permissionDecision ?? decision
+        }
+        if (decision === 'deny') { calls.push({ tool, by: 'hook', behavior: 'deny' }); continue }
+        if (!options.canUseTool) { calls.push({ tool, by: 'none', behavior: 'allow' }); continue }
+        const res = await options.canUseTool(tool, {}, { signal, toolUseID: `toolu_${i}`, ...(server ? { mcpServer: server } : {}) })
+        calls.push({ tool, by: 'callback', behavior: res.behavior })
+      }
+      yield { type: 'result', subtype: 'success', mock_calls: calls }
       while (!(await input.next()).done) { /* until stdin closes */ }
       return
     }

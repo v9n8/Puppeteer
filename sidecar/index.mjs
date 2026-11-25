@@ -47,6 +47,7 @@
 //                                      // PUPPETEER_MAX_TURNS ended the turn (AC-23),
 //                                      // right before its `error_max_turns` result
 //   { "type": "_puppeteer_routing_clamp", tool_use_id, from, to }  // see routing-hook.mjs
+//   { "type": "_puppeteer_mcp_blocked", server, source, reason }  // see mcp-guard.mjs
 //
 // Control messages are namespaced with a `_puppeteer_` prefix so they never collide
 // with real stream-json message types.
@@ -62,6 +63,7 @@ import readline from 'node:readline'
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { withRoutingCeiling } from './routing-hook.mjs'
+import { applyMcpLockdown } from './mcp-guard.mjs'
 
 // --- Orphan guard ------------------------------------------------------------
 // Puppeteer spawns this sidecar as the leader of its own process group and says so
@@ -654,6 +656,8 @@ function startQuery(firstText, opts = {}, firstImages) {
       if (parsed && typeof parsed === 'object') options.mcpServers = parsed
     } catch { /* ignore malformed env; run without MCP rather than crash */ }
   }
+  // Only the servers above load or answer (a side task has its own lockdown).
+  const mcpGuard = opts.noTools === true ? null : applyMcpLockdown(options, send)
   const resume = opts.resume || process.env.PUPPETEER_RESUME_SESSION
   if (resume) options.resume = resume
   // Rewind: go on from this earlier entry of the session; what came after it
@@ -707,6 +711,7 @@ function startQuery(firstText, opts = {}, firstImages) {
         }
         // Emit raw stream-json so the Rust drain parses it like the CLI output.
         process.stdout.write(JSON.stringify(message) + '\n')
+        mcpGuard?.(message)
         // Snapshot plan usage once the session is live (at init the CLI is up
         // and the control channel works; by `result` it's already tearing down).
         // Fire-and-forget — NEVER await here: the control response is multiplexed
