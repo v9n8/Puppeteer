@@ -87,11 +87,13 @@ fn only_reads(tool: &str, argv: &[String]) -> bool {
             // A global flag between command words may hide the real verb
             // (`az vm delete -o json list`), so the path cannot be trusted.
             let (path, interleaved) = policy::az_command_path(argv);
-            if interleaved {
+            // `az rest` is left out even for GET: a URL can read a secret
+            // (a Key Vault secret value) and its digits are masked away. The
+            // policy matches it by the first word, so a trailing word such as
+            // `list` must not make it look like a read.
+            if interleaved || path.first().is_some_and(|w| w == "rest") {
                 return false;
             }
-            // `az rest` is left out even for GET: a URL can read a secret
-            // (a Key Vault secret value) and its digits are masked away.
             matches!(path.last().map(String::as_str), Some("list" | "show"))
         }
         _ => false,
@@ -215,6 +217,8 @@ mod tests {
         assert_eq!(key_for("az", &argv(&["rest", "--method", "get", "--url", vault]), rest), None);
         assert_eq!(key_for("az", &argv(&["rest", "--method", "GET", "--url", "u"]), rest), None);
         assert_eq!(key_for("az", &argv(&["rest", "-m", "get", "--url", "u"]), rest), None);
+        let delete = argv(&["rest", "list", "--method", "delete", "--url", "u"]);
+        assert_eq!(key_for("az", &delete, rest), None);
     }
 
     #[test]
