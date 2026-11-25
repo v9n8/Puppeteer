@@ -168,9 +168,7 @@ fn prompt_event(
         tool_name: req.tool.clone(),
         tool_input: serde_json::json!({ "command": cmd_display.trim() }),
         cwd,
-        title: Some(format!("Cho phép `{}`?", cmd_display.trim())),
         description: Some(reason.to_string()),
-        display_name: Some(format!("{} command", req.tool)),
         once_only: true,
         requested_at: Some(chrono::Utc::now()),
         broker: Some(BrokerPrompt {
@@ -286,6 +284,8 @@ mod tests {
         assert_eq!(evt.tool_input, serde_json::json!({ "command": "git push origin main" }));
         assert_eq!(evt.description.as_deref(), Some(reason));
         assert!(evt.once_only);
+        // The UI names the action itself, in the app's language.
+        assert!(evt.title.is_none() && evt.display_name.is_none());
         let broker: BrokerPrompt = evt.broker.clone().expect("broker part");
         assert_eq!(broker.argv, ["push", "origin", "main"]);
         let codes: Vec<&str> = broker.reason.iter().map(|p| p.code.as_str()).collect();

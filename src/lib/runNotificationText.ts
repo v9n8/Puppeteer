@@ -4,6 +4,7 @@
 // decides when to notify; this only names things.
 
 import { allows, type DesktopNotify, type DesktopNotifyKind } from './desktopNotify.ts'
+import { brokerTitle, isBrokerRequest, type BrokerPromptInfo } from './brokerCommand.ts'
 import { engineLabel } from './skillRows.ts'
 
 /** `schedule`: a schedule came due but could not start its session (no run yet). */
@@ -51,8 +52,11 @@ export function notificationSound(settings: DesktopNotify, kind: RunNotification
 /** The parts of a permission request the text reads. */
 export interface NotificationRequest {
   tool_name: string
+  tool_input?: unknown
   title?: string | null
   display_name?: string | null
+  once_only?: boolean
+  broker?: BrokerPromptInfo | null
 }
 
 export interface RunNotificationInput {
@@ -83,6 +87,8 @@ function requestText(req: NotificationRequest | null | undefined, engine: string
   if (!req) return ''
   if (req.tool_name === 'AskUserQuestion') return t('runNotify.body.question', { engine })
   if (req.tool_name === 'ExitPlanMode') return t('runNotify.body.planReady', { engine })
+  // A broker prompt names its action rather than the raw command.
+  if (isBrokerRequest(req)) return brokerTitle(req, t)
   // The bridge's own sentence for the request, when it sent one.
   return req.title || req.display_name || t('runNotify.body.wantsToRun', { tool: req.tool_name })
 }

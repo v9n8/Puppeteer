@@ -15,12 +15,14 @@ import {
 } from '../runNotificationText.ts'
 import { parseDesktopNotify } from '../desktopNotify.ts'
 
-const messages = (lang) =>
-  JSON.parse(readFileSync(new URL(`../../i18n/locales/${lang}/runNotify.json`, import.meta.url), 'utf8'))
+const load = (lang, ns) =>
+  JSON.parse(readFileSync(new URL(`../../i18n/locales/${lang}/${ns}.json`, import.meta.url), 'utf8'))
+const messages = (lang) => load(lang, 'runNotify')
 
 /** A `t` over the real locale file, with vue-i18n's `{name}` interpolation. */
 function translator(lang) {
-  const root = { runNotify: messages(lang) }
+  // `permission` too: a broker request's body is its action title.
+  const root = { runNotify: messages(lang), permission: load(lang, 'permission') }
   return (key, params = {}) => {
     const msg = key.split('.').reduce((node, k) => node?.[k], root)
     assert.equal(typeof msg, 'string', `${lang}: missing ${key}`)
@@ -114,6 +116,19 @@ test('a request shows the bridge sentence, else its name, else the tool', () => 
   assert.equal(body({ tool_name: 'Edit', display_name: 'Edit file' }), 'Edit file')
   assert.equal(body({ tool_name: 'Bash' }), 'Wants to run Bash')
   assert.equal(runNotificationText({ kind: 'needs_you', engine: 'codex', project: 'P', request: { tool_name: 'Bash' }, t: translator('vi') }).body, 'Muốn chạy Bash')
+})
+
+test('a broker request shows its action, not the command', () => {
+  const request = {
+    tool_name: 'gh',
+    tool_input: { command: 'gh api graphql -f query=query{x} --jq .data -c' },
+    title: 'Run gh api graphql -f query=query{x} --jq .data -c',
+    once_only: true,
+    broker: { argv: ['api', 'graphql', '-f', 'query=query{x}', '--jq', '.data', '-c'] },
+  }
+  const body = (lang) => runNotificationText({ kind: 'needs_you', engine: null, project: 'P', request, t: translator(lang) }).body
+  assert.equal(body('en'), 'Read GitHub data with GraphQL (gh api)')
+  assert.equal(body('vi'), 'Đọc dữ liệu GitHub bằng GraphQL (gh api)')
 })
 
 test('a quota stop: "session stopped", the translated reason, no %', () => {

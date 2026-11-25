@@ -6,6 +6,7 @@ import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
 import { isActivationTarget } from '@/lib/permissionKeys'
 import { impactOpensItself, permissionDiffParts, permissionHeadline, permissionImpact, permissionRiskNotes } from '@/lib/permissionImpact'
+import { brokerTitle, isBrokerRequest, type BrokerPromptInfo } from '@/lib/brokerCommand'
 import { engineLabel, permissionOriginParts, type PermissionAgent } from '@/lib/permissionOrigin'
 import { useMinuteClock } from '@/composables/useMinuteClock'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
@@ -36,6 +37,8 @@ export interface PermissionRequest {
   agent?: PermissionAgent | null
   /** RFC 3339 UTC. */
   requested_at?: string | null
+  /** A broker prompt's argv and reason codes, for its action title. */
+  broker?: BrokerPromptInfo | null
 }
 
 const props = withDefaults(defineProps<{
@@ -256,7 +259,9 @@ function submitAnswers() {
 // tool and its target); the engine's own title moves to the line below, and one
 // line sums up the impact and its risks.
 const isToolRequest = computed(() => !isQuestions.value && !isPlan.value)
-const headline = computed(() => (isToolRequest.value ? permissionHeadline(props.request, props.purpose) : null))
+// A broker prompt is titled by its action; its purpose stays in the body.
+const isBroker = computed(() => isBrokerRequest(props.request))
+const headline = computed(() => (isToolRequest.value && !isBroker.value ? permissionHeadline(props.request, props.purpose) : null))
 const sdkTitle = computed(() => (headline.value && props.request.title !== headline.value.text ? props.request.title : null))
 const impact = computed(() => permissionImpact(props.request))
 const impactLine = computed(() =>
@@ -270,6 +275,7 @@ const bodyPurpose = computed(() => (headline.value?.source === 'purpose' && head
 
 const headerTitle = computed(() => {
   if (isPlan.value) return t('permission.headerPlanFinished')
+  if (isBroker.value) return brokerTitle(props.request, t)
   if (headline.value) return headline.value.text
   return props.request.title || (isQuestions.value
     ? t('permission.headerQuestion')

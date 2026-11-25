@@ -22,6 +22,7 @@ import PermissionPrompt, { type PermissionRequest } from '@/components/Permissio
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 import { useMarkdown } from '@/lib/markdown'
 import { engineLabel } from '@/lib/permissionOrigin'
+import { brokerTitle, isBrokerRequest } from '@/lib/brokerCommand'
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -43,6 +44,11 @@ const queue = ref<QueueItem[]>([])
 const viewIndex = ref(0)
 const viewed = computed(() => (viewIndex.value > 0 ? queue.value[viewIndex.value] ?? null : null))
 const viewedIsTool = computed(() => !['AskUserQuestion', 'ExitPlanMode'].includes(viewed.value?.request.tool_name ?? ''))
+const viewedTitle = computed(() => {
+  const r = viewed.value?.request
+  if (!r) return ''
+  return isBrokerRequest(r) ? brokerTitle(r, t) : r.title || r.display_name || r.tool_name
+})
 const allowedTools = ref<string[]>([])
 // Mirrors the window's always-on-top flag (opened with alwaysOnTop: true).
 const pinned = ref(true)
@@ -213,7 +219,7 @@ async function togglePin() {
       <!-- A queued request that isn't first: read-only, decisions stay on the head. -->
       <div v-if="viewed" class="flex h-full min-h-0 flex-col border-t-2 border-t-warning/70 bg-card">
         <div class="min-h-0 flex-1 space-y-3 overflow-auto px-5 py-4">
-          <h2 class="text-sm font-medium text-foreground">{{ viewed.request.title || viewed.request.display_name || viewed.request.tool_name }}</h2>
+          <h2 class="text-sm font-medium text-foreground">{{ viewedTitle }}</h2>
           <PermissionRequestBody v-if="viewedIsTool" :request="viewed.request" :purpose="viewed.purpose" />
         </div>
         <div class="flex shrink-0 flex-col gap-2 border-t border-border px-5 py-3">
