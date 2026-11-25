@@ -14,6 +14,10 @@ const MASK: &str = "[redacted]";
 const SECRET_FLAG_WORDS: &[&str] =
     &["TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "APIKEY", "PRIVATE_KEY", "ACCESS_KEY", "CREDENTIAL", "AUTH"];
 
+/// Flags whose value is a whole header (`X-API-Key: abc`): only the header name is kept, since
+/// any header may carry a credential whatever its name.
+const HEADER_FLAGS: &[&str] = &["--header", "-H"];
+
 /// `summary` as a row shows it.
 pub fn masked_summary(summary: &McpSummary) -> McpSummary {
     McpSummary {
@@ -30,13 +34,18 @@ fn is_secret_flag(flag: &str) -> bool {
 }
 
 /// Each arg with its credentials masked: `--flag=value` and `--flag value` of a secret-named
-/// flag, URLs (user info, query, fragment), and whatever `transcript::redact` recognises by shape
+/// flag, header values after `--header` / `-H`, URLs (user info, query, fragment), and whatever `transcript::redact` recognises by shape
 /// (known key prefixes, JWTs, bearer tokens, `NAME=value` of a secret name).
 fn mask_args(args: &[String]) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut value_is_secret = false;
+    let mut value_is_header = false;
     for arg in args {
-        let masked = if value_is_secret && !arg.starts_with('-') {
+        let masked = if value_is_header && !arg.starts_with('-') {
+            mask_header(arg)
+        } else if let Some((flag, header)) = arg.split_once('=').filter(|(flag, _)| HEADER_FLAGS.contains(flag)) {
+            format!("{flag}={}", mask_header(header))
+        } else if value_is_secret && !arg.starts_with('-') {
             MASK.to_string()
         } else if let Some((flag, _)) = arg.split_once('=').filter(|(flag, _)| flag.starts_with('-') && is_secret_flag(flag)) {
             format!("{flag}={MASK}")
@@ -46,9 +55,18 @@ fn mask_args(args: &[String]) -> Vec<String> {
             redact(arg)
         };
         value_is_secret = arg.starts_with('-') && !arg.contains('=') && is_secret_flag(arg);
+        value_is_header = HEADER_FLAGS.contains(&arg.as_str());
         out.push(masked);
     }
     out
+}
+
+/// `header` (`Name: value`) with its value masked.
+fn mask_header(header: &str) -> String {
+    match header.split_once(':') {
+        Some((name, _)) => format!("{name}: {MASK}"),
+        None => MASK.to_string(),
+    }
 }
 
 /// `url` with the user info, every query value and the fragment masked; scheme, host, port and
@@ -159,6 +177,16 @@ mod tests {
                 "[redacted]",
                 "--verbose",
             ]
+        );
+    }
+
+    #[test]
+    fn header_args_keep_the_name_but_not_the_value() {
+        let args = ["--header", "X-API-Key: abc123", "-H", "Accept: json", "--header=Cookie: sid=1", "-H", "--verbose"];
+        let out = masked_summary(&summary(&args, None)).args;
+        assert_eq!(
+            out,
+            ["--header", "X-API-Key: [redacted]", "-H", "Accept: [redacted]", "--header=Cookie: [redacted]", "-H", "--verbose"]
         );
     }
 
