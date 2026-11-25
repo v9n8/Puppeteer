@@ -141,17 +141,17 @@ export function query({ prompt, options }) {
     }
     if (scenario === 'mcp-calls') {
       const calls = []
-      for (const [i, { tool, server }] of JSON.parse(process.env.MOCK_MCP_CALLS || '[]').entries()) {
+      for (const [i, { tool, server, input = {} }] of JSON.parse(process.env.MOCK_MCP_CALLS || '[]').entries()) {
         const signal = new AbortController().signal
         const provenance = server ? { mcp_server: server } : {}
         let decision
         for (const hook of hooksFor('PreToolUse', tool)) {
-          const out = await hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: {}, tool_use_id: `toolu_${i}`, ...provenance }, `toolu_${i}`, { signal })
+          const out = await hook({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: input, tool_use_id: `toolu_${i}`, ...provenance }, `toolu_${i}`, { signal })
           decision = out?.hookSpecificOutput?.permissionDecision ?? decision
         }
         if (decision === 'deny') { calls.push({ tool, by: 'hook', behavior: 'deny' }); continue }
         if (!options.canUseTool) { calls.push({ tool, by: 'none', behavior: 'allow' }); continue }
-        const res = await options.canUseTool(tool, {}, { signal, toolUseID: `toolu_${i}`, ...(server ? { mcpServer: server } : {}) })
+        const res = await options.canUseTool(tool, input, { signal, toolUseID: `toolu_${i}`, ...(server ? { mcpServer: server } : {}) })
         calls.push({ tool, by: 'callback', behavior: res.behavior })
       }
       yield { type: 'result', subtype: 'success', mock_calls: calls }

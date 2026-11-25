@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
-import { applyMcpLockdown, mcpCallVerdict, MCP_BLOCKED_REASON } from './mcp-guard.mjs'
+import { applyMcpLockdown, mcpCallVerdict, resourceCallVerdict, MCP_BLOCKED_REASON } from './mcp-guard.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -92,6 +92,25 @@ const tests = {
     assert.deepEqual(mcpCallVerdict('mcp__pms__list', { name: 'pms' }, allowed), { server: 'pms', source: 'unknown' })
   },
 
+  // The resource tools name their server in the input: only a passed one,
+  // not shadowed by a server of another source, is read.
+  'resource verdict: only a passed server\'s resources are read'() {
+    const allowed = new Set(['pms'])
+    const none = new Set()
+    const policy = new Set(['policy'])
+    assert.equal(resourceCallVerdict('Read', { server: 'policy' }, allowed, policy), null, 'not a resource tool')
+    for (const tool of ['ListMcpResourcesTool', 'ReadMcpResourceTool', 'ReadMcpResourceDirTool']) {
+      assert.equal(resourceCallVerdict(tool, { server: 'pms', uri: 'x' }, allowed, policy), null, tool)
+      assert.deepEqual(resourceCallVerdict(tool, { server: 'policy', uri: 'x' }, allowed, policy), { server: 'policy', source: 'unknown' }, tool)
+      assert.deepEqual(resourceCallVerdict(tool, { server: 'pms' }, allowed, new Set(['pms'])), { server: 'pms', source: 'unknown' }, `${tool}: shadowed`)
+    }
+    assert.deepEqual(resourceCallVerdict('ReadMcpResourceTool', { uri: 'x' }, allowed, none), { server: 'unknown', source: 'unknown' })
+    assert.deepEqual(resourceCallVerdict('ReadMcpResourceTool', { server: 7 }, allowed, none), { server: 'unknown', source: 'unknown' })
+    // A list of every server: fine while only passed servers are loaded.
+    assert.equal(resourceCallVerdict('ListMcpResourcesTool', {}, allowed, none), null)
+    assert.deepEqual(resourceCallVerdict('ListMcpResourcesTool', {}, allowed, policy), { server: null })
+  },
+
   // The options: strict always, the hook added beside existing ones, the
   // permission callback wrapped (not added when there is none).
   async 'lockdown sets strict, appends the hook and wraps the callback'() {
@@ -107,7 +126,7 @@ const tests = {
     assert.equal(options.strictMcpConfig, true)
     assert.deepEqual(options.mcpServers, PASSED)
     assert.equal(options.hooks.PreToolUse[0], routing)
-    assert.equal(options.hooks.PreToolUse[1].matcher, 'mcp__.*')
+    assert.equal(options.hooks.PreToolUse[1].matcher, 'mcp__.*|ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool')
     assert.deepEqual(options.hooks.Stop, [])
 
     const denied = await options.canUseTool(SLACK.tool, {}, { mcpServer: SLACK.server })
@@ -171,6 +190,27 @@ const tests = {
       { server: 'odd', source: 'something-new', reason: 'call' },
       { server: 'pms', source: 'unknown', reason: 'call' },
     ])
+  },
+
+  // R1 (a managed server loads despite strict): its resources are not read
+  // either, in bypass mode (hook) and in a gated mode (callback).
+  async 'a run reads only a passed server\'s resources'() {
+    const init = { MOCK_MCP_INIT: JSON.stringify([{ name: 'pms', status: 'connected', source: 'dynamic' }, { name: 'policy', status: 'connected', source: 'managed' }]) }
+    const calls = [
+      { tool: 'ReadMcpResourceTool', input: { server: 'policy', uri: 'policy://doc' } },
+      { tool: 'ReadMcpResourceTool', input: { server: 'pms', uri: 'pms://doc' } },
+      { tool: 'ListMcpResourcesTool', input: {} },
+      { tool: 'ListMcpResourcesTool', input: { server: 'pms' } },
+    ]
+    for (const permissionMode of ['bypassPermissions', 'default']) {
+      const s = await session({ permissionMode, mcpServers: PASSED }, calls, init)
+      const passed = permissionMode === 'default' ? 'callback' : 'none'
+      assert.deepEqual(s.calls.map((c) => [c.by, c.behavior]), [['hook', 'deny'], [passed, 'allow'], ['hook', 'deny'], [passed, 'allow']], permissionMode)
+      assert.deepEqual(s.blocked, [
+        { server: 'policy', source: 'managed', reason: 'loaded' },
+        { server: 'policy', source: 'unknown', reason: 'call' },
+      ], permissionMode)
+    }
   },
 
   // A gated mode keeps its permission prompt for a passed server.

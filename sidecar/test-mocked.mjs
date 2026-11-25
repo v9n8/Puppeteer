@@ -741,7 +741,7 @@ const tests = {
     assert.ok(!('permissionDecision' in sonnet.pre[0].hookSpecificOutput), 'no permission is decided')
     assert.deepEqual(sonnet.pre.slice(1), [{}, {}, {}], 'at or below the ceiling, or no model: left as asked')
     assert.deepEqual(sonnet.clamps, [{ type: '_puppeteer_routing_clamp', tool_use_id: 'toolu_0', from: 'opus', to: 'sonnet' }])
-    assert.deepEqual(sonnet.hooks.PreToolUse.map((m) => m.matcher), ['Agent|Task', 'mcp__.*'])
+    assert.deepEqual(sonnet.hooks.PreToolUse.map((m) => m.matcher), ['Agent|Task', 'mcp__.*|ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool'])
     // An id session, a Fable session (counts as Opus), the CLI's default model.
     assert.deepEqual((await callsIn('claude-haiku-5-5', [{ model: 'claude-sonnet-5-5' }])).clamps.map((c) => [c.from, c.to]), [['claude-sonnet-5-5', 'haiku']])
     assert.deepEqual((await callsIn('claude-fable-5-2', [asked])).clamps, [])

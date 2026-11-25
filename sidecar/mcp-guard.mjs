@@ -10,7 +10,11 @@
 //   a tool's server came from (`mcp_server.source`); a passed server is
 //   `dynamic` (or `sdk`, in-process). Anything else, or no source at all (an
 //   older CLI), is denied: trust is keyed on the source, never on the name.
-//   Hooks run in every permission mode, `bypassPermissions` included.
+//   The built-in resource tools name their server in `tool_input.server`
+//   instead: a read of a server not passed, or of one the init listed from
+//   another source, is denied; a list of every server's resources too, once
+//   a server not passed is loaded. Hooks run in every permission mode,
+//   `bypassPermissions` included.
 //
 // Each block is reported to the app as
 //   { "type": "_puppeteer_mcp_blocked", server, source, reason }
@@ -28,6 +32,22 @@ function serverOfTool(toolName) {
   const rest = String(toolName).slice('mcp__'.length)
   const end = rest.indexOf('__')
   return end > 0 ? rest.slice(0, end) : rest
+}
+
+// Built-in tools that list or read a connected server's resources.
+const RESOURCE_TOOLS = ['ListMcpResourcesTool', 'ReadMcpResourceTool', 'ReadMcpResourceDirTool']
+
+// Like `mcpCallVerdict`, for the resource tools: `null` when the call may go
+// ahead (not a resource tool, or a passed server's resources), `{ server,
+// source }` to report, or `{ server: null }` (a list of every server while one
+// not passed is loaded: deny, nothing new to report). `untrusted` is the names
+// the init listed from a source other than a passed one.
+export function resourceCallVerdict(toolName, toolInput, allowed, untrusted) {
+  if (!RESOURCE_TOOLS.includes(toolName)) return null
+  const server = toolInput?.server
+  if (server === undefined && toolName === 'ListMcpResourcesTool') return untrusted.size ? { server: null } : null
+  if (typeof server === 'string' && allowed.has(server) && !untrusted.has(server)) return null
+  return { server: typeof server === 'string' ? server : 'unknown', source: 'unknown' }
 }
 
 // `null` when the call may go ahead (not an MCP tool, or a passed server's);
@@ -53,20 +73,26 @@ export function applyMcpLockdown(options, send) {
     try { send({ type: '_puppeteer_mcp_blocked', server, source, reason }) } catch { /* the deny still holds */ }
   }
 
+  // Filled from the init (below), before any tool call.
+  const untrusted = new Set()
+  // The call's verdict; a server to report is reported here.
+  const verdictOf = (toolName, toolInput, provenance) => {
+    const verdict = resourceCallVerdict(toolName, toolInput, allowed, untrusted) ?? mcpCallVerdict(toolName, provenance, allowed)
+    if (verdict?.server != null) report(verdict, 'call')
+    return verdict
+  }
+
   const guard = async (input) => {
-    const verdict = mcpCallVerdict(input?.tool_name, input?.mcp_server, allowed)
-    if (!verdict) return {}
-    report(verdict, 'call')
+    if (!verdictOf(input?.tool_name, input?.tool_input, input?.mcp_server)) return {}
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: MCP_BLOCKED_REASON } }
   }
-  options.hooks = { ...options.hooks, PreToolUse: [...(options.hooks?.PreToolUse ?? []), { matcher: 'mcp__.*', hooks: [guard] }] }
+  const matcher = ['mcp__.*', ...RESOURCE_TOOLS].join('|')
+  options.hooks = { ...options.hooks, PreToolUse: [...(options.hooks?.PreToolUse ?? []), { matcher, hooks: [guard] }] }
 
   const ask = options.canUseTool
   if (typeof ask === 'function') {
     options.canUseTool = async (toolName, input, opts) => {
-      const verdict = mcpCallVerdict(toolName, opts?.mcpServer, allowed)
-      if (!verdict) return ask(toolName, input, opts)
-      report(verdict, 'call')
+      if (!verdictOf(toolName, input, opts?.mcpServer)) return ask(toolName, input, opts)
       return { behavior: 'deny', message: MCP_BLOCKED_REASON }
     }
   }
@@ -80,6 +106,7 @@ export function applyMcpLockdown(options, send) {
       // `source` is absent on CLIs that predate it: the name alone decides then.
       const source = typeof entry?.source === 'string' ? entry.source : undefined
       if (allowed.has(name) && (source === undefined || PASSED_SOURCES.has(source))) continue
+      untrusted.add(name)
       const key = `${name}\u0000${source ?? ''}`
       if (seen.has(key)) continue
       seen.add(key)
