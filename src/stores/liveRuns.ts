@@ -18,6 +18,7 @@ import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { useRunsStore } from './runs'
 import { useToolPermissionsStore } from './toolPermissions'
 import { useProjectsStore } from './projects'
+import { useRunMcpBlockedStore } from './runMcpBlocked'
 
 /** An assistant message calling a puppeteer MCP tool that creates projects / links repos. */
 function usesProjectWriteTool(p: Record<string, unknown> | null): boolean {
@@ -572,6 +573,8 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
         },
       ),
     )
+
+    fns.push(await useRunMcpBlockedStore().listenTo(runId))
 
     fns.push(
       await listen<unknown>(`run:bg_tasks:${runId}`, (event) => {

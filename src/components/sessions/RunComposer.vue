@@ -23,6 +23,7 @@ import RunComposerChips from './RunComposerChips.vue'
 import { useRunSession } from './useRunSession'
 import { useRunSettingsPanel } from './useRunSettingsPanel'
 import RunMcpSection from './RunMcpSection.vue'
+import RunMcpBlockedNotice from './RunMcpBlockedNotice.vue'
 
 const { t } = useI18n()
 const {
@@ -93,6 +94,7 @@ const vFocus = { mounted: (el: HTMLTextAreaElement) => el.focus() }
       :notices="session.attention"
       @stop="handleCancel"
     />
+    <RunMcpBlockedNotice :run-id="currentRunId" />
     <div class="relative">
       <!-- Slash-command palette (anchored above the textarea) -->
       <div
