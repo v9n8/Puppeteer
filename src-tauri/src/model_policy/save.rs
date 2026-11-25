@@ -168,16 +168,30 @@ async fn read_slots(conn: &mut SqliteConnection) -> Result<DefaultSlots, String>
     Ok(slots)
 }
 
-async fn write_change(conn: &mut SqliteConnection, change: &DefaultChange) -> Result<(), sqlx::Error> {
+/// The global default model of each engine (Claude, Codex) once `changes` are
+/// written: its own move, else today's value.
+fn global_models_after(slots: &DefaultSlots, changes: &[DefaultChange]) -> [String; 2] {
+    let after = |place: &str, now: &str| {
+        changes.iter().find(|c| c.place == place).map_or_else(|| now.trim().to_string(), |c| c.to.clone())
+    };
+    [after("claude_model", &slots.claude_model), after("codex_model", &slots.codex_model)]
+}
+
+async fn write_change(
+    conn: &mut SqliteConnection,
+    change: &DefaultChange,
+    globals: &[String; 2],
+) -> Result<(), sqlx::Error> {
     match (&change.project_id, change.place.strip_prefix("project.")) {
         (Some(id), Some(column)) => {
             // `column` is one of the two names `reassign_defaults` writes.
-            let sql = match column {
-                "default_model_claude" => "UPDATE projects SET default_model_claude = ? WHERE id = ?",
-                _ => "UPDATE projects SET default_model_codex = ? WHERE id = ?",
+            let (sql, global) = match column {
+                "default_model_claude" => ("UPDATE projects SET default_model_claude = ? WHERE id = ?", &globals[0]),
+                _ => ("UPDATE projects SET default_model_codex = ? WHERE id = ?", &globals[1]),
             };
-            // A project with no model left follows the global default (NULL).
-            let to = Some(change.to.as_str()).filter(|v| !v.is_empty());
+            // A project with no model left, or moved onto the global default,
+            // follows the global default (NULL), so a later change there carries it.
+            let to = Some(change.to.as_str()).filter(|v| !v.is_empty() && *v != global.as_str());
             sqlx::query(sql).bind(to).bind(id).execute(&mut *conn).await?;
         }
         _ => {
@@ -200,10 +214,12 @@ pub async fn save(db: &Db, value: &str, dry_run: bool) -> Result<Vec<DefaultChan
     }
     let enabled = EnabledModels::parse(Some(value));
     let mut tx = db.begin().await.map_err(|e| e.to_string())?;
-    let changes = reassign_defaults(&read_slots(&mut tx).await?, &enabled);
+    let slots = read_slots(&mut tx).await?;
+    let changes = reassign_defaults(&slots, &enabled);
     if dry_run {
         return Ok(changes);
     }
+    let globals = global_models_after(&slots, &changes);
     sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
         .bind(SETTING)
         .bind(enabled.to_json())
@@ -211,7 +227,7 @@ pub async fn save(db: &Db, value: &str, dry_run: bool) -> Result<Vec<DefaultChan
         .await
         .map_err(|e| e.to_string())?;
     for change in &changes {
-        write_change(&mut tx, change).await.map_err(|e| e.to_string())?;
+        write_change(&mut tx, change, &globals).await.map_err(|e| e.to_string())?;
     }
     tx.commit().await.map_err(|e| e.to_string())?;
     tracing::info!(event = "enabled_models_saved", moved = changes.len());
@@ -414,6 +430,50 @@ mod tests {
         assert_eq!(project_model(&db, "p2").await.as_deref(), Some("claude-opus-4-8"));
         // Nothing left to move the second time.
         assert!(save(&db, SONNET_HAIKU, false).await.unwrap().is_empty());
+    }
+
+    async fn project_on(db: &Db, id: &str, model: &str) {
+        sqlx::query("INSERT INTO projects (id, name, path, created_at, default_model_claude) VALUES (?, ?, ?, 'c', ?)")
+            .bind(id)
+            .bind(id)
+            .bind(format!("/{id}"))
+            .bind(model)
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_project_moved_onto_the_new_global_model_follows_it() {
+        let db = test_db().await;
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('claude_model', 'claude-opus-4-8')").execute(&db).await.unwrap();
+        project_on(&db, "e", "claude-opus-4-8").await;
+        let dry = save(&db, SONNET_HAIKU, true).await.unwrap();
+        // The confirm dialog still lists the project's move.
+        assert!(dry.iter().any(|c| c.project_id.as_deref() == Some("e") && c.to == "claude-sonnet-4-6"), "{dry:?}");
+        assert_eq!(save(&db, SONNET_HAIKU, false).await.unwrap(), dry);
+        assert_eq!(setting(&db, "claude_model").await.as_deref(), Some("claude-sonnet-4-6"));
+        assert_eq!(project_model(&db, "e").await, None);
+    }
+
+    #[tokio::test]
+    async fn a_project_moved_onto_the_unchanged_global_model_follows_it() {
+        let db = test_db().await;
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('claude_model', 'claude-sonnet-4-6')").execute(&db).await.unwrap();
+        project_on(&db, "e", "claude-opus-4-8").await;
+        save(&db, SONNET_HAIKU, false).await.unwrap();
+        assert_eq!(setting(&db, "claude_model").await.as_deref(), Some("claude-sonnet-4-6"));
+        assert_eq!(project_model(&db, "e").await, None);
+    }
+
+    #[tokio::test]
+    async fn a_project_moved_onto_another_model_than_the_global_one_stays_pinned() {
+        let db = test_db().await;
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('claude_model', 'claude-haiku-4-5')").execute(&db).await.unwrap();
+        project_on(&db, "e", "claude-opus-4-8").await;
+        save(&db, SONNET_HAIKU, false).await.unwrap();
+        assert_eq!(setting(&db, "claude_model").await.as_deref(), Some("claude-haiku-4-5"));
+        assert_eq!(project_model(&db, "e").await.as_deref(), Some("claude-sonnet-4-6"));
     }
 
     #[tokio::test]
