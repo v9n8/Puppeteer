@@ -7,7 +7,9 @@
 //! project back on Settings too. A backup without the field (an older one) keeps the
 //! local list, like every other default left unset there.
 
-use crate::commands::session_defaults::{check_model, ProjectSessionDefaults};
+use super::SessionDefaultsEntry;
+use crate::commands::session_defaults::{self as defaults, check_model, GlobalDefaults, ProjectSessionDefaults};
+use crate::db::Db;
 use crate::model_policy::EnabledModels;
 
 /// The field in a backup entry: outer `None` = absent (older backup), `Some(None)` = `null`
@@ -41,6 +43,41 @@ pub(super) fn merged_list(
         Some(ids.iter().filter(ok).cloned().collect())
     };
     Some(EnabledModels { claude: keep("claude"), codex: keep("codex") })
+}
+
+/// After the import (settings first, then projects and styles): a project default the
+/// backup itself set that now equals the global setting in force becomes NULL, so the
+/// project follows the global setting instead of a pinned copy. A local value the backup
+/// did not set stays as it is.
+pub(super) async fn follow_globals(db: &Db, project_id: &str, entry: &SessionDefaultsEntry) -> Result<(), String> {
+    let current = defaults::load(db, project_id).await;
+    // Set by the backup: the stored value is the backup's (a value left out keeps the local one).
+    let from_backup = |backup: &Option<String>, stored: &Option<String>| {
+        backup.as_deref().map(str::trim).filter(|v| !v.is_empty()).is_some_and(|v| stored.as_deref() == Some(v))
+    };
+    let set_by_backup = [
+        ("default_engine_override", from_backup(&entry.engine, &current.engine)),
+        ("default_model_claude", from_backup(&entry.model_claude, &current.model_claude)),
+        ("default_model_codex", from_backup(&entry.model_codex, &current.model_codex)),
+        ("default_permission_mode", from_backup(&entry.permission_mode, &current.permission_mode)),
+        ("default_effort", from_backup(&entry.effort, &current.effort)),
+        // The style travels by id or name and is stored under the local id.
+        ("default_style", entry.style.is_some()),
+    ];
+    let stored = [&current.engine, &current.model_claude, &current.model_codex, &current.permission_mode, &current.effort, &current.style];
+    let global = GlobalDefaults::load(db).await;
+    for ((column, set), value) in set_by_backup.into_iter().zip(stored) {
+        let Some(value) = value.as_deref().filter(|_| set) else { continue };
+        if global.follows(column, value) {
+            // `column` is one of the fixed names above.
+            sqlx::query(&format!("UPDATE projects SET {column} = NULL WHERE id = ?"))
+                .bind(project_id)
+                .execute(db)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -114,5 +151,63 @@ mod tests {
         import_project(&target, &old, false, None).await.unwrap();
         let after = defaults::load(&target, "a").await;
         assert_eq!((after.effort.as_deref(), after.enabled_models), (Some("low"), api_own.enabled_models));
+    }
+
+    async fn set_setting(db: &Db, key: &str, value: &str) {
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").bind(key).bind(value).execute(db).await.unwrap();
+    }
+
+    /// Import `entry` into project `id` of `db` the way `import_bundle` does: the project, then the follow pass.
+    async fn import_and_follow(db: &Db, id: &str, entry: &ProjectEntry) -> ProjectSessionDefaults {
+        import_project(db, entry, false, None).await.unwrap();
+        follow_globals(db, id, entry.session_defaults.as_ref().unwrap()).await.unwrap();
+        defaults::load(db, id).await
+    }
+
+    fn entry(defaults: serde_json::Value) -> ProjectEntry {
+        serde_json::from_value(serde_json::json!({
+            "id": "x", "name": "web", "path": "/other/web", "default_engine": "claude", "created_at": "c",
+            "session_defaults": defaults,
+        }))
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn an_imported_default_equal_to_the_global_one_follows_it_and_another_stays() {
+        let db = db_with_projects("('w', 'web', '/other/web', 'c')").await;
+        set_setting(&db, "claude_model", "claude-opus-5-5[1m]").await;
+        set_setting(&db, "default_effort", "high").await;
+        let got = import_and_follow(&db, "w", &entry(serde_json::json!({
+            "model_claude": "claude-opus-5-5[1m]", "engine": "claude", "effort": "low",
+        })))
+        .await;
+        // Same as the global model, and the engine a blank global engine means: both follow.
+        assert_eq!((got.model_claude, got.engine), (None, None));
+        assert_eq!(got.effort.as_deref(), Some("low"));
+
+        let got = import_and_follow(&db, "w", &entry(serde_json::json!({ "model_claude": "claude-sonnet-4-6" }))).await;
+        assert_eq!(got.model_claude.as_deref(), Some("claude-sonnet-4-6"));
+    }
+
+    #[tokio::test]
+    async fn a_local_pinned_default_the_backup_does_not_set_stays_pinned() {
+        let db = db_with_projects("('w', 'web', '/other/web', 'c')").await;
+        set_setting(&db, "codex_model", "gpt-5.5").await;
+        let local = ProjectSessionDefaults { model_codex: Some("gpt-5.5".into()), ..Default::default() };
+        defaults::set(&db, "w", local).await.unwrap();
+        let got = import_and_follow(&db, "w", &entry(serde_json::json!({ "effort": "low" }))).await;
+        assert_eq!((got.model_codex.as_deref(), got.effort.as_deref()), (Some("gpt-5.5"), Some("low")));
+    }
+
+    #[tokio::test]
+    async fn a_project_following_every_default_exports_none_and_still_follows_after_import() {
+        let source = db_with_projects("('p1', 'web', '/src/web', 'c')").await;
+        let projects: Vec<ProjectEntry> =
+            serde_json::from_value(serde_json::to_value(collect_projects(&source).await.unwrap()).unwrap()).unwrap();
+        // Only the list's explicit null (follows Settings); none of the six defaults.
+        assert_eq!(serde_json::to_value(&projects[0]).unwrap()["session_defaults"], serde_json::json!({ "enabled_models": null }));
+        let target = db_with_projects("('w', 'web', '/other/web', 'c')").await;
+        set_setting(&target, "claude_model", "claude-opus-5-5").await;
+        assert_eq!(import_and_follow(&target, "w", &projects[0]).await, ProjectSessionDefaults::default());
     }
 }

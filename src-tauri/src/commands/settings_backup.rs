@@ -2083,6 +2083,12 @@ async fn apply_bundle(
             report.warnings.push(format!("projects '{}': default response style: {e}", entry.name));
         }
     }
+    for (index, id) in &project_ids {
+        let Some(d) = bundle.projects[*index].session_defaults.as_ref() else { continue };
+        if let Err(e) = sd_backup::follow_globals(db, id, d).await {
+            report.warnings.push(format!("projects '{}': defaults: {e}", bundle.projects[*index].name));
+        }
+    }
 
     if !bundle.slack_threads.is_empty() {
         import_slack_caches(db, &bundle, &mut report).await;

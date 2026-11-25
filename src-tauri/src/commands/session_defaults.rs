@@ -130,6 +130,67 @@ pub fn fallback_permission_mode(project: Option<&str>, global: &str) -> String {
         .to_string()
 }
 
+/// The global defaults for new sessions as a project default compares with them:
+/// the value the project page stars (blank or unknown engine = `claude`, blank or
+/// unknown permission mode = `default`, blank style = no style). A project value
+/// that [`GlobalDefaults::follows`] means "follow the global setting" (NULL).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GlobalDefaults {
+    pub engine: String,
+    pub model_claude: String,
+    pub model_codex: String,
+    pub permission_mode: String,
+    /// `None` while the global level is blank or unknown: no project level matches.
+    pub effort: Option<String>,
+    pub style: String,
+}
+
+impl GlobalDefaults {
+    /// From the settings `get` returns ('' when unset).
+    pub fn from_settings(get: impl Fn(&str) -> String) -> Self {
+        let engine = get("default_engine").trim().to_string();
+        let effort = get("default_effort").trim().to_string();
+        let style = get("default_style").trim().to_string();
+        Self {
+            engine: if ENGINES.contains(&engine.as_str()) { engine } else { "claude".into() },
+            model_claude: get("claude_model").trim().to_string(),
+            model_codex: get("codex_model").trim().to_string(),
+            permission_mode: fallback_permission_mode(None, &get("default_permission_mode")),
+            effort: crate::commands::runs::EFFORT_LEVELS.contains(&effort.as_str()).then_some(effort),
+            style: if style.is_empty() { crate::commands::response_styles::DEFAULT_STYLE_KEY.into() } else { style },
+        }
+    }
+
+    pub async fn load(db: &Db) -> Self {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT key, value FROM settings WHERE key IN \
+             ('default_engine', 'claude_model', 'codex_model', 'default_permission_mode', 'default_effort', 'default_style')",
+        )
+        .fetch_all(db)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!(event = "global_session_defaults_read_failed", error = %e);
+            Vec::new()
+        });
+        Self::from_settings(|key| rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default())
+    }
+
+    /// Whether a project's stored `value` for `column` (one of [`COLUMNS`]) means
+    /// the same as the global setting. Models compare exactly: an alias is not the id.
+    pub fn follows(&self, column: &str, value: &str) -> bool {
+        let value = value.trim();
+        match column {
+            "default_engine_override" => value == self.engine,
+            "default_model_claude" => value == self.model_claude,
+            "default_model_codex" => value == self.model_codex,
+            "default_permission_mode" => value == self.permission_mode,
+            "default_effort" => self.effort.as_deref() == Some(value),
+            "default_style" => value == self.style,
+            _ => false,
+        }
+    }
+}
+
 /// The permission defaults for a phone's `engine_model_options` frame, so it
 /// stars the mode a run without a pick takes (UR-40): the global one resolved
 /// like a run's, and per project id the projects that set a valid one.
@@ -295,6 +356,57 @@ mod tests {
             style: o(style),
             enabled_models: None,
         }
+    }
+
+    #[test]
+    fn a_project_value_follows_the_global_one_of_the_same_meaning() {
+        let settings = |pairs: &'static [(&'static str, &'static str)]| {
+            GlobalDefaults::from_settings(move |k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string()).unwrap_or_default())
+        };
+        // Nothing set: Claude, the "default" mode, no effort, no style.
+        let blank = settings(&[]);
+        for (column, value, follows) in [
+            ("default_engine_override", "claude", true),
+            ("default_engine_override", "codex", false),
+            ("default_permission_mode", "default", true),
+            ("default_permission_mode", "plan", false),
+            ("default_effort", "high", false),
+            ("default_style", "default", true),
+            ("default_style", "style-x", false),
+            ("default_model_claude", "opus", false),
+        ] {
+            assert_eq!(blank.follows(column, value), follows, "{column} {value}");
+        }
+        let set = settings(&[
+            ("default_engine", " codex "),
+            ("claude_model", "claude-opus-5-5"),
+            ("codex_model", "gpt-5.5"),
+            ("default_permission_mode", "plan"),
+            ("default_effort", "high"),
+            ("default_style", "style-x"),
+        ]);
+        for (column, value, follows) in [
+            ("default_engine_override", "codex", true),
+            ("default_engine_override", "claude", false),
+            ("default_model_claude", " claude-opus-5-5 ", true),
+            // An alias is not the full id.
+            ("default_model_claude", "opus", false),
+            ("default_model_codex", "gpt-5.5", true),
+            ("default_permission_mode", "plan", true),
+            ("default_permission_mode", "default", false),
+            ("default_effort", "high", true),
+            ("default_effort", "low", false),
+            ("default_style", "style-x", true),
+            ("default_style", "default", false),
+            ("enabled_models", "x", false),
+        ] {
+            assert_eq!(set.follows(column, value), follows, "{column} {value}");
+        }
+        // Unknown global engine / mode / effort: as the star shows them.
+        let odd = settings(&[("default_engine", "gemini"), ("default_permission_mode", "yolo"), ("default_effort", "turbo")]);
+        assert!(odd.follows("default_engine_override", "claude"));
+        assert!(odd.follows("default_permission_mode", "default"));
+        assert!(!odd.follows("default_effort", "turbo"));
     }
 
     #[tokio::test]
