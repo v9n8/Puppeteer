@@ -287,7 +287,7 @@ fn open_entry(base: &Path, folder: &Folder, name: &str, secret: &SecretPaths) ->
 pub(crate) fn read_text(file: &Path) -> Result<String, String> {
     let meta = fs::metadata(file).map_err(|e| format!("{}: {}", file.display(), e))?;
     if meta.len() > MAX_BYTES {
-        return Err(format!("{} is too large to edit here ({} bytes, limit {MAX_BYTES})", file.display(), meta.len()));
+        return Err(format!("{} is too large to open here ({} bytes, limit {MAX_BYTES})", file.display(), meta.len()));
     }
     let bytes = fs::read(file).map_err(|e| format!("{}: {}", file.display(), e))?;
     String::from_utf8(bytes).map_err(|_| format!("{} is not UTF-8 text", file.display()))

@@ -11,11 +11,12 @@
 //! credential store, as the Library's folders ([`super::folder_allowed`]).
 
 use super::{folder_allowed, read_text, LibraryScope};
-use crate::commands::memory::project_root;
+use crate::commands::memory::{hash, project_root};
 use crate::db::Db;
-use crate::remote::guard::SecretPaths;
+use crate::remote::guard::{SecretPaths, SECRET_HOME_FILES, SECRET_HOME_FILE_PREFIXES};
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Manager, State};
@@ -57,7 +58,8 @@ pub struct HookInfo {
     pub hook_type: String,
     /// The command (or prompt); another type's whole entry as JSON.
     pub command: String,
-    pub timeout: Option<u64>,
+    /// Seconds, as written (`1.5` too).
+    pub timeout: Option<f64>,
     /// Its file sets `disableAllHooks: true`.
     pub all_disabled: bool,
 }
@@ -96,11 +98,21 @@ const PROJECT_FILES: &[SettingsFile] = &[
 enum Reach {
     /// As the Library's folders: inside the base and out of a credential store.
     Library,
-    /// HOME's own file, often a dotfiles link: anywhere inside HOME out of a credential store,
-    /// as the CLI follows it. `~/.claude/settings.json` is itself a credential file to
-    /// [`SecretPaths`], and so, by identity, is its link's target: the target's folder is what
-    /// is checked. Only the keys above ever leave it.
+    /// HOME's own file, often a dotfiles link: anywhere inside HOME but a credential store or
+    /// file, as the CLI follows it. `~/.claude/settings.json` is itself a credential file to
+    /// [`SecretPaths`], and so, by identity and by its stored canonical form, is its link's
+    /// target: the target is checked by its own path ([`credential_file_at`]), its folder in
+    /// full. Only the keys above ever leave it.
     Home,
+}
+
+/// Whether `real` (canonical) is, by its own path, one of the guard's credential files in HOME
+/// (`real_home`, canonical). Compared as written, case-insensitively as the guard does.
+fn credential_file_at(real_home: &Path, real: &Path) -> bool {
+    let Ok(rel) = real.strip_prefix(real_home) else { return false };
+    let rel: Vec<String> = rel.iter().map(|c| c.to_string_lossy().to_lowercase()).collect();
+    SECRET_HOME_FILES.iter().any(|f| f.split('/').eq(rel.iter().map(String::as_str)))
+        || (rel.len() == 1 && SECRET_HOME_FILE_PREFIXES.iter().any(|pre| rel[0].starts_with(pre)))
 }
 
 /// The JSON object at `rel` under `base`; `None` when there is no file.
@@ -114,6 +126,7 @@ fn read_json(base: &Path, rel: &str, reach: Reach, secret: &SecretPaths) -> Resu
     let allowed = folder_allowed(&real, &real_base, Path::new(rel), secret)
         || (reach == Reach::Home
             && real.starts_with(&real_base)
+            && !credential_file_at(&real_base, &real)
             && real.parent().is_some_and(|dir| !secret.denies(dir)));
     if !allowed {
         return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));
@@ -170,6 +183,9 @@ fn hooks_of(settings: &Map<String, Value>, source: ConfigSource, file: &Path, ou
     let Some(hooks) = settings.get("hooks") else { return };
     let all_disabled = settings.get("disableAllHooks").and_then(Value::as_bool) == Some(true);
     let mut errors = 0;
+    // A hook's id is its content's, so a refresh after an edit elsewhere in the file keeps it;
+    // the same hook twice in one event gets a count.
+    let mut seen: HashMap<String, usize> = HashMap::new();
     let mut error = |out: &mut Vec<ConfigItem>, message: String| {
         out.push(error_item(ConfigKind::Hook, source, file, errors, message));
         errors += 1;
@@ -196,9 +212,13 @@ fn hooks_of(settings: &Map<String, Value>, source: ConfigSource, file: &Path, ou
                 };
                 let hook_type = entry.get("type").and_then(Value::as_str).unwrap_or_default().to_string();
                 let command = hook_text(&hook_type, entry);
+                let content = hash(format!("{}\0{hook_type}\0{command}", matcher.as_deref().unwrap_or_default()).as_bytes());
+                let key = format!("hook:{}:{event}:{}", source.as_str(), &content[..12]);
+                let n = seen.entry(key.clone()).or_default();
+                *n += 1;
                 out.push(ConfigItem {
                     kind: ConfigKind::Hook,
-                    id: format!("hook:{}:{event}:{i}:{j}", source.as_str()),
+                    id: format!("{key}:{n}"),
                     name: match &matcher {
                         Some(m) => format!("{event} · {m}"),
                         None => event.clone(),
@@ -212,7 +232,7 @@ fn hooks_of(settings: &Map<String, Value>, source: ConfigSource, file: &Path, ou
                         matcher: matcher.clone(),
                         hook_type,
                         command,
-                        timeout: entry.get("timeout").and_then(Value::as_u64),
+                        timeout: entry.get("timeout").and_then(Value::as_f64),
                         all_disabled,
                     }),
                     plugin: None,
@@ -348,7 +368,7 @@ mod tests {
         assert!(it.error.is_none());
         let hook = it.hook.as_ref().unwrap();
         assert_eq!((hook.event.as_str(), hook.matcher.as_deref(), hook.hook_type.as_str()), ("PreToolUse", Some("Bash"), "command"));
-        assert_eq!(hook.timeout, Some(5));
+        assert_eq!(hook.timeout, Some(5.0));
         assert!(!hook.all_disabled);
     }
 
@@ -449,6 +469,41 @@ mod tests {
         let items = f.global();
         assert!(!items.is_empty());
         assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_user_settings_link_to_a_credential_file_is_not_read() {
+        let f = Fixture::new("dotfiles-credential-file");
+        let target = f.write("home/.netrc", PRE_BASH);
+        fs::create_dir_all(f.home().join(".claude")).unwrap();
+        std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+        let items = f.global();
+        assert!(!items.is_empty());
+        assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+    }
+
+    #[test]
+    fn a_hook_keeps_its_id_when_an_earlier_one_is_removed() {
+        let f = Fixture::new("stable-id");
+        let two = r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"a"}]},{"hooks":[{"type":"command","command":"b"}]}]}}"#;
+        f.write("home/.claude/settings.json", two);
+        let before = f.global().into_iter().find(|i| i.description == "b").unwrap().id;
+        f.write("home/.claude/settings.json", r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"b"}]}]}}"#);
+        let after = f.global();
+        assert_eq!(after[0].id, before);
+        // The same hook twice keeps two ids.
+        let twice = r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"b"},{"type":"command","command":"b"}]}]}}"#;
+        f.write("home/.claude/settings.json", twice);
+        let ids: std::collections::HashSet<_> = f.global().into_iter().map(|i| i.id).collect();
+        assert_eq!(ids.len(), 2);
+    }
+
+    #[test]
+    fn a_fractional_timeout_is_kept() {
+        let f = Fixture::new("timeout");
+        f.write("home/.claude/settings.json", r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"x","timeout":1.5}]}]}}"#);
+        assert_eq!(f.global()[0].hook.as_ref().unwrap().timeout, Some(1.5));
     }
 
     #[test]

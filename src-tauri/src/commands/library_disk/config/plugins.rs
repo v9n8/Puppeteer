@@ -207,7 +207,8 @@ pub(super) fn plugins_of(
     out: &mut Vec<ConfigItem>,
 ) {
     let installed_file = home.join(INSTALLED_REL);
-    let installed = match read_json(home, INSTALLED_REL, Reach::Home, secret) {
+    // Not a credential file: the Library's rule follows a dotfiles link to it already.
+    let installed = match read_json(home, INSTALLED_REL, Reach::Library, secret) {
         Ok(Some(file)) => installs_of(&file),
         Ok(None) => BTreeMap::new(),
         Err(e) => {

@@ -386,7 +386,7 @@ const SECRET_HOME_DIRS: &[&str] = &[
 const ALLOWED_HOME_DIRS: &[&str] = &[".codex/sessions", ".codex/archived_sessions"];
 
 /// Credential files under HOME.
-const SECRET_HOME_FILES: &[&str] = &[
+pub(crate) const SECRET_HOME_FILES: &[&str] = &[
     ".claude/.credentials.json",
     ".claude/settings.json",
     ".claude/settings.local.json",
@@ -398,7 +398,7 @@ const SECRET_HOME_FILES: &[&str] = &[
 
 /// HOME file-name prefixes holding credentials (`~/.claude.json` and its
 /// `.backup` copies carry the Claude account).
-const SECRET_HOME_FILE_PREFIXES: &[&str] = &[".claude.json"];
+pub(crate) const SECRET_HOME_FILE_PREFIXES: &[&str] = &[".claude.json"];
 
 /// Puppeteer's own app data folders (prod and dev builds, all their accounts,
 /// server keys, sandboxed CLI logins) are named after this identifier.
