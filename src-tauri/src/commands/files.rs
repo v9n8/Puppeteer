@@ -14,6 +14,10 @@ use crate::db::Db;
 use crate::remote::fs_policy::{self, RemoteFs};
 use tauri::State;
 
+#[path = "files_worktrees.rs"]
+mod worktrees;
+use worktrees::WorkTrees;
+
 /// Hard ceiling so huge repos can't flood the IPC channel or the picker.
 /// Paths are tiny (just relative strings), so this can be generous — the old
 /// 8k cap silently dropped files in larger monorepos, making the `@`-mention
@@ -102,9 +106,10 @@ fn stat_within(project_path: &str, paths: &[String], policy: Option<&RemoteFs>) 
     let root = Path::new(project_path)
         .canonicalize()
         .map_err(|e| format!("invalid project path: {e}"))?;
+    let trees = WorkTrees::new(&root);
     Ok(paths
         .iter()
-        .map(|p| resolve_readable(&root, p, policy).is_ok_and(|c| c.is_file()))
+        .map(|p| resolve_readable(&root, p, policy, &trees).is_ok_and(|c| c.is_file()))
         .collect())
 }
 
@@ -157,17 +162,19 @@ fn temp_root_allows(path: &Path) -> bool {
 
 /// Path-confinement shared by the viewer's read / write / list paths: inside the
 /// project root, or one of the allowed outside roots (AI transcripts, HOME,
-/// system temp).
-fn preview_allows(root: &Path, path: &Path) -> bool {
+/// system temp, a working tree of the root's git repository — checked last, it
+/// reads git's metadata).
+fn preview_allows(root: &Path, path: &Path, trees: &WorkTrees) -> bool {
     path.starts_with(root)
         || transcript_root_allows(path)
         || home_allows(path)
         || temp_root_allows(path)
+        || trees.allows(path)
 }
 
 /// Resolve `file_path` (absolute, or relative to the canonical `root`) to the
 /// canonical path the viewer may read, or why it may not.
-fn resolve_readable(root: &Path, file_path: &str, policy: Option<&RemoteFs>) -> Result<PathBuf, String> {
+fn resolve_readable(root: &Path, file_path: &str, policy: Option<&RemoteFs>, trees: &WorkTrees) -> Result<PathBuf, String> {
     // Resolve the requested path: absolute as-is, relative against the root.
     let requested = Path::new(file_path);
     let joined: PathBuf = if requested.is_absolute() {
@@ -189,7 +196,7 @@ fn resolve_readable(root: &Path, file_path: &str, policy: Option<&RemoteFs>) -> 
         Some(p) => {
             p.read(&canonical)?;
         }
-        None if !preview_allows(root, &canonical) => {
+        None if !preview_allows(root, &canonical, trees) => {
             return Err("Refusing to read a file outside the project".to_string());
         }
         None => {}
@@ -201,7 +208,7 @@ fn read_within(project_path: &str, file_path: &str, policy: Option<&RemoteFs>) -
     let root = Path::new(project_path)
         .canonicalize()
         .map_err(|e| format!("invalid project path: {e}"))?;
-    let canonical = resolve_readable(&root, file_path, policy)?;
+    let canonical = resolve_readable(&root, file_path, policy, &WorkTrees::new(&root))?;
     if canonical.is_dir() {
         return Err(format!("{file_path} is a directory, not a file"));
     }
@@ -276,7 +283,7 @@ fn write_within(
         Some(p) => {
             p.write(&canonical)?;
         }
-        None if !preview_allows(&root, &canonical) => {
+        None if !preview_allows(&root, &canonical, &WorkTrees::new(&root)) => {
             return Err("Refusing to write a file outside the project".to_string());
         }
         None => {}
