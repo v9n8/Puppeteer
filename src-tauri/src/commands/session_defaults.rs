@@ -409,6 +409,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_new_project_follows_every_global_default() {
+        // Both places that create a project (the app, and the MCP sidecar) insert no default
+        // column, so they stay NULL and follow Settings.
+        let app = include_str!("projects.rs");
+        let app = &app[app.find("pub async fn add_project").unwrap()..];
+        let app = &app[..app.find("\n}\n").unwrap()];
+        let sidecar = include_str!("../../../sidecar-mcp/lib/projects-store.mjs");
+        for src in [app, sidecar] {
+            let insert = &src[src.find("INSERT INTO projects").unwrap()..];
+            let insert = &insert[..insert.find(')').unwrap()];
+            assert!(COLUMNS.iter().all(|c| !insert.contains(c)), "{insert}");
+        }
+        let db = test_db().await;
+        assert_eq!(load(&db, "p1").await, ProjectSessionDefaults::default());
+    }
+
+    #[tokio::test]
     async fn a_project_back_on_the_global_permission_mode_leaves_the_phone_list() {
         let db = test_db().await;
         sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('default_permission_mode', 'default')")
