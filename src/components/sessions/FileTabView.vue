@@ -24,14 +24,16 @@ import { useRunSession } from './useRunSession'
 const props = defineProps<{ activeId: string }>()
 const { t } = useI18n()
 const { toast } = useToast()
-const { currentRunId, currentRun, project, runLabel, sessionRoot } = useRunSession()
+const { currentRunId, currentRun, project, runLabel, sessionRoot, sessionRootSettled } = useRunSession()
 const tabsStore = useSessionTabsStore()
 
 const runId = computed(() => currentRunId.value ?? '')
 const projectPath = computed(() => project.value?.path ?? '')
 const state = computed(() => tabsStore.stateFor(runId.value))
-// Tabs saved under two spellings of one file merge (RT-13).
-watch([runId, sessionRoot], ([id, root]) => { if (id && root) tabsStore.normalize(id, root) }, { immediate: true })
+// Tabs saved under two spellings of one file merge (RT-13), once the root is settled.
+watch([runId, sessionRoot, sessionRootSettled], ([id, root, settled]) => {
+  if (id && root && settled) tabsStore.normalize(id, root)
+}, { immediate: true })
 const fileTabs = computed(() => state.value.tabs.filter((tab): tab is FileTab => tab.kind === 'file'))
 
 // Tabs shown at least once in this Session; the others mount on first view.

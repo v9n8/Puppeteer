@@ -4,7 +4,7 @@
 // of a remote desktop's reach) falls back to the Project, which the viewer read
 // before workers had one; otherwise every file would fail.
 import { computed, ref, watch, type ComputedRef } from 'vue'
-import { WORKTREE_PROBE, sessionFileRoot, worktreeReadable } from '@/lib/sessionPaths'
+import { WORKTREE_PROBE, sessionRootState, worktreeReadable } from '@/lib/sessionPaths'
 import type { RunRecord } from '@/stores/runs'
 import { useRunsStore } from '@/stores/runs'
 
@@ -12,31 +12,31 @@ export function useSessionRoot(
   run: ComputedRef<RunRecord | undefined>,
   projectPath: ComputedRef<string | undefined>,
   status: ComputedRef<string>,
-): ComputedRef<string> {
+): { root: ComputedRef<string>; settled: ComputedRef<boolean> } {
   const runsStore = useRunsStore()
-  // Worktrees the probe found unreadable. Until it answers, the worktree is
-  // assumed readable: a live worker's is, and its files show at once.
-  const gone = ref(new Set<string>())
+  // The probe's last answer per worktree. Until the first one, the worktree is
+  // used (a live worker's is readable, and its files show at once) but not settled.
+  const readable = ref(new Map<string, boolean>())
   // Asked again on every status change too: resuming a cancelled worker brings
   // its swept worktree back at the same path.
   watch([() => run.value?.worktree_path, status], ([dir]) => {
     if (!dir) return
-    const mark = (isGone: boolean) => {
-      if (gone.value.has(dir) === isGone) return
-      const next = new Set(gone.value)
-      if (isGone) next.add(dir)
-      else next.delete(dir)
-      gone.value = next
+    const mark = (ok: boolean) => {
+      if (readable.value.get(dir) === ok) return
+      readable.value = new Map(readable.value).set(dir, ok)
     }
     // A failed call (e.g. the root no longer resolves) answers "not readable".
     runsStore.statPaths(dir, [WORKTREE_PROBE])
       .then((answer) => answer, () => null)
-      .then((answer) => mark(!worktreeReadable(answer)))
+      .then((answer) => mark(worktreeReadable(answer)))
   }, { immediate: true })
 
-  return computed(() => {
+  const state = computed(() => {
     const r: { worktree_path?: string | null } = run.value ?? {}
-    const exists = !r.worktree_path || !gone.value.has(r.worktree_path)
-    return sessionFileRoot(r, projectPath.value, exists) ?? ''
+    return sessionRootState(r, projectPath.value, r.worktree_path ? readable.value.get(r.worktree_path) : undefined)
   })
+  return {
+    root: computed(() => state.value.root ?? ''),
+    settled: computed(() => state.value.settled),
+  }
 }

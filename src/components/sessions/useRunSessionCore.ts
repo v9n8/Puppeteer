@@ -188,7 +188,9 @@ export function useRunSessionCore() {
   const currentStatus = computed(() => session.value?.status ?? currentRun.value?.status ?? 'idle')
   const currentSessionId = computed(() => session.value?.sessionId ?? currentRun.value?.session_id ?? null)
   // Where this Session's file tabs and links read relative paths from.
-  const sessionRoot = useSessionRoot(currentRun, computed(() => project.value?.path), currentStatus)
+  // Settled once the worktree was probed: only then are tabs rewritten under it.
+  const { root: sessionRoot, settled: sessionRootSettled } =
+    useSessionRoot(currentRun, computed(() => project.value?.path), currentStatus)
 
   // Sidebar/label text for a run: its title when set (sessions, or a PR inbox
   // review titled with its author); otherwise issue/PR show "#N".
@@ -210,6 +212,7 @@ export function useRunSessionCore() {
     engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine, sessionDefaults,
     permissionMode, modePicks, currentRunId, currentRun, currentIsSession, session, liveEntries,
     liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel, sessionRoot,
+    sessionRootSettled,
   }
 }
 

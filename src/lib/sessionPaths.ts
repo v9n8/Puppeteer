@@ -25,6 +25,23 @@ export function sessionFileRoot(
 }
 
 /**
+ * The Session root, and whether it is settled. A worktree not probed yet
+ * (`readable` undefined) is used at once, but nothing may be saved under it:
+ * saved tabs are rewritten relative to the root, and the probe may still send
+ * the Session back to the Project.
+ */
+export function sessionRootState(
+  run: { worktree_path?: string | null },
+  projectPath: string | null | undefined,
+  readable: boolean | undefined,
+): { root: string | null; settled: boolean } {
+  return {
+    root: sessionFileRoot(run, projectPath, readable ?? true),
+    settled: !run.worktree_path || readable !== undefined,
+  }
+}
+
+/**
  * What a Session asks to learn whether it can read from a worker's worktree:
  * `stat_paths(worktree, [WORKTREE_PROBE])`. A linked worktree's `.git` is a
  * file, so the answer is true only when the folder is there AND this caller may

@@ -3,7 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  WORKTREE_PROBE, platformOf, revealLabelKey, sessionFileRoot, sessionWorkDir, treePathIn, worktreeReadable,
+  WORKTREE_PROBE, platformOf, revealLabelKey, sessionFileRoot, sessionRootState, sessionWorkDir, treePathIn,
+  worktreeReadable,
 } from '../sessionPaths.ts'
 
 test('a worker with a worktree reports it, any other run reports the Project', () => {
@@ -24,6 +25,15 @@ test('the file root is the worktree while it exists, else the Project', () => {
   assert.equal(sessionFileRoot(worker, '/p', false), '/p')
   assert.equal(sessionFileRoot({ worktree_path: null }, '/p', true), '/p')
   assert.equal(sessionFileRoot({}, undefined, false), null)
+})
+
+test('a worktree root is used before the probe answers, but settled only after', () => {
+  const worker = { worktree_path: '/wt/r1' }
+  assert.deepEqual(sessionRootState(worker, '/p', undefined), { root: '/wt/r1', settled: false })
+  assert.deepEqual(sessionRootState(worker, '/p', true), { root: '/wt/r1', settled: true })
+  assert.deepEqual(sessionRootState(worker, '/p', false), { root: '/p', settled: true })
+  // No worktree: the Project, nothing to wait for.
+  assert.deepEqual(sessionRootState({}, '/p', undefined), { root: '/p', settled: true })
 })
 
 test('the worktree is readable only when the probe found its .git file', () => {
