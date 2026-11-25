@@ -11,6 +11,7 @@ pub mod handoff;
 pub mod interrupted;
 pub mod live_records;
 pub mod liveness;
+pub mod mcp_blocked;
 pub mod model_usage;
 pub mod permission;
 pub mod plan_usage_live;
