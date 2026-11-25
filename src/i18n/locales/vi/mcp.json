@@ -171,6 +171,10 @@
   "discovery": {
     "globalTitle": "Kết nối từ global",
     "globalHint": "Mọi MCP server được cài trên máy này bên ngoài Puppeteer: file cấu hình Claude và Codex, connector claude.ai, plugin, cấu hình managed và các app khác. Run của Puppeteer chỉ nạp server được quản lý ở đây; mọi server khác đều bị chặn. Nhập một server để quản lý nó (nhập xong ở trạng thái tắt).",
+    "projectTitle": "Kết nối từ project và global",
+    "projectHint": "Mọi MCP server mà một run trong Project này có thể nạp: file cấu hình riêng của Project và các server global. Run chỉ nạp server do Puppeteer quản lý (bật chúng ở thẻ phía trên); mọi server khác đều bị chặn.",
+    "groupProject": "Project",
+    "groupGlobal": "Global",
     "blockedCount": "Bị chặn: {count}",
     "blockedTitle": "Các server mà run sẽ nạp nhưng Puppeteer không quản lý (không tính app khác): chúng bị chặn trong mọi run.",
     "reload": "Tải lại",

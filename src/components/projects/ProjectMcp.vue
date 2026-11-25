@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // MCP section of the Connections tab: which MCP servers the project gets, built-in
 // and the user's own, one switch each. Adding, editing and testing servers is done
-// on the MCP screen (V3-44, QĐ-23).
+// on the MCP screen (V3-44, QĐ-23). The card under it lists the MCP servers found
+// outside Puppeteer that a run here could load (ProjectMcpConnections).
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Server } from 'lucide-vue-next'
@@ -15,6 +16,8 @@ import { parentLock, slackOnForProject, switchView } from '@/lib/configLock'
 import { isConnectorServer } from '@/lib/mcpDiscovery'
 import { useFeaturesStore } from '@/stores/features'
 import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
+import ProjectMcpConnections from '@/components/projects/ProjectMcpConnections.vue'
+import { isRemoteMode } from '@/lib/ipc/remote'
 
 /** The MCP management screen (Settings › Connections › MCP, V3-51). */
 const MCP_ROUTE = '/settings/mcp'
@@ -28,6 +31,8 @@ const appSettings = useAppSettingsStore()
 const features = useFeaturesStore()
 
 const projectId = computed(() => props.project.id)
+/** MCP servers found outside Puppeteer: read from this machine's files, so local-only. */
+const canDiscover = !isRemoteMode()
 
 const mcpServers = ref<ProjectMcpServer[]>([])
 const loadingMcp = ref(false)
@@ -217,6 +222,7 @@ watch(projectId, async () => {
       </div>
     </div>
   </Card>
+  <ProjectMcpConnections v-if="canDiscover" :project-id="projectId" @changed="loadProjectMcpServers" />
   <!-- Only while Slack threads are on (integrations.slack) and Slack is on for the project;
        its stored opt-in comes back with them. -->
   <ProjectSlackDm v-if="!loadingMcp && features.isOn('integrations.slack') && slackOnForProject(mcpServers)" :project="project" />

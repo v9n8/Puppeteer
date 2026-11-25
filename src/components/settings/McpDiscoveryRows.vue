@@ -39,7 +39,11 @@ const props = defineProps<{
   probing: boolean
 }>()
 
-const emit = defineEmits<{ open: [serverId: string] }>()
+const emit = defineEmits<{
+  open: [serverId: string]
+  /** An import or sync changed the MCP list (a host with its own copy of the list reloads it). */
+  changed: []
+}>()
 
 const { t, te } = useI18n()
 const { toast } = useToast()
@@ -98,6 +102,7 @@ async function importRow(row: DiscoveryRow) {
     const failed = outcomes.find((o) => o.status === 'failed')
     if (failed) toast.error(failed.message ?? t('configImport.outcome.failed'))
     else toast.success(t('configImport.outcome.summary', outcomeCounts(outcomes)))
+    emit('changed')
   } catch (e) {
     // Local-only: a remote desktop gets `remote_denied_local_only`.
     toast.error(errorText(e, t))
@@ -109,6 +114,7 @@ async function syncRow(row: DiscoveryRow) {
   try {
     const server = await store.sync(row.serverId)
     toast.success(t('mcp.discovery.synced', { name: server.name }))
+    emit('changed')
   } catch (e) {
     toast.error(errorText(e, t))
   }

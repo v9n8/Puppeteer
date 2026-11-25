@@ -171,6 +171,10 @@
   "discovery": {
     "globalTitle": "Global connections",
     "globalHint": "Every MCP server set up on this machine outside Puppeteer: Claude and Codex config files, claude.ai connectors, plugins, managed settings and other apps. A Puppeteer run loads only the servers managed here; every other one is blocked. Import one to manage it (it starts off).",
+    "projectTitle": "Project and global connections",
+    "projectHint": "Every MCP server a run in this Project could load: the Project's own config files and the global ones. A run loads only the servers Puppeteer manages (switch them on in the card above); every other one is blocked.",
+    "groupProject": "Project",
+    "groupGlobal": "Global",
     "blockedCount": "Blocked: {count}",
     "blockedTitle": "Servers a run would load that Puppeteer does not manage (other apps not counted): they are blocked in every run.",
     "reload": "Reload",
