@@ -20,7 +20,7 @@ import { appendFileSync, readFileSync, realpathSync, writeFileSync } from 'node:
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 
-// A tool-less session reads the configured MCP servers first: none.
+// A session reads codex's configured MCP servers first (mcp-guard.mjs): none.
 if (process.argv[2] === 'mcp') {
   process.stdout.write('[]\n')
   process.exit(0)

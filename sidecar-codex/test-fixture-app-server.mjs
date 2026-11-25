@@ -6,7 +6,7 @@
 // PUPPETEER_FIXTURE_USER_INPUT for test-user-input.mjs.
 import { writeFileSync, appendFileSync } from 'node:fs'
 
-// `codex mcp list --json` (asked by a tool-less sidecar): one configured server,
+// `codex mcp list --json` (asked by every sidecar, mcp-guard.mjs): one configured server,
 // or — PUPPETEER_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer.
 if (process.argv.includes('mcp')) {
   const mode = process.env.PUPPETEER_FIXTURE_MCP_LIST
@@ -149,7 +149,8 @@ function handleRpc(message) {
 
 // Items mode: PUPPETEER_FIXTURE_ITEMS is a JSON array of messages (notifications
 // or server requests) sent as they are after the turn/start reply, then
-// turn/completed. Every client message, replies included, goes to the log.
+// turn/completed — or, when an entry is `{ "hold": true }`, only once a
+// turn/interrupt ends the turn. Every client message, replies included, goes to the log.
 const itemsScript = process.env.PUPPETEER_FIXTURE_ITEMS ? JSON.parse(process.env.PUPPETEER_FIXTURE_ITEMS) : null
 
 function handleItems(message) {
@@ -160,9 +161,12 @@ function handleItems(message) {
   } else if (message.method === 'turn/start') {
     send({ jsonrpc: '2.0', id: message.id, result: { turn: { id: 'fixture-turn' } } })
     setTimeout(() => {
-      for (const m of itemsScript) send({ jsonrpc: '2.0', ...m })
-      send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { id: 'fixture-turn', status: 'completed' } } })
+      for (const m of itemsScript) if (!m.hold) send({ jsonrpc: '2.0', ...m })
+      if (!itemsScript.some((m) => m.hold)) send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { id: 'fixture-turn', status: 'completed' } } })
     }, 30)
+  } else if (message.method === 'turn/interrupt' && itemsScript.some((m) => m.hold)) {
+    send({ jsonrpc: '2.0', id: message.id, result: {} })
+    send({ jsonrpc: '2.0', method: 'turn/completed', params: { threadId: 'fixture-thread', turn: { id: 'fixture-turn', status: 'interrupted' } } })
   } else {
     send({ jsonrpc: '2.0', id: message.id, result: {} })
   }

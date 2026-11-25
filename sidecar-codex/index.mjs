@@ -25,6 +25,7 @@
 //         {type:"_puppeteer_context_usage",model,totalTokens,maxTokens}  ← before each result (AC-08)
 //         {type:"_puppeteer_limit_reached",kind:"turns",limit}  ← PUPPETEER_MAX_TURNS ended the turn
 //           (AC-23); its result: subtype "error_max_turns", as Claude's
+//         {type:"_puppeteer_mcp_blocked",server,source,reason}  ← an MCP server not passed (mcp-guard.mjs)
 //
 //   stdin (from broker): one JSON command per line
 //     {type:"prompt",text,options?}            → start a turn (after the one in flight, if any)
@@ -42,6 +43,7 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync, writeSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { codexCaps, rewindMethods } from './codex-caps.mjs'
+import { configuredMcpServerNames, disableServerArgs, mcpCallGuard, withMcpLockdown } from './mcp-guard.mjs'
 
 // --- Orphan guard ------------------------------------------------------------
 // Puppeteer spawns this sidecar as the leader of its own process group and says so
@@ -386,35 +388,13 @@ const NO_TOOLS_FEATURES = [
   'code_mode_host', 'in_app_local_automation', 'worktrees', 'view_image', 'guardian_approval',
 ]
 
-// Names of the MCP servers configured in the user's codex config (they would
-// otherwise load into a tool-less session). Fail-closed: throws when the list
-// cannot be read, so the session never starts with servers left enabled.
-function configuredMcpServerNames() {
-  const r = spawnSync(CODEX_BIN, ['mcp', 'list', '--json'], {
-    cwd: CWD, encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'],
-  })
-  if (r.error) throw new Error(`codex mcp list failed: ${r.error.message}`)
-  if (r.status !== 0) throw new Error(`codex mcp list exited with ${r.status ?? r.signal}`)
-  let list
-  try {
-    list = JSON.parse(r.stdout || '')
-  } catch {
-    throw new Error('codex mcp list printed no JSON')
-  }
-  if (!Array.isArray(list)) throw new Error('codex mcp list did not return a list')
-  return list.map((s) => s?.name).filter((n) => typeof n === 'string' && n)
-}
-
 // `-c` overrides that strip every tool source from a tool-less session.
 function noToolsArgs() {
   const args = []
   for (const f of NO_TOOLS_FEATURES) args.push('-c', `features.${f}=false`)
   args.push('-c', 'web_search="disabled"')
-  // `-c` key paths split on dots and do not accept quoted segments; codex
-  // itself only allows [A-Za-z0-9_-] in server names.
-  for (const name of configuredMcpServerNames()) {
-    if (/^[A-Za-z0-9_-]+$/.test(name)) args.push('-c', `mcp_servers.${name}.enabled=false`)
-  }
+  // Every server of the user's codex config (fail-closed, see mcp-guard.mjs).
+  args.push(...disableServerArgs(configuredMcpServerNames(CODEX_BIN, CWD)))
   return args
 }
 
@@ -430,19 +410,21 @@ function noToolsEnv() {
 }
 
 // ── codex app-server JSON-RPC plumbing ────────────────────────────────────
-// A tool-less session never gets the broker's MCP servers either.
+// A tool-less session never gets the broker's MCP servers either; a normal one
+// gets only those (mcp-guard.mjs).
 let mcpConfig
 try {
-  mcpConfig = NO_TOOLS ? { args: noToolsArgs(), env: noToolsEnv() } : buildMcpConfig()
+  mcpConfig = NO_TOOLS ? { args: noToolsArgs(), env: noToolsEnv() } : withMcpLockdown(buildMcpConfig(), CODEX_BIN, CWD)
 } catch (e) {
-  // Never start a tool-less session we could not strip: report and stop.
-  // Written synchronously so the error is not lost on exit.
+  // Never start a session whose own codex servers we could not turn off: report
+  // and stop. Written synchronously so the error is not lost on exit.
   writeSync(1, JSON.stringify({
     type: '_puppeteer_error',
-    error: `Refusing to start a tool-less codex session: ${e?.message || e}`,
+    error: `Refusing to start a ${NO_TOOLS ? 'tool-less ' : ''}codex session: ${e?.message || e}`,
   }) + '\n')
   process.exit(1)
 }
+const guardMcp = mcpCallGuard(mcpConfig.allowed ?? new Set(), { report: (b) => ctrl('_puppeteer_mcp_blocked', b), interrupt: () => { interruptTurn() } })
 // Agents never read the OS secret store where Puppeteer keeps PATs / tokens (and the
 // sealed secret notes vault): the macOS Keychain, the Linux Secret Service / KWallet,
 // the Windows Credential Manager. Codex applies the execpolicy rules under
@@ -1399,6 +1381,7 @@ function onServerMessage(msg) {
     const p = msg.params || {}
     const waiter = notificationWaiters.get(msg.method)
     if (waiter) { notificationWaiters.delete(msg.method); waiter() }
+    guardMcp(msg.method, p)
     // A notification naming another thread (a sub-agent's) is not streamed
     // into this one.
     const ownThread = !p.threadId || !threadId || p.threadId === threadId
