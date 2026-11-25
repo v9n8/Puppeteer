@@ -161,18 +161,17 @@ impl GlobalDefaults {
         }
     }
 
-    pub async fn load(db: &Db) -> Self {
+    /// A read error is returned, not taken as "nothing set": blank globals match
+    /// `claude` / `default`, so guessing them could clear a real choice.
+    pub async fn load(db: &Db) -> Result<Self, String> {
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT key, value FROM settings WHERE key IN \
              ('default_engine', 'claude_model', 'codex_model', 'default_permission_mode', 'default_effort', 'default_style')",
         )
         .fetch_all(db)
         .await
-        .unwrap_or_else(|e| {
-            tracing::warn!(event = "global_session_defaults_read_failed", error = %e);
-            Vec::new()
-        });
-        Self::from_settings(|key| rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default())
+        .map_err(|e| e.to_string())?;
+        Ok(Self::from_settings(|key| rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default()))
     }
 
     /// Whether a project's stored `value` for `column` (one of [`COLUMNS`]) means
