@@ -53,7 +53,8 @@ pub(super) struct Level {
     pub enabled: Enabled,
 }
 
-/// A settings file that exists but couldn't be read: what it sets is unknown.
+/// A settings file whose `enabledPlugins` couldn't be read (the file, or that key): what it sets
+/// is unknown.
 pub(super) struct Unread {
     pub source: ConfigSource,
     pub file: PathBuf,
@@ -226,13 +227,18 @@ pub(super) fn plugins_of(
             Some((n, m)) => (n.to_string(), Some(m.to_string())),
             None => (key.clone(), None),
         };
-        let (source, file) = match set_by {
-            Some((l, _)) => (l.source, l.file.clone()),
-            None => (ConfigSource::User, installed_file.clone()),
-        };
         let hidden_by = unread.iter().find(|u| set_by.is_none_or(|(l, _)| rank(u.source) > rank(l.source)));
+        // The file that decides the state: the unreadable one when it may.
+        let (source, file) = match (hidden_by, set_by) {
+            (Some(u), _) => (u.source, u.file.clone()),
+            (None, Some((l, _))) => (l.source, l.file.clone()),
+            (None, None) => (ConfigSource::User, installed_file.clone()),
+        };
         let mut error = match (hidden_by, set_by) {
-            (Some(u), _) => Some(format!("{} can't be read, so whether this plugin is on is unknown", u.file.display())),
+            (Some(u), _) => Some(format!(
+                "enabledPlugins in {} can't be read (see its error row), so whether this plugin is on is unknown",
+                u.file.display()
+            )),
             (None, Some((l, None))) => Some(format!("\"enabledPlugins.{key}\" in {} is not true or false", l.file.display())),
             _ => None,
         };

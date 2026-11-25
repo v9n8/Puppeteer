@@ -117,8 +117,11 @@ export function configScanErrorRows(error: string, name: string, source: ConfigS
   }))
 }
 
-/** i18n key of the source badge's hint: a plugin no settings file sets comes from the install list. */
-export function sourceHintKey(item: Pick<ConfigItem, 'plugin' | 'source' | 'file'>): string {
-  if (item.plugin && /[\\/]installed_plugins\.json$/.test(item.file)) return 'library.config.sourceHint.installed'
+/**
+ * i18n key of the source badge's hint: a Plugins row from the install list (a
+ * plugin no settings file sets, or that list's error row) names that list.
+ */
+export function sourceHintKey(item: Pick<ConfigItem, 'kind' | 'source' | 'file'>): string {
+  if (item.kind === 'plugin' && /[\\/]installed_plugins\.json$/.test(item.file)) return 'library.config.sourceHint.installed'
   return `library.config.sourceHint.${item.source}`
 }

@@ -96,9 +96,10 @@ const PROJECT_FILES: &[SettingsFile] = &[
 enum Reach {
     /// As the Library's folders: inside the base and out of a credential store.
     Library,
-    /// HOME's own file, often a dotfiles link: anywhere inside HOME, as the CLI follows it.
-    /// `~/.claude/settings.json` is itself a credential file to [`SecretPaths`], and so, by
-    /// identity, is its link's target; only the keys above ever leave it.
+    /// HOME's own file, often a dotfiles link: anywhere inside HOME out of a credential store,
+    /// as the CLI follows it. `~/.claude/settings.json` is itself a credential file to
+    /// [`SecretPaths`], and so, by identity, is its link's target: the target's folder is what
+    /// is checked. Only the keys above ever leave it.
     Home,
 }
 
@@ -111,7 +112,9 @@ fn read_json(base: &Path, rel: &str, reach: Reach, secret: &SecretPaths) -> Resu
     let real_base = fs::canonicalize(base).map_err(|_| format!("Folder not found: {}", base.display()))?;
     let real = fs::canonicalize(&at).map_err(|_| format!("{} is a link to something that doesn't exist", at.display()))?;
     let allowed = folder_allowed(&real, &real_base, Path::new(rel), secret)
-        || (reach == Reach::Home && real.starts_with(&real_base));
+        || (reach == Reach::Home
+            && real.starts_with(&real_base)
+            && real.parent().is_some_and(|dir| !secret.denies(dir)));
     if !allowed {
         return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));
     }
@@ -237,7 +240,10 @@ pub(crate) fn scan_config_at(home: &Path, project: Option<&Path>, secret: &Secre
                 hooks_of(&settings, f.source, &file, &mut out);
                 match plugins::enabled_of(&settings, &file) {
                     Ok(enabled) => levels.push(plugins::Level { source: f.source, file, enabled }),
-                    Err(e) => out.push(error_item(ConfigKind::Plugin, f.source, &file, 0, e)),
+                    Err(e) => {
+                        out.push(error_item(ConfigKind::Plugin, f.source, &file, 0, e));
+                        unread.push(plugins::Unread { source: f.source, file: file.clone() });
+                    }
                 }
             }
             Ok(None) => {}
@@ -433,6 +439,18 @@ mod tests {
         assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_user_settings_link_into_a_credential_store_is_not_read() {
+        let f = Fixture::new("dotfiles-store");
+        let target = f.write("home/.aws/settings.json", PRE_BASH);
+        fs::create_dir_all(f.home().join(".claude")).unwrap();
+        std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+        let items = f.global();
+        assert!(!items.is_empty());
+        assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+    }
+
     #[test]
     fn no_settings_file_means_no_rows_and_no_error() {
         let f = Fixture::new("empty");
@@ -579,6 +597,18 @@ mod tests {
         let items = f.project();
         let it = plugins(&items).into_iter().find(|i| i.plugin.is_some()).unwrap();
         assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.error.as_deref().unwrap().contains("unknown"), "{:?}", it.error);
+    }
+
+    #[test]
+    fn a_malformed_local_enabled_plugins_leaves_the_project_value_unknown() {
+        let f = Fixture::new("plugins-local-malformed");
+        f.write("proj/.claude/settings.json", r#"{"enabledPlugins":{"a@m":true}}"#);
+        f.write("proj/.claude/settings.local.json", r#"{"enabledPlugins":["a@m"]}"#);
+        let items = f.project();
+        let it = plugins(&items).into_iter().find(|i| i.plugin.is_some()).unwrap();
+        assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert_eq!(it.source, ConfigSource::Local);
         assert!(it.error.as_deref().unwrap().contains("unknown"), "{:?}", it.error);
     }
 

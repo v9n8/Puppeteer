@@ -85,4 +85,6 @@ test('sourceHintKey names the install list for a plugin no settings file sets', 
   assert.equal(sourceHintKey({ ...fromList, file: 'C:\\h\\.claude\\plugins\\installed_plugins.json' }), 'library.config.sourceHint.installed')
   assert.equal(sourceHintKey(plugin('evon', true)), 'library.config.sourceHint.user')
   assert.equal(sourceHintKey({ ...hook('Stop', 'x'), source: 'local' }), 'library.config.sourceHint.local')
+  const listError = { ...fromList, plugin: null, error: 'not valid JSON' }
+  assert.equal(sourceHintKey(listError), 'library.config.sourceHint.installed')
 })
