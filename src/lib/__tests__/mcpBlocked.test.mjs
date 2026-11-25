@@ -2,6 +2,7 @@
 // Run: node --test src/lib/__tests__/mcpBlocked.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { addMcpBlocked, readMcpBlocked } from '../mcpBlocked.ts'
 
 test('reads a report, defaulting source and reason', () => {
@@ -54,4 +55,10 @@ test('never changes the list it was given', () => {
   const next = addMcpBlocked(list, { server: 'a', source: 'user' })
   assert.deepEqual(list, [{ server: 'a', source: 'user', calls: 1 }])
   assert.equal(next[0].calls, 2)
+})
+
+test('a session dropped by the live-runs store drops its notice too', () => {
+  const src = readFileSync(new URL('../../stores/liveRuns.ts', import.meta.url), 'utf8')
+  const discard = src.slice(src.indexOf('function discard('), src.indexOf('\n  }\n', src.indexOf('function discard(')))
+  assert.match(discard, /useRunMcpBlockedStore\(\)\.dismiss\(runId\)/)
 })

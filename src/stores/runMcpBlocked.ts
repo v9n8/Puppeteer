@@ -6,7 +6,8 @@ import { addMcpBlocked, type McpBlockedEntry } from '@/lib/mcpBlocked'
 /**
  * MCP servers Puppeteer does not manage, blocked in each session (backend
  * `run:mcp_blocked:{id}`), for the session's notice. Kept per run after the run
- * ends — the notice shows whatever the run status — until the user dismisses it.
+ * ends — the notice shows whatever the run status — until the user dismisses it
+ * or the live-runs store drops the session (deleted run, evicted finished one).
  * The live-runs store attaches the listener with the run's others, so a block
  * in a session that is not on screen is not missed.
  */
