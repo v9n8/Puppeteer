@@ -17,15 +17,18 @@ interface ProjectRow {
 }
 
 /**
- * Projects that take their engine or that engine's model from the global
- * default and whose resolved (engine, model) is off in their own list, so a new
- * session there is refused. `enabledFor` gives a project's list (Settings'
- * narrowed by its own). Projects in the Trash are not passed in.
+ * Projects that take their engine or that engine's model from one of the
+ * global `changed` keys and whose resolved (engine, model) is off in their own
+ * list, so a new session there is refused. Only those keys: a project already
+ * blocked through another default is not "following this default". `enabledFor`
+ * gives a project's list (Settings' narrowed by its own). Projects in the Trash
+ * are not passed in.
  */
 export function blockedFollowers(
   projects: readonly ProjectRow[],
   settings: DefaultSettings,
   enabledFor: (projectId: string) => EnabledModels,
+  changed: readonly string[],
 ): { id: string; name: string }[] {
   return projects
     .filter((p) => {
@@ -35,7 +38,8 @@ export function blockedFollowers(
       const followsEngine = !ENGINES.includes(own?.engine?.trim() ?? '')
       const ownModel = engine === 'codex' ? own?.model_codex : own?.model_claude
       const followsModel = !ownModel?.trim()
-      return (followsEngine || followsModel) && isModelOff(engine, d.models[engine], enabledFor(p.id))
+      const reached = (followsEngine && changed.includes('default_engine')) || (followsModel && changed.includes(`${engine}_model`))
+      return reached && isModelOff(engine, d.models[engine], enabledFor(p.id))
     })
     .map((p) => ({ id: p.id, name: p.name }))
 }

@@ -19,7 +19,7 @@ export function useWarnBlockedFollowers() {
     if (!keys.some((k) => FOLLOWED_MODEL_KEYS.includes(k))) return
     // The one round trip, only while the project list is not loaded yet.
     if (!projects.projects.length) await projects.fetchProjects()
-    const blocked = blockedFollowers(projects.projects, settings, (id) => modelCatalog.enabledFor(id))
+    const blocked = blockedFollowers(projects.projects, settings, (id) => modelCatalog.enabledFor(id), keys)
     if (!blocked.length) return
     const shown = namesShown(blocked.map((p) => p.name))
     const names = shown.more ? t('settings.ai.followersMore', { names: shown.names, count: shown.more }) : shown.names

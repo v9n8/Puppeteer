@@ -17,15 +17,17 @@ const lists = {
 }
 const enabledFor = (id) => intersectEnabled(ALL_MODELS_ON, lists[id] ?? null)
 const settings = { default_engine: 'claude', claude_model: NEW_MODEL, codex_model: 'gpt-5.5' }
+const MODEL = ['claude_model']
+const ENGINE = ['default_engine']
 
 test('a project following the model whose own list turns the new model off is named', () => {
   const projects = [{ id: 'c', name: 'C', session_defaults: {} }]
-  assert.deepEqual(blockedFollowers(projects, settings, enabledFor), [{ id: 'c', name: 'C' }])
+  assert.deepEqual(blockedFollowers(projects, settings, enabledFor, MODEL), [{ id: 'c', name: 'C' }])
 })
 
 test('a project pinned to a model its list allows is not named', () => {
   const projects = [{ id: 'd', name: 'D', session_defaults: { model_claude: 'claude-sonnet-4-6' } }]
-  assert.deepEqual(blockedFollowers(projects, settings, enabledFor), [])
+  assert.deepEqual(blockedFollowers(projects, settings, enabledFor, MODEL), [])
 })
 
 test('nothing blocked gives no names', () => {
@@ -33,23 +35,32 @@ test('nothing blocked gives no names', () => {
     { id: 'e', name: 'E', session_defaults: null },
     { id: 'free', name: 'Free', session_defaults: {} },
   ]
-  assert.deepEqual(blockedFollowers(projects, settings, enabledFor), [])
+  assert.deepEqual(blockedFollowers(projects, settings, enabledFor, MODEL), [])
 })
 
 test('a new global engine makes a project that follows it use a Codex model its list turns off', () => {
   const projects = [{ id: 'e', name: 'E', session_defaults: {} }]
-  assert.deepEqual(blockedFollowers(projects, settings, enabledFor), [])
-  assert.deepEqual(blockedFollowers(projects, { ...settings, default_engine: 'codex' }, enabledFor), [{ id: 'e', name: 'E' }])
+  assert.deepEqual(blockedFollowers(projects, settings, enabledFor, ENGINE), [])
+  assert.deepEqual(blockedFollowers(projects, { ...settings, default_engine: 'codex' }, enabledFor, ENGINE), [{ id: 'e', name: 'E' }])
   // Its own engine pinned to Claude: the global engine change does not reach it.
   const pinned = [{ id: 'e', name: 'E', session_defaults: { engine: 'claude' } }]
-  assert.deepEqual(blockedFollowers(pinned, { ...settings, default_engine: 'codex' }, enabledFor), [])
+  assert.deepEqual(blockedFollowers(pinned, { ...settings, default_engine: 'codex' }, enabledFor, ENGINE), [])
 })
 
 test('the check only reads: projects and their lists are left as they were', () => {
   const projects = [{ id: 'c', name: 'C', session_defaults: { effort: 'low' } }]
   const before = JSON.stringify({ projects, lists })
-  blockedFollowers(projects, settings, enabledFor)
+  blockedFollowers(projects, settings, enabledFor, MODEL)
   assert.equal(JSON.stringify({ projects, lists }), before)
+})
+
+test('a project blocked through another default is not named for this one', () => {
+  // C follows the Claude model, which its list turns off; only the Codex model was saved.
+  const projects = [{ id: 'c', name: 'C', session_defaults: {} }]
+  assert.deepEqual(blockedFollowers(projects, settings, enabledFor, ['codex_model']), [])
+  // A project that pins its Codex model is not reached by a new global engine's model either.
+  const pinned = [{ id: 'e', name: 'E', session_defaults: { model_codex: 'gpt-5.4' } }]
+  assert.deepEqual(blockedFollowers(pinned, { ...settings, default_engine: 'codex' }, enabledFor, ['codex_model']), [])
 })
 
 test('up to three names are shown, then how many more', () => {
