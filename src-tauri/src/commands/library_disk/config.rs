@@ -13,7 +13,7 @@
 use super::{folder_allowed, read_text, LibraryScope};
 use crate::commands::memory::{hash, project_root};
 use crate::db::Db;
-use crate::remote::guard::{SecretPaths, SECRET_HOME_FILES, SECRET_HOME_FILE_PREFIXES};
+use crate::remote::guard::{FileId, SecretPaths, SECRET_HOME_FILES, SECRET_HOME_FILE_PREFIXES};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -107,13 +107,31 @@ enum Reach {
     Home,
 }
 
-/// Whether `real` (canonical) is, by its own path, one of the guard's credential files in HOME
-/// (`real_home`, canonical). Compared as written, case-insensitively as the guard does.
-fn credential_file_at(real_home: &Path, real: &Path) -> bool {
+/// Whether `real` (canonical) is one of the guard's credential files in HOME (`real_home`,
+/// canonical): by its own path, case-insensitively as the guard compares, or as the same file as
+/// one that is itself a link (`~/.npmrc` → a dotfiles file). `reading` (relative to HOME) is the
+/// file whose link led here: it is that file by definition, so it doesn't count.
+fn credential_file_at(real_home: &Path, reading: &str, real: &Path) -> bool {
     let Ok(rel) = real.strip_prefix(real_home) else { return false };
     let rel: Vec<String> = rel.iter().map(|c| c.to_string_lossy().to_lowercase()).collect();
-    SECRET_HOME_FILES.iter().any(|f| f.split('/').eq(rel.iter().map(String::as_str)))
-        || (rel.len() == 1 && SECRET_HOME_FILE_PREFIXES.iter().any(|pre| rel[0].starts_with(pre)))
+    let by_path = SECRET_HOME_FILES.iter().any(|f| f.split('/').eq(rel.iter().map(String::as_str)))
+        || (rel.len() == 1 && SECRET_HOME_FILE_PREFIXES.iter().any(|pre| rel[0].starts_with(pre)));
+    if by_path {
+        return true;
+    }
+    let Some(id) = FileId::of(real) else { return false };
+    let prefixed = fs::read_dir(real_home)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| SECRET_HOME_FILE_PREFIXES.iter().any(|pre| n.to_lowercase().starts_with(pre)));
+    SECRET_HOME_FILES
+        .iter()
+        .filter(|f| **f != reading)
+        .map(|f| f.to_string())
+        .chain(prefixed)
+        .any(|f| FileId::of(&f.split('/').fold(real_home.to_path_buf(), |p, c| p.join(c))) == Some(id))
 }
 
 /// The JSON object at `rel` under `base`; `None` when there is no file.
@@ -127,7 +145,7 @@ fn read_json(base: &Path, rel: &str, reach: Reach, secret: &SecretPaths) -> Resu
     let allowed = folder_allowed(&real, &real_base, Path::new(rel), secret)
         || (reach == Reach::Home
             && real.starts_with(&real_base)
-            && !credential_file_at(&real_base, &real)
+            && !credential_file_at(&real_base, rel, &real)
             && real.parent().is_some_and(|dir| !secret.denies(dir)));
     if !allowed {
         return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));

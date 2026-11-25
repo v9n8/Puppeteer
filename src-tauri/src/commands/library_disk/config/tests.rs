@@ -198,6 +198,20 @@ fn a_user_settings_link_to_a_credential_file_is_not_read() {
     assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
 }
 
+#[cfg(unix)]
+#[test]
+fn a_user_settings_link_to_a_linked_credential_file_is_not_read() {
+    let f = Fixture::new("dotfiles-linked-credential");
+    // Both the credential file and the settings file are dotfiles links to the same file.
+    let target = f.write("home/dotfiles/npmrc", PRE_BASH);
+    std::os::unix::fs::symlink(&target, f.home().join(".npmrc")).unwrap();
+    fs::create_dir_all(f.home().join(".claude")).unwrap();
+    std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+    let items = f.global();
+    assert!(!items.is_empty());
+    assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+}
+
 #[test]
 fn a_hook_keeps_its_id_when_an_earlier_one_is_removed() {
     let f = Fixture::new("stable-id");
