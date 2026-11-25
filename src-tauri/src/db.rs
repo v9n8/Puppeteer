@@ -88,6 +88,10 @@ pub(crate) async fn reconcile_interrupted_runs(pool: &Db) -> Result<()> {
 mod wal_tests;
 
 #[cfg(test)]
+#[path = "db_follow_global_tests.rs"]
+mod follow_global_tests;
+
+#[cfg(test)]
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::Row;
