@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Default)]
 pub struct PermissionRequestEvent {
     pub run_id: String,
     pub request_id: String,
@@ -49,6 +49,31 @@ pub struct PermissionRequestEvent {
     /// the watchdog read one clock.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requested_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// A broker prompt's argv and reason, so the UI can name the action and
+    /// explain the reason in the app's language. None for a sidecar prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broker: Option<BrokerPrompt>,
+}
+
+#[derive(Debug, Serialize, Clone, Default, PartialEq)]
+pub struct BrokerPrompt {
+    /// The CLI's argv after the tool name, verbatim: `tool_input.command` is
+    /// joined by spaces, so it cannot be split back into the real tokens.
+    pub argv: Vec<String>,
+    /// The policy reason as codes; empty when the English text is not
+    /// recognised (the UI then shows `description` as is).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reason: Vec<ReasonPart>,
+    /// Whether the prompt may offer allowing this command for the rest of the run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub allow_for_run: bool,
+}
+
+/// One piece of a broker reason: a code the UI translates and its parameters.
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct ReasonPart {
+    pub code: String,
+    pub params: std::collections::BTreeMap<String, String>,
 }
 
 /// The agent behind a permission request. The SDK hands `canUseTool` only the
@@ -198,6 +223,7 @@ mod tests {
             model: None,
             agent: None,
             requested_at: None,
+            broker: None,
         }
     }
 

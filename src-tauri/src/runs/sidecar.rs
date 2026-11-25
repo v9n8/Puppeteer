@@ -939,15 +939,15 @@ pub async fn drain_sidecar(
                                     title: v.get("title").and_then(|x| x.as_str()).map(str::to_string),
                                     description: v.get("description").and_then(|x| x.as_str()).map(str::to_string),
                                     display_name: v.get("display_name").and_then(|x| x.as_str()).map(str::to_string),
-                                    once_only: false,
                                     engine: (!engine.is_empty()).then(|| engine.clone()),
                                     model: crate::runs::permission::model_of(last_model.as_deref()),
                                     agent: crate::runs::permission::agent_of(&engine, v),
                                     requested_at: Some(chrono::Utc::now()),
+                                    ..Default::default()
                                 };
                                 // Remember it until answered — BEFORE anything can see
                                 // it: the emit below is lost if no webview listener is
-                                // attached right now (a re-attached one recovers it from
+                                // attached now (a re-attached one recovers it from
                                 // this store), and an answer that races in from a phone
                                 // must find it pending or it is refused.
                                 crate::runs::permission::track_pending(evt.clone());

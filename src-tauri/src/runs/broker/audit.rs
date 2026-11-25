@@ -225,16 +225,7 @@ mod tests {
             request_id: request_id.to_string(),
             tool_name: tool.to_string(),
             tool_input: input,
-            session_id: None,
-            cwd: None,
-            title: None,
-            description: None,
-            display_name: None,
-            once_only: false,
-            engine: None,
-            model: None,
-            agent: None,
-            requested_at: None,
+            ..Default::default()
         }
     }
 

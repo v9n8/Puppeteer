@@ -14,9 +14,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::{ApproverResolver, BrokerRequest};
-use crate::runs::permission::PermissionRequestEvent;
+use crate::runs::permission::{BrokerPrompt, PermissionRequestEvent};
 use crate::runs::{BrokerApprovals, BrokerRuns};
 use tauri::{AppHandle, Emitter};
+
+mod reason;
 
 /// Decides whether an `Ask` request should proceed. Must be `Send + Sync` so it
 /// can be shared across the accept loop's spawned tasks via `Arc`.
@@ -103,25 +105,9 @@ impl Approver for ModalApprover {
             pending.insert(request_id.clone(), tx);
         }
 
-        // 2. Emit the SAME event the sidecar permission flow uses. The frontend
-        //    cannot tell the source apart; the modal renders identically.
-        let cmd_display = format!("{} {}", req.tool, req.argv.join(" "));
-        let evt = PermissionRequestEvent {
-            run_id: self.run_id.clone(),
-            request_id: request_id.clone(),
-            tool_name: req.tool.clone(),
-            tool_input: serde_json::json!({ "command": cmd_display.trim() }),
-            session_id: None,
-            cwd: self.cwd.clone(),
-            title: Some(format!("Cho phép `{}`?", cmd_display.trim())),
-            description: Some(reason.to_string()),
-            display_name: Some(format!("{} command", req.tool)),
-            once_only: true,
-            engine: None,
-            model: None,
-            agent: None,
-            requested_at: Some(chrono::Utc::now()),
-        };
+        // 2. Emit the SAME event the sidecar permission flow uses, so the same
+        //    modal renders it; `broker` adds what it needs to name the action.
+        let evt = prompt_event(&self.run_id, &request_id, self.cwd.clone(), req, reason, false);
         let topic = format!("run:permission_request:{}", self.run_id);
         // Track it like a sidecar request: the emit is lost when no webview
         // listener is attached yet, and a (re)attached listener recovers it from
@@ -162,6 +148,37 @@ impl Approver for ModalApprover {
         //    prompt). The shim's own lifetime is bounded by its caller (e.g. the
         //    Bash tool timeout), so nothing waits forever unseen.
         rx.await.unwrap_or(false)
+    }
+}
+
+/// The permission event for a broker `Ask`. A broker prompt is once-only: there
+/// is no standing Always for a credential use.
+fn prompt_event(
+    run_id: &str,
+    request_id: &str,
+    cwd: Option<String>,
+    req: &BrokerRequest,
+    reason: &str,
+    allow_for_run: bool,
+) -> PermissionRequestEvent {
+    let cmd_display = format!("{} {}", req.tool, req.argv.join(" "));
+    PermissionRequestEvent {
+        run_id: run_id.to_string(),
+        request_id: request_id.to_string(),
+        tool_name: req.tool.clone(),
+        tool_input: serde_json::json!({ "command": cmd_display.trim() }),
+        cwd,
+        title: Some(format!("Cho phép `{}`?", cmd_display.trim())),
+        description: Some(reason.to_string()),
+        display_name: Some(format!("{} command", req.tool)),
+        once_only: true,
+        requested_at: Some(chrono::Utc::now()),
+        broker: Some(BrokerPrompt {
+            argv: req.argv.clone(),
+            reason: reason::reason_parts(reason, &req.argv),
+            allow_for_run,
+        }),
+        ..Default::default()
     }
 }
 
@@ -252,7 +269,34 @@ impl ApproverResolver for ModalApproverResolver {
 
 #[cfg(test)]
 mod tests {
-    use super::asks_skipped;
+    use super::{asks_skipped, prompt_event};
+    use crate::runs::broker::BrokerRequest;
+    use crate::runs::permission::BrokerPrompt;
+
+    #[test]
+    fn prompt_event_carries_the_argv_and_the_reason_codes() {
+        let req: BrokerRequest = serde_json::from_value(serde_json::json!({
+            "project_id": "p",
+            "tool": "git",
+            "argv": ["push", "origin", "main"],
+        }))
+        .unwrap();
+        let reason = "git push writes to remote — needs confirmation (as GitHub account \"me\")";
+        let evt = prompt_event("run-a", "req-1", Some("/p".into()), &req, reason, false);
+        assert_eq!(evt.tool_input, serde_json::json!({ "command": "git push origin main" }));
+        assert_eq!(evt.description.as_deref(), Some(reason));
+        assert!(evt.once_only);
+        let broker: BrokerPrompt = evt.broker.clone().expect("broker part");
+        assert_eq!(broker.argv, ["push", "origin", "main"]);
+        let codes: Vec<&str> = broker.reason.iter().map(|p| p.code.as_str()).collect();
+        assert_eq!(codes, ["gitPush", "asAccount"]);
+        assert!(!broker.allow_for_run);
+
+        let json = serde_json::to_value(&evt).unwrap();
+        assert_eq!(json["broker"]["argv"], serde_json::json!(["push", "origin", "main"]));
+        assert_eq!(json["broker"]["reason"][1]["params"]["account"], "\"me\"");
+        assert!(json["broker"].get("allow_for_run").is_none());
+    }
 
     #[test]
     fn only_bypass_skips_the_ask() {
