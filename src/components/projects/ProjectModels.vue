@@ -4,7 +4,9 @@
 // the switches only change a draft until Save (⌘S). Save writes the list through
 // `set_project_session_defaults` in one call with the project's default model when the
 // new list turns that model off: it moves to the first model on in both lists, which
-// the confirm dialog names first. The backend checks the pair again (AC-14).
+// the confirm dialog names first; a move onto the global default model stores "follow".
+// The dialog also warns when the project takes its default model from Settings and the
+// new list turns that model off. The backend checks the pair again (AC-14).
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -21,6 +23,8 @@ import {
   ALL_MODELS_ON, draftOn, engineListToSave, firstEnabled, intersectEnabled, isModelOff, projectModelRows,
   type EnabledModels, type ModelVerdict,
 } from '@/lib/enabledModels'
+import { projectValueForPick } from '@/lib/defaultMark'
+import { FOLLOWED_MODEL_KEYS, blockedFollowers } from '@/lib/globalDefaultWarning'
 import type { ModelEngine } from '@/lib/modelDefaultsUsage'
 import type { ProjectSectionId } from '@/lib/projectSections'
 
@@ -125,12 +129,29 @@ function movesFor(lists: EnabledModels | null): { engine: ModelEngine; from: str
 }
 
 const busy = ref(false)
+/** The global default model a project following Settings would start on, when `lists` turns it off. */
+function followedModelOff(next: ProjectSessionDefaults, lists: EnabledModels | null): string | null {
+  const settings = appSettings.settings
+  if (!settings) return null
+  const on = intersectEnabled(modelCatalog.enabled, lists)
+  if (!blockedFollowers([{ ...props.project, session_defaults: next }], settings, () => on, FOLLOWED_MODEL_KEYS).length) return null
+  const d = composerDefaults({ settings, project: next })
+  return d.models[d.engine as ModelEngine]
+}
+
 async function save() {
   if (!changeCount.value || busy.value) return
   const lists = draftLists()
   const moves = movesFor(lists)
-  if (moves.length) {
-    const message = moves.map((m) => t('projectDetail.model.confirmMove', { from: m.from, to: modelName(m.to) })).join('\n')
+  const globalModels = composerDefaults({ settings: appSettings.settings }).models
+  const next: ProjectSessionDefaults = { ...own.value, enabled_models: lists }
+  // Like Settings › Model: landing on the global default model follows it.
+  for (const m of moves) next[m.engine === 'claude' ? 'model_claude' : 'model_codex'] = projectValueForPick(m.to, globalModels[m.engine]) || null
+  const followedOff = followedModelOff(next, lists)
+  const lines = moves.map((m) => t('projectDetail.model.confirmMove', { from: m.from, to: modelName(m.to) }))
+  if (followedOff !== null) lines.push(t('projectDetail.model.confirmFollowedOff', { model: followedOff }))
+  if (lines.length) {
+    const message = lines.join('\n')
     const ok = await confirm({
       title: t('projectDetail.model.confirmTitle'),
       message,
@@ -143,8 +164,6 @@ async function save() {
   const done = lists
     ? t('projectDetail.model.savedOwn', { project: props.project.name, claude: onCount('claude'), codex: onCount('codex') })
     : t('projectDetail.model.savedFollow', { project: props.project.name })
-  const next: ProjectSessionDefaults = { ...own.value, enabled_models: lists }
-  for (const m of moves) next[m.engine === 'claude' ? 'model_claude' : 'model_codex'] = m.to || null
   busy.value = true
   try {
     await projectStore.setSessionDefaults(props.project.id, next)

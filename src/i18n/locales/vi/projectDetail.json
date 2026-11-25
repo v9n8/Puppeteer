@@ -259,6 +259,7 @@
     "saveTip": "Lưu (⌘S)",
     "confirmTitle": "Lưu model cho Project này?",
     "confirmMove": "{from} đang là model mặc định ở Session mới của Project này. Lưu thì Session mới đổi sang model đầu tiên còn bật: {to}.",
+    "confirmFollowedOff": "{model} là model mặc định ở Session mới của Project này, lấy từ Mặc định session mới. Danh sách này tắt model đó, nên Session mới ở đây sẽ bị từ chối. Hãy bật lại model đó, hoặc chọn model mặc định khác.",
     "savedOwn": "Đã lưu model cho {project}: Claude {claude} · Codex {codex}",
     "savedFollow": "Đã lưu: {project} theo Cài đặt › Model",
     "footBefore": "Model mặc định ở",

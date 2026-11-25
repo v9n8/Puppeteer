@@ -259,6 +259,7 @@
     "saveTip": "Save (⌘S)",
     "confirmTitle": "Save models for this project?",
     "confirmMove": "{from} is the default model for new sessions of this project. Saving switches new sessions to the first model still on: {to}.",
+    "confirmFollowedOff": "{model} is the default model for new sessions of this project, taken from Defaults for new sessions. This list turns it off, so new sessions here will be refused. Turn it on, or pick another default model.",
     "savedOwn": "Saved models for {project}: Claude {claude} · Codex {codex}",
     "savedFollow": "Saved: {project} follows Settings › Model",
     "footBefore": "The default model in",
