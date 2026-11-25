@@ -61,7 +61,7 @@ pub(super) async fn follow_globals(db: &Db, project_id: &str, entry: &SessionDef
         ("default_model_codex", from_backup(&entry.model_codex, &current.model_codex)),
         ("default_permission_mode", from_backup(&entry.permission_mode, &current.permission_mode)),
         ("default_effort", from_backup(&entry.effort, &current.effort)),
-        ("default_style", style_from_backup(db, entry.style.as_ref(), current.style.as_deref()).await?),
+        ("default_style", style_from_backup(db, project_id, entry.style.as_ref(), current.style.as_deref()).await?),
     ];
     let stored = [&current.engine, &current.model_claude, &current.model_codex, &current.permission_mode, &current.effort, &current.style];
     let global = GlobalDefaults::load(db).await?;
@@ -80,21 +80,31 @@ pub(super) async fn follow_globals(db: &Db, project_id: &str, entry: &SessionDef
 }
 
 /// Whether the stored style is the one the backup names. The style travels by id, else
-/// by name, and is stored under the local id; one the import could not find left the
-/// local style in place, which the backup did not set.
-async fn style_from_backup(db: &Db, named: Option<&StyleRefEntry>, stored: Option<&str>) -> Result<bool, String> {
+/// by name within its scope (the project's own styles, or the global ones), and is stored
+/// under the local id; one the import could not find left the local style in place, which
+/// the backup did not set.
+async fn style_from_backup(
+    db: &Db,
+    project_id: &str,
+    named: Option<&StyleRefEntry>,
+    stored: Option<&str>,
+) -> Result<bool, String> {
     let (Some(named), Some(stored)) = (named, stored) else { return Ok(false) };
     if stored == named.key {
         return Ok(true);
     }
     let Some(name) = &named.name else { return Ok(false) };
-    sqlx::query_scalar::<_, i64>("SELECT 1 FROM response_styles WHERE id = ? AND name = ? COLLATE NOCASE")
-        .bind(stored)
-        .bind(name)
-        .fetch_optional(db)
-        .await
-        .map(|row| row.is_some())
-        .map_err(|e| e.to_string())
+    let scope = named.project.then_some(project_id);
+    sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM response_styles WHERE id = ? AND name = ? COLLATE NOCASE AND IFNULL(project_id, '') = IFNULL(?, '')",
+    )
+    .bind(stored)
+    .bind(name)
+    .bind(scope)
+    .fetch_optional(db)
+    .await
+    .map(|row| row.is_some())
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -220,6 +230,18 @@ mod tests {
         let by_name = entry(serde_json::json!({ "style": { "key": "other-id", "name": "team" } }));
         follow_globals(&db, "w", by_name.session_defaults.as_ref().unwrap()).await.unwrap();
         assert_eq!(defaults::load(&db, "w").await.style, None);
+    }
+
+    #[tokio::test]
+    async fn a_missing_project_style_does_not_match_a_global_style_of_the_same_name() {
+        let db = db_with_projects("('w', 'web', '/other/web', 'c')").await;
+        let global = crate::commands::response_styles::create(&db, None, "Team", "", "x").await.unwrap();
+        set_setting(&db, "default_style", &global.id).await;
+        defaults::set(&db, "w", ProjectSessionDefaults { style: Some(global.id.clone()), ..Default::default() }).await.unwrap();
+        // The backup names the project's own "Team", which this machine does not have.
+        let own = entry(serde_json::json!({ "style": { "key": "gone", "name": "Team", "project": true } }));
+        follow_globals(&db, "w", own.session_defaults.as_ref().unwrap()).await.unwrap();
+        assert_eq!(defaults::load(&db, "w").await.style.as_deref(), Some(global.id.as_str()));
     }
 
     #[tokio::test]
