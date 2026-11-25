@@ -82,6 +82,8 @@ defineSlots<{
   row: (p: { row: T; selected: boolean }) => unknown
   /** Hover actions at the end of a row (outside the click area). */
   'row-actions'?: (p: { row: T }) => unknown
+  /** Pinned above the list, outside the groups (e.g. an entry that opens an overview). */
+  pinned?: () => unknown
   /** Pinned under the list (e.g. a legend). */
   footer?: () => unknown
   /** Hover actions on a folder header. */
@@ -159,6 +161,10 @@ function showHeaders(): boolean {
         </slot>
       </div>
       <SegmentedControl v-if="filters.length > 0" v-model="filter" :options="filters" />
+    </div>
+
+    <div v-if="$slots.pinned" class="shrink-0 border-b border-border px-2 py-2">
+      <slot name="pinned" />
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2">

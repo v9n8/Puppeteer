@@ -12,6 +12,7 @@ import { type Project } from '@/stores/projects'
 import { useMcpServersStore, type ProjectBuiltinMcp, type ProjectMcpServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { parentLock, slackOnForProject, switchView } from '@/lib/configLock'
+import { isConnectorServer } from '@/lib/mcpDiscovery'
 import { useFeaturesStore } from '@/stores/features'
 import ProjectSlackDm from '@/components/projects/ProjectSlackDm.vue'
 
@@ -194,7 +195,7 @@ watch(projectId, async () => {
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-1.5 flex-wrap">
             <p class="text-xs font-medium font-mono truncate">{{ server.name }}</p>
-            <Badge tone="neutral" size="xs" class="shrink-0 uppercase tracking-wide">{{ server.transport }}</Badge>
+            <Badge tone="neutral" size="xs" class="shrink-0 uppercase tracking-wide">{{ isConnectorServer(server) ? t('mcp.discovery.transport.connector') : server.transport }}</Badge>
             <Badge v-if="!server.enabled" tone="neutral" size="xs" class="shrink-0">{{ t('projectDetail.disabled') }}</Badge>
             <Badge
               v-if="server.transport === 'sse' && defaultIsCodex"

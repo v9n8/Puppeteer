@@ -6,13 +6,16 @@
 import { haystack, matchesSearch, type RowGroup } from './listGroups.ts'
 
 export type McpTransport = 'stdio' | 'http' | 'sse'
+/** A stored server's transport: a form transport, or `claudeai` for a managed claude.ai
+ *  connector (no command / url; its description is the claude.ai name). */
+export type McpServerTransport = McpTransport | 'claudeai'
 
 /** The subset of the store's McpServer these helpers read. */
 export interface McpServerLike {
   id: string
   name: string
   description: string
-  transport: McpTransport
+  transport: McpServerTransport
   command: string | null
   args: string[]
   url: string | null
@@ -72,7 +75,7 @@ export interface McpRow {
   /** The one-line command (stdio) or URL (http/sse); built-ins: their tool glob. */
   line: string
   description: string
-  transport: McpTransport | null
+  transport: McpServerTransport | null
   /** Built-ins: injected right now; catalog: false (not added). */
   enabled: boolean
   /** Built-ins only. */
@@ -97,7 +100,8 @@ export function serverRow(s: McpServerLike): McpRow {
     id: s.id,
     kind: 'server',
     name: s.name,
-    line: serverLine(s),
+    // A connector has no command / url: its line is the claude.ai name.
+    line: s.transport === 'claudeai' ? s.description : serverLine(s),
     description: s.description,
     transport: s.transport,
     enabled: s.enabled,
@@ -135,7 +139,7 @@ export function matchesMcpRow(row: McpRow, search: string): boolean {
 
 export const GROUP_BUILTIN = 'builtin'
 export const GROUP_CATALOG = 'catalog'
-const TRANSPORT_ORDER: McpTransport[] = ['stdio', 'http', 'sse']
+const TRANSPORT_ORDER: McpServerTransport[] = ['stdio', 'http', 'sse', 'claudeai']
 
 /** The sidebar folder a row sits in: builtin, a transport, or catalog. */
 export function mcpRowType(row: McpRow): string {
@@ -150,12 +154,12 @@ export const MCP_TYPES: string[] = [GROUP_BUILTIN, ...TRANSPORT_ORDER, GROUP_CAT
 export interface McpGroupLabels {
   builtin: string
   catalog: string
-  transport: (t: McpTransport) => string
+  transport: (t: McpServerTransport) => string
 }
 
 /**
  * Sidebar folders: Built-in first, then the user's servers by transport
- * (stdio, http, sse — a fixed order, not A–Z), Recommended last. Empty
+ * (stdio, http, sse, claude.ai connectors — a fixed order, not A–Z), Recommended last. Empty
  * folders are dropped; rows keep their input order.
  */
 export function groupMcpRows(rows: readonly McpRow[], labels: McpGroupLabels): RowGroup<McpRow>[] {
@@ -219,7 +223,7 @@ export function blankForm(): McpForm {
 
 /** A saved server as a form; its secret rows are key-only (`existing`). */
 export function formFromServer(
-  s: McpServerLike & { env_keys: string[]; header_keys: string[] },
+  s: McpServerLike & { transport: McpTransport; env_keys: string[]; header_keys: string[] },
 ): McpForm {
   return {
     name: s.name,

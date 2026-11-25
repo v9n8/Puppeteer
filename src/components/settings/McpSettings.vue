@@ -10,7 +10,9 @@
 // Folders are by transport: it decides the whole shape of a server's config
 // (process + env vs. URL + headers) and Codex support (sse is Claude-only);
 // the type dropdown narrows to one folder. The built-in native
-// servers and the not-yet-added catalog are rows too, with a read-only pane.
+// servers and the not-yet-added catalog are rows too, with a read-only pane;
+// so are managed claude.ai connectors (nothing to edit, only their switch). The
+// pinned "Global connections" entry lists the MCP servers found outside Puppeteer.
 //
 // Selection lives in the URL (`/settings/mcp?id=` a server or a `builtin:` /
 // `catalog:` row, `?new=1` a blank draft) — never anything secret. In the
@@ -30,16 +32,20 @@ import McpServerDetail from '@/components/mcp/McpServerDetail.vue'
 import McpInfoDetail from '@/components/mcp/McpInfoDetail.vue'
 import McpAiAddDialog from '@/components/mcp/McpAiAddDialog.vue'
 import McpNewMenu from '@/components/mcp/McpNewMenu.vue'
+import McpConnectorDetail from '@/components/mcp/McpConnectorDetail.vue'
+import McpGlobalConnections from '@/components/settings/McpGlobalConnections.vue'
+import McpGlobalConnectionsEntry from '@/components/settings/McpGlobalConnectionsEntry.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import { useMcpServersStore, type McpServer, type PastedServer } from '@/stores/mcpServers'
+import { isFormServer, useMcpServersStore, type FormMcpServer, type McpServer, type PastedServer } from '@/stores/mcpServers'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { useFeaturesStore } from '@/stores/features'
 import { errorText } from '@/lib/featureGate'
 import { settingsLocation } from '@/lib/settingsSections'
 import { isRemoteMode } from '@/lib/ipc/remote'
 import { IMPORT_FEATURE } from '@/lib/configImport'
+import { GLOBAL_CONNECTIONS_ID } from '@/lib/mcpDiscovery'
 import {
   BUILTIN_PREFIX,
   MCP_CATALOG,
@@ -280,9 +286,15 @@ watch(
   { immediate: true },
 )
 
+// "Global connections" (servers found outside Puppeteer) is local-only, like the import.
+const canDiscover = !isRemoteMode()
+const showGlobal = computed(() => canDiscover && selectedId.value === GLOBAL_CONNECTIONS_ID)
 /** Narrow: the detail replaces the list once something is open (or a draft). */
-const showDetail = computed(() => isNew.value || !!selectedRow.value)
-const selectedServer = computed(() => store.items.find((s) => s.id === selectedId.value) ?? null)
+const showDetail = computed(() => isNew.value || showGlobal.value || !!selectedRow.value)
+const selectedItem = computed(() => store.items.find((s) => s.id === selectedId.value) ?? null)
+const selectedServer = computed(() => (selectedItem.value && isFormServer(selectedItem.value) ? selectedItem.value : null))
+/** A claude.ai connector: its own read-only pane. */
+const selectedConnector = computed(() => (selectedItem.value && !isFormServer(selectedItem.value) ? selectedItem.value : null))
 const selectedRow = computed(() => allRows.value.find((r) => r.id === selectedId.value) ?? null)
 const selectedEntry = computed(() =>
   selectedRow.value?.kind === 'catalog' ? MCP_CATALOG.find((c) => c.name === selectedRow.value?.name) ?? null : null,
@@ -321,7 +333,7 @@ async function startNew(seed: McpForm | null = null): Promise<boolean> {
 watch(
   () => [store.loading, allRows.value] as const,
   ([loading]) => {
-    if (loading || !selectedId.value) return
+    if (loading || !selectedId.value || showGlobal.value) return
     if (!selectedRow.value) setSelection(null)
   },
 )
@@ -394,7 +406,7 @@ async function handleDelete(server: McpServer) {
 
 // Toggling `enabled` re-uses update. Secret rows are sent as key-only entries
 // (value omitted) so the backend keeps the stored VALUEs untouched.
-async function handleToggleEnabled(server: McpServer) {
+async function handleToggleEnabled(server: FormMcpServer) {
   togglingId.value = server.id
   try {
     await store.updateServer({
@@ -417,7 +429,7 @@ async function handleToggleEnabled(server: McpServer) {
   }
 }
 
-function handleDuplicate(server: McpServer) {
+function handleDuplicate(server: FormMcpServer) {
   const seed = duplicateForm(formFromServer(server), copyName(server.name, store.items.map((s) => s.name)))
   void startNew(seed).then((opened) => {
     if (opened && (server.env_keys.length || server.header_keys.length)) toast.info(t('mcp.detail.duplicated'))
@@ -515,6 +527,10 @@ function dotClass(row: McpRow): string {
       @select="select"
       @retry="refresh"
     >
+      <template v-if="canDiscover" #pinned>
+        <McpGlobalConnectionsEntry :selected="showGlobal" @select="select(GLOBAL_CONNECTIONS_ID)" />
+      </template>
+
       <template #toolbar>
         <Button
           variant="outline"
@@ -611,6 +627,7 @@ function dotClass(row: McpRow): string {
         :toggling="false"
         @saved="onSaved"
       />
+      <McpGlobalConnections v-else-if="showGlobal" @open="select" />
       <McpServerDetail
         v-else-if="selectedServer"
         :key="selectedServer.id"
@@ -624,6 +641,12 @@ function dotClass(row: McpRow): string {
         @export="handleExport(selectedServer)"
         @duplicate="handleDuplicate(selectedServer)"
         @delete="handleDelete(selectedServer)"
+      />
+      <McpConnectorDetail
+        v-else-if="selectedConnector"
+        :key="selectedConnector.id"
+        :server="selectedConnector"
+        @delete="handleDelete(selectedConnector)"
       />
       <McpInfoDetail
         v-else-if="selectedRow && selectedRow.kind !== 'server'"

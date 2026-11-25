@@ -1,15 +1,19 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@/lib/tauri'
 import { ref } from 'vue'
+import { isConnectorServer } from '@/lib/mcpDiscovery'
 
 export type McpTransport = 'stdio' | 'http' | 'sse'
+/** `claudeai`: a managed claude.ai connector — no command / url, its description is the
+ *  claude.ai name; its app-wide switch is `set_mcp_connector_enabled` (stores/mcpDiscovery). */
+export type McpServerTransport = McpTransport | 'claudeai'
 
 /** Server summary — mirrors the Rust `McpServer` (no secret VALUEs, only keys). */
 export interface McpServer {
   id: string
   name: string
   description: string
-  transport: McpTransport
+  transport: McpServerTransport
   command: string | null
   args: string[]
   url: string | null
@@ -17,6 +21,13 @@ export interface McpServer {
   header_keys: string[]
   enabled: boolean
   created_at: string
+}
+
+/** A server the MCP form edits, tests and exports: every one but a claude.ai connector. */
+export type FormMcpServer<T extends McpServer = McpServer> = T & { transport: McpTransport }
+
+export function isFormServer<T extends McpServer>(server: T): server is FormMcpServer<T> {
+  return !isConnectorServer(server)
 }
 
 /** Server + per-project enabled flag — mirrors the Rust `ProjectMcpServer`. */
@@ -37,7 +48,7 @@ export interface RunMcpEntry {
   key: string
   name: string
   builtin: boolean
-  transport: McpTransport | null
+  transport: McpServerTransport | null
   description: string
   /** On app-wide; off, the server is not injected whatever the session says. */
   available: boolean

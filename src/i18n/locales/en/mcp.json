@@ -41,7 +41,8 @@
       "builtin": "Built-in",
       "stdio": "stdio · local process",
       "http": "http · remote",
-      "sse": "sse · remote"
+      "sse": "sse · remote",
+      "claudeai": "claude.ai · connectors"
     },
     "noSelection": "Select an MCP server, or create a new one",
     "allTypes": "All types",
@@ -155,6 +156,78 @@
       "missing": "missing {scopes}: DM threads will fail until the token has it",
       "unknown": "Slack did not list the token's scopes, so this cannot be told",
       "token_error": "the token could not be checked (refused, revoked, or Slack did not answer)"
+    }
+  },
+  "connector": {
+    "meta": "claude.ai connector · {name}",
+    "hint": "A connector of a claude.ai account. Its setup lives on claude.ai, so there is nothing to edit, test or export here.",
+    "claudeName": "claude.ai name",
+    "profile": "Claude profile",
+    "tools": "Tools in runs",
+    "engineStatus": "Last check",
+    "notFound": "Its profile's last connector check did not report it: runs leave it out until it is found again.",
+    "enabledHint": "Off here keeps it out of every run. On: it still needs to be on for the Project and the Session. Only runs of its own Claude profile get it; Codex runs never do."
+  },
+  "discovery": {
+    "globalTitle": "Global connections",
+    "globalHint": "Every MCP server set up on this machine outside Puppeteer: Claude and Codex config files, claude.ai connectors, plugins, managed settings and other apps. A Puppeteer run loads only the servers managed here; every other one is blocked. Import one to manage it (it starts off).",
+    "blockedCount": "Blocked: {count}",
+    "blockedTitle": "Servers a run would load that Puppeteer does not manage (other apps not counted): they are blocked in every run.",
+    "reload": "Reload",
+    "reloadTitle": "Read every config again and check the claude.ai connectors of each Claude profile",
+    "probing": "Checking claude.ai connectors…",
+    "readAt": "Read at {time}",
+    "loadFailed": "Could not list the MCP servers found outside Puppeteer: {error}",
+    "empty": "No MCP server found outside Puppeteer.",
+    "configGroup": "Config files and apps",
+    "connectorGroup": "claude.ai connectors · {profile}",
+    "globalProfile": "Global",
+    "noConnectors": "No claude.ai connector.",
+    "probeFailed": "Could not check this profile's claude.ai connectors: {message}. None of its connectors can be used in runs.",
+    "sourceProblem": "{label} could not be read: {message}",
+    "loaded": "loaded in runs",
+    "notLoaded": "not loaded in runs",
+    "open": "Open",
+    "openTitle": "Open the managed copy in the MCP list",
+    "sync": "Sync",
+    "syncing": "Syncing…",
+    "synced": "Synced \"{name}\"",
+    "changedNotice": "Its source changed since the import. Sync copies the source over again; the on/off switches stay as they are.",
+    "blockedNotice": "Listed and blocked: this kind of server cannot be imported.",
+    "problemLine": "Could not read it: {message}",
+    "state": {
+      "not_managed": "Not managed",
+      "managed": "Managed",
+      "changed": "Changed since import",
+      "blocked": "Blocked, not importable",
+      "unreadable": "Unreadable"
+    },
+    "source": {
+      "S1": "claude.ai connector",
+      "S2": "Claude user config",
+      "S3": "Claude local config",
+      "S4": "Project .mcp.json",
+      "S5": "Claude plugin",
+      "S6": "Managed settings",
+      "S7": "Codex config",
+      "S8": "Project Codex config",
+      "S9": "Other app"
+    },
+    "transport": {
+      "connector": "connector",
+      "unknown": "unknown"
+    },
+    "conflict": {
+      "C1": "Same login as global",
+      "C2": "Same login as another account",
+      "C3": "Name taken",
+      "C4": "Login unknown"
+    },
+    "conflictTitle": {
+      "C1": "This profile and {others} are the same claude.ai login. Each keeps its own connectors and switches; nothing is merged.",
+      "C2": "This account and {others} are the same claude.ai login. Each keeps its own connectors and switches; nothing is merged.",
+      "C3": "Another MCP server is already named {key}: runs leave this connector out. Rename one of them.",
+      "C4": "This profile's claude.ai login could not be read, so a shared login cannot be checked."
     }
   }
 }

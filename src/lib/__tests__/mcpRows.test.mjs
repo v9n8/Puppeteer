@@ -112,6 +112,29 @@ test('groupMcpRows: built-in first, transports in fixed order, catalog last', ()
   assert.deepEqual(groupMcpRows([serverRow(fs)], labels).map((g) => g.key), ['stdio'])
 })
 
+test('a claude.ai connector shows its claude.ai name and sits in its own folder after sse', () => {
+  const slack = {
+    id: 'k1',
+    name: 'claude_ai_Slack-global',
+    description: 'claude.ai Slack',
+    transport: 'claudeai',
+    command: null,
+    args: [],
+    url: null,
+    enabled: false,
+  }
+  const row = serverRow(slack)
+  assert.equal(row.line, 'claude.ai Slack')
+  assert.equal(mcpRowType(row), 'claudeai')
+  assert.deepEqual(
+    groupMcpRows([row, serverRow(fs)], labels).map((g) => [g.key, g.label, g.rows.map((r) => r.id)]),
+    [
+      ['stdio', 'STDIO', ['a1']],
+      ['claudeai', 'CLAUDEAI', ['k1']],
+    ],
+  )
+})
+
 test('formFromServer marks stored secrets as existing with no value', () => {
   const form = formFromServer(fs)
   assert.equal(form.argsText, '-y\n@modelcontextprotocol/server-filesystem')

@@ -41,7 +41,8 @@
       "builtin": "Tích hợp sẵn",
       "stdio": "stdio · tiến trình cục bộ",
       "http": "http · từ xa",
-      "sse": "sse · từ xa"
+      "sse": "sse · từ xa",
+      "claudeai": "claude.ai · connector"
     },
     "noSelection": "Chọn một MCP server, hoặc tạo server mới",
     "allTypes": "Tất cả loại",
@@ -155,6 +156,78 @@
       "missing": "thiếu {scopes}: thread DM sẽ lỗi cho tới khi token có quyền này",
       "unknown": "Slack không trả danh sách quyền của token nên không biết được",
       "token_error": "không kiểm tra được token (bị từ chối, bị thu hồi, hoặc Slack không trả lời)"
+    }
+  },
+  "connector": {
+    "meta": "Connector claude.ai · {name}",
+    "hint": "Connector của một tài khoản claude.ai. Cấu hình của nó nằm trên claude.ai, nên ở đây không có gì để sửa, kiểm tra hay xuất.",
+    "claudeName": "Tên trên claude.ai",
+    "profile": "Profile Claude",
+    "tools": "Tool trong run",
+    "engineStatus": "Lần kiểm tra gần nhất",
+    "notFound": "Lần kiểm tra connector gần nhất của profile không thấy nó: các run sẽ bỏ nó ra cho tới khi thấy lại.",
+    "enabledHint": "Tắt ở đây thì mọi run đều không có nó. Bật: vẫn cần bật cho Project và Session. Chỉ run dùng đúng profile Claude của nó mới nhận nó; run Codex thì không bao giờ."
+  },
+  "discovery": {
+    "globalTitle": "Kết nối từ global",
+    "globalHint": "Mọi MCP server được cài trên máy này bên ngoài Puppeteer: file cấu hình Claude và Codex, connector claude.ai, plugin, cấu hình managed và các app khác. Run của Puppeteer chỉ nạp server được quản lý ở đây; mọi server khác đều bị chặn. Nhập một server để quản lý nó (nhập xong ở trạng thái tắt).",
+    "blockedCount": "Bị chặn: {count}",
+    "blockedTitle": "Các server mà run sẽ nạp nhưng Puppeteer không quản lý (không tính app khác): chúng bị chặn trong mọi run.",
+    "reload": "Tải lại",
+    "reloadTitle": "Đọc lại mọi cấu hình và kiểm tra connector claude.ai của từng profile Claude",
+    "probing": "Đang kiểm tra connector claude.ai…",
+    "readAt": "Đọc lúc {time}",
+    "loadFailed": "Không liệt kê được các MCP server bên ngoài Puppeteer: {error}",
+    "empty": "Không thấy MCP server nào bên ngoài Puppeteer.",
+    "configGroup": "File cấu hình và app",
+    "connectorGroup": "Connector claude.ai · {profile}",
+    "globalProfile": "Global",
+    "noConnectors": "Không có connector claude.ai nào.",
+    "probeFailed": "Không kiểm tra được connector claude.ai của profile này: {message}. Không connector nào của nó dùng được trong run.",
+    "sourceProblem": "Không đọc được {label}: {message}",
+    "loaded": "được nạp trong run",
+    "notLoaded": "không được nạp trong run",
+    "open": "Mở",
+    "openTitle": "Mở bản được quản lý trong danh sách MCP",
+    "sync": "Đồng bộ",
+    "syncing": "Đang đồng bộ…",
+    "synced": "Đã đồng bộ \"{name}\"",
+    "changedNotice": "Nguồn đã đổi từ lúc nhập. Đồng bộ sẽ chép lại từ nguồn; các công tắc bật/tắt giữ nguyên.",
+    "blockedNotice": "Chỉ liệt kê và bị chặn: loại server này không nhập được.",
+    "problemLine": "Không đọc được: {message}",
+    "state": {
+      "not_managed": "Chưa quản lý",
+      "managed": "Đã quản lý",
+      "changed": "Đã đổi từ lúc nhập",
+      "blocked": "Bị chặn, không nhập được",
+      "unreadable": "Không đọc được"
+    },
+    "source": {
+      "S1": "Connector claude.ai",
+      "S2": "Cấu hình user của Claude",
+      "S3": "Cấu hình local của Claude",
+      "S4": ".mcp.json của Project",
+      "S5": "Plugin Claude",
+      "S6": "Cấu hình managed",
+      "S7": "Cấu hình Codex",
+      "S8": "Cấu hình Codex của Project",
+      "S9": "App khác"
+    },
+    "transport": {
+      "connector": "connector",
+      "unknown": "không rõ"
+    },
+    "conflict": {
+      "C1": "Cùng login với global",
+      "C2": "Cùng login với tài khoản khác",
+      "C3": "Trùng tên",
+      "C4": "Không rõ login"
+    },
+    "conflictTitle": {
+      "C1": "Profile này và {others} là cùng một login claude.ai. Mỗi bên giữ connector và công tắc riêng; không gộp gì cả.",
+      "C2": "Tài khoản này và {others} là cùng một login claude.ai. Mỗi bên giữ connector và công tắc riêng; không gộp gì cả.",
+      "C3": "Đã có MCP server khác tên {key}: các run sẽ bỏ connector này ra. Hãy đổi tên một trong hai.",
+      "C4": "Không đọc được login claude.ai của profile này, nên không kiểm tra được login trùng."
     }
   }
 }

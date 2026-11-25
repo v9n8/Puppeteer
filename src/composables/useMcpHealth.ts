@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { mcpToTest, type McpFailure, type McpHealth, type Source } from '@/lib/projectHealth'
-import { useMcpServersStore, type ProjectMcpServer } from '@/stores/mcpServers'
+import { isFormServer, useMcpServersStore, type FormMcpServer, type ProjectMcpServer } from '@/stores/mcpServers'
 
 // Connection test of each MCP server a project has on (V3-48). A stdio test runs
 // a real process, so servers are tested one at a time, once per project until
@@ -17,7 +17,7 @@ interface Entry {
 const entries = ref<Record<string, Entry>>({})
 const running = new Set<string>()
 
-function testPayload(s: ProjectMcpServer) {
+function testPayload(s: FormMcpServer<ProjectMcpServer>) {
   // No values: with the id, the backend uses the secrets already stored for the server.
   return {
     id: s.id,
@@ -51,7 +51,8 @@ async function check(projectId: string, isCurrent: () => boolean) {
     const servers = mcpToTest(list)
     live().enabled = servers.length
     live().phase = 'checking'
-    for (const s of servers) {
+    // A claude.ai connector has no command / url to test: it counts as on, untested.
+    for (const s of servers.filter(isFormServer)) {
       if (live().tested.includes(s.name)) continue
       // The user left this project: stop here, the rest waits for the next visit.
       if (!isCurrent()) {

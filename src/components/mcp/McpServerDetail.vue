@@ -22,8 +22,9 @@ import DetailSection from '@/components/listDetail/DetailSection.vue'
 import McpSlackDm from '@/components/mcp/McpSlackDm.vue'
 import { useToast } from '@/composables/useToast'
 import {
+  isFormServer,
   useMcpServersStore,
-  type McpServer,
+  type FormMcpServer,
   type McpTransport,
   type TestConnectionResult,
 } from '@/stores/mcpServers'
@@ -43,8 +44,8 @@ import { isSlackServer } from '@/lib/configLock'
 import { useFeaturesStore } from '@/stores/features'
 
 const props = defineProps<{
-  /** null = a new draft. */
-  server: McpServer | null
+  /** null = a new draft. A claude.ai connector has its own pane (McpConnectorDetail). */
+  server: FormMcpServer | null
   /** A draft's prefill (Duplicate). */
   seed?: McpForm | null
   defaultIsCodex: boolean
@@ -94,7 +95,7 @@ const transportOptions = [
   { value: 'sse', label: 'sse (remote)' },
 ]
 
-function seedFrom(server: McpServer) {
+function seedFrom(server: FormMcpServer) {
   form.value = formFromServer(server)
   baseline.value = formSnapshot(form.value, false)
 }
@@ -168,7 +169,7 @@ async function save() {
     if (props.server) {
       const saved = await store.updateServer({ ...payload, id: props.server.id, enabled: props.server.enabled })
       // Typed secret values are stored now: back to key-only rows.
-      seedFrom(saved)
+      if (isFormServer(saved)) seedFrom(saved)
       emit('saved', saved.id)
     } else {
       const created = await store.createServer(payload)
