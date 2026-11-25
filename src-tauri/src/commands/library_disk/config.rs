@@ -676,6 +676,8 @@ mod tests {
         let items = f.global();
         let it = plugins(&items)[0];
         assert!(it.error.as_deref().unwrap().contains("outside"), "{:?}", it.error);
+        // A refused folder says nothing about the state: no file sets it, so it is not set.
+        assert!(!it.plugin.as_ref().unwrap().unknown);
         assert!(it.description.is_empty() && it.plugin.as_ref().unwrap().parts.is_none());
     }
 
@@ -687,6 +689,7 @@ mod tests {
         let items = f.global();
         let it = plugins(&items).into_iter().find(|i| i.plugin.is_some()).unwrap();
         assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.plugin.as_ref().unwrap().unknown);
         assert!(it.error.as_deref().unwrap().contains("unknown"), "{:?}", it.error);
     }
 
@@ -735,6 +738,7 @@ mod tests {
         let items = f.global();
         let it = plugins(&items)[0];
         assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.plugin.as_ref().unwrap().unknown);
         assert!(it.error.as_deref().unwrap().contains("not true or false"), "{:?}", it.error);
     }
 }

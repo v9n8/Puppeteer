@@ -135,12 +135,14 @@
     "state": {
       "on": "Bật",
       "off": "Tắt",
-      "unset": "Chưa đặt"
+      "unset": "Chưa đặt",
+      "unknown": "Không rõ"
     },
     "stateHint": {
       "on": "enabledPlugins trong file ở trên bật nó",
       "off": "enabledPlugins trong file ở trên tắt nó",
-      "unset": "Không file settings nào đọc ở đây bật hay tắt nó"
+      "unset": "Không file settings nào đọc ở đây bật hay tắt nó",
+      "unknown": "Không đọc được một file settings có thể bật / tắt nó: xem thông báo lỗi"
     },
     "notInstalled": "Chưa cài",
     "notInstalledHint": "Không có trong ~/.claude/plugins/installed_plugins.json",

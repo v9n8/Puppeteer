@@ -14,7 +14,7 @@ const hook = (name, command, id = `hook:user:${name}:0:0`) => ({
 const plugin = (name, enabled) => ({
   kind: 'plugin', id: `plugin:${name}@m`, name, description: '', source: 'user', file: '/h/.claude/settings.json', error: null,
   hook: null,
-  plugin: { key: `${name}@m`, marketplace: 'm', enabled, installed: true, version: null, install_path: null, install_scope: null, parts: null },
+  plugin: { key: `${name}@m`, marketplace: 'm', enabled, unknown: false, installed: true, version: null, install_path: null, install_scope: null, parts: null },
 })
 
 const items = [hook('Stop', 'say done'), hook('PreToolUse · Bash', 'guard.sh'), plugin('evon', true), plugin('lsp', null)]
@@ -35,10 +35,11 @@ test('two hooks of the same name keep their order by id', () => {
   assert.deepEqual(configRows(twins, 'hook', '').map((r) => r.config.description), ['a', 'b'])
 })
 
-test('pluginState reads the most specific value, null as not set', () => {
-  assert.equal(pluginState({ enabled: true }), 'on')
-  assert.equal(pluginState({ enabled: false }), 'off')
-  assert.equal(pluginState({ enabled: null }), 'unset')
+test('pluginState reads the most specific value, null as not set unless unknown', () => {
+  assert.equal(pluginState({ enabled: true, unknown: false }), 'on')
+  assert.equal(pluginState({ enabled: false, unknown: false }), 'off')
+  assert.equal(pluginState({ enabled: null, unknown: false }), 'unset')
+  assert.equal(pluginState({ enabled: null, unknown: true }), 'unknown')
 })
 
 test('pluginPartGroups keeps the non-empty parts in a fixed order', () => {

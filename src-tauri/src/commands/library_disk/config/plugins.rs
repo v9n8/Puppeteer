@@ -35,6 +35,9 @@ pub struct PluginInfo {
     pub marketplace: Option<String>,
     /// The value the most specific file read sets; none when no file sets it.
     pub enabled: Option<bool>,
+    /// A file that could set it couldn't be read, or set something else than true / false:
+    /// `enabled` none means unknown, not "not set".
+    pub unknown: bool,
     pub installed: bool,
     pub version: Option<String>,
     pub install_path: Option<String>,
@@ -247,6 +250,7 @@ pub(super) fn plugins_of(
             key: key.clone(),
             marketplace,
             enabled: if hidden_by.is_some() { None } else { set_by.and_then(|(_, v)| v) },
+            unknown: hidden_by.is_some() || matches!(set_by, Some((_, None))),
             installed: install.is_some(),
             version: install.and_then(|i| i.version.clone()),
             install_path: install.and_then(|i| i.path.clone()),

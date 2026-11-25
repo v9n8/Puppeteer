@@ -135,12 +135,14 @@
     "state": {
       "on": "On",
       "off": "Off",
-      "unset": "Not set"
+      "unset": "Not set",
+      "unknown": "Unknown"
     },
     "stateHint": {
       "on": "Turned on by enabledPlugins in the file above",
       "off": "Turned off by enabledPlugins in the file above",
-      "unset": "No settings file read here turns it on or off"
+      "unset": "No settings file read here turns it on or off",
+      "unknown": "A settings file that could turn it on or off can't be read: see the error"
     },
     "notInstalled": "Not installed",
     "notInstalledHint": "Not listed in ~/.claude/plugins/installed_plugins.json",

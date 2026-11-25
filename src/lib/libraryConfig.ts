@@ -46,6 +46,8 @@ export interface PluginInfo {
   marketplace: string | null
   /** The most specific file's value; null when no file read sets it. */
   enabled: boolean | null
+  /** A file that could set it couldn't be read (or holds no true / false): null means unknown. */
+  unknown: boolean
   installed: boolean
   version: string | null
   install_path: string | null
@@ -91,9 +93,10 @@ export function configRows(items: readonly ConfigItem[], kind: ConfigItemKind, s
     .map((config) => ({ id: config.id, config }))
 }
 
-export type PluginState = 'on' | 'off' | 'unset'
+export type PluginState = 'on' | 'off' | 'unset' | 'unknown'
 
-export function pluginState(plugin: Pick<PluginInfo, 'enabled'>): PluginState {
+export function pluginState(plugin: Pick<PluginInfo, 'enabled' | 'unknown'>): PluginState {
+  if (plugin.unknown) return 'unknown'
   if (plugin.enabled === null) return 'unset'
   return plugin.enabled ? 'on' : 'off'
 }
