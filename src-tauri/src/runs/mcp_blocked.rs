@@ -9,6 +9,12 @@
 //! untrusted text from another tool's config, so it is capped and stripped of
 //! control characters, and nothing else of the message (no config, no input)
 //! reaches the log or the webview.
+//!
+//! The same event carries the servers Puppeteer meant to pass but left out at
+//! start (reason `skipped`, source `puppeteer`): a claude.ai connector whose
+//! run key another server has or whose profile's last probe did not report it,
+//! a server the engine cannot take. Each was logged where it was skipped; the
+//! session shows the names so a missing tool is not silent.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -21,7 +27,7 @@ const MAX_FIELD_CHARS: usize = 120;
 pub struct McpBlocked {
     pub server: String,
     pub source: String,
-    /// `call` or `loaded`.
+    /// `call`, `loaded` or `skipped`.
     pub reason: &'static str,
 }
 
@@ -39,6 +45,23 @@ pub fn parse(v: &Value) -> McpBlocked {
         server: text("server").unwrap_or_else(|| "unknown".to_string()),
         source: text("source").unwrap_or_else(|| "unknown".to_string()),
         reason: if v.get("reason").and_then(Value::as_str) == Some("loaded") { "loaded" } else { "call" },
+    }
+}
+
+/// The reports for the servers left out of a run at start (`skipped` of
+/// `resolve_run_mcp_servers`).
+fn skipped_reports(servers: &[String]) -> Vec<McpBlocked> {
+    servers
+        .iter()
+        .map(|server| McpBlocked { server: clean(server), source: "puppeteer".to_string(), reason: "skipped" })
+        .collect()
+}
+
+/// Tell the session view which servers were left out of the run at start.
+/// Each was already logged where it was skipped.
+pub fn on_skipped(app: &AppHandle, run_id: &str, servers: &[String]) {
+    for report in skipped_reports(servers) {
+        let _ = app.emit(&format!("run:mcp_blocked:{run_id}"), &report);
     }
 }
 
@@ -84,6 +107,21 @@ mod tests {
         // Multi-byte names are cut on a character, not a byte.
         let wide = parse(&json!({ "server": "é".repeat(300) }));
         assert_eq!(wide.server.chars().count(), MAX_FIELD_CHARS);
+    }
+
+    #[test]
+    fn a_skipped_server_is_reported_by_name_only() {
+        let reports = skipped_reports(&["claude_ai_Slack-global".to_string(), "bad\nname".to_string()]);
+        let out = serde_json::to_value(&reports).unwrap();
+        assert_eq!(
+            out,
+            json!([
+                { "server": "claude_ai_Slack-global", "source": "puppeteer", "reason": "skipped" },
+                { "server": "badname", "source": "puppeteer", "reason": "skipped" },
+            ])
+        );
+        // A sidecar cannot claim `skipped`: only the start reports it.
+        assert_eq!(parse(&json!({ "server": "x", "reason": "skipped" })).reason, "call");
     }
 
     #[test]

@@ -298,6 +298,8 @@
   "mcpBlockedCalls": "calls denied: {count}",
   "mcpBlockedHint": "To use one, import it in Settings › Connections › MCP and turn it on.",
   "mcpBlockedDismiss": "Dismiss",
+  "mcpSkippedTitle": "Turned on in Puppeteer, but left out of this session:",
+  "mcpSkippedHint": "Settings › Connections › MCP shows why (for a claude.ai connector: its name is taken, or the last check of its account did not report it).",
   "steer": "Steer",
   "steerTitle": "Steer: add this to the running turn. The agent reads it at its next step, without a new turn.\nQueue (Enter): wait for the running turn to end, then send it.",
   "queue": "Queue",

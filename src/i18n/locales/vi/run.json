@@ -298,6 +298,8 @@
   "mcpBlockedCalls": "số lần gọi bị chặn: {count}",
   "mcpBlockedHint": "Muốn dùng server nào, hãy import nó ở Cài đặt › Kết nối › MCP rồi bật lên.",
   "mcpBlockedDismiss": "Ẩn thông báo",
+  "mcpSkippedTitle": "Đã bật trong Puppeteer nhưng không được đưa vào Session này:",
+  "mcpSkippedHint": "Xem lý do ở Cài đặt › Kết nối › MCP (với connector claude.ai: tên đã bị server khác dùng, hoặc lần kiểm tra gần nhất của tài khoản không thấy nó).",
   "steer": "Steer",
   "steerTitle": "Steer: chèn tin này vào lượt đang chạy, agent đọc ở bước kế tiếp, không mở lượt mới.\nQueue (Enter): chờ lượt hiện tại xong rồi mới gửi.",
   "queue": "Queue",

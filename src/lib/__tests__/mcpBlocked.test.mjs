@@ -36,6 +36,19 @@ test('keeps one entry per server and source, counting denied calls', () => {
   ])
 })
 
+test('keeps a server left out at start apart from the blocked ones', () => {
+  assert.equal(readMcpBlocked({ server: 'x', source: 'puppeteer', reason: 'skipped' })?.reason, 'skipped')
+  let list = []
+  list = addMcpBlocked(list, { server: 'claude_ai_Slack', source: 'claudeai', reason: 'loaded' })
+  list = addMcpBlocked(list, { server: 'claude_ai_Slack-global', source: 'puppeteer', reason: 'skipped' })
+  // A resume reports it again: still one entry.
+  list = addMcpBlocked(list, { server: 'claude_ai_Slack-global', source: 'puppeteer', reason: 'skipped' })
+  assert.deepEqual(list, [
+    { server: 'claude_ai_Slack', source: 'claudeai', calls: 0 },
+    { server: 'claude_ai_Slack-global', source: 'puppeteer', calls: 0, skipped: true },
+  ])
+})
+
 test('never changes the list it was given', () => {
   const list = [{ server: 'a', source: 'user', calls: 1 }]
   const next = addMcpBlocked(list, { server: 'a', source: 'user' })

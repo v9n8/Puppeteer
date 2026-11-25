@@ -1142,6 +1142,7 @@ async fn assemble_run_mcp(
         });
     let profile = crate::mcp_discovery::connectors::run_profile(engine, claude_account);
     let (map, skipped) = mcp::resolve_run_mcp_servers(db, &selection.servers, engine, &launch, profile).await;
+    crate::runs::mcp_blocked::on_skipped(app, run_id, &skipped);
     let map = if gates.puppeteer && selection.builtins.contains("puppeteer") {
         mcp::with_builtin_puppeteer(
             map,
