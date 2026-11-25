@@ -11,12 +11,15 @@ import { useRunsStore } from '@/stores/runs'
 export function useSessionRoot(
   run: ComputedRef<RunRecord | undefined>,
   projectPath: ComputedRef<string | undefined>,
+  status: ComputedRef<string>,
 ): ComputedRef<string> {
   const runsStore = useRunsStore()
   // Worktrees the probe found unreadable. Until it answers, the worktree is
   // assumed readable: a live worker's is, and its files show at once.
   const gone = ref(new Set<string>())
-  watch(() => run.value?.worktree_path, (dir) => {
+  // Asked again on every status change too: resuming a cancelled worker brings
+  // its swept worktree back at the same path.
+  watch([() => run.value?.worktree_path, status], ([dir]) => {
     if (!dir) return
     const mark = (isGone: boolean) => {
       if (gone.value.has(dir) === isGone) return

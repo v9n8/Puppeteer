@@ -161,8 +161,6 @@ export function useRunSessionCore() {
   const currentRun = computed(() => runsStore.runs.find(r => r.id === currentRunId.value))
 
   const currentIsSession = computed(() => currentRun.value?.run_type === 'session')
-  // Where this Session's file tabs and links read relative paths from.
-  const sessionRoot = useSessionRoot(currentRun, computed(() => project.value?.path))
 
   watch(
     () => [currentRun.value?.id, currentRun.value?.engine] as const,
@@ -189,6 +187,8 @@ export function useRunSessionCore() {
   // Prefer the live session's status, fall back to the persisted run row.
   const currentStatus = computed(() => session.value?.status ?? currentRun.value?.status ?? 'idle')
   const currentSessionId = computed(() => session.value?.sessionId ?? currentRun.value?.session_id ?? null)
+  // Where this Session's file tabs and links read relative paths from.
+  const sessionRoot = useSessionRoot(currentRun, computed(() => project.value?.path), currentStatus)
 
   // Sidebar/label text for a run: its title when set (sessions, or a PR inbox
   // review titled with its author); otherwise issue/PR show "#N".
