@@ -568,10 +568,12 @@ mod tests {
         assert_eq!(cst.port(), port);
         assert!(accepts(port).await);
 
-        // The last one finished: the port is closed.
+        // The last one finished: the port is closed and can be bound again. Not
+        // probed with `connect`: on macOS under load a refused loopback connect
+        // can come back `Ok` with a dead socket (same as the Inbox API test).
         assert!(!follow_locked(&mut slot, &cst, false, false, Router::new).await);
         assert!(slot.is_none());
         assert_eq!(cst.port(), 0);
-        assert!(!accepts(port).await);
+        assert!(tokio::net::TcpListener::bind(("127.0.0.1", port)).await.is_ok());
     }
 }
