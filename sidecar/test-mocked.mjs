@@ -271,6 +271,20 @@ const tests = {
     assert.equal(of(messages, '_puppeteer_closed').length, 1)
   },
 
+  // The plan-usage probe starts a CLI too: it loads no MCP server at all, so
+  // the account's connectors and user-scope servers never start.
+  async 'usage probe loads no MCP server'() {
+    const { messages, code } = await runSidecar('echo', (msg, ctl) => {
+      if (msg.type === '_puppeteer_ready') ctl.send({ type: 'usage_probe', options: {} })
+      // The app kills the probe once it has the usage; `abort` stands in for that.
+      if (msg.type === '_puppeteer_closed') ctl.send({ type: 'abort' })
+    })
+    const o = messages.find((m) => m.type === 'system' && m.subtype === 'init').mock_options
+    assert.deepEqual(o.mcpServers, {})
+    assert.equal(o.strictMcpConfig, true)
+    assert.equal(code, 0)
+  },
+
   // The lean options keep the unknown-model verdict: the CLI still flags the id
   // on stderr while the turn itself succeeds on a fallback.
   async 'model check still flags an unrecognized model from stderr'() {

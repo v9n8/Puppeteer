@@ -762,6 +762,8 @@ function startUsageProbe(opts = {}) {
   const options = {
     permissionMode: opts.permissionMode || process.env.PUPPETEER_PERMISSION_MODE || 'default',
     includePartialMessages: false,
+    // `/usage` needs no MCP; unmanaged servers must not even start.
+    mcpServers: {}, strictMcpConfig: true,
     stderr: (data) => send({ type: '_puppeteer_stderr', text: data }),
   }
   if (opts.cwd) options.cwd = opts.cwd
