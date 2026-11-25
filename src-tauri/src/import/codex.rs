@@ -86,18 +86,11 @@ impl Adapter for Codex {
         let l = layout(root, scope);
         let mut report = ScanReport::default();
         if let Some(config) = l.config.as_ref().filter(|p| p.is_file()) {
-            let parsed = read_config(config, root, scope, ctx)
-                .and_then(|raw| toml::from_str::<CodexConfig>(&raw).map_err(|e| toml_error(&e, &raw)));
-            match parsed {
-                Ok(CodexConfig { mcp_servers: Some(servers) }) => {
-                    for (raw_name, value) in &servers {
-                        match mcp_export(&library_name(raw_name), value) {
-                            Ok(export) => report.candidates.push(mcp_candidate(config, raw_name, export)),
-                            Err(e) => report.problem(config, Some(raw_name), e),
-                        }
-                    }
+            match scan_config_mcp(config, root, scope, ctx) {
+                Ok(mcp) => {
+                    report.candidates.extend(mcp.candidates);
+                    report.problems.extend(mcp.problems);
                 }
-                Ok(_) => {}
                 Err(e) => report.problem(config, None, e),
             }
         }
@@ -135,6 +128,22 @@ impl Adapter for Codex {
         report.candidates.extend(found);
         report
     }
+}
+
+/// The `[mcp_servers.*]` of the Codex `config.toml` at `config`, read as a file of the source at
+/// `root` (a Codex home for [`Scope::Global`], a project for its `.codex/config.toml`). `Err` when
+/// the file itself cannot be read; a bad server is a problem of the report.
+pub(crate) fn scan_config_mcp(config: &Path, root: &Path, scope: Scope, ctx: &ScanContext) -> Result<ScanReport, String> {
+    let raw = read_config(config, root, scope, ctx)?;
+    let parsed = toml::from_str::<CodexConfig>(&raw).map_err(|e| toml_error(&e, &raw))?;
+    let mut report = ScanReport::default();
+    for (raw_name, value) in parsed.mcp_servers.iter().flatten() {
+        match mcp_export(&library_name(raw_name), value) {
+            Ok(export) => report.candidates.push(mcp_candidate(config, raw_name, export)),
+            Err(e) => report.problem(config, Some(raw_name), e),
+        }
+    }
+    Ok(report)
 }
 
 /// A TOML error without its message, which quotes the line of the file it is on.

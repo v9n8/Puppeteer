@@ -54,6 +54,7 @@ pub fn scan(inputs: &DiscoveryInputs) -> Scan {
             local_key: None,
             profile: profile.as_deref(),
             project_id: None,
+            app: None,
             importable: true,
         };
         let config = match scan_config_mcp(&path, &root, &inputs.ctx) {
@@ -85,6 +86,7 @@ pub fn scan(inputs: &DiscoveryInputs) -> Scan {
             local_key: None,
             profile: None,
             project_id: Some(&project.id),
+            app: None,
             importable: true,
         };
         match scan_project_mcp(&project.path, &inputs.ctx) {
@@ -103,6 +105,7 @@ pub fn scan(inputs: &DiscoveryInputs) -> Scan {
             local_key: None,
             profile: None,
             project_id: None,
+            app: None,
             importable: false,
         };
         match scan_mcp_servers_file(&managed, &inputs.claude_managed_dir, &inputs.ctx) {
@@ -115,7 +118,7 @@ pub fn scan(inputs: &DiscoveryInputs) -> Scan {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::super::{ClaudeProfileDir, DiscoveryReport, ProjectDir};
+    use super::super::{ProfileDir, DiscoveryReport, ProjectDir};
     use super::*;
     use crate::import::ScanContext;
 
@@ -136,6 +139,8 @@ pub(crate) mod tests {
             home: base.join("home"),
             claude_config_dir: None,
             claude_accounts: vec![],
+            codex_home: None,
+            codex_accounts: vec![],
             projects: vec![],
             claude_managed_dir: base.join("managed"),
             ctx: ScanContext { library_root: base.join("appdata") },
@@ -178,7 +183,7 @@ pub(crate) mod tests {
         );
         let account = base.join("appdata/claude-accounts/acc-1");
         write(&account.join(".claude.json"), r#"{"mcpServers": {"acct": {"type": "sse", "url": "https://acct"}}}"#);
-        inputs.claude_accounts.push(ClaudeProfileDir { profile: "acc-1".into(), config_dir: account });
+        inputs.claude_accounts.push(ProfileDir { profile: "acc-1".into(), config_dir: account });
         write(&project.join(".mcp.json"), r#"{"mcpServers": {"y": {"command": "y", "env": {"Y_KEY": "SECRET-PROJ"}}}}"#);
         inputs.projects.push(ProjectDir { id: "p1".into(), path: project });
         write(&inputs.claude_managed_dir.join("managed-mcp.json"), r#"{"mcpServers": {"corp": {"url": "https://corp"}}}"#);
@@ -253,7 +258,7 @@ pub(crate) mod tests {
         std::fs::create_dir_all(link.parent().unwrap()).unwrap();
         #[cfg(unix)]
         std::os::unix::fs::symlink(&dir, &link).unwrap();
-        inputs.claude_accounts.push(ClaudeProfileDir { profile: "acc-2".into(), config_dir: link });
+        inputs.claude_accounts.push(ProfileDir { profile: "acc-2".into(), config_dir: link });
         let report = scan(&inputs).into_report();
         assert_eq!(
             rows(&report),
@@ -310,7 +315,7 @@ pub(crate) mod tests {
         let base = tmp("empty");
         let mut inputs = inputs(&base);
         inputs.projects.push(ProjectDir { id: "p1".into(), path: base.join("nowhere") });
-        inputs.claude_accounts.push(ClaudeProfileDir { profile: "a".into(), config_dir: base.join("gone") });
+        inputs.claude_accounts.push(ProfileDir { profile: "a".into(), config_dir: base.join("gone") });
         let report = scan(&inputs).into_report();
         assert!(report.servers.is_empty() && report.problems.is_empty());
         let _ = std::fs::remove_dir_all(&base);

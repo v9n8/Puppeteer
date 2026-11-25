@@ -4,7 +4,10 @@
 //!
 //! Sources (ids as in the requirements): S2 user scope and S3 local scope of each Claude config
 //! file (`~/.claude.json`, the global config dir's, every app account dir's), S4 a project's
-//! `.mcp.json`, S6 Claude Code's managed MCP file ([`claude_sources`]).
+//! `.mcp.json`, S6 Claude Code's managed MCP file ([`claude_sources`]); S7 the `config.toml` of
+//! each Codex home (global and every app account), S8 a project's `.codex/config.toml`
+//! ([`codex_sources`]); S9 the MCP config of other apps, through the import adapters
+//! ([`other_sources`]).
 //!
 //! Only reads, like an import (`import::claude_code`'s parsers are reused): a source file is never
 //! written. A row carries key names only; env / header VALUEs stay in the scanned export, which is
@@ -13,6 +16,8 @@
 //! show.
 
 pub mod claude_sources;
+pub mod codex_sources;
+pub mod other_sources;
 
 use crate::commands::mcp::McpServerExport;
 use crate::import::{Candidate, McpSummary, Payload, ScanContext, ScanReport};
@@ -75,13 +80,17 @@ pub struct DiscoveredServer {
     pub source_ref: String,
     /// S3 only: the `projects.<key>` path of the local scope.
     pub local_key: Option<String>,
-    /// The Claude profile whose runs read this file: a `claude_accounts.id`, or `global`. `None`
-    /// for a file no Puppeteer run reads (`~/.claude.json` while `CLAUDE_CONFIG_DIR` points
-    /// elsewhere) or a source of every profile (`.mcp.json`, managed).
+    /// The profile whose runs read this file. S2 / S3: a Claude profile (`claude_accounts.id` or
+    /// `global`); S7: a Codex one (`codex_accounts.id` or `global`). `None` for a file no
+    /// Puppeteer run reads (HOME's while `CLAUDE_CONFIG_DIR` / `CODEX_HOME` points elsewhere) or a
+    /// source of every profile (`.mcp.json`, managed, project Codex config, other apps). A file
+    /// shared by several profiles (a linked config) is listed once, under the first.
     pub profile: Option<String>,
     /// The Puppeteer project of a project-scope source; `None` for a local scope key that is no
     /// project's folder.
     pub project_id: Option<String>,
+    /// S9: the import adapter of the app (`cursor`, `vscode`, …).
+    pub app: Option<String>,
     /// The server's key in the source (`mcp_servers.source_name`), as the engine names its tools.
     pub name: String,
     /// The name an import proposes, valid for the MCP list.
@@ -108,6 +117,7 @@ pub struct DiscoveryProblem {
     pub origin_label: String,
     pub profile: Option<String>,
     pub project_id: Option<String>,
+    pub app: Option<String>,
     /// From the OS or the JSON parser (line / column only): never the file's content.
     pub message: String,
 }
@@ -144,10 +154,11 @@ impl Scan {
     }
 }
 
-/// A Claude profile's config dir: an app account (`claude-accounts/<id>`) or the global one.
+/// An app account's config dir: a Claude account's `CLAUDE_CONFIG_DIR`, a Codex account's
+/// `CODEX_HOME`.
 #[derive(Debug, Clone)]
-pub struct ClaudeProfileDir {
-    /// `claude_accounts.id`, or `global`.
+pub struct ProfileDir {
+    /// `claude_accounts.id` / `codex_accounts.id`.
     pub profile: String,
     pub config_dir: PathBuf,
 }
@@ -166,7 +177,11 @@ pub struct DiscoveryInputs {
     /// instead of HOME's.
     pub claude_config_dir: Option<PathBuf>,
     /// App Claude accounts (never `global`).
-    pub claude_accounts: Vec<ClaudeProfileDir>,
+    pub claude_accounts: Vec<ProfileDir>,
+    /// `CODEX_HOME` as Puppeteer was started (else Codex reads `~/.codex`).
+    pub codex_home: Option<PathBuf>,
+    /// App Codex accounts, each its own `CODEX_HOME`.
+    pub codex_accounts: Vec<ProfileDir>,
     pub projects: Vec<ProjectDir>,
     /// Folder of Claude Code's `managed-mcp.json`.
     pub claude_managed_dir: PathBuf,
@@ -186,13 +201,18 @@ pub fn claude_managed_dir() -> PathBuf {
 }
 
 impl DiscoveryInputs {
-    /// The real machine: HOME, `CLAUDE_CONFIG_DIR`, every app Claude account and every project not
-    /// in the Trash.
+    /// The real machine: HOME, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, every app Claude and Codex
+    /// account and every project not in the Trash.
     pub async fn load(app: &tauri::AppHandle, db: &crate::db::Db) -> Result<Self, String> {
         use tauri::Manager;
         let home = app.path().home_dir().map_err(|e| e.to_string())?;
         let claude_accounts: Vec<(String, String)> =
             sqlx::query_as("SELECT id, config_dir FROM claude_accounts ORDER BY created_at")
+                .fetch_all(db)
+                .await
+                .map_err(|e| e.to_string())?;
+        let codex_accounts: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, home_dir FROM codex_accounts ORDER BY created_at")
                 .fetch_all(db)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -206,7 +226,12 @@ impl DiscoveryInputs {
             claude_config_dir: std::env::var_os("CLAUDE_CONFIG_DIR").filter(|d| !d.is_empty()).map(PathBuf::from),
             claude_accounts: claude_accounts
                 .into_iter()
-                .map(|(profile, dir)| ClaudeProfileDir { profile, config_dir: PathBuf::from(dir) })
+                .map(|(profile, dir)| ProfileDir { profile, config_dir: PathBuf::from(dir) })
+                .collect(),
+            codex_home: std::env::var_os("CODEX_HOME").filter(|d| !d.is_empty()).map(PathBuf::from),
+            codex_accounts: codex_accounts
+                .into_iter()
+                .map(|(profile, dir)| ProfileDir { profile, config_dir: PathBuf::from(dir) })
                 .collect(),
             projects: projects.into_iter().map(|(id, path)| ProjectDir { id, path: PathBuf::from(path) }).collect(),
             claude_managed_dir: claude_managed_dir(),
@@ -226,7 +251,10 @@ impl DiscoveryInputs {
 
 /// Every file source (no engine probe).
 pub fn scan_files(inputs: &DiscoveryInputs) -> Scan {
-    claude_sources::scan(inputs)
+    let mut scan = claude_sources::scan(inputs);
+    scan.extend(codex_sources::scan(inputs));
+    scan.extend(other_sources::scan(inputs));
+    scan
 }
 
 /// Where a row comes from, before its servers are known.
@@ -237,6 +265,7 @@ pub(crate) struct Origin<'a> {
     pub local_key: Option<&'a str>,
     pub profile: Option<&'a str>,
     pub project_id: Option<&'a str>,
+    pub app: Option<&'a str>,
     pub importable: bool,
 }
 
@@ -260,6 +289,7 @@ impl Origin<'_> {
             origin_label: inputs.label(self.path),
             profile: self.profile.map(str::to_string),
             project_id: self.project_id.map(str::to_string),
+            app: self.app.map(str::to_string),
             message,
         }
     }
@@ -276,6 +306,7 @@ impl Origin<'_> {
             local_key: self.local_key.map(str::to_string),
             profile: self.profile.map(str::to_string),
             project_id: self.project_id.map(str::to_string),
+            app: self.app.map(str::to_string),
             name: name.to_string(),
             import_name: crate::import::library_name(name),
             transport: "unknown".to_string(),
