@@ -17,6 +17,7 @@ export const CONFIG_ITEM_KINDS: readonly ConfigItemKind[] = ['hook', 'plugin']
 export type ConfigSource = 'user' | 'project' | 'local'
 
 export interface HookInfo {
+  /** Empty on the notice row of a file that sets `disableAllHooks` and lists no hook. */
   event: string
   matcher: string | null
   /** `command`, `prompt`, … as written. */
@@ -65,6 +66,11 @@ export interface ConfigItem {
   error: string | null
   hook: HookInfo | null
   plugin: PluginInfo | null
+}
+
+/** The row a file gets when it turns every hook off and lists none. */
+export function isHooksOffNotice(item: Pick<ConfigItem, 'hook'>): boolean {
+  return !!item.hook && item.hook.event === ''
 }
 
 export function isConfigKind(kind: string): kind is ConfigItemKind {

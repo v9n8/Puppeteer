@@ -52,6 +52,7 @@ impl ConfigSource {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HookInfo {
+    /// Empty on the notice row of a file that sets `disableAllHooks` and lists no hook.
     pub event: String,
     pub matcher: Option<String>,
     /// `command`, `prompt`, … as written.
@@ -178,10 +179,38 @@ fn hook_text(hook_type: &str, hook: &Map<String, Value>) -> String {
     }
 }
 
-/// The hook rows of one settings file: one per hook entry of each event's matcher groups.
+/// The hook rows of one settings file; a notice row when it turns every hook off and lists none,
+/// which would otherwise not show.
 fn hooks_of(settings: &Map<String, Value>, source: ConfigSource, file: &Path, out: &mut Vec<ConfigItem>) {
-    let Some(hooks) = settings.get("hooks") else { return };
     let all_disabled = settings.get("disableAllHooks").and_then(Value::as_bool) == Some(true);
+    let before = out.len();
+    if let Some(hooks) = settings.get("hooks") {
+        listed_hooks(hooks, all_disabled, source, file, out);
+    }
+    if all_disabled && out.len() == before {
+        out.push(ConfigItem {
+            kind: ConfigKind::Hook,
+            id: format!("hook-off:{}", source.as_str()),
+            name: "disableAllHooks".to_string(),
+            description: String::new(),
+            source,
+            file: file.display().to_string(),
+            error: None,
+            hook: Some(HookInfo {
+                event: String::new(),
+                matcher: None,
+                hook_type: String::new(),
+                command: String::new(),
+                timeout: None,
+                all_disabled,
+            }),
+            plugin: None,
+        });
+    }
+}
+
+/// One row per hook entry of each event's matcher groups.
+fn listed_hooks(hooks: &Value, all_disabled: bool, source: ConfigSource, file: &Path, out: &mut Vec<ConfigItem>) {
     let mut errors = 0;
     // A hook's id is its content's, so a refresh after an edit elsewhere in the file keeps it;
     // the same hook twice in one event gets a count.
@@ -392,6 +421,23 @@ mod tests {
             r#"{"disableAllHooks":true,"hooks":{"Stop":[{"hooks":[{"type":"command","command":"x"}]}]}}"#,
         );
         assert!(f.global()[0].hook.as_ref().unwrap().all_disabled);
+    }
+
+    #[test]
+    fn a_file_that_only_turns_hooks_off_gets_a_notice_row() {
+        let f = Fixture::new("off-notice");
+        f.write("proj/.claude/settings.local.json", r#"{"disableAllHooks":true}"#);
+        let items = f.project();
+        assert_eq!(items.len(), 1, "{items:?}");
+        let hook = items[0].hook.as_ref().unwrap();
+        assert!(hook.all_disabled && hook.event.is_empty());
+        assert_eq!((items[0].name.as_str(), items[0].source), ("disableAllHooks", ConfigSource::Local));
+        // With hooks listed, their rows carry it instead; off, nothing.
+        f.write("proj/.claude/settings.local.json", r#"{"disableAllHooks":true,"hooks":{"Stop":[{"hooks":[{"type":"command","command":"x"}]}]}}"#);
+        assert_eq!(f.project().len(), 1);
+        assert!(!f.project()[0].hook.as_ref().unwrap().event.is_empty());
+        f.write("proj/.claude/settings.local.json", r#"{"disableAllHooks":false}"#);
+        assert!(f.project().is_empty());
     }
 
     #[test]

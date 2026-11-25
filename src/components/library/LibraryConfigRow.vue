@@ -6,7 +6,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertCircle } from 'lucide-vue-next'
 import { Badge } from '@/components/ui'
-import { pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
+import { isHooksOffNotice, pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
 
 const props = defineProps<{
   item: ConfigItem
@@ -16,6 +16,7 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const state = computed(() => (props.item.plugin ? pluginState(props.item.plugin) : null))
+const description = computed(() => (isHooksOffNotice(props.item) ? t('library.config.hooksOffNotice') : props.item.description))
 </script>
 
 <template>
@@ -32,12 +33,12 @@ const state = computed(() => (props.item.plugin ? pluginState(props.item.plugin)
     </span>
   </span>
   <span
-    v-if="item.description"
+    v-if="description"
     class="mt-1 truncate text-2xs text-muted-foreground/70"
-    :class="item.hook && 'font-mono'"
-    :title="item.description"
+    :class="item.hook && item.description && 'font-mono'"
+    :title="description"
   >
-    {{ item.description }}
+    {{ description }}
   </span>
   <span class="mt-1 flex min-w-0 flex-wrap items-center gap-1">
     <Badge v-if="state" size="xs" :tone="state === 'on' ? 'success' : 'neutral'" class="shrink-0">

@@ -131,6 +131,7 @@
     "runs": "Chạy",
     "allDisabled": "File này đặt disableAllHooks là true: hook đang bị tắt.",
     "hooksOff": "Hook tắt",
+    "hooksOffNotice": "File này tắt mọi hook và không tự khai báo hook nào",
     "state": {
       "on": "Bật",
       "off": "Tắt",

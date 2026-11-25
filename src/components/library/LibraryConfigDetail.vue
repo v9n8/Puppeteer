@@ -11,7 +11,7 @@ import { Badge, Banner, Button } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import { useToast } from '@/composables/useToast'
-import { pluginPartGroups, pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
+import { isHooksOffNotice, pluginPartGroups, pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
 import { platformOf, revealLabelKey } from '@/lib/sessionPaths'
 
 const props = defineProps<{
@@ -23,6 +23,7 @@ const { toast } = useToast()
 const revealKey = revealLabelKey(platformOf(navigator.userAgent))
 
 const hook = computed(() => props.item.hook)
+const notice = computed(() => isHooksOffNotice(props.item))
 const plugin = computed(() => props.item.plugin)
 const state = computed(() => (plugin.value ? pluginState(plugin.value) : null))
 const parts = computed(() => (plugin.value?.parts ? pluginPartGroups(plugin.value.parts) : []))
@@ -81,23 +82,25 @@ function revealInstall() {
 
       <template v-if="hook">
         <Banner v-if="hook.all_disabled" tone="warning" class="mt-3 text-xs">{{ t('library.config.allDisabled') }}</Banner>
-        <DetailSection :title="t('library.config.hookTitle')">
-          <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-xs leading-relaxed">
-            <dt class="text-muted-foreground">{{ t('library.config.event') }}</dt>
-            <dd class="font-mono">{{ hook.event }}</dd>
-            <dt class="text-muted-foreground">{{ t('library.config.matcher') }}</dt>
-            <dd class="font-mono">{{ hook.matcher ?? t('library.config.anyMatcher') }}</dd>
-            <dt class="text-muted-foreground">{{ t('library.config.type') }}</dt>
-            <dd class="font-mono">{{ hook.hook_type || '—' }}</dd>
-            <template v-if="hook.timeout !== null">
-              <dt class="text-muted-foreground">{{ t('library.config.timeout') }}</dt>
-              <dd>{{ t('library.config.seconds', { n: hook.timeout }) }}</dd>
-            </template>
-          </dl>
-        </DetailSection>
-        <DetailSection :title="t('library.config.runs')">
-          <pre class="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/40 p-3 font-mono text-xs">{{ hook.command }}</pre>
-        </DetailSection>
+        <template v-if="!notice">
+          <DetailSection :title="t('library.config.hookTitle')">
+            <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-xs leading-relaxed">
+              <dt class="text-muted-foreground">{{ t('library.config.event') }}</dt>
+              <dd class="font-mono">{{ hook.event }}</dd>
+              <dt class="text-muted-foreground">{{ t('library.config.matcher') }}</dt>
+              <dd class="font-mono">{{ hook.matcher ?? t('library.config.anyMatcher') }}</dd>
+              <dt class="text-muted-foreground">{{ t('library.config.type') }}</dt>
+              <dd class="font-mono">{{ hook.hook_type || '—' }}</dd>
+              <template v-if="hook.timeout !== null">
+                <dt class="text-muted-foreground">{{ t('library.config.timeout') }}</dt>
+                <dd>{{ t('library.config.seconds', { n: hook.timeout }) }}</dd>
+              </template>
+            </dl>
+          </DetailSection>
+          <DetailSection :title="t('library.config.runs')">
+            <pre class="overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/40 p-3 font-mono text-xs">{{ hook.command }}</pre>
+          </DetailSection>
+        </template>
       </template>
 
       <template v-if="plugin">

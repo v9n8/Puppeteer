@@ -131,6 +131,7 @@
     "runs": "Runs",
     "allDisabled": "This file sets disableAllHooks to true: hooks are turned off.",
     "hooksOff": "Hooks off",
+    "hooksOffNotice": "This file turns every hook off and lists none of its own",
     "state": {
       "on": "On",
       "off": "Off",

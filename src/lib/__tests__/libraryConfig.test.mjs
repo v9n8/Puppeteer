@@ -2,7 +2,9 @@
 // Run: node --test src/lib/__tests__/libraryConfig.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { configRows, configScanErrorRows, isConfigKind, pluginPartGroups, pluginState, sourceHintKey } from '../libraryConfig.ts'
+import {
+  configRows, configScanErrorRows, isConfigKind, isHooksOffNotice, pluginPartGroups, pluginState, sourceHintKey,
+} from '../libraryConfig.ts'
 import { kindCounts, libraryKinds, pickTab } from '../libraryTabs.ts'
 
 const hook = (name, command, id = `hook:user:${name}:0:0`) => ({
@@ -87,4 +89,11 @@ test('sourceHintKey names the install list for a plugin no settings file sets', 
   assert.equal(sourceHintKey({ ...hook('Stop', 'x'), source: 'local' }), 'library.config.sourceHint.local')
   const listError = { ...fromList, plugin: null, error: 'not valid JSON' }
   assert.equal(sourceHintKey(listError), 'library.config.sourceHint.installed')
+})
+
+test('isHooksOffNotice spots the row of a file that only turns hooks off', () => {
+  const notice = { ...hook('disableAllHooks', ''), hook: { ...hook('x', '').hook, event: '', all_disabled: true } }
+  assert.equal(isHooksOffNotice(notice), true)
+  assert.equal(isHooksOffNotice(hook('Stop', 'x')), false)
+  assert.equal(isHooksOffNotice(plugin('evon', true)), false)
 })
