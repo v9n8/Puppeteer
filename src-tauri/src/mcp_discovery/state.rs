@@ -96,7 +96,7 @@ pub struct ProfileRef {
 }
 
 /// A row as the webview gets it. Key names only: never an env / header VALUE, a connector's id
-/// or url, or a login value.
+/// or url, or a login value; credentials in args / url are masked (`mask`).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Row {
@@ -277,7 +277,7 @@ fn row_of(inputs: &ViewInputs, server: &DiscoveredServer) -> Row {
         name: server.name.clone(),
         import_name: server.import_name.clone(),
         transport: server.transport.clone(),
-        summary: server.summary.clone(),
+        summary: server.summary.as_ref().map(super::mask::masked_summary),
         engine_status: server.engine_status.clone(),
         importable: server.importable,
         state,
@@ -519,6 +519,26 @@ mod tests {
         assert!(other.project.is_empty());
         let json = serde_json::to_string(&project).unwrap();
         assert!(!json.contains("SECRET") && json.contains(r#""env_keys":["X_KEY"]"#), "{json}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A credential another tool put in a server's args or url does not reach the webview.
+    #[test]
+    fn a_row_masks_credentials_in_args_and_url() {
+        let base = tmp("state-mask");
+        let inputs = inputs(&base);
+        write(
+            &inputs.home.join(".claude.json"),
+            r#"{"mcpServers": {"api": {"command": "npx", "args": ["-y", "pkg", "--api-key=SECRET-ARG", "--token", "SECRET-NEXT"]},
+                "web": {"url": "https://me:SECRET-PW@h.example/mcp?token=SECRET-Q"}}}"#,
+        );
+        let report = scan_files(&inputs).into_report();
+        let labels = labels();
+        let view = build_view(&ViewInputs { report: &report, managed: &[], identities: &[], labels: &labels, project_id: None });
+        let json = serde_json::to_string(&view).unwrap();
+        assert!(!json.contains("SECRET"), "{json}");
+        assert!(json.contains(r#""args":["-y","pkg","--api-key=[redacted]","--token","[redacted]"]"#), "{json}");
+        assert!(json.contains(r#""url":"https://[redacted]@h.example/mcp?token=[redacted]""#), "{json}");
         let _ = std::fs::remove_dir_all(&base);
     }
 

@@ -21,6 +21,7 @@ pub mod codex_sources;
 pub mod commands;
 pub mod connectors;
 pub mod import_sync;
+pub mod mask;
 pub mod other_sources;
 pub mod probe;
 pub mod state;
