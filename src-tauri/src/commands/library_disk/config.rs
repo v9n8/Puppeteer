@@ -52,7 +52,8 @@ impl ConfigSource {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HookInfo {
-    /// Empty on the notice row of a file that sets `disableAllHooks` and lists no hook.
+    /// Empty on the notice row of a file that sets `disableAllHooks` and lists no hook (its id
+    /// starts `hook-off:`, which is what tells it apart).
     pub event: String,
     pub matcher: Option<String>,
     /// `command`, `prompt`, … as written.

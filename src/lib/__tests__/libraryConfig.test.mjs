@@ -92,9 +92,11 @@ test('sourceHintKey names the install list for a plugin no settings file sets', 
   assert.equal(sourceHintKey(listError), 'library.config.sourceHint.installed')
 })
 
-test('isHooksOffNotice spots the row of a file that only turns hooks off', () => {
-  const notice = { ...hook('disableAllHooks', ''), hook: { ...hook('x', '').hook, event: '', all_disabled: true } }
+test('isHooksOffNotice spots the row of a file that only turns hooks off, by its id', () => {
+  const notice = { ...hook('disableAllHooks', '', 'hook-off:local'), hook: { ...hook('x', '').hook, event: '', all_disabled: true } }
   assert.equal(isHooksOffNotice(notice), true)
   assert.equal(isHooksOffNotice(hook('Stop', 'x')), false)
+  // A hook listed under an empty event name is still a hook.
+  assert.equal(isHooksOffNotice({ ...hook('', 'x'), hook: { ...hook('', 'x').hook, event: '' } }), false)
   assert.equal(isHooksOffNotice(plugin('evon', true)), false)
 })

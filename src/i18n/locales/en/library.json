@@ -143,7 +143,7 @@
       "on": "Turned on by enabledPlugins in the file above",
       "off": "Turned off by enabledPlugins in the file above",
       "unset": "No settings file read here turns it on or off",
-      "unknown": "A settings file that could turn it on or off can't be read: see the error"
+      "unknown": "A settings file that could turn it on or off can't be used here (unreadable, or not true / false): see the error"
     },
     "notInstalled": "Not installed",
     "notInstalledHint": "Not listed in ~/.claude/plugins/installed_plugins.json",
