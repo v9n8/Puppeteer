@@ -7,11 +7,14 @@
 //!
 //! Read from git's own metadata files rather than a `git` process: `.git` (a
 //! folder, or a `gitdir:` file in a linked tree), `commondir` and
-//! `worktrees/<name>/gitdir`. Every tree must be linked both ways: a linked
-//! tree only while its `.git` file points back at the entry that lists it (the
-//! link `git worktree prune` checks), the main tree only while its `.git` is
-//! the repository's own folder. So a stale entry, a folder recreated in its
-//! place, or a `.git` file naming another repository adds nothing.
+//! `worktrees/<name>/gitdir`. A linked tree counts only when its entry, once
+//! resolved, sits right in `<common git dir>/worktrees` (no symlink out of it)
+//! and the tree's `.git` file points back at that entry — the link
+//! `git worktree prune` checks. The main tree counts only when its `.git` is a
+//! real folder and is the common git dir. So a stale entry, a folder recreated
+//! in its place, a `.git` file or symlink naming another repository, or an
+//! entry symlinked in from elsewhere adds nothing. A `worktrees` folder that is
+//! itself a symlink fails closed: none of its entries count.
 
 use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
@@ -48,7 +51,7 @@ fn list(root: &Path) -> Vec<PathBuf> {
     let mut trees = vec![tree.to_path_buf()];
     trees.extend(main);
     if let Ok(entries) = std::fs::read_dir(common.join("worktrees")) {
-        trees.extend(entries.flatten().filter_map(|e| linked_tree(&e.path())));
+        trees.extend(entries.flatten().filter_map(|e| linked_tree(&e.path(), &common)));
     }
     // Never the whole disk, whatever a `.git` at `/` says.
     trees.retain(|t| t.parent().is_some());
@@ -63,7 +66,8 @@ fn list(root: &Path) -> Vec<PathBuf> {
 /// file naming a `worktrees/<name>` entry that lists `tree` back and sits in
 /// the `worktrees` folder of the common dir its `commondir` names. Anything
 /// else — a symlinked `.git`, a `.git` file naming another repository's git
-/// dir, an entry made up elsewhere, a submodule — gives None.
+/// dir, an entry made up or symlinked in from elsewhere, a submodule — gives
+/// None.
 fn repository(tree: &Path) -> Option<(PathBuf, Option<PathBuf>)> {
     let dot_git = tree.join(".git");
     let meta = std::fs::symlink_metadata(&dot_git).ok()?;
@@ -74,13 +78,9 @@ fn repository(tree: &Path) -> Option<(PathBuf, Option<PathBuf>)> {
         return None;
     }
     let entry = gitdir_of(&dot_git)?;
-    if linked_tree(&entry)? != tree {
-        return None;
-    }
     let rel = std::fs::read_to_string(entry.join("commondir")).ok()?;
     let common = entry.join(rel.trim()).canonicalize().ok()?;
-    // Else any folder holding a `gitdir` and a `commondir` could name any repository.
-    if entry.parent() != Some(common.join("worktrees").as_path()) {
+    if linked_tree(&entry, &common)? != tree {
         return None;
     }
     // The main tree's own `.git` must be that very folder (a bare repository has none).
@@ -99,11 +99,17 @@ fn gitdir_of(git_file: &Path) -> Option<PathBuf> {
     git_file.parent()?.join(target).canonicalize().ok()
 }
 
-/// The working tree a `worktrees/<name>` entry lists, while that tree's `.git`
-/// still points back at the entry. Its `gitdir` holds the tree's `.git` path,
-/// absolute or relative to the entry (`worktree.useRelativePaths`).
-fn linked_tree(entry: &Path) -> Option<PathBuf> {
+/// The working tree a `worktrees/<name>` entry of the canonical `common` git
+/// dir lists, while the resolved entry still sits right in `common/worktrees`
+/// and the tree's `.git` points back at it. Without the first check any folder
+/// holding a `gitdir` (made up, or symlinked in from another repository) could
+/// name any tree. Its `gitdir` holds the tree's `.git` path, absolute or
+/// relative to the entry (`worktree.useRelativePaths`).
+fn linked_tree(entry: &Path, common: &Path) -> Option<PathBuf> {
     let entry = entry.canonicalize().ok()?;
+    if entry.parent() != Some(common.join("worktrees").as_path()) {
+        return None;
+    }
     let text = std::fs::read_to_string(entry.join("gitdir")).ok()?;
     let tree = entry.join(text.trim()).parent()?.canonicalize().ok()?;
     (gitdir_of(&tree.join(".git"))? == entry).then_some(tree)
@@ -240,6 +246,39 @@ mod tests {
         std::fs::write(base.join("repo/.git/worktrees/wt/commondir"), format!("{}\n", other.join(".git").display())).unwrap();
         assert!(list(&wt).is_empty());
         assert!(!WorkTrees::new(&wt).allows(&other.join("a.txt")));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Symlinks into another repository's `worktrees`, one entry or the whole
+    /// folder, list none of its worktrees, from the main tree or a linked one.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_entry_or_worktrees_folder_reaches_nothing() {
+        use std::os::unix::fs::symlink;
+        let base = fixture();
+        let (repo, wt, other) = (base.join("repo"), base.join("wt"), base.join("other"));
+        sh(&other, &["worktree", "add", "-q", "-b", "side", "../otherwt"]);
+        let foreign = base.join("otherwt/a.txt");
+
+        symlink(other.join(".git/worktrees/otherwt"), repo.join(".git/worktrees/evil")).unwrap();
+        for root in [&repo, &wt] {
+            assert!(!WorkTrees::new(root).allows(&foreign), "{}", root.display());
+            assert!(WorkTrees::new(root).allows(&repo.join("a.txt")), "{}", root.display());
+        }
+        std::fs::remove_file(repo.join(".git/worktrees/evil")).unwrap();
+
+        // The whole folder, swapped for another repository's.
+        let own = base.join("own-worktrees");
+        std::fs::rename(repo.join(".git/worktrees"), &own).unwrap();
+        symlink(other.join(".git/worktrees"), repo.join(".git/worktrees")).unwrap();
+        for root in [&repo, &wt] {
+            assert!(!WorkTrees::new(root).allows(&foreign), "{}", root.display());
+        }
+        // A repository's own `worktrees` moved behind a symlink: closed both ways.
+        std::fs::remove_file(repo.join(".git/worktrees")).unwrap();
+        symlink(&own, repo.join(".git/worktrees")).unwrap();
+        assert!(!WorkTrees::new(&repo).allows(&wt.join("report.md")));
+        assert!(!WorkTrees::new(&wt).allows(&repo.join("a.txt")));
         let _ = std::fs::remove_dir_all(&base);
     }
 
