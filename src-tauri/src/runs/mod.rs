@@ -1,4 +1,5 @@
 pub mod account_switch;
+pub mod auto_title;
 pub mod bg_tasks;
 pub mod bookmarks;
 pub mod broker;

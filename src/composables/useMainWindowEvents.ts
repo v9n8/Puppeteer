@@ -14,6 +14,7 @@ import { FOCUS_OPEN_WINDOW, type FocusOpenTodo } from '@/lib/focus'
 import { useLiveRunsStore } from '@/stores/liveRuns'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
 import { EVT_TRASH_CHANGED } from '@/lib/trash'
+import { EVT_RUN_TITLE, type RunTitleEvent } from '@/lib/runTitle'
 import { PR_INBOX_WINDOW_OPEN_ROUTE, type PrInboxWindowOpenRoute } from '@/lib/prInboxWindow'
 import { CALENDAR_WINDOW_OPEN_ROUTE, type CalendarWindowOpenRoute } from '@/lib/calendarWindow'
 import { SCREEN_OPEN_ROUTE, type ScreenOpenRoute } from '@/lib/detachedScreens'
@@ -98,6 +99,8 @@ export function useMainWindowEvents() {
   // Projects moved to / out of the Trash (any window, a remote desktop): the
   // project list (Projects grid, tabs, palette) follows.
   let unlistenTrashChanged: UnlistenFn | null = null
+  // A session got its automatic short name: the sidebar and the dock follow.
+  let unlistenRunTitle: UnlistenFn | null = null
 
   // A session row in the menu-bar switcher (or a linked session in the Slack /
   // Notes / Todos windows) was clicked: show the run where it lives — its own
@@ -229,6 +232,8 @@ export function useMainWindowEvents() {
     unlistenFileDock = null
     unlistenTrashChanged?.()
     unlistenTrashChanged = null
+    unlistenRunTitle?.()
+    unlistenRunTitle = null
   })
 
   async function listenMainWindowEvents() {
@@ -392,6 +397,15 @@ export function useMainWindowEvents() {
 
     try {
       unlistenTrashChanged = await listen(EVT_TRASH_CHANGED, () => void projectsStore.fetchProjects())
+    } catch {
+      // Ignore (e.g. running outside the Tauri shell during dev in a browser).
+    }
+
+    try {
+      unlistenRunTitle = await listen<RunTitleEvent>(EVT_RUN_TITLE, (e) => {
+        const { run_id, title } = e.payload ?? {}
+        if (run_id && title) runsStore.setRunTitle(run_id, title)
+      })
     } catch {
       // Ignore (e.g. running outside the Tauri shell during dev in a browser).
     }

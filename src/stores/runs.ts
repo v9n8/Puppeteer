@@ -7,6 +7,7 @@ import type { QuoteInput, RunQuote } from '@/lib/quote'
 import type { PermissionRequest } from '@/components/PermissionPrompt.vue'
 import { i18n } from '@/i18n'
 import { modelBlockedError } from '@/lib/enabledModels'
+import { applyRunTitle } from '@/lib/runTitle'
 
 /**
  * Fingerprint of the file(s) backing a run's log, from `get_run_log_revision`.
@@ -777,11 +778,12 @@ export const useRunsStore = defineStore('runs', () => {
 
   async function renameRun(run_id: string, title: string): Promise<void> {
     await invoke('rename_run', { runId: run_id, title })
-    const next = title.trim() || null
-    const run = runs.value.find(r => r.id === run_id)
-    if (run) run.title = next
-    const cached = runMeta.get(run_id)
-    if (cached) cached.title = next
+    setRunTitle(run_id, title.trim() || null)
+  }
+
+  /** A title the backend already stored (a rename, or a session's automatic name). */
+  function setRunTitle(run_id: string, title: string | null) {
+    applyRunTitle(runs.value, runMeta, run_id, title)
   }
 
   async function setRunPinned(run_id: string, pinned: boolean): Promise<void> {
@@ -844,6 +846,6 @@ export const useRunsStore = defineStore('runs', () => {
     createDir, createFile, renameEntry, deleteEntry, copyEntry, moveEntry, importExternalEntries,
     createHandoffRun, createSessionRun, forkRun,
     reconcileClaudeSessions, reconcileCodexSessions,
-    deleteRun, deleteAllRuns, renameRun, setRunClaudeAccount, setRunCodexAccount, setRunPinned, setRunFlag, setRunProtected, touchRun,
+    deleteRun, deleteAllRuns, renameRun, setRunTitle, setRunClaudeAccount, setRunCodexAccount, setRunPinned, setRunFlag, setRunProtected, touchRun,
   }
 })

@@ -1264,6 +1264,7 @@ pub async fn drain_sidecar(
                                             serde_json::json!({ "run_id": run_id }),
                                         );
                                     }
+                                    crate::runs::auto_title::refresh_later(&app, &db_pool, &run_id);
                                     // …but ONLY when this result truly ends the
                                     // session's work. Two cases must NOT close it,
                                     // or the permission channel dies mid-turn and
