@@ -195,11 +195,18 @@ pub async fn list_run_mcp(db: &Db, run_id: &str) -> Result<Vec<RunMcpEntry>, Str
             !builtins_off.iter().any(|off| off == name),
         ));
     }
-    let rows = sqlx::query("SELECT id, name, description, transport, enabled FROM mcp_servers ORDER BY name")
+    let rows = sqlx::query("SELECT id, name, description, transport, enabled, connector_account FROM mcp_servers ORDER BY name")
         .fetch_all(db)
         .await
         .map_err(|e| e.to_string())?;
+    // claude.ai connectors: only the run's Claude profile's (none for Codex, none when the
+    // profile cannot be resolved), like the launch.
+    let profile = crate::mcp_discovery::connectors::profile_of_run(db, run_id).await.unwrap_or(None);
     for row in rows {
+        let connector_account: Option<String> = row.get("connector_account");
+        if row.get::<String, _>("transport") == "claudeai" && (profile.is_none() || connector_account != profile) {
+            continue;
+        }
         let id: String = row.get("id");
         let project = in_project.contains(&id);
         out.push(entry(

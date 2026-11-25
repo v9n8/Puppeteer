@@ -19,6 +19,7 @@
 pub mod claude_sources;
 pub mod codex_sources;
 pub mod commands;
+pub mod connectors;
 pub mod import_sync;
 pub mod other_sources;
 pub mod probe;

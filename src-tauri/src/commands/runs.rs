@@ -664,6 +664,7 @@ pub(crate) async fn start_run_inner(
                 &payload.run_id,
                 conductor_token.is_some(),
                 &permission_mode,
+                claude_account.as_ref().map(|a| a.id.as_str()),
             )
             .await?;
             mcp_server_count = Some(server_count(&mcp));
@@ -779,6 +780,7 @@ pub(crate) async fn start_run_inner(
         &payload.run_id,
         conductor_token.is_some(),
         &permission_mode,
+        claude_account.as_ref().map(|a| a.id.as_str()),
     )
     .await?;
     if !codex_mcp.is_null() {
@@ -1110,6 +1112,7 @@ async fn assemble_run_mcp(
     run_id: &str,
     is_conductor: bool,
     permission_mode: &str,
+    claude_account: Option<&str>,
 ) -> Result<(serde_json::Value, Vec<String>), String> {
     use crate::commands::mcp;
     let launch = mcp::McpLaunch {
@@ -1137,7 +1140,8 @@ async fn assemble_run_mcp(
             tracing::warn!(event = "run_mcp_selection_failed", run_id = %run_id, error = %e);
             Default::default()
         });
-    let (map, skipped) = mcp::resolve_run_mcp_servers(db, &selection.servers, engine, &launch).await;
+    let profile = crate::mcp_discovery::connectors::run_profile(engine, claude_account);
+    let (map, skipped) = mcp::resolve_run_mcp_servers(db, &selection.servers, engine, &launch, profile).await;
     let map = if gates.puppeteer && selection.builtins.contains("puppeteer") {
         mcp::with_builtin_puppeteer(
             map,
@@ -5120,6 +5124,7 @@ pub(crate) async fn resume_run_with(
             &run_id,
             conductor_launch.is_some(),
             &permission_mode,
+            claude_account.as_ref().map(|a| a.id.as_str()),
         )
         .await?;
         mcp_server_count = server_count(&codex_mcp);
@@ -5191,6 +5196,7 @@ pub(crate) async fn resume_run_with(
             &run_id,
             conductor_launch.is_some(),
             &permission_mode,
+            claude_account.as_ref().map(|a| a.id.as_str()),
         )
         .await?;
         mcp_server_count = server_count(&mcp);

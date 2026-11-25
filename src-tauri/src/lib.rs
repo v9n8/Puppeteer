@@ -569,6 +569,7 @@ pub fn run() {
             mcp_discovery::commands::reload_mcp_discovery,
             mcp_discovery::commands::import_discovered_mcp,
             mcp_discovery::commands::sync_discovered_mcp,
+            mcp_discovery::connectors::set_mcp_connector_enabled,
             get_instruction_warnings,
             memory_read,
             memory_write,

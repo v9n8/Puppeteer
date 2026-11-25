@@ -254,6 +254,8 @@ const AUDITED_COMMANDS: &[&str] = &[
     // MCP servers: env + header values in, or out in clear.
     "create_mcp_server",
     "update_mcp_server",
+    // App-wide switch of a claude.ai connector row (it has no launch fields to update).
+    "set_mcp_connector_enabled",
     "import_mcp_server",
     "export_mcp_server",
     // VPS servers: SSH key and passphrase.

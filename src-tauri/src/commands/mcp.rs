@@ -1272,6 +1272,7 @@ pub async fn resolve_run_mcp_servers(
     server_ids: &std::collections::HashSet<String>,
     engine: &str,
     launch: &McpLaunch,
+    claude_profile: Option<&str>,
 ) -> (serde_json::Value, Vec<String>) {
     let rows = match sqlx::query(&format!(
         "SELECT {} FROM mcp_servers WHERE enabled = 1 ORDER BY name",
@@ -1341,6 +1342,7 @@ pub async fn resolve_run_mcp_servers(
                 }
                 map.insert(server.name.clone(), cfg);
             }
+            "claudeai" => crate::mcp_discovery::connectors::add_to_run(db, claude_profile, &server, &mut map, &mut skipped).await,
             _ => {}
         }
     }
