@@ -84,7 +84,12 @@ fn only_reads(tool: &str, argv: &[String]) -> bool {
             !unsure && path.get(1).is_some_and(read)
         }
         "az" => {
-            let (path, _) = policy::az_command_path(argv);
+            // A global flag between command words may hide the real verb
+            // (`az vm delete -o json list`), so the path cannot be trusted.
+            let (path, interleaved) = policy::az_command_path(argv);
+            if interleaved {
+                return false;
+            }
             match path.last().map(String::as_str) {
                 Some("list" | "show") => true,
                 Some("rest") if path.len() == 1 => az_rest_is_get(argv),
@@ -226,6 +231,17 @@ mod tests {
     fn an_unsure_aws_operation_is_not_eligible() {
         let reason = "unrecognized aws flag before the operation — needs confirmation";
         assert_eq!(key_for("aws", &argv(&["--frobnicate", "ec2", "describe-instances"]), reason), None);
+    }
+
+    #[test]
+    fn az_with_global_flags_between_command_words_is_not_eligible() {
+        // The policy asks about the global flags before it looks for secrets
+        // or verbs, so the reason alone does not reveal what these do.
+        let reason = "az global flags before the command — needs confirmation";
+        let keys = argv(&["-o", "json", "storage", "account", "keys", "list", "--account-name", "st1", "-g", "rg"]);
+        assert_eq!(key_for("az", &keys, reason), None);
+        let delete = argv(&["vm", "delete", "-o", "json", "list", "-n", "vm1", "-g", "rg", "--yes"]);
+        assert_eq!(key_for("az", &delete, reason), None);
     }
 
     #[test]
