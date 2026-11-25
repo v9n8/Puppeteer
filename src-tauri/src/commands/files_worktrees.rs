@@ -60,9 +60,10 @@ fn list(root: &Path) -> Vec<PathBuf> {
 /// The common git dir of the repository the canonical `tree` belongs to, and
 /// its main working tree (none for a bare repository), when `tree`'s `.git`
 /// proves it: a real `.git` folder (`tree` is then the main tree), or a `.git`
-/// file naming a `worktrees/<name>` entry that lists `tree` back. Anything else
-/// — a symlinked `.git`, a `.git` file naming another repository's git dir, a
-/// submodule — gives None.
+/// file naming a `worktrees/<name>` entry that lists `tree` back and sits in
+/// the `worktrees` folder of the common dir its `commondir` names. Anything
+/// else — a symlinked `.git`, a `.git` file naming another repository's git
+/// dir, an entry made up elsewhere, a submodule — gives None.
 fn repository(tree: &Path) -> Option<(PathBuf, Option<PathBuf>)> {
     let dot_git = tree.join(".git");
     let meta = std::fs::symlink_metadata(&dot_git).ok()?;
@@ -78,6 +79,10 @@ fn repository(tree: &Path) -> Option<(PathBuf, Option<PathBuf>)> {
     }
     let rel = std::fs::read_to_string(entry.join("commondir")).ok()?;
     let common = entry.join(rel.trim()).canonicalize().ok()?;
+    // Else any folder holding a `gitdir` and a `commondir` could name any repository.
+    if entry.parent() != Some(common.join("worktrees").as_path()) {
+        return None;
+    }
     // The main tree's own `.git` must be that very folder (a bare repository has none).
     let main = common.parent().filter(|m| {
         let git = m.join(".git");
@@ -213,6 +218,28 @@ mod tests {
             assert!(list(&proj).is_empty());
             assert!(!WorkTrees::new(&proj).allows(&other.join("a.txt")));
         }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// An entry must sit in the `worktrees` folder of the common dir it names:
+    /// neither a made-up entry inside the project nor a real worktree whose
+    /// entry's `commondir` was rewritten reaches another repository.
+    #[test]
+    fn an_entry_outside_its_common_dir_reaches_nothing() {
+        let base = fixture();
+        let other = base.join("other");
+        let proj = base.join("proj");
+        std::fs::create_dir_all(proj.join("fake")).unwrap();
+        std::fs::write(proj.join(".git"), format!("gitdir: {}\n", proj.join("fake").display())).unwrap();
+        std::fs::write(proj.join("fake/gitdir"), format!("{}\n", proj.join(".git").display())).unwrap();
+        std::fs::write(proj.join("fake/commondir"), format!("{}\n", other.join(".git").display())).unwrap();
+        assert!(list(&proj).is_empty());
+        assert!(!WorkTrees::new(&proj).allows(&other.join("a.txt")));
+
+        let wt = base.join("wt");
+        std::fs::write(base.join("repo/.git/worktrees/wt/commondir"), format!("{}\n", other.join(".git").display())).unwrap();
+        assert!(list(&wt).is_empty());
+        assert!(!WorkTrees::new(&wt).allows(&other.join("a.txt")));
         let _ = std::fs::remove_dir_all(&base);
     }
 
