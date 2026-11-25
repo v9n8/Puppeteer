@@ -21,6 +21,7 @@
   "hintQuestions": "↑↓ Chọn · ←→ Điều hướng · ↵ Tiếp · Esc Hủy",
   "hintPlan": "↵ Phê duyệt · Esc Tiếp tục lập kế hoạch",
   "hintPermission": "↵ Cho phép · ⇧↵ Luôn cho phép · Esc Từ chối",
+  "hintPermissionOnce": "↵ Cho phép · Esc Từ chối",
   "next": "Tiếp",
   "submit": "Gửi",
   "keepPlanning": "Tiếp tục lập kế hoạch",

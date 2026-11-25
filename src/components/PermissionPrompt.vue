@@ -528,7 +528,9 @@ function onKeydown(e: KeyboardEvent) {
           <span class="hidden text-2xs text-foreground/40 @[26rem]/footer:block">
             <template v-if="isQuestions">{{ t('permission.hintQuestions') }}</template>
             <template v-else-if="isPlan">{{ t('permission.hintPlan') }}</template>
-            <template v-else>{{ t('permission.hintPermission') }}</template>
+            <!-- No ⇧↵ Always where the prompt cannot remember (a broker prompt is answered once). -->
+            <template v-else-if="canRemember">{{ t('permission.hintPermission') }}</template>
+            <template v-else>{{ t('permission.hintPermissionOnce') }}</template>
           </span>
           <!-- Action buttons: stack full-width in a narrow panel; wrap to a second row when four do not fit. -->
           <div class="flex flex-col gap-2 @[26rem]/footer:flex-row @[26rem]/footer:flex-wrap @[26rem]/footer:items-center @[26rem]/footer:justify-end">

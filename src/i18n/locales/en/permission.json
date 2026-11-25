@@ -21,6 +21,7 @@
   "hintQuestions": "↑↓ Select · ←→ Nav · ↵ Next · Esc Cancel",
   "hintPlan": "↵ Approve · Esc Keep planning",
   "hintPermission": "↵ Allow · ⇧↵ Always · Esc Deny",
+  "hintPermissionOnce": "↵ Allow · Esc Deny",
   "next": "Next",
   "submit": "Submit",
   "keepPlanning": "Keep planning",
