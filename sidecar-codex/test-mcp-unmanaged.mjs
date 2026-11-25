@@ -87,7 +87,7 @@ assert.deepEqual([...forwardedServerNames(['-c', 'mcp_servers.pms.tool_timeout_s
 }
 console.log('ok   pure parts: disable args, forwarded names, call guard')
 
-// Before start: codex's own server is off, the passed one is forwarded, apps and plugins off.
+// Before start: codex's own server is off, the passed one is forwarded, apps, plugins and server installers off.
 {
   const r = await run({ PUPPETEER_CODEX_MCP: JSON.stringify(PMS) })
   assert.equal(r.code, 0, JSON.stringify(r.messages.filter((m) => m.type === '_puppeteer_error')))
@@ -95,7 +95,9 @@ console.log('ok   pure parts: disable args, forwarded names, call guard')
   assert.ok(f.includes('mcp_servers.user_server.enabled=false'), f.join(' '))
   assert.ok(f.includes('mcp_servers.pms.command="pms-server"'), f.join(' '))
   assert.ok(!f.includes('mcp_servers.pms.enabled=false'))
-  assert.ok(f.includes('features.apps=false') && f.includes('features.plugins=false'), f.join(' '))
+  for (const feature of ['apps', 'plugins', 'remote_plugin', 'skill_mcp_dependency_install', 'tool_suggest']) {
+    assert.ok(f.includes(`features.${feature}=false`), `${feature}: ${f.join(' ')}`)
+  }
   assert.equal(r.argv.at(-1), 'app-server')
   assert.deepEqual(blocked(r.messages), [])
 }
@@ -110,7 +112,7 @@ console.log('ok   pure parts: disable args, forwarded names, call guard')
   const r = await run({ PUPPETEER_CODEX_MCP: JSON.stringify({ user_server: { type: 'stdio', command: 'mine' } }) })
   assert.ok(!flags(r.argv).includes('mcp_servers.user_server.enabled=false'))
 }
-console.log('ok   normal session turns off every codex server it was not passed, plus apps and plugins')
+console.log('ok   normal session turns off every codex server it was not passed, plus apps, plugins and server installers')
 
 // Fail-closed: codex's list unreadable → no session.
 for (const mode of ['fail', 'garbage', 'object']) {

@@ -5,9 +5,10 @@
 //
 // - Before start: every server `codex mcp list --json` names (run in the
 //   session's cwd, so the project layer counts) that Puppeteer did not forward
-//   gets `-c mcp_servers.<name>.enabled=false`; `features.apps` and
-//   `features.plugins` are turned off. Session flags beat user and project
-//   config, not managed (MDM) layers. The list failing → the run does not start.
+//   gets `-c mcp_servers.<name>.enabled=false`; the features that can bring
+//   in a server of their own (LOCKDOWN_FEATURES) are turned off. Session flags
+//   beat user and project config, not managed (MDM) layers. The list failing →
+//   the run does not start.
 // - While running: an `mcpToolCall` item of a server not forwarded, or a server
 //   codex reports starting, is reported; a call also interrupts the turn (codex
 //   has no pre-call deny hook for MCP tools, so the call may already be under way).
@@ -62,6 +63,11 @@ export function forwardedServerNames(args) {
   return names
 }
 
+// ChatGPT apps, local and remote plugins, the installer of a skill's MCP
+// dependencies and tool suggestions (which install apps / plugins): each can
+// add a server that `codex mcp list` does not name at start.
+const LOCKDOWN_FEATURES = ['apps', 'plugins', 'remote_plugin', 'skill_mcp_dependency_install', 'tool_suggest']
+
 // `config` (`buildMcpConfig()`'s `{ args, env }`) locked down for a normal run,
 // with `allowed` = the forwarded server names. Throws when codex's list fails.
 export function withMcpLockdown(config, codexBin, cwd) {
@@ -72,8 +78,7 @@ export function withMcpLockdown(config, codexBin, cwd) {
     args: [
       ...config.args,
       ...disableServerArgs(configured, allowed),
-      '-c', 'features.apps=false',
-      '-c', 'features.plugins=false',
+      ...LOCKDOWN_FEATURES.flatMap((f) => ['-c', `features.${f}=false`]),
     ],
     allowed,
   }
