@@ -17,6 +17,7 @@ import { Button, ConfirmModal, PromptModal, ToastHost } from '@/components/ui'
 import { registerMergeBack } from '@/lib/windowsOverlay'
 import { FILE_WINDOW_ORIGIN, dockFileWindow, openFileWindow, type FileWindowOrigin } from '@/lib/fileWindow'
 import { parseFileWindowQuery } from '@/lib/fileWindowCore'
+import { treePathIn } from '@/lib/sessionPaths'
 import { pickQuoteRun, type QuoteSource } from '@/lib/quote'
 import { sendQuote } from '@/lib/quoteAppend'
 import { invoke } from '@/lib/tauri'
@@ -31,6 +32,8 @@ const { pinned, togglePin } = useFloatingWindow()
 
 const params = parseFileWindowQuery(window.location.search)
 const projectPath = ref(params.projectPath)
+// Where a relative `path` is read from: a worker's worktree, else the project.
+const root = params.root
 const path = ref(params.path)
 const line = ref<number | null>(params.line)
 const originRunId = ref<string | null>(params.originRunId)
@@ -42,6 +45,11 @@ function setTitle(p: string) {
 /** True when `candidate` IS our file, or the folder our file lives in. */
 function covers(candidate: string): boolean {
   return path.value === candidate || path.value.startsWith(`${candidate}/`)
+}
+
+/** A Files tree path as this window names it; null for another project's tree. */
+function inRoot(treeProject: string, treePath: string): string | null {
+  return treePathIn(treeProject, treePath, root, projectPath.value)
 }
 
 // ── Quote target ────────────────────────────────────────────────────────────
@@ -100,16 +108,18 @@ onMounted(async () => {
     unlisten.push(
       await listen<{ projectPath: string; path: string }>(FILE_DELETED_EVENT, (e) => {
         const payload = e.payload
-        if (!payload || payload.projectPath !== projectPath.value) return
+        const gone = payload && inRoot(payload.projectPath, payload.path)
         // Deleting the folder takes everything under it, this file included.
-        if (covers(payload.path)) closeWindow()
+        if (gone && covers(gone)) closeWindow()
       }),
       await listen<{ projectPath: string; from: string; to: string }>(FILE_MOVED_EVENT, (e) => {
         const payload = e.payload
-        if (!payload || payload.projectPath !== projectPath.value) return
-        if (path.value === payload.from) onRenamed(payload.to)
-        else if (path.value.startsWith(`${payload.from}/`)) {
-          onRenamed(payload.to + path.value.slice(payload.from.length))
+        const from = payload && inRoot(payload.projectPath, payload.from)
+        const to = payload && inRoot(payload.projectPath, payload.to)
+        if (!from || !to) return
+        if (path.value === from) onRenamed(to)
+        else if (path.value.startsWith(`${from}/`)) {
+          onRenamed(to + path.value.slice(from.length))
         }
       }),
       // Opened again from another session: Quote follows it.
@@ -134,7 +144,7 @@ onBeforeUnmount(() => {
 })
 
 function onOpenFile(p: string, l: number | null) {
-  openFileWindow(projectPath.value, p, l, originRunId.value)
+  openFileWindow(projectPath.value, p, l, originRunId.value, root)
 }
 function onOpenUrl(url: string) {
   openUrl(url).catch(() => { /* opener unavailable */ })
@@ -183,7 +193,7 @@ onBeforeUnmount(unregisterMergeBack)
 <template>
   <div class="h-screen w-screen bg-background text-foreground overflow-hidden">
     <FileViewer
-      :project-path="projectPath"
+      :project-path="root"
       :path="path"
       :line="line"
       :quote-target="quoteTarget"

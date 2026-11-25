@@ -60,16 +60,20 @@ function basename(path: string): string {
  * Open (or focus) a standalone window showing `path` from the project at
  * `projectPath`. `line`, when given, is highlighted/scrolled to. `originRunId`
  * is the run it was opened from: the window's Quote goes there (none = the
- * project's latest session).
+ * project's latest session). `root`: where a relative `path` is read from when
+ * not the project (a worker's worktree).
  */
 export async function openFileWindow(
   projectPath: string,
   path: string,
   line?: number | null,
   originRunId?: string | null,
+  root?: string | null,
 ): Promise<void> {
   if (!projectPath || !path) return
-  const label = hashLabel(`${projectPath}|${path}`)
+  const readRoot = root || projectPath
+  // The worktree's copy of a file and the project's are two windows.
+  const label = hashLabel(`${readRoot}|${path}`)
 
   // Already open for this file → bring it to front; whoever opened it last now
   // owns its Quote.
@@ -89,7 +93,7 @@ export async function openFileWindow(
     return
   }
 
-  const query = fileWindowQuery({ projectPath, path, line: line ?? null, originRunId: originRunId ?? null })
+  const query = fileWindowQuery({ projectPath, root: readRoot, path, line: line ?? null, originRunId: originRunId ?? null })
   const win = new WebviewWindow(label, {
     url: popoutUrl(`index.html?${query}`),
     title: basename(path),

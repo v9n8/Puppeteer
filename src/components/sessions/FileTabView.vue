@@ -98,7 +98,7 @@ function onOpenUrl(url: string) {
 async function detach(tab: FileTab) {
   const id = runId.value
   try {
-    await openFileWindow(projectPath.value, tab.path, tab.line, id)
+    await openFileWindow(projectPath.value, tab.path, tab.line, id, sessionRoot.value)
     tabsStore.close(id, tab.id)
   } catch (e) {
     toast.error(String(e))
