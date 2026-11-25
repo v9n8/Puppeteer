@@ -190,8 +190,17 @@ test('risk: cloud reads (aws get / list / describe, az list / show, az rest GET)
   assert.deepEqual(risks('aws', 'ec2', 'describe-instances', '--frobnicate'), ['read', 'network'])
   assert.deepEqual(risks('aws', 's3api', 'list-buckets'), ['read', 'network'])
   assert.deepEqual(risks('az', 'vm', 'list'), ['read', 'network'])
-  assert.deepEqual(risks('az', '-o', 'json', 'account', 'show'), ['read', 'network'])
+  assert.deepEqual(risks('az', 'vm', 'list', '-o', 'json'), ['read', 'network'])
   assert.deepEqual(risks('az', 'rest', '--method', 'get', '--url', 'x'), ['read', 'network'])
+})
+
+test('risk: az with global flags before or between command words is Write + Network', () => {
+  assert.deepEqual(risks('az', 'vm', 'delete', '-o', 'json', 'list', '-n', 'vm1', '--yes'), ['write', 'network'])
+  assert.deepEqual(risks('az', '-o', 'json', 'storage', 'account', 'keys', 'list', '--account-name', 'st1'), [
+    'write',
+    'network',
+  ])
+  assert.deepEqual(risks('az', '--debug', 'account', 'show'), ['write', 'network'])
 })
 
 test('host: gh defaults to api.github.com, --hostname wins, other tools have none', () => {

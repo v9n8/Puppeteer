@@ -136,21 +136,29 @@ function awsPath(argv: string[]): string[] {
   return path
 }
 
-/** The az command words, up to the first command-specific flag. */
-function azPath(argv: string[]): string[] {
+/**
+ * The az command words, up to the first command-specific flag. `interleaved`
+ * means a word came after a global flag (`az -o json account show`).
+ */
+function azPath(argv: string[]): { path: string[]; interleaved: boolean } {
   const path: string[] = []
+  let seenGlobal = false
+  let interleaved = false
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (!a.startsWith('-')) {
+      if (seenGlobal) interleaved = true
       path.push(a.toLowerCase())
       continue
     }
     const name = a.split('=')[0]
     if (AZ_GLOBAL_VALUE_FLAGS.has(name)) {
+      seenGlobal = true
       if (!a.includes('=')) i++
-    } else if (!AZ_GLOBAL_BOOL_FLAGS.has(name)) break
+    } else if (AZ_GLOBAL_BOOL_FLAGS.has(name)) seenGlobal = true
+    else break
   }
-  return path
+  return { path, interleaved }
 }
 
 function flagValue(argv: string[], names: string[]): string | null {
@@ -202,7 +210,7 @@ export function brokerAction(r: BrokerRequest): BrokerAction {
   if (tool === 'git' && first === 'push') return { key: 'gitPush', params: {} }
   if (tool === 'terraform' && first === 'apply') return { key: 'terraformApply', params: {} }
   if (tool === 'terraform' && first === 'destroy') return { key: 'terraformDestroy', params: {} }
-  if (tool === 'az' && azPath(argv)[0] === 'rest') return { key: 'azRest', params: {} }
+  if (tool === 'az' && azPath(argv).path[0] === 'rest') return { key: 'azRest', params: {} }
   if (tool === 'aws') {
     const [service, operation] = awsPath(argv)
     if (service && operation) return { key: 'aws', params: { service, operation } }
@@ -221,7 +229,10 @@ function cloudRisks(tool: string, argv: string[]): PermissionRisk[] | null {
     if (/^(delete|remove|terminate)-/.test(op) || (service === 's3' && (op === 'rm' || op === 'rb'))) return DELETE
   }
   if (tool === 'az') {
-    const path = azPath(argv)
+    const { path, interleaved } = azPath(argv)
+    // A global flag before or between the words can hide the real verb
+    // (`az vm delete -o json list`), so the last word cannot be trusted.
+    if (interleaved) return WRITE
     const last = path[path.length - 1] ?? ''
     if (path[0] === 'rest') return (flagValue(argv, ['--method', '-m']) ?? '').toUpperCase() === 'GET' ? READ : WRITE
     if (last === 'list' || last === 'show') return READ
