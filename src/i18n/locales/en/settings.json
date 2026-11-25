@@ -359,6 +359,8 @@
     "sessionDefaultsHint": "What a new session starts with, unless it picks its own.",
     "openSection": "Open {section}",
     "modelDefault": "Default (engine decides)",
+    "followersBlocked": "{names} follow this default, but their own model list (Project › Model) turns it off. New sessions there will be refused until you change one of them.",
+    "followersMore": "{names} and {count} more",
     "defaultEngine": "Engine",
     "defaultClaudeModel": "Claude model",
     "claudeFallbackModel": "Claude fallback model",

@@ -25,7 +25,7 @@ export interface ComposerDefaults {
   styles: string[]
 }
 
-interface DefaultSettings {
+export interface DefaultSettings {
   default_engine?: string | null
   claude_model?: string | null
   codex_model?: string | null

@@ -359,6 +359,8 @@
     "sessionDefaultsHint": "Giá trị session mới dùng khi bắt đầu, trừ khi nó tự chọn giá trị riêng.",
     "openSection": "Mở {section}",
     "modelDefault": "Mặc định (engine tự chọn)",
+    "followersBlocked": "{names} đang theo mặc định này, nhưng danh sách model riêng (Project › Model) của chúng đã tắt model đó. Session mới ở đó sẽ bị từ chối cho tới khi bạn đổi một trong hai.",
+    "followersMore": "{names} và {count} project khác",
     "defaultEngine": "Engine",
     "defaultClaudeModel": "Model Claude",
     "claudeFallbackModel": "Model dự phòng của Claude",

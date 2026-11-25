@@ -13,6 +13,7 @@ import { errorText } from '@/lib/featureGate'
 import { TERMINAL_APPS, desktopOs } from '@/lib/terminalApps'
 import { normalizeColorTheme } from '@/lib/colorThemes'
 import { DEFAULT_WORKER_CAP } from '@/lib/workerCap'
+import { useWarnBlockedFollowers } from './warnBlockedFollowers'
 
 export interface AppSettings {
   default_engine: string
@@ -74,6 +75,7 @@ export function createSettingsForm(): SettingsForm {
   const { t } = useI18n()
   const { toast } = useToast()
   const appSettings = useAppSettingsStore()
+  const warnBlockedFollowers = useWarnBlockedFollowers()
 
   const settings = ref<AppSettings>({
     default_engine: 'claude',
@@ -145,6 +147,7 @@ export function createSettingsForm(): SettingsForm {
       // Keep the shared settings store (context meter + budget badge) in sync.
       appSettings.refresh().catch(() => {})
       toast.success(t('settings.toast.saved'))
+      warnBlockedFollowers(changed.map(([k]) => k), settings.value).catch((e) => console.warn('[settings] follower check failed', e))
     } catch (e) {
       toast.error(errorText(e, t))
     }
