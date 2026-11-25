@@ -10,6 +10,8 @@
 //!   3. Ask list  -> Ask    (write ops + any other api/graphql call)
 //!   4. Default   -> Ask    (any unknown / unlisted subcommand; NEVER silent-Allow)
 
+pub(crate) mod api_call;
+
 /// Outcome of policy evaluation for a single `gh`/`glab`/`git` invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PolicyDecision {
@@ -84,70 +86,6 @@ fn evaluate_git(argv: &[String]) -> PolicyDecision {
         "push" => ask("git push writes to remote — needs confirmation"),
         _ => ask("unknown or unlisted git subcommand — needs confirmation"),
     }
-}
-
-/// Whether a `gh api` / `glab api` call only reads: a REST call whose method is
-/// GET or HEAD (GET unless `-X` says otherwise or a body field makes it POST),
-/// or a GraphQL call whose `query` fields hold no mutation. Fail-closed: a body
-/// read from a file or stdin, a method override header, an unknown flag or a
-/// second endpoint makes it not a read.
-fn api_call_is_read(argv: &[String]) -> bool {
-    let Some(start) = argv.iter().position(|a| a.eq_ignore_ascii_case("api")) else {
-        return false;
-    };
-    let rest = &argv[start + 1..];
-    let mut endpoint: Option<&str> = None;
-    let mut method: Option<String> = None;
-    let mut fields: Vec<&str> = Vec::new();
-    let mut i = 0;
-    while i < rest.len() {
-        let token = rest[i].as_str();
-        i += 1;
-        if !token.starts_with('-') {
-            if endpoint.replace(token).is_some() {
-                return false;
-            }
-            continue;
-        }
-        // `--flag=value`, `-Xvalue` or `--flag value`.
-        let (flag, attached) = match token.split_once('=') {
-            Some((f, v)) if token.starts_with("--") => (f, Some(v)),
-            _ if !token.starts_with("--") && token.len() > 2 && token.is_char_boundary(2) => {
-                (&token[..2], Some(&token[2..]))
-            }
-            _ => (token, None),
-        };
-        match flag {
-            "--paginate" | "--slurp" | "-i" | "--include" | "--silent" | "--verbose" => continue,
-            "-X" | "--method" | "-f" | "--raw-field" | "-F" | "--field" | "-H" | "--header" | "-q" | "--jq"
-            | "-t" | "--template" | "--hostname" | "--cache" | "-p" | "--preview" => {}
-            _ => return false,
-        }
-        let value = match attached {
-            Some(v) => v,
-            None if i < rest.len() => {
-                i += 1;
-                rest[i - 1].as_str()
-            }
-            None => return false,
-        };
-        match flag {
-            "-X" | "--method" => method = Some(value.to_ascii_uppercase()),
-            "-F" | "--field" if value.split_once('=').is_some_and(|(_, v)| v.starts_with('@')) => return false,
-            "-f" | "--raw-field" | "-F" | "--field" => fields.push(value),
-            "-H" | "--header" if value.to_ascii_lowercase().contains("method-override") => return false,
-            _ => {}
-        }
-    }
-    let Some(endpoint) = endpoint else { return false };
-    if endpoint.trim_start_matches('/').eq_ignore_ascii_case("graphql") {
-        let queries: Vec<&str> = fields.iter().filter_map(|f| f.strip_prefix("query=")).collect();
-        return matches!(method.as_deref(), None | Some("POST"))
-            && !queries.is_empty()
-            && queries.iter().all(|q| !q.to_ascii_lowercase().contains("mutation"));
-    }
-    let method = method.unwrap_or_else(|| if fields.is_empty() { "GET" } else { "POST" }.to_string());
-    method == "GET" || method == "HEAD"
 }
 
 /// gh / glab share the same (group, action) shape. `is_glab` only tweaks a few
@@ -227,14 +165,14 @@ fn evaluate_gh_like(argv: &[String], is_glab: bool) -> PolicyDecision {
     }
 
     // A REST GET or a GraphQL query through `api` reads like `pr view` does.
-    if group == "api" && api_call_is_read(argv) {
+    if group == "api" && api_call::is_read(argv) {
         return PolicyDecision::Allow;
     }
 
     // ---- 3. ASK LIST (write ops + api/graphql backdoors) ----
     // Any other api / graphql call is a universal backdoor → Ask.
     if group == "api" || group == "graphql" {
-        return ask("api/graphql is an unrestricted backdoor — needs confirmation");
+        return ask(&api_call::ask_reason(argv));
     }
     let write_group = if is_glab {
         matches!(group, "mr" | "issue" | "release" | "repo" | "project")
