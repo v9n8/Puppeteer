@@ -96,6 +96,10 @@ mod follow_global_tests;
 mod run_title_auto_tests;
 
 #[cfg(test)]
+#[path = "db_mcp_sources_tests.rs"]
+mod mcp_sources_tests;
+
+#[cfg(test)]
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::Row;

@@ -99,6 +99,8 @@ struct Bundle {
     #[serde(default)]
     mcp_servers: Vec<McpServer>,
     #[serde(default)]
+    mcp_sources: Vec<crate::commands::mcp_sources::McpSourceEntry>,
+    #[serde(default)]
     vps_servers: Vec<VpsEntry>,
     #[serde(default)]
     github_accounts: Vec<GithubEntry>,
@@ -1332,6 +1334,7 @@ async fn collect(
         agents,
         commands,
         mcp_servers,
+        mcp_sources: crate::commands::mcp_sources::collect(db).await?,
         vps_servers: vps_entries,
         github_accounts,
         gitlab_accounts,
@@ -1968,6 +1971,7 @@ async fn apply_bundle(
             mcp::import_backup_mcp(db, &server.id, server, secret.mcp.get(&server.id)).await;
         report.record_noted("mcpServers", &server.name, result);
     }
+    crate::commands::mcp_sources::import(db, &bundle.mcp_sources, &mut report).await;
     for entry in &bundle.vps_servers {
         let result = import_vps(&app, db, entry, secret.servers.get(&entry.id)).await;
         report.record("vpsServers", &entry.label, result);
@@ -2166,6 +2170,7 @@ fn remap_bundle_paths(bundle: &mut Bundle, local_home: Option<&str>) {
     for project in refs {
         remap(&mut project.path);
     }
+    bundle.mcp_sources.iter_mut().filter_map(|e| e.source.reference.as_mut()).for_each(remap);
 }
 
 /// Record a skill/rule upsert, surfacing per-project sync failures as warnings.
@@ -4558,6 +4563,7 @@ mod tests {
             agents: vec![],
             commands: vec![],
             mcp_servers: vec![],
+            mcp_sources: vec![],
             vps_servers: vec![],
             github_accounts: vec![],
             gitlab_accounts: vec![],

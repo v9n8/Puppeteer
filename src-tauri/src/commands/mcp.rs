@@ -687,7 +687,7 @@ pub(crate) async fn import_backup_mcp(
     use crate::commands::settings_backup::Upsert;
     use sqlx::Row;
     validate_name(&server.name)?;
-    if !matches!(server.transport.as_str(), "stdio" | "http" | "sse") {
+    if !matches!(server.transport.as_str(), "stdio" | "http" | "sse" | "claudeai") {
         return Err(format!("MCP server '{}': unknown transport", server.name));
     }
     let (command, url) =

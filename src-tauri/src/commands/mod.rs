@@ -31,6 +31,7 @@ pub mod mcp;
 pub mod mcp_effective;
 pub mod mcp_packages;
 pub mod mcp_setup;
+pub mod mcp_sources;
 pub mod memory;
 pub mod models;
 pub mod notes;
