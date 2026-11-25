@@ -90,28 +90,12 @@ fn only_reads(tool: &str, argv: &[String]) -> bool {
             if interleaved {
                 return false;
             }
-            match path.last().map(String::as_str) {
-                Some("list" | "show") => true,
-                Some("rest") if path.len() == 1 => az_rest_is_get(argv),
-                _ => false,
-            }
+            // `az rest` is left out even for GET: a URL can read a secret
+            // (a Key Vault secret value) and its digits are masked away.
+            matches!(path.last().map(String::as_str), Some("list" | "show"))
         }
         _ => false,
     }
-}
-
-/// `az rest` with an explicit GET method, and no other method given.
-fn az_rest_is_get(argv: &[String]) -> bool {
-    let mut methods = Vec::new();
-    let mut it = argv.iter();
-    while let Some(a) = it.next() {
-        if a == "--method" || a == "-m" {
-            methods.push(it.next().map(String::as_str).unwrap_or(""));
-        } else if let Some(v) = a.strip_prefix("--method=") {
-            methods.push(v);
-        }
-    }
-    !methods.is_empty() && methods.iter().all(|m| m.eq_ignore_ascii_case("get"))
 }
 
 /// Every run of ASCII digits becomes one `#`.
@@ -222,9 +206,15 @@ mod tests {
         assert!(key("gh", &argv(&["pr", "checks", "12"]), AS_ME).is_some());
         let az = "Azure write or unlisted az command — needs confirmation";
         assert!(key_for("az", &argv(&["vm", "list", "-g", "rg"]), az).is_some());
+    }
+
+    #[test]
+    fn az_rest_is_never_eligible_even_for_get() {
         let rest = "`az rest` is an unrestricted backdoor — needs confirmation";
-        assert!(key_for("az", &argv(&["rest", "--method", "GET", "--url", "u"]), rest).is_some());
-        assert!(key_for("az", &argv(&["rest", "-m", "get", "--url", "u"]), rest).is_some());
+        let vault = "https://kv1.vault.azure.net/secrets/db-pass-1?api-version=7.4";
+        assert_eq!(key_for("az", &argv(&["rest", "--method", "get", "--url", vault]), rest), None);
+        assert_eq!(key_for("az", &argv(&["rest", "--method", "GET", "--url", "u"]), rest), None);
+        assert_eq!(key_for("az", &argv(&["rest", "-m", "get", "--url", "u"]), rest), None);
     }
 
     #[test]
