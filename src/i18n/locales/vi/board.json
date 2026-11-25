@@ -53,14 +53,22 @@
     "mouse": "Đang kéo “{name}” · thả vào một cột để đổi flag; thả vào Không flag để bỏ flag.",
     "keys": "Bàn phím: Space nhấc thẻ · ← → chọn cột · Space thả · Esc huỷ.",
     "lifted": "Đã nhấc “{name}” · cột: {column}. ← → chọn cột, Space để thả, Esc để huỷ.",
-    "idle": "Tab hoặc ↑ ↓ chọn thẻ · Enter mở · Space nhấc thẻ sang cột khác.",
-    "blocked": "Đang kéo “{name}” · {reason}"
+    "idle": "Tab hoặc ↑ ↓ chọn thẻ · Enter mở · Space nhấc thẻ sang cột khác · Kéo ở chỗ trống: khoanh chọn.",
+    "blocked": "Đang kéo “{name}” · {reason}",
+    "group": "Đang kéo {n} Session · thả vào một cột để đổi flag",
+    "groupPartial": "· {k}/{n} không thả được, sẽ ở lại cột cũ",
+    "marked": "Đã chọn {n} Session · kéo một thẻ đã chọn để chuyển cả nhóm · Esc bỏ chọn"
   },
   "toast": {
     "set": "Đã gắn flag “{flag}” cho “{name}”",
     "removed": "Đã bỏ flag của “{name}”",
     "undo": "Hoàn tác",
-    "undone": "Đã đưa “{name}” về chỗ cũ"
+    "undone": "Đã đưa “{name}” về chỗ cũ",
+    "setMany": "Đã gắn flag “{flag}” cho {n} Session",
+    "removedMany": "Đã bỏ flag của {n} Session",
+    "undoneMany": "Đã đưa {n} Session về chỗ cũ",
+    "blockedMany": "{n} Session không thả được vào “{column}”, vẫn ở cột cũ: {names}. {reason}",
+    "failedMany": "Không lưu được flag của {n} Session: {error}"
   },
   "empty": {
     "title": "Chưa có cột nào được chọn",

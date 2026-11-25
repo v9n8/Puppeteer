@@ -79,7 +79,7 @@ test('UR-11: the Contents button leaves the toolbar; closed it sits above the ma
 test('UR-26: a dragged board card is drawn under the pointer, offset by where it was grabbed', () => {
   const drag = read('../../components/board/useBoardDrag.ts')
   assert.match(drag, /grabX: rect \? e\.clientX - rect\.left : 0/)
-  assert.match(drag, /drag\.value = \{ run, x: e\.clientX, y: e\.clientY, over: null, grabX, grabY, width \}/)
+  assert.match(drag, /drag\.value = \{ runs: options\.group\(run\), run, x: e\.clientX, y: e\.clientY, over: null, grabX, grabY, width \}/)
   const view = read('../../views/BoardView.vue')
   assert.match(view, /translate: `\$\{drag\.x - drag\.grabX\}px \$\{drag\.y - drag\.grabY\}px`/)
   assert.match(view, /class="pointer-events-none fixed/)

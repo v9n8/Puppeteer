@@ -3,8 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  boardColumns, canDrop, cardStatus, cardTitle, dropFlagId, filterCards, groupCards, moveSelection, resolveBoardProject,
-  NO_FLAG_COLUMN,
+  boardColumns, canDrop, cardStatus, cardTitle, dropFlagId, filterCards, groupCards, listSpan, moveSelection, planGroupDrop,
+  resolveBoardProject, NO_FLAG_COLUMN,
 } from '../flagBoard.ts'
 
 const flag = (id, extra = {}) => ({
@@ -118,4 +118,70 @@ test('card status: a pending question wins, a fresh session is a draft', () => {
   assert.equal(cardStatus({ status: 'fetched', run_type: 'session' }, false), 'draft')
   assert.equal(cardStatus({ status: 'failed', run_type: 'session' }, false), 'failed')
   assert.equal(cardStatus({ status: 'running', run_type: 'session' }, false), 'running')
+})
+
+const allCols = boardColumns(flags, 'all')
+const allCol = (id) => allCols.find((c) => c.id === id)
+const split = (plan) => ({ move: plan.move.map((c) => c.id), blocked: plan.blocked.map((c) => c.id), already: plan.already.map((c) => c.id) })
+
+test('planGroupDrop on a shared flag: others move, the ones there are skipped, a Project that hides it is refused', () => {
+  const cards = [
+    { id: '1', project_id: 'p2', flag_id: 'c' },
+    { id: '2', project_id: 'p2', flag_id: 'a' },
+    { id: '3', project_id: 'p1', flag_id: null },
+  ]
+  const plan = planGroupDrop(cards, allCol('a'), [{ project_id: 'p1', flag_id: 'a' }])
+  assert.deepEqual(split(plan), { move: ['1'], blocked: ['3'], already: ['2'] })
+})
+
+test('planGroupDrop on a Project\'s own flag: only that Project\'s cards move', () => {
+  const cards = [
+    { id: '1', project_id: 'p1', flag_id: 'a' },
+    { id: '2', project_id: 'p2', flag_id: 'a' },
+    { id: '3', project_id: 'p1', flag_id: 'mine' },
+  ]
+  assert.deepEqual(split(planGroupDrop(cards, allCol('mine'), [])), { move: ['1'], blocked: ['2'], already: ['3'] })
+})
+
+test('planGroupDrop on No flag: flagged cards move, a card with no flag (null or missing) is already there', () => {
+  const cards = [
+    { id: '1', project_id: 'p1', flag_id: 'mine' },
+    { id: '2', project_id: 'p2', flag_id: null },
+    { id: '3', project_id: 'p2' },
+    { id: '4', project_id: 'p2', flag_id: 'b' },
+  ]
+  assert.deepEqual(split(planGroupDrop(cards, allCol(NO_FLAG_COLUMN), [{ project_id: 'p2', flag_id: 'b' }])), {
+    move: ['1', '4'], blocked: [], already: ['2', '3'],
+  })
+})
+
+test('planGroupDrop keeps the order it was given inside each list', () => {
+  const cards = [
+    { id: '5', project_id: 'p2', flag_id: 'a' },
+    { id: '4', project_id: 'p1', flag_id: null },
+    { id: '3', project_id: 'p2', flag_id: 'mine' },
+    { id: '2', project_id: 'p1', flag_id: 'a' },
+    { id: '1', project_id: 'p1', flag_id: 'mine' },
+  ]
+  assert.deepEqual(split(planGroupDrop(cards, allCol('mine'), [])), { move: ['4', '2'], blocked: ['5'], already: ['3', '1'] })
+})
+
+const band = { top: 100, bottom: 500 }
+
+test('listSpan: a box inside the list covers the part between press and pointer, whichever way it goes', () => {
+  assert.deepEqual(listSpan(150, 300, band, 0, 0), { top: 50, bottom: 200 })
+  assert.deepEqual(listSpan(300, 150, band, 0, 0), { top: 50, bottom: 200 })
+})
+
+test('listSpan: a press on the header of a scrolled list starts at the visible top, not at the cards above it', () => {
+  assert.deepEqual(listSpan(40, 200, band, 120, 120), { top: 120, bottom: 220 })
+})
+
+test('listSpan: the list scrolling under the box keeps the press end and grows the span', () => {
+  assert.deepEqual(listSpan(150, 520, band, 0, 80), { top: 50, bottom: band.bottom - band.top + 80 })
+})
+
+test('listSpan: a box wholly above or below the list covers none of it', () => {
+  assert.equal(listSpan(20, 80, band, 0, 0), null)
+  assert.equal(listSpan(600, 700, band, 30, 30), null)
 })

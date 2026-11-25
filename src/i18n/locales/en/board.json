@@ -53,14 +53,22 @@
     "mouse": "Dragging “{name}” · drop on a column to change its flag; drop on No flag to remove the flag.",
     "keys": "Keyboard: Space lifts a card · ← → choose a column · Space drops · Esc cancels.",
     "lifted": "Lifted “{name}” · column: {column}. ← → choose a column, Space to drop, Esc to cancel.",
-    "idle": "Tab or ↑ ↓ choose a card · Enter opens it · Space lifts it to another column.",
-    "blocked": "Dragging “{name}” · {reason}"
+    "idle": "Tab or ↑ ↓ choose a card · Enter opens it · Space lifts it to another column · Drag on empty space: box select.",
+    "blocked": "Dragging “{name}” · {reason}",
+    "group": "Dragging {n} Sessions · drop on a column to change their flag",
+    "groupPartial": "· {k}/{n} can't be dropped here and stay in their column",
+    "marked": "{n} Sessions selected · drag a selected card to move them all · Esc clears the selection"
   },
   "toast": {
     "set": "Set flag “{flag}” for “{name}”",
     "removed": "Removed the flag from “{name}”",
     "undo": "Undo",
-    "undone": "Put “{name}” back"
+    "undone": "Put “{name}” back",
+    "setMany": "Set flag “{flag}” for {n} Sessions",
+    "removedMany": "Removed the flag from {n} Sessions",
+    "undoneMany": "Put {n} Sessions back",
+    "blockedMany": "{n} Sessions can't be dropped on “{column}” and stay in their column: {names}. {reason}",
+    "failedMany": "Could not save the flag of {n} Sessions: {error}"
   },
   "empty": {
     "title": "No column selected",

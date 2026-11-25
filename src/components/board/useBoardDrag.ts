@@ -4,6 +4,9 @@
 // from `data-board-column`, and the board scrolls sideways near its edges. The
 // card's size and where it was grabbed are kept so a copy can follow the pointer
 // (BoardView draws it; the card itself stays put, faded, to mark where it came from).
+// A marked card takes every marked card along (BoardView picks the group). Every
+// release over a column is reported: the caller decides which cards may land there,
+// since a group can hold cards that may and cards that may not.
 import { onBeforeUnmount, ref, type Ref } from 'vue'
 import type { BoardRun } from '@/stores/flagBoard'
 
@@ -12,6 +15,9 @@ const EDGE = 56
 const SCROLL_STEP = 16
 
 export interface BoardDragState {
+  /** The cards dragged, in display order: the pressed card alone, or every marked card when it is one of them. */
+  runs: BoardRun[]
+  /** The pressed card, the one drawn under the pointer. */
   run: BoardRun
   x: number
   y: number
@@ -25,12 +31,10 @@ export interface BoardDragState {
 
 export function useBoardDrag(options: {
   board: Ref<HTMLElement | null>
-  /** Called on release over a column (other than the card's own). */
-  onDrop: (run: BoardRun, columnId: string) => void
-  /** Whether `run` may land on the column; false shows the "no drop" state. */
-  canLand: (run: BoardRun, columnId: string) => boolean
-  /** The column the card sits in now. */
-  columnOf: (run: BoardRun) => string
+  /** The cards that travel with `run` (itself included), asked once the press becomes a drag. */
+  group: (run: BoardRun) => BoardRun[]
+  /** Called on release over a column, whichever it is. */
+  onDrop: (runs: BoardRun[], columnId: string) => void
 }) {
   const drag = ref<BoardDragState | null>(null)
   let press: { run: BoardRun; x: number; y: number; grabX: number; grabY: number; width: number } | null = null
@@ -67,7 +71,7 @@ export function useBoardDrag(options: {
     if (!drag.value) {
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < THRESHOLD) return
       const { run, grabX, grabY, width } = press
-      drag.value = { run, x: e.clientX, y: e.clientY, over: null, grabX, grabY, width }
+      drag.value = { runs: options.group(run), run, x: e.clientX, y: e.clientY, over: null, grabX, grabY, width }
       raf = requestAnimationFrame(scrollNearEdge)
     }
     drag.value.x = e.clientX
@@ -81,7 +85,7 @@ export function useBoardDrag(options: {
       swallowClick = true
       setTimeout(() => { swallowClick = false })
       const target = columnAt(e.clientX, e.clientY)
-      if (target && target !== options.columnOf(d.run) && options.canLand(d.run, target)) options.onDrop(d.run, target)
+      if (target) options.onDrop(d.runs, target)
     }
     stop()
   }

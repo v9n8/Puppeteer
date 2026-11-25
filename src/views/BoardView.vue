@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // Board Session (V3-22): one column per flag, a card per Session; dragging a card to
 // another column sets its flag (the same `set_run_flag` as the menus). One Project
-// or all of them. The data and the drop live in stores/flagBoard; this file is the
-// layout, the keyboard and the status line.
+// or all of them; a box on empty space marks cards that then drag as a group. The data
+// lives in stores/flagBoard, the marks and the drop in components/board; this file is
+// the layout, the keyboard and the status line.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -13,6 +14,8 @@ import BoardColumn from '@/components/board/BoardColumn.vue'
 import BoardCard from '@/components/board/BoardCard.vue'
 import BoardFilterPopover from '@/components/board/BoardFilterPopover.vue'
 import { useBoardDrag } from '@/components/board/useBoardDrag'
+import { useBoardMarks } from '@/components/board/useBoardMarks'
+import { useBoardGroupDrop } from '@/components/board/useBoardGroupDrop'
 import { useBoardRunActions } from '@/components/board/useBoardRunActions'
 import { useBoardFilter } from '@/components/board/useBoardFilter'
 import { useFlagTargets } from '@/components/sessions/useFlagTargets'
@@ -22,12 +25,10 @@ import { useProjectsStore } from '@/stores/projects'
 import { useSessionFlagsStore } from '@/stores/sessionFlags'
 import { useUILayoutStore } from '@/stores/uiLayout'
 import { useWorkspaceTabsStore } from '@/stores/workspaceTabs'
-import { useToast } from '@/composables/useToast'
 import { flagLabel } from '@/lib/sessionFlags'
 import { sessionNavTarget } from '@/lib/sidebarNav'
 import {
-  canDrop, cardTitle, dropFlagId, filterCards, groupCards, moveSelection, resolveBoardProject,
-  NO_FLAG_COLUMN, type BoardColumn as Column, type BoardKeyState,
+  canDrop, cardTitle, filterCards, groupCards, moveSelection, resolveBoardProject, type BoardColumn as Column, type BoardKeyState,
 } from '@/lib/flagBoard'
 import { hiddenCount } from '@/lib/boardFilter'
 
@@ -42,7 +43,6 @@ const projectStore = useProjectsStore()
 const workspaceTabs = useWorkspaceTabsStore()
 const live = useLiveRunsStore()
 const sessionFlags = useSessionFlagsStore()
-const { toast } = useToast()
 const { canManage, canOpenProjectFlags, openManage, openProjectFlags } = useFlagTargets()
 
 // ---- Which Project -----------------------------------------------------------------
@@ -78,10 +78,6 @@ function columnLabel(c: Column): string {
 
 const grouped = computed(() => groupCards(board.data?.runs ?? [], columns.value))
 const shown = computed(() => filterCards(grouped.value, query.value, (r) => cardTitle(r, t)))
-const columnOfRun = (run: BoardRun): string => {
-  for (const [id, cards] of grouped.value) if (cards.includes(run)) return id
-  return NO_FLAG_COLUMN
-}
 
 // "No flag" starts folded on the All projects board; the user's choice is kept per machine.
 const noFlagCollapsed = computed(() => ui.boardNoFlagCollapsed ?? mode.value === 'all')
@@ -114,66 +110,53 @@ function applyRouteProject() {
 }
 watch(() => route.query.project, applyRouteProject)
 
-// ---- Drop ---------------------------------------------------------------------------
-
-async function dropCard(run: BoardRun, columnId: string) {
-  const column = columns.value.find((c) => c.id === columnId)
-  if (!column || !canDrop(run, column, hidden.value)) return
-  const flagId = dropFlagId(column)
-  if ((run.flag_id ?? null) === flagId) return
-  const name = cardTitle(run, t)
-  try {
-    const before = await board.setFlag(run, flagId)
-    const message = column.flag
-      ? t('board.toast.set', { flag: columnLabel(column), name })
-      : t('board.toast.removed', { name })
-    toast.success(message, 6000, { label: t('board.toast.undo'), run: () => void undo(run, before, name) })
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
-
-async function undo(run: BoardRun, before: string | null, name: string) {
-  try {
-    await board.setFlag(run, before)
-    toast.success(t('board.toast.undone', { name }))
-  } catch (e) {
-    toast.error(String(e))
-  }
-}
+// ---- Drop and marks -----------------------------------------------------------------
 
 const boardEl = ref<HTMLElement | null>(null)
+/** The cards on screen in display order: columns left to right, cards top to bottom; a folded "No flag" shows none. */
+const visibleCards = computed(() => columns.value.filter((c) => !isCollapsed(c)).flatMap((c) => shown.value.get(c.id)?.cards ?? []))
+const { marks, box, onPointerDown: onBoardPointerDown, groupOf } = useBoardMarks({
+  scroller: boardEl,
+  visible: visibleCards,
+  choice,
+  busy: () => !!drag.value || !!keys.value.lifted || filterOpen.value,
+  menuOpen: () => !!menu.value,
+})
+const { overPlan, blockReasonFor, dropGroup } = useBoardGroupDrop({ columns, hidden, drag: () => drag.value, columnLabel, projectNameOf })
+
 const { drag, onCardPointerDown, consumeClick } = useBoardDrag({
   board: boardEl,
-  onDrop: (run, id) => void dropCard(run, id),
-  canLand: (run, id) => {
-    const column = columns.value.find((c) => c.id === id)
-    return !!column && canDrop(run, column, hidden.value)
+  group: groupOf,
+  onDrop: (runs, id) => {
+    // A group released on a column is done with, whatever could land there.
+    if (runs.some((r) => marks.value.has(r.id))) marks.value = new Set()
+    void dropGroup(runs, id)
   },
-  columnOf: columnOfRun,
 })
+const draggedIds = computed(() => new Set(drag.value?.runs.map((r) => r.id) ?? []))
 
-/** How the dragged / lifted card sees a column. */
+/** How the dragged / lifted card sees a column; a group shows "target" while one of its cards can land. */
 function dropState(c: Column): 'idle' | 'target' | 'blocked' {
   const lifted = keys.value.lifted
   if (lifted) {
     const run = runById.value.get(lifted.runId)
     return run && lifted.target === c.id && lifted.target !== lifted.from ? (canDrop(run, c, hidden.value) ? 'target' : 'blocked') : 'idle'
   }
-  const d = drag.value
-  if (!d || d.over !== c.id || c.id === columnOfRun(d.run)) return 'idle'
-  return canDrop(d.run, c, hidden.value) ? 'target' : 'blocked'
+  const plan = overPlan.value
+  if (!plan || drag.value?.over !== c.id) return 'idle'
+  return plan.move.length ? 'target' : plan.blocked.length ? 'blocked' : 'idle'
 }
 
+/** The lifted card's reason, or for a drag the first refused card's. */
 function blockedReason(c: Column): string {
-  const run = drag.value?.run ?? (keys.value.lifted ? runById.value.get(keys.value.lifted.runId) : undefined)
-  const owner = c.flag?.project_id
-  if (owner) return t('board.column.ownOther', { project: projectNameOf(owner) })
-  return run ? t('board.column.blocked', { project: run.project_name }) : ''
+  const lifted = keys.value.lifted ? runById.value.get(keys.value.lifted.runId) : undefined
+  if (lifted) return blockReasonFor(lifted, c)
+  const first = drag.value?.over === c.id ? overPlan.value?.blocked[0] : undefined
+  return first ? blockReasonFor(first, c) : ''
 }
 
 function cardState(run: BoardRun): 'idle' | 'lifted' | 'dragging' {
-  if (drag.value?.run.id === run.id) return 'dragging'
+  if (draggedIds.value.has(run.id)) return 'dragging'
   return keys.value.lifted?.runId === run.id ? 'lifted' : 'idle'
 }
 
@@ -201,7 +184,7 @@ function onBoardKeydown(ev: KeyboardEvent) {
   const moved = state.cursor !== cursor
   keys.value = state
   if (effect?.kind === 'open') openSession(run)
-  else if (effect?.kind === 'drop') void dropCard(run, effect.columnId)
+  else if (effect?.kind === 'drop') void dropGroup([run], effect.columnId)
   if (moved && state.cursor) {
     // The card the cursor moved to takes the focus once the DOM is current.
     const id = state.cursor
@@ -232,6 +215,11 @@ const statusLine = computed(() => {
     return run && column ? t('board.drag.lifted', { name: cardTitle(run, t), column: columnLabel(column) }) : ''
   }
   const d = drag.value
+  if (d && d.runs.length > 1) {
+    const group = t('board.drag.group', { n: d.runs.length })
+    const k = overPlan.value?.blocked.length ?? 0
+    return k ? `${group} ${t('board.drag.groupPartial', { k, n: d.runs.length })}` : group
+  }
   if (d) {
     const over = d.over ? columns.value.find((c) => c.id === d.over) : undefined
     const name = cardTitle(d.run, t)
@@ -239,7 +227,8 @@ const statusLine = computed(() => {
     return `${t('board.drag.mouse', { name })} ${t('board.drag.keys')}`
   }
   const n = board.data ? hiddenCount(board.data.runs, columns.value) : 0
-  return n ? `${t('board.filter.hidden', { n })} · ${t('board.drag.idle')}` : t('board.drag.idle')
+  const base = marks.value.size ? t('board.drag.marked', { n: marks.value.size }) : t('board.drag.idle')
+  return n ? `${t('board.filter.hidden', { n })} · ${base}` : base
 })
 
 const manageTarget = computed(() => (mode.value === 'all' ? (canManage ? 'shared' : null) : canOpenProjectFlags ? 'project' : null))
@@ -335,8 +324,9 @@ function manageFlags() {
     <!-- The board scrolls sideways; every column scrolls its cards by itself. -->
     <div
       ref="boardEl"
-      class="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4 pt-3"
-      :class="{ 'select-none': drag }"
+      class="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4 pt-3"
+      :class="{ 'select-none': drag || box }"
+      @pointerdown="onBoardPointerDown"
       @keydown="onBoardKeydown"
       @focusout="onBoardFocusOut"
     >
@@ -364,6 +354,7 @@ function manageFlags() {
               :saving="board.saving.has(card.id)"
               :show-project="mode === 'all'"
               :state="cardState(card)"
+              :marked="marks.has(card.id)"
               @press="onCardPointerDown($event, card)"
               @menu="(x, y) => openMenu(card, x, y)"
               @open="onCardClick(card)"
@@ -390,6 +381,14 @@ function manageFlags() {
           </template>
         </div>
       </div>
+      <!-- The selection box, over the columns. -->
+      <div
+        v-if="box"
+        data-board-box
+        class="pointer-events-none absolute z-[1] rounded-sm border border-primary bg-primary/10"
+        :style="{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.right - box.left}px`, height: `${box.bottom - box.top}px` }"
+        aria-hidden="true"
+      />
     </div>
 
     <!-- The card being dragged, following the pointer from where it was grabbed. -->
@@ -407,6 +406,11 @@ function manageFlags() {
           :show-project="mode === 'all'"
           state="lifted"
         />
+        <!-- A group: how many cards travel with it. -->
+        <span
+          v-if="drag.runs.length > 1"
+          class="absolute -right-2 -top-2 rounded-full bg-primary px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary-foreground shadow"
+        >×{{ drag.runs.length }}</span>
       </div>
     </Teleport>
 

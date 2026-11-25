@@ -219,3 +219,52 @@ export function resolveBoardProject(saved: string | null, projectIds: readonly s
 export function dropFlagId(column: BoardColumn): string | null {
   return column.kind === 'flag' && column.flag ? column.flag.id : null
 }
+
+// ---- Group drop and box select -----------------------------------------------------
+
+export interface GroupDropPlan<C> {
+  /** Cards that take the column's flag. */
+  move: C[]
+  /** Cards the drop rule refuses: they stay in their column. */
+  blocked: C[]
+  /** Cards already in the column: nothing to do. */
+  already: C[]
+}
+
+/** Splits the dragged cards for one column: those that change flag, those the drop rule refuses, those already there. */
+export function planGroupDrop<C extends { project_id: string; flag_id?: string | null }>(
+  cards: readonly C[],
+  column: BoardColumn,
+  hidden: readonly HiddenMark[],
+): GroupDropPlan<C> {
+  const plan: GroupDropPlan<C> = { move: [], blocked: [], already: [] }
+  const target = dropFlagId(column)
+  for (const card of cards) {
+    if ((card.flag_id ?? null) === target) plan.already.push(card)
+    else if (!canDrop(card, column, hidden)) plan.blocked.push(card)
+    else plan.move.push(card)
+  }
+  return plan
+}
+
+/**
+ * The part of one column's card list a selection box covers, in the list's content
+ * coordinates (0 = top of its scrolled content). The press end stays where it was in
+ * the content at the press (clamped to the list's band then), so cards the box went
+ * over stay covered when the list scrolls; the pointer end is clamped to the band now,
+ * so a card scrolled out of sight is not newly hit. Null when the box (client y, press
+ * → pointer) does not reach the band.
+ */
+export function listSpan(
+  pressY: number,
+  pointerY: number,
+  band: { top: number; bottom: number },
+  scrollAtPress: number,
+  scrollNow: number,
+): { top: number; bottom: number } | null {
+  if (Math.max(pressY, pointerY) < band.top || Math.min(pressY, pointerY) > band.bottom) return null
+  const clamp = (y: number) => Math.min(Math.max(y, band.top), band.bottom) - band.top
+  const a = clamp(pressY) + scrollAtPress
+  const b = clamp(pointerY) + scrollNow
+  return { top: Math.min(a, b), bottom: Math.max(a, b) }
+}

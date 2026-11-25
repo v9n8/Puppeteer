@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // One Session on the board: status dot, name (two lines at most), when it was last
 // worked on and how many workers it has. Pressing it opens the Session; dragging it
-// to another column changes its flag (BoardView owns both).
+// to another column changes its flag (BoardView owns both). A box drawn on the board
+// can mark it, so it travels with the other marked cards.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Clock, Loader2, Network, Pin } from 'lucide-vue-next'
@@ -21,6 +22,8 @@ const props = defineProps<{
   showProject: boolean
   /** Lifted with the keyboard, or being dragged: drawn raised / faded. */
   state: 'idle' | 'lifted' | 'dragging'
+  /** Selected by the box: drawn with a primary border and tint. */
+  marked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -64,9 +67,12 @@ function onKeydown(ev: KeyboardEvent) {
   <button
     type="button"
     :data-card-id="run.id"
-    class="flex min-h-[2.75rem] w-full cursor-pointer flex-col gap-1.5 rounded-md border bg-card px-2.5 py-2 text-left transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    :data-marked="marked || undefined"
+    class="flex min-h-[2.75rem] w-full cursor-pointer flex-col gap-1.5 rounded-md border px-2.5 py-2 text-left transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     :class="[
-      state === 'lifted' ? 'border-primary shadow-md ring-2 ring-primary/40' : 'border-border',
+      state === 'lifted' ? 'border-primary shadow-md ring-2 ring-primary/40' : marked ? 'border-primary ring-1 ring-primary/40' : 'border-border',
+      // One background at a time, so the tint does not hang on the order of two bg-* rules.
+      marked && state !== 'lifted' ? 'bg-primary/5' : 'bg-card',
       state === 'dragging' ? 'opacity-40' : '',
     ]"
     :title="t('board.card.open')"
