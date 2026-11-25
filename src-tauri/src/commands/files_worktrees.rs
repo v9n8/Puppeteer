@@ -7,9 +7,11 @@
 //!
 //! Read from git's own metadata files rather than a `git` process: `.git` (a
 //! folder, or a `gitdir:` file in a linked tree), `commondir` and
-//! `worktrees/<name>/gitdir`. A linked tree counts only while its `.git` file
-//! points back at the entry that lists it — the link `git worktree prune`
-//! checks — so a stale entry or a folder recreated in its place adds nothing.
+//! `worktrees/<name>/gitdir`. Every tree must be linked both ways: a linked
+//! tree only while its `.git` file points back at the entry that lists it (the
+//! link `git worktree prune` checks), the main tree only while its `.git` is
+//! the repository's own folder. So a stale entry, a folder recreated in its
+//! place, or a `.git` file naming another repository adds nothing.
 
 use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
@@ -40,14 +42,11 @@ fn list(root: &Path) -> Vec<PathBuf> {
     let Some(tree) = root.ancestors().find(|dir| dir.join(".git").exists()) else {
         return Vec::new();
     };
-    let Some(common) = common_dir(&tree.join(".git")) else {
+    let Some((common, main)) = repository(tree) else {
         return Vec::new();
     };
     let mut trees = vec![tree.to_path_buf()];
-    // The main working tree holds the common `.git`; a bare repository has none.
-    if common.file_name() == Some(".git".as_ref()) {
-        trees.extend(common.parent().map(Path::to_path_buf));
-    }
+    trees.extend(main);
     if let Ok(entries) = std::fs::read_dir(common.join("worktrees")) {
         trees.extend(entries.flatten().filter_map(|e| linked_tree(&e.path())));
     }
@@ -58,18 +57,33 @@ fn list(root: &Path) -> Vec<PathBuf> {
     trees
 }
 
-/// The repository's common git dir seen from a working tree's `.git`: the
-/// folder itself, or, for a `.git` file, the entry it names and that entry's
-/// `commondir`. A submodule's entry has no `commondir`: it is its own repository.
-fn common_dir(dot_git: &Path) -> Option<PathBuf> {
-    if dot_git.is_dir() {
-        return dot_git.canonicalize().ok();
+/// The common git dir of the repository the canonical `tree` belongs to, and
+/// its main working tree (none for a bare repository), when `tree`'s `.git`
+/// proves it: a real `.git` folder (`tree` is then the main tree), or a `.git`
+/// file naming a `worktrees/<name>` entry that lists `tree` back. Anything else
+/// — a symlinked `.git`, a `.git` file naming another repository's git dir, a
+/// submodule — gives None.
+fn repository(tree: &Path) -> Option<(PathBuf, Option<PathBuf>)> {
+    let dot_git = tree.join(".git");
+    let meta = std::fs::symlink_metadata(&dot_git).ok()?;
+    if meta.is_dir() {
+        return Some((dot_git.canonicalize().ok()?, Some(tree.to_path_buf())));
     }
-    let entry = gitdir_of(dot_git)?;
-    match std::fs::read_to_string(entry.join("commondir")) {
-        Ok(rel) => entry.join(rel.trim()).canonicalize().ok(),
-        Err(_) => Some(entry),
+    if !meta.is_file() {
+        return None;
     }
+    let entry = gitdir_of(&dot_git)?;
+    if linked_tree(&entry)? != tree {
+        return None;
+    }
+    let rel = std::fs::read_to_string(entry.join("commondir")).ok()?;
+    let common = entry.join(rel.trim()).canonicalize().ok()?;
+    // The main tree's own `.git` must be that very folder (a bare repository has none).
+    let main = common.parent().filter(|m| {
+        let git = m.join(".git");
+        std::fs::symlink_metadata(&git).is_ok_and(|g| g.is_dir()) && git.canonicalize().is_ok_and(|g| g == common)
+    });
+    Some((common.clone(), main.map(Path::to_path_buf)))
 }
 
 /// The canonical folder a `.git` file's `gitdir: <path>` line names (a
@@ -169,6 +183,36 @@ mod tests {
         std::fs::create_dir_all(&forged).unwrap();
         std::fs::write(forged.join("gitdir"), format!("{}\n", base.join("other/.git").display())).unwrap();
         assert!(!WorkTrees::new(&repo).allows(&base.join("other/a.txt")));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A `.git` that doesn't belong both ways adds nothing: a file naming
+    /// another repository's git dir, one naming a real worktree entry that
+    /// lists another folder, and (unix) a symlink to another repository's `.git`.
+    #[test]
+    fn a_planted_dot_git_reaches_nothing() {
+        let base = fixture();
+        let other = base.join("other");
+        let planted = [
+            format!("gitdir: {}\n", other.join(".git").display()),
+            format!("gitdir: {}\n", base.join("repo/.git/worktrees/wt").display()),
+        ];
+        for (i, text) in planted.iter().enumerate() {
+            let proj = base.join(format!("proj{i}"));
+            std::fs::create_dir(&proj).unwrap();
+            std::fs::write(proj.join(".git"), text).unwrap();
+            assert!(list(&proj).is_empty(), "{text}");
+            assert!(!WorkTrees::new(&proj).allows(&other.join("a.txt")), "{text}");
+            assert!(!WorkTrees::new(&proj).allows(&base.join("repo/a.txt")), "{text}");
+        }
+        #[cfg(unix)]
+        {
+            let proj = base.join("linked");
+            std::fs::create_dir(&proj).unwrap();
+            std::os::unix::fs::symlink(other.join(".git"), proj.join(".git")).unwrap();
+            assert!(list(&proj).is_empty());
+            assert!(!WorkTrees::new(&proj).allows(&other.join("a.txt")));
+        }
         let _ = std::fs::remove_dir_all(&base);
     }
 
