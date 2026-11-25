@@ -140,7 +140,9 @@ function followedModelOff(next: ProjectSessionDefaults, lists: EnabledModels | n
 }
 
 async function save() {
-  if (!changeCount.value || busy.value) return
+  // Until the global settings load, neither Settings' list nor the global default
+  // model is known, so the moves and the warning would be guessed.
+  if (!changeCount.value || busy.value || !appSettings.settings) return
   const lists = draftLists()
   const moves = movesFor(lists)
   const globalModels = composerDefaults({ settings: appSettings.settings }).models

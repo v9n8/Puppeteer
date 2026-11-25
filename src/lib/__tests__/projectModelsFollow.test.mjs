@@ -34,6 +34,8 @@ test('Project › Model saves moves through the follow rule and warns in the con
   assert.match(src, /projectValueForPick\(m\.to, globalModels\[m\.engine\]\) \|\| null/)
   assert.doesNotMatch(src, /= m\.to \|\| null/)
   assert.match(src, /lines\.push\(t\('projectDetail\.model\.confirmFollowedOff', \{ model: followedOff \}\)\)/)
+  // Nothing is saved before the global settings (list and default model) are known.
+  assert.match(src, /if \(!changeCount\.value \|\| busy\.value \|\| !appSettings\.settings\) return/)
   // The dialog shows for a move or for the warning, before anything is written.
   assert.ok(src.indexOf('if (lines.length)') < src.indexOf('await projectStore.setSessionDefaults'))
   for (const lang of ['en', 'vi']) {
