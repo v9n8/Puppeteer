@@ -92,6 +92,10 @@ mod wal_tests;
 mod follow_global_tests;
 
 #[cfg(test)]
+#[path = "db_run_title_auto_tests.rs"]
+mod run_title_auto_tests;
+
+#[cfg(test)]
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::Row;

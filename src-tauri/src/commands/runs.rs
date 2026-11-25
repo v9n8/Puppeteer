@@ -486,7 +486,7 @@ pub(crate) async fn start_run_inner(
     // For a session, derive a sidebar title from the first message (once).
     if is_session {
         let title = super::sessions::truncate(&prompt, super::sessions::TITLE_MAX_CHARS);
-        let _ = sqlx::query("UPDATE runs SET title = ? WHERE id = ? AND title IS NULL")
+        let _ = sqlx::query("UPDATE runs SET title = ?, title_auto = 1 WHERE id = ? AND title IS NULL")
             .bind(title.as_str())
             .bind(&payload.run_id)
             .execute(db)
@@ -4255,7 +4255,7 @@ pub async fn rename_run(db: State<'_, Db>, run_id: String, title: String) -> Res
     } else {
         Some(trimmed)
     };
-    sqlx::query("UPDATE runs SET title = ? WHERE id = ?")
+    sqlx::query("UPDATE runs SET title = ?, title_auto = 0 WHERE id = ?")
         .bind(value)
         .bind(&run_id)
         .execute(db.inner())
