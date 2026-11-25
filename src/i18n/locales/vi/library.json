@@ -10,6 +10,7 @@
   "searchPlaceholder": "Tìm tên hoặc mô tả…",
   "emptyTitle": "Chưa có gì ở đây",
   "emptyHint": "Skill, rule, command, agent, hook và plugin mà CLI đọc ở chỗ này sẽ hiện ở đây.",
+  "emptyHintFiles": "Skill, rule, command và agent mà CLI đọc ở chỗ này sẽ hiện ở đây.",
   "noSelection": "Chọn một mục để xem file",
   "kind": {
     "skill": "Skills",

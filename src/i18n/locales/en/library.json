@@ -10,6 +10,7 @@
   "searchPlaceholder": "Search name or description…",
   "emptyTitle": "Nothing here yet",
   "emptyHint": "Skills, rules, commands, agents, hooks and plugins the CLIs read from this place show up here.",
+  "emptyHintFiles": "Skills, rules, commands and agents the CLIs read from this place show up here.",
   "noSelection": "Pick an item to see its file",
   "kind": {
     "skill": "Skills",

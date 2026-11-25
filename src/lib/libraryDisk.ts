@@ -28,8 +28,6 @@ export type FileItemKind = DiskItemKind | 'memory'
 export type LibraryItemKind = FileItemKind | ConfigItemKind
 /** Display order of the list's groups. */
 export const DISK_ITEM_KINDS: readonly DiskItemKind[] = ['skill', 'rule', 'command', 'agent']
-/** A project's tab: the four, then its Memory. */
-export const PROJECT_ITEM_KINDS: readonly LibraryItemKind[] = [...DISK_ITEM_KINDS, 'memory']
 
 /** `git_tracked`: an edit ends up in a commit. `puppeteer_link`: an edit changes every project using it. */
 export type DiskItemStatus = 'file' | 'git_tracked' | 'puppeteer_link' | 'symlink'

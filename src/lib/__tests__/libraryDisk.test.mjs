@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createTargets, validItemName, PROJECT_ITEM_KINDS, deletesLink, isLibraryConflict, isLibraryExists, kindGroups, libraryPlace, libraryQuery,
+  createTargets, validItemName, DISK_ITEM_KINDS, deletesLink, isLibraryConflict, isLibraryExists, kindGroups, libraryPlace, libraryQuery,
   materializeCounts, materializePaths, memoryItem, memoryKindOf,
 } from '../libraryDisk.ts'
 
@@ -37,7 +37,7 @@ test('kindGroups: a search keeps only the groups with a match, on name or descri
 
 test('kindGroups: a project\'s tab adds Memory after the four', () => {
   const memory = memoryItem('project_claude', '/p', { path: '/p/CLAUDE.md', link_target: null, exists: true, content: '', size: 0, hash: 'h', managed_blocks: [] })
-  const groups = kindGroups([...items, memory], '', String, PROJECT_ITEM_KINDS)
+  const groups = kindGroups([...items, memory], '', String, [...DISK_ITEM_KINDS, 'memory'])
   assert.deepEqual(groups.map((g) => [g.key, g.rows.length]), [
     ['skill', 3], ['rule', 0], ['command', 0], ['agent', 1], ['memory', 1],
   ])

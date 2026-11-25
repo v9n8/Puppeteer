@@ -2,8 +2,11 @@
 // Run: node --test src/lib/__tests__/libraryTabs.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DISK_ITEM_KINDS, PROJECT_ITEM_KINDS } from '../libraryDisk.ts'
-import { kindCounts, pickTab, projectListCollapsed, tabRows } from '../libraryTabs.ts'
+import { DISK_ITEM_KINDS } from '../libraryDisk.ts'
+import { kindCounts, libraryKinds, pickTab, projectListCollapsed, tabRows } from '../libraryTabs.ts'
+
+/** A project's file kinds and Memory, as the Library lists them in remote mode. */
+const PROJECT_ITEM_KINDS = libraryKinds('project', true)
 
 const item = (kind, name, engine = 'claude', description = '') => ({
   kind, name, engine, description, path: `/h/${engine}/${kind}/${name}`, status: 'file',

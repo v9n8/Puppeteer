@@ -455,7 +455,7 @@ const emptyTitle = computed(() => {
           :error="error"
           :empty-store="!loading && !error && (allEntries.length === 0 || rows.length === 0)"
           :empty-title="emptyTitle"
-          :empty-hint="allEntries.length === 0 && (activeProjectId || scope === 'global') ? t('library.emptyHint') : ''"
+          :empty-hint="allEntries.length === 0 && (activeProjectId || scope === 'global') ? t(remote ? 'library.emptyHintFiles' : 'library.emptyHint') : ''"
           :addable="canCreate"
           @select="selectItem"
           @retry="refresh"
