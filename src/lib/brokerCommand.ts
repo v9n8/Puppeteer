@@ -261,3 +261,16 @@ export function brokerTitle(r: BrokerRequest, t: Translate): string {
   const { key, params } = brokerAction(r)
   return clamp(t(`permission.impact.action.${key}`, params), TITLE_MAX)
 }
+
+/**
+ * Why the broker asks, in the app's language: each reason part translated and
+ * joined. Null when there are no parts or one has a code this build does not
+ * know, so the caller shows the backend's English text instead of half a sentence.
+ */
+export function brokerReasonText(r: BrokerRequest, t: Translate, has: (key: string) => boolean): string | null {
+  const parts = r.broker?.reason ?? []
+  if (!parts.length) return null
+  const keys = parts.map((p) => `permission.brokerReason.${p.code}`)
+  if (!keys.every((k) => has(k))) return null
+  return parts.map((p, i) => t(keys[i], p.params ?? {})).join(' · ')
+}

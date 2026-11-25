@@ -8,6 +8,7 @@ import {
   brokerAction,
   brokerArgv,
   brokerHost,
+  brokerReasonText,
   brokerRisks,
   brokerTitle,
   isBrokerRequest,
@@ -205,4 +206,28 @@ test('without a broker part, the argv comes from the shown command', () => {
   const r = { tool_name: 'gh', tool_input: { command: 'gh pr merge 12' }, once_only: true }
   assert.deepEqual(brokerArgv(r), ['pr', 'merge', '12'])
   assert.equal(brokerAction(r).key, 'prMergeN')
+})
+
+const has = (lang) => (key) => key.split('.').reduce((node, k) => node?.[k], { permission: messages(lang) }) !== undefined
+const ASK = [
+  { code: 'apiUnknownFlag', params: { flag: '-c' } },
+  { code: 'asAccount', params: { provider: 'GitHub', account: '"me"' } },
+]
+const asked = (reason) => ({ ...req('gh', ...GRAPHQL_READ), broker: { argv: GRAPHQL_READ, reason } })
+
+test('reason: each part translated and joined', () => {
+  assert.equal(
+    brokerReasonText(asked(ASK), translator('en'), has('en')),
+    'Unknown flag -c: can\'t confirm the call only reads · as GitHub account "me"',
+  )
+  assert.equal(
+    brokerReasonText(asked(ASK), translator('vi'), has('vi')),
+    'Cờ lạ -c: không chắc lệnh chỉ đọc · dùng tài khoản GitHub "me"',
+  )
+})
+
+test('reason: an unknown code or no parts gives null (the English text stays)', () => {
+  assert.equal(brokerReasonText(asked([...ASK, { code: 'somethingNew' }]), translator('en'), has('en')), null)
+  assert.equal(brokerReasonText(asked([]), translator('en'), has('en')), null)
+  assert.equal(brokerReasonText({ tool_name: 'Bash', tool_input: {} }, translator('en'), has('en')), null)
 })

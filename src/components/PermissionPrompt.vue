@@ -6,13 +6,13 @@ import { Button } from '@/components/ui'
 import { canRememberPermission } from '@/lib/permissionMemory'
 import { isActivationTarget } from '@/lib/permissionKeys'
 import { impactOpensItself, permissionDiffParts, permissionHeadline, permissionImpact, permissionRiskNotes } from '@/lib/permissionImpact'
-import { brokerTitle, isBrokerRequest, type BrokerPromptInfo } from '@/lib/brokerCommand'
+import { brokerReasonText, brokerTitle, isBrokerRequest, type BrokerPromptInfo } from '@/lib/brokerCommand'
 import { engineLabel, permissionOriginParts, type PermissionAgent } from '@/lib/permissionOrigin'
 import { useMinuteClock } from '@/composables/useMinuteClock'
 import PermissionRequestBody from '@/components/permission/PermissionRequestBody.vue'
 import PermissionRiskBadges from '@/components/permission/PermissionRiskBadges.vue'
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 
 export interface PermissionRequest {
   run_id: string
@@ -270,6 +270,8 @@ const impactLine = computed(() =>
     .join(' · '),
 )
 const impactOpen = computed(() => impactOpensItself(impact.value.risks))
+// A broker prompt's reason in the app's language; its English text when a code is unknown.
+const reasonLine = computed(() => brokerReasonText(props.request, t, te) ?? props.request.description)
 // The body repeats the purpose only when the header could not show all of it.
 const bodyPurpose = computed(() => (headline.value?.source === 'purpose' && headline.value.full ? null : props.purpose))
 
@@ -416,8 +418,8 @@ function onKeydown(e: KeyboardEvent) {
           <p v-if="isPlan" class="text-xs text-foreground/60 mt-0.5">
             {{ t('permission.planReviewHint') }}
           </p>
-          <p v-else-if="!isQuestions && request.description" class="text-xs text-foreground/60 mt-0.5">
-            {{ request.description }}
+          <p v-else-if="!isQuestions && reasonLine" class="text-xs text-foreground/60 mt-0.5">
+            {{ reasonLine }}
           </p>
           <p v-else-if="!isQuestions && !impactLine" class="text-xs text-foreground/60 mt-0.5">
             {{ t('permission.allowHint') }}
