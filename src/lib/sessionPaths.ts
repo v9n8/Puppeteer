@@ -25,6 +25,20 @@ export function sessionFileRoot(
 }
 
 /**
+ * What a Session asks to learn whether it can read from a worker's worktree:
+ * `stat_paths(worktree, [WORKTREE_PROBE])`. A linked worktree's `.git` is a
+ * file, so the answer is true only when the folder is there AND this caller may
+ * read in it. A remote desktop may not read the app's data folder, where
+ * workers' worktrees live, so it keeps reading from the Project.
+ */
+export const WORKTREE_PROBE = '.git'
+
+/** The probe's answer (null when the call failed) as "the viewer can read from the worktree". */
+export function worktreeReadable(answer: readonly boolean[] | null): boolean {
+  return answer?.[0] === true
+}
+
+/**
  * A Files tree path (relative to `treeProject`) as a viewer reading from `root`
  * names it: as is when the tree lists `root`, the absolute path when the tree
  * is the Project of a Session working elsewhere (a worktree), null for another

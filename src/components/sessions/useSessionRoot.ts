@@ -1,9 +1,10 @@
 // The folder the open Session's file viewer reads relative paths from: a
-// worker's own worktree, else the Project. A worktree removed since (a cancelled
-// or deleted worker's, cleaned up at startup) falls back to the Project, which
-// the viewer read before workers had one; otherwise every file would fail.
+// worker's own worktree, else the Project. A worktree this caller can't read
+// from (removed since, as a cancelled or deleted worker's is at startup, or out
+// of a remote desktop's reach) falls back to the Project, which the viewer read
+// before workers had one; otherwise every file would fail.
 import { computed, ref, watch, type ComputedRef } from 'vue'
-import { sessionFileRoot } from '@/lib/sessionPaths'
+import { WORKTREE_PROBE, sessionFileRoot, worktreeReadable } from '@/lib/sessionPaths'
 import type { RunRecord } from '@/stores/runs'
 import { useRunsStore } from '@/stores/runs'
 
@@ -12,8 +13,8 @@ export function useSessionRoot(
   projectPath: ComputedRef<string | undefined>,
 ): ComputedRef<string> {
   const runsStore = useRunsStore()
-  // Worktrees the backend refused as a root. Until it answers, the worktree is
-  // assumed there: a live worker's is, and its files show at once.
+  // Worktrees the probe found unreadable. Until it answers, the worktree is
+  // assumed readable: a live worker's is, and its files show at once.
   const gone = ref(new Set<string>())
   watch(() => run.value?.worktree_path, (dir) => {
     if (!dir) return
@@ -24,9 +25,10 @@ export function useSessionRoot(
       else next.delete(dir)
       gone.value = next
     }
-    // An empty check still makes the backend resolve the root itself, so it
-    // fails exactly when every read from this root would.
-    runsStore.statPaths(dir, []).then(() => mark(false), () => mark(true))
+    // A failed call (e.g. the root no longer resolves) answers "not readable".
+    runsStore.statPaths(dir, [WORKTREE_PROBE])
+      .then((answer) => answer, () => null)
+      .then((answer) => mark(!worktreeReadable(answer)))
   }, { immediate: true })
 
   return computed(() => {

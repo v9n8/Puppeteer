@@ -2,7 +2,9 @@
 // Run: node --test src/lib/__tests__/sessionPaths.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { platformOf, revealLabelKey, sessionFileRoot, sessionWorkDir, treePathIn } from '../sessionPaths.ts'
+import {
+  WORKTREE_PROBE, platformOf, revealLabelKey, sessionFileRoot, sessionWorkDir, treePathIn, worktreeReadable,
+} from '../sessionPaths.ts'
 
 test('a worker with a worktree reports it, any other run reports the Project', () => {
   assert.equal(sessionWorkDir({ worktree_path: '/p/.wt/r1' }, '/p'), '/p/.wt/r1')
@@ -22,6 +24,16 @@ test('the file root is the worktree while it exists, else the Project', () => {
   assert.equal(sessionFileRoot(worker, '/p', false), '/p')
   assert.equal(sessionFileRoot({ worktree_path: null }, '/p', true), '/p')
   assert.equal(sessionFileRoot({}, undefined, false), null)
+})
+
+test('the worktree is readable only when the probe found its .git file', () => {
+  assert.equal(WORKTREE_PROBE, '.git')
+  assert.equal(worktreeReadable([true]), true)
+  // Gone, or refused to this caller (a remote desktop and the app's data folder).
+  assert.equal(worktreeReadable([false]), false)
+  // The call failed (the root no longer resolves).
+  assert.equal(worktreeReadable(null), false)
+  assert.equal(worktreeReadable([]), false)
 })
 
 test('a Files tree path as the Session root names it', () => {

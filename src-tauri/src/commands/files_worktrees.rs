@@ -199,6 +199,29 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
+    /// The probe a Session uses to choose its root, `stat_paths(worktree, [".git"])`:
+    /// yes for the local UI, no for a remote desktop when the worktree sits in
+    /// the app's data folder (where workers' worktrees live), so that caller
+    /// keeps reading from the Project.
+    #[test]
+    fn the_worktree_probe_answers_no_to_a_remote_caller_in_app_data() {
+        let base = fixture();
+        let (repo, app_data) = (base.join("repo"), base.join("app-data"));
+        std::fs::create_dir_all(app_data.join("worktrees")).unwrap();
+        sh(&repo, &["worktree", "add", "-q", "-b", "w1", "../app-data/worktrees/w1"]);
+        let wt = app_data.join("worktrees/w1");
+        let wt_s = wt.to_str().unwrap();
+        let probe = [".git".to_string()];
+        assert_eq!(stat_within(wt_s, &probe, None).unwrap(), [true]);
+        let roots = Roots { writable: vec![base.clone(), repo.clone()], ..Roots::default() };
+        let secrets = crate::remote::guard::SecretPaths::new(Some(&base), Some(&app_data));
+        let policy = RemoteFs::new(roots, Some(&base), secrets);
+        assert_eq!(stat_within(wt_s, &probe, Some(&policy)).unwrap(), [false]);
+        // The Project it falls back to stays readable.
+        assert_eq!(stat_within(repo.to_str().unwrap(), &["a.txt".to_string()], Some(&policy)).unwrap(), [true]);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     /// A remote desktop allowed only the repository can't reach its worktree.
     #[test]
     fn a_remote_caller_does_not_reach_the_worktree() {
