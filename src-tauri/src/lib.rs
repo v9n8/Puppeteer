@@ -10,6 +10,9 @@ mod gitlab;
 mod import;
 mod inbox_api;
 mod item_links;
+// Read by the MCP views' commands, which come next; until then only tests call it.
+#[allow(dead_code)]
+mod mcp_discovery;
 mod model_policy;
 mod procs;
 mod remote;

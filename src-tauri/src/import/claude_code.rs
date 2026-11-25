@@ -51,6 +51,76 @@ struct McpConfig {
     mcp_servers: Option<Value>,
 }
 
+/// `.claude.json` read for MCP discovery: user scope and each project's local scope. Every other
+/// key (the account, history, caches) is skipped by serde without being kept.
+#[derive(Deserialize)]
+struct ClaudeJsonMcp {
+    #[serde(rename = "mcpServers", default)]
+    mcp_servers: Option<Value>,
+    #[serde(default)]
+    projects: Option<std::collections::BTreeMap<String, LocalScope>>,
+}
+
+#[derive(Deserialize)]
+struct LocalScope {
+    #[serde(rename = "mcpServers", default)]
+    mcp_servers: Option<Value>,
+}
+
+/// The MCP servers of a Claude config file: user scope, and local scope per project key.
+#[derive(Debug, Default)]
+pub(crate) struct ClaudeConfigMcp {
+    pub user: ScanReport,
+    /// `(projects.<key>, its servers)`, only keys that have a `mcpServers` object.
+    pub local: Vec<(String, ScanReport)>,
+}
+
+/// The user-scope and local-scope MCP servers of `.claude.json` at `path`, read as a HOME file of
+/// `root` (HOME, or a Claude config dir). `Err` when the file itself cannot be read; a bad
+/// server is a problem of its report.
+pub(crate) fn scan_config_mcp(path: &Path, root: &Path, ctx: &ScanContext) -> Result<ClaudeConfigMcp, String> {
+    let raw = read_config(path, root, Scope::Global, ctx)?;
+    let config: ClaudeJsonMcp = serde_json::from_str(&raw).map_err(|e| json_error(&e))?;
+    let mut out = ClaudeConfigMcp::default();
+    if let Some(servers) = &config.mcp_servers {
+        mcp_candidates(&mut out.user, path, servers);
+    }
+    for (key, scope) in config.projects.unwrap_or_default() {
+        if let Some(servers) = &scope.mcp_servers {
+            let mut report = ScanReport::default();
+            mcp_candidates(&mut report, path, servers);
+            out.local.push((key, report));
+        }
+    }
+    Ok(out)
+}
+
+/// The servers of a project's `.mcp.json`; `Ok(None)` when the project has none. A link out of the
+/// project is refused like in an import.
+pub(crate) fn scan_project_mcp(project: &Path, ctx: &ScanContext) -> Result<Option<ScanReport>, String> {
+    let path = layout(project, Scope::Project).mcp;
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let raw = read_config(&path, project, Scope::Project, ctx)?;
+    let mut report = ScanReport::default();
+    if let McpConfig { mcp_servers: Some(servers) } = serde_json::from_str(&raw).map_err(|e| json_error(&e))? {
+        mcp_candidates(&mut report, &path, &servers);
+    }
+    Ok(Some(report))
+}
+
+/// The `mcpServers` of a JSON file outside HOME and projects (Claude Code's managed MCP file), read
+/// as a HOME file of `root`.
+pub(crate) fn scan_mcp_servers_file(path: &Path, root: &Path, ctx: &ScanContext) -> Result<ScanReport, String> {
+    let raw = read_config(path, root, Scope::Global, ctx)?;
+    let mut report = ScanReport::default();
+    if let McpConfig { mcp_servers: Some(servers) } = serde_json::from_str(&raw).map_err(|e| json_error(&e))? {
+        mcp_candidates(&mut report, path, &servers);
+    }
+    Ok(report)
+}
+
 impl Adapter for ClaudeCode {
     fn id(&self) -> &'static str {
         "claude_code"
