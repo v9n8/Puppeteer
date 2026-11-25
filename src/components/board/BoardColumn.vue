@@ -85,8 +85,8 @@ const emptyText = computed(() => {
         </button>
       </header>
 
-      <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-2">
-        <p v-if="drop === 'blocked'" class="mt-2 flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-2xs text-destructive">
+      <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+        <p v-if="drop === 'blocked'" class="flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-2xs text-destructive">
           <Ban class="mt-0.5 h-3.5 w-3.5 shrink-0" :stroke-width="1.75" />
           <span class="min-w-0 [overflow-wrap:anywhere]">{{ blockedReason }}</span>
         </p>
