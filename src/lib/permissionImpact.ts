@@ -2,12 +2,16 @@
 // Everything here is a guess from the tool name and its input — nothing is run —
 // and carries no UI text: summaries are `{ key, params }` for the component to translate.
 
+import { brokerAction, brokerArgv, brokerHost, brokerRisks, isBrokerRequest, type BrokerPromptInfo } from './brokerCommand.ts'
+
 export type PermissionRisk = 'read' | 'write' | 'delete' | 'network'
 
 export interface ImpactRequest {
   tool_name: string
   tool_input?: unknown
   cwd?: string | null
+  once_only?: boolean
+  broker?: BrokerPromptInfo | null
 }
 
 export interface ImpactFile {
@@ -299,6 +303,7 @@ function shellCommand(input: Record<string, unknown>): string {
 
 /** Risk labels for a request. A request can carry several. */
 export function classifyPermissionRisk(req: ImpactRequest): PermissionRisk[] {
+  if (isBrokerRequest(req)) return brokerRisks(req)
   const name = req.tool_name
   const set = new Set<PermissionRisk>()
   if (READ_TOOLS.has(name)) set.add('read')
@@ -409,6 +414,15 @@ export function permissionImpact(req: ImpactRequest): PermissionImpact {
   if (READ_TOOLS.has(name)) {
     const target = str(inp['file_path']) || str(inp['path']) || str(inp['pattern'])
     return { ...base, summary: { key: 'sumRead', params: { target } } }
+  }
+  if (isBrokerRequest(req)) {
+    // A broker CLI always talks to a server, so the Network row never reads "None".
+    const argv = brokerArgv(req)
+    const { key, params } = brokerAction(req)
+    const network = key === 'gitPush'
+      ? [{ host: '', kind: 'git' as const, method: 'push' }]
+      : [{ host: brokerHost(req) ?? argv.map(hostOf).find(Boolean) ?? '' }]
+    return { ...base, network, summary: { key: `action.${key}`, params } }
   }
   return { ...base, summary: { key: 'sumOther', params: { tool: name } } }
 }

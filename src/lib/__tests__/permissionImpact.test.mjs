@@ -215,3 +215,69 @@ test('Impact opens itself for write, delete and network, not for a read', () => 
   assert.equal(impactOpensItself([]), false)
   for (const r of ['write', 'delete', 'network']) assert.equal(impactOpensItself(['read', r]), true)
 })
+
+/** A credential-broker prompt: the CLI as the tool, its argv after the tool name. */
+const broker = (tool, ...argv) => ({
+  tool_name: tool,
+  tool_input: { command: [tool, ...argv].join(' ') },
+  cwd: '/w',
+  once_only: true,
+  broker: { argv },
+})
+const GRAPHQL_READ = ['api', 'graphql', '-f', 'query=query{issue(number:1078){title}}', '--jq', '.data', '-c']
+
+test('broker: a GraphQL read is Read + Network on api.github.com', () => {
+  const impact = permissionImpact(broker('gh', ...GRAPHQL_READ))
+  assert.deepEqual(impact.risks, ['read', 'network'])
+  assert.deepEqual(impact.network, [{ host: 'api.github.com' }])
+})
+
+test('broker: --hostname names the host of a write', () => {
+  const impact = permissionImpact(broker('gh', 'api', '--hostname', 'ghe.corp.example', '-X', 'POST', 'repos/o/r/issues'))
+  assert.deepEqual(impact.risks, ['write', 'network'])
+  assert.deepEqual(impact.network, [{ host: 'ghe.corp.example' }])
+})
+
+test('broker: a forced push deletes and goes to the git remote', () => {
+  const impact = permissionImpact(broker('git', 'push', '--force'))
+  assert.ok(impact.risks.includes('delete'), impact.risks.join())
+  assert.deepEqual(impact.network, [{ host: '', kind: 'git', method: 'push' }])
+})
+
+test('broker: the Network row is never empty', () => {
+  const samples = [
+    broker('gh', ...GRAPHQL_READ),
+    broker('gh', 'api', '-X', 'DELETE', 'repos/o/r/issues/comments/5'),
+    broker('gh', 'pr', 'merge', '12'),
+    broker('glab', 'mr', 'merge', '7'),
+    broker('git', 'push', 'origin', 'main'),
+    broker('terraform', 'apply'),
+    broker('az', 'rest', '--url', 'https://management.azure.com/x'),
+    broker('aws', 's3', 'rm', 's3://b/k'),
+    broker('aws', 'ec2', 'describe-instances', '--frobnicate'),
+  ]
+  for (const req of samples) {
+    const impact = permissionImpact(req)
+    assert.ok(impact.network.length > 0, req.tool_input.command)
+    assert.ok(impact.risks.includes('network'), req.tool_input.command)
+  }
+  assert.equal(permissionImpact(broker('az', 'rest', '--url', 'https://management.azure.com/x')).network[0].host, 'management.azure.com')
+})
+
+test('broker: the summary is the action name, not "Use tool"', () => {
+  assert.deepEqual(permissionImpact(broker('gh', 'pr', 'merge', '12')).summary, {
+    key: 'action.prMergeN',
+    params: { kind: 'PR', n: '12' },
+  })
+  assert.equal(classifyPermissionRisk(broker('aws', 'ec2', 'terminate-instances')).join(), 'delete,network')
+})
+
+test('broker: the risk note names the host', () => {
+  assert.deepEqual(permissionRiskNotes(permissionImpact(broker('gh', ...GRAPHQL_READ))), [
+    { key: 'riskNoteNetworkHost', params: { host: 'api.github.com' } },
+  ])
+})
+
+test('a gh call without the broker flag keeps the generic Write', () => {
+  assert.deepEqual(risks({ tool_name: 'gh', tool_input: { command: 'gh pr list' } }), ['write'])
+})
