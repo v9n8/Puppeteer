@@ -7,7 +7,8 @@
 import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by every sidecar, mcp-guard.mjs): one configured server,
-// or — PUPPETEER_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer.
+// or — PUPPETEER_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer,
+// or (`quoted`) a server whose name only a quoted TOML key can hold.
 if (process.argv.includes('mcp')) {
   const mode = process.env.PUPPETEER_FIXTURE_MCP_LIST
   if (mode === 'fail') {
@@ -16,6 +17,7 @@ if (process.argv.includes('mcp')) {
   }
   if (mode === 'garbage') process.stdout.write('not json')
   else if (mode === 'object') process.stdout.write('{"servers":[]}')
+  else if (mode === 'quoted') process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true }, { name: 'my.srv', enabled: true }]))
   else process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true }]))
   process.exit(0)
 }

@@ -36,12 +36,18 @@ export function configuredMcpServerNames(codexBin, cwd, env = process.env) {
 }
 
 // `-c` overrides turning off each of `names` not in `allowed`. Key paths split
-// on dots and take no quoted segment; codex itself only allows [A-Za-z0-9_-] in
-// server names, so a name outside that cannot load anyway.
+// on dots and take no quoted segment (codex 0.172.0 fails on
+// `mcp_servers."a.b".enabled`), yet codex does load a quoted-key server such as
+// `[mcp_servers."my.srv"]`. Such a name cannot be turned off, so it throws:
+// fail closed, the session does not start.
 export function disableServerArgs(names, allowed = new Set()) {
   const args = []
   for (const name of names) {
-    if (!allowed.has(name) && /^[A-Za-z0-9_-]+$/.test(name)) args.push('-c', `mcp_servers.${name}.enabled=false`)
+    if (allowed.has(name)) continue
+    if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+      throw new Error(`codex config has MCP server ${JSON.stringify(name)} whose name Puppeteer cannot turn off; rename it to letters, digits, _ or -`)
+    }
+    args.push('-c', `mcp_servers.${name}.enabled=false`)
   }
   return args
 }

@@ -59,7 +59,11 @@ const flags = (argv) => argv.filter((a, i) => argv[i - 1] === '-c')
 const blocked = (messages) => messages.filter((m) => m.type === '_puppeteer_mcp_blocked').map(({ server, source, reason }) => ({ server, source, reason }))
 
 // The pure parts.
-assert.deepEqual(disableServerArgs(['user_server', 'pms', 'bad.name', 'with space'], new Set(['pms'])), ['-c', 'mcp_servers.user_server.enabled=false'])
+assert.deepEqual(disableServerArgs(['user_server', 'pms'], new Set(['pms'])), ['-c', 'mcp_servers.user_server.enabled=false'])
+// A name `-c` cannot address is not skipped (codex would load it): it throws.
+for (const name of ['bad.name', 'with space']) {
+  assert.throws(() => disableServerArgs(['user_server', name], new Set(['pms'])), (e) => e.message.includes(`MCP server "${name}" whose name Puppeteer cannot turn off`))
+}
 assert.deepEqual([...forwardedServerNames(['-c', 'mcp_servers.pms.tool_timeout_sec=60', '-c', 'mcp_servers.pms.command="x"', '-c', 'mcp_servers.web.url="https://h"', '-c', 'mcp_servers.half.args=["a"]'])], ['pms', 'web'])
 {
   const reports = []
@@ -117,6 +121,22 @@ for (const mode of ['fail', 'garbage', 'object']) {
   assert.equal(r.argv, null, `${mode}: codex app-server was started`)
 }
 console.log('ok   normal session refuses to start when codex servers cannot be listed')
+
+// Fail-closed: a codex server whose name cannot be turned off (`[mcp_servers."my.srv"]`) → no session.
+{
+  const r = await run({ PUPPETEER_CODEX_MCP: JSON.stringify(PMS), PUPPETEER_FIXTURE_MCP_LIST: 'quoted' })
+  const err = r.messages.find((m) => m.type === '_puppeteer_error')
+  assert.ok(err && /^Refusing to start a codex session: codex config has MCP server "my\.srv" whose name Puppeteer cannot turn off/.test(err.error), JSON.stringify(r.messages))
+  assert.equal(r.code, 1)
+  assert.equal(r.argv, null, 'codex app-server was started')
+}
+// Only codex's own (unmanaged) names count: a passed server with such a name does not stop the session.
+{
+  const r = await run({ PUPPETEER_CODEX_MCP: JSON.stringify({ 'my.srv': { type: 'stdio', command: 'mine' } }) })
+  assert.equal(r.code, 0, JSON.stringify(r.messages.filter((m) => m.type === '_puppeteer_error')))
+  assert.ok(flags(r.argv).includes('mcp_servers.user_server.enabled=false'))
+}
+console.log('ok   normal session refuses to start when a codex server name cannot be turned off')
 
 // Runtime: a call to a server not passed is reported and interrupts the turn;
 // a passed server's call goes on.

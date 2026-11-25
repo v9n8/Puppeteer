@@ -1,6 +1,7 @@
 // Tool-less session (PUPPETEER_CODEX_NO_TOOLS=1): when the configured MCP servers
-// cannot be listed (`codex mcp list` fails, prints garbage or not a list), the
-// sidecar must refuse to start — an error, and codex app-server never runs.
+// cannot be listed (`codex mcp list` fails, prints garbage or not a list), or one
+// has a name `-c` cannot turn off (`quoted`), the sidecar must refuse to start —
+// an error, and codex app-server never runs.
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -31,13 +32,14 @@ function run(mode) {
   })
 }
 
-for (const mode of ['fail', 'garbage', 'object']) {
+for (const mode of ['fail', 'garbage', 'object', 'quoted']) {
   const r = await run(mode)
   const err = r.messages.find((m) => m.type === '_puppeteer_error')
   assert.ok(err && /Refusing to start a tool-less codex session/.test(err.error), `${mode}: no refusal error: ${JSON.stringify(r.messages)}`)
+  if (mode === 'quoted') assert.match(err.error, /"my\.srv" whose name Puppeteer cannot turn off/)
   assert.equal(r.code, 1, `${mode}: exit code`)
   assert.equal(r.appServerRan, false, `${mode}: codex app-server was started`)
   assert.equal(r.messages.filter((m) => m.type === 'result').length, 0, `${mode}: produced a result`)
 }
 
-console.log('ok   tool-less session refuses to start when MCP servers cannot be listed')
+console.log('ok   tool-less session refuses to start when MCP servers cannot be listed or turned off')
