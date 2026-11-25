@@ -49,6 +49,7 @@ pub mod flag_board;
 pub mod session_flags;
 pub mod session_flags_backup;
 pub mod session_search;
+pub mod session_titles;
 pub mod sessions;
 pub mod settings;
 pub mod settings_backup;

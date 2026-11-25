@@ -79,8 +79,11 @@ pub(crate) struct ParsedTranscript {
     /// Puppeteer stream-json log: one `{ type, message }` line per user/assistant
     /// turn (sidechains skipped), which `parseStreamLog` renders directly.
     pub log: String,
-    /// Resolved display title (ai-title, else first user message).
+    /// Resolved display title (ai-title, else first user message, else first
+    /// slash command with arguments).
     pub title: String,
+    /// The transcript's last `ai-title`, when it has one (`title` is then this).
+    pub ai_title: Option<String>,
     pub model: Option<String>,
     /// Number of assistant turns — also the multiplier for usage.
     pub turn_count: i64,
@@ -98,8 +101,9 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
     let raw = fs::read_to_string(file).ok()?;
 
     let mut log = String::new();
-    let mut title: Option<String> = None;
+    let mut ai_title: Option<String> = None;
     let mut first_message: Option<String> = None;
+    let mut slash_title: Option<String> = None;
     let mut model: Option<String> = None;
     let mut turn_count = 0i64;
     let mut usage = UsageTotals::default();
@@ -121,7 +125,7 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
         match v.get("type").and_then(|x| x.as_str()).unwrap_or("") {
             "ai-title" => {
                 if let Some(s) = v.get("aiTitle").and_then(|x| x.as_str()) {
-                    title = Some(s.to_string());
+                    ai_title = Some(s.to_string());
                 }
             }
             t @ ("user" | "assistant") => {
@@ -146,6 +150,9 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
                             || head.starts_with("<command-message>")
                             || head.starts_with("<local-command-")
                         {
+                            if slash_title.is_none() {
+                                slash_title = super::session_titles::slash_command_title(head);
+                            }
                             continue;
                         }
                     }
@@ -187,14 +194,16 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
         return None;
     }
 
-    let title = match title.filter(|t| !t.trim().is_empty()) {
-        Some(t) => truncate(&t, TITLE_MAX_CHARS),
-        None => title_from_first_message(first_message.as_deref()),
+    let ai_title = ai_title.filter(|t| !t.trim().is_empty()).map(|t| truncate(&t, TITLE_MAX_CHARS));
+    let title = match &ai_title {
+        Some(t) => t.clone(),
+        None => title_from_first_message(first_message.as_deref().or(slash_title.as_deref())),
     };
 
     Some(ParsedTranscript {
         log,
         title,
+        ai_title,
         model,
         turn_count,
         usage,
@@ -480,7 +489,7 @@ async fn upsert_session_run_once(
 
     // Existing run for this session?
     if let Some(row) =
-        sqlx::query("SELECT id, status, transcript_synced_size, finished_at FROM runs WHERE project_id = ? AND session_id = ?")
+        sqlx::query("SELECT id, status, transcript_synced_size, finished_at, title, title_auto FROM runs WHERE project_id = ? AND session_id = ?")
             .bind(project_id)
             .bind(session_id)
             .fetch_optional(db)
@@ -491,6 +500,8 @@ async fn upsert_session_run_once(
         let status: String = row.get("status");
         let synced_size: Option<i64> = row.get("transcript_synced_size");
         let finished_at: Option<String> = row.get("finished_at");
+        let title: Option<String> = row.get("title");
+        let title_auto: i64 = row.get("title_auto");
         // A live run streams its own updates; never touch its log from here.
         if status == "running" {
             return Ok(SyncOutcome::Skipped);
@@ -519,7 +530,14 @@ async fn upsert_session_run_once(
             }
         };
         if !newer {
-            return Ok(SyncOutcome::Skipped);
+            // An "Imported session" that its transcript could not name at import
+            // is read once more, for its title only.
+            if !super::session_titles::needs_repair(title.as_deref(), title_auto) {
+                return Ok(SyncOutcome::Skipped);
+            }
+            let parsed = parse_off_runtime(parse, file, project_path).await;
+            let renamed = super::session_titles::repair_placeholder(db, &id, parsed.as_ref()).await;
+            return Ok(if renamed { SyncOutcome::Updated(id) } else { SyncOutcome::Skipped });
         }
         let Some(parsed) = parse_off_runtime(parse, file, project_path).await else {
             return Ok(SyncOutcome::Skipped);
@@ -562,6 +580,7 @@ async fn upsert_session_run_once(
             .bind(&id)
             .execute(db)
             .await;
+        super::session_titles::apply_synced_title(db, &id, title.as_deref(), title_auto, &parsed).await;
         crate::commands::session_search::refresh_run_later(db, &id);
         return Ok(SyncOutcome::Updated(id));
     }
@@ -606,8 +625,8 @@ async fn upsert_session_run_once(
     // (rows_affected == 0) and we treat it as a no-op — the winner already
     // imported the session.
     let res = sqlx::query(
-        "INSERT OR IGNORE INTO runs (id, project_id, type, status, engine, session_id, output_path, transcript_path, transcript_synced_size, started_at, finished_at, created_at, last_activity_at, title)
-         VALUES (?, ?, 'session', 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO runs (id, project_id, type, status, engine, session_id, output_path, transcript_path, transcript_synced_size, started_at, finished_at, created_at, last_activity_at, title, title_auto)
+         VALUES (?, ?, 'session', 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&new_id)
     .bind(project_id)
@@ -624,6 +643,8 @@ async fn upsert_session_run_once(
     // actually happened.
     .bind(&created_at)
     .bind(&parsed.title)
+    // Not an ai-title: app-set, so a later sync or turn may still name it.
+    .bind(i64::from(parsed.ai_title.is_none()))
     .execute(db)
     .await
     .map_err(|e| e.to_string())?;

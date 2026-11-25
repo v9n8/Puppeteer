@@ -432,6 +432,7 @@ pub(crate) fn parse_codex_rollout(file: &Path, project_path: &str) -> Option<Par
     Some(ParsedTranscript {
         log,
         title,
+        ai_title: None,
         model,
         turn_count,
         usage,
