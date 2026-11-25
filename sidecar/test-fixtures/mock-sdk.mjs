@@ -31,6 +31,9 @@
 //                 unless a hook denied it, through canUseTool with `mcpServer`; the
 //                 result lists each outcome (`mock_calls`). MOCK_MCP_INIT (JSON
 //                 list) is the init message's `mcp_servers`, in any scenario.
+//   MOCK_MCP_STATUS (JSON list, any scenario): what `mcpServerStatus()` answers
+//                 (the MCP probe); `"fail"` makes it reject. With MOCK_OPTIONS_FILE the
+//                 options are written there when it is called.
 //   validate    — a model check (`validate_model`): writes the options to
 //                 MOCK_OPTIONS_FILE (the check sends no init message to echo them
 //                 in), passes MOCK_STDERR to `options.stderr`, then succeeds.
@@ -182,6 +185,13 @@ export function query({ prompt, options }) {
   }
 
   const session = run()
+  if (process.env.MOCK_MCP_STATUS) {
+    session.mcpServerStatus = async () => {
+      if (process.env.MOCK_OPTIONS_FILE) writeFileSync(process.env.MOCK_OPTIONS_FILE, JSON.stringify({ ...options, abortController: undefined }))
+      if (process.env.MOCK_MCP_STATUS === 'fail') throw new Error('mock status failed\nsecond line')
+      return JSON.parse(process.env.MOCK_MCP_STATUS)
+    }
+  }
   if (scenario === 'interrupt') session.interrupt = async () => interrupt()
   if (scenario === 'bg-task') {
     session.stopTask = async (taskId) => {

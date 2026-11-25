@@ -7,7 +7,8 @@
 //! `.mcp.json`, S6 Claude Code's managed MCP file ([`claude_sources`]); S7 the `config.toml` of
 //! each Codex home (global and every app account), S8 a project's `.codex/config.toml`
 //! ([`codex_sources`]); S9 the MCP config of other apps, through the import adapters
-//! ([`other_sources`]).
+//! ([`other_sources`]). From the engine itself ([`probe`]): S1 the claude.ai connectors of each
+//! Claude profile, S5 plugin servers, S6 managed / enterprise servers.
 //!
 //! Only reads, like an import (`import::claude_code`'s parsers are reused): a source file is never
 //! written. A row carries key names only; env / header VALUEs stay in the scanned export, which is
@@ -18,6 +19,7 @@
 pub mod claude_sources;
 pub mod codex_sources;
 pub mod other_sources;
+pub mod probe;
 
 use crate::commands::mcp::McpServerExport;
 use crate::import::{Candidate, McpSummary, Payload, ScanContext, ScanReport};
@@ -102,8 +104,10 @@ pub struct DiscoveredServer {
     /// scan with another one means "changed since import". Backend only.
     #[serde(skip)]
     pub fingerprint: Option<String>,
-    /// `false` for sources that are listed and blocked only (S6 managed).
+    /// `false` for sources that are listed and blocked only (S5 plugin, S6 managed).
     pub importable: bool,
+    /// What the engine probe reported (`connected`, `needs-auth`, `failed`, …); file rows: `None`.
+    pub engine_status: Option<String>,
     /// Why the entry could not be read (the rest of its file still listed). Never quotes a value.
     pub problem: Option<String>,
 }
@@ -313,6 +317,7 @@ impl Origin<'_> {
             summary: None,
             fingerprint: None,
             importable: self.importable,
+            engine_status: None,
             problem: None,
         }
     }

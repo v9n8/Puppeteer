@@ -157,6 +157,7 @@ jobs:
           run() { echo "::group::$1/$2"; (cd "$1" && node "$2"); echo "::endgroup::"; }
           run sidecar test-mocked.mjs
           run sidecar test-mcp-guard.mjs
+          run sidecar test-mcp-probe.mjs
           # The Codex tests stand a .mjs fixture in for the codex binary, and Windows
           # cannot start a script without a shell.
           if [[ "$RUNNER_OS" == Windows ]]; then
