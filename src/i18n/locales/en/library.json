@@ -9,13 +9,15 @@
   "noProjects": "No project yet. Add one on the Projects page.",
   "searchPlaceholder": "Search name or description…",
   "emptyTitle": "Nothing here yet",
-  "emptyHint": "Skills, rules, commands and agents the CLIs read from this place show up here.",
+  "emptyHint": "Skills, rules, commands, agents, hooks and plugins the CLIs read from this place show up here.",
   "noSelection": "Pick an item to see its file",
   "kind": {
     "skill": "Skills",
     "rule": "Rules",
     "command": "Commands",
     "agent": "Agents",
+    "hook": "Hooks",
+    "plugin": "Plugins",
     "memory": "Memory"
   },
   "engine": {
@@ -87,6 +89,8 @@
     "rule": "Rule",
     "command": "Command",
     "agent": "Agent",
+    "hook": "Hook",
+    "plugin": "Plugin",
     "memory": "Memory file"
   },
   "tabEmpty": "No {kind} here yet.",
@@ -102,5 +106,58 @@
   "newExists": "A {kind} with this name already exists.",
   "viewDiff": "View diff",
   "diffDisk": "On disk",
-  "diffBuffer": "Being edited"
+  "diffBuffer": "Being edited",
+  "config": {
+    "source": {
+      "user": "User",
+      "project": "Project",
+      "local": "Local"
+    },
+    "sourceHint": {
+      "user": "From ~/.claude/settings.json",
+      "project": "From the project's .claude/settings.json, shared through git",
+      "local": "From the project's .claude/settings.local.json, on this machine only"
+    },
+    "readOnly": "Read-only: Puppeteer shows what the file declares and changes nothing. Edit the file, or use /hooks and /plugin in Claude Code.",
+    "reveal": "Show in Finder",
+    "hookTitle": "Hook",
+    "event": "Event",
+    "matcher": "Matcher",
+    "anyMatcher": "Any (no matcher)",
+    "type": "Type",
+    "timeout": "Timeout",
+    "seconds": "{n} s",
+    "runs": "Runs",
+    "allDisabled": "This file sets disableAllHooks to true: hooks are turned off.",
+    "hooksOff": "Hooks off",
+    "state": {
+      "on": "On",
+      "off": "Off",
+      "unset": "Not set"
+    },
+    "stateHint": {
+      "on": "Turned on by enabledPlugins in the file above",
+      "off": "Turned off by enabledPlugins in the file above",
+      "unset": "No settings file read here turns it on or off"
+    },
+    "notInstalled": "Not installed",
+    "notInstalledHint": "Not listed in ~/.claude/plugins/installed_plugins.json",
+    "pluginTitle": "Plugin",
+    "key": "Id",
+    "marketplace": "Marketplace",
+    "version": "Version",
+    "installScope": "Install scope",
+    "installFolder": "Install folder",
+    "parts": "What it adds",
+    "part": {
+      "skills": "Skills",
+      "commands": "Commands",
+      "agents": "Agents",
+      "hook_events": "Hook events",
+      "mcp_servers": "MCP servers"
+    },
+    "mcpNote": "Listed only: MCP servers are switched on and off under MCP.",
+    "customPaths": "plugin.json also points to other paths for: {keys}. Parts there are not listed.",
+    "noParts": "No skills, commands, agents, hooks or MCP servers found in its folder."
+  }
 }

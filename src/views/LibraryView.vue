@@ -8,7 +8,9 @@
 // Puppeteer made into its old library turned into files (UX-58). A project's tab
 // also lists its Memory (CLAUDE.md / AGENTS.md, UX-55/D12), through memory_*
 // because the file may not exist yet: opening it shows an empty editor, a save
-// creates it.
+// creates it. Hooks and plugins (LH) are what Claude Code's settings files
+// declare, listed beside the files and shown read-only (library_config_scan,
+// local-only, so not in remote mode); a row's `id` stands in for the path.
 //
 // The place lives in the URL query (lib/libraryDisk `libraryQuery`), so a link
 // can open a project's tab or one file.
@@ -28,6 +30,8 @@ import LibraryEntryDetail from '@/components/library/LibraryEntryDetail.vue'
 import ConfigImportDialog from '@/components/import/ConfigImportDialog.vue'
 import LibraryMaterializeDialog from '@/components/library/LibraryMaterializeDialog.vue'
 import LibraryNewMenu from '@/components/library/LibraryNewMenu.vue'
+import LibraryConfigDetail from '@/components/library/LibraryConfigDetail.vue'
+import LibraryConfigRow from '@/components/library/LibraryConfigRow.vue'
 import { invoke } from '@/lib/tauri'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -37,11 +41,12 @@ import { isRemoteMode } from '@/lib/ipc/remote'
 import { IMPORT_FEATURE, type ImportDest } from '@/lib/configImport'
 import { selectedProjectId } from '@/lib/projectList'
 import {
-  CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, DISK_ITEM_KINDS, PROJECT_ITEM_KINDS, deletesLink,
+  CMD_LIBRARY_DELETE, CMD_LIBRARY_DUPLICATE, CMD_LIBRARY_SCAN, deletesLink,
   isLibraryExists, libraryPlace, libraryQuery, memoryItem, memoryKindOf,
-  type DiskItem, type LibraryItemKind, type LibraryPlace, type LibraryScope,
+  type DiskItem, type DiskRow, type LibraryItemKind, type LibraryPlace, type LibraryScope,
 } from '@/lib/libraryDisk'
-import { LIBRARY_NARROW_QUERY, kindCounts, pickTab, projectListCollapsed, tabRows } from '@/lib/libraryTabs'
+import { CMD_LIBRARY_CONFIG_SCAN, configRows, isConfigKind, type ConfigItem, type ConfigRow } from '@/lib/libraryConfig'
+import { LIBRARY_NARROW_QUERY, kindCounts, libraryKinds, pickTab, projectListCollapsed, tabRows } from '@/lib/libraryTabs'
 import { CMD_MEMORY_READ, PROJECT_MEMORY_KINDS, type MemoryFile, type MemoryTarget } from '@/lib/memoryFiles'
 
 defineOptions({ name: 'LibraryView' })
@@ -105,22 +110,29 @@ watch(projectsCollapsed, (v) => {
 // ── Items ───────────────────────────────────────────────────────────────────
 
 const items = ref<DiskItem[]>([])
+/** Hooks and plugins: none in remote mode. */
+const configItems = ref<ConfigItem[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const search = ref('')
-const kinds = computed(() => (scope.value === 'project' ? PROJECT_ITEM_KINDS : DISK_ITEM_KINDS))
+const remote = isRemoteMode()
+const kinds = computed(() => libraryKinds(scope.value, remote))
 const kind = ref<LibraryItemKind>('skill')
-const counts = computed(() => kindCounts(items.value, kinds.value))
-const rows = computed(() => tabRows(items.value, kind.value, search.value))
+/** Every row's kind and id, files and config alike: what the counts and the tab pick go by. */
+const allEntries = computed(() => [...items.value, ...configItems.value.map((c) => ({ kind: c.kind, path: c.id }))])
+const counts = computed(() => kindCounts(allEntries.value, kinds.value))
+const rows = computed<(DiskRow | ConfigRow)[]>(() =>
+  isConfigKind(kind.value) ? configRows(configItems.value, kind.value, search.value) : tabRows(items.value, kind.value, search.value),
+)
 // The selected file's kind opens first, then the tab in use while it has items (lib/libraryTabs).
-watch([items, selectedPath, kinds], () => {
-  kind.value = pickTab(items.value, kinds.value, selectedPath.value, kind.value)
+watch([allEntries, selectedPath, kinds], () => {
+  kind.value = pickTab(allEntries.value, kinds.value, selectedPath.value, kind.value)
 }, { immediate: true })
 /** Set by a link to Global's Memory tab (there is none): says where that memory lives. */
 const globalMemoryLink = ref(false)
 // None while the first scan runs, so the list shows its skeleton rather than an empty tab.
 const groups = computed(() =>
-  (loading.value && items.value.length === 0) || rows.value.length === 0
+  (loading.value && allEntries.value.length === 0) || rows.value.length === 0
     ? []
     : [{ key: kind.value, label: t(`library.kind.${kind.value}`), rows: rows.value }],
 )
@@ -130,6 +142,7 @@ const tabEmpty = computed(() => {
   return t('library.tabEmpty', { kind: name })
 })
 const selectedItem = computed(() => items.value.find((i) => i.path === selectedPath.value) ?? null)
+const selectedConfig = computed(() => configItems.value.find((c) => c.id === selectedPath.value) ?? null)
 const selectedMemory = computed<MemoryTarget | null>(() =>
   selectedItem.value?.kind === 'memory' && activeProjectId.value
     ? { kind: memoryKindOf(selectedItem.value), project_id: activeProjectId.value }
@@ -143,24 +156,29 @@ async function scan() {
   const pid = activeProjectId.value
   if (scope.value === 'project' && !pid) {
     items.value = []
+    configItems.value = []
     error.value = null
     return
   }
   loading.value = true
   try {
-    const [disk, memory] = await Promise.all([
+    const [disk, memory, config] = await Promise.all([
       invoke<DiskItem[]>(CMD_LIBRARY_SCAN, { scope: scope.value, projectId: pid }),
       pid ? scanMemory(pid) : [],
+      remote ? [] : invoke<ConfigItem[]>(CMD_LIBRARY_CONFIG_SCAN, { scope: scope.value, projectId: pid }),
     ])
     const list = [...disk, ...memory]
     if (seq !== scanSeq) return
     items.value = list
+    configItems.value = config
     error.value = null
     // Gone from the disk (deleted elsewhere, a stale link): drop the selection.
-    if (selectedPath.value && !list.some((i) => i.path === selectedPath.value)) setPlace({ path: null })
+    const ids = [...list.map((i) => i.path), ...config.map((c) => c.id)]
+    if (selectedPath.value && !ids.includes(selectedPath.value)) setPlace({ path: null })
   } catch (e) {
     if (seq !== scanSeq) return
     items.value = []
+    configItems.value = []
     error.value = String(e)
   } finally {
     if (seq === scanSeq) loading.value = false
@@ -358,7 +376,7 @@ const materializeOpen = ref(false)
 
 const emptyTitle = computed(() => {
   if (scope.value === 'project' && !activeProjectId.value) return t('library.noProjects')
-  return items.value.length === 0 ? t('library.emptyTitle') : tabEmpty.value
+  return allEntries.value.length === 0 ? t('library.emptyTitle') : tabEmpty.value
 })
 </script>
 
@@ -428,9 +446,9 @@ const emptyTitle = computed(() => {
           :search-placeholder="t('library.searchPlaceholder')"
           :loading="loading"
           :error="error"
-          :empty-store="!loading && !error && (items.length === 0 || rows.length === 0)"
+          :empty-store="!loading && !error && (allEntries.length === 0 || rows.length === 0)"
           :empty-title="emptyTitle"
-          :empty-hint="items.length === 0 && (activeProjectId || scope === 'global') ? t('library.emptyHint') : ''"
+          :empty-hint="allEntries.length === 0 && (activeProjectId || scope === 'global') ? t('library.emptyHint') : ''"
           :addable="canCreate"
           @select="selectItem"
           @retry="refresh"
@@ -445,40 +463,43 @@ const emptyTitle = computed(() => {
             />
           </template>
           <template #row="{ row, selected }">
-            <span class="flex min-w-0 items-center gap-1.5">
+            <LibraryConfigRow v-if="'config' in row" :item="row.config" :selected="selected" />
+            <template v-else>
+              <span class="flex min-w-0 items-center gap-1.5">
+                <span
+                  class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug"
+                  :class="selected && 'text-foreground'"
+                  :title="row.item.name"
+                >
+                  {{ row.item.name }}
+                </span>
+                <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
+                  <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
+                </span>
+              </span>
               <span
-                class="min-w-0 flex-1 truncate font-mono text-sm font-medium leading-snug"
-                :class="selected && 'text-foreground'"
-                :title="row.item.name"
+                v-if="row.item.description"
+                class="mt-1 truncate text-2xs text-muted-foreground/70"
+                :title="row.item.description"
               >
-                {{ row.item.name }}
+                {{ row.item.description }}
               </span>
-              <span v-if="row.item.error" class="shrink-0 text-destructive" :title="row.item.error">
-                <AlertCircle class="h-3.5 w-3.5" :stroke-width="1.75" />
+              <span class="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+                <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
+                  {{ t('library.missing') }}
+                </Badge>
+                <Badge
+                  v-if="row.item.status !== 'file'"
+                  size="xs"
+                  :tone="row.item.status === 'puppeteer_link' ? 'warning' : 'neutral'"
+                  class="shrink-0"
+                  :title="t(`library.statusHint.${row.item.status}`)"
+                >
+                  {{ t(`library.status.${row.item.status}`) }}
+                </Badge>
+                <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
               </span>
-            </span>
-            <span
-              v-if="row.item.description"
-              class="mt-1 truncate text-2xs text-muted-foreground/70"
-              :title="row.item.description"
-            >
-              {{ row.item.description }}
-            </span>
-            <span class="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-              <Badge v-if="row.item.missing" size="xs" class="shrink-0" :title="t('library.missingHint')">
-                {{ t('library.missing') }}
-              </Badge>
-              <Badge
-                v-if="row.item.status !== 'file'"
-                size="xs"
-                :tone="row.item.status === 'puppeteer_link' ? 'warning' : 'neutral'"
-                class="shrink-0"
-                :title="t(`library.statusHint.${row.item.status}`)"
-              >
-                {{ t(`library.status.${row.item.status}`) }}
-              </Badge>
-              <Badge size="xs" class="shrink-0">{{ t(`library.engine.${row.item.engine}`) }}</Badge>
-            </span>
+            </template>
           </template>
         </ListDetailSidebar>
         <ListPaneResizer
@@ -489,8 +510,9 @@ const emptyTitle = computed(() => {
         />
       </div>
 
+      <LibraryConfigDetail v-if="selectedConfig" :key="selectedConfig.id" :item="selectedConfig" />
       <LibraryEntryDetail
-        v-if="selectedItem"
+        v-else-if="selectedItem"
         ref="detailRef"
         :key="selectedItem.path"
         :item="selectedItem"

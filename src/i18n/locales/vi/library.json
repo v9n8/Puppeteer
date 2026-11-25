@@ -9,13 +9,15 @@
   "noProjects": "Chưa có project. Thêm ở trang Project.",
   "searchPlaceholder": "Tìm tên hoặc mô tả…",
   "emptyTitle": "Chưa có gì ở đây",
-  "emptyHint": "Skill, rule, command và agent mà CLI đọc ở chỗ này sẽ hiện ở đây.",
+  "emptyHint": "Skill, rule, command, agent, hook và plugin mà CLI đọc ở chỗ này sẽ hiện ở đây.",
   "noSelection": "Chọn một mục để xem file",
   "kind": {
     "skill": "Skills",
     "rule": "Rules",
     "command": "Commands",
     "agent": "Agents",
+    "hook": "Hooks",
+    "plugin": "Plugins",
     "memory": "Memory"
   },
   "engine": {
@@ -87,6 +89,8 @@
     "rule": "Rule",
     "command": "Command",
     "agent": "Agent",
+    "hook": "Hook",
+    "plugin": "Plugin",
     "memory": "Memory"
   },
   "tabEmpty": "Chưa có {kind} nào ở đây.",
@@ -102,5 +106,58 @@
   "newExists": "Đã có {kind} tên này.",
   "viewDiff": "Xem khác biệt",
   "diffDisk": "Bản trên đĩa",
-  "diffBuffer": "Bản đang sửa"
+  "diffBuffer": "Bản đang sửa",
+  "config": {
+    "source": {
+      "user": "User",
+      "project": "Project",
+      "local": "Local"
+    },
+    "sourceHint": {
+      "user": "Từ ~/.claude/settings.json",
+      "project": "Từ .claude/settings.json của project, chia sẻ qua git",
+      "local": "Từ .claude/settings.local.json của project, chỉ trên máy này"
+    },
+    "readOnly": "Chỉ xem: Puppeteer hiện điều file khai báo và không sửa gì. Sửa trong file, hoặc dùng /hooks và /plugin trong Claude Code.",
+    "reveal": "Hiện trong Finder",
+    "hookTitle": "Hook",
+    "event": "Sự kiện",
+    "matcher": "Matcher",
+    "anyMatcher": "Mọi tool (không có matcher)",
+    "type": "Loại",
+    "timeout": "Timeout",
+    "seconds": "{n} giây",
+    "runs": "Chạy",
+    "allDisabled": "File này đặt disableAllHooks là true: hook đang bị tắt.",
+    "hooksOff": "Hook tắt",
+    "state": {
+      "on": "Bật",
+      "off": "Tắt",
+      "unset": "Chưa đặt"
+    },
+    "stateHint": {
+      "on": "enabledPlugins trong file ở trên bật nó",
+      "off": "enabledPlugins trong file ở trên tắt nó",
+      "unset": "Không file settings nào đọc ở đây bật hay tắt nó"
+    },
+    "notInstalled": "Chưa cài",
+    "notInstalledHint": "Không có trong ~/.claude/plugins/installed_plugins.json",
+    "pluginTitle": "Plugin",
+    "key": "Id",
+    "marketplace": "Marketplace",
+    "version": "Phiên bản",
+    "installScope": "Phạm vi cài",
+    "installFolder": "Thư mục cài",
+    "parts": "Những gì nó thêm vào",
+    "part": {
+      "skills": "Skills",
+      "commands": "Commands",
+      "agents": "Agents",
+      "hook_events": "Sự kiện hook",
+      "mcp_servers": "MCP server"
+    },
+    "mcpNote": "Chỉ liệt kê: MCP server được bật / tắt ở mục MCP.",
+    "customPaths": "plugin.json còn trỏ tới đường dẫn khác cho: {keys}. Phần ở đó không được liệt kê.",
+    "noParts": "Không thấy skill, command, agent, hook hay MCP server nào trong thư mục của nó."
+  }
 }
