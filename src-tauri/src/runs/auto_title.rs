@@ -192,13 +192,33 @@ fn strip_wrapping(line: &str) -> &str {
         s = s.trim_matches(|c: char| c.is_whitespace() || MARKS.contains(&c));
         for (open, close) in PAIRS {
             if let Some(inner) = s.strip_prefix(*open).and_then(|t| t.strip_suffix(*close)) {
-                s = inner;
+                if closes_at_end(inner, *open, *close) {
+                    s = inner;
+                }
             }
         }
         if s.len() == before {
             return s;
         }
     }
+}
+
+/// Whether the bracket opened just before `inner` is the one closed just after
+/// it: `inner` never closes more than it opened. `(Draft) Login fix (v2)` is
+/// two pairs, not one wrapping the line.
+fn closes_at_end(inner: &str, open: char, close: char) -> bool {
+    let mut depth = 0usize;
+    for c in inner.chars() {
+        if c == open {
+            depth += 1;
+        } else if c == close {
+            match depth.checked_sub(1) {
+                Some(d) => depth = d,
+                None => return false,
+            }
+        }
+    }
+    true
 }
 
 /// Ask the warm side-task sidecar (engine / model from the translate settings)
@@ -426,6 +446,11 @@ mod tests {
         assert_eq!(clean_answer("(`Login fix`)").as_deref(), Some("Login fix"));
         // Inner quotes and brackets stay.
         assert_eq!(clean_answer("Fix the user's (old) login").as_deref(), Some("Fix the user's (old) login"));
+        // Brackets at both ends that belong to different pairs stay.
+        for kept in ["(Draft) Login fix (v2)", "[WIP] Auth refactor [backend]"] {
+            assert_eq!(clean_answer(kept).as_deref(), Some(kept));
+        }
+        assert_eq!(clean_answer("((Login fix) v2)").as_deref(), Some("(Login fix) v2"));
         let long = "Refactor the session title logic so it keeps handling very long prompts well";
         assert_eq!(clean_answer(&format!("**{long}**")), Some(truncate(long, NAME_MAX_CHARS)));
         for empty in ["", "  \n \n", "\"\"", "** ##", "()"] {
