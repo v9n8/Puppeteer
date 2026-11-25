@@ -110,9 +110,9 @@ enum Reach {
 
 /// Whether `real` (canonical) is one of the guard's credential files in HOME (`real_home`,
 /// canonical): by its own path, case-insensitively as the guard compares, or as the same file as
-/// one that is itself a link (`~/.npmrc` → a dotfiles file). `reading` (relative to HOME) is the
-/// file whose link led here: it is that file by definition, so it doesn't count.
-fn credential_file_at(real_home: &Path, reading: &str, real: &Path) -> bool {
+/// one that is itself a link (a dotfiles file). Claude Code's own settings files don't count
+/// there: a settings link leads to that same file by definition, and both may share one target.
+fn credential_file_at(real_home: &Path, real: &Path) -> bool {
     let Ok(rel) = real.strip_prefix(real_home) else { return false };
     let rel: Vec<String> = rel.iter().map(|c| c.to_string_lossy().to_lowercase()).collect();
     let by_path = SECRET_HOME_FILES.iter().any(|f| f.split('/').eq(rel.iter().map(String::as_str)))
@@ -129,7 +129,7 @@ fn credential_file_at(real_home: &Path, reading: &str, real: &Path) -> bool {
         .filter(|n| SECRET_HOME_FILE_PREFIXES.iter().any(|pre| n.to_lowercase().starts_with(pre)));
     SECRET_HOME_FILES
         .iter()
-        .filter(|f| **f != reading)
+        .filter(|f| !f.starts_with(".claude/settings"))
         .map(|f| f.to_string())
         .chain(prefixed)
         .any(|f| FileId::of(&f.split('/').fold(real_home.to_path_buf(), |p, c| p.join(c))) == Some(id))
@@ -143,13 +143,16 @@ fn read_json(base: &Path, rel: &str, reach: Reach, secret: &SecretPaths) -> Resu
     }
     let real_base = fs::canonicalize(base).map_err(|_| format!("Folder not found: {}", base.display()))?;
     let real = fs::canonicalize(&at).map_err(|_| format!("{} is a link to something that doesn't exist", at.display()))?;
-    let allowed = folder_allowed(&real, &real_base, Path::new(rel), secret)
-        || (reach == Reach::Home
+    if !folder_allowed(&real, &real_base, Path::new(rel), secret) {
+        let in_home = reach == Reach::Home
             && real.starts_with(&real_base)
-            && !credential_file_at(&real_base, rel, &real)
-            && real.parent().is_some_and(|dir| !secret.denies(dir)));
-    if !allowed {
-        return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));
+            && real.parent().is_some_and(|dir| !secret.denies(dir));
+        if !in_home {
+            return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));
+        }
+        if credential_file_at(&real_base, &real) {
+            return Err(format!("{} leads to a credential file — Puppeteer won't open it", at.display()));
+        }
     }
     if !real.is_file() {
         return Err(format!("{} is not a file", at.display()));

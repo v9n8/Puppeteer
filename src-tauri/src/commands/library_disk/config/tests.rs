@@ -195,7 +195,20 @@ fn a_user_settings_link_to_a_credential_file_is_not_read() {
     std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
     let items = f.global();
     assert!(!items.is_empty());
-    assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+    assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("credential file"))), "{items:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn both_user_settings_files_linked_to_one_dotfiles_file_are_read() {
+    let f = Fixture::new("dotfiles-both");
+    let target = f.write("home/dotfiles/claude/settings.json", PRE_BASH);
+    fs::create_dir_all(f.home().join(".claude")).unwrap();
+    std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+    std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.local.json")).unwrap();
+    let items = f.global();
+    assert_eq!(items.len(), 1, "{items:?}");
+    assert!(items[0].error.is_none(), "{:?}", items[0].error);
 }
 
 #[cfg(unix)]
@@ -209,7 +222,7 @@ fn a_user_settings_link_to_a_linked_credential_file_is_not_read() {
     std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
     let items = f.global();
     assert!(!items.is_empty());
-    assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
+    assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("credential file"))), "{items:?}");
 }
 
 #[test]
