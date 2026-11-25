@@ -1,10 +1,11 @@
-//! Library (LH): the hooks Claude Code's settings files declare, read-only. Global is HOME's
-//! `.claude/settings.json`; a project has its `.claude/settings.json` and
-//! `.claude/settings.local.json`. Nothing here writes: the files are the user's and every
-//! session reads them.
+//! Library (LH): the hooks and plugins Claude Code's settings files declare, read-only. Global is
+//! HOME's `.claude/settings.json`; a project has its `.claude/settings.json` and
+//! `.claude/settings.local.json`. Plugins add what `~/.claude/plugins/` holds ([`plugins`]).
+//! Nothing here writes: the files are the user's and every session reads them.
 //!
 //! A settings file can hold tokens (`env`, and `~/.claude/settings.json` is a credential file to
-//! [`SecretPaths`]), so only `hooks` and `disableAllHooks` leave it, a parse error says where
+//! [`SecretPaths`]), so only `hooks`, `disableAllHooks` and `enabledPlugins` leave it, a parse
+//! error says where
 //! and never what, and the command is local-only (remote/guard.rs). A file is read where the CLI
 //! reads it; reached through a link, it must stay in the same HOME / project and out of a
 //! credential store, as the Library's folders ([`super::folder_allowed`]).
@@ -19,10 +20,14 @@ use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Manager, State};
 
+mod plugins;
+pub use plugins::PluginInfo;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConfigKind {
     Hook,
+    Plugin,
 }
 
 /// The settings level an item comes from, as Claude Code names them.
@@ -57,7 +62,7 @@ pub struct HookInfo {
     pub all_disabled: bool,
 }
 
-/// One row of the Library's Hooks tab.
+/// One row of the Library's Hooks or Plugins tab.
 #[derive(Debug, Clone, Serialize)]
 pub struct ConfigItem {
     pub kind: ConfigKind,
@@ -71,6 +76,7 @@ pub struct ConfigItem {
     /// Why the file (or this entry) can't be shown; never its content.
     pub error: Option<String>,
     pub hook: Option<HookInfo>,
+    pub plugin: Option<PluginInfo>,
 }
 
 /// A settings file of one level, relative to HOME or the project.
@@ -109,21 +115,24 @@ fn read_json(base: &Path, rel: &str, secret: &SecretPaths) -> Result<Option<Map<
 }
 
 fn error_item(kind: ConfigKind, source: ConfigSource, file: &Path, n: usize, error: String) -> ConfigItem {
+    let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     ConfigItem {
         kind,
-        id: format!("{}-error:{}:{n}", kind_str(kind), source.as_str()),
-        name: file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        id: format!("{}-error:{}:{}:{n}", kind_str(kind), source.as_str(), name),
+        name,
         description: String::new(),
         source,
         file: file.display().to_string(),
         error: Some(error),
         hook: None,
+        plugin: None,
     }
 }
 
 fn kind_str(kind: ConfigKind) -> &'static str {
     match kind {
         ConfigKind::Hook => "hook",
+        ConfigKind::Plugin => "plugin",
     }
 }
 
@@ -190,27 +199,41 @@ fn hooks_of(settings: &Map<String, Value>, source: ConfigSource, file: &Path, ou
                         timeout: entry.get("timeout").and_then(Value::as_u64),
                         all_disabled,
                     }),
+                    plugin: None,
                 });
             }
         }
     }
 }
 
-/// Every hook the settings files of HOME (`project` none) or of `project` declare.
+/// Every hook and plugin the settings files of HOME (`project` none) or of `project` declare;
+/// plugin details come from HOME's `.claude/plugins/` either way.
 pub(crate) fn scan_config_at(home: &Path, project: Option<&Path>, secret: &SecretPaths) -> Vec<ConfigItem> {
     let (base, files) = match project {
         Some(p) => (p, PROJECT_FILES),
         None => (home, USER_FILES),
     };
     let mut out = Vec::new();
+    let mut levels = Vec::new();
     for f in files {
         let file = base.join(f.rel);
         match read_json(base, f.rel, secret) {
-            Ok(Some(settings)) => hooks_of(&settings, f.source, &file, &mut out),
+            Ok(Some(settings)) => {
+                hooks_of(&settings, f.source, &file, &mut out);
+                match plugins::enabled_of(&settings, &file) {
+                    Ok(enabled) => levels.push(plugins::Level { source: f.source, file, enabled }),
+                    Err(e) => out.push(error_item(ConfigKind::Plugin, f.source, &file, 0, e)),
+                }
+            }
             Ok(None) => {}
-            Err(e) => out.push(error_item(ConfigKind::Hook, f.source, &file, 0, e)),
+            // The file holds both: each tab says it couldn't be read.
+            Err(e) => {
+                out.push(error_item(ConfigKind::Hook, f.source, &file, 0, e.clone()));
+                out.push(error_item(ConfigKind::Plugin, f.source, &file, 0, e));
+            }
         }
     }
+    plugins::plugins_of(home, project.is_none(), &levels, secret, &mut out);
     out
 }
 
@@ -329,13 +352,17 @@ mod tests {
     }
 
     #[test]
-    fn invalid_json_is_an_error_row_without_the_file_content() {
+    fn invalid_json_is_an_error_row_in_both_tabs_without_the_file_content() {
         let f = Fixture::new("invalid");
         f.write("home/.claude/settings.json", r#"{"env":{"TOKEN":"sk-secret-123"}, oops"#);
         let items = f.global();
-        assert_eq!(items.len(), 1);
-        let err = items[0].error.as_deref().unwrap();
-        assert!(err.contains("settings.json") && err.contains("line 1"), "{err}");
+        let kinds: Vec<_> = items.iter().map(|i| i.kind).collect();
+        assert_eq!(kinds, vec![ConfigKind::Hook, ConfigKind::Plugin]);
+        for it in &items {
+            let err = it.error.as_deref().unwrap();
+            assert!(err.contains("settings.json") && err.contains("line 1"), "{err}");
+        }
+        assert_ne!(items[0].id, items[1].id);
         assert!(!serde_json::to_string(&items).unwrap().contains("sk-secret"));
     }
 
@@ -358,9 +385,11 @@ mod tests {
         fs::create_dir_all(f.proj().join(".claude")).unwrap();
         std::os::unix::fs::symlink(&outside, f.proj().join(".claude/settings.json")).unwrap();
         let items = f.project();
-        assert_eq!(items.len(), 1);
-        assert!(items[0].error.as_deref().unwrap().contains("leads outside"), "{:?}", items[0].error);
-        assert!(items[0].hook.is_none());
+        assert_eq!(items.len(), 2);
+        for it in &items {
+            assert!(it.error.as_deref().unwrap().contains("leads outside"), "{:?}", it.error);
+            assert!(it.hook.is_none() && it.plugin.is_none());
+        }
     }
 
     #[test]
@@ -385,5 +414,118 @@ mod tests {
         assert_eq!((errors, ok), (2, vec!["ok"]));
         let ids: std::collections::HashSet<_> = items.iter().map(|i| &i.id).collect();
         assert_eq!(ids.len(), items.len());
+    }
+
+    // ── Plugins ─────────────────────────────────────────────────────────────
+
+    fn plugins(items: &[ConfigItem]) -> Vec<&ConfigItem> {
+        items.iter().filter(|i| i.kind == ConfigKind::Plugin).collect()
+    }
+
+    /// Installs `key` in HOME's plugin cache and lists it in `installed_plugins.json` with the others.
+    fn install(f: &Fixture, keys: &[&str]) {
+        let mut plugins = Map::new();
+        for key in keys {
+            let (name, market) = key.split_once('@').unwrap();
+            let path = f.home().join(format!(".claude/plugins/cache/{market}/{name}/1.0.0"));
+            fs::create_dir_all(&path).unwrap();
+            plugins.insert(
+                key.to_string(),
+                serde_json::json!([{ "scope": "user", "installPath": path, "version": "1.0.0" }]),
+            );
+        }
+        let file = serde_json::json!({ "version": 2, "plugins": plugins });
+        f.write("home/.claude/plugins/installed_plugins.json", &file.to_string());
+    }
+
+    #[test]
+    fn global_lists_installed_and_enabled_plugins_with_their_state() {
+        let f = Fixture::new("plugins-global");
+        install(&f, &["a@m", "c@m"]);
+        f.write("home/.claude/settings.json", r#"{"enabledPlugins":{"a@m":true,"b@m":false}}"#);
+        let items = f.global();
+        let rows: Vec<_> = plugins(&items)
+            .iter()
+            .map(|i| {
+                let p = i.plugin.as_ref().unwrap();
+                (p.key.as_str(), i.name.as_str(), p.enabled, p.installed, i.source)
+            })
+            .collect();
+        assert_eq!(rows, vec![
+            ("a@m", "a", Some(true), true, ConfigSource::User),
+            ("b@m", "b", Some(false), false, ConfigSource::User),
+            ("c@m", "c", None, true, ConfigSource::User),
+        ]);
+        let c = plugins(&items)[2];
+        assert!(c.file.ends_with("installed_plugins.json"), "{}", c.file);
+        assert_eq!(c.plugin.as_ref().unwrap().marketplace.as_deref(), Some("m"));
+        assert!(items.iter().all(|i| i.error.is_none()), "{items:?}");
+    }
+
+    #[test]
+    fn a_project_lists_only_its_own_plugins_and_local_wins() {
+        let f = Fixture::new("plugins-project");
+        install(&f, &["a@m", "x@m"]);
+        f.write("home/.claude/settings.json", r#"{"enabledPlugins":{"x@m":true}}"#);
+        f.write("proj/.claude/settings.json", r#"{"enabledPlugins":{"a@m":true}}"#);
+        f.write("proj/.claude/settings.local.json", r#"{"enabledPlugins":{"a@m":false}}"#);
+        let items = f.project();
+        let rows: Vec<_> = plugins(&items)
+            .iter()
+            .map(|i| (i.plugin.as_ref().unwrap().key.as_str(), i.plugin.as_ref().unwrap().enabled, i.source, i.plugin.as_ref().unwrap().installed))
+            .collect();
+        assert_eq!(rows, vec![("a@m", Some(false), ConfigSource::Local, true)]);
+    }
+
+    #[test]
+    fn a_plugin_folder_lists_its_parts_and_manifest() {
+        let f = Fixture::new("plugins-parts");
+        install(&f, &["p@m"]);
+        let dir = "home/.claude/plugins/cache/m/p/1.0.0";
+        f.write(&format!("{dir}/.claude-plugin/plugin.json"), r#"{"name":"p","version":"2.1.0","description":"Does p","agents":"./more"}"#);
+        f.write(&format!("{dir}/skills/x/SKILL.md"), "---\nname: x\n---\n");
+        f.write(&format!("{dir}/skills/no-skill-file/README.md"), "");
+        f.write(&format!("{dir}/commands/c.md"), "");
+        f.write(&format!("{dir}/commands/git/commit.md"), "");
+        f.write(&format!("{dir}/agents/g.md"), "");
+        f.write(&format!("{dir}/hooks/hooks.json"), r#"{"description":"d","hooks":{"Stop":[]}}"#);
+        f.write(&format!("{dir}/.mcp.json"), r#"{"mcpServers":{"srv":{"command":"x","env":{"K":"sk-secret-789"}}}}"#);
+        let items = f.global();
+        let it = plugins(&items)[0];
+        assert!(it.error.is_none(), "{:?}", it.error);
+        assert_eq!(it.description, "Does p");
+        let p = it.plugin.as_ref().unwrap();
+        assert_eq!(p.version.as_deref(), Some("2.1.0"));
+        let parts = p.parts.as_ref().unwrap();
+        assert_eq!(parts.skills, vec!["x"]);
+        assert_eq!(parts.commands, vec!["c", "git/commit"]);
+        assert_eq!(parts.agents, vec!["g"]);
+        assert_eq!(parts.hook_events, vec!["Stop"]);
+        assert_eq!(parts.mcp_servers, vec!["srv"]);
+        assert_eq!(parts.custom_paths, vec!["agents"]);
+        assert!(!serde_json::to_string(&items).unwrap().contains("sk-secret"));
+    }
+
+    #[test]
+    fn an_install_folder_outside_the_plugins_folder_is_not_read() {
+        let f = Fixture::new("plugins-outside");
+        let outside = f.dir.join("elsewhere/p");
+        f.write("elsewhere/p/.claude-plugin/plugin.json", r#"{"description":"should not show"}"#);
+        let file = serde_json::json!({ "version": 2, "plugins": { "p@m": [{ "scope": "user", "installPath": outside }] } });
+        f.write("home/.claude/plugins/installed_plugins.json", &file.to_string());
+        let items = f.global();
+        let it = plugins(&items)[0];
+        assert!(it.error.as_deref().unwrap().contains("outside"), "{:?}", it.error);
+        assert!(it.description.is_empty() && it.plugin.as_ref().unwrap().parts.is_none());
+    }
+
+    #[test]
+    fn an_enabled_value_that_is_not_a_boolean_is_an_error_on_its_row() {
+        let f = Fixture::new("plugins-nonbool");
+        f.write("home/.claude/settings.json", r#"{"enabledPlugins":{"a@m":"yes"}}"#);
+        let items = f.global();
+        let it = plugins(&items)[0];
+        assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.error.as_deref().unwrap().contains("not true or false"), "{:?}", it.error);
     }
 }
