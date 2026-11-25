@@ -73,6 +73,9 @@ test('the project page saves what a pick stores and passes each select\'s starre
   ]) {
     assert.ok(src.includes(`save('${field}', $event, ${starred})`), field)
   }
+  // No pick is saved before the global settings (and so the ★) are known.
+  assert.match(src, /starred: string\) \{\n  if \(!appSettings\.settings\) return\n/)
+  assert.match(read('../../views/SchedulesView.vue'), /if \(!form\.value \|\| !appSettings\.settings\) return/)
   // Only the picked field changes; the others are sent as they are.
   assert.match(src, /setSessionDefaults\(props\.project\.id, \{ \.\.\.own\.value, \[field\]: next \}\)/)
 })

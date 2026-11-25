@@ -74,7 +74,8 @@ const engineSelect = computed(() => {
   return { ...projectDefaultSelect([{ value: 'claude', label: 'Claude' }, { value: 'codex', label: 'Codex' }], form.value?.engine, def), def }
 })
 function pickEngine(picked: string) {
-  if (!form.value) return
+  // Without the global settings the ★ engine is not known yet.
+  if (!form.value || !appSettings.settings) return
   const engine = picked === 'codex' ? 'codex' : 'claude'
   form.value.engine = (projectValueForPick(engine, engineSelect.value.def) ?? '') as ScheduleForm['engine']
 }

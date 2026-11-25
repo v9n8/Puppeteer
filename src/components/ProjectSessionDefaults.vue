@@ -51,8 +51,10 @@ const effective = computed(() => composerDefaults({ settings: appSettings.settin
 
 const saving = ref(false)
 // `starred` is the select's ★ value. A pinned value equal to it is cleared too,
-// so the "unchanged" check compares what would be stored.
+// so the "unchanged" check compares what would be stored. Until the global
+// settings load, the ★ is not known yet: a pick then could not tell follow from pin.
 async function save(field: Exclude<keyof ProjectSessionDefaults, 'enabled_models'>, picked: string, starred: string) {
+  if (!appSettings.settings) return
   const next = projectValueForPick(picked, starred) || null
   if (saving.value || (own.value[field]?.trim() || null) === next) return
   saving.value = true
