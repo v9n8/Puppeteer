@@ -6,6 +6,7 @@
 // Pure helpers of LibraryView.vue and components/library/.
 import { haystack, matchesSearch, type RowGroup } from './listGroups.ts'
 import type { MemoryFile, ProjectMemoryKind } from './memoryFiles.ts'
+import type { ConfigItemKind } from './libraryConfig.ts'
 
 export const CMD_LIBRARY_SCAN = 'library_scan'
 export const CMD_LIBRARY_READ = 'library_read'
@@ -22,7 +23,9 @@ export const CMD_LIBRARY_MATERIALIZE = 'library_materialize'
 export type LibraryScope = 'global' | 'project'
 export type DiskItemKind = 'skill' | 'rule' | 'command' | 'agent'
 /** `memory`: a project's CLAUDE.md / AGENTS.md, made here by `memoryItem` (not from `library_scan`). */
-export type LibraryItemKind = DiskItemKind | 'memory'
+export type FileItemKind = DiskItemKind | 'memory'
+/** `hook` / `plugin`: Claude Code's settings, not files (lib/libraryConfig). */
+export type LibraryItemKind = FileItemKind | ConfigItemKind
 /** Display order of the list's groups. */
 export const DISK_ITEM_KINDS: readonly DiskItemKind[] = ['skill', 'rule', 'command', 'agent']
 /** A project's tab: the four, then its Memory. */
@@ -33,7 +36,7 @@ export type DiskItemStatus = 'file' | 'git_tracked' | 'puppeteer_link' | 'symlin
 
 /** What `library_scan` returns per item (and `memoryItem` for a memory file). */
 export interface DiskItem {
-  kind: LibraryItemKind
+  kind: FileItemKind
   engine: 'claude' | 'codex'
   scope: LibraryScope
   name: string

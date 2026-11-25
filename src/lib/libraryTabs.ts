@@ -3,13 +3,22 @@
 // (which tab opens, what a search keeps, when the project column folds) are
 // tested without a component.
 import { haystack, matchesSearch } from './listGroups.ts'
-import type { DiskItem, DiskRow, LibraryItemKind } from './libraryDisk.ts'
+import { DISK_ITEM_KINDS, type DiskItem, type DiskRow, type LibraryItemKind, type LibraryScope } from './libraryDisk.ts'
+import { CONFIG_ITEM_KINDS } from './libraryConfig.ts'
 
 /** Window width under which the Library's project column folds and the tabs become a select. */
 export const LIBRARY_NARROW_QUERY = '(max-width: 1099px)'
 
+/**
+ * The Library screen's kinds: the files, then hooks and plugins (left out in
+ * remote mode: their scan is local-only), then a project's Memory.
+ */
+export function libraryKinds(scope: LibraryScope, remote: boolean): LibraryItemKind[] {
+  return [...DISK_ITEM_KINDS, ...(remote ? [] : CONFIG_ITEM_KINDS), ...(scope === 'project' ? (['memory'] as const) : [])]
+}
+
 /** Items per kind, every kind of `kinds` present (0 included); never changed by a search. */
-export function kindCounts(items: readonly Pick<DiskItem, 'kind'>[], kinds: readonly LibraryItemKind[]): Record<string, number> {
+export function kindCounts(items: readonly { kind: LibraryItemKind }[], kinds: readonly LibraryItemKind[]): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const kind of kinds) counts[kind] = 0
   for (const it of items) if (it.kind in counts) counts[it.kind]++
@@ -29,7 +38,7 @@ export function tabRows(items: readonly DiskItem[], kind: LibraryItemKind, searc
  * items; else the first kind that has items; else the first kind (an empty place).
  */
 export function pickTab(
-  items: readonly (Pick<DiskItem, 'kind' | 'path'> & { hash?: string | null })[],
+  items: readonly { kind: LibraryItemKind; path: string; hash?: string | null }[],
   kinds: readonly LibraryItemKind[],
   selectedPath: string | null,
   current: LibraryItemKind | null,
