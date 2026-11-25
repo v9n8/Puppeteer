@@ -6,7 +6,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertCircle } from 'lucide-vue-next'
 import { Badge } from '@/components/ui'
-import { pluginState, type ConfigItem } from '@/lib/libraryConfig'
+import { pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
 
 const props = defineProps<{
   item: ConfigItem
@@ -55,7 +55,7 @@ const state = computed(() => (props.item.plugin ? pluginState(props.item.plugin)
     <Badge v-if="item.hook?.all_disabled" size="xs" tone="warning" class="shrink-0" :title="t('library.config.allDisabled')">
       {{ t('library.config.hooksOff') }}
     </Badge>
-    <Badge size="xs" class="shrink-0" :title="t(`library.config.sourceHint.${item.source}`)">
+    <Badge size="xs" class="shrink-0" :title="t(sourceHintKey(item))">
       {{ t(`library.config.source.${item.source}`) }}
     </Badge>
     <Badge size="xs" class="shrink-0">{{ t('library.engine.claude') }}</Badge>

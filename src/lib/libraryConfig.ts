@@ -97,3 +97,28 @@ export function pluginPartGroups(parts: PluginParts): { key: keyof PluginParts; 
   const order: (keyof PluginParts)[] = ['skills', 'commands', 'agents', 'hook_events', 'mcp_servers']
   return order.map((key) => ({ key, names: parts[key] })).filter((g) => g.names.length > 0)
 }
+
+/**
+ * When the scan itself fails (no project folder, …): one error row per kind,
+ * so the tabs say so while the files stay listed. `name` titles the rows,
+ * `source` is the tab's level (`user` on Global, `project` on a project).
+ */
+export function configScanErrorRows(error: string, name: string, source: ConfigSource): ConfigItem[] {
+  return CONFIG_ITEM_KINDS.map((kind) => ({
+    kind,
+    id: `${kind}-error:scan`,
+    name,
+    description: '',
+    source,
+    file: '',
+    error,
+    hook: null,
+    plugin: null,
+  }))
+}
+
+/** i18n key of the source badge's hint: a plugin no settings file sets comes from the install list. */
+export function sourceHintKey(item: Pick<ConfigItem, 'plugin' | 'source' | 'file'>): string {
+  if (item.plugin && /[\\/]installed_plugins\.json$/.test(item.file)) return 'library.config.sourceHint.installed'
+  return `library.config.sourceHint.${item.source}`
+}

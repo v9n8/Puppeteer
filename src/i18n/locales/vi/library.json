@@ -116,10 +116,11 @@
     "sourceHint": {
       "user": "Từ ~/.claude/settings.json",
       "project": "Từ .claude/settings.json của project, chia sẻ qua git",
-      "local": "Từ .claude/settings.local.json của project, chỉ trên máy này"
+      "local": "Từ .claude/settings.local.json của project, chỉ trên máy này",
+      "installed": "Từ ~/.claude/plugins/installed_plugins.json: không file settings nào đọc ở đây đặt nó"
     },
     "readOnly": "Chỉ xem: Puppeteer hiện điều file khai báo và không sửa gì. Sửa trong file, hoặc dùng /hooks và /plugin trong Claude Code.",
-    "reveal": "Hiện trong Finder",
+    "scanFailed": "Không đọc được settings của Claude Code",
     "hookTitle": "Hook",
     "event": "Sự kiện",
     "matcher": "Matcher",

@@ -116,10 +116,11 @@
     "sourceHint": {
       "user": "From ~/.claude/settings.json",
       "project": "From the project's .claude/settings.json, shared through git",
-      "local": "From the project's .claude/settings.local.json, on this machine only"
+      "local": "From the project's .claude/settings.local.json, on this machine only",
+      "installed": "From ~/.claude/plugins/installed_plugins.json: no settings file read here sets it"
     },
     "readOnly": "Read-only: Puppeteer shows what the file declares and changes nothing. Edit the file, or use /hooks and /plugin in Claude Code.",
-    "reveal": "Show in Finder",
+    "scanFailed": "Couldn't read Claude Code's settings",
     "hookTitle": "Hook",
     "event": "Event",
     "matcher": "Matcher",

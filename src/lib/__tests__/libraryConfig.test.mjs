@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/libraryConfig.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { configRows, isConfigKind, pluginPartGroups, pluginState } from '../libraryConfig.ts'
+import { configRows, configScanErrorRows, isConfigKind, pluginPartGroups, pluginState, sourceHintKey } from '../libraryConfig.ts'
 import { kindCounts, libraryKinds, pickTab } from '../libraryTabs.ts'
 
 const hook = (name, command, id = `hook:user:${name}:0:0`) => ({
@@ -67,4 +67,22 @@ test('config rows count and open their tab like files', () => {
   assert.deepEqual(kindCounts(rows, kinds), { skill: 0, rule: 0, command: 0, agent: 0, hook: 2, plugin: 2 })
   assert.equal(pickTab(rows, kinds, 'plugin:evon@m', 'skill'), 'plugin')
   assert.equal(pickTab(rows, kinds, null, null), 'hook')
+})
+
+test('a failed scan gives one error row per kind, ids apart from file paths', () => {
+  const rows = configScanErrorRows('Project not found', 'Claude Code settings', 'project')
+  assert.ok(rows.every((r) => r.source === 'project'))
+  assert.deepEqual(rows.map((r) => [r.kind, r.id, r.error]), [
+    ['hook', 'hook-error:scan', 'Project not found'],
+    ['plugin', 'plugin-error:scan', 'Project not found'],
+  ])
+  assert.deepEqual(configRows(rows, 'plugin', '').map((r) => r.config.name), ['Claude Code settings'])
+})
+
+test('sourceHintKey names the install list for a plugin no settings file sets', () => {
+  const fromList = { ...plugin('lsp', null), file: '/h/.claude/plugins/installed_plugins.json' }
+  assert.equal(sourceHintKey(fromList), 'library.config.sourceHint.installed')
+  assert.equal(sourceHintKey({ ...fromList, file: 'C:\\h\\.claude\\plugins\\installed_plugins.json' }), 'library.config.sourceHint.installed')
+  assert.equal(sourceHintKey(plugin('evon', true)), 'library.config.sourceHint.user')
+  assert.equal(sourceHintKey({ ...hook('Stop', 'x'), source: 'local' }), 'library.config.sourceHint.local')
 })

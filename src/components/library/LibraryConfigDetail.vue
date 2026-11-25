@@ -11,7 +11,8 @@ import { Badge, Banner, Button } from '@/components/ui'
 import DetailHeader from '@/components/listDetail/DetailHeader.vue'
 import DetailSection from '@/components/listDetail/DetailSection.vue'
 import { useToast } from '@/composables/useToast'
-import { pluginPartGroups, pluginState, type ConfigItem } from '@/lib/libraryConfig'
+import { pluginPartGroups, pluginState, sourceHintKey, type ConfigItem } from '@/lib/libraryConfig'
+import { platformOf, revealLabelKey } from '@/lib/sessionPaths'
 
 const props = defineProps<{
   item: ConfigItem
@@ -19,6 +20,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { toast } = useToast()
+const revealKey = revealLabelKey(platformOf(navigator.userAgent))
 
 const hook = computed(() => props.item.hook)
 const plugin = computed(() => props.item.plugin)
@@ -46,16 +48,16 @@ function revealInstall() {
         <span class="font-mono" :title="item.file">{{ item.file }}</span>
       </template>
       <template #actions>
-        <Button variant="outline" size="sm" :title="item.file" @click="reveal(item.file)">
+        <Button v-if="item.file" variant="outline" size="sm" :title="item.file" @click="reveal(item.file)">
           <FolderOpen class="h-3.5 w-3.5" :stroke-width="1.75" />
-          {{ t('library.config.reveal') }}
+          {{ t(revealKey) }}
         </Button>
       </template>
     </DetailHeader>
 
     <div class="flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-muted/30 px-3 py-1.5">
       <Badge size="xs" class="shrink-0">{{ t('library.engine.claude') }}</Badge>
-      <Badge size="xs" class="shrink-0" :title="t(`library.config.sourceHint.${item.source}`)">
+      <Badge size="xs" class="shrink-0" :title="t(sourceHintKey(item))">
         {{ t(`library.config.source.${item.source}`) }}
       </Badge>
       <Badge
@@ -121,11 +123,12 @@ function revealInstall() {
               <dd class="flex min-w-0 items-center gap-1">
                 <span class="truncate font-mono" :title="plugin.install_path">{{ plugin.install_path }}</span>
                 <Button
+                  v-if="plugin.parts"
                   variant="ghost"
                   size="icon"
                   class="shrink-0"
-                  :title="t('library.config.reveal')"
-                  :aria-label="t('library.config.reveal')"
+                  :title="t(revealKey)"
+                  :aria-label="t(revealKey)"
                   @click="revealInstall"
                 >
                   <FolderOpen class="h-3.5 w-3.5" :stroke-width="1.75" />

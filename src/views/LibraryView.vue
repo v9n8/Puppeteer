@@ -45,7 +45,9 @@ import {
   isLibraryExists, libraryPlace, libraryQuery, memoryItem, memoryKindOf,
   type DiskItem, type DiskRow, type LibraryItemKind, type LibraryPlace, type LibraryScope,
 } from '@/lib/libraryDisk'
-import { CMD_LIBRARY_CONFIG_SCAN, configRows, isConfigKind, type ConfigItem, type ConfigRow } from '@/lib/libraryConfig'
+import {
+  CMD_LIBRARY_CONFIG_SCAN, configRows, configScanErrorRows, isConfigKind, type ConfigItem, type ConfigRow,
+} from '@/lib/libraryConfig'
 import { LIBRARY_NARROW_QUERY, kindCounts, libraryKinds, pickTab, projectListCollapsed, tabRows } from '@/lib/libraryTabs'
 import { CMD_MEMORY_READ, PROJECT_MEMORY_KINDS, type MemoryFile, type MemoryTarget } from '@/lib/memoryFiles'
 
@@ -165,7 +167,12 @@ async function scan() {
     const [disk, memory, config] = await Promise.all([
       invoke<DiskItem[]>(CMD_LIBRARY_SCAN, { scope: scope.value, projectId: pid }),
       pid ? scanMemory(pid) : [],
-      remote ? [] : invoke<ConfigItem[]>(CMD_LIBRARY_CONFIG_SCAN, { scope: scope.value, projectId: pid }),
+      // Its failure shows in its own tabs and leaves the files listed.
+      remote
+        ? []
+        : invoke<ConfigItem[]>(CMD_LIBRARY_CONFIG_SCAN, { scope: scope.value, projectId: pid }).catch((e) =>
+            configScanErrorRows(String(e), t('library.config.scanFailed'), pid ? 'project' : 'user'),
+          ),
     ])
     const list = [...disk, ...memory]
     if (seq !== scanSeq) return
