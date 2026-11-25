@@ -98,6 +98,7 @@ export function useBoardMarquee(options: {
     window.removeEventListener('pointercancel', cancel)
     window.removeEventListener('blur', cancel)
     window.removeEventListener('keydown', onKey, true)
+    window.removeEventListener('selectstart', preventSelect)
     options.scroller.value?.removeEventListener('scroll', update, true)
     if (frame) cancelAnimationFrame(frame)
     frame = 0
@@ -137,6 +138,10 @@ export function useBoardMarquee(options: {
     cancel()
   }
 
+  function preventSelect(e: Event) {
+    e.preventDefault()
+  }
+
   function onPointerDown(e: PointerEvent) {
     const el = options.scroller.value
     const target = e.target as Element | null
@@ -144,8 +149,8 @@ export function useBoardMarquee(options: {
     if (target.closest(IGNORE)) return
     const r = el.getBoundingClientRect()
     if (e.clientY - r.top >= el.clientTop + el.clientHeight) return // the horizontal scrollbar
-    // No text selection starts under the box.
-    e.preventDefault()
+    const list = target.closest<HTMLElement>(LIST)
+    if (list && e.clientX - list.getBoundingClientRect().left >= list.clientLeft + list.clientWidth) return // a list's own scrollbar
     const p = toContent(el, e.clientX, e.clientY)
     press = {
       ...p,
@@ -161,6 +166,9 @@ export function useBoardMarquee(options: {
     window.addEventListener('pointercancel', cancel)
     window.addEventListener('blur', cancel)
     window.addEventListener('keydown', onKey, true)
+    // No text selection starts under the box. Not by cancelling the press itself: that drops the
+    // mousedown that menus close on, and the focus would stay where it was (the name filter).
+    window.addEventListener('selectstart', preventSelect)
   }
 
   onBeforeUnmount(stop)

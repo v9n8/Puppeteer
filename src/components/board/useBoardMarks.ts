@@ -33,7 +33,8 @@ export function useBoardMarks(options: {
   const { box, onPointerDown } = useBoardMarquee({
     scroller: options.scroller,
     marks: () => marks.value,
-    setMarks: (next) => { marks.value = next },
+    // Cut to the cards on screen: the marks from before the press may name a card gone since.
+    setMarks: (next) => { marks.value = pruneMarks(next, options.visible.value.map((r) => ({ label: r.id }))) },
   })
 
   /** The cards that travel with `run`: every marked card in display order when it is one, else `run` alone. */
