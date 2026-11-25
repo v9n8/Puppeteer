@@ -5478,6 +5478,8 @@ mod session_default_tiers_tests {
         assert_eq!(model("claude", None, Some("claude-b"), Some("claude-c"), "claude-d").as_deref(), Some("claude-b"));
         assert_eq!(model("claude", None, None, Some("claude-c"), "claude-d").as_deref(), Some("claude-c"));
         assert_eq!(model("claude", None, None, None, "claude-d").as_deref(), Some("claude-d"));
+        // A session that already ran keeps its model when the global one changes.
+        assert_eq!(model("claude", None, Some("claude-opus-5-5"), None, "claude-opus-5-5[1m]").as_deref(), Some("claude-opus-5-5"));
         assert_eq!(model("codex", None, None, None, ""), None);
         // A value of the other engine is skipped at every tier.
         assert_eq!(model("codex", None, Some("claude-b"), Some("gpt-5.5"), "gpt-5.4").as_deref(), Some("gpt-5.5"));
@@ -5494,6 +5496,7 @@ mod session_default_tiers_tests {
         assert_eq!(effort(None, Some("low"), Some("medium"), "high").as_deref(), Some("low"));
         assert_eq!(effort(None, None, Some("medium"), "high").as_deref(), Some("medium"));
         assert_eq!(effort(None, None, None, "high").as_deref(), Some("high"));
+        assert_eq!(effort(None, None, None, "low").as_deref(), Some("low"));
         // Unknown levels count as unset; nothing anywhere lets the engine decide.
         assert_eq!(effort(None, Some("turbo"), Some("bogus"), "xhigh").as_deref(), Some("xhigh"));
         assert_eq!(effort(None, None, None, ""), None);

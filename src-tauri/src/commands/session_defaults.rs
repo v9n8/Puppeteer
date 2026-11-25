@@ -410,6 +410,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_project_back_on_the_global_permission_mode_leaves_the_phone_list() {
+        let db = test_db().await;
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('default_permission_mode', 'default')")
+            .execute(&db)
+            .await
+            .unwrap();
+        set(&db, "p1", ProjectSessionDefaults { permission_mode: Some("plan".into()), ..Default::default() }).await.unwrap();
+        let (global, projects) = wire_permission_modes(&db).await;
+        assert_eq!((global.as_str(), projects.get("p1").map(String::as_str)), ("default", Some("plan")));
+        // Picking the starred mode on the project page sends the field as null.
+        set(&db, "p1", ProjectSessionDefaults::default()).await.unwrap();
+        let (global, projects) = wire_permission_modes(&db).await;
+        assert_eq!(global, "default");
+        assert!(!projects.contains_key("p1"), "{projects:?}");
+    }
+
+    #[tokio::test]
     async fn set_validates_and_blank_means_follow_global() {
         let db = test_db().await;
         let own = crate::commands::response_styles::create(&db, Some("p1"), "Team", "", "Team text").await.unwrap();
