@@ -55,6 +55,9 @@ pub enum Origin {
     /// Nobody: the request was withdrawn (the engine cancelled the tool, its
     /// input closed, or a broker shim hung up).
     Engine,
+    /// Nobody this time: the user allowed the same broker command shape for
+    /// the rest of the run.
+    RunMemory,
 }
 
 impl Origin {
@@ -64,6 +67,7 @@ impl Origin {
             Origin::Remote => "remote",
             Origin::AutoRule => "auto_rule",
             Origin::Engine => "engine",
+            Origin::RunMemory => "run_memory",
         }
     }
 }
@@ -126,6 +130,12 @@ pub fn format_tool_decision_line(
     origin: Origin,
     at: chrono::DateTime<chrono::Utc>,
 ) -> String {
+    // A once-only prompt has no standing Always: its remember click means
+    // "for this run".
+    let decision = match decision {
+        "allow_always" if event.once_only => "allow_for_run",
+        other => other,
+    };
     let mut line = format!(
         "tool_decision run={} request={} engine={} tool={:?} decision={decision} origin={} at={}",
         event.run_id,
@@ -248,6 +258,19 @@ mod tests {
         assert!(line.contains("origin=remote") && line.contains("decision=allow_always"), "{line}");
         assert!(line.contains("input=\"/p/a.rs\""), "{line}");
         assert!(!line.contains("fn main"), "file contents must not be logged: {line}");
+    }
+
+    #[test]
+    fn run_memory_answers_are_labelled() {
+        let mut evt = request("r", "gh", serde_json::json!({ "command": "gh api graphql" }));
+        evt.once_only = true;
+        let line = format_tool_decision_line(&evt, "allow_always", Origin::Local, at());
+        assert!(line.contains("decision=allow_for_run origin=local"), "{line}");
+        let line = format_tool_decision_line(&evt, "allow", Origin::RunMemory, at());
+        assert!(line.contains("decision=allow origin=run_memory"), "{line}");
+        evt.once_only = false;
+        let line = format_tool_decision_line(&evt, "allow_always", Origin::Local, at());
+        assert!(line.contains("decision=allow_always"), "{line}");
     }
 
     #[test]

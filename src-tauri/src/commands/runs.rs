@@ -1993,8 +1993,7 @@ pub(crate) async fn respond_permission_inner(
     {
         let mut pending = broker_approvals.lock().await;
         if let Some(tx) = pending.remove(&payload.request_id) {
-            let allow = payload.decision == "allow";
-            let _ = tx.send(allow);
+            let _ = tx.send(crate::runs::BrokerAnswer::of(&payload, origin));
             audit_answer(&claimed.event, &payload, origin);
             return Ok(claimed.event);
         }
@@ -7035,7 +7034,7 @@ mod permission_audit_tests {
         respond_permission_inner(&registry, &approvals, payload(run_id, request_id, decision, remember), origin)
             .await
             .unwrap();
-        assert_eq!(rx.await.unwrap(), decision == "allow");
+        assert_eq!(rx.await.unwrap().allow, decision == "allow");
         lines.tool_records(run_id)
     }
 

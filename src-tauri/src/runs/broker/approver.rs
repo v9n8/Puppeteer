@@ -19,6 +19,7 @@ use crate::runs::{BrokerApprovals, BrokerRuns};
 use tauri::{AppHandle, Emitter};
 
 mod reason;
+pub mod run_memory;
 
 /// Decides whether an `Ask` request should proceed. Must be `Send + Sync` so it
 /// can be shared across the accept loop's spawned tasks via `Arc`.
@@ -97,7 +98,14 @@ impl ModalApprover {
 impl Approver for ModalApprover {
     async fn approve(&self, req: &BrokerRequest, reason: &str) -> bool {
         let request_id = uuid::Uuid::new_v4().to_string();
-        let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+        let key = run_memory::key_for(&req.tool, &req.argv, reason);
+        let evt = prompt_event(&self.run_id, &request_id, self.cwd.clone(), req, reason, key.is_some());
+        // Same shape already allowed for this run: no prompt, but still audited.
+        if key.as_ref().is_some_and(|k| run_memory::contains(&self.run_id, k)) {
+            super::audit::tool_decision(&evt, "allow", super::audit::Origin::RunMemory);
+            return true;
+        }
+        let (tx, rx) = tokio::sync::oneshot::channel::<run_memory::BrokerAnswer>();
 
         // 1. Register the pending approval so respond_permission can resolve it.
         {
@@ -107,7 +115,6 @@ impl Approver for ModalApprover {
 
         // 2. Emit the SAME event the sidecar permission flow uses, so the same
         //    modal renders it; `broker` adds what it needs to name the action.
-        let evt = prompt_event(&self.run_id, &request_id, self.cwd.clone(), req, reason, false);
         let topic = format!("run:permission_request:{}", self.run_id);
         // Track it like a sidecar request: the emit is lost when no webview
         // listener is attached yet, and a (re)attached listener recovers it from
@@ -147,7 +154,13 @@ impl Approver for ModalApprover {
         //    disconnects (the broker drops this future; the guard withdraws the
         //    prompt). The shim's own lifetime is bounded by its caller (e.g. the
         //    Bash tool timeout), so nothing waits forever unseen.
-        rx.await.unwrap_or(false)
+        let answer = rx.await.unwrap_or_default();
+        if answer.allow && answer.for_run {
+            if let Some(key) = key {
+                run_memory::remember(&self.run_id, key);
+            }
+        }
+        answer.allow
     }
 }
 

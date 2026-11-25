@@ -263,7 +263,7 @@ fn aws_flag_is(token: &str, full: &str) -> bool {
 /// `aws secretsmanager --ca-bundle list-x get-secret-value` as `list-x`. Any
 /// other flag before the operation sets `unsure`: this table may lag a newer
 /// CLI, so the caller must not auto-allow.
-fn aws_command_path(argv: &[String]) -> (Vec<String>, bool) {
+pub(crate) fn aws_command_path(argv: &[String]) -> (Vec<String>, bool) {
     let mut path = Vec::new();
     let mut unsure = false;
     let mut i = 0;
@@ -539,7 +539,7 @@ const AZ_GLOBAL_BOOL_FLAGS: &[&str] = &["--debug", "--verbose", "--only-show-err
 /// to the first command-specific flag. Flag values after the command therefore
 /// never count as commands. Returns `(path, interleaved)` where `interleaved`
 /// means a positional followed a global flag (e.g. `az -o json account show`).
-fn az_command_path(argv: &[String]) -> (Vec<String>, bool) {
+pub(crate) fn az_command_path(argv: &[String]) -> (Vec<String>, bool) {
     let mut path = Vec::new();
     let mut seen_global = false;
     let mut interleaved = false;

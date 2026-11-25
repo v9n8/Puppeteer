@@ -186,6 +186,8 @@ impl Drop for BrokerRunGuard {
         if let Ok(mut map) = self.runs.lock() {
             map.remove(&self.run_id);
         }
+        // "Allow for this run" ends with the run.
+        broker::approver::run_memory::forget(&self.run_id);
     }
 }
 
@@ -197,7 +199,9 @@ impl Drop for BrokerRunGuard {
 /// Orphaned entries (run ended before the user answered) are harmless: the sender
 /// drops with the `ModalApprover`, so the awaiting `rx` gets `Err` → fail-closed
 /// deny. The map never holds a token.
-pub type BrokerApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
+pub type BrokerApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<BrokerAnswer>>>>;
+
+pub use broker::approver::run_memory::BrokerAnswer;
 
 pub fn new_broker_approvals() -> BrokerApprovals {
     Arc::new(Mutex::new(HashMap::new()))
