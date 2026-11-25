@@ -18,7 +18,7 @@ import { useToast } from '@/composables/useToast'
 import { useProjectsStore } from '@/stores/projects'
 import { useAppSettingsStore } from '@/stores/appSettings'
 import { composerDefaults } from '@/lib/composerChips'
-import { projectDefaultSelect } from '@/lib/defaultMark'
+import { projectDefaultSelect, projectValueForPick } from '@/lib/defaultMark'
 import {
   CMD_DELETE_SCHEDULE,
   CMD_LIST_SCHEDULES,
@@ -66,12 +66,18 @@ const formErr = ref<string | null>(null)
 const projectName = (id: string) => projects.projects.find((p) => p.id === id)?.name ?? id
 const projectOptions = computed(() => projects.projects.map((p) => ({ value: p.id, label: p.name })))
 // No engine of its own: the run uses the project's default engine, else the
-// global one; the select shows it and ★ marks it (picking any saves it).
+// global one; the select shows it and ★ marks it. Picking ★ keeps following
+// that default when it fires; the other engine is the schedule's own.
 const engineSelect = computed(() => {
   const project = projects.projects.find((p) => p.id === form.value?.project_id)
   const def = composerDefaults({ settings: appSettings.settings, project: project?.session_defaults }).engine
-  return projectDefaultSelect([{ value: 'claude', label: 'Claude' }, { value: 'codex', label: 'Codex' }], form.value?.engine, def)
+  return { ...projectDefaultSelect([{ value: 'claude', label: 'Claude' }, { value: 'codex', label: 'Codex' }], form.value?.engine, def), def }
 })
+function pickEngine(picked: string) {
+  if (!form.value) return
+  const engine = picked === 'codex' ? 'codex' : 'claude'
+  form.value.engine = (projectValueForPick(engine, engineSelect.value.def) ?? '') as ScheduleForm['engine']
+}
 const modeOptions = computed(() => PERMISSION_MODES.map((m) => ({ value: m, label: t(`schedules.mode.${m}`) })))
 const kindOptions = computed(() => TIMING_KINDS.map((k) => ({ value: k, label: t(`schedules.kind.${k}`) })))
 const WEEK = [1, 2, 3, 4, 5, 6, 0]
@@ -309,7 +315,7 @@ async function remove(s: Schedule) {
           </label>
           <label class="block space-y-1">
             <span class="text-muted-foreground">{{ t('schedules.field.engine') }}</span>
-            <AppSelect :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="form.engine = $event === 'codex' ? 'codex' : 'claude'" />
+            <AppSelect :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="pickEngine" />
           </label>
           <label class="block space-y-1">
             <span class="text-muted-foreground">{{ t('schedules.field.mode') }}</span>

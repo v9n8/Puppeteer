@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { projectDefaultSelect, projectValueForPick } from '../defaultMark.ts'
 import { composerDefaults } from '../composerChips.ts'
 import { NO_STYLE } from '../responseStyles.ts'
+import { emptyForm, inputFromForm } from '../schedules.ts'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
@@ -74,4 +75,14 @@ test('the project page saves what a pick stores and passes each select\'s starre
   }
   // Only the picked field changes; the others are sent as they are.
   assert.match(src, /setSessionDefaults\(props\.project\.id, \{ \.\.\.own\.value, \[field\]: next \}\)/)
+})
+
+test('a schedule whose engine was picked from the starred default follows it when it fires', () => {
+  const form = { ...emptyForm('p1'), name: 'n', prompt: 'p' }
+  // The project's default engine is Claude: picking Claude stores no engine.
+  assert.equal(inputFromForm({ ...form, engine: projectValueForPick('claude', 'claude') ?? '' }).engine, null)
+  assert.equal(inputFromForm({ ...form, engine: projectValueForPick('codex', 'claude') ?? '' }).engine, 'codex')
+  const src = read('../../views/SchedulesView.vue')
+  assert.match(src, /projectValueForPick\(engine, engineSelect\.value\.def\) \?\? ''/)
+  assert.match(src, /@update:model-value="pickEngine"/)
 })
