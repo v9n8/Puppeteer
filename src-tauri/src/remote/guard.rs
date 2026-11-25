@@ -93,6 +93,8 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     // Turning Puppeteer's links into files across HOME and every project (UX-58), and its preview.
     "library_materialize_preview",
     "library_materialize",
+    // Hooks and plugins Claude Code's settings declare: a hook's command can carry a token.
+    "library_config_scan",
     // Import from other tools: reads this machine's tool configs (`~/.claude.json` holds the
     // Claude account) and fills the libraries from them.
     "list_import_sources",
@@ -820,6 +822,7 @@ mod tests {
             "library_create",
             "library_materialize_preview",
             "library_materialize",
+            "library_config_scan",
             "list_import_sources",
             "scan_import_source",
             "import_candidates",

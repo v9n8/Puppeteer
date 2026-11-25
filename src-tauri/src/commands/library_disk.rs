@@ -27,6 +27,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Manager, State};
 
+pub mod config;
 pub mod create;
 pub mod materialize;
 
