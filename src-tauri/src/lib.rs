@@ -10,8 +10,6 @@ mod gitlab;
 mod import;
 mod inbox_api;
 mod item_links;
-// Read by the MCP views' commands, which come next; until then only tests call it.
-#[allow(dead_code)]
 mod mcp_discovery;
 mod model_policy;
 mod procs;
@@ -352,6 +350,7 @@ pub fn run() {
             .expect("Failed to start credential broker");
 
             app.manage(db);
+            mcp_discovery::commands::start(app.handle());
             app.manage(FileTreeWatchers::default());
             // One warm translation sidecar, shared by the UI and the Inbox API.
             let translate_state = TranslateState::default();
@@ -566,6 +565,8 @@ pub fn run() {
             import::commands::list_import_sources,
             import::commands::scan_import_source,
             import::commands::import_candidates,
+            mcp_discovery::commands::list_mcp_discovery,
+            mcp_discovery::commands::reload_mcp_discovery,
             get_instruction_warnings,
             memory_read,
             memory_write,

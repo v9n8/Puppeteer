@@ -18,8 +18,10 @@
 
 pub mod claude_sources;
 pub mod codex_sources;
+pub mod commands;
 pub mod other_sources;
 pub mod probe;
+pub mod state;
 
 use crate::commands::mcp::McpServerExport;
 use crate::import::{Candidate, McpSummary, Payload, ScanContext, ScanReport};
@@ -136,6 +138,7 @@ pub struct DiscoveryReport {
 /// so it lives only as long as an import or sync needs it.
 pub struct Found {
     pub row: DiscoveredServer,
+    #[allow(dead_code)] // read by import / sync, the next task
     pub export: Option<McpServerExport>,
 }
 

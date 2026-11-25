@@ -954,6 +954,7 @@ pub async fn add_project(webview: tauri::Webview, db: State<'_, Db>, payload: Ad
         }
     }
 
+    crate::mcp_discovery::commands::rescan_files_in_background(webview.app_handle());
     Ok(Project {
         id,
         name,
