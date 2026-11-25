@@ -3,8 +3,9 @@
 // permission mode, effort and response style a new session of this project
 // starts with, and the project's Claude account. A field the project never saved
 // uses Settings › Defaults for new sessions: each select shows the value in force
-// and ★ marks the global one; picking any option saves it (review v3, Q3). A
-// session that already ran keeps its own engine, model, effort and style.
+// and ★ marks the global one (review v3, Q3). Picking the ★ option clears the
+// field, so the project follows a later global change; any other option pins it.
+// A session that already ran keeps its own engine, model, effort and style.
 // Below: long pastes as a `.txt` attachment (RT-26), stored apart from the defaults.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,7 +24,7 @@ import {
 import { composerDefaults, composerStyleChoices, type ProjectSessionDefaults } from '@/lib/composerChips'
 import { defaultEffortChoices } from '@/lib/sessionDefaults'
 import { NO_STYLE, shownStyles } from '@/lib/responseStyles'
-import { projectDefaultSelect } from '@/lib/defaultMark'
+import { projectDefaultSelect, projectValueForPick } from '@/lib/defaultMark'
 import { PASTE_MAX_MAX_CHARS, parseMaxChars, pasteSetting, type PasteAsFileSetting } from '@/lib/pasteAsFile'
 import { IS_MAC } from '@/lib/appMenu'
 
@@ -49,11 +50,14 @@ const global = computed(() => composerDefaults({ settings: appSettings.settings 
 const effective = computed(() => composerDefaults({ settings: appSettings.settings, project: own.value }))
 
 const saving = ref(false)
-async function save(field: keyof ProjectSessionDefaults, value: string) {
-  if (saving.value || (own.value[field] ?? '') === value) return
+// `starred` is the select's ★ value. A pinned value equal to it is cleared too,
+// so the "unchanged" check compares what would be stored.
+async function save(field: Exclude<keyof ProjectSessionDefaults, 'enabled_models'>, picked: string, starred: string) {
+  const next = projectValueForPick(picked, starred) || null
+  if (saving.value || (own.value[field]?.trim() || null) === next) return
   saving.value = true
   try {
-    await projectStore.setSessionDefaults(props.project.id, { ...own.value, [field]: value || null })
+    await projectStore.setSessionDefaults(props.project.id, { ...own.value, [field]: next })
     toast.success(t('projectDetail.sessionDefaults.saved'))
   } catch (e) {
     toast.error(String(e))
@@ -211,7 +215,7 @@ async function selectClaudeAccount(accountId: string) {
       </template>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultEngine') }}</label>
-        <AppSelect size="sm" :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="save('engine', $event)" />
+        <AppSelect size="sm" :model-value="engineSelect.value" :options="engineSelect.options" @update:model-value="save('engine', $event, global.engine)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -237,30 +241,30 @@ async function selectClaudeAccount(accountId: string) {
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultClaudeModel') }}</label>
-        <AppSelect size="sm" :model-value="claudeModelSelect.value" :options="claudeModelSelect.options" @update:model-value="save('model_claude', $event)" />
+        <AppSelect size="sm" :model-value="claudeModelSelect.value" :options="claudeModelSelect.options" @update:model-value="save('model_claude', $event, global.models.claude)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultCodexModel') }}</label>
-        <AppSelect size="sm" :model-value="codexModelSelect.value" :options="codexModelSelect.options" @update:model-value="save('model_codex', $event)" />
+        <AppSelect size="sm" :model-value="codexModelSelect.value" :options="codexModelSelect.options" @update:model-value="save('model_codex', $event, global.models.codex)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <ShieldAlert class="h-3 w-3" :stroke-width="1.75" />{{ t('settings.ai.defaultPermissionMode') }}
         </label>
-        <AppSelect size="sm" :model-value="permissionSelect.value" :options="permissionSelect.options" @update:model-value="save('permission_mode', $event)" />
+        <AppSelect size="sm" :model-value="permissionSelect.value" :options="permissionSelect.options" @update:model-value="save('permission_mode', $event, global.permissionMode)" />
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           {{ t('settings.ai.defaultEffort') }}<InfoTip :text="t('settings.ai.effortHint')" />
         </label>
         <template v-if="effortLevels.length || own.effort">
-          <AppSelect size="sm" :model-value="effortSelect.value" :options="effortSelect.options" @update:model-value="save('effort', $event)" />
+          <AppSelect size="sm" :model-value="effortSelect.value" :options="effortSelect.options" @update:model-value="save('effort', $event, global.effort)" />
         </template>
         <p v-else class="text-2xs text-muted-foreground leading-relaxed">{{ t('settings.ai.effortNotTaken') }}</p>
       </div>
       <div class="space-y-1.5">
         <label class="text-2xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.ai.defaultStyle') }}</label>
-        <AppSelect size="sm" :model-value="styleSelect.value" :options="styleSelect.options" @update:model-value="save('style', $event)" />
+        <AppSelect size="sm" :model-value="styleSelect.value" :options="styleSelect.options" @update:model-value="save('style', $event, globalStyle)" />
       </div>
     </Card>
 

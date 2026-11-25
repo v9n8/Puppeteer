@@ -1,5 +1,6 @@
 // A select of session defaults names a real value, never "follow the global
 // setting"; a ★ marks the option that is the default in force (review v3, Q3).
+// Picking the ★ option follows the global setting; any other option pins.
 // Pure, so tests cover it.
 
 interface Row {
@@ -32,4 +33,13 @@ export function projectDefaultSelect<T extends Row>(
     value: own?.trim() || global,
     options: markDefault(options.filter((o) => o.value !== '' || global === ''), global),
   }
+}
+
+/**
+ * What a pick in a project-default select stores: the ★ (global) value means
+ * "follow" (null), so a later global change carries the project along; any
+ * other value is the project's own. Same rule as the phone theme (overrideForPick).
+ */
+export function projectValueForPick(picked: string, global: string): string | null {
+  return picked === global ? null : picked
 }
