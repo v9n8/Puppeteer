@@ -3,7 +3,7 @@
 //! set, its details taken from HOME's install by key. A plugin's folder is read only inside
 //! `~/.claude/plugins/`, and only for names: its MCP servers are managed under MCP.
 
-use super::{error_item, read_json, ConfigItem, ConfigKind, ConfigSource};
+use super::{error_item, read_json, ConfigItem, ConfigKind, ConfigSource, Reach};
 use crate::remote::guard::SecretPaths;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -53,6 +53,21 @@ pub(super) struct Level {
     pub enabled: Enabled,
 }
 
+/// A settings file that exists but couldn't be read: what it sets is unknown.
+pub(super) struct Unread {
+    pub source: ConfigSource,
+    pub file: PathBuf,
+}
+
+/// Higher wins: local over project over user.
+fn rank(source: ConfigSource) -> u8 {
+    match source {
+        ConfigSource::User => 0,
+        ConfigSource::Project => 1,
+        ConfigSource::Local => 2,
+    }
+}
+
 pub(super) fn enabled_of(settings: &Map<String, Value>, file: &Path) -> Result<Enabled, String> {
     match settings.get("enabledPlugins") {
         None => Ok(Enabled::new()),
@@ -68,7 +83,8 @@ struct Install {
     version: Option<String>,
 }
 
-/// Each key's first install. Version 2 keeps a list per key; a single object is taken as is.
+/// Each key's install: the user-scope one when there is one (a project's install belongs to that
+/// project), else the first. Version 2 keeps a list per key; a single object is taken as is.
 fn installs_of(file: &Map<String, Value>) -> BTreeMap<String, Install> {
     let str_of = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).map(str::to_string);
     let Some(plugins) = file.get("plugins").and_then(Value::as_object) else { return BTreeMap::new() };
@@ -76,7 +92,10 @@ fn installs_of(file: &Map<String, Value>) -> BTreeMap<String, Install> {
         .iter()
         .filter_map(|(key, v)| {
             let first = match v {
-                Value::Array(list) => list.first()?,
+                Value::Array(list) => list
+                    .iter()
+                    .find(|i| i.get("scope").and_then(Value::as_str) == Some("user"))
+                    .or_else(|| list.first())?,
                 other => other,
             };
             first.is_object().then(|| {
@@ -147,7 +166,7 @@ fn keys_of(file: Option<Map<String, Value>>, key: &str) -> Vec<String> {
 fn folder_of(home: &Path, install_path: &Path, secret: &SecretPaths) -> Result<Folder, String> {
     let plugins = home.join(PLUGINS_REL);
     let refused = || format!("{} is outside {} — Puppeteer won't read it", install_path.display(), plugins.display());
-    let root = fs::canonicalize(&plugins).map_err(|_| refused())?;
+    let root = fs::canonicalize(&plugins).map_err(|_| format!("Folder not found: {}", plugins.display()))?;
     let real = fs::canonicalize(install_path).map_err(|_| format!("Install folder not found: {}", install_path.display()))?;
     if !real.starts_with(&root) || secret.denies(&real) {
         return Err(refused());
@@ -155,16 +174,16 @@ fn folder_of(home: &Path, install_path: &Path, secret: &SecretPaths) -> Result<F
     if !real.is_dir() {
         return Err(format!("{} is not a folder", install_path.display()));
     }
-    let manifest = read_json(&real, ".claude-plugin/plugin.json", secret)?;
+    let manifest = read_json(&real, ".claude-plugin/plugin.json", Reach::Library, secret)?;
     let manifest_str = |key: &str| manifest.as_ref()?.get(key)?.as_str().map(str::to_string);
-    let mut hook_events = keys_of(read_json(&real, "hooks/hooks.json", secret)?, "hooks");
+    let mut hook_events = keys_of(read_json(&real, "hooks/hooks.json", Reach::Library, secret)?, "hooks");
     hook_events.retain(|k| k != "description");
     let parts = PluginParts {
         skills: names(&real, "skills", |p, n| p.join("SKILL.md").is_file().then(|| n.to_string())),
         commands: command_names(&real),
         agents: names(&real, "agents", md_name),
         hook_events,
-        mcp_servers: keys_of(read_json(&real, ".mcp.json", secret)?, "mcpServers"),
+        mcp_servers: keys_of(read_json(&real, ".mcp.json", Reach::Library, secret)?, "mcpServers"),
         custom_paths: CUSTOM_PATH_KEYS
             .iter()
             .filter(|k| manifest.as_ref().is_some_and(|m| m.contains_key(**k)))
@@ -175,10 +194,19 @@ fn folder_of(home: &Path, install_path: &Path, secret: &SecretPaths) -> Result<F
 }
 
 /// The plugin rows. Global (`global`): every installed plugin and every one the user's file
-/// sets. A project: every plugin its files set, the most specific file's value counting.
-pub(super) fn plugins_of(home: &Path, global: bool, levels: &[Level], secret: &SecretPaths, out: &mut Vec<ConfigItem>) {
+/// sets. A project: every plugin its files set, the most specific file's value counting. A value
+/// an `unread` file more specific than the one that set it (or any, when none did) might override
+/// is unknown.
+pub(super) fn plugins_of(
+    home: &Path,
+    global: bool,
+    levels: &[Level],
+    unread: &[Unread],
+    secret: &SecretPaths,
+    out: &mut Vec<ConfigItem>,
+) {
     let installed_file = home.join(INSTALLED_REL);
-    let installed = match read_json(home, INSTALLED_REL, secret) {
+    let installed = match read_json(home, INSTALLED_REL, Reach::Home, secret) {
         Ok(Some(file)) => installs_of(&file),
         Ok(None) => BTreeMap::new(),
         Err(e) => {
@@ -202,14 +230,16 @@ pub(super) fn plugins_of(home: &Path, global: bool, levels: &[Level], secret: &S
             Some((l, _)) => (l.source, l.file.clone()),
             None => (ConfigSource::User, installed_file.clone()),
         };
-        let mut error = match set_by {
-            Some((l, None)) => Some(format!("\"enabledPlugins.{key}\" in {} is not true or false", l.file.display())),
+        let hidden_by = unread.iter().find(|u| set_by.is_none_or(|(l, _)| rank(u.source) > rank(l.source)));
+        let mut error = match (hidden_by, set_by) {
+            (Some(u), _) => Some(format!("{} can't be read, so whether this plugin is on is unknown", u.file.display())),
+            (None, Some((l, None))) => Some(format!("\"enabledPlugins.{key}\" in {} is not true or false", l.file.display())),
             _ => None,
         };
         let mut info = PluginInfo {
             key: key.clone(),
             marketplace,
-            enabled: set_by.and_then(|(_, v)| v),
+            enabled: if hidden_by.is_some() { None } else { set_by.and_then(|(_, v)| v) },
             installed: install.is_some(),
             version: install.and_then(|i| i.version.clone()),
             install_path: install.and_then(|i| i.path.clone()),

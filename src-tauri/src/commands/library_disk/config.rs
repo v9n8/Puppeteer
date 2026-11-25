@@ -91,15 +91,28 @@ const PROJECT_FILES: &[SettingsFile] = &[
     SettingsFile { source: ConfigSource::Local, rel: ".claude/settings.local.json" },
 ];
 
+/// How far a link at the file may lead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reach {
+    /// As the Library's folders: inside the base and out of a credential store.
+    Library,
+    /// HOME's own file, often a dotfiles link: anywhere inside HOME, as the CLI follows it.
+    /// `~/.claude/settings.json` is itself a credential file to [`SecretPaths`], and so, by
+    /// identity, is its link's target; only the keys above ever leave it.
+    Home,
+}
+
 /// The JSON object at `rel` under `base`; `None` when there is no file.
-fn read_json(base: &Path, rel: &str, secret: &SecretPaths) -> Result<Option<Map<String, Value>>, String> {
+fn read_json(base: &Path, rel: &str, reach: Reach, secret: &SecretPaths) -> Result<Option<Map<String, Value>>, String> {
     let at = base.join(rel);
     if fs::symlink_metadata(&at).is_err() {
         return Ok(None);
     }
     let real_base = fs::canonicalize(base).map_err(|_| format!("Folder not found: {}", base.display()))?;
     let real = fs::canonicalize(&at).map_err(|_| format!("{} is a link to something that doesn't exist", at.display()))?;
-    if !folder_allowed(&real, &real_base, Path::new(rel), secret) {
+    let allowed = folder_allowed(&real, &real_base, Path::new(rel), secret)
+        || (reach == Reach::Home && real.starts_with(&real_base));
+    if !allowed {
         return Err(format!("{} leads outside {} — Puppeteer won't open it", at.display(), base.display()));
     }
     if !real.is_file() {
@@ -215,9 +228,11 @@ pub(crate) fn scan_config_at(home: &Path, project: Option<&Path>, secret: &Secre
     };
     let mut out = Vec::new();
     let mut levels = Vec::new();
+    let mut unread = Vec::new();
+    let reach = if project.is_some() { Reach::Library } else { Reach::Home };
     for f in files {
         let file = base.join(f.rel);
-        match read_json(base, f.rel, secret) {
+        match read_json(base, f.rel, reach, secret) {
             Ok(Some(settings)) => {
                 hooks_of(&settings, f.source, &file, &mut out);
                 match plugins::enabled_of(&settings, &file) {
@@ -230,10 +245,11 @@ pub(crate) fn scan_config_at(home: &Path, project: Option<&Path>, secret: &Secre
             Err(e) => {
                 out.push(error_item(ConfigKind::Hook, f.source, &file, 0, e.clone()));
                 out.push(error_item(ConfigKind::Plugin, f.source, &file, 0, e));
+                unread.push(plugins::Unread { source: f.source, file });
             }
         }
     }
-    plugins::plugins_of(home, project.is_none(), &levels, secret, &mut out);
+    plugins::plugins_of(home, project.is_none(), &levels, &unread, secret, &mut out);
     out
 }
 
@@ -264,7 +280,6 @@ mod tests {
     /// A temp HOME and project under one canonical folder.
     struct Fixture {
         dir: PathBuf,
-        secret: SecretPaths,
     }
 
     impl Fixture {
@@ -272,11 +287,13 @@ mod tests {
             let dir = std::env::temp_dir().join(format!("puppeteer-libconfig-{}-{}", label, uuid::Uuid::new_v4()));
             fs::create_dir_all(dir.join("home")).unwrap();
             fs::create_dir_all(dir.join("proj")).unwrap();
-            let dir = fs::canonicalize(dir).unwrap();
-            let home = dir.join("home");
-            let app_data = home.join("Library/Application Support/io.github.v9n8.puppeteer.test");
-            let secret = SecretPaths::new(Some(&home), Some(&app_data));
-            Fixture { dir, secret }
+            Fixture { dir: fs::canonicalize(dir).unwrap() }
+        }
+
+        /// Made per scan, as the command does: its identity checks see the files there now.
+        fn secret(&self) -> SecretPaths {
+            let home = self.home();
+            SecretPaths::new(Some(&home), Some(&home.join("Library/Application Support/io.github.v9n8.puppeteer.test")))
         }
 
         fn home(&self) -> PathBuf {
@@ -295,11 +312,11 @@ mod tests {
         }
 
         fn global(&self) -> Vec<ConfigItem> {
-            scan_config_at(&self.home(), None, &self.secret)
+            scan_config_at(&self.home(), None, &self.secret())
         }
 
         fn project(&self) -> Vec<ConfigItem> {
-            scan_config_at(&self.home(), Some(&self.proj()), &self.secret)
+            scan_config_at(&self.home(), Some(&self.proj()), &self.secret())
         }
     }
 
@@ -390,6 +407,30 @@ mod tests {
             assert!(it.error.as_deref().unwrap().contains("leads outside"), "{:?}", it.error);
             assert!(it.hook.is_none() && it.plugin.is_none());
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_user_settings_file_linked_from_a_dotfiles_folder_in_home_is_read() {
+        let f = Fixture::new("dotfiles");
+        let target = f.write("home/dotfiles/claude/settings.json", PRE_BASH);
+        fs::create_dir_all(f.home().join(".claude")).unwrap();
+        std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+        let items = f.global();
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert!(items[0].error.is_none(), "{:?}", items[0].error);
+        assert_eq!(items[0].name, "PreToolUse · Bash");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_user_settings_link_out_of_home_is_not_read() {
+        let f = Fixture::new("dotfiles-out");
+        let target = f.write("elsewhere/settings.json", PRE_BASH);
+        fs::create_dir_all(f.home().join(".claude")).unwrap();
+        std::os::unix::fs::symlink(&target, f.home().join(".claude/settings.json")).unwrap();
+        let items = f.global();
+        assert!(items.iter().all(|i| i.error.as_deref().is_some_and(|e| e.contains("leads outside"))), "{items:?}");
     }
 
     #[test]
@@ -517,6 +558,43 @@ mod tests {
         let it = plugins(&items)[0];
         assert!(it.error.as_deref().unwrap().contains("outside"), "{:?}", it.error);
         assert!(it.description.is_empty() && it.plugin.as_ref().unwrap().parts.is_none());
+    }
+
+    #[test]
+    fn an_unreadable_settings_file_leaves_the_plugin_state_unknown() {
+        let f = Fixture::new("plugins-unknown");
+        install(&f, &["a@m"]);
+        f.write("home/.claude/settings.json", "{");
+        let items = f.global();
+        let it = plugins(&items).into_iter().find(|i| i.plugin.is_some()).unwrap();
+        assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.error.as_deref().unwrap().contains("unknown"), "{:?}", it.error);
+    }
+
+    #[test]
+    fn a_project_value_is_unknown_when_its_local_file_is_unreadable() {
+        let f = Fixture::new("plugins-local-unknown");
+        f.write("proj/.claude/settings.json", r#"{"enabledPlugins":{"a@m":true}}"#);
+        f.write("proj/.claude/settings.local.json", "{");
+        let items = f.project();
+        let it = plugins(&items).into_iter().find(|i| i.plugin.is_some()).unwrap();
+        assert_eq!(it.plugin.as_ref().unwrap().enabled, None);
+        assert!(it.error.as_deref().unwrap().contains("unknown"), "{:?}", it.error);
+    }
+
+    #[test]
+    fn the_user_install_is_preferred_over_a_project_one() {
+        let f = Fixture::new("plugins-user-install");
+        let user = f.home().join(".claude/plugins/cache/m/a/2.0.0");
+        fs::create_dir_all(&user).unwrap();
+        let file = serde_json::json!({ "version": 2, "plugins": { "a@m": [
+            { "scope": "project", "installPath": "/nowhere/project-install", "version": "1.0.0" },
+            { "scope": "user", "installPath": user, "version": "2.0.0" },
+        ] } });
+        f.write("home/.claude/plugins/installed_plugins.json", &file.to_string());
+        let items = f.global();
+        let p = plugins(&items)[0].plugin.as_ref().unwrap();
+        assert_eq!((p.install_scope.as_deref(), p.version.as_deref()), (Some("user"), Some("2.0.0")));
     }
 
     #[test]

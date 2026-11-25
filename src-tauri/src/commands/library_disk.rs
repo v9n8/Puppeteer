@@ -777,7 +777,7 @@ mod tests {
     #[test]
     fn library_commands_have_their_remote_rule() {
         use crate::remote::guard::is_local_only_command;
-        for name in ["library_write", "library_delete", "library_duplicate_to_global"] {
+        for name in ["library_write", "library_delete", "library_duplicate_to_global", "library_config_scan"] {
             assert!(is_local_only_command(name), "{name}");
         }
         for name in ["library_scan", "library_read"] {
