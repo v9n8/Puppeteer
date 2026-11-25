@@ -201,12 +201,15 @@ pub(crate) fn parse_transcript(file: &Path, project_path: &str) -> Option<Parsed
     })
 }
 
+/// Title of an imported session with no message to name it after.
+pub(crate) const PLACEHOLDER_TITLE: &str = "Imported session";
+
 /// Resolve a run title from the first user message: trimmed, truncated, with a
 /// generic fallback. Shared with the Codex parser.
 pub(crate) fn title_from_first_message(first: Option<&str>) -> String {
     let t = truncate(first.unwrap_or("").trim(), TITLE_MAX_CHARS);
     if t.is_empty() {
-        "Imported session".to_string()
+        PLACEHOLDER_TITLE.to_string()
     } else {
         t
     }
