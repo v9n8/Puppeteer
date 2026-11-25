@@ -32,6 +32,8 @@
   "always": "Luôn cho phép",
   "allowAlwaysTitle": "Cho phép ngay và tự động cho phép công cụ này cho Project này",
   "allow": "Cho phép",
+  "allowShape": "Cho phép trong run này",
+  "allowShapeTitle": "Cho phép ngay, và tự cho phép lại đúng lệnh này trong run này (chỉ khác số)",
   "broadScopeWarning": "\"Luôn cho phép\" ở đây áp dụng cho toàn bộ server Google — Drive, Gmail và Calendar, gồm cả gửi mail và xóa file vĩnh viễn — chứ không riêng thao tác này.",
   "purpose": "Để làm gì",
   "copy": "Sao chép",

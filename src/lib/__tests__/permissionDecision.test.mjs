@@ -50,6 +50,14 @@ test('Always remembers exactly once, allow and deny separately', async () => {
   assert.deepEqual(s.calls.denied, ['Edit'])
 })
 
+test('a once-only prompt remembers nothing in the webview but still sends remember', async () => {
+  const s = fakeStore({ queue: [{ ...req('a', 'gh'), once_only: true }] })
+  assert.equal(await decidePermission(s, 'r1', 'a', 'allow', true), true)
+  assert.deepEqual(s.calls.allowed, [])
+  assert.deepEqual(s.calls.denied, [])
+  assert.deepEqual(s.calls.responded, [{ id: 'a', decision: 'allow', opts: { remember: true } }])
+})
+
 test('a failed send returns false', async () => {
   const s = fakeStore({ queue: [req('a')], ok: false })
   assert.equal(await decidePermission(s, 'r1', 'a', 'allow', false), false)

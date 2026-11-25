@@ -606,6 +606,16 @@ function onKeydown(e: KeyboardEvent) {
               >
                 {{ t('permission.always') }}
               </Button>
+              <!-- Shown only when the backend judged the command read-only; it remembers the shape, not a standing rule. -->
+              <Button
+                v-if="request.broker?.allow_for_run"
+                variant="outline"
+                class="w-full @[26rem]/footer:w-auto"
+                @click="emit('decide', 'allow', true)"
+                :title="t('permission.allowShapeTitle')"
+              >
+                {{ t('permission.allowShape') }}
+              </Button>
               <Button
                 variant="primary"
                 class="w-full @[26rem]/footer:w-auto"

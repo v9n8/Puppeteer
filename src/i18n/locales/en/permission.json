@@ -32,6 +32,8 @@
   "always": "Always",
   "allowAlwaysTitle": "Allow now and auto-allow this tool for this project",
   "allow": "Allow",
+  "allowShape": "Allow for this run",
+  "allowShapeTitle": "Allow now, and allow the same command again in this run without asking (only numbers may differ)",
   "broadScopeWarning": "\"Always\" here covers the whole Google server — Drive, Gmail and Calendar, including sending mail and permanently deleting files — not just this one action.",
   "purpose": "Purpose",
   "copy": "Copy",

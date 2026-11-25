@@ -33,8 +33,12 @@ export async function decidePermission(
 ): Promise<boolean> {
   const req = headIf(live, runId, requestId)
   if (!req) return false
-  if (remember && decision === 'allow') live.rememberAllowedTool(runId, req.tool_name)
-  else if (remember && decision === 'deny') live.rememberDeniedTool(runId, req.tool_name)
+  // A once-only (broker) prompt has no standing rule: its `remember` asks the
+  // backend to remember the command for this run only.
+  if (remember && !req.once_only) {
+    if (decision === 'allow') live.rememberAllowedTool(runId, req.tool_name)
+    else live.rememberDeniedTool(runId, req.tool_name)
+  }
   return live.respondPermission(runId, req, decision, { remember })
 }
 
