@@ -12,7 +12,10 @@
 use super::claude_sources::GLOBAL_PROFILE;
 use super::probe::{self, ProbedServer, ProfileIdentity};
 use super::state::{self, DiscoveryView, ViewInputs};
-use super::{scan_files, DiscoveryInputs, DiscoveryReport};
+use super::{import_sync, scan_files, DiscoveryInputs, DiscoveryReport, Scan};
+use crate::commands::mcp::McpServer;
+use crate::import::apply::{Outcome, Status};
+use std::collections::HashMap;
 use crate::db::Db;
 use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -111,15 +114,21 @@ fn notify(app: &AppHandle) {
     let _ = app.emit(CHANGED_EVENT, serde_json::json!({ "probing": probing }));
 }
 
-/// Read every file source again (and the profiles' logins, for C1 / C2 / C4).
-async fn scan_files_now(app: &AppHandle, db: &Db, cache: &DiscoveryCache) -> Result<(), String> {
+/// Read every file source (and the profiles' logins, for C1 / C2 / C4). The scan holds the
+/// exports: keep it only as long as an import or sync needs it.
+async fn fresh_scan(app: &AppHandle, db: &Db) -> Result<(Scan, Vec<ProfileIdentity>), String> {
     let inputs = DiscoveryInputs::load(app, db).await?;
-    let (report, identities) =
-        tokio::task::spawn_blocking(move || (scan_files(&inputs).into_report(), probe::compare_identities(&inputs)))
-            .await
-            .map_err(|e| e.to_string())?;
-    tracing::info!(event = "mcp_discovery_scan", servers = report.servers.len(), problems = report.problems.len());
-    cache.set_files(report, identities, now());
+    let (scan, identities) = tokio::task::spawn_blocking(move || (scan_files(&inputs), probe::compare_identities(&inputs)))
+        .await
+        .map_err(|e| e.to_string())?;
+    tracing::info!(event = "mcp_discovery_scan", servers = scan.found.len(), problems = scan.problems.len());
+    Ok((scan, identities))
+}
+
+/// Read the file sources again into the cache.
+async fn scan_files_now(app: &AppHandle, db: &Db, cache: &DiscoveryCache) -> Result<(), String> {
+    let (scan, identities) = fresh_scan(app, db).await?;
+    cache.set_files(scan.into_report(), identities, now());
     Ok(())
 }
 
@@ -242,6 +251,50 @@ pub async fn reload_mcp_discovery(
     view(db.inner(), &cache, project_id.as_deref()).await
 }
 
+/// Stores imported / synced VALUEs in the app's vault.
+fn vault(id: &str, env: &HashMap<String, String>, headers: &HashMap<String, String>) -> Result<(), String> {
+    crate::secrets::set_mcp_secrets(id, env, headers).map_err(|e| e.to_string())
+}
+
+/// Import discovered rows into the MCP list (off app-wide), from a fresh scan. One outcome per
+/// row id, in the import's shape.
+#[tauri::command]
+pub async fn import_discovered_mcp(
+    app: AppHandle,
+    db: State<'_, Db>,
+    cache: State<'_, DiscoveryCache>,
+    row_ids: Vec<String>,
+) -> Result<Vec<Outcome>, String> {
+    let (scan, identities) = fresh_scan(&app, db.inner()).await?;
+    let outcomes = import_sync::import_rows(db.inner(), &scan.found, &row_ids, &vault).await;
+    cache.set_files(scan.into_report(), identities, now());
+    let count = |s: Status| outcomes.iter().filter(|o| o.status == s).count();
+    tracing::info!(
+        event = "mcp_discovery_import",
+        imported = count(Status::Imported),
+        skipped = count(Status::Skipped),
+        failed = count(Status::Failed)
+    );
+    notify(&app);
+    Ok(outcomes)
+}
+
+/// Make a managed copy equal its source again (one-way); its switches stay as they are.
+#[tauri::command]
+pub async fn sync_discovered_mcp(
+    app: AppHandle,
+    db: State<'_, Db>,
+    cache: State<'_, DiscoveryCache>,
+    server_id: String,
+) -> Result<McpServer, String> {
+    let (scan, identities) = fresh_scan(&app, db.inner()).await?;
+    let result = import_sync::sync_server(db.inner(), &scan.found, &server_id, &vault).await;
+    cache.set_files(scan.into_report(), identities, now());
+    tracing::info!(event = "mcp_discovery_sync", ok = result.is_ok());
+    notify(&app);
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::probe::merge_probes;
@@ -259,7 +312,7 @@ mod tests {
     #[test]
     fn a_remote_desktop_cannot_run_discovery() {
         use crate::remote::{guard::refuses_invoke, ipc::BRIDGE_LABEL};
-        for name in ["list_mcp_discovery", "reload_mcp_discovery"] {
+        for name in ["list_mcp_discovery", "reload_mcp_discovery", "import_discovered_mcp", "sync_discovered_mcp"] {
             assert!(refuses_invoke(BRIDGE_LABEL, name), "{name}");
             assert!(!refuses_invoke("main", name), "{name}");
         }

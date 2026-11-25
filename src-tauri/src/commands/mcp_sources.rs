@@ -48,7 +48,6 @@ fn from_row((kind, reference, name, fingerprint, connector_account): SourceRow) 
 }
 
 /// The source of server `server_id`; `None` when it was created in Puppeteer (or does not exist).
-#[allow(dead_code)] // read by discovery's row state and by Sync, which land after the columns
 pub async fn source_of(db: &Db, server_id: &str) -> Result<Option<McpSource>, String> {
     let row: Option<SourceRow> = sqlx::query_as(
         "SELECT source_kind, source_ref, source_name, source_fingerprint, connector_account \

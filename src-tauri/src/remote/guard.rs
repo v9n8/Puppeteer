@@ -100,9 +100,12 @@ const LOCAL_ONLY_COMMANDS: &[&str] = &[
     "list_import_sources",
     "scan_import_source",
     "import_candidates",
-    // MCP discovery: reads this machine's tool configs and probes its Claude logins.
+    // MCP discovery, import and sync: read this machine's tool configs, probe its Claude logins
+    // and copy their servers (secrets included) into the MCP list.
     "list_mcp_discovery",
     "reload_mcp_discovery",
+    "import_discovered_mcp",
+    "sync_discovered_mcp",
     // Schedules: a schedule switched on starts agent runs with nobody at this machine.
     "set_schedule_enabled",
     // "Run now" opens an unattended session on this machine, the same.

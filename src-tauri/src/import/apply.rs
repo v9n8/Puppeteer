@@ -223,7 +223,7 @@ pub async fn import_mcp(db: &Db, candidates: &[Candidate], picks: &[Pick], store
     out
 }
 
-async fn import_server(db: &Db, cand: &Candidate, pick: &Pick, store_secrets: SecretSink<'_>) -> Result<(Status, String), String> {
+pub(crate) async fn import_server(db: &Db, cand: &Candidate, pick: &Pick, store_secrets: SecretSink<'_>) -> Result<(Status, String), String> {
     let Payload::Mcp(export) = &cand.payload else {
         return Err("only an MCP server is imported into the MCP list".to_string());
     };

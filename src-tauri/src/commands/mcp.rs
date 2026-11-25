@@ -143,7 +143,7 @@ fn validate_name(name: &str) -> Result<(), String> {
 
 /// Validate transport + required fields + secret KEY rows (non-empty, unique).
 /// Returns the cleaned (trimmed key) secret rows split into env + headers.
-fn validate_shape(
+pub(crate) fn validate_shape(
     transport: &str,
     command: &Option<String>,
     url: &Option<String>,
@@ -198,7 +198,7 @@ fn parse_json_array(raw: Option<String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn row_to_server(row: &sqlx::sqlite::SqliteRow) -> McpServer {
+pub(crate) fn row_to_server(row: &sqlx::sqlite::SqliteRow) -> McpServer {
     use sqlx::Row;
     McpServer {
         id: row.get("id"),
@@ -217,7 +217,7 @@ fn row_to_server(row: &sqlx::sqlite::SqliteRow) -> McpServer {
     }
 }
 
-const SELECT_COLS: &str =
+pub(crate) const SELECT_COLS: &str =
     "id, name, description, transport, command, args, url, env_keys, header_keys, enabled, created_at";
 
 // ---- Secret helpers --------------------------------------------------------
@@ -424,7 +424,7 @@ pub async fn delete_mcp_server(db: State<'_, Db>, id: String) -> Result<(), Stri
 }
 
 /// Trim + null-out fields irrelevant to the chosen transport, so the DB stays clean.
-fn normalized_fields(
+pub(crate) fn normalized_fields(
     transport: &str,
     command: Option<String>,
     url: Option<String>,
