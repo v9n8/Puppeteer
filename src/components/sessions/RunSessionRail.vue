@@ -14,6 +14,7 @@ import HistoryFlagFilter from '@/components/sessions/HistoryFlagFilter.vue'
 import FileTree from '@/components/FileTree.vue'
 import { Button, Input, DropdownMenu, ContextMenu } from '@/components/ui'
 import { projectTileClass, swatchClass } from '@/lib/projectAppearance'
+import { treePathIn } from '@/lib/sessionPaths'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
@@ -26,8 +27,15 @@ const {
   runTimestamp, sessionSearch, runFlag, filteredRuns, displayRuns, pagedRuns, goToHistoryPage, isProtectedByConductor, pendingRequest,
   handleFetch, handleSubmitLinkedIssue, actionsMenuRunId, contextMenu, contextMenuRun, openRowMenu, closeRowMenu, renamingRunId, renameDraft,
   setRenameInputRef, cancelRename, commitRename, runActionProps, runActionHandlers,
-  handleRefInput, creatingSession, handleNewSession, openFile,
+  handleRefInput, creatingSession, handleNewSession, openFile, sessionRoot,
 } = useRunSession()
+
+// The tree lists the Project: a click shows that file, even for a worker whose
+// tabs read from its worktree.
+function openTreeFile(path: string) {
+  const root = project.value?.path
+  if (root) openFile(treePathIn(root, path, sessionRoot.value, root) ?? path)
+}
 
 // Shift+F10 / the Menu key on a focused row opens the row menu beside the row.
 function onRowKeydown(ev: KeyboardEvent, runId: string) {
@@ -506,7 +514,7 @@ function onRowKeydown(ev: KeyboardEvent, runId: string) {
       v-if="project?.path"
       :project-path="project.path"
       :active="leftTab === 'files'"
-      @open-file="openFile"
+      @open-file="openTreeFile"
     />
 
   </div>

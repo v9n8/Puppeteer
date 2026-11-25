@@ -31,6 +31,7 @@ import { usePrompt } from '@/composables/usePrompt'
 import { useToast } from '@/composables/useToast'
 import { IS_SESSION_WINDOW } from '@/lib/windowMode'
 import { composerDefaults } from '@/lib/composerChips'
+import { useSessionRoot } from './useSessionRoot'
 
 export function useRunSessionCore() {
   const { t } = useI18n()
@@ -160,6 +161,8 @@ export function useRunSessionCore() {
   const currentRun = computed(() => runsStore.runs.find(r => r.id === currentRunId.value))
 
   const currentIsSession = computed(() => currentRun.value?.run_type === 'session')
+  // Where this Session's file tabs and links read relative paths from.
+  const sessionRoot = useSessionRoot(currentRun, computed(() => project.value?.path))
 
   watch(
     () => [currentRun.value?.id, currentRun.value?.engine] as const,
@@ -206,7 +209,7 @@ export function useRunSessionCore() {
     modelCatalog, uiLayout, confirm, prompt, toast, projectId, project, isSessionWindow, activeRunId,
     engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine, effectiveEngine, sessionDefaults,
     permissionMode, modePicks, currentRunId, currentRun, currentIsSession, session, liveEntries,
-    liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel,
+    liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel, sessionRoot,
   }
 }
 

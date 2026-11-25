@@ -13,15 +13,15 @@ import { useChangedFiles } from './useChangedFiles'
 import { useRunSession } from './useRunSession'
 
 const { t } = useI18n()
-const { currentRunId, project } = useRunSession()
+const { currentRunId, sessionRoot } = useRunSession()
 const tabsStore = useSessionTabsStore()
 const { files, loading, error, reload } = useChangedFiles()
 
 const runId = computed(() => currentRunId.value ?? '')
 
-/** Project-relative when the file is inside the Project (the Session may report absolute paths). */
+/** Relative when the file is inside the Session root (the Session may report absolute paths). */
 function relPath(path: string): string {
-  const root = (project.value?.path ?? '').replace(/[\\/]+$/, '')
+  const root = sessionRoot.value.replace(/[\\/]+$/, '')
   if (root && (path.startsWith(`${root}/`) || path.startsWith(`${root}\\`))) return path.slice(root.length + 1)
   return path
 }
@@ -46,7 +46,7 @@ function onListKey(e: KeyboardEvent) {
 }
 
 function openFile(path: string) {
-  tabsStore.open(runId.value, relPath(path), null, project.value?.path)
+  tabsStore.open(runId.value, relPath(path), null, sessionRoot.value)
 }
 </script>
 

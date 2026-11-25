@@ -410,6 +410,23 @@ test('dedupeTabs: stored duplicates merge into the first, keeping selection, pin
   assert.equal(dedupeTabs(clean, ROOT), clean)
 })
 
+test('dedupeTabs under a worker worktree root: its spellings merge, a main checkout tab stays', () => {
+  const WT = '/Users/me/repo-wt'
+  const raw = {
+    tabs: [
+      { id: 'file:tasks/x.md', kind: 'file', path: 'tasks/x.md', line: null, pinned: false },
+      { id: `file:${WT}/tasks/x.md`, kind: 'file', path: `${WT}/tasks/x.md`, line: 3, pinned: false },
+      { id: `file:${ROOT}/tasks/x.md`, kind: 'file', path: `${ROOT}/tasks/x.md`, line: null, pinned: false },
+    ],
+    active: `file:${ROOT}/tasks/x.md`,
+    usedAt: 1,
+  }
+  const s = dedupeTabs(raw, WT)
+  assert.deepEqual(s.tabs.map((t) => t.id), ['file:tasks/x.md', `file:${ROOT}/tasks/x.md`])
+  assert.equal(s.tabs[1].path, `${ROOT}/tasks/x.md`)
+  assert.equal(s.active, `file:${ROOT}/tasks/x.md`)
+})
+
 test('parse: stored ./ duplicates merge on load', () => {
   const stored = serialize({
     r1: {

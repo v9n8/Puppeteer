@@ -2,7 +2,7 @@
 // Run: node --test src/lib/__tests__/sessionPaths.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { platformOf, revealLabelKey, sessionWorkDir } from '../sessionPaths.ts'
+import { platformOf, revealLabelKey, sessionFileRoot, sessionWorkDir, treePathIn } from '../sessionPaths.ts'
 
 test('a worker with a worktree reports it, any other run reports the Project', () => {
   assert.equal(sessionWorkDir({ worktree_path: '/p/.wt/r1' }, '/p'), '/p/.wt/r1')
@@ -14,6 +14,25 @@ test('a worker with a worktree reports it, any other run reports the Project', (
 test('no worktree and no Project yields nothing to copy', () => {
   assert.equal(sessionWorkDir({}, undefined), null)
   assert.equal(sessionWorkDir({}, null), null)
+})
+
+test('the file root is the worktree while it exists, else the Project', () => {
+  const worker = { worktree_path: '/wt/r1' }
+  assert.equal(sessionFileRoot(worker, '/p', true), '/wt/r1')
+  assert.equal(sessionFileRoot(worker, '/p', false), '/p')
+  assert.equal(sessionFileRoot({ worktree_path: null }, '/p', true), '/p')
+  assert.equal(sessionFileRoot({}, undefined, false), null)
+})
+
+test('a Files tree path as the Session root names it', () => {
+  // Same root: as the tree gives it.
+  assert.equal(treePathIn('/p', 'src/a.ts', '/p', '/p'), 'src/a.ts')
+  // The Project's tree in a worker reading from its worktree: the Project's file, absolute.
+  assert.equal(treePathIn('/p', 'src/a.ts', '/wt/r1', '/p'), '/p/src/a.ts')
+  assert.equal(treePathIn('/p/', 'a.ts', '/wt/r1', '/p/'), '/p/a.ts')
+  // Another Project's tree: not ours.
+  assert.equal(treePathIn('/q', 'src/a.ts', '/wt/r1', '/p'), null)
+  assert.equal(treePathIn('/q', 'src/a.ts', '/p', '/p'), null)
 })
 
 test('the reveal label key follows the platform', () => {

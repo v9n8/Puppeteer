@@ -77,6 +77,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     toast, projectId, project, engineOverride, modelOverride, loadedRunEngine, syncLoadedRunEngine,
     effectiveEngine, sessionDefaults, permissionMode, currentRunId, currentRun, currentIsSession, session,
     liveEntries, liveOutputLines, liveHasStream, currentStatus, currentSessionId, runLabel, uiLayout,
+    sessionRoot,
   } = core
   const {
     conductorMaxWorkers,
@@ -1068,10 +1069,10 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Whether bare paths in the log's prose and prompts name real files, for those
   // the project list doesn't know (outside the project, ignored, new).
   const pathChecker = createPathChecker((paths) => {
-    const projectPath = project.value?.path
-    return projectPath ? runsStore.statPaths(projectPath, paths) : Promise.resolve(paths.map(() => false))
+    const root = sessionRoot.value
+    return root ? runsStore.statPaths(root, paths) : Promise.resolve(paths.map(() => false))
   })
-  watch(() => project.value?.path, () => pathChecker.clear())
+  watch(sessionRoot, () => pathChecker.clear())
 
   // A turn that just ended may have created files: reload so they link, and
   // forget "no such file" answers given while it ran.
@@ -1095,15 +1096,15 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // Resolve a raw inline-code token (e.g. `src/foo.ts` or just `foo.ts`) to a
   // project file path, or null when it doesn't name a real file.
   function fileMatcher(raw: string): string | null {
-    return matchProjectFile(raw, projectFileSet.value, project.value?.path)
+    return matchProjectFile(raw, projectFileSet.value, sessionRoot.value)
   }
 
-  /** Whether `path` (absolute, or relative to the project) is a file the viewer can open. */
+  /** Whether `path` (absolute, or relative to the Session root) is a file the viewer can open. */
   async function fileExists(path: string): Promise<boolean> {
-    const projectPath = project.value?.path
-    if (!projectPath || !path) return false
+    const root = sessionRoot.value
+    if (!root || !path) return false
     try {
-      const [hit] = await runsStore.statPaths(projectPath, [path])
+      const [hit] = await runsStore.statPaths(root, [path])
       return !!hit
     } catch {
       return false
@@ -1112,7 +1113,7 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
 
   /** Show a file (optionally scrolled to `line`) as a tab of this Session. */
   function openFile(path: string, line?: number | null) {
-    openSessionFile(project.value?.path, currentRunId.value, path, line ?? null)
+    openSessionFile(sessionRoot.value, currentRunId.value, path, line ?? null)
   }
 
   // Score an entry against the query. Higher = more relevant; -1 = no match.

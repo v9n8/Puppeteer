@@ -12,6 +12,7 @@ import FileViewer from '@/components/FileViewer.vue'
 import { Button } from '@/components/ui'
 import { FILE_DELETED_EVENT, FILE_MOVED_EVENT } from '@/lib/fileEvents'
 import { openFileWindow } from '@/lib/fileWindow'
+import { treePathIn } from '@/lib/sessionPaths'
 import { sendQuote } from '@/lib/quoteAppend'
 import type { QuoteSource } from '@/lib/quote'
 import type { FileTab } from '@/lib/sessionTabs'
@@ -23,14 +24,14 @@ import { useRunSession } from './useRunSession'
 const props = defineProps<{ activeId: string }>()
 const { t } = useI18n()
 const { toast } = useToast()
-const { currentRunId, currentRun, project, runLabel } = useRunSession()
+const { currentRunId, currentRun, project, runLabel, sessionRoot } = useRunSession()
 const tabsStore = useSessionTabsStore()
 
 const runId = computed(() => currentRunId.value ?? '')
 const projectPath = computed(() => project.value?.path ?? '')
 const state = computed(() => tabsStore.stateFor(runId.value))
 // Tabs saved under two spellings of one file merge (RT-13).
-watch([runId, projectPath], ([id, root]) => { if (id && root) tabsStore.normalize(id, root) }, { immediate: true })
+watch([runId, sessionRoot], ([id, root]) => { if (id && root) tabsStore.normalize(id, root) }, { immediate: true })
 const fileTabs = computed(() => state.value.tabs.filter((tab): tab is FileTab => tab.kind === 'file'))
 
 // Tabs shown at least once in this Session; the others mount on first view.
@@ -55,17 +56,24 @@ const quoteTarget = computed(() => {
 })
 
 // The Files tree renames and deletes in another component (or webview): the tabs
-// follow, as a file window does.
+// follow, as a file window does. The tree lists the Project: a worker's tabs of
+// its worktree copies are other files and stay.
+function inRoot(treeProject: string, path: string): string | null {
+  return projectPath.value ? treePathIn(treeProject, path, sessionRoot.value, projectPath.value) : null
+}
 let unlisten: UnlistenFn[] = []
 let gone = false
 onMounted(async () => {
   try {
     const handlers = [
       await listen<{ projectPath: string; path: string }>(FILE_DELETED_EVENT, ({ payload: p }) => {
-        if (p?.projectPath === projectPath.value && runId.value) tabsStore.removeUnder(runId.value, p.path)
+        const path = p && inRoot(p.projectPath, p.path)
+        if (path && runId.value) tabsStore.removeUnder(runId.value, path)
       }),
       await listen<{ projectPath: string; from: string; to: string }>(FILE_MOVED_EVENT, ({ payload: p }) => {
-        if (p?.projectPath === projectPath.value && runId.value) tabsStore.rename(runId.value, p.from, p.to)
+        const from = p && inRoot(p.projectPath, p.from)
+        const to = p && inRoot(p.projectPath, p.to)
+        if (from && to && runId.value) tabsStore.rename(runId.value, from, to)
       }),
     ]
     if (gone) handlers.forEach((u) => u())
@@ -81,7 +89,7 @@ onBeforeUnmount(() => {
 })
 
 function onOpenFile(path: string, line: number | null) {
-  tabsStore.open(runId.value, path, line, projectPath.value)
+  tabsStore.open(runId.value, path, line, sessionRoot.value)
 }
 function onOpenUrl(url: string) {
   openUrl(url).catch((e) => toast.error(String(e)))
@@ -105,7 +113,7 @@ async function detach(tab: FileTab) {
       v-show="activeId === tab.id"
       :key="`${runId}|${tab.id}`"
       class="flex-1"
-      :project-path="projectPath"
+      :project-path="sessionRoot"
       :path="tab.path"
       :line="tab.line"
       :can-compare="true"
