@@ -83,7 +83,17 @@ pub struct McpSkipped {
     pub servers: Vec<McpBlocked>,
 }
 
-static STARTS: AtomicU64 = AtomicU64::new(0);
+/// Start numbers begin at the app's start time (milliseconds since the epoch
+/// × 1000), not at 1, so a view that outlives an app restart (a Remote page)
+/// still sees the new process's lists as newer than the ones it kept. Below
+/// 2^53, so the webview reads them exactly.
+static STARTS: LazyLock<AtomicU64> = LazyLock::new(|| {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    AtomicU64::new(millis.saturating_mul(1000))
+});
 
 /// The servers each run's last start left out, by run.
 static SKIPPED: LazyLock<Mutex<HashMap<String, McpSkipped>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -208,6 +218,19 @@ mod tests {
         assert!(skipped_of(run).servers.is_empty());
         forget_skipped(run);
         assert_eq!(skipped_of(run).start, 0);
+    }
+
+    #[test]
+    fn start_numbers_follow_the_clock_across_app_restarts() {
+        let an_hour_ago = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+            - 3_600_000;
+        let skipped = remember_skipped("run-start-clock", Vec::new());
+        // A counter that began at 1 in each process would be far below this.
+        assert!(skipped.start > an_hour_ago * 1000);
+        assert!(skipped.start < 1 << 53);
     }
 
     #[test]
