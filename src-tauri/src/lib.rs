@@ -941,6 +941,7 @@ pub fn run() {
             runs::quotes::list_run_quotes,
             runs::bg_tasks::get_background_tasks,
             runs::bg_tasks::stop_background_task,
+            runs::mcp_blocked::list_run_mcp_skipped,
             commands::response_styles::list_response_styles,
             commands::response_styles::create_response_style,
             commands::response_styles::update_response_style,

@@ -45,3 +45,11 @@ export function addMcpBlocked(list: McpBlockedEntry[], raw: unknown): McpBlocked
   }
   return list.map((e, i) => (i === at ? { ...e, calls: e.calls + call } : e))
 }
+
+/** `list` with every report of `raw` (the backend's list of the servers a run's
+ *  start left out, read by a listener that attached after the start). Anything
+ *  but an array leaves `list` as it is; a report seen live already is not added
+ *  twice. */
+export function addMcpBlockedAll(list: McpBlockedEntry[], raw: unknown): McpBlockedEntry[] {
+  return Array.isArray(raw) ? raw.reduce<McpBlockedEntry[]>(addMcpBlocked, list) : list
+}

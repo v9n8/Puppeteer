@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { addMcpBlocked, readMcpBlocked } from '../mcpBlocked.ts'
+import { addMcpBlocked, addMcpBlockedAll, readMcpBlocked } from '../mcpBlocked.ts'
 
 test('reads a report, defaulting source and reason', () => {
   assert.deepEqual(readMcpBlocked({ server: 'claude_ai_Slack', source: 'claudeai', reason: 'loaded' }), {
@@ -48,6 +48,30 @@ test('keeps a server left out at start apart from the blocked ones', () => {
     { server: 'claude_ai_Slack', source: 'claudeai', calls: 0 },
     { server: 'claude_ai_Slack-global', source: 'puppeteer', calls: 0, skipped: true },
   ])
+})
+
+test('a listener that attached late adds the start\'s skipped servers once', () => {
+  const backend = [
+    { server: 'claude_ai_Slack-global', source: 'puppeteer', reason: 'skipped' },
+    { server: 'pms', source: 'puppeteer', reason: 'skipped' },
+  ]
+  let list = addMcpBlocked([], { server: 'claude_ai_Slack', source: 'claudeai', reason: 'loaded' })
+  list = addMcpBlockedAll(list, backend)
+  // The same list read again (the event also arrived live) adds nothing.
+  list = addMcpBlockedAll(list, backend)
+  assert.deepEqual(list, [
+    { server: 'claude_ai_Slack', source: 'claudeai', calls: 0 },
+    { server: 'claude_ai_Slack-global', source: 'puppeteer', calls: 0, skipped: true },
+    { server: 'pms', source: 'puppeteer', calls: 0, skipped: true },
+  ])
+  for (const raw of [null, undefined, {}, 'x', [null, 7]]) assert.deepEqual(addMcpBlockedAll([], raw), [])
+})
+
+test('the store reads the skipped servers back when it starts listening', () => {
+  const src = readFileSync(new URL('../../stores/runMcpBlocked.ts', import.meta.url), 'utf8')
+  const listenTo = src.slice(src.indexOf('function listenTo('), src.indexOf('\n  }\n', src.indexOf('function listenTo(')))
+  assert.match(listenTo, /invoke<unknown>\('list_run_mcp_skipped', \{ runId \}\)/)
+  assert.match(listenTo, /addMcpBlockedAll\(/)
 })
 
 test('never changes the list it was given', () => {

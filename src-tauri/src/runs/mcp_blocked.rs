@@ -14,7 +14,14 @@
 //! start (reason `skipped`, source `puppeteer`): a claude.ai connector whose
 //! run key another server has or whose profile's last probe did not report it,
 //! a server the engine cannot take. Each was logged where it was skipped; the
-//! session shows the names so a missing tool is not silent.
+//! session shows the names so a missing tool is not silent. The start sends
+//! them before the sidecar runs, so a session whose listener attaches later (a
+//! conductor worker, a schedule, a Remote start) would miss them: the last
+//! start's list is kept per run until its sidecar ends, for
+//! [`list_run_mcp_skipped`].
+
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -57,12 +64,45 @@ fn skipped_reports(servers: &[String]) -> Vec<McpBlocked> {
         .collect()
 }
 
+/// The servers each live run's last start left out, by run.
+static SKIPPED: LazyLock<Mutex<HashMap<String, Vec<McpBlocked>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Keep `reports` as `run_id`'s left-out servers, replacing an earlier start's.
+fn remember_skipped(run_id: &str, reports: &[McpBlocked]) {
+    let mut map = SKIPPED.lock().unwrap_or_else(|e| e.into_inner());
+    if reports.is_empty() {
+        map.remove(run_id);
+    } else {
+        map.insert(run_id.to_string(), reports.to_vec());
+    }
+}
+
+/// The servers `run_id`'s last start left out (none once its sidecar ended).
+fn skipped_of(run_id: &str) -> Vec<McpBlocked> {
+    SKIPPED.lock().unwrap_or_else(|e| e.into_inner()).get(run_id).cloned().unwrap_or_default()
+}
+
+/// Drop `run_id`'s list: its sidecar has exited, and the session view keeps
+/// what it already read.
+pub fn forget_skipped(run_id: &str) {
+    SKIPPED.lock().unwrap_or_else(|e| e.into_inner()).remove(run_id);
+}
+
 /// Tell the session view which servers were left out of the run at start.
 /// Each was already logged where it was skipped.
 pub fn on_skipped(app: &AppHandle, run_id: &str, servers: &[String]) {
-    for report in skipped_reports(servers) {
-        let _ = app.emit(&format!("run:mcp_blocked:{run_id}"), &report);
+    let reports = skipped_reports(servers);
+    remember_skipped(run_id, &reports);
+    for report in &reports {
+        let _ = app.emit(&format!("run:mcp_blocked:{run_id}"), report);
     }
+}
+
+/// The servers a live run's start left out, for a session listener that
+/// attached after the start sent them. Names only, like the event.
+#[tauri::command]
+pub async fn list_run_mcp_skipped(run_id: String) -> Result<Vec<McpBlocked>, String> {
+    Ok(skipped_of(&run_id))
 }
 
 /// Log the block and tell the session view.
@@ -122,6 +162,30 @@ mod tests {
         );
         // A sidecar cannot claim `skipped`: only the start reports it.
         assert_eq!(parse(&json!({ "server": "x", "reason": "skipped" })).reason, "call");
+    }
+
+    #[test]
+    fn a_later_listener_reads_the_last_starts_skipped_servers_until_the_run_ends() {
+        let run = "run-skipped-kept";
+        assert!(skipped_of(run).is_empty());
+        remember_skipped(run, &skipped_reports(&["claude_ai_Slack-global".to_string()]));
+        let out = serde_json::to_value(skipped_of(run)).unwrap();
+        assert_eq!(out, json!([{ "server": "claude_ai_Slack-global", "source": "puppeteer", "reason": "skipped" }]));
+        // A resume that leaves nothing out replaces the list.
+        remember_skipped(run, &[]);
+        assert!(skipped_of(run).is_empty());
+        remember_skipped(run, &skipped_reports(&["pms".to_string()]));
+        assert_eq!(skipped_of(run).len(), 1);
+        forget_skipped(run);
+        assert!(skipped_of(run).is_empty());
+    }
+
+    #[test]
+    fn a_remote_desktop_may_read_the_skipped_servers() {
+        // Names of servers the session view shows anyway; read-only.
+        let lib = include_str!("../lib.rs");
+        assert!(lib.contains("runs::mcp_blocked::list_run_mcp_skipped,"));
+        assert!(!crate::remote::guard::is_local_only_command("list_run_mcp_skipped"));
     }
 
     #[test]
