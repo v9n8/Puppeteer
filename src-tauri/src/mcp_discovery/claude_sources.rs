@@ -144,6 +144,7 @@ pub(crate) mod tests {
             projects: vec![],
             claude_managed_dir: base.join("managed"),
             ctx: ScanContext { library_root: base.join("appdata") },
+            value_key: None,
         }
     }
 

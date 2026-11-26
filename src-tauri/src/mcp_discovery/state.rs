@@ -240,7 +240,10 @@ pub fn state_of<'a>(row: &DiscoveredServer, managed: &'a [ManagedServer]) -> (Ro
         match copy {
             None => RowState::NotManaged,
             // A connector has no launch fields to compare.
-            Some(m) if row.source != SourceId::S1 && row.fingerprint.is_some() && m.source_fingerprint != row.fingerprint => {
+            Some(m)
+                if row.source != SourceId::S1
+                    && row.fingerprint.as_deref().is_some_and(|f| super::value_mac::changed(m.source_fingerprint.as_deref(), f)) =>
+            {
                 RowState::Changed
             }
             Some(_) => RowState::Managed,
@@ -575,6 +578,36 @@ mod tests {
         assert_eq!(state(&view, "new"), Some((RowState::NotManaged, None)));
         assert_eq!(state(&view, "gone"), None);
         assert_eq!(state(&view, "bad"), None);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// With this install's key, a rotated env VALUE alone shows "changed"; the row never carries it.
+    #[test]
+    fn a_value_change_alone_shows_changed_with_the_install_key() {
+        let base = tmp("state-values");
+        let mut inputs = machine(&base);
+        inputs.value_key = Some(super::super::value_mac::ValueKey::of(9));
+        let before = scan_files(&inputs).into_report();
+        let managed = [managed_of(&before, "|x", "mx")];
+        let labels = labels();
+        let state = |report: &DiscoveryReport| {
+            let view = build_view(&ViewInputs { report, managed: &managed, identities: &[], labels: &labels, project_id: None });
+            assert!(!serde_json::to_string(&view).unwrap().contains("SECRET"));
+            view.global.iter().find(|r| r.name == "x").map(|r| r.state)
+        };
+        assert_eq!(state(&before), Some(RowState::Managed));
+        let project = &inputs.projects[0].path;
+        let claude_json = |value: &str| {
+            format!(
+                r#"{{"mcpServers": {{"x": {{"command": "x", "env": {{"X_KEY": "{value}"}}}}, "gone": {{"command": "g"}}}},
+                    "projects": {{"{}": {{"mcpServers": {{"loc": {{"command": "l"}}}}}}}}}}"#,
+                project.display()
+            )
+        };
+        write(&inputs.home.join(".claude.json"), &claude_json("SECRET-ROTATED"));
+        assert_eq!(state(&scan_files(&inputs).into_report()), Some(RowState::Changed));
+        write(&inputs.home.join(".claude.json"), &claude_json("SECRET-X"));
+        assert_eq!(state(&scan_files(&inputs).into_report()), Some(RowState::Managed));
         let _ = std::fs::remove_dir_all(&base);
     }
 }

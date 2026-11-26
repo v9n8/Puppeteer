@@ -24,6 +24,7 @@ pub mod import_sync;
 pub mod other_sources;
 pub mod probe;
 pub mod state;
+pub mod value_mac;
 
 use crate::commands::mcp::McpServerExport;
 use crate::import::{Candidate, McpSummary, Payload, ScanContext, ScanReport};
@@ -195,6 +196,8 @@ pub struct DiscoveryInputs {
     pub claude_managed_dir: PathBuf,
     /// Puppeteer's app data: a link into it is not followed (same rule as an import).
     pub ctx: ScanContext,
+    /// This install's key for the MAC of a row's values ([`value_mac`]); `None`: launch fields only.
+    pub value_key: Option<value_mac::ValueKey>,
 }
 
 /// Folder of Claude Code's system-wide managed MCP file (Claude Code settings docs).
@@ -229,6 +232,7 @@ impl DiscoveryInputs {
                 .fetch_all(db)
                 .await
                 .map_err(|e| e.to_string())?;
+        let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
         Ok(DiscoveryInputs {
             home,
             claude_config_dir: std::env::var_os("CLAUDE_CONFIG_DIR").filter(|d| !d.is_empty()).map(PathBuf::from),
@@ -243,7 +247,10 @@ impl DiscoveryInputs {
                 .collect(),
             projects: projects.into_iter().map(|(id, path)| ProjectDir { id, path: PathBuf::from(path) }).collect(),
             claude_managed_dir: claude_managed_dir(),
-            ctx: ScanContext { library_root: app.path().app_data_dir().map_err(|e| e.to_string())? },
+            value_key: value_mac::ValueKey::load_or_create(&app_data)
+                .map_err(|e| tracing::warn!(event = "mcp_source_key_unavailable", error = %e))
+                .ok(),
+            ctx: ScanContext { library_root: app_data },
         })
     }
 
@@ -353,11 +360,14 @@ impl Origin<'_> {
         row.import_name = candidate.name;
         row.transport = candidate.mcp.as_ref().map_or_else(|| "unknown".to_string(), |m| m.transport.clone());
         row.summary = candidate.mcp;
-        row.fingerprint = Some(candidate.hash);
         let export = match candidate.payload {
             Payload::Mcp(export) => Some(export),
             _ => None,
         };
+        row.fingerprint = Some(match (&inputs.value_key, &export) {
+            (Some(key), Some(export)) => key.fingerprint(&candidate.hash, export),
+            _ => candidate.hash,
+        });
         Found { row, export }
     }
 }
