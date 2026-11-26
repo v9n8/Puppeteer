@@ -14,6 +14,19 @@ import { addMcpBlocked, addMcpBlockedAll, type McpBlockedEntry } from '@/lib/mcp
  */
 export const useRunMcpBlockedStore = defineStore('runMcpBlocked', () => {
   const byRun = reactive(new Map<string, McpBlockedEntry[]>())
+  /** Runs whose left-out servers were read back, so a dismissed notice stays dismissed. */
+  const skippedRead = new Set<string>()
+
+  /** Add the servers `runId`'s last start left out (the backend keeps them until the run is deleted). */
+  function readSkipped(runId: string) {
+    skippedRead.add(runId)
+    invoke<unknown>('list_run_mcp_skipped', { runId })
+      .then((reports) => {
+        const next = addMcpBlockedAll(byRun.get(runId) ?? [], reports)
+        if (next.length) byRun.set(runId, next)
+      })
+      .catch((e) => console.warn('[runMcpBlocked] could not read the servers left out at start', e))
+  }
 
   async function listenTo(runId: string): Promise<UnlistenFn> {
     const unlisten = await listen<unknown>(`run:mcp_blocked:${runId}`, (event) => {
@@ -23,13 +36,16 @@ export const useRunMcpBlockedStore = defineStore('runMcpBlocked', () => {
     // session started outside the composer (conductor worker, schedule, Remote)
     // attaches after that: read them back. Not awaited — the run's other
     // listeners must not wait for it.
-    invoke<unknown>('list_run_mcp_skipped', { runId })
-      .then((reports) => {
-        const next = addMcpBlockedAll(byRun.get(runId) ?? [], reports)
-        if (next.length) byRun.set(runId, next)
-      })
-      .catch((e) => console.warn('[runMcpBlocked] could not read the servers left out at start', e))
+    readSkipped(runId)
     return unlisten
+  }
+
+  /**
+   * For a session shown without a live listener — its run ended before the view
+   * attached, or the window reloaded — read its left-out servers once.
+   */
+  function readSkippedOnce(runId: string) {
+    if (!skippedRead.has(runId)) readSkipped(runId)
   }
 
   function blockedOf(runId: string | null | undefined): McpBlockedEntry[] {
@@ -41,5 +57,5 @@ export const useRunMcpBlockedStore = defineStore('runMcpBlocked', () => {
     byRun.delete(runId)
   }
 
-  return { listenTo, blockedOf, dismiss }
+  return { listenTo, readSkippedOnce, blockedOf, dismiss }
 })

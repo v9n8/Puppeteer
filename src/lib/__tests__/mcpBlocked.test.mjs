@@ -69,9 +69,19 @@ test('a listener that attached late adds the start\'s skipped servers once', () 
 
 test('the store reads the skipped servers back when it starts listening', () => {
   const src = readFileSync(new URL('../../stores/runMcpBlocked.ts', import.meta.url), 'utf8')
-  const listenTo = src.slice(src.indexOf('function listenTo('), src.indexOf('\n  }\n', src.indexOf('function listenTo(')))
-  assert.match(listenTo, /invoke<unknown>\('list_run_mcp_skipped', \{ runId \}\)/)
-  assert.match(listenTo, /addMcpBlockedAll\(/)
+  const fn = (name) => src.slice(src.indexOf(`function ${name}(`), src.indexOf('\n  }\n', src.indexOf(`function ${name}(`)))
+  assert.match(fn('readSkipped'), /invoke<unknown>\('list_run_mcp_skipped', \{ runId \}\)/)
+  assert.match(fn('readSkipped'), /addMcpBlockedAll\(/)
+  assert.match(fn('listenTo'), /readSkipped\(runId\)/)
+})
+
+test('a session shown without a live listener reads its skipped servers once', () => {
+  const store = readFileSync(new URL('../../stores/runMcpBlocked.ts', import.meta.url), 'utf8')
+  const once = store.slice(store.indexOf('function readSkippedOnce('), store.indexOf('\n  }\n', store.indexOf('function readSkippedOnce(')))
+  assert.match(once, /if \(!skippedRead\.has\(runId\)\) readSkipped\(runId\)/)
+  const notice = readFileSync(new URL('../../components/sessions/RunMcpBlockedNotice.vue', import.meta.url), 'utf8')
+  assert.match(notice, /store\.readSkippedOnce\(id\)/)
+  assert.match(notice, /\{ immediate: true \}/)
 })
 
 test('a call denied because the CLI gave no provenance is counted and flagged', () => {

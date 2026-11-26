@@ -5,7 +5,7 @@
 // so the user learns why a tool they expected did not work. Below them, the
 // servers Puppeteer meant to pass but left out at start (`skipped`). Server
 // names are another tool's config text: rendered as text only.
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
 import { Banner } from '@/components/ui'
@@ -14,6 +14,8 @@ import { useRunMcpBlockedStore } from '@/stores/runMcpBlocked'
 const props = defineProps<{ runId: string | null }>()
 const { t } = useI18n()
 const store = useRunMcpBlockedStore()
+// A session opened after its run ended (or after a reload) has no live listener.
+watch(() => props.runId, (id) => { if (id) store.readSkippedOnce(id) }, { immediate: true })
 const entries = computed(() => store.blockedOf(props.runId))
 const blocked = computed(() => entries.value.filter((e) => !e.skipped))
 const skipped = computed(() => entries.value.filter((e) => e.skipped))

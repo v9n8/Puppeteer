@@ -4056,6 +4056,7 @@ async fn delete_single_run(
     let _ = fs::remove_file(runs_dir.join(format!("{}.log", run_id)));
     let _ = fs::remove_dir_all(runs_dir.join(run_id));
     crate::commands::paste_as_file::remove_for_run(run_id);
+    crate::runs::mcp_blocked::forget_skipped(run_id);
 
     // Also delete every engine transcript of the session — in every Claude /
     // Codex account store (a switched account holds its own copy) plus subagent data —

@@ -18,9 +18,9 @@
 //! a server the engine cannot take. Each was logged where it was skipped; the
 //! session shows the names so a missing tool is not silent. The start sends
 //! them before the sidecar runs, so a session whose listener attaches later (a
-//! conductor worker, a schedule, a Remote start) would miss them: the last
-//! start's list is kept per run until its sidecar ends, for
-//! [`list_run_mcp_skipped`].
+//! conductor worker, a schedule, a Remote start), or that is opened only after
+//! its run ended or the window reloaded, would miss them: the last start's list
+//! is kept per run until the run is deleted, for [`list_run_mcp_skipped`].
 
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -70,7 +70,7 @@ fn skipped_reports(servers: &[String]) -> Vec<McpBlocked> {
         .collect()
 }
 
-/// The servers each live run's last start left out, by run.
+/// The servers each run's last start left out, by run.
 static SKIPPED: LazyLock<Mutex<HashMap<String, Vec<McpBlocked>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Keep `reports` as `run_id`'s left-out servers, replacing an earlier start's.
@@ -83,13 +83,12 @@ fn remember_skipped(run_id: &str, reports: &[McpBlocked]) {
     }
 }
 
-/// The servers `run_id`'s last start left out (none once its sidecar ended).
+/// The servers `run_id`'s last start left out (none once the run is deleted).
 fn skipped_of(run_id: &str) -> Vec<McpBlocked> {
     SKIPPED.lock().unwrap_or_else(|e| e.into_inner()).get(run_id).cloned().unwrap_or_default()
 }
 
-/// Drop `run_id`'s list: its sidecar has exited, and the session view keeps
-/// what it already read.
+/// Drop `run_id`'s list: the run is deleted.
 pub fn forget_skipped(run_id: &str) {
     SKIPPED.lock().unwrap_or_else(|e| e.into_inner()).remove(run_id);
 }
@@ -104,8 +103,8 @@ pub fn on_skipped(app: &AppHandle, run_id: &str, servers: &[String]) {
     }
 }
 
-/// The servers a live run's start left out, for a session listener that
-/// attached after the start sent them. Names only, like the event.
+/// The servers a run's last start left out, for a session view that attached
+/// after the start sent them. Names only, like the event.
 #[tauri::command]
 pub async fn list_run_mcp_skipped(run_id: String) -> Result<Vec<McpBlocked>, String> {
     Ok(skipped_of(&run_id))
@@ -171,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn a_later_listener_reads_the_last_starts_skipped_servers_until_the_run_ends() {
+    fn a_later_listener_reads_the_last_starts_skipped_servers_until_the_run_is_deleted() {
         let run = "run-skipped-kept";
         assert!(skipped_of(run).is_empty());
         remember_skipped(run, &skipped_reports(&["claude_ai_Slack-global".to_string()]));
@@ -184,6 +183,16 @@ mod tests {
         assert_eq!(skipped_of(run).len(), 1);
         forget_skipped(run);
         assert!(skipped_of(run).is_empty());
+    }
+
+    #[test]
+    fn the_skipped_list_outlives_the_sidecar_and_goes_with_the_run() {
+        // A run that ends before its view attaches still shows what it left out.
+        assert!(!include_str!("sidecar.rs").contains("forget_skipped"));
+        let runs = include_str!("../commands/runs.rs");
+        let delete = &runs[runs.find("async fn delete_single_run(").unwrap()..];
+        let delete = &delete[..delete.find("\n}\n").unwrap()];
+        assert!(delete.contains("crate::runs::mcp_blocked::forget_skipped(run_id);"));
     }
 
     #[test]

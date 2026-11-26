@@ -1496,7 +1496,6 @@ pub async fn drain_sidecar(
 
     // The sidecar is gone, so any request it was blocked on can never be answered.
     crate::runs::permission::clear_pending(&run_id);
-    crate::runs::mcp_blocked::forget_skipped(&run_id);
 
     // How the sidecar process ended. stdout EOF usually lands just before the
     // exit, so poll briefly — without holding the registry lock across the wait.
