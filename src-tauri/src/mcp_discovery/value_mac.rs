@@ -47,20 +47,20 @@ impl ValueKey {
     }
 
     fn create(dir: &Path, path: &Path) -> Result<Self, String> {
-        use std::io::Write;
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         use rand::RngCore;
         let mut key = [0u8; KEY_BYTES];
         rand::thread_rng().fill_bytes(&mut key);
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        match options.open(path) {
-            Ok(mut file) => {
-                file.write_all(hex::encode(key).as_bytes()).map_err(|e| e.to_string())?;
-                Ok(Self(key))
-            }
+        // Written under a temporary name and linked into place, so a failed or interrupted
+        // write never leaves a partial key file, which would turn value tracking off for good.
+        let mut tag = [0u8; 8];
+        rand::thread_rng().fill_bytes(&mut tag);
+        let tmp = dir.join(format!("{KEY_FILE}.{}.tmp", hex::encode(tag)));
+        let linked = write_private(&tmp, &hex::encode(key)).and_then(|()| std::fs::hard_link(&tmp, path));
+        // The temporary name has done its job whether or not the link worked.
+        let _ = std::fs::remove_file(&tmp);
+        match linked {
+            Ok(()) => Ok(Self(key)),
             // Another scan made it first: use that one.
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 Self::parse(&std::fs::read_to_string(path).map_err(|e| e.to_string())?)
@@ -86,6 +86,18 @@ impl ValueKey {
         let data = serde_json::to_vec(&values).unwrap_or_default();
         format!("{hash}.{}.{}", self.id(), self.mac(&data))
     }
+}
+
+/// A new file at `path` holding `text`, readable by the user only.
+fn write_private(path: &Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(path)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all()
 }
 
 /// Whether the source (`current`) differs from what the copy was made from (`stored`).
@@ -184,6 +196,26 @@ mod tests {
         }
         std::fs::write(dir.join(KEY_FILE), "not hex").unwrap();
         assert!(ValueKey::load_or_create(&dir).is_err());
+        // Only the key file is left behind, never a temporary one.
+        let names: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names, [KEY_FILE]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_key_that_cannot_be_written_leaves_no_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("value-mac-ro-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let made = ValueKey::load_or_create(&dir);
+        let left = std::fs::read_dir(&dir).unwrap().count();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(made.is_err());
+        // No empty key file that would keep value tracking off once the folder is writable.
+        assert_eq!(left, 0);
     }
 }
