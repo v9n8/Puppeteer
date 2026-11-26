@@ -35,7 +35,7 @@ impl ValueKey {
         let path = dir.join(KEY_FILE);
         match std::fs::read_to_string(&path) {
             Ok(text) => Self::parse(&text),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::create(dir, &path),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::create(dir, &path, write_private),
             Err(e) => Err(format!("{KEY_FILE} could not be read: {e}")),
         }
     }
@@ -46,7 +46,8 @@ impl ValueKey {
         Ok(Self(key))
     }
 
-    fn create(dir: &Path, path: &Path) -> Result<Self, String> {
+    /// `write` puts the new key in a file; a test makes it fail half way.
+    fn create(dir: &Path, path: &Path, write: fn(&Path, &str) -> std::io::Result<()>) -> Result<Self, String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         use rand::RngCore;
         let mut key = [0u8; KEY_BYTES];
@@ -56,7 +57,7 @@ impl ValueKey {
         let mut tag = [0u8; 8];
         rand::thread_rng().fill_bytes(&mut tag);
         let tmp = dir.join(format!("{KEY_FILE}.{}.tmp", hex::encode(tag)));
-        let linked = write_private(&tmp, &hex::encode(key)).and_then(|()| std::fs::hard_link(&tmp, path));
+        let linked = write(&tmp, &hex::encode(key)).and_then(|()| std::fs::hard_link(&tmp, path));
         // The temporary name has done its job whether or not the link worked.
         let _ = std::fs::remove_file(&tmp);
         match linked {
@@ -202,20 +203,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[cfg(unix)]
     #[test]
-    fn a_key_that_cannot_be_written_leaves_no_file() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!("value-mac-ro-{}", std::process::id()));
+    fn a_key_whose_write_fails_half_way_leaves_no_file() {
+        let dir = std::env::temp_dir().join(format!("value-mac-half-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
-        let made = ValueKey::load_or_create(&dir);
+        fn half_write(path: &Path, _: &str) -> std::io::Result<()> {
+            std::fs::File::create(path)?;
+            Err(std::io::Error::other("disk full"))
+        }
+        let made = ValueKey::create(&dir, &dir.join(KEY_FILE), half_write);
         let left = std::fs::read_dir(&dir).unwrap().count();
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // The next scan makes a whole key instead of finding an empty one.
+        let next = ValueKey::load_or_create(&dir);
         let _ = std::fs::remove_dir_all(&dir);
         assert!(made.is_err());
-        // No empty key file that would keep value tracking off once the folder is writable.
         assert_eq!(left, 0);
+        assert!(next.is_ok());
     }
 }
