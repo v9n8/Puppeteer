@@ -6,12 +6,12 @@
 // Run: node test-mcp-probe.mjs   (from the sidecar/ dir)
 
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
-import { probeLine } from './mcp-probe.mjs'
+import { probeLine, probeOptions } from './mcp-probe.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -21,7 +21,7 @@ function runProbe(env, args = []) {
     const child = spawn(
       process.execPath,
       ['--import', pathToFileURL(join(here, 'test-fixtures', 'mock-sdk-register.mjs')).href, join(here, 'mcp-probe.mjs'), ...args],
-      { cwd: here, env: { ...process.env, PUPPETEER_MCP_PROBE_SETTLE_MS: '10', ...env }, stdio: ['ignore', 'pipe', 'inherit'] },
+      { cwd: here, env: { ...process.env, CLAUDE_CONFIG_DIR: join(tmpdir(), 'mcp-probe-no-config'), PUPPETEER_MCP_PROBE_SETTLE_MS: '10', ...env }, stdio: ['ignore', 'pipe', 'inherit'] },
     )
     let out = ''
     const timer = setTimeout(() => {
@@ -66,13 +66,14 @@ test('prints name, source, status and transport; connectors also id and url', as
       { type: 'done', count: 6 },
     ])
     assert.ok(!raw.includes('SECRET-'), raw)
-    // A normal unlocked run's options: nothing locks MCP down, nothing is persisted, the cwd is the argument.
+    // Connectors must still come through: no strict mode, no passed map. No settings source, so the
+    // CLI does not start the user-scope servers; nothing is persisted; the cwd is the argument.
     const options = JSON.parse(readFileSync(optionsFile, 'utf8'))
     assert.equal(options.cwd, dir)
     assert.equal(options.persistSession, false)
     assert.equal(options.strictMcpConfig, undefined)
     assert.equal(options.mcpServers, undefined)
-    assert.equal(options.settingSources, undefined)
+    assert.deepEqual(options.settingSources, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -87,6 +88,33 @@ test('a custom CLI path reaches the SDK like in a run', async () => {
     assert.equal(JSON.parse(readFileSync(optionsFile, 'utf8')).pathToClaudeCodeExecutable, '/opt/claude')
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the profile\'s enabled plugins come back as flag settings, nothing else of its settings', async () => {
+  const configDir = mkdtempSync(join(tmpdir(), 'mcp-probe-config-'))
+  const cwd = mkdtempSync(join(tmpdir(), 'mcp-probe-'))
+  const optionsFile = join(cwd, 'options.json')
+  try {
+    writeFileSync(join(configDir, 'settings.json'), JSON.stringify({
+      enabledPlugins: { 'lint@market': true, 'off@market': false },
+      env: { TOKEN: 'SECRET-ENV' },
+      hooks: { PreToolUse: [] },
+    }))
+    const { code } = await runProbe({ MOCK_MCP_STATUS: '[]', MOCK_OPTIONS_FILE: optionsFile, CLAUDE_CONFIG_DIR: configDir }, [cwd])
+    assert.equal(code, 0)
+    const options = JSON.parse(readFileSync(optionsFile, 'utf8'))
+    assert.deepEqual(options.settingSources, [])
+    assert.deepEqual(options.settings, { enabledPlugins: { 'lint@market': true, 'off@market': false } })
+    // No settings file, a bad one, or no usable key: no flag settings at all.
+    assert.equal(probeOptions(cwd, { CLAUDE_CONFIG_DIR: join(configDir, 'missing') }).settings, undefined)
+    writeFileSync(join(configDir, 'settings.json'), '{ bad json')
+    assert.equal(probeOptions(cwd, { CLAUDE_CONFIG_DIR: configDir }).settings, undefined)
+    writeFileSync(join(configDir, 'settings.json'), JSON.stringify({ enabledPlugins: ['x'] }))
+    assert.equal(probeOptions(cwd, { CLAUDE_CONFIG_DIR: configDir }).settings, undefined)
+  } finally {
+    rmSync(configDir, { recursive: true, force: true })
+    rmSync(cwd, { recursive: true, force: true })
   }
 })
 

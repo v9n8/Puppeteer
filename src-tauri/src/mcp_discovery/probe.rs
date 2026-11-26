@@ -1,6 +1,9 @@
-//! The engine probe: which MCP servers the Claude CLI loads for each Claude profile, as a normal
-//! unlocked run would. Gives what no file shows: S1 claude.ai connectors, S5 plugin servers, S6
-//! managed / enterprise servers.
+//! The engine probe: which MCP servers the Claude CLI reports for each Claude profile. Gives what
+//! no file shows: S1 claude.ai connectors, S5 plugin servers, S6 managed / enterprise servers. It
+//! reads no user / project / local settings, so the CLI does not start the profile's user-scope
+//! servers (S2 / S3 / S4 are read from the files); the plugins the profile's `settings.json`
+//! enables are passed back, so their servers still load for the settle time (see the script's
+//! header for what was measured and what is left).
 //!
 //! `sidecar/mcp-probe.mjs` is spawned once per profile — every app account and global — with the
 //! run's env builder ([`apply_claude_config_dir`]): no model call, it prints one JSON line per
@@ -292,8 +295,8 @@ pub fn compare_identities(inputs: &DiscoveryInputs) -> Vec<ProfileIdentity> {
 // ---- The real machine -------------------------------------------------------------------------
 
 /// The probe as a run would start it: the node / sidecar / CLI settings, the script beside the
-/// sidecar, and a fixed folder of the app data as cwd (no project servers; the CLI keeps one
-/// local-scope entry for it instead of one per probe).
+/// sidecar, and a fixed folder of the app data as cwd (no project servers; fixed, so a CLI that
+/// did record its cwd in `.claude.json` would keep one entry, not one per probe — none was seen).
 pub async fn spawn_settings(app: &tauri::AppHandle, db: &Db) -> Result<ProbeSpawn, String> {
     use tauri::Manager;
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings WHERE key IN ('node_path', 'sidecar_path', 'claude_path')")

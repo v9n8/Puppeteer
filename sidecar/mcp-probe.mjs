@@ -1,8 +1,20 @@
 #!/usr/bin/env node
-// MCP probe: which MCP servers the Claude CLI loads for one profile, as a normal
-// unlocked run would — claude.ai connectors, plugin and managed servers included.
+// MCP probe: which MCP servers the Claude CLI reports for one profile — the ones no
+// file shows: claude.ai connectors (S1), plugin servers (S5), managed servers (S6).
 // No model call: the prompt stream never yields; the SDK starts the CLI, the probe
 // waits for the servers to settle and asks `mcpServerStatus()`.
+//
+// The probe reads no user / project / local settings (`settingSources: []`), so the
+// CLI does not start the profile's user-scope servers of `.claude.json` (S2/S3/S4 come
+// from reading the files, `mcp_discovery::claude_sources`). Measured with SDK 0.3.319
+// on the global profile: the claude.ai connectors are listed all the same (26 of 26),
+// user-scope servers started 2 → 0. The plugins the profile's own `settings.json`
+// enables are passed back as flag settings (`enabledPlugins` only), so their servers
+// still load and are listed. What still runs: those plugins' MCP servers and the
+// managed policy tier (always read) start for the settle time. Not listed any more:
+// servers of plugins synced from claude.ai or enabled only in a project's settings
+// (runs block them all the same). No `projects` entry was added to `.claude.json` by
+// a probe (checked with fresh cwds, keys only).
 //
 // Run by the app (`mcp_discovery::probe`) with the run's env: CLAUDE_CONFIG_DIR of
 // the profile (none for the global one), PUPPETEER_CLAUDE_PATH when set.
@@ -21,6 +33,9 @@
 // connect; PUPPETEER_MCP_PROBE_TIMEOUT_MS (default 45000) the hard limit.
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const SETTLE_MS = Number(process.env.PUPPETEER_MCP_PROBE_SETTLE_MS ?? 12_000)
@@ -59,10 +74,30 @@ export function probeLine(entry) {
   return out
 }
 
+// The `enabledPlugins` of the profile's user settings (the CLI's own path rule), or
+// null when the file or the key cannot be read. Nothing else of the file goes on.
+export function enabledPluginsOf(env) {
+  try {
+    const dir = env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
+    const plugins = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))?.enabledPlugins
+    return plugins && typeof plugins === 'object' && !Array.isArray(plugins) ? plugins : null
+  } catch {
+    return null
+  }
+}
+
+// The SDK options of a probe in `cwd` (see the header for why no settings source).
+export function probeOptions(cwd, env) {
+  const options = { cwd, persistSession: false, permissionMode: 'default', settingSources: [] }
+  const enabledPlugins = enabledPluginsOf(env)
+  if (enabledPlugins) options.settings = { enabledPlugins }
+  if (env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = env.PUPPETEER_CLAUDE_PATH
+  return options
+}
+
 async function main() {
   const abortController = new AbortController()
-  const options = { cwd: process.argv[2] || process.cwd(), persistSession: false, permissionMode: 'default', abortController }
-  if (process.env.PUPPETEER_CLAUDE_PATH) options.pathToClaudeCodeExecutable = process.env.PUPPETEER_CLAUDE_PATH
+  const options = { ...probeOptions(process.argv[2] || process.cwd(), process.env), abortController }
   const timeout = setTimeout(() => {
     abortController.abort()
     finish([{ type: 'error', error: `no answer within ${TIMEOUT_MS} ms` }], 1)
