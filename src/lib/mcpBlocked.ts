@@ -1,8 +1,9 @@
 // MCP servers Puppeteer does not manage, blocked in a session (backend
 // `run:mcp_blocked:{id}`): the sidecar denied a call to one of its tools, or the
-// engine still started it. The same event names a server Puppeteer meant to
-// pass but left out at start (`skipped`, e.g. a claude.ai connector whose
-// profile's last check did not report it). The session shows them in a small notice; these pure
+// engine still started it. The servers Puppeteer meant to pass but left out at
+// start (`skipped`, e.g. a claude.ai connector whose profile's last check did not
+// report it) come as one list per start on `run:mcp_skipped:{id}`, the newest
+// replacing the one before. The session shows them in a small notice; these pure
 // helpers keep the list it reads. Free of Vue / `@/` imports so they can be
 // unit-tested with `node --test`.
 
