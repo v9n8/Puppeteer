@@ -202,6 +202,31 @@ mod tests {
     }
 
     #[test]
+    fn the_import_preview_masks_credentials_but_the_hash_sees_them() {
+        let base = tmp("preview-mask");
+        let root = base.join("proj");
+        write(
+            &root.join(".mcp.json"),
+            r#"{"mcpServers": {
+                "one": {"command": "npx", "args": ["srv", "--api-key=SECRET-ONE", "--header", "X-API-Key: SECRET-H"]},
+                "two": {"command": "npx", "args": ["srv", "--api-key=SECRET-TWO", "--header", "X-API-Key: SECRET-H"]},
+                "web": {"url": "https://me:SECRET-PW@mcp.example.com/mcp?token=SECRET-Q"}
+            }}"#,
+        );
+        let report = ClaudeCode.scan(&root, Scope::Project, &ScanContext { library_root: base.join("lib") });
+        assert_eq!(report.problems, []);
+        // What the import dialog receives.
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(!json.contains("SECRET"), "{json}");
+        let by_id = |id: &str| report.candidates.iter().find(|c| c.id == id).unwrap();
+        let one = by_id("mcp:one").mcp.as_ref().unwrap();
+        assert_eq!(one.args, ["srv", "--api-key=[redacted]", "--header", "X-API-Key: [redacted]"]);
+        assert_eq!(by_id("mcp:web").mcp.as_ref().unwrap().url.as_deref(), Some("https://[redacted]@mcp.example.com/mcp?token=[redacted]"));
+        // The hash is of the real fields: servers that differ only in a masked value stay apart.
+        assert_ne!(by_id("mcp:one").hash, by_id("mcp:two").hash);
+    }
+
+    #[test]
     fn a_project_yields_one_candidate_per_item_and_skips_the_apps_own_links() {
         let base = tmp("project");
         let root = base.join("my app");

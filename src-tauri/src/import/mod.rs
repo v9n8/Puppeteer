@@ -25,6 +25,7 @@ pub mod commands;
 pub mod craft;
 pub mod cursor;
 pub mod gemini;
+pub mod mask;
 pub mod paste;
 pub mod vscode;
 pub mod windsurf;
@@ -624,7 +625,9 @@ pub(crate) fn mcp_candidate(path: &Path, raw_name: &str, export: McpServerExport
         target: None,
         hash: crate::commands::rules::content_hash(&fingerprint.to_string()),
         exists: false,
-        mcp: Some(summary),
+        // The preview goes to the webview (import dialog, discovery rows): no credential of the
+        // command line or URL. The hash above is of the real fields.
+        mcp: Some(mask::masked_summary(&summary)),
         payload: Payload::Mcp(export),
     }
 }

@@ -96,7 +96,7 @@ pub struct ProfileRef {
 }
 
 /// A row as the webview gets it. Key names only: never an env / header VALUE, a connector's id
-/// or url, or a login value; credentials in args / url are masked (`mask`).
+/// or url, or a login value; credentials in args / url arrive masked (`import::mask`).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Row {
@@ -277,7 +277,7 @@ fn row_of(inputs: &ViewInputs, server: &DiscoveredServer) -> Row {
         name: server.name.clone(),
         import_name: server.import_name.clone(),
         transport: server.transport.clone(),
-        summary: server.summary.as_ref().map(super::mask::masked_summary),
+        summary: server.summary.clone(),
         engine_status: server.engine_status.clone(),
         importable: server.importable,
         state,

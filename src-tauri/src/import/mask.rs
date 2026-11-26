@@ -1,11 +1,10 @@
-//! What a discovery row shows of a server's command line and URL. Another tool's config may put
-//! a credential there (`--api-key=…`, `https://user:pass@host`, `?token=…`), and rows go to the
-//! webview, so those parts are masked; the server is still recognisable by its command, flag
-//! names, host and path. Env / header VALUES never reach a row at all (`McpSummary` holds key
-//! names only). The import pipeline's own preview (`import::McpSummary` in the import dialog)
-//! is not changed here.
+//! What an MCP server's preview ([`McpSummary`]: the import dialog, the discovery rows) shows of
+//! its command line and URL. Another tool's config may put a credential there (`--api-key=…`,
+//! `https://user:pass@host`, `?token=…`), and the preview goes to the webview, so those parts are
+//! masked; the server is still recognisable by its command, flag names, host and path. Env /
+//! header VALUES never reach a preview at all (`McpSummary` holds key names only).
 
-use crate::import::McpSummary;
+use super::McpSummary;
 use crate::runs::transcript::redact;
 
 const MASK: &str = "[redacted]";
@@ -18,7 +17,7 @@ const SECRET_FLAG_WORDS: &[&str] =
 /// any header may carry a credential whatever its name.
 const HEADER_FLAGS: &[&str] = &["--header", "-H"];
 
-/// `summary` as a row shows it.
+/// `summary` as the webview gets it.
 pub fn masked_summary(summary: &McpSummary) -> McpSummary {
     McpSummary {
         args: mask_args(&summary.args),
