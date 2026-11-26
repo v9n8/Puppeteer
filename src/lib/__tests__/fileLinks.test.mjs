@@ -185,3 +185,15 @@ test('createPathChecker: a failed call caches nothing and rejects', async () => 
   await checker.check(['a.ts'])
   assert.equal(checker.known('a.ts'), true)
 })
+
+// FL-01: a code path the checker once called missing (a file the agent made in a
+// worktree, copied into the project later) stayed text after the turn ended:
+// clearing the answers did not re-render the entries already on screen.
+test('clearing the path answers re-links the finalized log entries', () => {
+  const src = readFileSync(new URL('../../components/sessions/useRunComposer.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(src, /pathChecker\.clear\(\)(?![\s\S]{0,40}pathAnswersCleared\.value\+\+)/)
+  assert.match(src, /fileListVersion = computed\(\(\) => projectFilesStore\.version\([^)]*\) \+ pathAnswersCleared\.value\)/)
+  assert.match(src, /watch\(sessionRoot, forgetPathAnswers\)/)
+  const log = readFileSync(new URL('../../components/StreamLog.vue', import.meta.url), 'utf8')
+  assert.match(log, /v-memo="\[[^"]*\bfileListVersion\b/)
+})

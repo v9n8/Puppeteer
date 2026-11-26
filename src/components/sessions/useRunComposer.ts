@@ -1000,9 +1000,14 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
   // reuses the list instead of walking the folder again.
   const projectFilesStore = useProjectFilesStore()
   const projectFiles = computed(() => projectFilesStore.entries(project.value?.path))
-  // Moves only when the list changes. The log's v-memo keys on it, so finalized
-  // messages re-run file-link detection when the list arrives late or grows.
-  const fileListVersion = computed(() => projectFilesStore.version(project.value?.path))
+  // Moves only when the list changes or the path checker forgets its answers
+  // (`forgetPathAnswers`). The log's v-memo keys on it, so finalized messages
+  // re-run file-link detection when the list arrives late or grows, and ask again
+  // about a path an earlier answer called missing (the list leaves ignored files
+  // out, so a file made there since would otherwise stay text). Both counts only
+  // go up for one project, so their sum moves whenever either does.
+  const pathAnswersCleared = ref(0)
+  const fileListVersion = computed(() => projectFilesStore.version(project.value?.path) + pathAnswersCleared.value)
   const mentionOpen = ref(false)
   const mentionQuery = ref('')
   const mentionStart = ref(0) // index of the `@` in followUpInput
@@ -1072,13 +1077,17 @@ export function useRunComposer(core: RunSessionCore, conductor: RunConductor, lo
     const root = sessionRoot.value
     return root ? runsStore.statPaths(root, paths) : Promise.resolve(paths.map(() => false))
   })
-  watch(sessionRoot, () => pathChecker.clear())
+  function forgetPathAnswers() {
+    pathChecker.clear()
+    pathAnswersCleared.value++
+  }
+  watch(sessionRoot, forgetPathAnswers)
 
   // A turn that just ended may have created files: reload so they link, and
   // forget "no such file" answers given while it ran.
   watch([currentRunId, currentStatus], ([id, status], [prevId, prevStatus]) => {
     if (id === prevId && prevStatus === 'running' && status !== 'running') {
-      pathChecker.clear()
+      forgetPathAnswers()
       ensureProjectFiles(true)
     }
   })

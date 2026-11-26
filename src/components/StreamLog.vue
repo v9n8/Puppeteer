@@ -48,7 +48,7 @@ const props = defineProps<{
   fileMatcher?: (raw: string) => string | null
   /** Whether a link the matcher doesn't know names a real file (asked on click). */
   fileExists?: (path: string) => Promise<boolean>
-  /** Bumped when the project file list reloads, so finalized entries re-link. */
+  /** Bumped when the project file list reloads or `pathChecker` is cleared, so finalized entries re-link. */
   fileListVersion?: number
   /** Asks whether bare paths in prose and prompts name real files (batched, cached). */
   pathChecker?: PathChecker
