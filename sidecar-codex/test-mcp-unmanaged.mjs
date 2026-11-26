@@ -59,10 +59,19 @@ const flags = (argv) => argv.filter((a, i) => argv[i - 1] === '-c')
 const blocked = (messages) => messages.filter((m) => m.type === '_puppeteer_mcp_blocked').map(({ server, source, reason }) => ({ server, source, reason }))
 
 // The pure parts.
-assert.deepEqual(disableServerArgs(['user_server', 'pms'], new Set(['pms'])), ['-c', 'mcp_servers.user_server.enabled=false'])
+const stdio = (name) => ({ name, type: 'stdio' })
+assert.deepEqual(disableServerArgs([stdio('user_server'), stdio('pms')], new Set(['pms'])), [
+  '-c', 'mcp_servers.user_server.enabled=false', '-c', 'mcp_servers.user_server.command="puppeteer-mcp-disabled"',
+])
+// Each transport gets a placeholder of its own kind (a project server's flag table stays valid when codex
+// reloads its config without the project layer); an unknown one is only turned off.
+assert.deepEqual(disableServerArgs([{ name: 'web', type: 'streamable_http' }, { name: 'odd', type: 'sse' }, { name: 'bare', type: null }, { name: 'proto', type: '__proto__' }]), [
+  '-c', 'mcp_servers.web.enabled=false', '-c', 'mcp_servers.web.url="http://127.0.0.1:9/puppeteer-mcp-disabled"',
+  '-c', 'mcp_servers.odd.enabled=false', '-c', 'mcp_servers.bare.enabled=false', '-c', 'mcp_servers.proto.enabled=false',
+])
 // A name `-c` cannot address is not skipped (codex would load it): it throws.
 for (const name of ['bad.name', 'with space']) {
-  assert.throws(() => disableServerArgs(['user_server', name], new Set(['pms'])), (e) => e.message.includes(`MCP server "${name}" whose name Puppeteer cannot turn off`))
+  assert.throws(() => disableServerArgs([stdio('user_server'), stdio(name)], new Set(['pms'])), (e) => e.message.includes(`MCP server "${name}" whose name Puppeteer cannot turn off`))
 }
 assert.deepEqual([...forwardedServerNames(['-c', 'mcp_servers.pms.tool_timeout_sec=60', '-c', 'mcp_servers.pms.command="x"', '-c', 'mcp_servers.web.url="https://h"', '-c', 'mcp_servers.half.args=["a"]'])], ['pms', 'web'])
 {
@@ -106,6 +115,16 @@ console.log('ok   pure parts: disable args, forwarded names, call guard')
   const r = await run({})
   assert.equal(r.code, 0)
   assert.ok(flags(r.argv).includes('mcp_servers.user_server.enabled=false'))
+}
+// The transport codex lists decides the placeholder; every server is off whatever its transport.
+{
+  const r = await run({ PUPPETEER_FIXTURE_MCP_LIST: 'typed' })
+  assert.equal(r.code, 0)
+  const f = flags(r.argv)
+  for (const name of ['user_server', 'web_srv', 'odd_srv', 'bare_srv']) assert.ok(f.includes(`mcp_servers.${name}.enabled=false`), `${name}: ${f.join(' ')}`)
+  assert.ok(f.includes('mcp_servers.user_server.command="puppeteer-mcp-disabled"'), f.join(' '))
+  assert.ok(f.includes('mcp_servers.web_srv.url="http://127.0.0.1:9/puppeteer-mcp-disabled"'), f.join(' '))
+  assert.ok(!f.some((a) => /^mcp_servers\.(odd_srv|bare_srv)\.(command|url)=/.test(a)), f.join(' '))
 }
 // A passed server named like one of codex's own stays on (the passed config wins).
 {

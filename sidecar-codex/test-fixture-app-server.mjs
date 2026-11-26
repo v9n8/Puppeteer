@@ -8,7 +8,8 @@ import { writeFileSync, appendFileSync } from 'node:fs'
 
 // `codex mcp list --json` (asked by every sidecar, mcp-guard.mjs): one configured server,
 // or — PUPPETEER_FIXTURE_MCP_LIST=fail|garbage|object — a failing / unparsable answer,
-// or (`quoted`) a server whose name only a quoted TOML key can hold.
+// or (`quoted`) a server whose name only a quoted TOML key can hold, or
+// (`typed`) one server of each transport kind, an unknown one and one without.
 if (process.argv.includes('mcp')) {
   const mode = process.env.PUPPETEER_FIXTURE_MCP_LIST
   if (mode === 'fail') {
@@ -18,7 +19,14 @@ if (process.argv.includes('mcp')) {
   if (mode === 'garbage') process.stdout.write('not json')
   else if (mode === 'object') process.stdout.write('{"servers":[]}')
   else if (mode === 'quoted') process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true }, { name: 'my.srv', enabled: true }]))
-  else process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true }]))
+  else if (mode === 'typed') {
+    process.stdout.write(JSON.stringify([
+      { name: 'user_server', enabled: true, transport: { type: 'stdio', command: 'u' } },
+      { name: 'web_srv', enabled: true, transport: { type: 'streamable_http', url: 'https://w' } },
+      { name: 'odd_srv', enabled: true, transport: { type: 'something_new' } },
+      { name: 'bare_srv', enabled: true },
+    ]))
+  } else process.stdout.write(JSON.stringify([{ name: 'user_server', enabled: true, transport: { type: 'stdio', command: 'u' } }]))
   process.exit(0)
 }
 // When set, record argv and every client request as JSON lines.

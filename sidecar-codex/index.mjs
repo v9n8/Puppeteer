@@ -43,7 +43,7 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync, writeSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { codexCaps, rewindMethods } from './codex-caps.mjs'
-import { configuredMcpServerNames, disableServerArgs, mcpCallGuard, withMcpLockdown } from './mcp-guard.mjs'
+import { configuredMcpServers, disableServerArgs, mcpCallGuard, withMcpLockdown } from './mcp-guard.mjs'
 
 // --- Orphan guard ------------------------------------------------------------
 // Puppeteer spawns this sidecar as the leader of its own process group and says so
@@ -394,7 +394,7 @@ function noToolsArgs() {
   for (const f of NO_TOOLS_FEATURES) args.push('-c', `features.${f}=false`)
   args.push('-c', 'web_search="disabled"')
   // Every server of the user's codex config (fail-closed, see mcp-guard.mjs).
-  args.push(...disableServerArgs(configuredMcpServerNames(CODEX_BIN, CWD)))
+  args.push(...disableServerArgs(configuredMcpServers(CODEX_BIN, CWD)))
   return args
 }
 

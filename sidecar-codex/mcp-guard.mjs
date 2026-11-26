@@ -5,10 +5,11 @@
 //
 // - Before start: every server `codex mcp list --json` names (run in the
 //   session's cwd, so the project layer counts) that Puppeteer did not forward
-//   gets `-c mcp_servers.<name>.enabled=false`; the features that can bring
-//   in a server of their own (LOCKDOWN_FEATURES) are turned off. Session flags
-//   beat user and project config, not managed (MDM) layers. The list failing →
-//   the run does not start.
+//   gets `-c mcp_servers.<name>.enabled=false`, plus a placeholder of its own
+//   transport (DISABLED_TRANSPORT); the features that can bring in a server of
+//   their own (LOCKDOWN_FEATURES) are turned off. Session flags beat user and
+//   project config, not managed (MDM) layers. The list failing → the run does
+//   not start.
 // - While running: an `mcpToolCall` item of a server not forwarded, or a server
 //   codex reports starting, is reported; a call also interrupts the turn (codex
 //   has no pre-call deny hook for MCP tools, so the call may already be under way).
@@ -18,9 +19,11 @@
 
 import { spawnSync } from 'node:child_process'
 
-// Names of the MCP servers codex's own config defines for `cwd`. Fail-closed:
-// throws when the list cannot be read, so no session starts with them enabled.
-export function configuredMcpServerNames(codexBin, cwd, env = process.env) {
+// The MCP servers codex's own config defines for `cwd`, as `{ name, type }`
+// (`type`: the transport codex reports, `stdio` | `streamable_http`, or null).
+// Fail-closed: throws when the list cannot be read, so no session starts with
+// them enabled.
+export function configuredMcpServers(codexBin, cwd, env = process.env) {
   const r = spawnSync(codexBin, ['mcp', 'list', '--json'], {
     cwd, env, encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'],
   })
@@ -33,22 +36,38 @@ export function configuredMcpServerNames(codexBin, cwd, env = process.env) {
     throw new Error('codex mcp list printed no JSON')
   }
   if (!Array.isArray(list)) throw new Error('codex mcp list did not return a list')
-  return list.map((s) => s?.name).filter((n) => typeof n === 'string' && n)
+  return list
+    .filter((s) => typeof s?.name === 'string' && s.name)
+    .map((s) => ({ name: s.name, type: typeof s.transport?.type === 'string' ? s.transport.type : null }))
 }
 
-// `-c` overrides turning off each of `names` not in `allowed`. Key paths split
-// on dots and take no quoted segment (codex 0.172.0 fails on
-// `mcp_servers."a.b".enabled`), yet codex does load a quoted-key server such as
-// `[mcp_servers."my.srv"]`. Such a name cannot be turned off, so it throws:
-// fail closed, the session does not start.
-export function disableServerArgs(names, allowed = new Set()) {
+// A value of each transport's launch field for a disabled server. codex 0.172.0
+// reloads its config without the project layer on some calls (e.g.
+// `mcpServerStatus/list`), where a project server's `enabled=false` flag stands
+// alone and fails with "invalid transport". The placeholder keeps that table
+// valid. It must match the server's own transport: a `command` on an http
+// server makes the whole config invalid. It is never run or fetched: the
+// server is disabled, and both would fail anyway.
+const DISABLED_TRANSPORT = {
+  stdio: 'command="puppeteer-mcp-disabled"',
+  streamable_http: 'url="http://127.0.0.1:9/puppeteer-mcp-disabled"',
+}
+
+// `-c` overrides turning off each of `servers` (`configuredMcpServers`) not in
+// `allowed`. Key paths split on dots and take no quoted segment (codex 0.172.0
+// fails on `mcp_servers."a.b".enabled`), yet codex does load a quoted-key server
+// such as `[mcp_servers."my.srv"]`. Such a name cannot be turned off, so it
+// throws: fail closed, the session does not start. A transport codex did not
+// name gets no placeholder: `enabled=false` alone still turns it off.
+export function disableServerArgs(servers, allowed = new Set()) {
   const args = []
-  for (const name of names) {
+  for (const { name, type } of servers) {
     if (allowed.has(name)) continue
     if (!/^[A-Za-z0-9_-]+$/.test(name)) {
       throw new Error(`codex config has MCP server ${JSON.stringify(name)} whose name Puppeteer cannot turn off; rename it to letters, digits, _ or -`)
     }
     args.push('-c', `mcp_servers.${name}.enabled=false`)
+    if (Object.hasOwn(DISABLED_TRANSPORT, type)) args.push('-c', `mcp_servers.${name}.${DISABLED_TRANSPORT[type]}`)
   }
   return args
 }
@@ -72,7 +91,7 @@ const LOCKDOWN_FEATURES = ['apps', 'plugins', 'remote_plugin', 'skill_mcp_depend
 // with `allowed` = the forwarded server names. Throws when codex's list fails.
 export function withMcpLockdown(config, codexBin, cwd) {
   const allowed = forwardedServerNames(config.args)
-  const configured = configuredMcpServerNames(codexBin, cwd, config.env)
+  const configured = configuredMcpServers(codexBin, cwd, config.env)
   return {
     ...config,
     args: [
