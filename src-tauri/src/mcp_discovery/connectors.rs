@@ -331,6 +331,59 @@ mod tests {
         assert!(set_connector_enabled(&db, "u1", false).await.is_err());
     }
 
+    /// AC-022 on a connector row: switched off for one project (or one session), it stays on app-wide
+    /// and in the other project, and that project's sessions still get it.
+    #[tokio::test]
+    async fn a_connector_switched_off_for_one_project_stays_on_in_another() {
+        let (db, a, ..) = setup().await;
+        for sql in [
+            "INSERT INTO projects (id, name, path, created_at) VALUES ('p2', 'b', '/b', 'c')",
+            "INSERT INTO runs (id, project_id, type, created_at, claude_account_id, engine) VALUES ('q1', 'p2', 'session', 'c', 'acc-a', 'claude')",
+        ] {
+            sqlx::query(sql).execute(&db).await.unwrap();
+        }
+        set_project_mcp_server_enabled(&db, "p2", &a, true).await.unwrap();
+        let in_run = |project: &'static str, run: &'static str| {
+            let db = db.clone();
+            async move {
+                let selection = run_mcp_selection(&db, project, run).await.unwrap();
+                let (map, _) = resolve_run_mcp_servers(&db, &selection.servers, "claude", &launch(), run_profile("claude", Some("acc-a"))).await;
+                map.get("claude_ai_Slack").and_then(|c| c["id"].as_str()).map(str::to_string)
+            }
+        };
+        assert_eq!((in_run("p1", "r1").await, in_run("p2", "q1").await), (Some("ca".into()), Some("ca".into())));
+
+        // Project p1 off: its sessions lose it; p2's switch, its session and the app-wide switch keep it.
+        set_project_mcp_server_enabled(&db, "p1", &a, false).await.unwrap();
+        assert_eq!((in_run("p1", "r1").await, in_run("p1", "r2").await), (None, None));
+        assert_eq!(in_run("p2", "q1").await, Some("ca".into()));
+        let on_for = |project: &'static str| {
+            let db = db.clone();
+            let a = a.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM project_mcp_servers WHERE project_id = ? AND server_id = ?")
+                    .bind(project)
+                    .bind(&a)
+                    .fetch_one(&db)
+                    .await
+                    .unwrap()
+                    == 1
+            }
+        };
+        assert!(!on_for("p1").await && on_for("p2").await);
+        let enabled: bool = sqlx::query_scalar("SELECT enabled FROM mcp_servers WHERE id = ?").bind(&a).fetch_one(&db).await.unwrap();
+        assert!(enabled, "the app-wide switch is the parent: a project never turns it off");
+        let menu = list_run_mcp(&db, "q1").await.unwrap();
+        let entry = menu.iter().find(|e| e.key == format!("server:{a}")).unwrap();
+        assert_eq!((entry.enabled, entry.locked_by), (true, None));
+
+        // A session of p2 off: the other project is not touched either way.
+        set_project_mcp_server_enabled(&db, "p1", &a, true).await.unwrap();
+        set_override(&db, "q1", &format!("server:{a}"), Some(false)).await.unwrap();
+        assert_eq!((in_run("p2", "q1").await, in_run("p1", "r1").await), (None, Some("ca".into())));
+        assert!(on_for("p1").await && on_for("p2").await);
+    }
+
     #[test]
     fn the_connector_switch_is_audited_over_remote() {
         use crate::remote::{guard::{audited_command, refuses_invoke}, ipc::BRIDGE_LABEL};
