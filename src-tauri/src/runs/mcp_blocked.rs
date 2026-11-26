@@ -1,8 +1,10 @@
 //! An MCP server Puppeteer does not manage, blocked in a run. The sidecars
 //! lock a run down to the servers Puppeteer passed (`sidecar/mcp-guard.mjs`)
 //! and report each block as `_puppeteer_mcp_blocked {server, source, reason}`:
-//! reason `call` (a tool call was denied) or `loaded` (the engine still
-//! started a server that was not passed; its tools stay denied).
+//! reason `call` (a tool call was denied), `no_provenance` (denied because the
+//! Claude CLI did not say where the tool's server came from — an older CLI,
+//! which gets every MCP tool denied, Puppeteer's own included) or `loaded` (the
+//! engine still started a server that was not passed; its tools stay denied).
 //!
 //! The drain logs it (`mcp_unmanaged_blocked`) and tells the session view on
 //! `run:mcp_blocked:{run_id}`. Only these three fields go on: the server name is
@@ -34,7 +36,7 @@ const MAX_FIELD_CHARS: usize = 120;
 pub struct McpBlocked {
     pub server: String,
     pub source: String,
-    /// `call`, `loaded` or `skipped`.
+    /// `call`, `no_provenance`, `loaded` or `skipped`.
     pub reason: &'static str,
 }
 
@@ -45,13 +47,17 @@ fn clean(text: &str) -> String {
 }
 
 /// The report a sidecar message carries. A missing source reads `unknown`;
-/// any reason but `loaded` reads `call`.
+/// any reason but `loaded` or `no_provenance` reads `call`.
 pub fn parse(v: &Value) -> McpBlocked {
     let text = |key: &str| v.get(key).and_then(Value::as_str).map(clean).filter(|s| !s.is_empty());
     McpBlocked {
         server: text("server").unwrap_or_else(|| "unknown".to_string()),
         source: text("source").unwrap_or_else(|| "unknown".to_string()),
-        reason: if v.get("reason").and_then(Value::as_str) == Some("loaded") { "loaded" } else { "call" },
+        reason: match v.get("reason").and_then(Value::as_str) {
+            Some("loaded") => "loaded",
+            Some("no_provenance") => "no_provenance",
+            _ => "call",
+        },
     }
 }
 
@@ -186,6 +192,12 @@ mod tests {
         let lib = include_str!("../lib.rs");
         assert!(lib.contains("runs::mcp_blocked::list_run_mcp_skipped,"));
         assert!(!crate::remote::guard::is_local_only_command("list_run_mcp_skipped"));
+    }
+
+    #[test]
+    fn a_call_denied_for_missing_provenance_keeps_its_reason() {
+        let blocked = parse(&json!({ "server": "pms", "source": "unknown", "reason": "no_provenance" }));
+        assert_eq!(blocked, McpBlocked { server: "pms".into(), source: "unknown".into(), reason: "no_provenance" });
     }
 
     #[test]

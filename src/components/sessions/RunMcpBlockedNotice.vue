@@ -17,6 +17,8 @@ const store = useRunMcpBlockedStore()
 const entries = computed(() => store.blockedOf(props.runId))
 const blocked = computed(() => entries.value.filter((e) => !e.skipped))
 const skipped = computed(() => entries.value.filter((e) => e.skipped))
+// An older Claude CLI gives no provenance: every MCP tool is blocked, ours too.
+const noProvenance = computed(() => blocked.value.some((e) => e.noProvenance))
 </script>
 
 <template>
@@ -33,6 +35,7 @@ const skipped = computed(() => entries.value.filter((e) => e.skipped))
         </li>
       </ul>
       <p class="mt-0.5 text-muted-foreground">{{ t('run.mcpBlockedHint') }}</p>
+      <p v-if="noProvenance" class="mt-0.5">{{ t('run.mcpNoProvenanceHint') }}</p>
     </template>
     <template v-if="skipped.length">
       <p :class="{ 'mt-1': blocked.length }">{{ t('run.mcpSkippedTitle') }}</p>

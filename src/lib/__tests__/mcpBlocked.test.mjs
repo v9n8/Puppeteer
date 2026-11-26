@@ -74,6 +74,18 @@ test('the store reads the skipped servers back when it starts listening', () => 
   assert.match(listenTo, /addMcpBlockedAll\(/)
 })
 
+test('a call denied because the CLI gave no provenance is counted and flagged', () => {
+  assert.equal(readMcpBlocked({ server: 'pms', reason: 'no_provenance' })?.reason, 'no_provenance')
+  let list = addMcpBlocked([], { server: 'pms', source: 'unknown', reason: 'call' })
+  list = addMcpBlocked(list, { server: 'pms', source: 'unknown', reason: 'no_provenance' })
+  list = addMcpBlocked(list, { server: 'pms', source: 'unknown', reason: 'no_provenance' })
+  list = addMcpBlocked(list, { server: 'docs', source: 'unknown', reason: 'no_provenance' })
+  assert.deepEqual(list, [
+    { server: 'pms', source: 'unknown', calls: 3, noProvenance: true },
+    { server: 'docs', source: 'unknown', calls: 1, noProvenance: true },
+  ])
+})
+
 test('never changes the list it was given', () => {
   const list = [{ server: 'a', source: 'user', calls: 1 }]
   const next = addMcpBlocked(list, { server: 'a', source: 'user' })

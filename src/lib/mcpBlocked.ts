@@ -6,7 +6,7 @@
 // helpers keep the list it reads. Free of Vue / `@/` imports so they can be
 // unit-tested with `node --test`.
 
-export type McpBlockedReason = 'call' | 'loaded' | 'skipped'
+export type McpBlockedReason = 'call' | 'no_provenance' | 'loaded' | 'skipped'
 
 export interface McpBlockedEntry {
   /** Server name as the other tool's config wrote it (untrusted text). */
@@ -17,6 +17,9 @@ export interface McpBlockedEntry {
   calls: number
   /** A server Puppeteer manages, left out of the session at start. */
   skipped?: true
+  /** Its calls were denied because the Claude CLI did not say where the server
+   *  came from (an older CLI blocks every MCP tool, Puppeteer's own included). */
+  noProvenance?: true
 }
 
 /** The backend's report as the store keeps it; null when unusable. */
@@ -27,7 +30,7 @@ export function readMcpBlocked(raw: unknown): { server: string; source: string; 
   return {
     server: o.server,
     source: typeof o.source === 'string' && o.source ? o.source : 'unknown',
-    reason: o.reason === 'loaded' || o.reason === 'skipped' ? o.reason : 'call',
+    reason: o.reason === 'loaded' || o.reason === 'skipped' || o.reason === 'no_provenance' ? o.reason : 'call',
   }
 }
 
@@ -36,14 +39,16 @@ export function readMcpBlocked(raw: unknown): { server: string; source: string; 
 export function addMcpBlocked(list: McpBlockedEntry[], raw: unknown): McpBlockedEntry[] {
   const report = readMcpBlocked(raw)
   if (!report) return list
-  const call = report.reason === 'call' ? 1 : 0
+  const noProvenance = report.reason === 'no_provenance'
+  const call = report.reason === 'call' || noProvenance ? 1 : 0
   const at = list.findIndex((e) => e.server === report.server && e.source === report.source)
   if (at < 0) {
     const entry: McpBlockedEntry = { server: report.server, source: report.source, calls: call }
     if (report.reason === 'skipped') entry.skipped = true
+    if (noProvenance) entry.noProvenance = true
     return [...list, entry]
   }
-  return list.map((e, i) => (i === at ? { ...e, calls: e.calls + call } : e))
+  return list.map((e, i) => (i === at ? { ...e, calls: e.calls + call, ...(noProvenance ? { noProvenance: true as const } : {}) } : e))
 }
 
 /** `list` with every report of `raw` (the backend's list of the servers a run's

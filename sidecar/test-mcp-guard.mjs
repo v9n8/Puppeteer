@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import assert from 'node:assert/strict'
-import { applyMcpLockdown, mcpCallVerdict, resourceCallVerdict, MCP_BLOCKED_REASON } from './mcp-guard.mjs'
+import { applyMcpLockdown, mcpCallVerdict, resourceCallVerdict, MCP_BLOCKED_REASON, MCP_NO_PROVENANCE_REASON } from './mcp-guard.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -88,8 +88,9 @@ const tests = {
     // A passed source with a name not passed.
     assert.deepEqual(mcpCallVerdict('mcp__other__x', { name: 'other', source: 'dynamic' }, allowed), { server: 'other', source: 'dynamic' })
     // No provenance (an older CLI) on an MCP tool: denied, server read from the name.
-    assert.deepEqual(mcpCallVerdict('mcp__pms__list', undefined, allowed), { server: 'pms', source: 'unknown' })
-    assert.deepEqual(mcpCallVerdict('mcp__pms__list', { name: 'pms' }, allowed), { server: 'pms', source: 'unknown' })
+    // Flagged, so the session can say why even a passed server is blocked.
+    assert.deepEqual(mcpCallVerdict('mcp__pms__list', undefined, allowed), { server: 'pms', source: 'unknown', noProvenance: true })
+    assert.deepEqual(mcpCallVerdict('mcp__pms__list', { name: 'pms' }, allowed), { server: 'pms', source: 'unknown', noProvenance: true })
   },
 
   // The resource tools name their server in the input: only a passed one,
@@ -135,6 +136,15 @@ const tests = {
     assert.equal((await options.canUseTool('Write', {}, {})).behavior, 'allow')
     assert.deepEqual(inner, [PMS.tool, 'Write'], 'a denied call never reaches the permission prompt')
     assert.deepEqual(sent, [{ type: '_puppeteer_mcp_blocked', server: 'claude_ai_Slack', source: 'claudeai', reason: 'call' }])
+    // A CLI without provenance: even the passed server is denied, with its own reason and text.
+    sent.length = 0
+    assert.deepEqual(await options.canUseTool(PMS.tool, {}, {}), { behavior: 'deny', message: MCP_NO_PROVENANCE_REASON })
+    assert.deepEqual(sent, [{ type: '_puppeteer_mcp_blocked', server: 'pms', source: 'unknown', reason: 'no_provenance' }])
+    const hook = options.hooks.PreToolUse[1].hooks[0]
+    const out = await hook({ tool_name: PMS.tool, tool_input: {} })
+    assert.equal(out.hookSpecificOutput.permissionDecision, 'deny')
+    assert.equal(out.hookSpecificOutput.permissionDecisionReason, MCP_NO_PROVENANCE_REASON)
+    assert.match(MCP_NO_PROVENANCE_REASON, /Update the Claude CLI/)
 
     const bare = { permissionMode: 'bypassPermissions' }
     applyMcpLockdown(bare, () => {})
@@ -188,7 +198,7 @@ const tests = {
       { server: 'claude.ai Slack', source: 'claudeai', reason: 'loaded' },
       { server: 'claude_ai_Slack', source: 'claudeai', reason: 'call' },
       { server: 'odd', source: 'something-new', reason: 'call' },
-      { server: 'pms', source: 'unknown', reason: 'call' },
+      { server: 'pms', source: 'unknown', reason: 'no_provenance' },
     ])
   },
 

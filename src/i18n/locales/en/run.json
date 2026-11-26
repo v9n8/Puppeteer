@@ -300,6 +300,7 @@
   "mcpBlockedDismiss": "Dismiss",
   "mcpSkippedTitle": "Turned on in Puppeteer, but left out of this session:",
   "mcpSkippedHint": "Settings › Connections › MCP shows why (for a claude.ai connector: its name is taken, or the last check of its account did not report it).",
+  "mcpNoProvenanceHint": "This Claude CLI does not report which MCP server a tool comes from, so Puppeteer blocks every MCP tool, its own included. Update the Claude CLI (or the one set in PUPPETEER_CLAUDE_PATH) to use MCP tools.",
   "steer": "Steer",
   "steerTitle": "Steer: add this to the running turn. The agent reads it at its next step, without a new turn.\nQueue (Enter): wait for the running turn to end, then send it.",
   "queue": "Queue",

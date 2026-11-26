@@ -10,6 +10,9 @@
 //   a tool's server came from (`mcp_server.source`); a passed server is
 //   `dynamic` (or `sdk`, in-process). Anything else, or no source at all (an
 //   older CLI), is denied: trust is keyed on the source, never on the name.
+//   A CLI that gives no source at all gets every MCP tool denied, Puppeteer's
+//   own servers included; that block is reported apart (`no_provenance`) so
+//   the session can say to update the CLI.
 //   The built-in resource tools name their server in `tool_input.server`
 //   instead: a read of a server not passed, or of one the init listed from
 //   another source, is denied; a list of every server's resources too, once
@@ -18,14 +21,19 @@
 //
 // Each block is reported to the app as
 //   { "type": "_puppeteer_mcp_blocked", server, source, reason }
-// reason `call` (a tool call was denied) or `loaded` (the CLI still started a
-// server that was not passed — e.g. a managed policy one; its tools stay denied).
+// reason `call` (a tool call was denied), `no_provenance` (denied because the
+// CLI did not say where the tool's server came from) or `loaded` (the CLI still
+// started a server that was not passed — e.g. a managed policy one; its tools
+// stay denied).
 // `server` is untrusted text from the config that declared it.
 
 const PASSED_SOURCES = new Set(['dynamic', 'sdk'])
 
 export const MCP_BLOCKED_REASON =
   'This MCP server is not managed by Puppeteer, so its tools cannot be used in this session. Add it in Puppeteer\'s MCP settings to use it.'
+
+export const MCP_NO_PROVENANCE_REASON =
+  'This Claude CLI does not report which MCP server a tool comes from, so Puppeteer cannot tell its own servers from others and blocks every MCP tool. Update the Claude CLI to use MCP tools.'
 
 // The server part of `mcp__<server>__<tool>`, for the report only.
 function serverOfTool(toolName) {
@@ -51,13 +59,14 @@ export function resourceCallVerdict(toolName, toolInput, allowed, untrusted) {
 }
 
 // `null` when the call may go ahead (not an MCP tool, or a passed server's);
-// else `{ server, source }` to report. `provenance` is the CLI's
+// else `{ server, source }` to report, with `noProvenance: true` when the CLI
+// did not say where the server came from. `provenance` is the CLI's
 // `{ name, source }` for the tool's server; `allowed` the passed server names.
 export function mcpCallVerdict(toolName, provenance, allowed) {
   const isMcp = provenance != null || String(toolName ?? '').startsWith('mcp__')
   if (!isMcp) return null
   if (typeof provenance?.name !== 'string' || typeof provenance?.source !== 'string') {
-    return { server: serverOfTool(toolName ?? ''), source: 'unknown' }
+    return { server: serverOfTool(toolName ?? ''), source: 'unknown', noProvenance: true }
   }
   if (PASSED_SOURCES.has(provenance.source) && allowed.has(provenance.name)) return null
   return { server: provenance.name, source: provenance.source }
@@ -78,13 +87,15 @@ export function applyMcpLockdown(options, send) {
   // The call's verdict; a server to report is reported here.
   const verdictOf = (toolName, toolInput, provenance) => {
     const verdict = resourceCallVerdict(toolName, toolInput, allowed, untrusted) ?? mcpCallVerdict(toolName, provenance, allowed)
-    if (verdict?.server != null) report(verdict, 'call')
+    if (verdict?.server != null) report(verdict, verdict.noProvenance ? 'no_provenance' : 'call')
     return verdict
   }
+  const denyReason = (verdict) => (verdict.noProvenance ? MCP_NO_PROVENANCE_REASON : MCP_BLOCKED_REASON)
 
   const guard = async (input) => {
-    if (!verdictOf(input?.tool_name, input?.tool_input, input?.mcp_server)) return {}
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: MCP_BLOCKED_REASON } }
+    const verdict = verdictOf(input?.tool_name, input?.tool_input, input?.mcp_server)
+    if (!verdict) return {}
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: denyReason(verdict) } }
   }
   const matcher = ['mcp__.*', ...RESOURCE_TOOLS].join('|')
   options.hooks = { ...options.hooks, PreToolUse: [...(options.hooks?.PreToolUse ?? []), { matcher, hooks: [guard] }] }
@@ -92,8 +103,9 @@ export function applyMcpLockdown(options, send) {
   const ask = options.canUseTool
   if (typeof ask === 'function') {
     options.canUseTool = async (toolName, input, opts) => {
-      if (!verdictOf(toolName, input, opts?.mcpServer)) return ask(toolName, input, opts)
-      return { behavior: 'deny', message: MCP_BLOCKED_REASON }
+      const verdict = verdictOf(toolName, input, opts?.mcpServer)
+      if (!verdict) return ask(toolName, input, opts)
+      return { behavior: 'deny', message: denyReason(verdict) }
     }
   }
 
