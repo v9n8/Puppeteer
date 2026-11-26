@@ -12,17 +12,21 @@
 //! control characters, and nothing else of the message (no config, no input)
 //! reaches the log or the webview.
 //!
-//! The same event carries the servers Puppeteer meant to pass but left out at
-//! start (reason `skipped`, source `puppeteer`): a claude.ai connector whose
-//! run key another server has or whose profile's last probe did not report it,
-//! a server the engine cannot take. Each was logged where it was skipped; the
-//! session shows the names so a missing tool is not silent. The start sends
-//! them before the sidecar runs, so a session whose listener attaches later (a
-//! conductor worker, a schedule, a Remote start), or that is opened only after
-//! its run ended or the window reloaded, would miss them: the last start's list
-//! is kept per run until the run is deleted, for [`list_run_mcp_skipped`].
+//! The servers Puppeteer meant to pass but left out at start (reason `skipped`,
+//! source `puppeteer`) go on `run:mcp_skipped:{run_id}`, as one list per start:
+//! a claude.ai connector whose run key another server has or whose profile's
+//! last probe did not report it, a server the engine cannot take. Each was
+//! logged where it was skipped; the session shows the names so a missing tool
+//! is not silent. Each start's list replaces the one before (a later start may
+//! pass a server the last one left out), so it carries a start number the view
+//! keeps the newest of. The start sends it before the sidecar runs, so a session
+//! whose listener attaches later (a conductor worker, a schedule, a Remote
+//! start), or that is opened only after its run ended or the window reloaded,
+//! would miss it: the last start's list is kept per run until the run is deleted
+//! or the app quits, for [`list_run_mcp_skipped`].
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
@@ -70,22 +74,40 @@ fn skipped_reports(servers: &[String]) -> Vec<McpBlocked> {
         .collect()
 }
 
+/// The servers one start of a run left out. `start` grows with every start in
+/// this app, so the view keeps the newest list whichever way it got it; 0 = no
+/// start known.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct McpSkipped {
+    pub start: u64,
+    pub servers: Vec<McpBlocked>,
+}
+
+static STARTS: AtomicU64 = AtomicU64::new(0);
+
 /// The servers each run's last start left out, by run.
-static SKIPPED: LazyLock<Mutex<HashMap<String, Vec<McpBlocked>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static SKIPPED: LazyLock<Mutex<HashMap<String, McpSkipped>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Keep `reports` as `run_id`'s left-out servers, replacing an earlier start's.
-fn remember_skipped(run_id: &str, reports: &[McpBlocked]) {
+/// An empty list is kept only over an earlier one (so a late reader learns the
+/// old list is gone); a run that never left anything out takes no room.
+fn remember_skipped(run_id: &str, reports: Vec<McpBlocked>) -> McpSkipped {
+    let skipped = McpSkipped { start: STARTS.fetch_add(1, Ordering::Relaxed) + 1, servers: reports };
     let mut map = SKIPPED.lock().unwrap_or_else(|e| e.into_inner());
-    if reports.is_empty() {
-        map.remove(run_id);
-    } else {
-        map.insert(run_id.to_string(), reports.to_vec());
+    if !skipped.servers.is_empty() || map.contains_key(run_id) {
+        map.insert(run_id.to_string(), skipped.clone());
     }
+    skipped
 }
 
 /// The servers `run_id`'s last start left out (none once the run is deleted).
-fn skipped_of(run_id: &str) -> Vec<McpBlocked> {
-    SKIPPED.lock().unwrap_or_else(|e| e.into_inner()).get(run_id).cloned().unwrap_or_default()
+fn skipped_of(run_id: &str) -> McpSkipped {
+    SKIPPED
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(run_id)
+        .cloned()
+        .unwrap_or(McpSkipped { start: 0, servers: Vec::new() })
 }
 
 /// Drop `run_id`'s list: the run is deleted.
@@ -96,17 +118,14 @@ pub fn forget_skipped(run_id: &str) {
 /// Tell the session view which servers were left out of the run at start.
 /// Each was already logged where it was skipped.
 pub fn on_skipped(app: &AppHandle, run_id: &str, servers: &[String]) {
-    let reports = skipped_reports(servers);
-    remember_skipped(run_id, &reports);
-    for report in &reports {
-        let _ = app.emit(&format!("run:mcp_blocked:{run_id}"), report);
-    }
+    let skipped = remember_skipped(run_id, skipped_reports(servers));
+    let _ = app.emit(&format!("run:mcp_skipped:{run_id}"), &skipped);
 }
 
 /// The servers a run's last start left out, for a session view that attached
 /// after the start sent them. Names only, like the event.
 #[tauri::command]
-pub async fn list_run_mcp_skipped(run_id: String) -> Result<Vec<McpBlocked>, String> {
+pub async fn list_run_mcp_skipped(run_id: String) -> Result<McpSkipped, String> {
     Ok(skipped_of(&run_id))
 }
 
@@ -172,17 +191,23 @@ mod tests {
     #[test]
     fn a_later_listener_reads_the_last_starts_skipped_servers_until_the_run_is_deleted() {
         let run = "run-skipped-kept";
-        assert!(skipped_of(run).is_empty());
-        remember_skipped(run, &skipped_reports(&["claude_ai_Slack-global".to_string()]));
+        assert_eq!(skipped_of(run).start, 0);
+        // A start that leaves nothing out, with nothing before it, keeps nothing.
+        remember_skipped(run, Vec::new());
+        assert_eq!(skipped_of(run).start, 0);
+        let first = remember_skipped(run, skipped_reports(&["claude_ai_Slack-global".to_string()]));
         let out = serde_json::to_value(skipped_of(run)).unwrap();
-        assert_eq!(out, json!([{ "server": "claude_ai_Slack-global", "source": "puppeteer", "reason": "skipped" }]));
-        // A resume that leaves nothing out replaces the list.
-        remember_skipped(run, &[]);
-        assert!(skipped_of(run).is_empty());
-        remember_skipped(run, &skipped_reports(&["pms".to_string()]));
-        assert_eq!(skipped_of(run).len(), 1);
+        assert_eq!(
+            out,
+            json!({ "start": first.start, "servers": [{ "server": "claude_ai_Slack-global", "source": "puppeteer", "reason": "skipped" }] })
+        );
+        // A resume that leaves nothing out replaces the list, under a newer start.
+        let second = remember_skipped(run, Vec::new());
+        assert!(second.start > first.start);
+        assert_eq!(skipped_of(run), second);
+        assert!(skipped_of(run).servers.is_empty());
         forget_skipped(run);
-        assert!(skipped_of(run).is_empty());
+        assert_eq!(skipped_of(run).start, 0);
     }
 
     #[test]

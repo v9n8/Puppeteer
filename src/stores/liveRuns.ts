@@ -918,7 +918,7 @@ export const useLiveRunsStore = defineStore('liveRuns', () => {
   /** Drop a run's session entirely (stop listeners + free memory). */
   function discard(runId: string) {
     stopListening(runId)
-    useRunMcpBlockedStore().dismiss(runId) // its MCP notice goes with the session
+    useRunMcpBlockedStore().forget(runId) // its MCP notice goes with the session
     sessions.delete(runId)
     toolIndexes.delete(runId)
     lastTouched.delete(runId)

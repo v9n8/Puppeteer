@@ -15,7 +15,7 @@ const props = defineProps<{ runId: string | null }>()
 const { t } = useI18n()
 const store = useRunMcpBlockedStore()
 // A session opened after its run ended (or after a reload) has no live listener.
-watch(() => props.runId, (id) => { if (id) store.readSkippedOnce(id) }, { immediate: true })
+watch(() => props.runId, (id) => { if (id) store.readSkipped(id) }, { immediate: true })
 const entries = computed(() => store.blockedOf(props.runId))
 const blocked = computed(() => entries.value.filter((e) => !e.skipped))
 const skipped = computed(() => entries.value.filter((e) => e.skipped))

@@ -51,10 +51,25 @@ export function addMcpBlocked(list: McpBlockedEntry[], raw: unknown): McpBlocked
   return list.map((e, i) => (i === at ? { ...e, calls: e.calls + call, ...(noProvenance ? { noProvenance: true as const } : {}) } : e))
 }
 
-/** `list` with every report of `raw` (the backend's list of the servers a run's
- *  start left out, read by a listener that attached after the start). Anything
- *  but an array leaves `list` as it is; a report seen live already is not added
- *  twice. */
+/** `list` with every report of `raw`. Anything but an array leaves `list` as it
+ *  is; a report seen already is not added twice. */
 export function addMcpBlockedAll(list: McpBlockedEntry[], raw: unknown): McpBlockedEntry[] {
   return Array.isArray(raw) ? raw.reduce<McpBlockedEntry[]>(addMcpBlocked, list) : list
+}
+
+/** The servers one start of a run left out (backend `run:mcp_skipped:{id}` and
+ *  `list_run_mcp_skipped`); `start` grows with every start, 0 = none known.
+ *  Null when unusable. */
+export function readMcpSkipped(raw: unknown): { start: number; servers: unknown[] } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (typeof o.start !== 'number' || !Array.isArray(o.servers)) return null
+  return { start: o.start, servers: o.servers }
+}
+
+/** `list` with its left-out servers replaced by `servers`: a later start may pass
+ *  a server an earlier one left out. Only `skipped` reports are taken. */
+export function replaceMcpSkipped(list: McpBlockedEntry[], servers: unknown[]): McpBlockedEntry[] {
+  const skipped = servers.filter((s) => readMcpBlocked(s)?.reason === 'skipped')
+  return addMcpBlockedAll(list.filter((e) => !e.skipped), skipped)
 }

@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { addMcpBlocked, addMcpBlockedAll, readMcpBlocked } from '../mcpBlocked.ts'
+import { addMcpBlocked, addMcpBlockedAll, readMcpBlocked, readMcpSkipped, replaceMcpSkipped } from '../mcpBlocked.ts'
 
 test('reads a report, defaulting source and reason', () => {
   assert.deepEqual(readMcpBlocked({ server: 'claude_ai_Slack', source: 'claudeai', reason: 'loaded' }), {
@@ -67,21 +67,41 @@ test('a listener that attached late adds the start\'s skipped servers once', () 
   for (const raw of [null, undefined, {}, 'x', [null, 7]]) assert.deepEqual(addMcpBlockedAll([], raw), [])
 })
 
-test('the store reads the skipped servers back when it starts listening', () => {
+test('the store takes the newest start\'s left-out list, from the event or read back', () => {
   const src = readFileSync(new URL('../../stores/runMcpBlocked.ts', import.meta.url), 'utf8')
   const fn = (name) => src.slice(src.indexOf(`function ${name}(`), src.indexOf('\n  }\n', src.indexOf(`function ${name}(`)))
   assert.match(fn('readSkipped'), /invoke<unknown>\('list_run_mcp_skipped', \{ runId \}\)/)
-  assert.match(fn('readSkipped'), /addMcpBlockedAll\(/)
+  assert.match(fn('applySkipped'), /skipped\.start <= \(skippedStart\.get\(runId\) \?\? 0\)\) return/)
+  assert.match(fn('applySkipped'), /replaceMcpSkipped\(/)
+  assert.match(fn('listenTo'), /`run:mcp_skipped:\$\{runId\}`/)
   assert.match(fn('listenTo'), /readSkipped\(runId\)/)
+  // Dismiss keeps the start number, so the same list read again stays hidden.
+  assert.doesNotMatch(fn('dismiss'), /skippedStart/)
+  assert.match(fn('forget'), /skippedStart\.delete\(runId\)/)
 })
 
-test('a session shown without a live listener reads its skipped servers once', () => {
-  const store = readFileSync(new URL('../../stores/runMcpBlocked.ts', import.meta.url), 'utf8')
-  const once = store.slice(store.indexOf('function readSkippedOnce('), store.indexOf('\n  }\n', store.indexOf('function readSkippedOnce(')))
-  assert.match(once, /if \(!skippedRead\.has\(runId\)\) readSkipped\(runId\)/)
+test('a session shown without a live listener reads its left-out servers', () => {
   const notice = readFileSync(new URL('../../components/sessions/RunMcpBlockedNotice.vue', import.meta.url), 'utf8')
-  assert.match(notice, /store\.readSkippedOnce\(id\)/)
+  assert.match(notice, /store\.readSkipped\(id\)/)
   assert.match(notice, /\{ immediate: true \}/)
+})
+
+test('a later start\'s left-out list replaces the earlier one', () => {
+  assert.equal(readMcpSkipped(null), null)
+  assert.equal(readMcpSkipped({ start: 'x', servers: [] }), null)
+  assert.equal(readMcpSkipped({ start: 1 }), null)
+  const first = readMcpSkipped({ start: 3, servers: [{ server: 'claude_ai_Slack-global', source: 'puppeteer', reason: 'skipped' }] })
+  let list = addMcpBlocked([], { server: 'claude_ai_Slack', source: 'claudeai', reason: 'call' })
+  list = replaceMcpSkipped(list, first.servers)
+  assert.deepEqual(list, [
+    { server: 'claude_ai_Slack', source: 'claudeai', calls: 1 },
+    { server: 'claude_ai_Slack-global', source: 'puppeteer', calls: 0, skipped: true },
+  ])
+  // The next start passed Slack: its empty list clears the group, blocks stay.
+  list = replaceMcpSkipped(list, readMcpSkipped({ start: 4, servers: [] }).servers)
+  assert.deepEqual(list, [{ server: 'claude_ai_Slack', source: 'claudeai', calls: 1 }])
+  // Only `skipped` reports are taken from a left-out list.
+  assert.deepEqual(replaceMcpSkipped([], [{ server: 'x', source: 'puppeteer', reason: 'call' }, 7]), [])
 })
 
 test('a call denied because the CLI gave no provenance is counted and flagged', () => {
@@ -106,5 +126,5 @@ test('never changes the list it was given', () => {
 test('a session dropped by the live-runs store drops its notice too', () => {
   const src = readFileSync(new URL('../../stores/liveRuns.ts', import.meta.url), 'utf8')
   const discard = src.slice(src.indexOf('function discard('), src.indexOf('\n  }\n', src.indexOf('function discard(')))
-  assert.match(discard, /useRunMcpBlockedStore\(\)\.dismiss\(runId\)/)
+  assert.match(discard, /useRunMcpBlockedStore\(\)\.forget\(runId\)/)
 })
