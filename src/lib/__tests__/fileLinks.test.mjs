@@ -7,7 +7,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import MarkdownIt from 'markdown-it'
 import {
-  codePathCandidate, createPathChecker, findPlainPaths, hrefFileRef, matchProjectFile, parseLineRef, splitLineRef,
+  codePathCandidate, createPathChecker, findPlainPaths, hrefFileRef, linkTargetPath, matchProjectFile, parseLineRef,
+  splitLineRef,
 } from '../fileLinks.ts'
 
 const FILES = new Set(['src/a.ts', 'src/lib/b.ts', 'docs/README.md', 'README.md', 'x/dup.ts', 'y/dup.ts'])
@@ -75,6 +76,18 @@ test('hrefFileRef: a # inside the path is part of it, only a trailing #fragment 
   assert.deepEqual(hrefFileRef('tasks/#28/x.md#usage'), { path: 'tasks/#28/x.md', line: null })
   assert.deepEqual(hrefFileRef('tasks/%2328/x.md'), { path: 'tasks/#28/x.md', line: null })
   assert.deepEqual(hrefFileRef('x.md#L12'), { path: 'x.md', line: 12 })
+})
+
+test('linkTargetPath: a relative link is read from the linking file\'s folder', () => {
+  assert.equal(linkTargetPath('docs/eval/00-README.md', '01-track-a.md'), 'docs/eval/01-track-a.md')
+  assert.equal(linkTargetPath('docs/eval/00-README.md', './sub/x.md'), 'docs/eval/sub/x.md')
+  assert.equal(linkTargetPath('docs/eval/00-README.md', '../other.md'), 'docs/other.md')
+  assert.equal(linkTargetPath('README.md', 'docs/a.md'), 'docs/a.md')
+  assert.equal(linkTargetPath('README.md', '../up.md'), '../up.md')
+  assert.equal(linkTargetPath('/Users/me/notes/a.md', '../b.md'), '/Users/me/b.md')
+  assert.equal(linkTargetPath('/a.md', '../../b.md'), '/b.md')
+  assert.equal(linkTargetPath('docs/a.md', '/abs/b.md'), '/abs/b.md')
+  assert.equal(linkTargetPath('docs/a.md', 'C:/b.md'), 'C:/b.md')
 })
 
 // The session renderer turns off linkify's fuzzy matching: `.md` / `.rs` are

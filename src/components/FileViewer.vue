@@ -34,7 +34,7 @@ import { useProjectsStore } from '@/stores/projects'
 import { applyMermaidFence, vMermaid } from '@/lib/mermaid'
 import { dropRemoteMediaAttr, guardMarkdownImages } from '@/lib/markdownImages'
 import { vCopyCode } from '@/lib/copyCode'
-import { matchProjectFile, parseLineRef, decorateFileLinks } from '@/lib/fileLinks'
+import { matchProjectFile, hrefFileRef, linkTargetPath, decorateFileLinks } from '@/lib/fileLinks'
 
 const props = withDefaults(defineProps<{
   projectPath: string
@@ -538,8 +538,20 @@ function onProseClick(e: MouseEvent) {
     const href = anchor.getAttribute('href') ?? ''
     if (!href) return
     if (/^(https?:|mailto:)/i.test(href)) { emit('open-url', href); return }
-    const path = matchProjectFile(href.replace(/#.*$/, ''), projectFileSet.value)
-    if (path) emit('open-file', path, parseLineRef(href))
+    const ref = hrefFileRef(href)
+    if (!ref) return
+    // A relative link is read from this file's folder first, so `b.md` in
+    // `docs/a.md` opens `docs/b.md`, not another `b.md` the suffix match finds.
+    const local = linkTargetPath(props.path, ref.path)
+    const path = projectFileSet.value.has(local) ? local : matchProjectFile(ref.path, projectFileSet.value, props.projectPath)
+    if (path) { emit('open-file', path, ref.line); return }
+    // Not in the project list (git-ignored, outside the project, created since
+    // the list loaded): open it only when it is a real file.
+    if (!props.projectPath) return
+    runsStore.statPaths(props.projectPath, [local]).then(
+      ([ok]) => { if (ok) emit('open-file', local, ref.line) },
+      () => { /* backend unavailable: the link stays inert */ },
+    )
   }
 }
 

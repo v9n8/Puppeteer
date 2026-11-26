@@ -76,6 +76,25 @@ export function hrefFileRef(href: string): FileRef | null {
   return path ? { path, line: parseLineRef(decoded) } : null
 }
 
+/**
+ * The file a relative link in `fromFile` names: the link path read from that
+ * file's folder, as markdown means it, with `.` and `..` folded. An absolute
+ * link path is returned as written.
+ */
+export function linkTargetPath(fromFile: string, linkPath: string): string {
+  if (/^(\/|[a-z]:[\\/])/i.test(linkPath)) return linkPath
+  const parts = fromFile.split('/').slice(0, -1)
+  for (const seg of linkPath.split('/')) {
+    if (seg === '' || seg === '.') continue
+    const last = parts[parts.length - 1]
+    if (seg !== '..') parts.push(seg)
+    else if (last === '' && parts.length === 1) continue // `..` above `/` stays at `/`
+    else if (parts.length && last !== '..') parts.pop()
+    else parts.push(seg)
+  }
+  return parts.join('/')
+}
+
 // ── Bare paths in prose (UX-44) ─────────────────────────────────────────────
 
 // What a bare path in prose must end with. A list, not "any extension", so
